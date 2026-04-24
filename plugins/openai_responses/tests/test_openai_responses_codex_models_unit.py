@@ -5,6 +5,7 @@ from pathlib import Path
 
 from openai_responses_plugins.openai_responses_codex_models import (
     build_snapshot_payload,
+    load_manual_chatgpt_model_pricing,
     load_snapshot_model_descriptors,
     merge_model_descriptors,
 )
@@ -50,6 +51,40 @@ def test_load_snapshot_model_descriptors_reads_snapshot_mapping(tmp_path: Path) 
             "description": "Latest frontier agentic coding model.",
         }
     ]
+
+
+def test_load_manual_chatgpt_model_pricing_preserves_service_tiers(tmp_path: Path) -> None:
+    manual_path = tmp_path / "manual_models.json"
+    manual_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "models": {
+                    "gpt-5.5": {
+                        "id": "gpt-5.5",
+                        "pricing": {
+                            "input_per_1m": 5.0,
+                            "cached_input_per_1m": 0.5,
+                            "output_per_1m": 30.0,
+                        },
+                        "service_tiers": {
+                            "priority": {
+                                "input_per_1m": 5.0,
+                                "cached_input_per_1m": 0.5,
+                                "output_per_1m": 30.0,
+                            }
+                        },
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    pricing = load_manual_chatgpt_model_pricing(str(manual_path))
+
+    assert pricing["gpt-5.5"]["pricing"]["output_per_1m"] == 30.0
+    assert pricing["gpt-5.5"]["service_tiers"]["priority"]["output_per_1m"] == 30.0
 
 
 def test_build_snapshot_payload_writes_sorted_model_mapping() -> None:

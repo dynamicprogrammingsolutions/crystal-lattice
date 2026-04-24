@@ -208,6 +208,41 @@ def test_streaming_usage_uses_manual_model_pricing_when_snapshot_is_missing_mode
     assert md.get("usage_total_cost_formatted") == "$0.007100"
 
 
+def test_streaming_usage_uses_manual_priority_tier_pricing_when_snapshot_is_missing_model() -> None:
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 200},
+        "output_tokens": 100,
+    }
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item(
+            "hi",
+            response_id="resp_manual_priority",
+            extra_metadata={"_openai_responses_service_tier": "priority"},
+        )
+    ]
+    native_messages: List[Dict[str, Any]] = list(final_messages)
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_manual_priority", "usage": usage},
+    }
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5.5"}},
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_service_tier") == "priority"
+    assert md.get("usage_total_cost") == pytest.approx(0.0071, rel=1e-9)
+    assert md.get("usage_total_cost_formatted") == "$0.007100"
+
+
 def test_streaming_usage_marks_tool_call_turns_and_attaches_to_assistant_item() -> None:
     ext = OpenAIResponsesUsageExtension()
 
@@ -461,7 +496,12 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
             "eq": "chatgpt",
         }
     }
-    assert elements[3]["condition"] == {"path": "metadata.usage_service_tier", "eq": "flex"}
+    assert elements[3]["condition"] == {
+        "any": [
+            {"path": "metadata.usage_service_tier", "eq": "flex"},
+            {"path": "metadata.usage_service_tier", "eq": "priority"},
+        ]
+    }
 
 
 def test_chatgpt_estimated_cached_tokens_follow_turn_algorithm() -> None:

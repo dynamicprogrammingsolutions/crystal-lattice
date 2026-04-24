@@ -2,6 +2,7 @@
 
 from .openai_responses_attachments_extension import OpenAIResponsesAttachmentsExtension
 from .openai_responses_chatgpt_auth_feature import OpenAIResponsesChatGPTAuthFeature
+from .openai_responses_fast_mode_extension import OpenAIResponsesFastModeExtension
 from .openai_responses_flex_processing_extension import OpenAIResponsesFlexProcessingExtension
 from .openai_responses_native_compaction_extension import OpenAIResponsesNativeCompactionExtension
 from .openai_responses_prompt_caching_extension import OpenAIResponsesPromptCachingExtension
@@ -16,6 +17,7 @@ __all__ = [
     "OpenAIResponsesProvider",
     "OpenAIResponsesAttachmentsExtension",
     "OpenAIResponsesChatGPTAuthFeature",
+    "OpenAIResponsesFastModeExtension",
     "OpenAIResponsesFlexProcessingExtension",
     "OpenAIResponsesNativeCompactionExtension",
     "OpenAIResponsesPromptCachingExtension",

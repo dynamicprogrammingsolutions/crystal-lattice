@@ -175,6 +175,7 @@ combination.
       "auth_mode": "api",
       "timeout": 120,
       "enable_flex_processing": false,
+      "enable_fast_mode": false,
       "flex_timeout_seconds": 300,
       "enable_flex_retries": true,
       "flex_max_retries": 2,
@@ -202,6 +203,7 @@ What this enables:
 - usage and cost metadata
 - GPT-5 verbosity controls
 - flex processing controls for supported OpenAI accounts
+- Fast mode controls for ChatGPT-backed requests
 - prompt caching settings plus a regenerate-key session action
 - a native compaction session action for longer conversations
 
@@ -226,6 +228,7 @@ Relevant keys:
 - `chatgpt_base_url`
 - `src/openai_responses_plugins/data/openai_chatgpt_manual_models.json`
   - checked-in ChatGPT-only fallback models and estimate-only pricing
+  - pricing entries may define `pricing`, `service_tiers`, or both
   - used only when a model is missing from upstream sources
 - `src/openai_responses_plugins/data/openai_codex_models.json`
   - checked-in offline snapshot of the public Codex model catalog
@@ -432,6 +435,18 @@ PDF support is only available in this mode.
 Note: flex processing is ignored automatically when the effective auth mode
 selects the ChatGPT endpoint.
 
+### Fast mode
+
+Fast mode controls are available through:
+
+- `enable_fast_mode`: enable `service_tier: "priority"` for ChatGPT-backed
+  Responses calls
+
+Fast mode is ignored automatically when the effective auth mode selects the API
+endpoint. The usage footer renders `tier: priority` when OpenAI reports that
+tier, and cost estimation uses priority-tier pricing when the checked-in or
+manual pricing data defines it.
+
 ### Reasoning keys
 
 These require `plugins.request_options_feature.RequestOptionsFeature` to be
@@ -603,6 +618,7 @@ Implementation classes registered by the bundle:
 - `openai_responses_plugins.openai_responses_attachments_extension.OpenAIResponsesAttachmentsExtension`
 - `openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature`
 - `openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension`
+- `openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension`
 - `openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension`
 - `openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension`
 - `openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension`

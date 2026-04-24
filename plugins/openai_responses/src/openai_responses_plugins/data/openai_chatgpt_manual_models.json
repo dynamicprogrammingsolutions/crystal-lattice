@@ -9,6 +9,13 @@
         "input_per_1m": 5.0,
         "cached_input_per_1m": 0.5,
         "output_per_1m": 30.0
+      },
+      "service_tiers": {
+        "priority": {
+          "input_per_1m": 5.0,
+          "cached_input_per_1m": 0.5,
+          "output_per_1m": 30.0
+        }
       }
     }
   }

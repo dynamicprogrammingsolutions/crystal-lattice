@@ -212,13 +212,16 @@ def load_manual_chatgpt_model_pricing(path: str | None = None) -> Dict[str, Dict
     for model_id, item in models.items():
         if not isinstance(model_id, str) or not model_id.strip() or not isinstance(item, dict):
             continue
+        service_tiers = item.get("service_tiers")
         pricing = item.get("pricing")
-        if not isinstance(pricing, dict):
+        if not isinstance(pricing, dict) and not isinstance(service_tiers, dict):
             continue
-        normalized[model_id.strip()] = {
-            "model": model_id.strip(),
-            "pricing": pricing,
-        }
+        entry: Dict[str, Any] = {"model": model_id.strip()}
+        if isinstance(pricing, dict):
+            entry["pricing"] = pricing
+        if isinstance(service_tiers, dict):
+            entry["service_tiers"] = service_tiers
+        normalized[model_id.strip()] = entry
     return normalized
 
 

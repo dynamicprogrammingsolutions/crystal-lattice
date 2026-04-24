@@ -141,7 +141,12 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 "ui_type": "message_footer",
                 "data": "metadata.usage_service_tier",
                 "template": "tier: {{data}}",
-                "condition": {"path": "metadata.usage_service_tier", "eq": "flex"},
+                "condition": {
+                    "any": [
+                        {"path": "metadata.usage_service_tier", "eq": "flex"},
+                        {"path": "metadata.usage_service_tier", "eq": "priority"},
+                    ]
+                },
             },
             {
                 "ui_type": "message_footer",

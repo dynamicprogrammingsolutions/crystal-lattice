@@ -345,6 +345,7 @@
       "auth_mode": "auto",
       "allowed_paths": [".", "..", "${env:CONFIG_DIR}"],
       "enable_flex_processing": true,
+      "enable_fast_mode": false,
       "reasoning_summary": "detailed",
       "enable_prompt_cache_retention_24h": true,
       "system_message_as_instructions": true,

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 import pytest
 from dotenv import load_dotenv
@@ -11,7 +12,9 @@ from agent_core import AgentCore
 from feature_system_message.system_message_feature import SystemMessageFeature
 from openai_responses_plugins import (
     OpenAIResponsesChatGPTAuthFeature,
+    OpenAIResponsesFastModeExtension,
     OpenAIResponsesProvider,
+    OpenAIResponsesUsageExtension,
 )
 
 
@@ -44,7 +47,7 @@ def _load_saved_credentials() -> dict[str, object]:
 
 
 def _chatgpt_config(credentials_path: Path) -> dict[str, object]:
-    model = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5"
+    model = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5.5"
     return {
         "model": model,
         "auth_mode": "chatgpt",
@@ -55,6 +58,82 @@ def _chatgpt_config(credentials_path: Path) -> dict[str, object]:
         "system_message": "You are a precise assistant. Reply exactly with the requested text.",
         "timeout": 120,
     }
+
+
+def _fast_mode_models() -> list[str]:
+    raw = os.getenv("OPENAI_RESPONSES_CHATGPT_FAST_MODE_MODELS")
+    if isinstance(raw, str) and raw.strip():
+        models = [item.strip() for item in raw.split(",") if item.strip()]
+        if models:
+            return models
+    single = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5.5"
+    return [single]
+
+
+class _RecordedResponsesCreateProxy:
+    def __init__(self, target: Any, recorder: list[dict[str, Any]]) -> None:
+        self._target = target
+        self._recorder = recorder
+
+    def create(self, **kwargs: Any) -> Any:
+        self._recorder.append(dict(kwargs))
+        return self._target.create(**kwargs)
+
+
+class _RecordedResponsesProxy:
+    def __init__(self, target: Any, recorder: list[dict[str, Any]]) -> None:
+        self._target = target
+        self._recorder = recorder
+        streaming = getattr(target, "with_streaming_response", None)
+        self.with_streaming_response = (
+            _RecordedResponsesCreateProxy(streaming, recorder) if streaming is not None else None
+        )
+
+    def create(self, **kwargs: Any) -> Any:
+        self._recorder.append(dict(kwargs))
+        return self._target.create(**kwargs)
+
+
+class _RecordedClientProxy:
+    def __init__(self, target: Any, recorder: list[dict[str, Any]]) -> None:
+        self._target = target
+        self._recorder = recorder
+        self.responses = _RecordedResponsesProxy(target.responses, recorder)
+        files = getattr(target, "files", None)
+        if files is not None:
+            self.files = files
+
+    def with_options(self, **kwargs: Any) -> "_RecordedClientProxy":
+        return _RecordedClientProxy(self._target.with_options(**kwargs), self._recorder)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._target, name)
+
+
+class _RecordingChatGPTProvider(OpenAIResponsesProvider):
+    recorded_requests: list[dict[str, Any]] = []
+
+    def _create_sdk_client_with_options(
+        self,
+        config: dict[str, Any],
+        *,
+        timeout: float,
+        max_retries: int | None,
+    ) -> Any:
+        client = super()._create_sdk_client_with_options(
+            config,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
+        return _RecordedClientProxy(client, type(self).recorded_requests)
+
+
+def _last_assistant_message(messages: list[dict[str, object]]) -> dict[str, object]:
+    assert messages
+    final = messages[-1]
+    assert isinstance(final, dict)
+    assert final.get("role") == "assistant"
+    return final
 
 
 @pytest.mark.manual_integration
@@ -105,3 +184,75 @@ def test_openai_responses_chatgpt_saved_login_real_request() -> None:
         and item.get("content") == [{"type": "input_text", "text": "Reply with exactly: CHATGPT_AUTH_RESPONSES_OK"}]
         for item in native_history
     )
+
+
+@pytest.mark.manual_integration
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_chatgpt_saved_login_fast_mode_round_trip() -> None:
+    load_dotenv(REPO_ROOT / ".env")
+
+    credentials_path = _credentials_path()
+    _load_saved_credentials()
+
+    for model in _fast_mode_models():
+        _RecordingChatGPTProvider.recorded_requests = []
+
+        core = AgentCore()
+        core.register_provider(
+            _RecordingChatGPTProvider,
+            extensions=[OpenAIResponsesFastModeExtension, OpenAIResponsesUsageExtension],
+        )
+        core.register_feature(OpenAIResponsesChatGPTAuthFeature)
+        core.register_feature(SystemMessageFeature)
+
+        config = {
+            **_chatgpt_config(credentials_path),
+            "auth_mode": "auto",
+            "model": model,
+            "enable_fast_mode": True,
+            "show_openai_auth_mode": True,
+        }
+
+        session = core.create_session()
+        session = core.add_message(
+            session,
+            "user",
+            "Reply with exactly: CHATGPT_FAST_MODE_OK",
+            config=config,
+        )
+
+        final_session = None
+        final_messages = None
+        for chunk in core.send_request_stream(session, config):
+            if chunk.get("type") == "final":
+                final_session = chunk.get("session")
+                final_messages = chunk.get("messages")
+
+        assert final_session is not None, f"expected final session for model {model}"
+        assert isinstance(final_messages, list), f"expected final messages list for model {model}"
+        final = _last_assistant_message(final_messages)
+        assert isinstance(final.get("content"), str)
+        assert "CHATGPT_FAST_MODE_OK" in final["content"]
+
+        service_tier_requests = [
+            request
+            for request in _RecordingChatGPTProvider.recorded_requests
+            if request.get("service_tier") is not None
+        ]
+        assert service_tier_requests, f"expected at least one recorded request with service_tier for model {model}"
+        assert any(
+            request.get("service_tier") == "priority" for request in service_tier_requests
+        ), f"expected a priority-tier request for model {model}, got {service_tier_requests!r}"
+
+        metadata = final.get("metadata") or {}
+        assert isinstance(metadata, dict)
+        reported_tier = metadata.get("usage_service_tier")
+
+        if reported_tier != "priority":
+            pytest.xfail(
+                f"ChatGPT backend reported service_tier={reported_tier!r} for model {model}; "
+                "some accounts or models may not have Fast mode access."
+            )
+
+        assert reported_tier == "priority"
