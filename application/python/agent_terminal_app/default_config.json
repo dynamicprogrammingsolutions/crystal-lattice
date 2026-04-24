@@ -26,6 +26,14 @@
       "reasoning_effort": "medium",
       "system_message_enabled": true,
       "system_message": "You are a helpful coding assistant. Respond concisely."
+    },
+    "openrouter_image_generation": {
+      "provider": "openrouter_image_generation",
+      "model": "black-forest-labs/flux.2-klein-4b",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 180,
+      "aspect_ratio": "1:1"
     }
   },
   "plugins": [
@@ -56,6 +64,9 @@
     "reasoning": {
       "provider": "openrouter_tools",
       "reasoning_effort": "medium"
+    },
+    "openrouter-image": {
+      "provider": "openrouter_image_generation"
     }
   }
 }

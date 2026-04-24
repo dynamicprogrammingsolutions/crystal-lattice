@@ -102,15 +102,21 @@ export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsO
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
 export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';
 export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
-export type { SessionAssetRef, StoredAttachmentAssetDescriptor } from './plugins/attachmentActions';
+export type {
+  SessionAssetRef,
+  StoredAttachmentAssetDescriptor,
+  DownloadedAttachmentPayload,
+} from './plugins/attachmentActions';
 export {
   DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID,
   DEFAULT_ATTACHMENT_ACTION_OWNER,
   STORE_ATTACHMENT_ACTION_ID,
   DELETE_ATTACHMENT_ACTION_ID,
+  DOWNLOAD_ATTACHMENT_ACTION_ID,
   selectSessionAssetId,
   storeSessionAttachment,
   deleteSessionAttachment,
+  downloadSessionAttachment,
 } from './plugins/attachmentActions';
 
 export type { SessionsControllerState } from './sessions/sessionsController';

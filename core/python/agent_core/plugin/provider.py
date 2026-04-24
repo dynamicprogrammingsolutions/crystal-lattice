@@ -230,12 +230,18 @@ class ProviderWrapper(ProviderPlugin):
                 new_state,
                 context=context,
             )
+        if isinstance(context, dict):
+            new_state = {**new_state, "_request_context": context}
         self.state = new_state
         self._last_native_messages = list(native_after_exts)
         return native_after_exts, self._get_state()
 
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Convert core messages to provider's native format (provider-first).
 
@@ -249,10 +255,18 @@ class ProviderWrapper(ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        return self.plugin.to_native_messages(messages, working_state)
+        return self.plugin.to_native_messages(
+            messages,
+            working_state,
+            context=context,
+        )
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Convert provider-native messages back to core messages.
 
@@ -266,7 +280,11 @@ class ProviderWrapper(ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        return self.plugin.from_native_messages(native_messages, working_state)
+        return self.plugin.from_native_messages(
+            native_messages,
+            working_state,
+            context=context,
+        )
 
     def to_display_format(
         self, message: Dict[str, Any], state: Dict[str, Any]

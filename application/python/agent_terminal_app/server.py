@@ -376,6 +376,11 @@ def _append_message_to_session_locked(
         metadata,
         config,
         multipart_content=multipart_content,
+        context={
+            "session_id": session.session_id,
+            "session": session.to_dict(),
+            "session_asset_store": app_instance.get_session_asset_store(),
+        },
     )
     app_instance.save_session(new_session)
 

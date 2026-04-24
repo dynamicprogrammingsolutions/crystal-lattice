@@ -187,6 +187,8 @@ class AgentCore:
         session,
         message_dict,
         config,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ):
         base_metadata = (
             dict(session.metadata) if isinstance(session.metadata, dict) else {}
@@ -275,7 +277,7 @@ class AgentCore:
             if multipart_content:
                 core_suffix[0]["multipartContent"] = multipart_content
             suffix_native = self._core_messages_to_native_for_config(
-                core_suffix, config or {}
+                core_suffix, config or {}, context=context
             )
         except Exception as e:
             raise e
@@ -292,7 +294,7 @@ class AgentCore:
 
         try:
             rebuilt_messages, post_init_native = self._rebuild_core_from_native(
-                new_native_messages, config or {}
+                new_native_messages, config or {}, context=context
             )
         except Exception as e:
             raise e
@@ -332,6 +334,8 @@ class AgentCore:
         message_dict,
         insert_at: int,
         config,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ):
         base_metadata = (
             dict(session.metadata) if isinstance(session.metadata, dict) else {}
@@ -411,6 +415,7 @@ class AgentCore:
             kept_prefix,
             message_dict,
             config or {},
+            context=context,
         )
 
         joined = self.join_sessions(prefix_with_insert, removed_suffix, config or {})
@@ -640,6 +645,7 @@ class AgentCore:
         *,
         multipart_content: Optional[List[Dict[str, Any]]] = None,
         after_index: Optional[int] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Session:
         """Add a message to the session (pure function).
 
@@ -704,6 +710,7 @@ class AgentCore:
                 session,
                 message_dict,
                 config or {},
+                context=context,
             )
             return new_session
 
@@ -712,6 +719,7 @@ class AgentCore:
             message_dict,
             insert_at,
             config or {},
+            context=context,
         )
         return new_session
 
@@ -1811,6 +1819,8 @@ class AgentCore:
         self,
         core_messages: List[Dict[str, Any]],
         config: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Convert core messages to provider-native messages for this config."""
         provider, enabled_extensions, features, tools, _tags = (
@@ -1825,15 +1835,21 @@ class AgentCore:
             config,
         )
 
-        native_messages = provider.to_native_messages(core_messages, state)
+        native_messages = provider.to_native_messages(
+            core_messages,
+            state,
+            context=context,
+        )
         native_messages = provider.apply_extension_transforms(
             core_messages, native_messages
         )
-        pipe = pipeline(core_messages)
-        native_messages = pipe(
-            [feature.to_native_messages for feature in features],
-            native_messages,
-        )
+        for feature in features:
+            native_messages = feature.to_native_messages(
+                core_messages,
+                native_messages,
+                state,
+                context=context,
+            )
         return native_messages
 
     def _rebuild_core_from_native(
@@ -1842,6 +1858,7 @@ class AgentCore:
         config: Dict[str, Any],
         *,
         skip_initialize: bool = False,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Message], List[Dict[str, Any]]]:
         """Rebuild full core messages from provider-native history.
 
@@ -1898,6 +1915,8 @@ class AgentCore:
             available_tools=self.get_available_tools(config),
             tools=self._get_prepared_tools_for_config(config),
         )
+        if isinstance(context, dict):
+            request_context = {**request_context, **context}
 
         # Initialize request chains using the adjusted native history.
         # Skip this for internal session operations to avoid features like
@@ -1918,15 +1937,25 @@ class AgentCore:
 
         # Convert native messages back into core messages through the full
         # from-native pipeline.
-        core_from_provider = provider.from_native_messages(native_messages, state)
+        core_from_provider = provider.from_native_messages(
+            native_messages,
+            state,
+            context=request_context,
+        )
         # Apply extension and feature from-native transforms (iterate to pass state to each)
         for ext in enabled_extensions:
             core_from_provider = ext.from_native_messages(
-                native_messages, core_from_provider, state
+                native_messages,
+                core_from_provider,
+                state,
+                context=request_context,
             )
         for feature in features:
             core_from_provider = feature.from_native_messages(
-                native_messages, core_from_provider, state
+                native_messages,
+                core_from_provider,
+                state,
+                context=request_context,
             )
 
         normalized_core = self._normalize_final_core_with_native_indices(
@@ -1947,6 +1976,7 @@ class AgentCore:
         request_id: str | None = None,
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], bool]:
         """Prepare shared state and inputs for a request.
 
@@ -1994,6 +2024,8 @@ class AgentCore:
             tools=effective_tools,
             request_id=request_id,
         )
+        if isinstance(context, dict):
+            request_context = {**request_context, **context}
         # Build messages (core shape)
         messages = [msg.to_dict() for msg in session.messages]
 
@@ -2013,7 +2045,11 @@ class AgentCore:
             native_messages = list(retained_native)
         else:
             # Provider-first conversion (native_base for stateless transforms)
-            native_messages = provider.to_native_messages(messages, state)
+            native_messages = provider.to_native_messages(
+                messages,
+                state,
+                context=request_context,
+            )
             # Apply stateless transforms from provider extensions.
             native_messages = provider.apply_extension_transforms(
                 messages, native_messages
@@ -2023,11 +2059,13 @@ class AgentCore:
         # structural features (such as SystemMessageFeature) can ensure that
         # template-level system messages or other adjustments are reflected
         # in the provider-native history used for this request.
-        pipe = pipeline(messages)
-        native_messages = pipe(
-            [feature.to_native_messages for feature in features],
-            native_messages,
-        )
+        for feature in features:
+            native_messages = feature.to_native_messages(
+                messages,
+                native_messages,
+                state,
+                context=request_context,
+            )
 
         # Initialize request chains
         native_history_changed = False
@@ -2084,6 +2122,7 @@ class AgentCore:
         *,
         request_id: str | None = None,
         cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Session, List[Dict[str, Any]]]:
         """Send request and return a new session with the response.
 
@@ -2140,6 +2179,7 @@ class AgentCore:
                     request_id=request_id,
                     tags=_tags,
                     models=self._get_models_for_config(provider, config),
+                    context=context,
                 )
             )
             baseline_native_len = len(native_messages)
@@ -2155,6 +2195,8 @@ class AgentCore:
                 tools=self._get_prepared_tools_for_config(config),
                 request_id=request_id,
             )
+            if isinstance(context, dict):
+                request_context = {**request_context, **context}
 
             logger.debug(
                 "sending request",
@@ -2194,12 +2236,26 @@ class AgentCore:
             )
 
         # Convert provider-native finals to core messages once finalization completes
-        final_core = provider.from_native_messages(final_native, state)
+        final_core = provider.from_native_messages(
+            final_native,
+            state,
+            context=request_context,
+        )
         # Apply extension and feature from-native transforms (iterate to pass state to each)
         for ext in enabled_extensions:
-            final_core = ext.from_native_messages(final_native, final_core, state)
+            final_core = ext.from_native_messages(
+                final_native,
+                final_core,
+                state,
+                context=request_context,
+            )
         for feature in features:
-            final_core = feature.from_native_messages(final_native, final_core, state)
+            final_core = feature.from_native_messages(
+                final_native,
+                final_core,
+                state,
+                context=request_context,
+            )
 
         # Attach global native_indices for final core messages
         final_core = self._normalize_final_core_with_native_indices(
@@ -2223,6 +2279,16 @@ class AgentCore:
                 turn_native_start_index=baseline_native_len,
             )
         )
+        state_metadata_patch = (
+            state.get("session_metadata_patch")
+            if isinstance(state.get("session_metadata_patch"), dict)
+            else {}
+        )
+        if state_metadata_patch:
+            response_metadata_patch = {
+                **state_metadata_patch,
+                **(response_metadata_patch or {}),
+            }
 
         # Build new session messages by appending new Message objects
         new_metadata = dict(session.metadata)
@@ -2232,7 +2298,9 @@ class AgentCore:
         new_metadata["native_messages"] = native_messages
         if native_history_changed:
             all_messages_after, _ = self._rebuild_core_from_native(
-                native_messages, config
+                native_messages,
+                config,
+                context=context,
             )
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
@@ -2257,6 +2325,7 @@ class AgentCore:
         *,
         request_id: str | None = None,
         cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream request and yield partial events, then the final session.
 
@@ -2314,6 +2383,7 @@ class AgentCore:
                     request_id=request_id,
                     tags=_tags,
                     models=self._get_models_for_config(provider, config),
+                    context=context,
                 )
             )
             baseline_native_len = len(native_messages)
@@ -2329,6 +2399,8 @@ class AgentCore:
                 tools=self._get_prepared_tools_for_config(config),
                 request_id=request_id,
             )
+            if isinstance(context, dict):
+                request_context = {**request_context, **context}
 
             logger.debug(
                 "start streaming request",
@@ -2384,16 +2456,26 @@ class AgentCore:
         logger.debug("streaming complete", combined_native_finals=combined_native_finals)
 
         # Convert provider-native finals to core messages
-        final_core = provider.from_native_messages(combined_native_finals, state)
+        final_core = provider.from_native_messages(
+            combined_native_finals,
+            state,
+            context=request_context,
+        )
 
         # Apply extension and feature from-native transforms (iterate to pass state to each)
         for ext in enabled_extensions:
             final_core = ext.from_native_messages(
-                combined_native_finals, final_core, state
+                combined_native_finals,
+                final_core,
+                state,
+                context=request_context,
             )
         for feature in features:
             final_core = feature.from_native_messages(
-                combined_native_finals, final_core, state
+                combined_native_finals,
+                final_core,
+                state,
+                context=request_context,
             )
 
         # Attach global native_indices for final core messages
@@ -2418,6 +2500,16 @@ class AgentCore:
                 turn_native_start_index=baseline_native_len,
             )
         )
+        state_metadata_patch = (
+            state.get("session_metadata_patch")
+            if isinstance(state.get("session_metadata_patch"), dict)
+            else {}
+        )
+        if state_metadata_patch:
+            response_metadata_patch = {
+                **state_metadata_patch,
+                **(response_metadata_patch or {}),
+            }
 
         new_metadata = dict(session.metadata)
         if response_metadata_patch:
@@ -2426,7 +2518,9 @@ class AgentCore:
         if native_history_changed:
             # Rebuild core from the post-initialize native (after structural changes)
             all_messages_after, _ = self._rebuild_core_from_native(
-                native_messages, config
+                native_messages,
+                config,
+                context=context,
             )
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]
@@ -2447,6 +2541,7 @@ class AgentCore:
         *,
         request_id: str | None = None,
         cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Async version of send_request_stream.
 
@@ -2498,6 +2593,7 @@ class AgentCore:
                     request_id=request_id,
                     tags=_tags,
                     models=self._get_models_for_config(provider, config),
+                    context=context,
                 )
             )
             baseline_native_len = len(native_messages)
@@ -2513,6 +2609,8 @@ class AgentCore:
                 tools=self._get_prepared_tools_for_config(config),
                 request_id=request_id,
             )
+            if isinstance(context, dict):
+                request_context = {**request_context, **context}
 
             aggregated_native_finals: List[Dict[str, Any]] = []
 
@@ -2551,16 +2649,26 @@ class AgentCore:
             )
 
         # Convert provider-native finals to core messages
-        final_core = provider.from_native_messages(combined_native_finals, state)
+        final_core = provider.from_native_messages(
+            combined_native_finals,
+            state,
+            context=request_context,
+        )
 
         # Apply extension and feature from-native transforms (iterate to pass state to each)
         for ext in enabled_extensions:
             final_core = ext.from_native_messages(
-                combined_native_finals, final_core, state
+                combined_native_finals,
+                final_core,
+                state,
+                context=request_context,
             )
         for feature in features:
             final_core = feature.from_native_messages(
-                combined_native_finals, final_core, state
+                combined_native_finals,
+                final_core,
+                state,
+                context=request_context,
             )
 
         # Attach global native_indices for final core messages
@@ -2585,6 +2693,16 @@ class AgentCore:
                 turn_native_start_index=baseline_native_len,
             )
         )
+        state_metadata_patch = (
+            state.get("session_metadata_patch")
+            if isinstance(state.get("session_metadata_patch"), dict)
+            else {}
+        )
+        if state_metadata_patch:
+            response_metadata_patch = {
+                **state_metadata_patch,
+                **(response_metadata_patch or {}),
+            }
 
         new_metadata = dict(session.metadata)
         if response_metadata_patch:
@@ -2593,7 +2711,9 @@ class AgentCore:
         if native_history_changed:
             # Rebuild core from the post-initialize native (after structural changes)
             all_messages_after, _ = self._rebuild_core_from_native(
-                native_messages, config
+                native_messages,
+                config,
+                context=context,
             )
         else:
             appended: List[Message] = [Message.from_dict(m) for m in final_core]

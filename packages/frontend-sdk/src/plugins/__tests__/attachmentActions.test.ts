@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AgentBackend } from '../../backend/backend';
 import type { ExecuteActionResponse } from '../../types/plugins';
 import {
+  downloadSessionAttachment,
   deleteSessionAttachment,
+  DOWNLOAD_ATTACHMENT_ACTION_ID,
   selectSessionAssetId,
   storeSessionAttachment,
 } from '../attachmentActions';
@@ -104,6 +106,47 @@ describe('attachmentActions', () => {
       inputs: {
         session_id: 's1',
         asset_id: 'asset_1',
+      },
+    });
+  });
+
+  it('downloads an attachment using the provider-extension action contract', async () => {
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
+      status: 'ok',
+      plugin: 'openrouter_image_generation_attachments',
+      action_id: 'download_attachment',
+      result: {
+        attachment_asset: {
+          asset_ref: {
+            kind: 'session_asset',
+            session_id: 's1',
+            asset_id: 'asset_9',
+            attachment_type: 'image',
+          },
+          filename: 'generated.png',
+          mime_type: 'image/png',
+        },
+        data_base64: 'QUJDRA==',
+      },
+    }));
+
+    const downloaded = await downloadSessionAttachment({
+      backend: buildBackend(executeAction),
+      sessionId: 's1',
+      assetId: 'asset_9',
+      pluginId: 'openrouter_image_generation_attachments',
+    });
+
+    expect(downloaded.attachment_asset.filename).toBe('generated.png');
+    expect(downloaded.data_base64).toBe('QUJDRA==');
+    expect(executeAction).toHaveBeenCalledWith({
+      pluginId: 'openrouter_image_generation_attachments',
+      actionId: DOWNLOAD_ATTACHMENT_ACTION_ID,
+      actionOwner: 'provider_extension',
+      idempotencyKey: undefined,
+      inputs: {
+        session_id: 's1',
+        asset_id: 'asset_9',
       },
     });
   });

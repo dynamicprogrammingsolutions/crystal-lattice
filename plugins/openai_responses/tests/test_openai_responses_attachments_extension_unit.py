@@ -154,6 +154,14 @@ def test_attachment_extension_actions_are_exposed() -> None:
                 "asset_id": {"type": "string", "required": True},
             },
         },
+        {
+            "id": "download_attachment",
+            "label": "Download attachment",
+            "description": "Download a stored session-owned attachment asset.",
+            "inputs": {
+                "asset_id": {"type": "string", "required": True},
+            },
+        },
     ]
 
 
@@ -225,6 +233,32 @@ def test_delete_attachment_action_removes_session_asset(tmp_path: Path) -> None:
     assert result["session_metadata"]["session_assets"] == {}
     with pytest.raises(FileNotFoundError):
         asset_store.load("sess_123", stored.asset_id)
+
+
+def test_download_attachment_action_returns_base64_payload(tmp_path: Path) -> None:
+    extension = OpenAIResponsesAttachmentsExtension()
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+    stored = asset_store.store_base64(
+        session_id="sess_123",
+        attachment_type="image",
+        filename="square.png",
+        mime_type="image/png",
+        data_base64=base64.b64encode(b"png-bytes").decode("ascii"),
+        provider_refs={"openai_responses": {"status": "not_uploaded"}},
+    )
+    session = Session(session_id="sess_123", messages=[], metadata={})
+
+    result = extension.execute_action(
+        "download_attachment",
+        session,
+        [],
+        {"asset_id": stored.asset_id},
+        {"session_asset_store": asset_store},
+        {},
+    )
+
+    assert result["attachment_asset"]["asset_ref"]["asset_id"] == stored.asset_id
+    assert result["data_base64"] == base64.b64encode(b"png-bytes").decode("ascii")
 
 
 def test_store_attachment_action_rejects_invalid_mime_type(tmp_path: Path) -> None:

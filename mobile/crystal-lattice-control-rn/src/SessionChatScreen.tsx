@@ -1525,7 +1525,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         updateAttachmentDraft(side, options.draftId, (part) => ({
           ...part,
           content: options.content,
-          metadata: defaults,
+          metadata: {
+            ...(part.metadata || {}),
+            ...defaults,
+          },
           previewUrl: options.previewUrl ?? null,
           status: 'ready',
           errorMessage: null,
@@ -1536,7 +1539,18 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       addAttachmentPart({
         element: options.element,
         content: options.content,
-        metadata: defaults,
+        metadata: {
+          ...defaults,
+          ...(
+            typeof (options.element as any).plugin === 'string' &&
+            String((options.element as any).plugin).trim() &&
+            options.element.attachment_type === 'image'
+              ? {
+                  download_plugin_id: String((options.element as any).plugin).trim(),
+                }
+              : {}
+          ),
+        },
         previewUrl: options.previewUrl ?? null,
         status: 'ready',
       });
@@ -1606,13 +1620,21 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
 
       const previewUrl = options.element.attachment_type === 'image' ? options.dataUrl : null;
+      const pluginId =
+        typeof (options.element as any).plugin === 'string' &&
+        String((options.element as any).plugin).trim()
+          ? String((options.element as any).plugin).trim()
+          : null;
       const draftId = addAttachmentPart({
         element: options.element,
         content: {
           filename: options.filename,
           mime_type: options.mimeType,
         },
-        metadata: {},
+        metadata:
+          pluginId && options.element.attachment_type === 'image'
+            ? { download_plugin_id: pluginId }
+            : {},
         previewUrl,
         status: 'uploading_to_server',
       });
@@ -2908,6 +2930,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	              <MessageBubble
 	                index={streamingIndex}
 	                isActive={isActive}
+	                backend={backend}
+	                sessionId={sessionId}
 	                message={{
 	                  role: 'assistant',
 	                  content: streamingRow.content,
@@ -2942,6 +2966,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            <MessageBubble
 	              index={m.index}
 	              isActive={isActive}
+	              backend={backend}
+	              sessionId={sessionId}
 	              message={m.message}
 	              pinnedActions={pinnedForRole}
 	              allowedActions={allowedActions}

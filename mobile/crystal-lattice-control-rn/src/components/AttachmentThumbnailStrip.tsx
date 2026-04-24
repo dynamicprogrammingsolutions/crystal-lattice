@@ -32,7 +32,8 @@ export const AttachmentThumbnailStrip: React.FC<{
   disabled?: boolean;
   onPress?: (attachment: AttachmentLike) => void;
   onPressManageAll?: () => void;
-}> = ({ attachments, disabled, onPress, onPressManageAll }) => {
+  renderTile?: (options: { attachment: AttachmentLike; tile: React.ReactNode }) => React.ReactNode;
+}> = ({ attachments, disabled, onPress, onPressManageAll, renderTile }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -89,15 +90,11 @@ export const AttachmentThumbnailStrip: React.FC<{
             </View>
           );
 
-          if (!onPress) {
-            return (
-              <View key={attachment.id} style={styles.tile}>
-                {tile}
-              </View>
-            );
-          }
-
-          return (
+          const tileNode = !onPress ? (
+            <View key={attachment.id} style={styles.tile}>
+              {tile}
+            </View>
+          ) : (
             <TouchableOpacity
               key={attachment.id}
               style={styles.tile}
@@ -107,6 +104,12 @@ export const AttachmentThumbnailStrip: React.FC<{
               {tile}
             </TouchableOpacity>
           );
+
+          if (renderTile) {
+            return <React.Fragment key={attachment.id}>{renderTile({ attachment, tile: tileNode })}</React.Fragment>;
+          }
+
+          return tileNode;
         })}
       </ScrollView>
 

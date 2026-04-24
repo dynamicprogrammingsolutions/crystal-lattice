@@ -313,6 +313,15 @@
       "api_key": "${env:OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1"
     },
+    "openrouter_image_generation": {
+      "mixin_refs": ["provider_defaults"],
+      "provider": "openrouter_image_generation",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "black-forest-labs/flux.2-klein-4b",
+      "timeout": 180,
+      "aspect_ratio": "1:1"
+    },
     "openai": {
       "mixin_refs": ["provider_defaults"],
       "provider": "openai_responses",
@@ -554,6 +563,9 @@
           "clear_thinking": "boolean"
         }
       }
+    },
+    "openrouter-image": {
+      "provider": "openrouter_image_generation"
     }
   }
 }

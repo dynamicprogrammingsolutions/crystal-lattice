@@ -414,22 +414,35 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             if key not in {"native_indices", "tool_calls", "tool_call_id"}
         }
 
-    def _session_asset_store(self, state: dict[str, Any]) -> Any:
-        config = state.get("config") if isinstance(state.get("config"), dict) else {}
-        store = config.get("_session_asset_store")
+    def _request_context(self, state: dict[str, Any]) -> dict[str, Any] | None:
+        value = state.get("_request_context")
+        return value if isinstance(value, dict) else None
+
+    def _session_asset_store(
+        self,
+        state: dict[str, Any],
+        context: dict[str, Any] | None = None,
+    ) -> Any:
+        resolved_context = context if isinstance(context, dict) else self._request_context(state)
+        store = (
+            resolved_context.get("session_asset_store")
+            if isinstance(resolved_context, dict)
+            else None
+        )
         if store is None:
             raise RuntimeError(
-                "[reference_openai_compatible_provider] session asset attachment requires _session_asset_store in config"
+                "[reference_openai_compatible_provider] session asset attachment requires session_asset_store in context"
             )
         return store
 
     def _resolve_session_asset(
         self,
         state: dict[str, Any],
+        context: dict[str, Any] | None,
         asset_ref: dict[str, Any],
         expected_attachment_type: str,
     ) -> tuple[str, str, bytes]:
-        store = self._session_asset_store(state)
+        store = self._session_asset_store(state, context)
         session_id = asset_ref.get("session_id")
         asset_id = asset_ref.get("asset_id")
         if not isinstance(session_id, str) or not isinstance(asset_id, str):
@@ -447,6 +460,8 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         self,
         messages: list[dict[str, Any]],
         state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         native: list[dict[str, Any]] = []
 
@@ -495,6 +510,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                         part_content,
                         resolve_session_asset=lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
                             state,
+                            context,
                             asset_ref,
                             expected_attachment_type,
                         ),
@@ -511,6 +527,8 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         self,
         native_messages: list[dict[str, Any]],
         state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         normalized: list[dict[str, Any]] = []
         for native_idx, native_message in enumerate(native_messages):

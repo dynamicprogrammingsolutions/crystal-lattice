@@ -214,10 +214,12 @@ When the package is loaded through its plugin path, it also exposes the
 `reference_openai_compatible_attachments` provider extension. That extension:
 
 - advertises image attachment UI to the frontend
-- exposes `store_attachment` / `delete_attachment` actions backed by the
+- exposes `store_attachment` / `delete_attachment` / `download_attachment`
+  actions backed by the
   application-owned session asset store
 - allows the frontend to upload an image to the local application first, then
   send it later as a session-owned attachment
+- lets clients download a stored session-owned image again from message history
 
 Stored uploaded images are not uploaded to a provider-side file API. Instead,
 they are resolved from the local session asset store and converted to inline

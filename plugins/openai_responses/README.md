@@ -290,6 +290,15 @@ reference.
 
 Explicit upload actions are still follow-up work for Stage 3.
 
+When the package is loaded through its plugin path, it also exposes the
+`openai_responses_attachments` provider extension. That extension:
+
+- advertises upload UI for supported attachment types
+- exposes `store_attachment`, `delete_attachment`, and `download_attachment`
+  actions backed by the application-owned session asset store
+- lets clients upload an attachment once, send it later via `asset_ref`, and
+  download the same stored asset again from message history
+
 ### Reasoning
 
 Reasoning controls are available through:

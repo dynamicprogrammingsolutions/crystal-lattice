@@ -89,7 +89,6 @@ JsonObject = Dict[str, Any]
 _DEFAULT_CHATGPT_CLIENT_VERSION = "0.1.0"
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
-_SESSION_ASSET_STORE_CONFIG_KEY = "_session_asset_store"
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
 _COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
@@ -884,23 +883,36 @@ class OpenAIResponsesProvider(ProviderPlugin):
     ) -> Dict[int, Dict[str, Any]]:
         return uploaded_attachment_map(raw_internal_metadata)
 
-    def _session_asset_store(self, state: Dict[str, Any]) -> Any:
-        config = state.get("config") if isinstance(state.get("config"), dict) else {}
-        store = config.get(_SESSION_ASSET_STORE_CONFIG_KEY)
+    def _request_context(self, state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        value = state.get("_request_context")
+        return value if isinstance(value, dict) else None
+
+    def _session_asset_store(
+        self,
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        resolved_context = context if isinstance(context, dict) else self._request_context(state)
+        store = (
+            resolved_context.get("session_asset_store")
+            if isinstance(resolved_context, dict)
+            else None
+        )
         if store is None:
             raise RuntimeError(
-                "[openai_responses_provider] session asset attachment requires _session_asset_store in config"
+                "[openai_responses_provider] session asset attachment requires session_asset_store in context"
             )
         return store
 
     def _session_asset_record_and_bytes(
         self,
         state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         *,
         asset_ref: Dict[str, Any],
         expected_attachment_type: str,
     ) -> Tuple[Any, bytes]:
-        store = self._session_asset_store(state)
+        store = self._session_asset_store(state, context)
         session_id = asset_ref.get("session_id")
         asset_id = asset_ref.get("asset_id")
         if not isinstance(session_id, str) or not isinstance(asset_id, str):
@@ -915,33 +927,51 @@ class OpenAIResponsesProvider(ProviderPlugin):
     def _resolve_session_asset(
         self,
         state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         asset_ref: Dict[str, Any],
         expected_attachment_type: str,
     ) -> Tuple[str, str, bytes]:
         record, payload_bytes = self._session_asset_record_and_bytes(
             state,
+            context,
             asset_ref=asset_ref,
             expected_attachment_type=expected_attachment_type,
         )
         return record.filename, record.mime_type, payload_bytes
 
-    def _image_part_to_input_image(self, content: Any, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _image_part_to_input_image(
+        self,
+        content: Any,
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         return image_content_to_input_image(
             content,
-            resolve_session_asset=lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
-                state,
-                asset_ref,
-                expected_attachment_type,
+            resolve_session_asset=(
+                lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
+                    state,
+                    context,
+                    asset_ref,
+                    expected_attachment_type,
+                )
             ),
         )
 
-    def _pdf_part_to_input_file(self, content: Any, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _pdf_part_to_input_file(
+        self,
+        content: Any,
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         return pdf_content_to_input_file(
             content,
-            resolve_session_asset=lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
-                state,
-                asset_ref,
-                expected_attachment_type,
+            resolve_session_asset=(
+                lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
+                    state,
+                    context,
+                    asset_ref,
+                    expected_attachment_type,
+                )
             ),
         )
 
@@ -1039,6 +1069,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         part: Dict[str, Any],
         *,
         state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         source_override: Optional[Dict[str, Any]],
         uploaded_override: Optional[Dict[str, Any]],
         client: Any,
@@ -1059,6 +1090,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             purpose = "vision" if part_type == "input_image" else "user_data"
             record, payload_bytes = self._session_asset_record_and_bytes(
                 state,
+                context,
                 asset_ref=asset_ref,
                 expected_attachment_type=expected_attachment_type,
             )
@@ -1078,7 +1110,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 timeout=timeout,
                 upload_cache=upload_cache,
             )
-            self._session_asset_store(state).update_manifest(
+            self._session_asset_store(state, context).update_manifest(
                 record.session_id,
                 record.asset_id,
                 provider_refs=merge_openai_provider_ref(record.provider_refs, upload_ref),
@@ -1173,6 +1205,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         *,
         state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         client: Any,
         timeout: float,
         upload_cache: Dict[str, str],
@@ -1200,6 +1233,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 next_part = self._uploaded_content_part(
                     part,
                     state=state,
+                    context=context,
                     source_override=source_map.get(index),
                     uploaded_override=uploaded_map.get(index),
                     client=client,
@@ -1480,6 +1514,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         native: List[Dict[str, Any]] = []
 
@@ -1516,9 +1552,17 @@ class OpenAIResponsesProvider(ProviderPlugin):
                             continue
 
                         if normalized_part.get("type") == "image":
-                            native_part = self._image_part_to_input_image(part.get("content"), state)
+                            native_part = self._image_part_to_input_image(
+                                part.get("content"),
+                                state,
+                                context,
+                            )
                         else:
-                            native_part = self._pdf_part_to_input_file(part.get("content"), state)
+                            native_part = self._pdf_part_to_input_file(
+                                part.get("content"),
+                                state,
+                                context,
+                            )
 
                         parts.append(native_part)
                         attachment_sources.append(
@@ -1588,6 +1632,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
         owned_native_indices: set[int] = set()
@@ -1986,6 +2032,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         request = state.get("request")
         if not isinstance(request, dict):
             raise RuntimeError("[openai_responses_provider] missing request in state")
+        context = self._request_context(state)
         cfg = state.get("config") or {}
         if self._effective_auth_mode(cfg) == "chatgpt":
             raise RuntimeError(
@@ -2023,6 +2070,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             request_history = self._prepare_uploaded_native_messages(
                 request_history,
                 state=state,
+                context=context,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
@@ -2030,6 +2078,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             self._prepare_uploaded_native_messages(
                 native_messages,
                 state=state,
+                context=context,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
@@ -2065,6 +2114,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         retry_history = self._prepare_uploaded_native_messages(
                             request_history,
                             state=state,
+                            context=context,
                             client=client,
                             timeout=timeout,
                             upload_cache=upload_cache,
@@ -2073,6 +2123,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         self._prepare_uploaded_native_messages(
                             native_messages,
                             state=state,
+                            context=context,
                             client=client,
                             timeout=timeout,
                             upload_cache=upload_cache,
@@ -2147,6 +2198,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         request = state.get("request")
         if not isinstance(request, dict):
             raise RuntimeError("[openai_responses_provider] missing request in state")
+        context = self._request_context(state)
 
         payload = dict(request.get("payload") or {})
         instructions = self._request_instructions(request)
@@ -2183,6 +2235,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             request_history = self._prepare_uploaded_native_messages(
                 request_history,
                 state=state,
+                context=context,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
@@ -2190,6 +2243,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             self._prepare_uploaded_native_messages(
                 native_messages,
                 state=state,
+                context=context,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
@@ -2297,6 +2351,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                             retry_history = self._prepare_uploaded_native_messages(
                                 request_history,
                                 state=state,
+                                context=context,
                                 client=client,
                                 timeout=timeout,
                                 upload_cache=upload_cache,
@@ -2305,6 +2360,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                             self._prepare_uploaded_native_messages(
                                 native_messages,
                                 state=state,
+                                context=context,
                                 client=client,
                                 timeout=timeout,
                                 upload_cache=upload_cache,

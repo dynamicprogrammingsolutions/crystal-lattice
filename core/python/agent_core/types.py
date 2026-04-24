@@ -244,7 +244,11 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # Message conversion
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Convert core messages to this provider's native wire format.
 
@@ -260,6 +264,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Args:
             messages: Core session messages (may be a single-element list for add_message).
             state: Current shared provider state.
+            context: Optional request/runtime context for this conversion.
 
         Returns:
             Provider-native messages suitable for API calls.
@@ -271,7 +276,11 @@ class ProviderPlugin(BasePlugin, Protocol):
         ]
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Convert provider-native messages into core message dictionaries.
 
@@ -289,6 +298,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Args:
             native_messages: Provider-native messages to convert.
             state: Current shared provider state.
+            context: Optional request/runtime context for this conversion.
 
         Returns:
             Core messages derived from native messages.
@@ -639,6 +649,8 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Transform provider-native messages using visibility of core messages.
 
@@ -654,6 +666,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             messages: Core session messages for context (may be a single-element list for add_message).
             native_messages: Current provider-native messages.
             state: Optional shared provider state (available when called via ProviderWrapper).
+            context: Optional request/runtime context for this conversion.
 
         Returns:
             Updated provider-native messages.
@@ -665,6 +678,8 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         native_messages: List[Dict[str, Any]],
         messages: List[Dict[str, Any]],
         state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Transform provider-native messages back into core messages.
 
@@ -677,6 +692,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             native_messages: Provider-native messages to transform.
             messages: Core session messages for context.
             state: Optional shared provider state (available when called via ProviderWrapper).
+            context: Optional request/runtime context for this conversion.
 
         Returns:
             Updated core messages.
@@ -975,6 +991,8 @@ class FeaturePlugin(BasePlugin, Protocol):
         messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Transform provider-native messages using visibility of core messages.
 
@@ -1001,6 +1019,8 @@ class FeaturePlugin(BasePlugin, Protocol):
         native_messages: List[Dict[str, Any]],
         messages: List[Dict[str, Any]],
         state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Transform provider-native messages back into core messages.
 

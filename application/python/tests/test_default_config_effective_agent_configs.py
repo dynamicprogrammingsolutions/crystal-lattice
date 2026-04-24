@@ -55,6 +55,11 @@ def test_default_config_effective_agent_configs_stay_intact(
             "model": "z-ai/glm-5",
             "request_options": {"provider": {"order": ["z-ai"], "allow_fallbacks": False}},
         },
+        "openrouter-image": {
+            "provider": "openrouter_image_generation",
+            "model": "black-forest-labs/flux.2-klein-4b",
+            "aspect_ratio": "1:1",
+        },
         "ollama": {
             "provider": "reference_openai_compatible",
             "base_url": "http://localhost:11434/v1",

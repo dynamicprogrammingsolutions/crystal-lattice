@@ -143,6 +143,38 @@ class _BasePluginDefaults:
         }
         return fn(*args, **accepted)
 
+    @staticmethod
+    def _call_message_conversion_hook(
+        fn: Any,
+        first: Any,
+        second: Any,
+        state: Any,
+        context: Any,
+    ) -> Any:
+        try:
+            sig = inspect.signature(fn)
+        except (TypeError, ValueError):
+            return fn(first, second, state, context=context)
+
+        params = list(sig.parameters.values())
+        has_var_keyword = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params)
+        positional = [
+            p
+            for p in params
+            if p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+        args = [first, second]
+        if len(positional) >= 3:
+            args.append(state)
+        kwargs: Dict[str, Any] = {}
+        if has_var_keyword or "context" in sig.parameters:
+            kwargs["context"] = context
+        return fn(*args, **kwargs)
+
     # ----- BasePlugin config / UI -----
 
     def get_config_schema(self) -> Dict[str, Any]:  # type: ignore[override]
@@ -291,11 +323,20 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
     # ----- Message conversion -----
 
     def to_native_messages(  # type: ignore[override]
-        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("to_native_messages", ProviderPlugin)
         if fn is not None:
-            out = fn(messages, state)
+            out = self._call_with_optional_kwargs(
+                fn,
+                messages,
+                state,
+                context=context,
+            )
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return [
@@ -305,11 +346,20 @@ class ProviderDefaultsAdapter(_BasePluginDefaults, ProviderPlugin):
         ]
 
     def from_native_messages(  # type: ignore[override]
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("from_native_messages", ProviderPlugin)
         if fn is not None:
-            out = fn(native_messages, state)
+            out = self._call_with_optional_kwargs(
+                fn,
+                native_messages,
+                state,
+                context=context,
+            )
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
 
@@ -545,17 +595,18 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("to_native_messages", ProviderExtensionPlugin)
         if fn is not None:
-            # Pass state if the implementation accepts it
-            import inspect
-
-            sig = inspect.signature(fn)
-            if len(sig.parameters) >= 3:
-                out = fn(messages, native_messages, state)
-            else:
-                out = fn(messages, native_messages)
+            out = self._call_message_conversion_hook(
+                fn,
+                messages,
+                native_messages,
+                state,
+                context,
+            )
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(native_messages)
@@ -565,17 +616,18 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
         native_messages: List[Dict[str, Any]],
         messages: List[Dict[str, Any]],
         state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("from_native_messages", ProviderExtensionPlugin)
         if fn is not None:
-            # Pass state if the implementation accepts it
-            import inspect
-
-            sig = inspect.signature(fn)
-            if len(sig.parameters) >= 3:
-                out = fn(native_messages, messages, state)
-            else:
-                out = fn(native_messages, messages)
+            out = self._call_message_conversion_hook(
+                fn,
+                native_messages,
+                messages,
+                state,
+                context,
+            )
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(messages)
@@ -816,17 +868,18 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("to_native_messages", FeaturePlugin)
         if fn is not None:
-            # Pass state if the implementation accepts it
-            import inspect
-
-            sig = inspect.signature(fn)
-            if len(sig.parameters) >= 3:
-                out = fn(messages, native_messages, state)
-            else:
-                out = fn(messages, native_messages)
+            out = self._call_message_conversion_hook(
+                fn,
+                messages,
+                native_messages,
+                state,
+                context,
+            )
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(native_messages)
@@ -836,17 +889,18 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
         native_messages: List[Dict[str, Any]],
         messages: List[Dict[str, Any]],
         state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         fn = self._get_impl_method("from_native_messages", FeaturePlugin)
         if fn is not None:
-            # Pass state if the implementation accepts it
-            import inspect
-
-            sig = inspect.signature(fn)
-            if len(sig.parameters) >= 3:
-                out = fn(native_messages, messages, state)
-            else:
-                out = fn(native_messages, messages)
+            out = self._call_message_conversion_hook(
+                fn,
+                native_messages,
+                messages,
+                state,
+                context,
+            )
             items = self._safe_list(out)
             return [m for m in items if isinstance(m, dict)]
         return list(messages)

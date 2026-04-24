@@ -214,6 +214,7 @@ class ToolLoopRunner:
                     config,
                     request_id=rid,
                     cancellation=self._cancellation,
+                    context=self._context,
                 )
             except ProviderRequestCancelled:
                 yield {
@@ -260,6 +261,7 @@ class ToolLoopRunner:
                 config,
                 request_id=rid,
                 cancellation=self._cancellation,
+                context=self._context,
             ):
                 if self._is_cancelled():
                     yield {
@@ -599,6 +601,8 @@ class ToolLoopRunner:
                 "request_id": self._request_id,
                 "detail": exc.detail,
             }
+        except NotImplementedError:
+            raise
         except Exception as exc:
             print(f"Error in ToolLoopRunner: {exc}")
             traceback.print_exc()  # Print the stack trace

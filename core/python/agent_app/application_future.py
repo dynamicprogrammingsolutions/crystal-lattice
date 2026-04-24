@@ -164,10 +164,13 @@ class AgentApplication:
         env_overrides: Mapping[str, str] | None = None,
     ) -> None:
         logger = get_logger("AgentApplication")
+        self._logger = logger
         # Core factory is stored so that per-session cores can be created
         # without sharing state across requests.
         self._core_factory = core_factory
         self._event_store: EventStore = event_store or InMemoryEventStore()
+        self._non_streaming_provider_classes: Set[type[Any]] = set()
+        self._provider_capability_lock = threading.Lock()
 
         # A single core instance is still used for import/export with the
         # filesystem session store; inference uses fresh cores created via
@@ -719,6 +722,59 @@ class AgentApplication:
 
         return self._build_core_with_enabled_ids(None)
 
+    def _provider_class_for_request(
+        self,
+        session: Session,
+        config: Dict[str, Any],
+    ) -> Optional[type[Any]]:
+        agent_id = None
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        raw_agent_id = metadata.get("agent_id") if isinstance(metadata, dict) else None
+        if isinstance(raw_agent_id, str) and raw_agent_id in self._agent_base_configs:
+            agent_id = raw_agent_id
+
+        if agent_id is not None:
+            provider_classes = list(
+                (self._get_agent_plugin_runtime(agent_id).plugin_classes.get("providers") or [])
+            )
+        else:
+            provider_classes = list(self._plugin_classes.get("providers") or [])
+
+        if not provider_classes:
+            return None
+        return self._resolve_provider_class_for_config(provider_classes, config)
+
+    def _provider_supports_streaming(self, provider_class: Optional[type[Any]]) -> bool:
+        if provider_class is None:
+            return True
+        with self._provider_capability_lock:
+            return provider_class not in self._non_streaming_provider_classes
+
+    def _mark_provider_non_streaming(self, provider_class: Optional[type[Any]]) -> None:
+        if provider_class is None:
+            return
+        with self._provider_capability_lock:
+            self._non_streaming_provider_classes.add(provider_class)
+
+    def _resolve_request_stream_mode(
+        self,
+        *,
+        requested_stream: bool,
+        config: Dict[str, Any],
+        provider_class: Optional[type[Any]],
+    ) -> bool:
+        if not requested_stream:
+            return False
+
+        config_stream = config.get("stream")
+        if isinstance(config_stream, bool) and config_stream is False:
+            return False
+
+        if not self._provider_supports_streaming(provider_class):
+            return False
+
+        return True
+
     def _provider_identities_for_class(self, provider_class: type[Any]) -> List[str]:
         names: List[str] = []
 
@@ -850,21 +906,13 @@ class AgentApplication:
         plugin_runtime = self._get_agent_plugin_runtime(agent_id)
         enabled_ids = self._enabled_plugin_ids_for_session(agent_id, metadata)
         effective_overrides = self._effective_overrides(metadata, overrides)
-        effective_config = self._decorate_runtime_config(
-            resolve_request_config(base_cfg, effective_overrides)
-        )
+        effective_config = resolve_request_config(base_cfg, effective_overrides)
         core = self._build_core_with_enabled_ids(
             enabled_ids,
             selected_provider_config=effective_config,
             plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
         return core, base_cfg, effective_config
-
-    def _decorate_runtime_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            **config,
-            "_session_asset_store": self._session_asset_store,
-        }
 
     def resolve_effective_config(
         self,
@@ -874,9 +922,7 @@ class AgentApplication:
     ) -> Dict[str, Any]:
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
         effective_overrides = self._effective_overrides(metadata, overrides)
-        return self._decorate_runtime_config(
-            resolve_request_config(base_config, effective_overrides)
-        )
+        return resolve_request_config(base_config, effective_overrides)
 
     @staticmethod
     def _session_messages_digest(session: Session) -> str:
@@ -2498,16 +2544,6 @@ class AgentApplication:
             return
         original_session = session
 
-        latest_session = session
-
-        # Initial request_started event
-        yield {
-            "type": "request_started",
-            "session_id": session.session_id,
-            "request_id": rid,
-            "stream": bool(stream),
-        }
-
         core, base_config, session, _results = self.run_session_lifecycle(
             "request_prepare",
             session,
@@ -2517,6 +2553,24 @@ class AgentApplication:
             context=request_context,
         )
         config = self.resolve_effective_config(base_config, session, overrides)
+        provider_class = self._provider_class_for_request(session, config)
+        effective_stream = self._resolve_request_stream_mode(
+            requested_stream=bool(stream),
+            config=config,
+            provider_class=provider_class,
+        )
+        request_context["stream"] = effective_stream
+
+        latest_session = session
+
+        # Initial request_started event
+        yield {
+            "type": "request_started",
+            "session_id": session.session_id,
+            "request_id": rid,
+            "stream": effective_stream,
+        }
+
         core.prepare_tools(
             config,
             context=self._build_tool_context(session=session, request_id=rid),
@@ -2610,101 +2664,128 @@ class AgentApplication:
                 "session": latest_session,
             }
 
-        loop_runner = ToolLoopRunner(
-            core=core,
-            config=config,
-            request_id=rid,
-            tool_loop_cfg=self._tool_loop_cfg,
-            cancel_callback=_is_cancelled,
-            cancellation=cancellation,
-            context={
-                **self._build_tool_context(session=session, request_id=rid),
-                "cancellation": cancellation,
-            },
-            on_session_checkpoint=_persist_checkpoint,
-            session_for_phase=_sync_phase_session_for_request,
-            config_for_session=_refresh_config_for_session,
-        )
-
         error_seen = False
 
         try:
-            for event in loop_runner.run(session=session, stream=stream):
-                event_type = event.get("type")
+            current_stream = effective_stream
+            while True:
+                loop_runner = ToolLoopRunner(
+                    core=core,
+                    config=config,
+                    request_id=rid,
+                    tool_loop_cfg=self._tool_loop_cfg,
+                    cancel_callback=_is_cancelled,
+                    cancellation=cancellation,
+                    context={
+                        **self._build_tool_context(session=session, request_id=rid),
+                        "cancellation": cancellation,
+                    },
+                    on_session_checkpoint=_persist_checkpoint,
+                    session_for_phase=_sync_phase_session_for_request,
+                    config_for_session=_refresh_config_for_session,
+                )
 
-                if event_type == "session_checkpoint":
-                    event_session = event.get("session")
-                    if isinstance(event_session, Session):
-                        latest_session = event_session
-                    yield event
-                    continue
+                yielded_tool_loop_events = False
+                try:
+                    for event in loop_runner.run(session=session, stream=current_stream):
+                        yielded_tool_loop_events = True
+                        event_type = event.get("type")
 
-                if event_type == "error":
-                    yield event
-                    if not error_seen:
-                        error_seen = True
-                        before_session = latest_session
-                        core, base_config, latest_session, _ = self.run_session_lifecycle(
-                            "request_error",
-                            latest_session,
-                            core=core,
-                            base_config=base_config,
-                            overrides=overrides,
-                            context={
-                                **request_context,
-                                "error": {
-                                    "message": event.get("detail"),
-                                },
-                            },
-                        )
-                        if latest_session != before_session:
-                            try:
-                                latest_session = _persist_checkpoint(latest_session)
-                            except ToolLoopCheckpointError:
-                                pass
-                            else:
-                                yield {
-                                    "type": "session_checkpoint",
-                                    "session_id": latest_session.session_id,
-                                    "request_id": rid,
-                                    "session": latest_session,
-                                }
-                    continue
+                        if event_type == "session_checkpoint":
+                            event_session = event.get("session")
+                            if isinstance(event_session, Session):
+                                latest_session = event_session
+                            yield event
+                            continue
 
-                if event_type == "request_completed":
-                    if not error_seen:
-                        before_session = latest_session
-                        core, base_config, latest_session, _ = self.run_session_lifecycle(
-                            "request_complete",
-                            latest_session,
-                            core=core,
-                            base_config=base_config,
-                            overrides=overrides,
-                            context=request_context,
-                        )
-                        if latest_session != before_session:
-                            try:
-                                latest_session = _persist_checkpoint(latest_session)
-                            except ToolLoopCheckpointError as exc:
+                        if event_type == "error":
+                            yield event
+                            if not error_seen:
                                 error_seen = True
-                                yield {
-                                    "type": "error",
-                                    "session_id": latest_session.session_id,
-                                    "request_id": rid,
-                                    "detail": exc.detail,
-                                }
-                            else:
-                                yield {
-                                    "type": "session_checkpoint",
-                                    "session_id": latest_session.session_id,
-                                    "request_id": rid,
-                                    "session": latest_session,
-                                }
-                    yield event
-                    self.record_checkpoint(latest_session.session_id, None)
-                    continue
+                                before_session = latest_session
+                                core, base_config, latest_session, _ = self.run_session_lifecycle(
+                                    "request_error",
+                                    latest_session,
+                                    core=core,
+                                    base_config=base_config,
+                                    overrides=overrides,
+                                    context={
+                                        **request_context,
+                                        "error": {
+                                            "message": event.get("detail"),
+                                        },
+                                    },
+                                )
+                                if latest_session != before_session:
+                                    try:
+                                        latest_session = _persist_checkpoint(latest_session)
+                                    except ToolLoopCheckpointError:
+                                        pass
+                                    else:
+                                        yield {
+                                            "type": "session_checkpoint",
+                                            "session_id": latest_session.session_id,
+                                            "request_id": rid,
+                                            "session": latest_session,
+                                        }
+                            continue
 
-                yield event
+                        if event_type == "request_completed":
+                            if not error_seen:
+                                before_session = latest_session
+                                core, base_config, latest_session, _ = self.run_session_lifecycle(
+                                    "request_complete",
+                                    latest_session,
+                                    core=core,
+                                    base_config=base_config,
+                                    overrides=overrides,
+                                    context=request_context,
+                                )
+                                if latest_session != before_session:
+                                    try:
+                                        latest_session = _persist_checkpoint(latest_session)
+                                    except ToolLoopCheckpointError as exc:
+                                        error_seen = True
+                                        yield {
+                                            "type": "error",
+                                            "session_id": latest_session.session_id,
+                                            "request_id": rid,
+                                            "detail": exc.detail,
+                                        }
+                                    else:
+                                        yield {
+                                            "type": "session_checkpoint",
+                                            "session_id": latest_session.session_id,
+                                            "request_id": rid,
+                                            "session": latest_session,
+                                        }
+                            yield event
+                            self.record_checkpoint(latest_session.session_id, None)
+                            continue
+
+                        yield event
+                    break
+                except NotImplementedError as exc:
+                    if (
+                        not current_stream
+                        or yielded_tool_loop_events
+                    ):
+                        raise
+                    self._mark_provider_non_streaming(provider_class)
+                    current_stream = False
+                    request_context["stream"] = False
+                    self._logger.warning(
+                        "provider_streaming_not_implemented_falling_back_to_non_streaming",
+                        provider_class=(
+                            f"{provider_class.__module__}.{provider_class.__qualname__}"
+                            if provider_class is not None
+                            else None
+                        ),
+                        request_id=rid,
+                        session_id=session.session_id,
+                        detail=str(exc),
+                    )
+                    continue
         finally:
             self._cancelled_requests.discard(rid)
             self._request_cancellations.pop(rid, None)

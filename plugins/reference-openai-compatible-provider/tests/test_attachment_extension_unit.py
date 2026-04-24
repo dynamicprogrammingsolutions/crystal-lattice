@@ -113,3 +113,28 @@ def test_delete_attachment_action_removes_session_asset(tmp_path: Path) -> None:
 
     assert result["deleted_attachment_asset"]["asset_ref"]["asset_id"] == stored.asset_id
     assert result["session_metadata"]["session_assets"] == {}
+
+
+def test_download_attachment_action_returns_base64_payload(tmp_path: Path) -> None:
+    extension = OpenAICompatibleAttachmentsExtension()
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+    stored = asset_store.store_base64(
+        session_id="s1",
+        attachment_type="image",
+        filename="red.png",
+        mime_type="image/png",
+        data_base64=base64.b64encode(b"image-bytes").decode("ascii"),
+    )
+    session = Session(session_id="s1", messages=[], metadata={})
+
+    result = extension.execute_action(
+        "download_attachment",
+        session,
+        [],
+        {"asset_id": stored.asset_id},
+        {"session_asset_store": asset_store},
+        {},
+    )
+
+    assert result["attachment_asset"]["asset_ref"]["asset_id"] == stored.asset_id
+    assert result["data_base64"] == base64.b64encode(b"image-bytes").decode("ascii")
