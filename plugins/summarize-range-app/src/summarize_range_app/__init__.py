@@ -216,7 +216,7 @@ class SummarizeRangeAppPlugin:
                 "icon": "file-text",
                 "order": 20,
                 "action_id": "summarize_range",
-                "fixed_params": {"start": 0},
+                "fixed_params": {"start": 0, "end_inclusive": True},
                 "param_map": {
                     "session_id": "$session.session_id",
                     "end": "$message.index",
@@ -289,6 +289,7 @@ class SummarizeRangeAppPlugin:
                     # rely on Python-style slice semantics when omitted.
                     "start": {"type": "integer", "required": False},
                     "end": {"type": "integer", "required": False},
+                    "end_inclusive": {"type": "boolean", "required": False},
                     # Prompt is optional and, when omitted, falls back to the
                     # config-derived default stored in plugin state.
                     "prompt": {"type": "string", "required": False},
@@ -360,6 +361,7 @@ class SummarizeRangeAppPlugin:
         # semantics.
         start_raw = params.get("start")
         end_raw = params.get("end")
+        end_inclusive = params.get("end_inclusive", False)
         start_int = start_raw if isinstance(start_raw, int) else None
         end_int = end_raw if isinstance(end_raw, int) else None
 
@@ -374,6 +376,8 @@ class SummarizeRangeAppPlugin:
 
         message_count = len(session_orig.messages)
         start_idx, end_idx = _normalize_slice_bounds(message_count, start_int, end_int)
+        if end_inclusive and end_raw is not None:
+            end_idx = min(end_idx + 1, message_count)
 
         # Compute a slice that always keeps leading system messages as context.
         system_prefix_end = 0

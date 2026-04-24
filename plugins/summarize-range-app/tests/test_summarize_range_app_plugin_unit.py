@@ -125,6 +125,53 @@ def test_summarize_range_replaces_range_with_single_message(tmp_path: Path) -> N
     assert session.messages[1].role == "assistant"
 
 
+def test_summarize_before_message_ui_action_is_inclusive() -> None:
+    plugin = SummarizeRangeAppPlugin()
+    plugin.init({"application": {}})
+
+    elements = plugin.get_ui_elements(plugin._state)
+    action = next(el for el in elements if el.get("id") == "summarize_before_message")
+
+    assert action["ui_type"] == "message_action"
+    assert action["fixed_params"]["start"] == 0
+    assert action["fixed_params"]["end_inclusive"] is True
+    assert action["param_map"]["end"] == "$message.index"
+
+
+def test_end_inclusive_replaces_selected_message_too(tmp_path: Path) -> None:
+    reset_controllable_openai_test_provider_state()
+    app = _build_app(
+        tmp_path,
+        provider_config={"response_text": "Inclusive summary"},
+        filename="config_summarize_range_inclusive.json",
+        session_dir="sessions_inclusive",
+    )
+
+    session_id = _create_session_with_messages(app, ["m0", "m1", "m2", "m3"])
+
+    result = app.execute_application_action(
+        plugin_id="summarize_range",
+        action_id="summarize_range",
+        params={
+            "session_id": session_id,
+            "start": 0,
+            "end": 2,
+            "end_inclusive": True,
+        },
+    )
+
+    assert _get_mutations(result).get("updated_session_ids") == [session_id]
+
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base, session = ctx
+    assert [m.content for m in session.messages] == [
+        "Inclusive summary",
+        "m3",
+    ]
+    assert session.messages[0].role == "assistant"
+
+
 def test_prompt_input_overrides_config_default(tmp_path: Path) -> None:
     reset_controllable_openai_test_provider_state()
     app = _build_app(
