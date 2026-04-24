@@ -50,10 +50,16 @@ When `auth_mode: "chatgpt"` is selected, or when `auth_mode: "auto"` resolves
 to ChatGPT because a valid saved login exists, the provider reads a saved
 credential file instead of requiring `OPENAI_API_KEY`.
 
-When credentials and network access are available, the provider now fetches the
-real OpenAI model list through the OpenAI Python SDK. The provider UI uses that
-list for dropdown-based model selection. If discovery is unavailable, the UI
-falls back to manual text entry for `model`.
+When credentials and network access are available, API-key mode fetches the
+real OpenAI model list through the OpenAI Python SDK. For ChatGPT auth, the
+provider merges three Codex-backed sources for model discovery:
+
+- checked-in manual fallback models
+- a checked-in Codex models snapshot
+- the latest live Codex models catalog from GitHub
+
+If discovery is unavailable, the UI falls back to manual text entry for
+`model`.
 
 ## Quickstart
 
@@ -90,8 +96,8 @@ python -m agent_terminal_app --console --config /path/to/config_openai_responses
 ```
 
 In config-aware UIs, the provider will try to populate the `model` selector
-from the live OpenAI catalog. If that lookup fails, you can still type a model
-id manually.
+from the appropriate live catalog. If that lookup fails, you can still type a
+model id manually.
 
 ## ChatGPT auth quickstart
 
@@ -218,9 +224,22 @@ Relevant keys:
 - `auth_mode`
 - `chatgpt_credentials_path`
 - `chatgpt_base_url`
+- `src/openai_responses_plugins/data/openai_chatgpt_manual_models.json`
+  - checked-in ChatGPT-only fallback models and estimate-only pricing
+  - used only when a model is missing from upstream sources
+- `src/openai_responses_plugins/data/openai_codex_models.json`
+  - checked-in offline snapshot of the public Codex model catalog
+  - refresh it with `python scripts/refresh_openai_responses_models.py`
+  - used when live Codex fetching fails or when you want offline coverage from a recent repo update
 - `chatgpt_account_id`
 - `chatgpt_client_version`
 - `strip_leading_system_or_developer_message`
+
+ChatGPT model-discovery precedence:
+
+- live Codex catalog overrides the checked-in Codex snapshot
+- checked-in Codex snapshot overrides manual fallback models
+- manual fallback models only fill gaps
 
 Defaults:
 

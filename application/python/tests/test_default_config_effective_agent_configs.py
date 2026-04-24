@@ -39,6 +39,7 @@ def test_default_config_effective_agent_configs_stay_intact(
     config_path = (
         ROOT / "application" / "python" / "agent_terminal_app" / "default_config" / "config.json"
     )
+    monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
     session_root = tmp_path / "sessions"
 
     app = AgentApplication(str(config_path), str(session_root), event_store=InMemoryEventStore())

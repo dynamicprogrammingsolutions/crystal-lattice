@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-03-20T07:44:24+00:00",
+  "fetched_at": "2026-04-24T07:04:42+00:00",
   "models": {
     "babbage-002": {
       "model": "babbage-002",
@@ -1005,6 +1005,11 @@
           "cached_input_per_1m": 0.0375,
           "input_per_1m": 0.375,
           "output_per_1m": 2.25
+        },
+        "priority": {
+          "cached_input_per_1m": 0.15,
+          "input_per_1m": 1.5,
+          "output_per_1m": 9.0
         },
         "standard": {
           "cached_input_per_1m": 0.075,

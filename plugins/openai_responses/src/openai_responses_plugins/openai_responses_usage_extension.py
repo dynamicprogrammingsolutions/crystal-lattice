@@ -12,6 +12,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from agent_core.types import ProviderExtensionPlugin
 
 from .openai_responses_pricing import estimate_usage_cost
+from .openai_responses_codex_models import (
+    load_manual_chatgpt_model_pricing as _load_manual_chatgpt_model_pricing_shared,
+)
 
 
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
@@ -298,6 +301,18 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             return max(0, int(value))
         return None
 
+    @classmethod
+    def _effective_cached_tokens_from_internal(cls, internal: Any) -> Optional[int]:
+        if not isinstance(internal, dict):
+            return None
+        estimated = internal.get("usage_estimated_cached_tokens")
+        if isinstance(estimated, (int, float)) and not isinstance(estimated, bool):
+            return max(0, int(estimated))
+        usage = cls._public_usage_from_internal(internal)
+        if isinstance(usage, dict):
+            return cls._usage_cached_tokens(usage)
+        return None
+
     @staticmethod
     def _usage_output_tokens(usage: Dict[str, Any]) -> Optional[int]:
         value = usage.get("output_tokens")
@@ -561,6 +576,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         config = state.get("config") if isinstance(state, dict) else None
         model = config.get("model") if isinstance(config, dict) else None
         snapshot_path = config.get("pricing_snapshot_path") if isinstance(config, dict) else None
+        manual_pricing = self._manual_model_pricing()
         service_tier = self._service_tier_from_items(current_items)
         effective_auth_mode = self._effective_auth_mode(state)
 
@@ -601,6 +617,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     model=model,
                     service_tier=service_tier,
                     snapshot_path=snapshot_path if isinstance(snapshot_path, str) else None,
+                    manual_entries=manual_pricing,
                 )
             except Exception:
                 total_cost = None
@@ -644,7 +661,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 input_tokens = self._usage_input_tokens(usage_prev)
                 if isinstance(input_tokens, int):
                     base_total_turn_input += input_tokens
-                cached_tokens = self._usage_cached_tokens(usage_prev)
+                cached_tokens = self._effective_cached_tokens_from_internal(internal_prev)
                 if isinstance(cached_tokens, int):
                     base_total_turn_cached += cached_tokens
                 output_tokens = self._usage_output_tokens(usage_prev)
@@ -656,7 +673,11 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         cumulative_cost = base_total + effective_total_cost
         usage_turn_cumulative = base_total_turn + effective_total_cost
         current_input = self._usage_input_tokens(usage) or 0
-        current_cached = self._usage_cached_tokens(usage) or 0
+        current_cached = (
+            estimated_cached_tokens
+            if isinstance(estimated_cached_tokens, int)
+            else self._usage_cached_tokens(usage) or 0
+        )
         current_output = self._usage_output_tokens(usage) or 0
         usage_turn_input_cumulative = base_total_turn_input + current_input
         usage_turn_cached_cumulative = base_total_turn_cached + current_cached
@@ -719,6 +740,11 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             extra_md["usage_total_cost_formatted"] = cost_str
 
         return extra_md
+
+    @staticmethod
+    def _manual_model_pricing() -> Dict[str, Any] | None:
+        pricing = _load_manual_chatgpt_model_pricing_shared()
+        return pricing or None
 
     def _extract_stream_usage(self, native_chunk: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
         if not isinstance(native_chunk, dict):

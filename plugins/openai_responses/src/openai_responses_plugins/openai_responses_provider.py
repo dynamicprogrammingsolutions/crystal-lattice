@@ -82,6 +82,12 @@ from .openai_responses_runtime import (
     should_strip_leading_system_or_developer_message as _should_strip_leading_shared,
     strip_leading_system_or_developer_message as _strip_leading_shared,
 )
+from .openai_responses_codex_models import fetch_codex_models as _fetch_codex_models_shared
+from .openai_responses_codex_models import (
+    load_manual_chatgpt_model_descriptors as _load_manual_chatgpt_model_descriptors_shared,
+    load_snapshot_model_descriptors as _load_snapshot_model_descriptors_shared,
+    merge_model_descriptors as _merge_model_descriptors_shared,
+)
 
 log = get_logger("openai_responses_provider")
 
@@ -486,7 +492,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
     def _fetch_models_raw(self, config: Dict[str, Any]) -> Any:
         mode = self._discovery_auth_mode(config)
         if mode == "chatgpt":
-            return self._fetch_chatgpt_models(config)
+            return self._fetch_chatgpt_discovery_models(config)
         client = self._create_sdk_client_for_discovery(config)
         return client.models.list()
 
@@ -659,6 +665,25 @@ class OpenAIResponsesProvider(ProviderPlugin):
             return _DEFAULT_CHATGPT_BASE_URL
         return raw.rstrip("/")
 
+    def _chatgpt_manual_models(self) -> List[Dict[str, Any]]:
+        return _load_manual_chatgpt_model_descriptors_shared()
+
+    def _chatgpt_snapshot_models(self) -> List[Dict[str, Any]]:
+        try:
+            return _load_snapshot_model_descriptors_shared()
+        except Exception:
+            return []
+
+    def _merge_model_descriptors(
+        self,
+        *descriptor_lists: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        return _merge_model_descriptors_shared(*descriptor_lists)
+
+    def _fetch_codex_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
+        return _fetch_codex_models_shared(timeout=timeout)
+
     def _fetch_chatgpt_models(self, config: Dict[str, Any]) -> Dict[str, Any]:
         credentials = self._chatgpt_discovery_credentials(config)
         token = credentials.get("access_token")
@@ -696,6 +721,36 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if not isinstance(payload, dict):
             raise RuntimeError("chatgpt models discovery returned an unexpected payload")
         return payload
+
+    def _fetch_chatgpt_discovery_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]] | Dict[str, Any]:
+        # Validate credentials up front so ChatGPT mode still requires a valid login.
+        self._chatgpt_discovery_credentials(config)
+
+        manual_models = self._chatgpt_manual_models()
+        snapshot_models = self._chatgpt_snapshot_models()
+        codex_error: Exception | None = None
+        try:
+            codex_models = self._fetch_codex_models(config)
+            return self._merge_model_descriptors(manual_models, snapshot_models, codex_models)
+        except Exception as exc:
+            codex_error = exc
+
+        if snapshot_models:
+            if codex_error is not None:
+                log.warning(
+                    "Falling back to checked-in Codex models snapshot after live fetch failed",
+                    error=str(codex_error),
+                )
+            return self._merge_model_descriptors(manual_models, snapshot_models)
+
+        fallback_models = self._normalize_model_descriptors(self._fetch_chatgpt_models(config))
+        merged = self._merge_model_descriptors(manual_models, fallback_models)
+        if codex_error is not None:
+            log.warning(
+                "Falling back to ChatGPT /models discovery after Codex catalog fetch failed",
+                error=str(codex_error),
+            )
+        return merged
 
     def _normalize_model_descriptors(self, raw_result: Any) -> List[Dict[str, Any]]:
         data = getattr(raw_result, "data", raw_result)

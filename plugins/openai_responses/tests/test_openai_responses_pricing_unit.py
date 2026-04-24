@@ -166,6 +166,65 @@ def test_resolve_pricing_entry_normalizes_snapshot_suffix_models() -> None:
     assert entry["model"] == "gpt-5-mini"
 
 
+def test_resolve_pricing_entry_prefers_snapshot_entries_over_manual_fallbacks() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[
+            {
+                "model": "gpt-5.5",
+                "pricing": {
+                    "input_per_1m": 4.0,
+                    "cached_input_per_1m": 0.4,
+                    "output_per_1m": 20.0,
+                },
+            }
+        ],
+    )
+
+    entry = resolve_pricing_entry(
+        "gpt-5.5",
+        snapshot=snapshot,
+        manual_entries={
+            "gpt-5.5": {
+                "model": "gpt-5.5",
+                "pricing": {
+                    "input_per_1m": 5.0,
+                    "cached_input_per_1m": 0.5,
+                    "output_per_1m": 30.0,
+                },
+            }
+        },
+    )
+
+    assert entry is not None
+    assert entry["pricing"]["input_per_1m"] == 4.0
+
+
+def test_resolve_pricing_entry_uses_manual_fallback_when_snapshot_is_missing_model() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[],
+    )
+
+    entry = resolve_pricing_entry(
+        "gpt-5.5",
+        snapshot=snapshot,
+        manual_entries={
+            "gpt-5.5": {
+                "model": "gpt-5.5",
+                "pricing": {
+                    "input_per_1m": 5.0,
+                    "cached_input_per_1m": 0.5,
+                    "output_per_1m": 30.0,
+                },
+            }
+        },
+    )
+
+    assert entry is not None
+    assert entry["pricing"]["input_per_1m"] == 5.0
+
+
 def test_merge_pricing_entry_preserves_existing_pricing_and_adds_tiers() -> None:
     existing = {
         "model": "gpt-5-mini",

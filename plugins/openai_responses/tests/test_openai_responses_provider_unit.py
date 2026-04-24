@@ -530,7 +530,7 @@ def test_get_models_returns_empty_list_and_logs_warning_when_sdk_call_fails(
     assert warnings[0][1]["error"] == "network boom"
 
 
-def test_get_models_uses_chatgpt_models_endpoint_with_client_version(
+def test_get_models_uses_codex_catalog_for_chatgpt_discovery(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -549,6 +549,109 @@ def test_get_models_uses_chatgpt_models_endpoint_with_client_version(
     )
     captured: dict[str, Any] = {}
 
+    def _fake_fetch_codex_models(config: Dict[str, Any]) -> list[Dict[str, Any]]:
+        captured["config"] = dict(config)
+        return [
+            {"id": "gpt-5.4", "name": "gpt-5.4"},
+            {"id": "gpt-5.3-codex", "name": "gpt-5.3-codex"},
+        ]
+
+    monkeypatch.setattr(provider, "_fetch_codex_models", _fake_fetch_codex_models)
+    monkeypatch.setattr(provider_module, "_load_snapshot_model_descriptors_shared", lambda: [])
+    monkeypatch.setattr(provider_module, "_load_manual_chatgpt_model_descriptors_shared", lambda: [])
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_base_url": "https://chatgpt.example.test/backend-api/codex",
+            "chatgpt_credentials_path": str(credentials_path),
+            "timeout": 15,
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.3-codex", "name": "gpt-5.3-codex"},
+        {"id": "gpt-5.4", "name": "gpt-5.4"},
+    ]
+    assert captured["config"]["auth_mode"] == "chatgpt"
+
+
+def test_get_models_merges_chatgpt_manual_models_into_codex_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        provider,
+        "_fetch_codex_models",
+        lambda config: [{"id": "gpt-5.4", "name": "gpt-5.4"}],
+    )
+    monkeypatch.setattr(provider_module, "_load_snapshot_model_descriptors_shared", lambda: [])
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [
+            {"id": "gpt-5.5", "name": "gpt-5.5"},
+            {"id": "gpt-5.4", "name": "GPT-5.4 Override"},
+        ],
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.4", "name": "gpt-5.4"},
+        {"id": "gpt-5.5", "name": "gpt-5.5"},
+    ]
+
+
+def test_get_models_falls_back_to_chatgpt_models_endpoint_when_codex_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "account_id": "acct-123",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        provider,
+        "_fetch_codex_models",
+        lambda config: (_ for _ in ()).throw(RuntimeError("codex unavailable")),
+    )
+    monkeypatch.setattr(provider_module, "_load_snapshot_model_descriptors_shared", lambda: [])
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [{"id": "gpt-5.5", "name": "gpt-5.5"}],
+    )
+
     class _FakeHttpResponse:
         def __enter__(self) -> "_FakeHttpResponse":
             return self
@@ -561,7 +664,6 @@ def test_get_models_uses_chatgpt_models_endpoint_with_client_version(
                 {
                     "models": [
                         {"slug": "gpt-5.2-codex", "display_name": "GPT-5.2 Codex"},
-                        {"slug": "gpt-5-codex"},
                     ]
                 }
             ).encode("utf-8")
@@ -591,7 +693,110 @@ def test_get_models_uses_chatgpt_models_endpoint_with_client_version(
     assert captured["timeout"] == 15.0
     assert models == [
         {"id": "gpt-5.2-codex", "name": "GPT-5.2 Codex"},
-        {"id": "gpt-5-codex"},
+        {"id": "gpt-5.5", "name": "gpt-5.5"},
+    ]
+
+
+def test_get_models_uses_snapshot_when_live_codex_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        provider,
+        "_fetch_codex_models",
+        lambda config: (_ for _ in ()).throw(RuntimeError("codex unavailable")),
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_snapshot_model_descriptors_shared",
+        lambda: [{"id": "gpt-5.4", "name": "gpt-5.4 snapshot"}],
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [{"id": "gpt-5.5", "name": "gpt-5.5"}],
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.4", "name": "gpt-5.4 snapshot"},
+        {"id": "gpt-5.5", "name": "gpt-5.5"},
+    ]
+
+
+def test_get_models_applies_live_over_snapshot_over_manual_precedence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [
+            {"id": "gpt-5.4", "name": "manual 5.4", "description": "manual"},
+            {"id": "gpt-5.5", "name": "manual 5.5"},
+        ],
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_snapshot_model_descriptors_shared",
+        lambda: [
+            {"id": "gpt-5.4", "name": "snapshot 5.4"},
+            {"id": "gpt-5.6", "name": "snapshot 5.6"},
+        ],
+    )
+    monkeypatch.setattr(
+        provider,
+        "_fetch_codex_models",
+        lambda config: [
+            {"id": "gpt-5.4", "name": "live 5.4"},
+            {"id": "gpt-5.7", "name": "live 5.7"},
+        ],
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.4", "name": "live 5.4"},
+        {"id": "gpt-5.5", "name": "manual 5.5"},
+        {"id": "gpt-5.6", "name": "snapshot 5.6"},
+        {"id": "gpt-5.7", "name": "live 5.7"},
     ]
 
 

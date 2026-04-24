@@ -15,6 +15,21 @@
       "system_message_enabled": true,
       "codex_developer_messages": [
         {
+          "model_regex": "^(openai/)?gpt-5\\.5$",
+          "personality": "default",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.5$",
+          "personality": "friendly",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_friendly.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.5$",
+          "personality": "pragmatic",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_pragmatic.md}"
+        },
+        {
           "model_regex": "^(openai/)?gpt-5\\.4$",
           "personality": "default",
           "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_default.md}"

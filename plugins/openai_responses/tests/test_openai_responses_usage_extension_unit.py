@@ -183,6 +183,31 @@ def test_streaming_usage_surfaces_flex_tier_and_uses_tier_pricing(tmp_path: Path
     assert md.get("usage_total_cost_formatted") == "$0.000202"
 
 
+def test_streaming_usage_uses_manual_model_pricing_when_snapshot_is_missing_model() -> None:
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 200},
+        "output_tokens": 100,
+    }
+    final_messages: List[Dict[str, Any]] = [_assistant_output_item("hi", response_id="resp_manual")]
+    native_messages: List[Dict[str, Any]] = list(final_messages)
+    native_chunk = {"type": "response.completed", "response": {"id": "resp_manual", "usage": usage}}
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5.5"}},
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_total_cost") == pytest.approx(0.0071, rel=1e-9)
+    assert md.get("usage_total_cost_formatted") == "$0.007100"
+
+
 def test_streaming_usage_marks_tool_call_turns_and_attaches_to_assistant_item() -> None:
     ext = OpenAIResponsesUsageExtension()
 
@@ -539,6 +564,55 @@ def test_chatgpt_usage_ignores_reported_cached_tokens_for_cost_and_uses_estimate
     assert md.get("usage") == usage
     assert md.get("usage_estimated_cached_tokens") == 20
     assert md.get("usage_estimated_cached_tokens_formatted") == "20"
+    assert md.get("usage_turn_cached_tokens_cumulative") == 20
+    assert md.get("usage_turn_cached_tokens_cumulative_formatted") == "20"
+
+
+def test_turn_cached_cumulative_prefers_estimated_cached_tokens_when_present() -> None:
+    ext = OpenAIResponsesUsageExtension()
+
+    base_native: List[Dict[str, Any]] = [
+        _user_item("u1"),
+        _assistant_output_item(
+            "a2",
+            response_id="resp_prev",
+            extra_metadata={
+                "usage": {
+                    "input_tokens": 20,
+                    "input_tokens_details": {"cached_tokens": 4},
+                    "output_tokens": 3,
+                },
+                "usage_estimated_cached_tokens": 18,
+                "turn": {"id": 1, "has_tool_calls": True, "is_terminal": False},
+                "usage_total_cost": 0.00001,
+            },
+        ),
+    ]
+    usage = {
+        "input_tokens": 100,
+        "input_tokens_details": {"cached_tokens": 12},
+        "output_tokens": 10,
+    }
+    final_messages: List[Dict[str, Any]] = [_assistant_output_item("hi", response_id="resp_1")]
+    native_messages: List[Dict[str, Any]] = [*base_native, *final_messages]
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk={"type": "response.completed", "response": {"id": "resp_1", "usage": usage}},
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "_openai_responses_effective_auth_mode": "chatgpt",
+            }
+        },
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_estimated_cached_tokens") == 20
+    assert md.get("usage_turn_cached_tokens_cumulative") == 38
+    assert md.get("usage_turn_cached_tokens_cumulative_formatted") == "38"
 
 
 def test_chatgpt_estimated_cached_tokens_are_shown_as_zero_for_first_turn_message() -> None:

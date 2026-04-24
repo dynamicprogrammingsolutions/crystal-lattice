@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "models": {
+    "gpt-5.5": {
+      "id": "gpt-5.5",
+      "name": "gpt-5.5",
+      "description": "Manual ChatGPT-only fallback until upstream catalogs publish this model.",
+      "pricing": {
+        "input_per_1m": 5.0,
+        "cached_input_per_1m": 0.5,
+        "output_per_1m": 30.0
+      }
+    }
+  }
+}
