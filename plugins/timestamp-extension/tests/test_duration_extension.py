@@ -217,6 +217,168 @@ def test_turn_tps_falls_back_to_input_tokens_when_output_total_is_missing() -> N
     assert md.get("turn_tps_formatted") == "401.34 tok/s"
 
 
+def test_from_native_messages_uses_native_indices_for_responses_segments() -> None:
+    ext = DurationExtension()
+
+    native_messages = [
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "lookup",
+            "arguments": "{}",
+            "_metadata": {"turn": {"id": 2, "has_tool_calls": True, "is_terminal": False}},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": ""}],
+            "_metadata": {
+                "duration_started_at": "2024-01-01T00:00:00+00:00",
+                "duration_finished_at": "2024-01-01T00:00:02+00:00",
+                "duration_ms": 2000,
+                "duration_formatted": "2s",
+                "turn_duration_ms": 3500,
+                "turn_duration_formatted": "3.5s",
+                "turn_tps": 12.0,
+                "turn_tps_formatted": "12 tok/s",
+                "turn": {"id": 2, "has_tool_calls": False, "is_terminal": True},
+            },
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_1",
+            "output": "ok",
+            "_metadata": {"turn": {"id": 2, "has_tool_calls": False, "is_terminal": True}},
+        },
+    ]
+
+    messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "metadata": {"native_indices": [0, 1, 2]},
+        },
+        {
+            "role": "tool",
+            "content": "ok",
+            "metadata": {"native_indices": [2]},
+        },
+    ]
+
+    rebuilt = ext.from_native_messages(native_messages, messages)
+    assistant_md = rebuilt[0].get("metadata") or {}
+    assert assistant_md.get("duration_ms") == 2000
+    assert assistant_md.get("duration_formatted") == "2s"
+    assert assistant_md.get("turn_duration_ms") == 3500
+    assert assistant_md.get("turn_duration_formatted") == "3.5s"
+    assert assistant_md.get("turn_tps_formatted") == "12 tok/s"
+
+    tool_md = rebuilt[1].get("metadata") or {}
+    assert "duration_ms" not in tool_md
+
+
+def test_finalize_stamps_duration_on_tool_only_response_owner() -> None:
+    ext = DurationExtension()
+    state = {
+        "_duration_extension": {
+            "duration_started_at": "2024-01-01T00:00:00+00:00",
+            "duration_started_at_mono": 10.0,
+        }
+    }
+
+    final_messages = [
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "shell_command",
+            "arguments": "{}",
+            "_metadata": {"turn": {"id": 3, "has_tool_calls": True, "is_terminal": False}},
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_2",
+            "name": "shell_command",
+            "arguments": "{}",
+            "_metadata": {
+                "usage": {"input_tokens": 10, "output_tokens": 4},
+                "turn": {"id": 3, "has_tool_calls": True, "is_terminal": False},
+                "usage_turn_output_tokens_cumulative": 4,
+            },
+        },
+    ]
+    native_messages = list(final_messages)
+
+    from unittest.mock import patch
+
+    with patch("timestamp_extension.duration_extension.time.monotonic", return_value=10.5):
+        stamped_finals, stamped_history, _state = ext.finalize(
+            final_messages,
+            native_messages,
+            state,
+        )
+
+    assert "_metadata" in stamped_finals[1]
+    md = stamped_finals[1].get("_metadata") or {}
+    assert md.get("duration_ms") == 500
+    assert md.get("duration_formatted") == "500ms"
+    assert md.get("turn_duration_ms") == 500
+    assert md.get("turn_tps_formatted") == "8 tok/s"
+
+    history_md = stamped_history[1].get("_metadata") or {}
+    assert history_md.get("duration_ms") == 500
+
+
+def test_turn_duration_accumulates_prior_tool_only_response_duration() -> None:
+    ext = DurationExtension()
+    state = {
+        "_duration_extension": {
+            "duration_started_at": "2024-01-01T00:00:00+00:00",
+            "duration_started_at_mono": 20.0,
+        }
+    }
+
+    native_messages = [
+        {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]},
+        {
+            "type": "function_call",
+            "call_id": "call_prev",
+            "name": "shell_command",
+            "arguments": "{}",
+            "_metadata": {
+                "duration_ms": 1200,
+                "turn": {"id": 4, "has_tool_calls": True, "is_terminal": False},
+                "usage_turn_output_tokens_cumulative": 12,
+            },
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_cur",
+            "name": "shell_command",
+            "arguments": "{}",
+            "_metadata": {
+                "usage": {"input_tokens": 20, "output_tokens": 6},
+                "turn": {"id": 4, "has_tool_calls": True, "is_terminal": False},
+                "usage_turn_output_tokens_cumulative": 18,
+            },
+        },
+    ]
+    final_messages = [native_messages[-1]]
+
+    from unittest.mock import patch
+
+    with patch("timestamp_extension.duration_extension.time.monotonic", return_value=20.8):
+        stamped_finals, _stamped_history, _state = ext.finalize(
+            final_messages,
+            native_messages,
+            state,
+        )
+
+    md = stamped_finals[0].get("_metadata") or {}
+    assert md.get("duration_ms") == 800
+    assert md.get("turn_duration_ms") == 2000
+    assert md.get("turn_tps_formatted") == "9 tok/s"
+
+
 def test_ui_elements_hide_message_footers_when_disabled() -> None:
     ext = DurationExtension()
 
