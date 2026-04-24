@@ -100,10 +100,104 @@ def _sum_assistant_durations_since_turn_start(native_history: List[Dict[str, Any
 class DurationExtension(FeaturePlugin):
     name: str = "duration_extension"
     version: str = "0.1.0"
+    priority: int = 200
 
     _SHOW_DURATION_KEY = "duration_extension_show_duration"
 
     _STATE_KEY = "_duration_extension"
+
+    @staticmethod
+    def _turn_metadata(native_msg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        internal_md = native_msg.get("_metadata") or {}
+        if not isinstance(internal_md, dict):
+            return None
+        turn = internal_md.get("turn")
+        return turn if isinstance(turn, dict) else None
+
+    @classmethod
+    def _turn_id(cls, native_msg: Dict[str, Any]) -> Any:
+        turn = cls._turn_metadata(native_msg)
+        if not isinstance(turn, dict):
+            return None
+        value = turn.get("id")
+        if isinstance(value, (str, int, float)) and not isinstance(value, bool):
+            return value
+        return None
+
+    @classmethod
+    def _turn_has_tool_calls(cls, native_msg: Dict[str, Any]) -> Optional[bool]:
+        turn = cls._turn_metadata(native_msg)
+        if not isinstance(turn, dict):
+            return None
+        value = turn.get("has_tool_calls")
+        return value if isinstance(value, bool) else None
+
+    @classmethod
+    def _sum_assistant_durations_for_turn(
+        cls, native_history: List[Dict[str, Any]], turn_id: Any
+    ) -> int:
+        total_ms = 0
+        for msg in native_history:
+            if not isinstance(msg, dict) or msg.get("role") != "assistant":
+                continue
+            if cls._turn_id(msg) != turn_id:
+                continue
+            internal_md = msg.get("_metadata") or {}
+            if not isinstance(internal_md, dict):
+                continue
+            duration_ms = internal_md.get("duration_ms")
+            if isinstance(duration_ms, (int, float)) and not isinstance(duration_ms, bool):
+                try:
+                    total_ms += int(duration_ms)
+                except Exception:
+                    pass
+        return total_ms
+
+    @classmethod
+    def _base_turn_duration_ms(cls, native_history: List[Dict[str, Any]], current_msg: Dict[str, Any]) -> int:
+        turn_id = cls._turn_id(current_msg)
+        if turn_id is not None:
+            return cls._sum_assistant_durations_for_turn(native_history, turn_id)
+        return _sum_assistant_durations_since_turn_start(native_history)
+
+    @classmethod
+    def _turn_input_tokens(cls, native_msg: Dict[str, Any]) -> Optional[int]:
+        internal_md = native_msg.get("_metadata") or {}
+        if not isinstance(internal_md, dict):
+            return None
+        value = internal_md.get("usage_turn_input_tokens_cumulative")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return max(0, int(value))
+        return None
+
+    @classmethod
+    def _turn_output_tokens(cls, native_msg: Dict[str, Any]) -> Optional[int]:
+        internal_md = native_msg.get("_metadata") or {}
+        if not isinstance(internal_md, dict):
+            return None
+        value = internal_md.get("usage_turn_output_tokens_cumulative")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            return max(0, int(value))
+        return None
+
+    @classmethod
+    def _turn_tps_tokens(cls, native_msg: Dict[str, Any]) -> Optional[int]:
+        output_tokens = cls._turn_output_tokens(native_msg)
+        if isinstance(output_tokens, int):
+            return output_tokens
+        return cls._turn_input_tokens(native_msg)
+
+    @classmethod
+    def _should_surface_turn_metrics(cls, native_msg: Dict[str, Any]) -> bool:
+        turn_has_tool_calls = cls._turn_has_tool_calls(native_msg)
+        if isinstance(turn_has_tool_calls, bool):
+            return not turn_has_tool_calls
+        return not _has_tool_calls(native_msg)
+
+    @staticmethod
+    def _format_turn_tps(turn_tps: float) -> str:
+        rendered = f"{turn_tps:.2f}".rstrip("0").rstrip(".")
+        return f"{rendered} tok/s"
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -146,6 +240,11 @@ class DurationExtension(FeaturePlugin):
                         "ui_type": "message_footer",
                         "data": "metadata.turn_duration_formatted",
                         "template": "turn duration: {{data}}",
+                    },
+                    {
+                        "ui_type": "message_footer",
+                        "data": "metadata.turn_tps_formatted",
+                        "template": "turn TPS: {{data}}",
                     },
                 ]
             )
@@ -195,10 +294,6 @@ class DurationExtension(FeaturePlugin):
         history_before_current = (
             native_messages[:history_offset] if history_offset > 0 else []
         )
-        base_turn_ms = _sum_assistant_durations_since_turn_start(history_before_current)
-        turn_duration_ms = base_turn_ms + duration_ms
-        turn_duration_formatted = _format_duration_ms(turn_duration_ms)
-
         def _stamp_assistant(native_msg: Dict[str, Any]) -> Dict[str, Any]:
             if native_msg.get("role") != "assistant":
                 return native_msg
@@ -206,6 +301,10 @@ class DurationExtension(FeaturePlugin):
             internal_md = native_msg.get("_metadata") or {}
             if not isinstance(internal_md, dict):
                 internal_md = {}
+
+            base_turn_ms = self._base_turn_duration_ms(history_before_current, native_msg)
+            turn_duration_ms = base_turn_ms + duration_ms
+            turn_duration_formatted = _format_duration_ms(turn_duration_ms)
 
             merged_md = {
                 **internal_md,
@@ -216,6 +315,12 @@ class DurationExtension(FeaturePlugin):
                 "turn_duration_ms": turn_duration_ms,
                 "turn_duration_formatted": turn_duration_formatted,
             }
+
+            turn_tps_tokens = self._turn_tps_tokens(native_msg)
+            if isinstance(turn_tps_tokens, int) and turn_duration_ms > 0:
+                turn_tps = (float(turn_tps_tokens) * 1000.0) / float(turn_duration_ms)
+                merged_md["turn_tps"] = turn_tps
+                merged_md["turn_tps_formatted"] = self._format_turn_tps(turn_tps)
             return {**native_msg, "_metadata": merged_md}
 
         stamped_finals = [_stamp_assistant(m) for m in final_messages]
@@ -248,6 +353,8 @@ class DurationExtension(FeaturePlugin):
         turn_keys = (
             "turn_duration_ms",
             "turn_duration_formatted",
+            "turn_tps",
+            "turn_tps_formatted",
         )
 
         if len(messages) == len(native_messages):
@@ -265,7 +372,7 @@ class DurationExtension(FeaturePlugin):
                     if key in internal_md and key not in core_md:
                         core_md[key] = internal_md.get(key)
 
-                if _has_tool_calls(native):
+                if not self._should_surface_turn_metrics(native):
                     for key in turn_keys:
                         core_md.pop(key, None)
                 else:
@@ -290,7 +397,7 @@ class DurationExtension(FeaturePlugin):
             for key in duration_keys:
                 core_md.setdefault(key, internal_md.get(key))
 
-            if _has_tool_calls(native_last):
+            if not self._should_surface_turn_metrics(native_last):
                 for key in turn_keys:
                     core_md.pop(key, None)
             else:

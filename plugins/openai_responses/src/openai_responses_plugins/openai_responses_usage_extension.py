@@ -17,6 +17,12 @@ from .openai_responses_pricing import estimate_usage_cost
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _PUBLIC_USAGE_METADATA_KEYS = (
+    "usage_turn_input_tokens_cumulative",
+    "usage_turn_input_tokens_cumulative_formatted",
+    "usage_turn_cached_tokens_cumulative",
+    "usage_turn_cached_tokens_cumulative_formatted",
+    "usage_turn_output_tokens_cumulative",
+    "usage_turn_output_tokens_cumulative_formatted",
     "usage_prompt_tokens_formatted",
     "usage_cached_tokens_formatted",
     "usage_estimated_cached_tokens",
@@ -150,6 +156,21 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 "template": "reasoning: {{data}}",
             },
             {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
+                "template": "turn input: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_cached_tokens_cumulative_formatted",
+                "template": "turn cached: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
+                "template": "turn output: {{data}}",
+            },
+            {
                 "ui_type": "status_bar",
                 "data": "metadata.usage_total_cost_cumulative_formatted",
                 "template": "Total: {{data}}",
@@ -266,6 +287,29 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         if isinstance(value, (int, float)):
             return max(0, int(value))
         return None
+
+    @staticmethod
+    def _usage_cached_tokens(usage: Dict[str, Any]) -> Optional[int]:
+        details = usage.get("input_tokens_details")
+        if not isinstance(details, dict):
+            return None
+        value = details.get("cached_tokens")
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return None
+
+    @staticmethod
+    def _usage_output_tokens(usage: Dict[str, Any]) -> Optional[int]:
+        value = usage.get("output_tokens")
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return None
+
+    @staticmethod
+    def _format_token_count(value: Optional[int]) -> Optional[str]:
+        if not isinstance(value, int):
+            return None
+        return f"{value:,}"
 
     @staticmethod
     def _public_usage_from_internal(internal: Any) -> Optional[Dict[str, Any]]:
@@ -450,6 +494,55 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             return len(items) - 1
         return None
 
+    @classmethod
+    def _item_turn_has_tool_calls(cls, item: Any) -> bool:
+        if not isinstance(item, dict):
+            return False
+        internal = item.get("_metadata")
+        if isinstance(internal, dict):
+            turn = internal.get("turn")
+            if isinstance(turn, dict) and isinstance(turn.get("has_tool_calls"), bool):
+                return bool(turn.get("has_tool_calls"))
+            has_tool_calls = internal.get("has_tool_calls")
+            if isinstance(has_tool_calls, bool):
+                return has_tool_calls
+        item_type = item.get("type")
+        if item_type in {"function_call", "custom_tool_call"}:
+            return True
+        return False
+
+    @classmethod
+    def _item_is_turn_usage_boundary(cls, item: Any) -> bool:
+        if not isinstance(item, dict):
+            return False
+        if item.get("type") == "message" and item.get("role") in ("user", "system"):
+            return True
+        internal = item.get("_metadata")
+        usage = cls._public_usage_from_internal(internal)
+        if not isinstance(usage, dict):
+            return False
+        return not cls._item_turn_has_tool_calls(item)
+
+    @classmethod
+    def _current_turn_id(cls, native_items: List[Dict[str, Any]]) -> int:
+        last_assigned = 0
+        current_open: Optional[int] = None
+
+        for item in native_items:
+            if cls._item_is_turn_usage_boundary(item) and item.get("role") in ("user", "system"):
+                current_open = None
+                continue
+            usage = cls._item_usage_for_estimation(item)
+            if not isinstance(usage, dict):
+                continue
+            if current_open is None:
+                current_open = last_assigned + 1
+            last_assigned = max(last_assigned, current_open)
+            if not cls._item_turn_has_tool_calls(item):
+                current_open = None
+
+        return current_open if current_open is not None else (last_assigned + 1 if last_assigned > 0 else 1)
+
     def _build_usage_metadata(
         self,
         usage: Dict[str, Any],
@@ -518,6 +611,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
         base_total = 0.0
         base_total_turn = 0.0
+        base_total_turn_input = 0
+        base_total_turn_cached = 0
+        base_total_turn_output = 0
         base_total_turn_reasoning = 0
 
         for item in base_native:
@@ -529,37 +625,42 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 continue
             base_total += previous_cost
 
-        last_sep_idx = -1
-        for idx, item in enumerate(base_native):
+        current_turn_id = self._current_turn_id(base_native)
+
+        for item in base_native:
             if not isinstance(item, dict):
-                continue
-            if item.get("type") == "message" and item.get("role") in ("user", "system"):
-                last_sep_idx = idx
                 continue
             internal_prev = item.get("_metadata")
             if not isinstance(internal_prev, dict):
                 continue
-            usage_prev = self._public_usage_from_internal(internal_prev)
-            if not isinstance(usage_prev, dict):
+            turn = internal_prev.get("turn")
+            if not isinstance(turn, dict) or turn.get("id") != current_turn_id:
                 continue
-            if internal_prev.get("has_tool_calls") is False:
-                last_sep_idx = idx
-
-        for idx, item in enumerate(base_native):
-            if idx <= last_sep_idx or not isinstance(item, dict):
-                continue
-            internal_prev = item.get("_metadata")
             previous_cost = self._existing_total_cost_from_internal(internal_prev)
             usage_prev = self._public_usage_from_internal(internal_prev)
-            if previous_cost is None:
-                continue
-            base_total_turn += previous_cost
+            if previous_cost is not None:
+                base_total_turn += previous_cost
             if isinstance(usage_prev, dict):
+                input_tokens = self._usage_input_tokens(usage_prev)
+                if isinstance(input_tokens, int):
+                    base_total_turn_input += input_tokens
+                cached_tokens = self._usage_cached_tokens(usage_prev)
+                if isinstance(cached_tokens, int):
+                    base_total_turn_cached += cached_tokens
+                output_tokens = self._usage_output_tokens(usage_prev)
+                if isinstance(output_tokens, int):
+                    base_total_turn_output += output_tokens
                 base_total_turn_reasoning += self._usage_reasoning_tokens(usage_prev)
 
         effective_total_cost = float(total_cost) if isinstance(total_cost, (int, float)) else 0.0
         cumulative_cost = base_total + effective_total_cost
         usage_turn_cumulative = base_total_turn + effective_total_cost
+        current_input = self._usage_input_tokens(usage) or 0
+        current_cached = self._usage_cached_tokens(usage) or 0
+        current_output = self._usage_output_tokens(usage) or 0
+        usage_turn_input_cumulative = base_total_turn_input + current_input
+        usage_turn_cached_cumulative = base_total_turn_cached + current_cached
+        usage_turn_output_cumulative = base_total_turn_output + current_output
         current_reasoning = self._usage_reasoning_tokens(usage)
         usage_turn_reasoning_cumulative = base_total_turn_reasoning + current_reasoning
 
@@ -571,6 +672,11 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         extra_md: Dict[str, Any] = {
             "usage": usage,
             "has_tool_calls": has_tool_calls,
+            "turn": {
+                "id": current_turn_id,
+                "has_tool_calls": has_tool_calls,
+                "is_terminal": not has_tool_calls,
+            },
             "usage_effective_auth_mode": effective_auth_mode,
             "usage_effective_auth_mode_label": self._effective_auth_mode_label(effective_auth_mode),
             "usage_total_cost": effective_total_cost,
@@ -578,6 +684,18 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             "usage_total_cost_cumulative_formatted": f"${cumulative_cost:.6f}",
             "usage_turn_cost_cumulative": usage_turn_cumulative,
             "usage_turn_cost_cumulative_formatted": f"${usage_turn_cumulative:.6f}",
+            "usage_turn_input_tokens_cumulative": usage_turn_input_cumulative,
+            "usage_turn_input_tokens_cumulative_formatted": self._format_token_count(
+                usage_turn_input_cumulative
+            ),
+            "usage_turn_cached_tokens_cumulative": usage_turn_cached_cumulative,
+            "usage_turn_cached_tokens_cumulative_formatted": self._format_token_count(
+                usage_turn_cached_cumulative
+            ),
+            "usage_turn_output_tokens_cumulative": usage_turn_output_cumulative,
+            "usage_turn_output_tokens_cumulative_formatted": self._format_token_count(
+                usage_turn_output_cumulative
+            ),
             "usage_turn_reasoning_tokens_cumulative": usage_turn_reasoning_cumulative,
             "usage_turn_reasoning_tokens_cumulative_formatted": (
                 f"{int(usage_turn_reasoning_cumulative):,}"

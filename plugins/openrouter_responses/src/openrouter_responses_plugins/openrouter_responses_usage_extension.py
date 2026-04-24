@@ -16,6 +16,72 @@ class OpenRouterResponsesUsageExtension(ProviderExtensionPlugin):
     name: str = "openrouter_responses_usage"
     version: str = "0.1.0"
 
+    @staticmethod
+    def _format_token_count(value: int | None) -> str | None:
+        if not isinstance(value, int):
+            return None
+        return f"{value:,}"
+
+    @staticmethod
+    def _usage_input_tokens(usage: Dict[str, Any]) -> int | None:
+        value = usage.get("input_tokens")
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return None
+
+    @staticmethod
+    def _usage_cached_tokens(usage: Dict[str, Any]) -> int | None:
+        details = usage.get("input_tokens_details")
+        if not isinstance(details, dict):
+            return None
+        value = details.get("cached_tokens")
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return None
+
+    @staticmethod
+    def _usage_output_tokens(usage: Dict[str, Any]) -> int | None:
+        value = usage.get("output_tokens")
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return None
+
+    @classmethod
+    def _item_turn_has_tool_calls(cls, item: Any) -> bool:
+        if not isinstance(item, dict):
+            return False
+        internal = item.get("_metadata")
+        if isinstance(internal, dict):
+            turn = internal.get("turn")
+            if isinstance(turn, dict) and isinstance(turn.get("has_tool_calls"), bool):
+                return bool(turn.get("has_tool_calls"))
+            has_tool_calls = internal.get("has_tool_calls")
+            if isinstance(has_tool_calls, bool):
+                return has_tool_calls
+        return item.get("type") in {"function_call", "custom_tool_call"}
+
+    @classmethod
+    def _current_turn_id(cls, native_items: List[Dict[str, Any]]) -> int:
+        last_assigned = 0
+        current_open: int | None = None
+
+        for item in native_items:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "message" and item.get("role") in ("user", "system"):
+                current_open = None
+                continue
+            internal = item.get("_metadata")
+            if not isinstance(internal, dict) or not isinstance(internal.get("usage"), dict):
+                continue
+            if current_open is None:
+                current_open = last_assigned + 1
+            last_assigned = max(last_assigned, current_open)
+            if not cls._item_turn_has_tool_calls(item):
+                current_open = None
+
+        return current_open if current_open is not None else (last_assigned + 1 if last_assigned > 0 else 1)
+
     def get_config_schema(self) -> Dict[str, Any]:
         return {}
 
@@ -57,6 +123,21 @@ class OpenRouterResponsesUsageExtension(ProviderExtensionPlugin):
                 "ui_type": "message_footer",
                 "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
                 "template": "reasoning: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
+                "template": "turn input: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_cached_tokens_cumulative_formatted",
+                "template": "turn cached: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
+                "template": "turn output: {{data}}",
             },
             {
                 "ui_type": "status_bar",
@@ -182,7 +263,11 @@ class OpenRouterResponsesUsageExtension(ProviderExtensionPlugin):
 
         base_total = 0.0
         base_total_turn = 0.0
+        base_total_turn_input = 0
+        base_total_turn_cached = 0
+        base_total_turn_output = 0
         base_total_turn_reasoning = 0
+        current_turn_id = self._current_turn_id(base_native)
 
         # Total cumulative across all prior responses (one usage block per response).
         for item in base_native:
@@ -203,46 +288,62 @@ class OpenRouterResponsesUsageExtension(ProviderExtensionPlugin):
         # Separator matches the legacy logic:
         # - any user/system message item
         # - any assistant response item (with usage) that did not include tool calls
-        last_sep_idx = -1
-        for idx, item in enumerate(base_native):
+        for item in base_native:
             if not isinstance(item, dict):
                 continue
-            if item.get("type") == "message" and item.get("role") in ("user", "system"):
-                last_sep_idx = idx
-                continue
             internal_prev = item.get("_metadata")
             if not isinstance(internal_prev, dict):
                 continue
-            usage_prev = internal_prev.get("usage")
-            if not isinstance(usage_prev, dict):
-                continue
-            if internal_prev.get("has_tool_calls") is False:
-                last_sep_idx = idx
-
-        for idx, item in enumerate(base_native):
-            if idx <= last_sep_idx or not isinstance(item, dict):
-                continue
-            internal_prev = item.get("_metadata")
-            if not isinstance(internal_prev, dict):
+            turn = internal_prev.get("turn")
+            if not isinstance(turn, dict) or turn.get("id") != current_turn_id:
                 continue
             usage_prev = internal_prev.get("usage")
             if not isinstance(usage_prev, dict):
                 continue
             base_total_turn += self._usage_cost(usage_prev)
+            input_tokens = self._usage_input_tokens(usage_prev)
+            if isinstance(input_tokens, int):
+                base_total_turn_input += input_tokens
+            cached_tokens = self._usage_cached_tokens(usage_prev)
+            if isinstance(cached_tokens, int):
+                base_total_turn_cached += cached_tokens
+            output_tokens = self._usage_output_tokens(usage_prev)
+            if isinstance(output_tokens, int):
+                base_total_turn_output += output_tokens
             base_total_turn_reasoning += self._usage_reasoning_tokens(usage_prev)
 
         usage_turn_cumulative = base_total_turn + current_cost
         usage_turn_cumulative_str = f"${usage_turn_cumulative:.6f}"
+        current_input = self._usage_input_tokens(usage)
+        current_cached = self._usage_cached_tokens(usage)
+        current_output = self._usage_output_tokens(usage)
+        usage_turn_input_cumulative = base_total_turn_input + (
+            current_input if isinstance(current_input, int) else 0
+        )
+        usage_turn_cached_cumulative = base_total_turn_cached + (
+            current_cached if isinstance(current_cached, int) else 0
+        )
+        usage_turn_output_cumulative = base_total_turn_output + (
+            current_output if isinstance(current_output, int) else 0
+        )
 
         current_reasoning = self._usage_reasoning_tokens(usage)
         usage_turn_reasoning_cumulative = base_total_turn_reasoning + current_reasoning
         usage_turn_reasoning_cumulative_str = f"{int(usage_turn_reasoning_cumulative):,}"
 
         has_tool_calls = any(
-            isinstance(it, dict) and it.get("type") == "function_call" for it in final_messages
+            isinstance(it, dict) and it.get("type") in {"function_call", "custom_tool_call"}
+            for it in final_messages
         )
 
-        extra_md: Dict[str, Any] = {"has_tool_calls": has_tool_calls}
+        extra_md: Dict[str, Any] = {
+            "has_tool_calls": has_tool_calls,
+            "turn": {
+                "id": current_turn_id,
+                "has_tool_calls": has_tool_calls,
+                "is_terminal": not has_tool_calls,
+            },
+        }
         if prompt_tokens_str is not None:
             extra_md["usage_prompt_tokens_formatted"] = prompt_tokens_str
         if cached_tokens_str is not None:
@@ -255,6 +356,18 @@ class OpenRouterResponsesUsageExtension(ProviderExtensionPlugin):
         extra_md["usage_total_cost_cumulative_formatted"] = cumulative_cost_str
         extra_md["usage_turn_cost_cumulative"] = usage_turn_cumulative
         extra_md["usage_turn_cost_cumulative_formatted"] = usage_turn_cumulative_str
+        extra_md["usage_turn_input_tokens_cumulative"] = usage_turn_input_cumulative
+        extra_md["usage_turn_input_tokens_cumulative_formatted"] = self._format_token_count(
+            usage_turn_input_cumulative
+        )
+        extra_md["usage_turn_cached_tokens_cumulative"] = usage_turn_cached_cumulative
+        extra_md["usage_turn_cached_tokens_cumulative_formatted"] = self._format_token_count(
+            usage_turn_cached_cumulative
+        )
+        extra_md["usage_turn_output_tokens_cumulative"] = usage_turn_output_cumulative
+        extra_md["usage_turn_output_tokens_cumulative_formatted"] = self._format_token_count(
+            usage_turn_output_cumulative
+        )
         extra_md["usage_turn_reasoning_tokens_cumulative"] = usage_turn_reasoning_cumulative
         extra_md["usage_turn_reasoning_tokens_cumulative_formatted"] = usage_turn_reasoning_cumulative_str
 

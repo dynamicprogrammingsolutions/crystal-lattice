@@ -96,8 +96,15 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
     assert md.get("usage_total_cost_cumulative_formatted") == "$0.000418"
     assert md.get("usage_turn_cost_cumulative") == pytest.approx(0.0004178, rel=1e-9)
     assert md.get("usage_turn_cost_cumulative_formatted") == "$0.000418"
+    assert md.get("usage_turn_input_tokens_cumulative") == 1234
+    assert md.get("usage_turn_input_tokens_cumulative_formatted") == "1,234"
+    assert md.get("usage_turn_cached_tokens_cumulative") == 12
+    assert md.get("usage_turn_cached_tokens_cumulative_formatted") == "12"
+    assert md.get("usage_turn_output_tokens_cumulative") == 56
+    assert md.get("usage_turn_output_tokens_cumulative_formatted") == "56"
     assert md.get("usage_turn_reasoning_tokens_cumulative") == 7
     assert md.get("usage_turn_reasoning_tokens_cumulative_formatted") == "7"
+    assert md.get("turn") == {"id": 1, "has_tool_calls": False, "is_terminal": True}
     assert md.get("has_tool_calls") is False
     assert "usage_estimated_cost" not in md
     assert "usage_cost_source" not in md
@@ -211,7 +218,11 @@ def test_streaming_usage_marks_tool_call_turns_and_attaches_to_assistant_item() 
     assert assistant_md.get("usage_total_cost") == pytest.approx(0.000025, rel=1e-9)
     assert assistant_md.get("usage_total_cost_formatted") == "$0.000025"
     assert assistant_md.get("usage_turn_cost_cumulative_formatted") == "$0.000025"
+    assert assistant_md.get("usage_turn_input_tokens_cumulative_formatted") == "20"
+    assert assistant_md.get("usage_turn_cached_tokens_cumulative_formatted") == "0"
+    assert assistant_md.get("usage_turn_output_tokens_cumulative_formatted") == "10"
     assert assistant_md.get("usage_turn_reasoning_tokens_cumulative_formatted") == "2"
+    assert assistant_md.get("turn") == {"id": 1, "has_tool_calls": True, "is_terminal": False}
 
 
 def test_streaming_usage_marks_custom_tool_call_turns_correctly() -> None:
@@ -414,6 +425,9 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
         "metadata.usage_total_cost_formatted",
         "metadata.usage_turn_cost_cumulative_formatted",
         "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
+        "metadata.usage_turn_input_tokens_cumulative_formatted",
+        "metadata.usage_turn_cached_tokens_cumulative_formatted",
+        "metadata.usage_turn_output_tokens_cumulative_formatted",
         "metadata.usage_total_cost_cumulative_formatted",
     ]
     assert elements[1]["condition"] == {

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
+import pytest
+
 from agent_core import AgentCore
 
 from plugins.echo_openai_like_provider import EchoOpenAILikeProvider
@@ -110,6 +112,109 @@ def test_turn_duration_sums_assistant_durations_since_last_separator() -> None:
     assert native_1
     internal_md = native_1[-1].get("_metadata") or {}
     assert internal_md.get("turn_duration_ms") == seeded_duration_ms + current_duration_ms
+
+
+def test_turn_duration_uses_usage_extension_turn_metadata_for_responses_style_history() -> None:
+    ext = DurationExtension()
+
+    state = {
+        "_duration_extension": {
+            "duration_started_at": "2024-01-01T00:00:00+00:00",
+            "duration_started_at_mono": 100.0,
+        }
+    }
+
+    native_messages = [
+        {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]},
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "calling tool"}],
+            "_metadata": {
+                "duration_ms": 123,
+                "turn": {"id": 1, "has_tool_calls": True, "is_terminal": False},
+                "usage_turn_input_tokens_cumulative": 50,
+                "usage_turn_output_tokens_cumulative": 5,
+            },
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_1",
+            "name": "lookup",
+            "arguments": "{}",
+            "_metadata": {"turn": {"id": 1, "has_tool_calls": True, "is_terminal": False}},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "done"}],
+            "_metadata": {
+                "turn": {"id": 1, "has_tool_calls": False, "is_terminal": True},
+                "usage_turn_input_tokens_cumulative": 200,
+                "usage_turn_output_tokens_cumulative": 80,
+            },
+        },
+    ]
+    final_messages = [native_messages[-1]]
+
+    from unittest.mock import patch
+
+    with patch("timestamp_extension.duration_extension.time.monotonic", return_value=100.2):
+        stamped_finals, stamped_history, _state = ext.finalize(
+            final_messages,
+            native_messages,
+            state,
+        )
+
+    md = stamped_finals[0].get("_metadata") or {}
+    assert md.get("duration_ms") == 200
+    assert md.get("turn_duration_ms") == 323
+    assert md.get("turn_tps") == pytest.approx(80 / 0.323, rel=1e-9)
+    assert md.get("turn_tps_formatted") == "247.68 tok/s"
+
+    core_messages = [{"role": "assistant", "content": "done", "metadata": {}}]
+    rebuilt = ext.from_native_messages(stamped_finals, core_messages)
+    rebuilt_md = rebuilt[0].get("metadata") or {}
+    assert rebuilt_md.get("turn_duration_ms") == 323
+    assert rebuilt_md.get("turn_tps_formatted") == "247.68 tok/s"
+
+
+def test_turn_tps_falls_back_to_input_tokens_when_output_total_is_missing() -> None:
+    ext = DurationExtension()
+
+    state = {
+        "_duration_extension": {
+            "duration_started_at": "2024-01-01T00:00:00+00:00",
+            "duration_started_at_mono": 50.0,
+        }
+    }
+
+    native_messages = [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "done"}],
+            "_metadata": {
+                "turn": {"id": 1, "has_tool_calls": False, "is_terminal": True},
+                "usage_turn_input_tokens_cumulative": 120,
+            },
+        },
+    ]
+
+    from unittest.mock import patch
+
+    with patch("timestamp_extension.duration_extension.time.monotonic", return_value=50.3):
+        stamped_finals, _stamped_history, _state = ext.finalize(
+            native_messages,
+            native_messages,
+            state,
+        )
+
+    md = stamped_finals[0].get("_metadata") or {}
+    duration_ms = md.get("turn_duration_ms")
+    assert isinstance(duration_ms, int)
+    assert md.get("turn_tps") == pytest.approx((120 * 1000.0) / duration_ms, rel=1e-9)
+    assert md.get("turn_tps_formatted") == "401.34 tok/s"
 
 
 def test_ui_elements_hide_message_footers_when_disabled() -> None:
