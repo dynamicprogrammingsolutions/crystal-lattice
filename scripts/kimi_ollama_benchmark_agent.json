@@ -1,0 +1,32 @@
+{
+  "provider_family": "reference_openai_compatible",
+  "base_config": {
+    "provider": "reference_openai_compatible",
+    "base_url": "http://localhost:11434/v1",
+    "model": "kimi-k2.6:cloud",
+    "timeout": 180,
+    "reasoning_field": "reasoning",
+    "retry_on_status": {
+      "503": [5, 5, 5]
+    },
+    "retry_on_timeout": [0, 5, 30],
+    "allow_image_attachment_url": false,
+    "request_options": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "think": true,
+      "stream_options": {
+        "include_usage": true
+      }
+    },
+    "request_options_ui": {
+      "temperature": "number",
+      "top_p": "number"
+    },
+    "token_rates": {
+      "input": 1.0,
+      "cached": 0.2,
+      "completion": 3.2
+    }
+  }
+}

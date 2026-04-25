@@ -12,6 +12,7 @@ from agent_core.types import ProviderExtensionPlugin
 
 
 _ENABLE_FAST_MODE_KEY = "enable_fast_mode"
+_ENABLE_FAST_MODE_FOR_API_KEY = "enable_fast_mode_for_api_requests"
 _FAST_MODE_STATE_KEY = "openai_responses_fast_mode"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _PUBLIC_SERVICE_TIER_KEY = "openai_service_tier"
@@ -51,9 +52,15 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
                 "type": "boolean",
                 "required": False,
                 "default": False,
+                "description": self._fast_mode_description(enable_for_api=False),
+            },
+            _ENABLE_FAST_MODE_FOR_API_KEY: {
+                "type": "boolean",
+                "required": False,
+                "default": False,
                 "description": (
-                    "Enable Fast mode for ChatGPT-authenticated requests only. "
-                    "Ignored in API auth mode."
+                    "Allow Fast mode to apply to API-authenticated requests when enabled. "
+                    "This setting is config-only and does not surface as a separate UI control."
                 ),
             },
         }
@@ -64,13 +71,15 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        _ = config, tags, models
+        enable_for_api = False
+        if isinstance(config, dict):
+            enable_for_api = config.get(_ENABLE_FAST_MODE_FOR_API_KEY) is True
         return [
             {
                 "type": "checkbox",
                 "key": _ENABLE_FAST_MODE_KEY,
                 "label": "Enable Fast mode",
-                "description": "Applies to ChatGPT-authenticated requests only.",
+                "description": self._fast_mode_description(enable_for_api=enable_for_api),
             },
         ]
 
@@ -129,7 +138,10 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         config = state.get("config") if isinstance(state.get("config"), dict) else {}
-        if _effective_auth_mode(config) != "chatgpt":
+        effective_auth_mode = _effective_auth_mode(config)
+        if effective_auth_mode == "api" and config.get(_ENABLE_FAST_MODE_FOR_API_KEY) is not True:
+            return native_messages, state
+        if effective_auth_mode not in {"api", "chatgpt"}:
             return native_messages, state
 
         fast_settings = state.get(_FAST_MODE_STATE_KEY)
@@ -143,6 +155,15 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
         payload = dict(request.get("payload") or {})
         payload["service_tier"] = "priority"
         return native_messages, {**state, "request": {**request, "payload": payload}}
+
+    @staticmethod
+    def _fast_mode_description(*, enable_for_api: bool) -> str:
+        if enable_for_api:
+            return (
+                "Applies to ChatGPT-authenticated requests, and also to API-authenticated "
+                "requests when explicitly enabled in config."
+            )
+        return "Applies to ChatGPT-authenticated requests only."
 
     def _service_tier_from_native_indices(
         self,

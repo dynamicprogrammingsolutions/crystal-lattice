@@ -176,6 +176,7 @@ combination.
       "timeout": 120,
       "enable_flex_processing": false,
       "enable_fast_mode": false,
+      "enable_fast_mode_for_api_requests": false,
       "flex_timeout_seconds": 300,
       "enable_flex_retries": true,
       "flex_max_retries": 2,
@@ -203,7 +204,7 @@ What this enables:
 - usage and cost metadata
 - GPT-5 verbosity controls
 - flex processing controls for supported OpenAI accounts
-- Fast mode controls for ChatGPT-backed requests
+- Fast mode controls for ChatGPT-backed requests, with optional API opt-in
 - prompt caching settings plus a regenerate-key session action
 - a native compaction session action for longer conversations
 
@@ -441,11 +442,37 @@ Fast mode controls are available through:
 
 - `enable_fast_mode`: enable `service_tier: "priority"` for ChatGPT-backed
   Responses calls
+- `enable_fast_mode_for_api_requests`: config-only opt-in that lets
+  `enable_fast_mode` also apply `service_tier: "priority"` to API-backed
+  Responses calls
 
-Fast mode is ignored automatically when the effective auth mode selects the API
-endpoint. The usage footer renders `tier: priority` when OpenAI reports that
-tier, and cost estimation uses priority-tier pricing when the checked-in or
-manual pricing data defines it.
+By default, Fast mode applies only to ChatGPT-backed requests. When
+`enable_fast_mode_for_api_requests: true` is set in config, the same Fast mode
+toggle also applies `service_tier: "priority"` to API-backed requests. The
+usage footer renders `tier: priority` when OpenAI reports that tier, and cost
+estimation uses priority-tier pricing when the checked-in or manual pricing
+data defines it.
+
+## Benchmark script
+
+The repo includes a benchmark helper at
+`scripts/run_openai_responses_tier_matrix.py`.
+
+Useful options:
+
+- `--model` or `--models`
+- `--repeat`
+- `--execution-mode sequential|parallel`
+- `--run-scope api|chatgpt|both`
+- `--desired-input-tokens`
+- `--desired-output-tokens`
+
+The script saves a text artifact under `artifacts/` containing:
+
+- the benchmark configuration
+- one section per model/tier/repeat run
+- actual usage and duration metrics
+- aggregate summaries per model/tier row
 
 ### Reasoning keys
 
