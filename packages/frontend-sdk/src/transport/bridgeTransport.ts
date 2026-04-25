@@ -56,6 +56,10 @@ export class BridgeTransport implements Transport {
   private heartbeatIntervalId: ReturnType<typeof setInterval> | null = null;
   private heartbeatInFlight = false;
   private connectionGeneration = 0;
+  private forceValidateBeforeNextRequest = false;
+  private validationPromise: Promise<void> | null = null;
+  private lastSocketActivityAtMs = 0;
+  private lastHeartbeatOkAtMs = 0;
 
   private pendingReplies: Map<
     string,
@@ -153,6 +157,10 @@ export class BridgeTransport implements Transport {
 
   async connect(): Promise<void> {
     await this.ensureConnected();
+  }
+
+  prepareForResume(): void {
+    this.forceValidateBeforeNextRequest = true;
   }
 
   disconnect(): void {
@@ -387,9 +395,20 @@ export class BridgeTransport implements Transport {
 
   private async ensureConnected(): Promise<void> {
     if (this.ws && this.ws.readyState === 1) {
+      if (this.shouldValidateCurrentSocket()) {
+        try {
+          await this.validateCurrentSocket();
+        } catch {
+          await this.connectFresh();
+        }
+      }
       return;
     }
 
+    await this.connectFresh();
+  }
+
+  private async connectFresh(): Promise<void> {
     if (!this.connectPromise) {
       this.connectPromise = this.connectInternal();
     }
@@ -398,6 +417,58 @@ export class BridgeTransport implements Transport {
       await this.connectPromise;
     } finally {
       this.connectPromise = null;
+    }
+  }
+
+  private shouldValidateCurrentSocket(): boolean {
+    if (!this.ws || this.ws.readyState !== 1) {
+      return false;
+    }
+    if (this.forceValidateBeforeNextRequest) {
+      return true;
+    }
+    if (this.heartbeatIntervalMs <= 0 || this.heartbeatTimeoutMs <= 0) {
+      return false;
+    }
+
+    const lastKnownGood = Math.max(this.lastSocketActivityAtMs, this.lastHeartbeatOkAtMs);
+    if (lastKnownGood <= 0) {
+      return false;
+    }
+    const staleAfterMs = this.heartbeatIntervalMs + this.heartbeatTimeoutMs + 1_000;
+    return Date.now() - lastKnownGood > staleAfterMs;
+  }
+
+  private async validateCurrentSocket(): Promise<void> {
+    if (!this.ws || this.ws.readyState !== 1) {
+      throw new Error('WebSocket not connected');
+    }
+    if (this.validationPromise) {
+      return this.validationPromise;
+    }
+
+    this.validationPromise = (async () => {
+      this.debugLog('[bridge] validate:send', {
+        generation: this.connectionGeneration,
+        timeoutMs: this.heartbeatTimeoutMs,
+        forced: this.forceValidateBeforeNextRequest,
+      });
+      await this.sendMessageRaw('phoenix', 'heartbeat', {}, this.heartbeatTimeoutMs, {
+        phase: 'heartbeat_validation',
+        resetSocketOnTimeout: true,
+      });
+      this.forceValidateBeforeNextRequest = false;
+      this.markSocketActivity();
+      this.lastHeartbeatOkAtMs = Date.now();
+      this.debugLog('[bridge] validate:ok', {
+        generation: this.connectionGeneration,
+      });
+    })();
+
+    try {
+      await this.validationPromise;
+    } finally {
+      this.validationPromise = null;
     }
   }
 
@@ -464,7 +535,12 @@ export class BridgeTransport implements Transport {
             clearTimeout(pending.timeoutId);
 
             if (data.event === 'phx_reply' && data.payload?.status === 'ok') {
-              if (pending.context?.phase === 'heartbeat') {
+              this.markSocketActivity();
+              if (
+                pending.context?.phase === 'heartbeat' ||
+                pending.context?.phase === 'heartbeat_validation'
+              ) {
+                this.lastHeartbeatOkAtMs = Date.now();
                 this.debugLog('[bridge] heartbeat:ok', { generation: connectionGeneration });
               }
               pending.resolve(data.payload.response);
@@ -506,6 +582,8 @@ export class BridgeTransport implements Transport {
           if (this.pairingToken && this.serverId && !this.sessionId) {
             await this.resumeSessionRaw();
           }
+          this.forceValidateBeforeNextRequest = false;
+          this.markSocketActivity();
           this.startHeartbeat(connectionGeneration);
           resolveOnce();
         } catch (err: any) {
@@ -616,6 +694,10 @@ export class BridgeTransport implements Transport {
     });
 
     this.stopHeartbeat();
+    this.validationPromise = null;
+    this.forceValidateBeforeNextRequest = false;
+    this.lastSocketActivityAtMs = 0;
+    this.lastHeartbeatOkAtMs = 0;
     this.failAllPendingReplies(err);
     this.failAllStreamingResponses(err);
 
@@ -643,6 +725,10 @@ export class BridgeTransport implements Transport {
   private getRef(): string {
     this.refCounter += 1;
     return this.refCounter.toString();
+  }
+
+  private markSocketActivity(): void {
+    this.lastSocketActivityAtMs = Date.now();
   }
 
   private async sendMessage(

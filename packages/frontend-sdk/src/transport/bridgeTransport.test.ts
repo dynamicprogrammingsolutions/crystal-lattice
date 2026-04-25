@@ -375,6 +375,108 @@ it('BridgeTransport keeps the socket after an /events timeout when heartbeats re
   }
 });
 
+it('BridgeTransport validates a resume-suspect open socket before sending a request', async () => {
+  const ws = new FakeWebSocket();
+  const transport = new BridgeTransport({
+    bridgeUrl: 'ws://example.test/ws',
+    wsFactory: () => ws,
+    heartbeatIntervalMs: 0,
+    heartbeatTimeoutMs: 20,
+  });
+  (transport as any).sessionId = 'sess-1';
+
+  await transport.connect();
+  transport.prepareForResume();
+
+  const result = await transport.request({ method: 'GET', path: '/api/data', timeoutMs: 100 });
+
+  expect(result.status).toBe(200);
+  const events = ws.sent.map((msg) => msg.event);
+  const heartbeatIndex = events.indexOf('heartbeat');
+  const requestIndex = events.indexOf('http_request');
+  expect(heartbeatIndex).toBeGreaterThanOrEqual(0);
+  expect(requestIndex).toBeGreaterThan(heartbeatIndex);
+  expect((transport as any).ws).toBe(ws);
+});
+
+it('BridgeTransport reconnects after failed pre-send validation and sends on the new socket', async () => {
+  vi.useFakeTimers();
+  try {
+    const createdSockets: FakeWebSocket[] = [];
+    const transport = new BridgeTransport({
+      bridgeUrl: 'ws://example.test/ws',
+      serverId: 'server-1',
+      pairingToken: 'pairing-token',
+      wsFactory: () => {
+        const next =
+          createdSockets.length === 0
+            ? new FakeWebSocket({ respondToHeartbeat: false, resumeSessionId: 'sess-stale' })
+            : new FakeWebSocket({ resumeSessionId: 'sess-fresh' });
+        createdSockets.push(next);
+        return next;
+      },
+      heartbeatIntervalMs: 1_000,
+      heartbeatTimeoutMs: 5,
+    });
+
+    const connectPromise = transport.connect();
+    await flushFakeTimers();
+    await connectPromise;
+    transport.prepareForResume();
+
+    const requestPromise = transport.request({ method: 'GET', path: '/api/data', timeoutMs: 100 });
+    await vi.advanceTimersByTimeAsync(10);
+    await flushFakeTimers();
+    const result = await requestPromise;
+
+    expect(result.status).toBe(200);
+    expect(createdSockets).toHaveLength(2);
+    expect(createdSockets[0].sent.some((msg) => msg.event === 'heartbeat')).toBe(true);
+    expect(createdSockets[0].sent.some((msg) => msg.event === 'http_request')).toBe(false);
+    expect(createdSockets[1].sent.some((msg) => msg.event === 'resume_session')).toBe(true);
+    expect(createdSockets[1].sent.some((msg) => msg.event === 'http_request')).toBe(true);
+    expect((transport as any).sessionId).toBe('sess-fresh');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('BridgeTransport rejects an in-flight request when heartbeat later proves the socket dead', async () => {
+  vi.useFakeTimers();
+  try {
+    const ws = new FakeWebSocket({ replyToHttpRequest: false, respondToHeartbeat: false });
+    const transport = new BridgeTransport({
+      bridgeUrl: 'ws://example.test/ws',
+      wsFactory: () => ws,
+      heartbeatIntervalMs: 10,
+      heartbeatTimeoutMs: 5,
+    });
+    (transport as any).sessionId = 'sess-1';
+
+    const requestPromise = transport.request({
+      method: 'POST',
+      path: '/sessions/s1/send_message',
+      timeoutMs: 60_000,
+    });
+    const settled = requestPromise.then(
+      () => null,
+      (err) => err,
+    );
+    await flushFakeTimers();
+    expect(ws.sent.some((msg) => msg.event === 'http_request')).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(20);
+    const err = await settled;
+
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toMatch(/timeout/i);
+    expect((transport as any).ws).toBe(null);
+    expect((transport as any).sessionId).toBe(null);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
 it('BridgeTransport surfaces Phoenix error reasons for resume_session failures', async () => {
   const ws = new FakeWebSocketResumeError();
   const transport = new BridgeTransport({

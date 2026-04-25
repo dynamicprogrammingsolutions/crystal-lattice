@@ -542,6 +542,8 @@ function App(): React.JSX.Element {
         return;
       }
 
+      transport.prepareForResume();
+
       appendDebugNote({
         scope: 'app',
         title: 'Bridge reconnect started',
