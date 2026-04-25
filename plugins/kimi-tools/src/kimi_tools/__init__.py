@@ -3,6 +3,8 @@ from .kimi_write_file_tool import KimiWriteFileTool
 from .kimi_str_replace_file_tool import KimiStrReplaceFileTool
 from .kimi_glob_tool import KimiGlobTool
 from .kimi_grep_tool import KimiGrepTool
+from .kimi_shell_tool import KimiShellTool
+from .kimi_fetch_url_tool import KimiFetchURLTool
 
 __all__ = [
     "KimiReadFileTool",
@@ -10,4 +12,6 @@ __all__ = [
     "KimiStrReplaceFileTool",
     "KimiGlobTool",
     "KimiGrepTool",
+    "KimiShellTool",
+    "KimiFetchURLTool",
 ]

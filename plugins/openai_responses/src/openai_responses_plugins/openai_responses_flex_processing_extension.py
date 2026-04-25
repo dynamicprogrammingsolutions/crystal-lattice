@@ -29,6 +29,21 @@ _PUBLIC_FLEX_APPLIED_KEY = "flex_processing_applied"
 _FLEX_STREAM_RECOVERY_MODES = ("disabled", "early_only", "aggressive")
 
 
+def _effective_auth_mode(config: Dict[str, Any]) -> str:
+    raw = config.get("_openai_responses_effective_auth_mode")
+    if isinstance(raw, str) and raw.strip().lower() in {"api", "chatgpt"}:
+        return raw.strip().lower()
+    requested = config.get("auth_mode")
+    if not isinstance(requested, str):
+        return "api"
+    normalized = requested.strip().lower()
+    if normalized == "api_key":
+        return "api"
+    if normalized == "chatgpt":
+        return "chatgpt"
+    return "api"
+
+
 class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
     name: str = "openai_responses_flex_processing"
     version: str = "0.1.0"
@@ -113,7 +128,7 @@ class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
                 "label": "Flex max retries",
             },
             {
-                "type": "dropdown",
+                "type": "select",
                 "key": _FLEX_STREAM_RECOVERY_MODE_KEY,
                 "label": "Flex stream recovery",
                 "options": [
@@ -183,6 +198,10 @@ class OpenAIResponsesFlexProcessingExtension(ProviderExtensionPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        config = state.get("config") if isinstance(state.get("config"), dict) else {}
+        if _effective_auth_mode(config) == "chatgpt":
+            return native_messages, state
+
         flex_settings = state.get(_FLEX_STATE_KEY)
         if not isinstance(flex_settings, dict):
             return native_messages, state

@@ -1,0 +1,61 @@
+Loops hum softly, like rain on the pane,
+Bits braid into logic, thought into chain.
+A cursor blinks—lighthouse on syntax seas;
+We chart with functions, sailing on keys.
+
+Example (Python):
+for i in range(5):
+    print(i)
+
+Bugs are small riddles in midnight’s glow,
+Tests are the campfires where answers show.
+Names tell the story, clear, true, and kind—
+Code is a letter we write to the mind.
+
+Example (test):
+def add(a, b):
+    return a + b
+
+def test_add():
+    assert add(2, 3) == 5
+
+From empty repo to living refrain,
+We refactor echoes to elegant plain.
+Commit after heartbeat, diff after dawn;
+Merge light with patience, and conflicts are gone.
+
+Example (git):
+$ git add .
+$ git commit -m "refactor: simplify parser"
+$ git merge feature --no-ff
+
+When systems grow forests from one fragile seed,
+We prune with intent, we document need.
+And when it all runs—quiet, exact—
+Joy compiles gently: a beautiful fact.
+
+Example (run):
+def main():
+    """Run the app"""
+    print("Running...")
+
+if __name__ == "__main__":
+    main()
+
+Patterns are compasses, guiding the way,
+Interfaces whisper what modules should say.
+We keep changes local, cohesive and small,
+Future-proof pathways, composable for all.
+
+
+Example (composition):
+def compose(f, g):
+    return lambda x: f(g(x))
+
+def inc(x):
+    return x + 1
+
+def double(x):
+    return x * 2
+
+print(compose(inc, double)(3))  # 7

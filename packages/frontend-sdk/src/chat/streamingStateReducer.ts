@@ -112,10 +112,10 @@ export function reduceStreamingState(state: StreamingState, event: Event): Strea
   }
 
   if (type === 'final') {
-    if (state.streamingRow == null) {
-      return state;
-    }
-    return { ...state, streamingRow: null };
+    return {
+      ...state,
+      streamingRow: null,
+    };
   }
 
   if (type === 'error') {

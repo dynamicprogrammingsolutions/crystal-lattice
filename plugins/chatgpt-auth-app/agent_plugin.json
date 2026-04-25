@@ -1,0 +1,10 @@
+{
+  "module": "chatgpt_auth_app",
+  "subdirectory": ".",
+  "entries": [
+    "chatgpt_auth_app.ChatGPTAuthAppPlugin"
+  ],
+  "kinds": {
+    "chatgpt_auth_app.ChatGPTAuthAppPlugin": "application"
+  }
+}

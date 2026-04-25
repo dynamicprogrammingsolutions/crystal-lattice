@@ -15,12 +15,19 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-import os
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+import queue
+import threading
+from datetime import datetime, timezone
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 from openai import OpenAI
 
-from agent_core.types import ProviderPlugin
+from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
 from .openai_responses_attachment_assets import (
     build_openai_provider_ref,
@@ -47,25 +54,122 @@ from .openai_responses_attachment_policy import (
     uploaded_attachment_map,
 )
 from .openai_responses_attachment_assets import session_asset_ref_from_content
+from .chatgpt_credentials import (
+    ChatGPTRefreshPermanentError,
+    ChatGPTRefreshTransientError,
+    credentials_are_valid as _chatgpt_credentials_are_valid_shared,
+    credentials_have_access_token,
+    load_credentials as _load_chatgpt_credentials_shared,
+    refresh_chatgpt_credentials,
+    resolve_credentials_path as _resolve_chatgpt_credentials_path_shared,
+)
+from .chatgpt_rate_limits import (
+    parse_all_rate_limit_headers,
+    persist_rate_limit_snapshots,
+    resolve_rate_limits_path as _resolve_chatgpt_rate_limits_path_shared,
+)
+from .openai_responses_runtime import (
+    DEFAULT_API_BASE_URL as _DEFAULT_BASE_URL,
+    DEFAULT_CHATGPT_BASE_URL as _DEFAULT_CHATGPT_BASE_URL,
+    DEFAULT_TIMEOUT as _DEFAULT_TIMEOUT,
+    authorization_header_value as _authorization_header_value_shared,
+    build_openai_sdk_client as _build_openai_sdk_client_shared,
+    chatgpt_default_headers as _chatgpt_default_headers_shared,
+    effective_auth_mode as _effective_auth_mode_shared,
+    normalize_auth_mode as _normalize_auth_mode_shared,
+    resolve_api_key as _resolve_api_key_shared,
+    resolve_base_url as _resolve_base_url_shared,
+    should_strip_leading_system_or_developer_message as _should_strip_leading_shared,
+    strip_leading_system_or_developer_message as _strip_leading_shared,
+)
+from .openai_responses_codex_models import fetch_codex_models as _fetch_codex_models_shared
+from .openai_responses_codex_models import (
+    load_manual_chatgpt_model_descriptors as _load_manual_chatgpt_model_descriptors_shared,
+    load_snapshot_model_descriptors as _load_snapshot_model_descriptors_shared,
+    merge_model_descriptors as _merge_model_descriptors_shared,
+)
 
+log = get_logger("openai_responses_provider")
 
 JsonObject = Dict[str, Any]
-_DEFAULT_BASE_URL = "https://api.openai.com/v1"
-_DEFAULT_TIMEOUT = 60.0
+_DEFAULT_CHATGPT_CLIENT_VERSION = "0.1.0"
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
-_SESSION_ASSET_STORE_CONFIG_KEY = "_session_asset_store"
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
+_COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
+
+
+@dataclass
+class _InflightRequest:
+    cancelled: threading.Event = field(default_factory=threading.Event)
+    done: threading.Event = field(default_factory=threading.Event)
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    closers: List[Callable[[], None]] = field(default_factory=list)
+
+    def add_closer(self, closer: Callable[[], None]) -> None:
+        with self.lock:
+            self.closers.append(closer)
+            already_cancelled = self.cancelled.is_set()
+        if already_cancelled:
+            try:
+                closer()
+            except Exception:
+                pass
+
+    def cancel(self) -> None:
+        self.cancelled.set()
+        with self.lock:
+            closers = list(self.closers)
+        for closer in closers:
+            try:
+                closer()
+            except Exception:
+                continue
 
 
 class OpenAIResponsesProvider(ProviderPlugin):
     name: str = "openai_responses"
     version: str = "0.1.0"
 
+    def __init__(self) -> None:
+        self._inflight_lock = threading.Lock()
+        self._inflight_requests: Dict[str, _InflightRequest] = {}
+
+    def _register_inflight(self, request_id: str | None) -> _InflightRequest:
+        runtime = _InflightRequest()
+        if isinstance(request_id, str) and request_id:
+            with self._inflight_lock:
+                self._inflight_requests[request_id] = runtime
+        return runtime
+
+    def _clear_inflight(self, request_id: str | None, runtime: _InflightRequest) -> None:
+        runtime.done.set()
+        if isinstance(request_id, str) and request_id:
+            with self._inflight_lock:
+                current = self._inflight_requests.get(request_id)
+                if current is runtime:
+                    self._inflight_requests.pop(request_id, None)
+
+    def cancel_request(self, request_id: str) -> bool:
+        if not isinstance(request_id, str) or not request_id:
+            return False
+        with self._inflight_lock:
+            runtime = self._inflight_requests.get(request_id)
+        if runtime is None:
+            return False
+        runtime.cancel()
+        return True
+
     def get_config_schema(self) -> Dict[str, Any]:
         return {
             "model": {"type": "string", "required": True},
+            "auth_mode": {
+                "type": "string",
+                "required": False,
+                "default": "api",
+                "description": "Authentication mode: api, chatgpt, or auto.",
+            },
             "api_key": {
                 "type": "string",
                 "required": False,
@@ -76,10 +180,68 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "required": False,
                 "default": _DEFAULT_BASE_URL,
             },
+            "api_base_url": {
+                "type": "string",
+                "required": False,
+                "default": _DEFAULT_BASE_URL,
+            },
+            "chatgpt_base_url": {
+                "type": "string",
+                "required": False,
+                "default": _DEFAULT_CHATGPT_BASE_URL,
+            },
+            "chatgpt_account_id": {
+                "type": "string",
+                "required": False,
+                "description": "ChatGPT account id used for ChatGPT-backed requests.",
+            },
+            "chatgpt_credentials_path": {
+                "type": "string",
+                "required": False,
+                "description": "Path to saved ChatGPT credentials for chatgpt/auto auth mode.",
+            },
+            "chatgpt_rate_limits_path": {
+                "type": "string",
+                "required": False,
+                "description": "Path to the persisted ChatGPT/Codex rate-limit snapshot sidecar.",
+            },
+            "chatgpt_client_version": {
+                "type": "string",
+                "required": False,
+                "default": _DEFAULT_CHATGPT_CLIENT_VERSION,
+                "description": "Client version query parameter used for ChatGPT-backed /models discovery.",
+            },
+            "strip_leading_system_or_developer_message": {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": (
+                    "When true, drop the first provider-native message if it is "
+                    "a system or developer message before sending the request. "
+                    "Useful when top-level instructions replace older persisted "
+                    "system/developer messages."
+                ),
+            },
             "timeout": {
                 "type": "number",
                 "required": False,
                 "default": _DEFAULT_TIMEOUT,
+            },
+            "enable_terminal_error_retries": {
+                "type": "boolean",
+                "required": False,
+                "default": False,
+                "description": (
+                    "Enable automatic retries when a terminal error event is received "
+                    "in the streaming response. Only retries when no visible output has "
+                    "been emitted yet."
+                ),
+            },
+            "terminal_error_max_retries": {
+                "type": "integer",
+                "required": False,
+                "default": 2,
+                "description": "Maximum retry attempts for terminal stream error events.",
             },
         }
 
@@ -114,6 +276,30 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 **({"options": model_options} if use_dropdown else {}),
             },
             {
+                "ui_type": "config",
+                "type": "select",
+                "key": "auth_mode",
+                "label": "OpenAI auth mode",
+                "options": [
+                    {"value": "api", "label": "API"},
+                    {"value": "chatgpt", "label": "ChatGPT"},
+                    {"value": "auto", "label": "Auto"},
+                ],
+                "default": "api",
+            },
+            {
+                "ui_type": "config",
+                "type": "checkbox",
+                "key": "enable_terminal_error_retries",
+                "label": "Retry on terminal stream errors",
+            },
+            {
+                "ui_type": "config",
+                "type": "number",
+                "key": "terminal_error_max_retries",
+                "label": "Terminal error max retries",
+            },
+            {
                 "ui_type": "model_picker",
                 "key": "model",
                 "attachment_type": "dropdown",
@@ -135,8 +321,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         try:
-            client = self._create_sdk_client_for_discovery(config)
-            raw_result = client.models.list()
+            raw_result = self._fetch_models_raw(config)
             return self._normalize_model_descriptors(raw_result)
         except Exception as exc:
             get_logger("openai_responses_provider").warning(
@@ -180,13 +365,26 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise ValueError("[openai_responses_provider] max_retries must be >= 0")
         return max_retries
 
+    def _config_terminal_error_retries_enabled(self, config: Dict[str, Any]) -> bool:
+        raw = config.get("enable_terminal_error_retries")
+        return raw is True
+
+    def _config_terminal_error_max_retries(self, config: Dict[str, Any]) -> int:
+        raw = config.get("terminal_error_max_retries")
+        try:
+            retries = int(raw)  # type: ignore[arg-type]
+        except (TypeError, ValueError):
+            return 2
+        return retries if retries > 0 else 0
+
     def _resolve_api_key(self, config: Dict[str, Any]) -> str:
-        api_key = config.get("api_key") or os.getenv("OPENAI_API_KEY")
-        if not isinstance(api_key, str) or not api_key.strip():
-            raise ValueError(
-                "[openai_responses_provider] api_key is required (config.api_key or OPENAI_API_KEY)"
-            )
-        return api_key.strip()
+        return _resolve_api_key_shared(config)
+
+    def _normalize_auth_mode(self, raw: Any) -> str:
+        return _normalize_auth_mode_shared(raw)
+
+    def _effective_auth_mode(self, config: Dict[str, Any]) -> str:
+        return _effective_auth_mode_shared(config)
 
     def _resolve_model(self, config: Dict[str, Any]) -> str:
         model = config.get("model")
@@ -195,21 +393,54 @@ class OpenAIResponsesProvider(ProviderPlugin):
         return model.strip()
 
     def _resolve_base_url(self, config: Dict[str, Any]) -> str:
-        base_url = config.get("base_url") or _DEFAULT_BASE_URL
-        if not isinstance(base_url, str) or not base_url.strip():
-            raise ValueError("[openai_responses_provider] base_url must be a non-empty string")
-        return base_url.rstrip("/")
+        return _resolve_base_url_shared(config)
 
     def _create_sdk_client(self, config: Dict[str, Any]) -> OpenAI:
-        api_key = self._resolve_api_key(config)
-        base_url = self._resolve_base_url(config)
         timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
-        return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+        return self._create_sdk_client_with_options(config, timeout=timeout, max_retries=None)
+
+    def _chatgpt_default_headers(self, config: Dict[str, Any]) -> Dict[str, str]:
+        return _chatgpt_default_headers_shared(config)
+
+    def _create_sdk_client_with_options(
+        self,
+        config: Dict[str, Any],
+        *,
+        timeout: float,
+        max_retries: Optional[int],
+    ) -> OpenAI:
+        return _build_openai_sdk_client_shared(
+            config,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
+
+    def _authorization_header_value(self, config: Dict[str, Any], token: str) -> str:
+        return _authorization_header_value_shared(config, token)
 
     def _request_max_retries(self, request: Dict[str, Any]) -> Optional[int]:
         if "max_retries" not in request:
             return None
         return self._coerce_max_retries(request.get("max_retries"))
+
+    def _request_instructions(self, request: Dict[str, Any]) -> Optional[str]:
+        raw = request.get("instructions")
+        if not isinstance(raw, str):
+            return None
+        text = raw.strip()
+        return text or None
+
+    def _should_strip_leading_system_or_developer_message(
+        self,
+        config: Dict[str, Any],
+    ) -> bool:
+        return _should_strip_leading_shared(config)
+
+    def _strip_leading_system_or_developer_message(
+        self,
+        native_messages: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        return _strip_leading_shared(native_messages)
 
     def _request_client(self, client: Any, *, timeout: float, max_retries: Optional[int]) -> Any:
         if max_retries is None:
@@ -258,8 +489,273 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise TypeError("[openai_responses_provider] config must be a dict")
         return self._create_sdk_client(config)
 
+    def _fetch_models_raw(self, config: Dict[str, Any]) -> Any:
+        mode = self._discovery_auth_mode(config)
+        if mode == "chatgpt":
+            return self._fetch_chatgpt_discovery_models(config)
+        client = self._create_sdk_client_for_discovery(config)
+        return client.models.list()
+
+    def _discovery_auth_mode(self, config: Dict[str, Any]) -> str:
+        requested = self._normalize_auth_mode(config.get("auth_mode"))
+        if requested == "chatgpt":
+            self._chatgpt_discovery_credentials(config)
+            return "chatgpt"
+        if requested == "auto":
+            credentials = self._chatgpt_discovery_credentials(config, require=False)
+            if credentials is not None:
+                return "chatgpt"
+        return "api"
+
+    def _chatgpt_discovery_credentials(
+        self,
+        config: Dict[str, Any],
+        *,
+        require: bool = True,
+    ) -> Optional[Dict[str, Any]]:
+        access_token = config.get("chatgpt_access_token")
+        if isinstance(access_token, str) and access_token.strip():
+            token_type = config.get("chatgpt_token_type")
+            account_id = config.get("chatgpt_account_id")
+            return {
+                "access_token": access_token.strip(),
+                "token_type": token_type if isinstance(token_type, str) else "Bearer",
+                "account_id": account_id if isinstance(account_id, str) else None,
+            }
+
+        path = self._chatgpt_credentials_path(config)
+        payload = self._load_json_file(path)
+        if isinstance(payload, dict) and self._chatgpt_credentials_are_valid(payload):
+            return payload
+        if require:
+            raise ValueError(
+                "[openai_responses_provider] chatgpt auth_mode requires a valid saved ChatGPT login"
+            )
+        return None
+
+    def _chatgpt_credentials_path(self, config: Dict[str, Any]) -> Path:
+        return _resolve_chatgpt_credentials_path_shared(config)
+
+    def _chatgpt_rate_limits_path(self, config: Dict[str, Any]) -> Path:
+        return _resolve_chatgpt_rate_limits_path_shared(config)
+
+    def _load_json_file(self, path: Path) -> Dict[str, Any]:
+        return _load_chatgpt_credentials_shared(path)
+
+    def _chatgpt_credentials_are_valid(self, credentials: Dict[str, Any]) -> bool:
+        return _chatgpt_credentials_are_valid_shared(credentials)
+
+    def _chatgpt_credentials_can_attempt_request(self, credentials: Dict[str, Any]) -> bool:
+        return credentials_have_access_token(credentials)
+
+    def _capture_chatgpt_rate_limits(
+        self,
+        config: Dict[str, Any],
+        headers: Any,
+    ) -> None:
+        if self._effective_auth_mode(config) != "chatgpt" or headers is None:
+            return
+        try:
+            header_map = {str(key).lower(): value for key, value in dict(headers).items()}
+        except Exception:
+            return
+        snapshots = parse_all_rate_limit_headers(header_map)
+        if not snapshots:
+            return
+        persist_rate_limit_snapshots(
+            self._chatgpt_rate_limits_path(config),
+            snapshots,
+            plan_type=config.get("chatgpt_plan_type"),
+        )
+
+    def _capture_chatgpt_rate_limits_from_stream(
+        self,
+        config: Dict[str, Any],
+        stream: Any,
+    ) -> None:
+        response = getattr(stream, "_response", None)
+        headers = getattr(response, "headers", None)
+        self._capture_chatgpt_rate_limits(config, headers)
+
+    def _chatgpt_config_with_credentials(
+        self,
+        config: Dict[str, Any],
+        credentials: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        updated = dict(config)
+        updated["chatgpt_access_token"] = credentials.get("access_token")
+        updated["chatgpt_token_type"] = credentials.get("token_type") or "Bearer"
+        account_id = credentials.get("account_id") or config.get("chatgpt_account_id")
+        if isinstance(account_id, str) and account_id.strip():
+            updated["chatgpt_account_id"] = account_id.strip()
+        else:
+            updated.pop("chatgpt_account_id", None)
+        updated["chatgpt_credentials_path"] = str(self._chatgpt_credentials_path(config))
+        updated["_openai_responses_effective_auth_mode"] = "chatgpt"
+        updated["base_url"] = self._resolve_base_url(updated)
+        return updated
+
+    def _exception_status_code(self, exc: Exception) -> Optional[int]:
+        status_code = getattr(exc, "status_code", None)
+        if isinstance(status_code, int):
+            return status_code
+        response = getattr(exc, "response", None)
+        response_status = getattr(response, "status_code", None)
+        if isinstance(response_status, int):
+            return response_status
+        if isinstance(exc, HTTPError):
+            return exc.code
+        message = str(exc)
+        if "Error code: 401" in message or "status 401" in message:
+            return 401
+        return None
+
+    def _is_unauthorized_error(self, exc: Exception) -> bool:
+        return self._exception_status_code(exc) == 401
+
+    def _reload_chatgpt_credentials_if_changed(
+        self,
+        config: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        path = self._chatgpt_credentials_path(config)
+        credentials = self._load_json_file(path)
+        if not self._chatgpt_credentials_can_attempt_request(credentials):
+            return None
+        current_token = config.get("chatgpt_access_token")
+        next_token = credentials.get("access_token")
+        if not isinstance(next_token, str) or not next_token.strip():
+            return None
+        if isinstance(current_token, str) and current_token.strip() == next_token.strip():
+            return None
+        return self._chatgpt_config_with_credentials(config, credentials)
+
+    def _refresh_chatgpt_config(
+        self,
+        config: Dict[str, Any],
+        *,
+        timeout: float,
+    ) -> Dict[str, Any]:
+        path = self._chatgpt_credentials_path(config)
+        credentials = refresh_chatgpt_credentials(path, timeout=timeout)
+        return self._chatgpt_config_with_credentials(config, credentials)
+
+    def _rebuild_request_client(
+        self,
+        config: Dict[str, Any],
+        *,
+        timeout: float,
+        max_retries: Optional[int],
+    ) -> Any:
+        client = self._create_sdk_client_with_options(
+            config,
+            timeout=timeout,
+            max_retries=max_retries,
+        )
+        return self._request_client(client, timeout=timeout, max_retries=max_retries)
+
+    def _chatgpt_client_version(self, config: Dict[str, Any]) -> str:
+        raw = config.get("chatgpt_client_version") or _DEFAULT_CHATGPT_CLIENT_VERSION
+        if not isinstance(raw, str) or not raw.strip():
+            return _DEFAULT_CHATGPT_CLIENT_VERSION
+        return raw.strip()
+
+    def _chatgpt_models_base_url(self, config: Dict[str, Any]) -> str:
+        raw = config.get("chatgpt_base_url") or _DEFAULT_CHATGPT_BASE_URL
+        if not isinstance(raw, str) or not raw.strip():
+            return _DEFAULT_CHATGPT_BASE_URL
+        return raw.rstrip("/")
+
+    def _chatgpt_manual_models(self) -> List[Dict[str, Any]]:
+        return _load_manual_chatgpt_model_descriptors_shared()
+
+    def _chatgpt_snapshot_models(self) -> List[Dict[str, Any]]:
+        try:
+            return _load_snapshot_model_descriptors_shared()
+        except Exception:
+            return []
+
+    def _merge_model_descriptors(
+        self,
+        *descriptor_lists: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        return _merge_model_descriptors_shared(*descriptor_lists)
+
+    def _fetch_codex_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
+        timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
+        return _fetch_codex_models_shared(timeout=timeout)
+
+    def _fetch_chatgpt_models(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        credentials = self._chatgpt_discovery_credentials(config)
+        token = credentials.get("access_token")
+        if not isinstance(token, str) or not token.strip():
+            raise ValueError(
+                "[openai_responses_provider] chatgpt auth_mode requires a valid saved ChatGPT login"
+            )
+        headers = {
+            "Authorization": self._authorization_header_value(config, token.strip()),
+            "Accept": "application/json",
+        }
+        account_id = credentials.get("account_id")
+        if isinstance(account_id, str) and account_id.strip():
+            headers["ChatGPT-Account-Id"] = account_id.strip()
+        url = "{}?{}".format(
+            f"{self._chatgpt_models_base_url(config)}/models",
+            urlencode({"client_version": self._chatgpt_client_version(config)}),
+        )
+        request = Request(url, headers=headers, method="GET")
+        timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                body = response.read().decode("utf-8")
+        except HTTPError as exc:
+            body = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"chatgpt models discovery failed with status {exc.code}: {body}"
+            ) from exc
+        except URLError as exc:
+            raise RuntimeError(f"chatgpt models discovery failed: {exc}") from exc
+        try:
+            payload = json.loads(body)
+        except Exception as exc:
+            raise RuntimeError("chatgpt models discovery returned invalid JSON") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("chatgpt models discovery returned an unexpected payload")
+        return payload
+
+    def _fetch_chatgpt_discovery_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]] | Dict[str, Any]:
+        # Validate credentials up front so ChatGPT mode still requires a valid login.
+        self._chatgpt_discovery_credentials(config)
+
+        manual_models = self._chatgpt_manual_models()
+        snapshot_models = self._chatgpt_snapshot_models()
+        codex_error: Exception | None = None
+        try:
+            codex_models = self._fetch_codex_models(config)
+            return self._merge_model_descriptors(manual_models, snapshot_models, codex_models)
+        except Exception as exc:
+            codex_error = exc
+
+        if snapshot_models:
+            if codex_error is not None:
+                log.warning(
+                    "Falling back to checked-in Codex models snapshot after live fetch failed",
+                    error=str(codex_error),
+                )
+            return self._merge_model_descriptors(manual_models, snapshot_models)
+
+        fallback_models = self._normalize_model_descriptors(self._fetch_chatgpt_models(config))
+        merged = self._merge_model_descriptors(manual_models, fallback_models)
+        if codex_error is not None:
+            log.warning(
+                "Falling back to ChatGPT /models discovery after Codex catalog fetch failed",
+                error=str(codex_error),
+            )
+        return merged
+
     def _normalize_model_descriptors(self, raw_result: Any) -> List[Dict[str, Any]]:
         data = getattr(raw_result, "data", raw_result)
+        if isinstance(data, dict) and isinstance(data.get("models"), list):
+            data = data.get("models")
         if not isinstance(data, list):
             raise ValueError("[openai_responses_provider] models list response missing data list")
 
@@ -269,8 +765,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
             model_name = None
 
             if isinstance(item, dict):
-                model_id = item.get("id")
-                model_name = item.get("name")
+                model_id = item.get("id") or item.get("slug")
+                model_name = item.get("name") or item.get("display_name")
             else:
                 model_id = getattr(item, "id", None)
                 model_name = getattr(item, "name", None)
@@ -290,26 +786,35 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise TypeError("[openai_responses_provider] config must be a dict")
 
         model = self._resolve_model(config)
-        api_key = self._resolve_api_key(config)
         base_url = self._resolve_base_url(config)
         timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
+        auth_mode = self._normalize_auth_mode(config.get("auth_mode"))
 
         normalized_config = {
             **config,
             "model": model,
-            "api_key": api_key,
             "base_url": base_url,
+            "auth_mode": auth_mode,
             "timeout": timeout,
         }
-
-        client = self._create_sdk_client(normalized_config)
+        if auth_mode == "api":
+            normalized_config["api_key"] = self._resolve_api_key(config)
+        client: Any = None
+        try:
+            client = self._create_sdk_client(normalized_config)
+        except ValueError:
+            if auth_mode == "api":
+                raise
         return {"config": normalized_config, "client": client}
 
     def initialize_request(
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        _ = request_id
         cfg = state.get("config") or {}
 
         model = self._resolve_model(cfg)
@@ -317,15 +822,20 @@ class OpenAIResponsesProvider(ProviderPlugin):
         base_url = self._resolve_base_url(cfg)
         timeout = self._coerce_timeout(cfg.get("timeout", _DEFAULT_TIMEOUT))
 
+        payload: Dict[str, Any] = {"model": model}
+        if self._effective_auth_mode(cfg) == "chatgpt":
+            payload["store"] = False
+
         request = {
             "url": f"{base_url}/responses",
-            "payload": {"model": model},
+            "payload": payload,
             "headers": {
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
+                "Authorization": self._authorization_header_value(cfg, api_key),
             },
             "timeout": timeout,
         }
+        request["headers"].update(self._chatgpt_default_headers(cfg))
 
         return list(native_messages), {**state, "request": request}
 
@@ -428,23 +938,36 @@ class OpenAIResponsesProvider(ProviderPlugin):
     ) -> Dict[int, Dict[str, Any]]:
         return uploaded_attachment_map(raw_internal_metadata)
 
-    def _session_asset_store(self, state: Dict[str, Any]) -> Any:
-        config = state.get("config") if isinstance(state.get("config"), dict) else {}
-        store = config.get(_SESSION_ASSET_STORE_CONFIG_KEY)
+    def _request_context(self, state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        value = state.get("_request_context")
+        return value if isinstance(value, dict) else None
+
+    def _session_asset_store(
+        self,
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        resolved_context = context if isinstance(context, dict) else self._request_context(state)
+        store = (
+            resolved_context.get("session_asset_store")
+            if isinstance(resolved_context, dict)
+            else None
+        )
         if store is None:
             raise RuntimeError(
-                "[openai_responses_provider] session asset attachment requires _session_asset_store in config"
+                "[openai_responses_provider] session asset attachment requires session_asset_store in context"
             )
         return store
 
     def _session_asset_record_and_bytes(
         self,
         state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         *,
         asset_ref: Dict[str, Any],
         expected_attachment_type: str,
     ) -> Tuple[Any, bytes]:
-        store = self._session_asset_store(state)
+        store = self._session_asset_store(state, context)
         session_id = asset_ref.get("session_id")
         asset_id = asset_ref.get("asset_id")
         if not isinstance(session_id, str) or not isinstance(asset_id, str):
@@ -459,33 +982,51 @@ class OpenAIResponsesProvider(ProviderPlugin):
     def _resolve_session_asset(
         self,
         state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         asset_ref: Dict[str, Any],
         expected_attachment_type: str,
     ) -> Tuple[str, str, bytes]:
         record, payload_bytes = self._session_asset_record_and_bytes(
             state,
+            context,
             asset_ref=asset_ref,
             expected_attachment_type=expected_attachment_type,
         )
         return record.filename, record.mime_type, payload_bytes
 
-    def _image_part_to_input_image(self, content: Any, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _image_part_to_input_image(
+        self,
+        content: Any,
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         return image_content_to_input_image(
             content,
-            resolve_session_asset=lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
-                state,
-                asset_ref,
-                expected_attachment_type,
+            resolve_session_asset=(
+                lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
+                    state,
+                    context,
+                    asset_ref,
+                    expected_attachment_type,
+                )
             ),
         )
 
-    def _pdf_part_to_input_file(self, content: Any, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _pdf_part_to_input_file(
+        self,
+        content: Any,
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         return pdf_content_to_input_file(
             content,
-            resolve_session_asset=lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
-                state,
-                asset_ref,
-                expected_attachment_type,
+            resolve_session_asset=(
+                lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
+                    state,
+                    context,
+                    asset_ref,
+                    expected_attachment_type,
+                )
             ),
         )
 
@@ -583,6 +1124,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         part: Dict[str, Any],
         *,
         state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         source_override: Optional[Dict[str, Any]],
         uploaded_override: Optional[Dict[str, Any]],
         client: Any,
@@ -603,6 +1145,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             purpose = "vision" if part_type == "input_image" else "user_data"
             record, payload_bytes = self._session_asset_record_and_bytes(
                 state,
+                context,
                 asset_ref=asset_ref,
                 expected_attachment_type=expected_attachment_type,
             )
@@ -622,7 +1165,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 timeout=timeout,
                 upload_cache=upload_cache,
             )
-            self._session_asset_store(state).update_manifest(
+            self._session_asset_store(state, context).update_manifest(
                 record.session_id,
                 record.asset_id,
                 provider_refs=merge_openai_provider_ref(record.provider_refs, upload_ref),
@@ -717,6 +1260,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         *,
         state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
         client: Any,
         timeout: float,
         upload_cache: Dict[str, str],
@@ -744,6 +1288,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 next_part = self._uploaded_content_part(
                     part,
                     state=state,
+                    context=context,
                     source_override=source_map.get(index),
                     uploaded_override=uploaded_map.get(index),
                     client=client,
@@ -1024,6 +1569,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         native: List[Dict[str, Any]] = []
 
@@ -1060,9 +1607,17 @@ class OpenAIResponsesProvider(ProviderPlugin):
                             continue
 
                         if normalized_part.get("type") == "image":
-                            native_part = self._image_part_to_input_image(part.get("content"), state)
+                            native_part = self._image_part_to_input_image(
+                                part.get("content"),
+                                state,
+                                context,
+                            )
                         else:
-                            native_part = self._pdf_part_to_input_file(part.get("content"), state)
+                            native_part = self._pdf_part_to_input_file(
+                                part.get("content"),
+                                state,
+                                context,
+                            )
 
                         parts.append(native_part)
                         attachment_sources.append(
@@ -1132,6 +1687,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         out: List[Dict[str, Any]] = []
         owned_native_indices: set[int] = set()
@@ -1332,9 +1889,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         sanitized = dict(self._strip_internal_metadata(item))
         item_type = sanitized.get("type")
 
-        if item_type == "compaction":
+        if item_type in _COMPACTION_ITEM_TYPES:
             compacted: JsonObject = {
-                "type": "compaction",
+                "type": str(item_type),
                 "encrypted_content": sanitized.get("encrypted_content", ""),
             }
             if isinstance(sanitized.get("id"), str) and sanitized.get("id"):
@@ -1378,6 +1935,47 @@ class OpenAIResponsesProvider(ProviderPlugin):
             if isinstance(dumped, dict):
                 return dumped
         raise RuntimeError("[openai_responses_provider] invalid SDK stream event payload")
+
+    def _iter_raw_sse_event_dicts(self, response: Any) -> Iterator[Dict[str, Any]]:
+        iter_lines = getattr(response, "iter_lines", None)
+        if not callable(iter_lines):
+            raise RuntimeError("[openai_responses_provider] raw streaming response is missing iter_lines()")
+
+        data_lines: List[str] = []
+        for raw_line in iter_lines():
+            line = raw_line if isinstance(raw_line, str) else str(raw_line)
+            if not line:
+                if not data_lines:
+                    continue
+                payload_text = "\n".join(data_lines).strip()
+                data_lines = []
+                if not payload_text or payload_text == "[DONE]":
+                    continue
+                try:
+                    payload = json.loads(payload_text)
+                except Exception as exc:
+                    raise RuntimeError(
+                        "[openai_responses_provider] invalid JSON event in raw streaming response"
+                    ) from exc
+                if isinstance(payload, dict):
+                    yield payload
+                continue
+            if line.startswith(":"):
+                continue
+            if line.startswith("data:"):
+                data_lines.append(line[5:].lstrip())
+
+        if data_lines:
+            payload_text = "\n".join(data_lines).strip()
+            if payload_text and payload_text != "[DONE]":
+                try:
+                    payload = json.loads(payload_text)
+                except Exception as exc:
+                    raise RuntimeError(
+                        "[openai_responses_provider] invalid trailing JSON event in raw streaming response"
+                    ) from exc
+                if isinstance(payload, dict):
+                    yield payload
 
     def _safe_dict_payload(self, payload: Any) -> Dict[str, Any]:
         if isinstance(payload, dict):
@@ -1483,15 +2081,28 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         request = state.get("request")
         if not isinstance(request, dict):
             raise RuntimeError("[openai_responses_provider] missing request in state")
+        context = self._request_context(state)
+        cfg = state.get("config") or {}
+        if self._effective_auth_mode(cfg) == "chatgpt":
+            raise RuntimeError(
+                "[openai_responses_provider] chatgpt auth_mode requires streaming requests; use send_request_stream or switch auth_mode to api/auto"
+            )
 
         payload = dict(request.get("payload") or {})
+        instructions = self._request_instructions(request)
+        if instructions is not None:
+            payload["instructions"] = instructions
 
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
+        if self._should_strip_leading_system_or_developer_message(cfg):
+            base_history = self._strip_leading_system_or_developer_message(base_history)
         self._validate_native_item_list(base_history)
 
         request_history = [item for item in base_history if isinstance(item, dict)]
@@ -1502,12 +2113,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         client = state.get("client")
         if client is None:
-            cfg = state.get("config") or {}
-            client = OpenAI(
-                api_key=self._resolve_api_key(cfg),
-                base_url=self._resolve_base_url(cfg),
+            client = self._create_sdk_client_with_options(
+                cfg,
                 timeout=timeout,
-                **({"max_retries": max_retries} if max_retries is not None else {}),
+                max_retries=max_retries,
             )
         request_client = self._request_client(client, timeout=timeout, max_retries=max_retries)
 
@@ -1516,6 +2125,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             request_history = self._prepare_uploaded_native_messages(
                 request_history,
                 state=state,
+                context=context,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
@@ -1523,6 +2133,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             self._prepare_uploaded_native_messages(
                 native_messages,
                 state=state,
+                context=context,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
@@ -1530,48 +2141,95 @@ class OpenAIResponsesProvider(ProviderPlugin):
             )
 
         input_items = [self._sanitize_input_item(item) for item in request_history]
+        runtime = self._register_inflight(request_id)
+        results: queue.Queue[Tuple[str, Any]] = queue.Queue()
 
-        try:
-            sdk_response = request_client.responses.create(  # type: ignore[union-attr]
-                **{**payload, "input": input_items, "stream": False},
-                extra_headers=extra_headers,
-                timeout=timeout,
-            )
-        except Exception as exc:
-            if (
-                self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
-                and self._is_attachment_reference_error(exc)
-            ):
-                request_history = self._prepare_uploaded_native_messages(
-                    request_history,
-                    state=state,
-                    client=client,
-                    timeout=timeout,
-                    upload_cache=upload_cache,
-                    force_reupload=True,
-                )
-                self._prepare_uploaded_native_messages(
-                    native_messages,
-                    state=state,
-                    client=client,
-                    timeout=timeout,
-                    upload_cache=upload_cache,
-                    persist_uploaded_refs=True,
-                    force_reupload=True,
-                )
-                retry_input_items = [self._sanitize_input_item(item) for item in request_history]
+        def _close_client(candidate: Any) -> None:
+            close = getattr(candidate, "close", None)
+            if callable(close):
+                close()
+
+        def _worker() -> None:
+            local_request_client = request_client
+            runtime.add_closer(lambda: _close_client(local_request_client))
+            try:
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id)
                 try:
-                    sdk_response = request_client.responses.create(  # type: ignore[union-attr]
-                        **{**payload, "input": retry_input_items, "stream": False},
+                    sdk_response = local_request_client.responses.create(  # type: ignore[union-attr]
+                        **{**payload, "input": input_items, "stream": False},
                         extra_headers=extra_headers,
                         timeout=timeout,
                     )
-                except Exception as retry_exc:
-                    raise RuntimeError(f"OpenAI Responses call failed: {retry_exc}") from retry_exc
-            else:
-                raise RuntimeError(f"OpenAI Responses call failed: {exc}") from exc
+                except Exception as exc:
+                    if (
+                        self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
+                        and self._is_attachment_reference_error(exc)
+                    ):
+                        retry_history = self._prepare_uploaded_native_messages(
+                            request_history,
+                            state=state,
+                            context=context,
+                            client=client,
+                            timeout=timeout,
+                            upload_cache=upload_cache,
+                            force_reupload=True,
+                        )
+                        self._prepare_uploaded_native_messages(
+                            native_messages,
+                            state=state,
+                            context=context,
+                            client=client,
+                            timeout=timeout,
+                            upload_cache=upload_cache,
+                            persist_uploaded_refs=True,
+                            force_reupload=True,
+                        )
+                        retry_input_items = [
+                            self._sanitize_input_item(item) for item in retry_history
+                        ]
+                        log.warning(
+                            "attachment_upload_retrying",
+                            action="call_api",
+                            attempt=1,
+                        )
+                        sdk_response = local_request_client.responses.create(  # type: ignore[union-attr]
+                            **{**payload, "input": retry_input_items, "stream": False},
+                            extra_headers=extra_headers,
+                            timeout=timeout,
+                        )
+                    else:
+                        raise
+                results.put(("result", self._response_to_dict(sdk_response)))
+            except Exception as exc:
+                results.put(("error", exc))
+            finally:
+                runtime.done.set()
 
-        response_obj = self._response_to_dict(sdk_response)
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
+
+        try:
+            while True:
+                try:
+                    kind, value = results.get(timeout=0.1)
+                except queue.Empty:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    if runtime.done.is_set() and results.empty():
+                        raise RuntimeError("OpenAI Responses call failed: request ended without result")
+                    continue
+                if kind == "result":
+                    response_obj = value
+                    break
+                exc = value
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id) from exc
+                raise RuntimeError(f"OpenAI Responses call failed: {exc}") from exc
+        finally:
+            self._clear_inflight(request_id, runtime)
+            worker.join(timeout=1.0)
+
 
         output = response_obj.get("output")
         if not isinstance(output, list):
@@ -1589,15 +2247,24 @@ class OpenAIResponsesProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
         request = state.get("request")
         if not isinstance(request, dict):
             raise RuntimeError("[openai_responses_provider] missing request in state")
+        context = self._request_context(state)
 
         payload = dict(request.get("payload") or {})
+        instructions = self._request_instructions(request)
+        if instructions is not None:
+            payload["instructions"] = instructions
 
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
+        cfg = state.get("config") or {}
+        if self._should_strip_leading_system_or_developer_message(cfg):
+            base_history = self._strip_leading_system_or_developer_message(base_history)
         self._validate_native_item_list(base_history)
 
         request_history = [item for item in base_history if isinstance(item, dict)]
@@ -1608,14 +2275,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
         stream_recovery_retries = self._request_stream_recovery_retries(request)
         extra_headers = dict(request.get("headers") or {})
 
+        local_cfg = dict(cfg)
         client = state.get("client")
         if client is None:
-            cfg = state.get("config") or {}
-            client = OpenAI(
-                api_key=self._resolve_api_key(cfg),
-                base_url=self._resolve_base_url(cfg),
+            client = self._create_sdk_client_with_options(
+                local_cfg,
                 timeout=timeout,
-                **({"max_retries": max_retries} if max_retries is not None else {}),
+                max_retries=max_retries,
             )
         request_client = self._request_client(client, timeout=timeout, max_retries=max_retries)
 
@@ -1624,6 +2290,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             request_history = self._prepare_uploaded_native_messages(
                 request_history,
                 state=state,
+                context=context,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
@@ -1631,6 +2298,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             self._prepare_uploaded_native_messages(
                 native_messages,
                 state=state,
+                context=context,
                 client=client,
                 timeout=timeout,
                 upload_cache=upload_cache,
@@ -1639,90 +2307,279 @@ class OpenAIResponsesProvider(ProviderPlugin):
             state = {**state, "_openai_responses_upload_cache": upload_cache}
 
         input_items = [self._sanitize_input_item(item) for item in request_history]
+        runtime = self._register_inflight(request_id)
+        results: queue.Queue[Tuple[str, Any]] = queue.Queue()
 
-        recovery_attempts = 0
+        def _close_candidate(candidate: Any) -> None:
+            close = getattr(candidate, "close", None)
+            if callable(close):
+                close()
 
-        while True:
-            try:
-                sdk_stream = request_client.responses.create(  # type: ignore[union-attr]
-                    **{**payload, "input": input_items, "stream": True},
-                    extra_headers=extra_headers,
+        def _worker() -> None:
+            local_request_client = request_client
+            runtime.add_closer(lambda candidate=local_request_client: _close_candidate(candidate))
+            auth_recovery_used = False
+
+            def _attempt_chatgpt_auth_recovery(exc: Exception) -> bool:
+                nonlocal local_cfg, local_request_client, auth_recovery_used
+                if auth_recovery_used or self._effective_auth_mode(local_cfg) != "chatgpt":
+                    return False
+                if not self._is_unauthorized_error(exc):
+                    return False
+
+                reloaded_cfg = self._reload_chatgpt_credentials_if_changed(local_cfg)
+                if reloaded_cfg is not None:
+                    local_cfg = reloaded_cfg
+                    local_request_client = self._rebuild_request_client(
+                        local_cfg,
+                        timeout=timeout,
+                        max_retries=max_retries,
+                    )
+                    runtime.add_closer(
+                        lambda candidate=local_request_client: _close_candidate(candidate)
+                    )
+                    log.warning(
+                        "chatgpt_auth_recovery_retrying",
+                        action="stream_api",
+                        attempt=1,
+                        source="reloaded_credentials",
+                    )
+                    auth_recovery_used = True
+                    return True
+
+                try:
+                    refreshed_cfg = self._refresh_chatgpt_config(local_cfg, timeout=timeout)
+                except ChatGPTRefreshPermanentError as refresh_exc:
+                    raise RuntimeError(str(refresh_exc)) from refresh_exc
+                except ChatGPTRefreshTransientError as refresh_exc:
+                    raise RuntimeError(str(refresh_exc)) from refresh_exc
+
+                local_cfg = refreshed_cfg
+                local_request_client = self._rebuild_request_client(
+                    local_cfg,
                     timeout=timeout,
+                    max_retries=max_retries,
                 )
-            except Exception as exc:
-                if (
-                    self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
-                    and self._is_attachment_reference_error(exc)
-                ):
-                    request_history = self._prepare_uploaded_native_messages(
-                        request_history,
-                        state=state,
-                        client=client,
-                        timeout=timeout,
-                        upload_cache=upload_cache,
-                        force_reupload=True,
-                    )
-                    self._prepare_uploaded_native_messages(
-                        native_messages,
-                        state=state,
-                        client=client,
-                        timeout=timeout,
-                        upload_cache=upload_cache,
-                        persist_uploaded_refs=True,
-                        force_reupload=True,
-                    )
-                    input_items = [self._sanitize_input_item(item) for item in request_history]
-                    try:
-                        sdk_stream = request_client.responses.create(  # type: ignore[union-attr]
-                            **{**payload, "input": input_items, "stream": True},
-                            extra_headers=extra_headers,
-                            timeout=timeout,
-                        )
-                    except Exception as retry_exc:
-                        raise RuntimeError(f"OpenAI Responses stream failed: {retry_exc}") from retry_exc
-                else:
-                    raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
+                runtime.add_closer(lambda candidate=local_request_client: _close_candidate(candidate))
+                log.warning(
+                    "chatgpt_auth_recovery_retrying",
+                    action="stream_api",
+                    attempt=1,
+                    source="refreshed_config",
+                )
+                auth_recovery_used = True
+                return True
 
-            saw_completed = False
-            emitted_visible_output = False
-            stream_error: Exception | None = None
-
+            recovery_attempts = 0
+            terminal_error_attempts = 0
             try:
-                if hasattr(sdk_stream, "__enter__") and hasattr(sdk_stream, "__exit__"):
-                    with sdk_stream as stream:
-                        for event in stream:
-                            event_dict = self._stream_event_to_dict(event)
-                            if event_dict.get("type") == "response.completed":
-                                saw_completed = True
-                            if self._stream_event_has_visible_output(event_dict):
-                                emitted_visible_output = True
-                            yield event_dict
-                else:
-                    for event in sdk_stream:
-                        event_dict = self._stream_event_to_dict(event)
-                        if event_dict.get("type") == "response.completed":
-                            saw_completed = True
-                        if self._stream_event_has_visible_output(event_dict):
-                            emitted_visible_output = True
-                        yield event_dict
+                while True:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    responses_resource = getattr(local_request_client, "responses", None)
+                    raw_stream_resource = (
+                        getattr(responses_resource, "with_streaming_response", None)
+                        if responses_resource is not None and self._effective_auth_mode(local_cfg) == "chatgpt"
+                        else None
+                    )
+                    use_raw_streaming = bool(
+                        raw_stream_resource is not None and hasattr(raw_stream_resource, "create")
+                    )
+                    try:
+                        if use_raw_streaming:
+                            sdk_stream = raw_stream_resource.create(  # type: ignore[union-attr]
+                                **{**payload, "input": input_items, "stream": True},
+                                extra_headers=extra_headers,
+                                timeout=timeout,
+                            )
+                        else:
+                            sdk_stream = local_request_client.responses.create(  # type: ignore[union-attr]
+                                **{**payload, "input": input_items, "stream": True},
+                                extra_headers=extra_headers,
+                                timeout=timeout,
+                            )
+                    except Exception as exc:
+                        if (
+                            self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
+                            and self._is_attachment_reference_error(exc)
+                        ):
+                            retry_history = self._prepare_uploaded_native_messages(
+                                request_history,
+                                state=state,
+                                context=context,
+                                client=client,
+                                timeout=timeout,
+                                upload_cache=upload_cache,
+                                force_reupload=True,
+                            )
+                            self._prepare_uploaded_native_messages(
+                                native_messages,
+                                state=state,
+                                context=context,
+                                client=client,
+                                timeout=timeout,
+                                upload_cache=upload_cache,
+                                persist_uploaded_refs=True,
+                                force_reupload=True,
+                            )
+                            retry_input_items = [
+                                self._sanitize_input_item(item) for item in retry_history
+                            ]
+                            log.warning(
+                                "attachment_upload_retrying",
+                                action="stream_api",
+                                attempt=1,
+                            )
+                            if use_raw_streaming:
+                                sdk_stream = raw_stream_resource.create(  # type: ignore[union-attr]
+                                    **{**payload, "input": retry_input_items, "stream": True},
+                                    extra_headers=extra_headers,
+                                    timeout=timeout,
+                                )
+                            else:
+                                sdk_stream = local_request_client.responses.create(  # type: ignore[union-attr]
+                                    **{**payload, "input": retry_input_items, "stream": True},
+                                    extra_headers=extra_headers,
+                                    timeout=timeout,
+                                )
+                        else:
+                            if _attempt_chatgpt_auth_recovery(exc):
+                                continue
+                            raise
+
+                    runtime.add_closer(lambda stream=sdk_stream: _close_candidate(stream))
+                    saw_completed = False
+                    emitted_visible_output = False
+                    stream_error: Exception | None = None
+
+                    try:
+                        if hasattr(sdk_stream, "__enter__") and hasattr(sdk_stream, "__exit__"):
+                            with sdk_stream as stream:
+                                runtime.add_closer(lambda active_stream=stream: _close_candidate(active_stream))
+                                if use_raw_streaming:
+                                    self._capture_chatgpt_rate_limits(
+                                        local_cfg,
+                                        getattr(stream, "headers", None),
+                                    )
+                                    event_iter = self._iter_raw_sse_event_dicts(stream)
+                                else:
+                                    self._capture_chatgpt_rate_limits_from_stream(local_cfg, stream)
+                                    event_iter = stream
+                                for event in event_iter:
+                                    if runtime.cancelled.is_set():
+                                        raise ProviderRequestCancelled(request_id)
+                                    event_dict = self._stream_event_to_dict(event)
+                                    if event_dict.get("type") == "response.completed":
+                                        saw_completed = True
+                                    if self._stream_event_has_visible_output(event_dict):
+                                        emitted_visible_output = True
+                                    if event_dict.get("type") == "error":
+                                        if (
+                                            self._config_terminal_error_retries_enabled(local_cfg)
+                                            and not emitted_visible_output
+                                        ):
+                                            terminal_msg = self._terminal_stream_error_message(event_dict)
+                                            if terminal_msg is not None:
+                                                stream_error = RuntimeError(terminal_msg)
+                                                break
+                                    results.put(("chunk", event_dict))
+                        else:
+                            for event in sdk_stream:
+                                if runtime.cancelled.is_set():
+                                    raise ProviderRequestCancelled(request_id)
+                                event_dict = self._stream_event_to_dict(event)
+                                if event_dict.get("type") == "response.completed":
+                                    saw_completed = True
+                                if self._stream_event_has_visible_output(event_dict):
+                                    emitted_visible_output = True
+                                if event_dict.get("type") == "error":
+                                    if (
+                                        self._config_terminal_error_retries_enabled(local_cfg)
+                                        and not emitted_visible_output
+                                    ):
+                                        terminal_msg = self._terminal_stream_error_message(event_dict)
+                                        if terminal_msg is not None:
+                                            stream_error = RuntimeError(terminal_msg)
+                                            break
+                                results.put(("chunk", event_dict))
+                    except Exception as exc:
+                        stream_error = exc
+
+                    if (
+                        stream_error is not None
+                        and not emitted_visible_output
+                        and _attempt_chatgpt_auth_recovery(stream_error)
+                    ):
+                        continue
+
+                    if saw_completed:
+                        results.put(("done", None))
+                        return
+
+                    if (
+                        stream_error is not None
+                        and not emitted_visible_output
+                        and self._config_terminal_error_retries_enabled(local_cfg)
+                        and terminal_error_attempts < self._config_terminal_error_max_retries(local_cfg)
+                    ):
+                        terminal_error_attempts += 1
+                        log.warning(
+                            "terminal_error_retrying",
+                            action="stream_api",
+                            attempt=terminal_error_attempts,
+                            error=str(stream_error),
+                        )
+                        continue
+
+                    should_recover = (
+                        stream_recovery_mode != "disabled"
+                        and recovery_attempts < stream_recovery_retries
+                        and (stream_recovery_mode == "aggressive" or not emitted_visible_output)
+                    )
+                    if should_recover:
+                        recovery_attempts += 1
+                        log.warning(
+                            "stream_recovery_retrying",
+                            action="stream_api",
+                            attempt=recovery_attempts,
+                            mode=stream_recovery_mode,
+                        )
+                        continue
+
+                    if stream_error is not None:
+                        raise stream_error
+                    results.put(("done", None))
+                    return
             except Exception as exc:
-                stream_error = exc
+                results.put(("error", exc))
+            finally:
+                runtime.done.set()
 
-            if saw_completed:
-                return
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
 
-            should_recover = (
-                stream_recovery_mode != "disabled"
-                and recovery_attempts < stream_recovery_retries
-                and (stream_recovery_mode == "aggressive" or not emitted_visible_output)
-            )
-            if should_recover:
-                recovery_attempts += 1
-                continue
-
-            if stream_error is not None:
-                raise RuntimeError(f"OpenAI Responses stream failed: {stream_error}") from stream_error
-            return
+        try:
+            while True:
+                try:
+                    kind, value = results.get(timeout=0.1)
+                except queue.Empty:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    if runtime.done.is_set() and results.empty():
+                        return
+                    continue
+                if kind == "chunk":
+                    yield value
+                    continue
+                if kind == "done":
+                    return
+                exc = value
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id) from exc
+                raise RuntimeError(f"OpenAI Responses stream failed: {exc}") from exc
+        finally:
+            self._clear_inflight(request_id, runtime)
+            worker.join(timeout=1.0)
 
     def process_chunk(
         self,
@@ -1744,6 +2601,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         emitted_partials: List[Dict[str, Any]] = []
         emitted_finals: List[Dict[str, Any]] = []
+        accumulated_output_items = state.get("_openai_responses_stream_output_items")
+        output_items_state = (
+            [item for item in accumulated_output_items if isinstance(item, dict)]
+            if isinstance(accumulated_output_items, list)
+            else []
+        )
 
         if event_type == "response.output_text.delta":
             delta = event.get("delta")
@@ -1764,6 +2627,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     {"role": "assistant", "content": "", "_metadata": {"reasoning": delta}}
                 )
 
+        if event_type == "response.output_item.done":
+            item = event.get("item")
+            if isinstance(item, dict):
+                output_items_state = [*output_items_state, item]
+                new_state["_openai_responses_stream_output_items"] = output_items_state
+
         if event_type == "response.completed":
             response_payload = event.get("response")
             response_obj = self._response_to_dict(response_payload)
@@ -1775,12 +2644,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 )
 
             output_items = [item for item in output if isinstance(item, dict)]
+            if not output_items and output_items_state:
+                output_items = list(output_items_state)
             response_md = self._response_internal_metadata(response_obj)
             emitted_finals = self._attach_internal_metadata_to_output(output_items, response_md)
 
             new_state = {
                 **new_state,
                 "_openai_responses_stream_completed": True,
+                "_openai_responses_stream_output_items": [],
             }
 
             if emitted_finals:

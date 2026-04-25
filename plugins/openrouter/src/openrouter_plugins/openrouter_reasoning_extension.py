@@ -36,22 +36,12 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             config: Dict[str, Any],
             models: List[Dict[str, Any]],
     ) -> List[str]:
-        """Identify this extension and add supports_reasoning when the selected model supports it."""
-        out: List[str] = ["ext:openrouter_reasoning"]
-        selected_id = config.get("model") if isinstance(config, dict) else None
-        if isinstance(selected_id, str) and selected_id and isinstance(models, list):
-            for m in models:
-                if isinstance(m, dict) and m.get("id") == selected_id:
-                    supported_params = m.get("supported_parameters") or []
-                    if isinstance(supported_params, list) and "reasoning" in supported_params:
-                        out.append("supports_reasoning")
-                        out.append("supports_reasoning_effort")
-                    break
-        return out
+        """Identify this extension for dependency resolution."""
+        return ["ext:openrouter_reasoning"]
 
     def required_tags(self) -> List[str]:
         """Require OpenRouter provider and reasoning support."""
-        return ["openrouter", "supports_reasoning"]
+        return ["openrouter", "supports_reasoning", "feature:request_options"]
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -79,12 +69,11 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        # Remove prints for clean output
+        if tags is not None and "supports_reasoning" not in tags:
+            return []
         selected_id = config.get("model") if isinstance(config, dict) else None
         options, default = get_reasoning_effort_options_and_default(selected_id)
-        
-        if not options:
-            return []
+
         ui_elements: List[Dict[str, Any]] = [
             {
                 "ui_type": "config",
@@ -93,10 +82,9 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
                 "label": "Enable Reasoning",
             }
         ]
-        # if enable_reasoning is set to False normally due to request options, skip the list of options for effort
-        if (config and config.get("enable_reasoning",False) == False):
-            return ui_elements;
-        if options:
+        if config and config.get("enable_reasoning") is False:
+            return ui_elements
+        if tags is not None and "supports_reasoning_effort" in tags and options:
             ui_elements.append({
                 "type": "select",
                 "key": "reasoning_effort",
@@ -106,28 +94,9 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             })
         return ui_elements
 
-    def init(
-        self,
-        config: Dict[str, Any],
-        state: Dict[str, Any],
-        models: Optional[List[Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
-        if (config and config.get("enable_reasoning",False) == False):
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        if config.get("enable_reasoning") is False:
             return state
-
-        current_model_id = config.get("model")
-        current_model = (
-            next((m for m in models if m.get("id") == current_model_id), None)
-            if models
-            else None
-        )
-        if not current_model:
-            return state
-
-        supported_params = current_model.get("supported_parameters") or []
-        if isinstance(supported_params, list) and "reasoning" not in supported_params:
-            return state
-
 
         reasoning_config = {
             "reasoning": {}
@@ -142,6 +111,9 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             reasoning_config["reasoning"]["effort"] = config.get("reasoning_effort", default)
         if "reasoning_max_tokens" in config:
             reasoning_config["reasoning"]["max_tokens"] = config["reasoning_max_tokens"]
+
+        if not reasoning_config["reasoning"]:
+            return state
     
         return {
             **state,
@@ -190,10 +162,10 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
     def initialize_request(
             self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         reasoning_config = state.get("openrouter_reasoning")
         if not reasoning_config:
-            return state
+            return native_messages, state
 
         config = state.get("config", {})
         request_options = dict(config.get("request_options", {}))
@@ -202,13 +174,14 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
             **reasoning_config["reasoning"]
         }
 
-        return {
+        new_state = {
             **state,
             "config": {
                 **config,
                 "request_options": request_options,
             },
         }
+        return native_messages, new_state
 
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
         """

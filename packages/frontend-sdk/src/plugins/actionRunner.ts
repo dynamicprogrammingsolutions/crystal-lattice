@@ -3,6 +3,7 @@ import type { ApiMessage } from '../types/messages';
 import type {
   ActionUiElement,
   StandardActionResult,
+  ActionDisplayPayload,
   ApplicationActionDefinition,
   ExecuteActionResponse,
   ExecuteActionResponseOk,
@@ -32,6 +33,7 @@ export interface RunActionResult {
   rawResponse: ExecuteActionResponse;
   response?: ExecuteActionResponseOk;
   effects: ActionEffect[];
+  display?: ActionDisplayPayload;
   errorMessage?: string;
 }
 
@@ -257,6 +259,10 @@ export async function runApplicationAction(options: {
       ok: true,
       rawResponse,
       response: okResponse,
+      display:
+        result && typeof result.display === 'object' && result.display
+          ? (result.display as ActionDisplayPayload)
+          : undefined,
       effects: deriveActionEffectsFromResult({
         okResponse,
         effects: {

@@ -7,9 +7,12 @@ Goals:
 - Minimal frontend changes (prefer SDK-level changes).
 - Avoid major SDK refactors; keep changes additive.
 
-Subtasks:
-1. `tasks/20260306-session-ui-reload/010-a1-sdk-local-invalidation.md`
-2. `tasks/20260306-session-ui-reload/020-a2-server-events-cross-client.md`
-3. `tasks/20260306-session-ui-reload/030-c-etag-versioning.md`
-4. `tasks/20260306-session-ui-reload/040-settings-ui-use-shared-schema-controller.md`
-5. `tasks/20260306-session-ui-reload/050-session-settings-controller.md`
+## Subtasks
+
+- [x] `tasks/20260306-session-ui-reload/010-a1-sdk-local-invalidation.md`
+  - COMPLETED VIA `tasks/20260306-session-ui-reload/050-session-settings-controller.md`
+- [ ] `tasks/20260306-session-ui-reload/020-a2-server-events-cross-client.md`
+- [ ] `tasks/20260306-session-ui-reload/030-c-etag-versioning.md`
+- [x] `tasks/20260306-session-ui-reload/040-settings-ui-use-shared-schema-controller.md`
+  - COMPLETED VIA `tasks/20260306-session-ui-reload/050-session-settings-controller.md`
+- [x] `tasks/20260306-session-ui-reload/050-session-settings-controller.md`

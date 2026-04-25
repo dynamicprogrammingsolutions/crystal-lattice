@@ -36,6 +36,11 @@ export type {
   ActionUiElement,
   ActionMutations,
   ActionUiEffects,
+  ActionDisplayOpenUrlAction,
+  ActionDisplayCopyTextAction,
+  ActionDisplayRunActionAction,
+  ActionDisplayFollowupAction,
+  ActionDisplayPayload,
   StandardActionResult,
   SessionListFieldElement,
   ApplicationUiElement,
@@ -48,6 +53,7 @@ export {
   extractByPath,
   renderTemplate,
   formatValueForElement,
+  coerceValueForElement,
   filterFooterElements,
   filterStatusBarElements,
   evaluateCondition,
@@ -56,6 +62,7 @@ export {
 export { selectDisplayContent, selectSingleLineContent } from './utils/messages';
 
 export { parseOptionalInt, parseIndexRangeText } from './utils/range';
+export { generateIdempotencyKey } from './utils/idempotency';
 export { selectAttachmentPreviewUrl } from './attachments/preview';
 export type { AttachmentDraftStatus } from './attachments/draftStatus';
 export { isAttachmentDraftBlocking, attachmentDraftStatusLabel } from './attachments/draftStatus';
@@ -63,6 +70,8 @@ export { isAttachmentDraftBlocking, attachmentDraftStatusLabel } from './attachm
 export type {
   Transport,
   HttpMethod,
+  PathPrefixTimeoutRule,
+  TransportTimeoutRule,
 } from './transport/transport';
 
 export type { KeyValueStore } from './storage/keyValueStore';
@@ -91,15 +100,23 @@ export {
 
 export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
-export type { SessionAssetRef, StoredAttachmentAssetDescriptor } from './plugins/attachmentActions';
+export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';
+export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
+export type {
+  SessionAssetRef,
+  StoredAttachmentAssetDescriptor,
+  DownloadedAttachmentPayload,
+} from './plugins/attachmentActions';
 export {
   DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID,
   DEFAULT_ATTACHMENT_ACTION_OWNER,
   STORE_ATTACHMENT_ACTION_ID,
   DELETE_ATTACHMENT_ACTION_ID,
+  DOWNLOAD_ATTACHMENT_ACTION_ID,
   selectSessionAssetId,
   storeSessionAttachment,
   deleteSessionAttachment,
+  downloadSessionAttachment,
 } from './plugins/attachmentActions';
 
 export type { SessionsControllerState } from './sessions/sessionsController';
@@ -122,6 +139,9 @@ export { selectLastAssistantMessage, deriveChatStatusBarParts } from './chat/pre
 
 export type { SessionUiSchemaControllerState } from './uiSchema/sessionUiSchemaController';
 export { SessionUiSchemaController } from './uiSchema/sessionUiSchemaController';
+
+export type { SessionApplicationUiSchemaControllerState } from './uiSchema/sessionApplicationUiSchemaController';
+export { SessionApplicationUiSchemaController } from './uiSchema/sessionApplicationUiSchemaController';
 
 export type {
   SessionSettingsControllerState,

@@ -18,6 +18,21 @@ _RETENTION_24H_KEY = "enable_prompt_cache_retention_24h"
 _RETENTION_VALUE = "24h"
 
 
+def _effective_auth_mode(config: Dict[str, Any]) -> str:
+    raw = config.get("_openai_responses_effective_auth_mode")
+    if isinstance(raw, str) and raw.strip().lower() in {"api", "chatgpt"}:
+        return raw.strip().lower()
+    requested = config.get("auth_mode")
+    if not isinstance(requested, str):
+        return "api"
+    normalized = requested.strip().lower()
+    if normalized == "api_key":
+        return "api"
+    if normalized == "chatgpt":
+        return "chatgpt"
+    return "api"
+
+
 class OpenAIResponsesPromptCachingExtension(ProviderExtensionPlugin):
     name: str = "openai_responses_prompt_caching"
     version: str = "0.1.0"
@@ -117,6 +132,7 @@ class OpenAIResponsesPromptCachingExtension(ProviderExtensionPlugin):
         request = state.get("request") or {}
         payload = dict(request.get("payload", {}))
         changed = False
+        chatgpt_mode = _effective_auth_mode(config) == "chatgpt"
 
         if self._prompt_cache_key_enabled(config):
             prompt_cache_key = self._normalized_prompt_cache_key(config)
@@ -133,7 +149,7 @@ class OpenAIResponsesPromptCachingExtension(ProviderExtensionPlugin):
                 payload.pop(_PROMPT_CACHE_KEY, None)
                 changed = True
 
-        if self._truthy(config.get(_RETENTION_24H_KEY)):
+        if not chatgpt_mode and self._truthy(config.get(_RETENTION_24H_KEY)):
             if payload.get("prompt_cache_retention") != _RETENTION_VALUE:
                 payload["prompt_cache_retention"] = _RETENTION_VALUE
                 changed = True

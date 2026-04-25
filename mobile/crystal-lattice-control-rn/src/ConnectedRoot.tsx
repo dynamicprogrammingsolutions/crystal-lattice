@@ -7,6 +7,7 @@ import type {
   MessagesCache,
 } from '../App';
 import type { AgentBackend, ConnectionRecord, Transport } from '@crystal-lattice/frontend-sdk';
+import type { DebugTimelineEntry } from './debugTimeline';
 import ConnectionScreen from './ConnectionScreen';
 import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
@@ -49,6 +50,13 @@ interface ConnectedRootProps {
     sessionId: string,
     scrollAnchor: ChatScrollAnchor,
   ) => void;
+  debugTimeline: DebugTimelineEntry[];
+  onAppendDebugTimelineEntry: (
+    entry: Omit<DebugTimelineEntry, 'id' | 'timestampMs'> & {
+      detail?: string | null;
+      meta?: Record<string, any> | null;
+    },
+  ) => void;
 }
 
 const ConnectedRoot: React.FC<ConnectedRootProps> = ({
@@ -70,6 +78,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onUpdateMessagesCache,
   onSaveMessagesComposeText,
   onSaveMessagesScrollAnchor,
+  debugTimeline,
+  onAppendDebugTimelineEntry,
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -294,6 +304,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                       onSaveMessagesScrollAnchor(connectionId, selectedSessionId, scrollAnchor);
                     }
                   }}
+                  debugTimeline={debugTimeline}
+                  onAppendDebugTimelineEntry={onAppendDebugTimelineEntry}
                 />
               );
             })()

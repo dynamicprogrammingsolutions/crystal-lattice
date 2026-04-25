@@ -15,6 +15,7 @@ from agent_core import AgentCore, Session
 from .dummy_extension import DummyExtension  # noqa: F401
 from .dummy_feature import DummyFeature  # noqa: F401
 from .dummy_provider import DummyProvider  # noqa: F401
+from .dummy_tool import CancellableBlockingTool  # noqa: F401
 from .dummy_tool import DummyCalculator  # noqa: F401
 from .dummy_tool_same_id import AlternateDummyCalculator  # noqa: F401
 
@@ -39,6 +40,20 @@ def _core_plugin_names(core: AgentCore) -> Tuple[List[str], List[str], List[str]
     features = [wrapper.plugin_class.__name__ for wrapper in getattr(core, "_features")]
     tools = [wrapper.plugin_class.__name__ for wrapper in getattr(core, "_tools")]
     return providers, extensions, features, tools
+
+
+def _tool_schema_names(core: AgentCore, config: Dict[str, Any]) -> List[str]:
+    names: List[str] = []
+    for schema in core.get_tool_schemas(config):
+        if not isinstance(schema, dict):
+            continue
+        function = schema.get("function")
+        if not isinstance(function, dict):
+            continue
+        name = function.get("name")
+        if isinstance(name, str) and name:
+            names.append(name)
+    return names
 
 
 def test_list_plugins_for_agent_uses_global_provider_and_agent_package_specs(tmp_path: Path) -> None:
@@ -168,6 +183,46 @@ def test_agent_level_plugins_only_apply_to_that_agent(tmp_path: Path) -> None:
     assert _core_plugin_names(feature_core) == (["DummyProvider"], [], ["DummyFeature"], [])
 
 
+def test_create_session_exposes_only_agent_specific_tool_schemas_to_model(
+    tmp_path: Path,
+) -> None:
+    config = {
+        "providers": {
+            "shared": {"provider": "dummy_provider", "model": "test-model"}
+        },
+        "plugins": ["tests.dummy_provider.DummyProvider"],
+        "agents": {
+            "math-agent": {
+                "provider": "shared",
+                "plugins": ["tests.dummy_tool.DummyCalculator"],
+            },
+            "blocking-agent": {
+                "provider": "shared",
+                "plugins": ["tests.dummy_tool.CancellableBlockingTool"],
+            },
+        },
+    }
+
+    app = _make_app(tmp_path, config)
+
+    math_core, math_base_config, _math_session = app.create_session("math-agent")
+    assert _core_plugin_names(math_core) == (["DummyProvider"], [], [], ["DummyCalculator"])
+    assert _tool_schema_names(math_core, math_base_config) == ["add"]
+
+    blocking_core, blocking_base_config, _blocking_session = app.create_session(
+        "blocking-agent"
+    )
+    assert _core_plugin_names(blocking_core) == (
+        ["DummyProvider"],
+        [],
+        [],
+        ["CancellableBlockingTool"],
+    )
+    assert _tool_schema_names(blocking_core, blocking_base_config) == [
+        "block_until_cancel"
+    ]
+
+
 def test_disabled_plugins_shape_default_enabled_set_and_session_override_can_reenable(
     tmp_path: Path,
 ) -> None:
@@ -250,6 +305,54 @@ def test_duplicate_plugin_ids_follow_first_registration_wins(tmp_path: Path) -> 
 
     core, _base_config, _session = app.create_session("default")
     assert _core_plugin_names(core) == (["DummyProvider"], [], [], ["DummyCalculator"])
+
+
+def test_update_agent_recovers_when_previous_agent_is_missing(tmp_path: Path) -> None:
+    config = {
+        "providers": {
+            "primary": {"provider": "dummy_provider", "model": "test-model"}
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_feature.DummyFeature",
+            "tests.dummy_tool.DummyCalculator",
+        ],
+        "agents": {
+            "default": {
+                "provider": "primary",
+                "disabled_plugins": ["dummy_calculator"],
+            },
+            "other": {
+                "provider": "primary",
+                "disabled_plugins": ["dummy_feature"],
+            },
+        },
+    }
+
+    app = _make_app(tmp_path, config)
+
+    _core, _base_config, session = app.create_session("default")
+    broken_session = Session(
+        session_id=session.session_id,
+        messages=list(session.messages),
+        metadata={
+            **(session.metadata or {}),
+            "agent_id": "missing-agent",
+            "plugins": ["dummy_provider", "dummy_feature"],
+        },
+    )
+
+    switched_core, switched_base_config, switched_session = app.update_agent("other", broken_session)
+
+    assert switched_base_config["provider"] == "dummy_provider"
+    assert switched_session.metadata["agent_id"] == "other"
+    assert switched_session.metadata["plugins"] == ["dummy_provider", "dummy_calculator"]
+    assert _core_plugin_names(switched_core) == (
+        ["DummyProvider"],
+        [],
+        [],
+        ["DummyCalculator"],
+    )
 
 
 def test_load_session_raises_when_no_provider_enabled(tmp_path: Path) -> None:

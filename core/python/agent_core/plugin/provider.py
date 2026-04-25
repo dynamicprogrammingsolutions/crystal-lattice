@@ -10,11 +10,13 @@ from typing import Dict, Any, List, Iterator, AsyncIterator, Tuple, Optional
 
 from .adapters import ProviderDefaultsAdapter
 from .extension import ExtensionWrapper
+from ..tool_interop import ToolInteropContribution
 from ..types import ProviderPlugin, Session
 from ..utils import pipeline, get_logger
 
 logger = None
 log_chunk_processing = None
+
 
 class ProviderWrapper(ProviderPlugin):
     """Wrapper for provider plugin managing state during streaming.
@@ -45,6 +47,7 @@ class ProviderWrapper(ProviderPlugin):
         self._extensions: List[ExtensionWrapper] = []
         self._active_extensions: Optional[List[ExtensionWrapper]] = None
         self._last_native_messages: List[Dict[str, Any]] = []
+        self._request_context: Optional[Dict[str, Any]] = None
         if extension_classes:
             for ext_cls in extension_classes:
                 self._extensions.append(ExtensionWrapper(ext_cls))
@@ -64,7 +67,11 @@ class ProviderWrapper(ProviderPlugin):
         Extensions are sorted by `priority` (lower numbers run first).
         """
 
-        exts = self._active_extensions if self._active_extensions is not None else self._extensions
+        exts = (
+            self._active_extensions
+            if self._active_extensions is not None
+            else self._extensions
+        )
         return sorted(exts, key=lambda ext: getattr(ext, "priority", 100))
 
     def set_active_extensions(self, extensions: List[ExtensionWrapper]) -> None:
@@ -80,42 +87,20 @@ class ProviderWrapper(ProviderPlugin):
         for ext_cls in extension_classes:
             self._extensions.append(ExtensionWrapper(ext_cls))
 
-    def init(
-        self, config: Dict[str, Any], models: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize provider and extensions using shared state owned by provider wrapper.
 
         Args:
-            config: Provider configuration.
-            models: Optional models list.
+            config: Provider configuration
 
         Returns:
             Shared provider state after extensions have updated it (if they do).
         """
         self.state = self.plugin.init(config)
-        # Let extensions update shared state during init; pass models (from core)
-        exts = self._iter_extensions()
-        if not exts:
-            return self._get_state()
+        # Let extensions update shared state during init
         pipe = pipeline(config)
-
-        def _ext_init(ext: ExtensionWrapper):
-            """Wrap ext.init so the pipeline can pass (config, state, models) and carry (state, models)."""
-
-            def _run_init_then_carry_models(
-                config: Dict[str, Any],
-                provider_state: Dict[str, Any],
-                models_list: Optional[List[Dict[str, Any]]],
-            ) -> Tuple[Dict[str, Any], Optional[List[Dict[str, Any]]]]:
-                updated_state = ext.init(config, provider_state, models_list)
-                return (updated_state, models_list)
-
-            return _run_init_then_carry_models
-
-        self.state, _ = pipe(
-            [_ext_init(ext) for ext in exts],
-            self._get_state(),
-            models,
+        self.state = pipe(
+            [ext.init for ext in self._iter_extensions()], self._get_state()
         )
         return self._get_state()
 
@@ -143,11 +128,10 @@ class ProviderWrapper(ProviderPlugin):
     def get_ui_elements(
         self,
         config: Dict[str, Any],
-        tags: List[str],
-        models: List[Dict[str, Any]],
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Get provider UI elements."""
-        return self.plugin.get_ui_elements(config, tags, models)
+        return self.plugin.get_ui_elements(config, context)
 
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Delegate model discovery to the underlying provider via adapter."""
@@ -160,6 +144,30 @@ class ProviderWrapper(ProviderPlugin):
     ) -> List[str]:
         """Delegate tag computation to the underlying provider via adapter."""
         return self.plugin.get_tags(config, models)
+
+    def get_tool_interop_contribution(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> ToolInteropContribution:
+        """Return provider-contributed tool interop accessors/adapters."""
+        return self.plugin.get_tool_interop_contribution(config, state)
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return schema formats this provider can send directly."""
+        return self.plugin.accepted_tool_schema_formats(config, state)
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return tool-call formats this provider may emit."""
+        return self.plugin.emitted_tool_call_formats(config, state)
 
     def get_state(self) -> Dict[str, Any]:
         """Expose the current shared state for orchestration.
@@ -183,7 +191,12 @@ class ProviderWrapper(ProviderPlugin):
         self.state = state
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Run provider and extensions initialize_request with native messages for a new turn.
 
@@ -197,28 +210,38 @@ class ProviderWrapper(ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
+        self._request_context = context if isinstance(context, dict) else None
         # Start full native history at request boundary
         self._last_native_messages = list(native_messages)
         native_after_provider, new_state = self.plugin.initialize_request(
-            native_messages, working_state
+            native_messages,
+            working_state,
+            request_id=request_id,
+            context=context,
         )
         # Sort extensions by priority (lower numbers run first, default: 100)
         sorted_extensions = sorted(
-            self._iter_extensions(),
-            key=lambda ext: getattr(ext, 'priority', 100)
+            self._iter_extensions(), key=lambda ext: getattr(ext, "priority", 100)
         )
-        pipe = pipeline()
-        native_after_exts, new_state = pipe(
-            [ext.initialize_request for ext in sorted_extensions],
-            native_after_provider,
-            new_state,
-        )
+        native_after_exts = native_after_provider
+        for ext in sorted_extensions:
+            native_after_exts, new_state = ext.initialize_request(
+                native_after_exts,
+                new_state,
+                context=context,
+            )
+        if isinstance(context, dict):
+            new_state = {**new_state, "_request_context": context}
         self.state = new_state
         self._last_native_messages = list(native_after_exts)
         return native_after_exts, self._get_state()
 
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Convert core messages to provider's native format (provider-first).
 
@@ -232,10 +255,18 @@ class ProviderWrapper(ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        return self.plugin.to_native_messages(messages, working_state)
+        return self.plugin.to_native_messages(
+            messages,
+            working_state,
+            context=context,
+        )
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Convert provider-native messages back to core messages.
 
@@ -249,9 +280,15 @@ class ProviderWrapper(ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        return self.plugin.from_native_messages(native_messages, working_state)
+        return self.plugin.from_native_messages(
+            native_messages,
+            working_state,
+            context=context,
+        )
 
-    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def to_display_format(
+        self, message: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Format a message for display if supported; otherwise return as-is.
 
         Args:
@@ -269,7 +306,7 @@ class ProviderWrapper(ProviderPlugin):
     def apply_extension_transforms(
         self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
-        """Apply stateless extension transforms to provider-native messages.
+        """Apply extension transforms to provider-native messages.
 
         Args:
             messages: Core messages (context).
@@ -278,8 +315,11 @@ class ProviderWrapper(ProviderPlugin):
         Returns:
             Transformed provider-native messages after applying each extension.
         """
-        pipe = pipeline(messages)
-        return pipe([ext.to_native_messages for ext in self._iter_extensions()], native_messages)
+        state = self._get_state()
+        result = native_messages
+        for ext in self._iter_extensions():
+            result = ext.to_native_messages(messages, result, state)
+        return result
 
     def _merge_history(
         self, base: List[Dict[str, Any]], returned: List[Dict[str, Any]]
@@ -299,7 +339,13 @@ class ProviderWrapper(ProviderPlugin):
             return returned
         return [*base, *returned]
 
-    def call_api(self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]) -> Tuple[
+    def call_api(
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Tuple[
         List[Dict[str, Any]],
         List[Dict[str, Any]],
         List[Dict[str, Any]],
@@ -323,16 +369,32 @@ class ProviderWrapper(ProviderPlugin):
         # Initialize history baseline
         self._last_native_messages = list(native_messages)
         partials, final_messages, native_returned, new_state = self.plugin.call_api(
-            self._last_native_messages, working_state
+            self._last_native_messages,
+            working_state,
+            request_id=request_id,
         )
-        self.state = new_state
         # Merge to full history and track
         full_history = self._merge_history(self._last_native_messages, native_returned)
+
+        # Let extensions finalize non-streaming finals against the full history.
+        for ext in self._iter_extensions():
+            final_messages, full_history, new_state = ext.finalize(
+                final_messages,
+                full_history,
+                new_state,
+                context=self._request_context,
+            )
+
+        self.state = new_state
         self._last_native_messages = full_history
         return partials, final_messages, full_history, self._get_state()
 
     def stream_api(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Make streaming API call (state-validated).
 
@@ -346,10 +408,16 @@ class ProviderWrapper(ProviderPlugin):
         if self.state is None:
             raise RuntimeError(f"Provider {self.name} not initialized")
         working_state = state or self.state
-        yield from self.plugin.stream_api(native_messages, working_state)
+        yield from self.plugin.stream_api(
+            native_messages, working_state, request_id=request_id
+        )
 
     async def stream_api_async(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Make async streaming API call, preferring native async if available.
 
@@ -365,13 +433,20 @@ class ProviderWrapper(ProviderPlugin):
         working_state = state or self.state
         if hasattr(self.plugin, "stream_api_async"):
             async for chunk in self.plugin.stream_api_async(  # type: ignore[attr-defined]
-                native_messages, working_state
+                native_messages,
+                working_state,
+                request_id=request_id,
             ):
                 yield chunk
             return
         # Fallback to sync stream
-        for chunk in self.plugin.stream_api(native_messages, working_state):
+        for chunk in self.plugin.stream_api(
+            native_messages, working_state, request_id=request_id
+        ):
             yield chunk
+
+    def cancel_request(self, request_id: str) -> bool:
+        return bool(self.plugin.cancel_request(request_id))
 
     def process_chunk(
         self,
@@ -404,8 +479,8 @@ class ProviderWrapper(ProviderPlugin):
 
         log_chunk_processing.debug("processing chunk", chunk=native_chunk)
 
-        partial_messages, final_messages, full_history, new_state = self.plugin.process_chunk(
-            native_chunk, full_history, working_state
+        partial_messages, final_messages, full_history, new_state = (
+            self.plugin.process_chunk(native_chunk, full_history, working_state)
         )
 
         # Let extensions transform partials/finals/native history in order
@@ -435,17 +510,25 @@ class ProviderWrapper(ProviderPlugin):
                     ext_state,
                 )
             except Exception as e:
-                logger.warning("failed to convert partials to core, using as-is", error=str(e))
+                logger.warning(
+                    "failed to convert partials to core, using as-is", error=str(e)
+                )
                 core_partials = partial_messages
         # Track latest full history
         self._last_native_messages = full_history
 
-        log_chunk_processing.debug("converted partials to core", core_partials=core_partials)
+        log_chunk_processing.debug(
+            "converted partials to core", core_partials=core_partials
+        )
 
         return core_partials, final_messages, full_history, self._get_state()
 
     def finalize(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Finalize provider turn and let extensions enhance outputs.
 
@@ -462,17 +545,22 @@ class ProviderWrapper(ProviderPlugin):
 
         # Use full history baseline
         baseline = self._last_native_messages or list(native_messages)
-        final_messages, native_returned, new_state = self.plugin.finalize(baseline, working_state)
+        active_context = context if isinstance(context, dict) else self._request_context
+        final_messages, native_returned, new_state = self.plugin.finalize(
+            baseline,
+            working_state,
+            context=active_context,
+        )
 
         # Merge and allow extensions to modify full history
         full_history = self._merge_history(baseline, native_returned)
-        pipe = pipeline()
-        final_messages, full_history, new_state = pipe(
-            [ext.finalize for ext in self._iter_extensions()],
-            final_messages,
-            full_history,
-            new_state,
-        )
+        for ext in self._iter_extensions():
+            final_messages, full_history, new_state = ext.finalize(
+                final_messages,
+                full_history,
+                new_state,
+                context=active_context,
+            )
 
         self.state = new_state
         # track latest full history
@@ -491,15 +579,17 @@ class ProviderWrapper(ProviderPlugin):
     def get_extension_ui_elements(
         self,
         config: Dict[str, Any],
-        tags: List[str],
-        models: List[Dict[str, Any]],
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, List[Dict[str, Any]]]:
         """Get UI schemas for registered extensions.
 
         Uses the same priority-sorted extension order as the request pipeline.
         """
 
-        return {ext.name: ext.get_ui_elements(config, tags, models) for ext in self._iter_extensions()}
+        return {
+            ext.name: ext.get_ui_elements(config, context)
+            for ext in self._iter_extensions()
+        }
 
     def get_extension_actions(
         self,
@@ -524,7 +614,9 @@ class ProviderWrapper(ProviderPlugin):
         for ext in self._iter_extensions():
             if ext.name != plugin_id:
                 continue
-            return ext.execute_action(action_id, session, native_messages, params, context, state)
+            return ext.execute_action(
+                action_id, session, native_messages, params, context, state
+            )
         raise KeyError(f"Unknown provider extension {plugin_id!r}")
 
     def reset_state(self) -> None:
@@ -538,7 +630,11 @@ class ProviderWrapper(ProviderPlugin):
     _last_native_messages: List[Dict[str, Any]]
 
     def stream_messages(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Stream provider results while processing chunks internally.
 
@@ -566,7 +662,11 @@ class ProviderWrapper(ProviderPlugin):
         self._last_native_messages = list(native_messages)  # type: ignore[attr-defined]
         current_native = self._last_native_messages
         chunk_count = 0
-        for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
+        for native_chunk in self.plugin.stream_api(
+            current_native,
+            working_state,
+            request_id=request_id,
+        ):  # type: ignore[attr-defined]
             chunk_count += 1
             partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                 native_chunk, current_native, working_state
@@ -582,7 +682,11 @@ class ProviderWrapper(ProviderPlugin):
         logger.debug("stream_messages complete")
 
     async def stream_messages_async(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Async variant of stream_messages.
 
@@ -608,7 +712,9 @@ class ProviderWrapper(ProviderPlugin):
 
         if hasattr(self.plugin, "stream_api_async"):  # type: ignore[attr-defined]
             async for native_chunk in self.plugin.stream_api_async(  # type: ignore[attr-defined]
-                current_native, working_state
+                current_native,
+                working_state,
+                request_id=request_id,
             ):
                 partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                     native_chunk, current_native, working_state
@@ -621,7 +727,11 @@ class ProviderWrapper(ProviderPlugin):
             return
 
         # Fallback to sync stream
-        for native_chunk in self.plugin.stream_api(current_native, working_state):  # type: ignore[attr-defined]
+        for native_chunk in self.plugin.stream_api(
+            current_native,
+            working_state,
+            request_id=request_id,
+        ):  # type: ignore[attr-defined]
             partials, finals, current_native, working_state = self.process_chunk(  # type: ignore[misc]
                 native_chunk, current_native, working_state
             )

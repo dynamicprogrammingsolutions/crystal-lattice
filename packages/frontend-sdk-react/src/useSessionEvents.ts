@@ -59,7 +59,15 @@ export function useSessionEvents(
       }
     };
 
-    source.start({ sessionId, initialSinceId, onEvents: handleEvents });
+    source.start({
+      sessionId,
+      initialSinceId,
+      onEvents: handleEvents,
+      onCursorExpired: () => {
+        setLastEventId(source.getLastEventId());
+        setStatus(source.getStatus());
+      },
+    });
     setStatus(source.getStatus());
 
     return () => {

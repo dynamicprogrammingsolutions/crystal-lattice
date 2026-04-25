@@ -41,6 +41,8 @@
 	<string>This app discovers local Bonjour services on your network</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>This app lets you attach photos to chat messages.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app saves generated or attached images to your photo library when you choose Save to Photos.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app lets you take a photo to attach to chat messages.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

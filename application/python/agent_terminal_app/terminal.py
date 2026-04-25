@@ -304,6 +304,53 @@ def _normalize_setting_options(options: Any) -> List[tuple[str, str]]:
     return normalized
 
 
+def _resolve_dotted_path(value: Any, path: str) -> Tuple[bool, Any]:
+    """Resolve a dotted path from a nested mapping-like object."""
+
+    if not isinstance(value, dict) or not isinstance(path, str) or not path:
+        return False, None
+
+    current: Any = value
+    for part in [segment for segment in path.split(".") if segment]:
+        if not isinstance(current, dict) or part not in current:
+            return False, None
+        current = current[part]
+
+    return True, current
+
+
+def _resolve_setting_current_value(
+    element: Dict[str, Any],
+    base_config: Dict[str, Any],
+    schema_entry: Optional[Dict[str, Any]],
+) -> Tuple[bool, Any]:
+    """Resolve the current/default value for a config UI element.
+
+    Precedence mirrors the shared session settings logic used by the mobile
+    and desktop UIs: direct flat config key, nested base config via
+    ``config_path``, UI element ``default``, then schema ``default``.
+    """
+
+    key_val = element.get("key")
+    key = key_val if isinstance(key_val, str) else ""
+    if key and key in base_config:
+        return True, base_config[key]
+
+    config_path_val = element.get("config_path")
+    config_path = config_path_val if isinstance(config_path_val, str) else ""
+    found_nested, nested_value = _resolve_dotted_path(base_config, config_path)
+    if found_nested:
+        return True, nested_value
+
+    if "default" in element:
+        return True, element.get("default")
+
+    if isinstance(schema_entry, dict) and "default" in schema_entry:
+        return True, schema_entry.get("default")
+
+    return False, None
+
+
 
 
 async def _poll_events(
@@ -782,18 +829,11 @@ async def _cmd_help(
                 )
 
                 # Determine the effective current value for this key.
-                # Preference order:
-                #   1. Value from the base agent config (if present)
-                #   2. Default from the plugin config schema (if present)
-                #   3. "none" if neither is defined.
-                has_current = False
-                current_value: Any = None
-                if isinstance(base_config, dict) and key_val in base_config:
-                    current_value = base_config[key_val]
-                    has_current = True
-                elif isinstance(schema_entry, dict) and "default" in schema_entry:
-                    current_value = schema_entry.get("default")
-                    has_current = True
+                has_current, current_value = _resolve_setting_current_value(
+                    el,
+                    base_config if isinstance(base_config, dict) else {},
+                    schema_entry if isinstance(schema_entry, dict) else None,
+                )
                 current_str = repr(current_value) if has_current else "none"
 
                 # Override value comes from per-session overrides. If
@@ -1150,6 +1190,15 @@ async def _cmd_set(
             coerced = False
         else:
             raise TerminalUserError(f"invalid boolean for {key!r}: {value!r}")
+    elif el_type == "number":
+        # Try int first, then float
+        try:
+            if "." in value or "e" in value.lower():
+                coerced = float(value)
+            else:
+                coerced = int(value)
+        except ValueError:
+            raise TerminalUserError(f"invalid number for {key!r}: {value!r}")
 
     try:
         app.update_override(key, coerced)

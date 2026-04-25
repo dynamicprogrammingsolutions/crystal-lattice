@@ -4,12 +4,12 @@ Short description: Extend the `ToolPlugin` contract so a single tool plugin can 
 
 ## Subtasks
 
-1. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/010-design-toolplugin-interceptor-contract-and-prompt-schema.md`
-2. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/020-implement-toolplugin-interception-tool-loop-and-prompt-lifecycle-tests.md`
-3. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/030-design-mobile-rendering-for-interceptor-prompts.md`
-4. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/040-design-desktop-rendering-for-interceptor-prompts.md`
-5. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/050-build-reference-interceptor-tool-plugin-scenario.md`
-6. `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/060-implement-tool-handler-and-formatter-upgrade-from-956.md`
+- [ ] `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/010-design-toolplugin-interceptor-contract-and-prompt-schema.md`
+- [ ] `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/020-implement-toolplugin-interception-tool-loop-and-prompt-lifecycle-tests.md`
+- [ ] `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/030-design-mobile-rendering-for-interceptor-prompts.md`
+- [ ] `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/040-design-desktop-rendering-for-interceptor-prompts.md`
+- [ ] `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/050-build-reference-interceptor-tool-plugin-scenario.md`
+- [ ] `tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/060-implement-tool-handler-and-formatter-upgrade-from-956.md`
 
 Suggested execution order: `010` -> `020` -> (`030` and `040` in parallel) -> `050` -> `060`.
 

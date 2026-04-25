@@ -12,7 +12,7 @@ Depends On:
 
 ## Status
 
-- [ ] Not started
+- [x] Completed
 
 ## Context to read first (files + line numbers)
 
@@ -133,3 +133,30 @@ Visual spec (desktop; concrete defaults):
 ### Optional tests
 
 - Add a focused unit test for `deriveChatStatusBarParts` and/or `selectLastAssistantMessage` in `packages/frontend-sdk/src/chat/__tests__/...` to lock semantics.
+
+## Completion notes (added during completion verification)
+
+### What was implemented
+
+1. Created `desktop/crystal-lattice-control-desktop-rn/src/chat/useSessionStatusBarParts.ts` hook that:
+   - Computes status bar parts from UI schema elements, session agent, and last assistant message
+   - Uses `filterStatusBarElements`, `selectLastAssistantMessage`, and `deriveChatStatusBarParts` from frontend SDK
+   - Subscribes to `sessionAgentSwitched` events from the desktop event bus
+
+2. Extended `desktop/crystal-lattice-control-desktop-rn/src/events/desktopEventBus.ts` with:
+   - `sessionAgentSwitched: { connectionId: string; sessionId: string; agentId: string }` event type
+
+3. Updated `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx`:
+   - Publishes `sessionAgentSwitched` event after successful agent switch
+
+4. Updated `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`:
+   - Imports and uses `useSessionStatusBarParts` hook
+   - Renders status bar at the bottom of the chat pane (lines 2574-2581)
+   - Status bar shows `statusBarParts.join('   ')` with monospace font
+
+### Files touched
+
+1. `desktop/crystal-lattice-control-desktop-rn/src/chat/useSessionStatusBarParts.ts`
+2. `desktop/crystal-lattice-control-desktop-rn/src/events/desktopEventBus.ts`
+3. `desktop/crystal-lattice-control-desktop-rn/src/DesktopRoot.tsx`
+4. `desktop/crystal-lattice-control-desktop-rn/src/chat/ChatPane.tsx`

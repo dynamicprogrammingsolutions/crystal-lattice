@@ -601,5 +601,158 @@ These items overlap with the earlier "not implemented" list above and are kept h
    - Currently only a global `BRIDGE_HTTP_MAX_BODY_BYTES` cap exists.
    - Consider different caps for `/events` vs `/sessions/.../messages` vs `/send`.
 
+## Follow-up status audit (added 2026-04-08)
+
+This section records the current implementation status of the follow-up plan above based on repository inspection after the original handoff was written.
+
+### Completed since the handoff
+
+#### P0.1 `BridgeTransport`: prevent unhandled promise rejection
+
+- Implemented with the "minimal safety" approach.
+- `BridgeTransport.request()` still creates the internal streaming-response promise up front, but now immediately attaches a no-op `.catch()` so its timeout cannot surface as an unhandled rejection:
+  - `packages/frontend-sdk/src/transport/bridgeTransport.ts:160`
+- Regression test added:
+  - `packages/frontend-sdk/src/transport/bridgeTransport.test.ts:219`
+
+#### P0.2 `BridgeTransport`: fail fast on WebSocket close/error
+
+- Implemented.
+- Pending reply handlers and streaming response assemblers are now rejected on:
+  - explicit `disconnect()`
+    - `packages/frontend-sdk/src/transport/bridgeTransport.ts:126`
+  - `ws.onerror`
+    - `packages/frontend-sdk/src/transport/bridgeTransport.ts:400`
+  - `ws.onclose`
+    - `packages/frontend-sdk/src/transport/bridgeTransport.ts:415`
+- Supporting helpers:
+  - `packages/frontend-sdk/src/transport/bridgeTransport.ts:434`
+  - `packages/frontend-sdk/src/transport/bridgeTransport.ts:451`
+- Regression test added:
+  - `packages/frontend-sdk/src/transport/bridgeTransport.test.ts:251`
+
+#### P0.3 Mobile: stop/restart event polling on app background/foreground
+
+- Implemented.
+- `SessionChatScreen` now tracks React Native `AppState` and includes it in `eventsEnabled`:
+  - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx:184`
+  - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx:347`
+  - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx:356`
+- `useChatController` already stops polling when `eventsEnabled` becomes false and restarts when it becomes true:
+  - `packages/frontend-sdk-react/src/useChatController.ts:70`
+- The optional follow-up from the plan was also implemented: bridge transports are disconnected when the app backgrounds:
+  - `mobile/crystal-lattice-control-rn/App.tsx:137`
+
+#### P0.4 Shorten `/events` timeout without shortening upload timeouts
+
+- Implemented.
+- Bridge connection setup now passes a shorter timeout for `/events` using `timeoutMsByPathPrefix`:
+  - `mobile/crystal-lattice-control-rn/App.tsx:522`
+  - `mobile/crystal-lattice-control-rn/App.tsx:941`
+- Current configured timeout: `10_000` ms.
+
+#### P1.6 Python: env parsing helpers
+
+- Appears implemented in code.
+- `BRIDGE_WS_MAX_SIZE_BYTES` still flows through `_parse_optional_int`, and the helper now simply returns `int(value)` or the default:
+  - `application/python/agent_terminal_app/bridge_client.py:853`
+  - `application/python/agent_terminal_app/bridge_client.py:868`
+- `_parse_float` follows the same straightforward pattern:
+  - `application/python/agent_terminal_app/bridge_client.py:883`
+- No dedicated regression test for this helper behavior was found during this review.
+
+### Partially completed
+
+#### P0.1 `BridgeTransport` cleanup/design improvement
+
+- The immediate bug is mitigated, but the cleaner design proposed in the plan was not implemented.
+- `BridgeTransport.request()` still creates the streaming-response promise for every request, including legacy non-chunked requests:
+  - `packages/frontend-sdk/src/transport/bridgeTransport.ts:160`
+- The current status is therefore:
+  - unhandled rejection symptom: fixed
+  - unnecessary always-on streaming-response promise/timer: still present
+
+#### P2.10 Stricter response chunk ordering + better error reporting
+
+- Partially implemented.
+- Invalid `final_seq` fails fast with a clear error:
+  - `packages/frontend-sdk/src/transport/bridgeTransport.ts:628`
+- But out-of-order chunks are still ignored rather than rejected immediately:
+  - `packages/frontend-sdk/src/transport/bridgeTransport.ts:607`
+- That means the "fail fast on out-of-order chunk" part remains open.
+
+#### P2.12 More Elixir tests
+
+- Partially implemented.
+- There is now an Elixir test covering `Bridge.AppChannel` forwarding of `http_request_init` to the active server:
+  - `bridge-elixir/test/bridge/single_target_routing_test.exs:100`
+- However, there is still no dedicated unit test covering the full chunked request pacing flow (`http_request_chunk`) and terminal `http_request_end` behavior in `Bridge.AppChannel`.
+
+### Still remaining
+
+#### P1.5 Heartbeat / WS idle timeout alignment
+
+- Still open.
+- Phoenix endpoint websocket timeout is still `45_000`:
+  - `bridge-elixir/lib/bridge/endpoint.ex:4`
+- No TS or Python heartbeat mechanism was found during this review.
+
+#### P1.7 Python: stalled chunked request cleanup / TTL
+
+- Still open.
+- `_chunked_requests` remains an in-memory dictionary with normal add/pop behavior only:
+  - `application/python/agent_terminal_app/bridge_client.py:114`
+- No TTL, stale-request scavenging, or explicit "clear all buffered requests on disconnect/reconnect" logic was found.
+
+#### P2.8 Size-aware chunking based on actual serialized Phoenix message size
+
+- Still open.
+- TS still uses approximate string slicing with headroom:
+  - `packages/frontend-sdk/src/transport/bridgeTransport.ts:724`
+- Python response chunking likewise uses approximate chunking rather than measuring actual serialized Phoenix payload size:
+  - `application/python/agent_terminal_app/bridge_client.py:586`
+
+#### P2.9 Head-of-line blocking mitigation
+
+- Still open.
+- `Bridge.AppChannel` still blocks inside `await_http_response/2` while waiting for the proxied response:
+  - `bridge-elixir/lib/bridge/app_channel.ex:27`
+
+#### P2.11 Durable ACK (`http_request_chunk_ack`)
+
+- Still open.
+- No `http_request_chunk_ack` protocol support was found during this review.
+
+#### P2.13 Per-endpoint size policies
+
+- Still open.
+- The Python bridge client still exposes only a single global body-size cap:
+  - `application/python/agent_terminal_app/bridge_client.py:66`
+
+### Summary
+
+At the time of this audit:
+
+- The original "must-fix" follow-up items (`P0`) are effectively complete, with `P0.1` solved via the minimal safety fix rather than the more structural redesign.
+- `P1` is partially complete: env parsing helpers look fixed, but heartbeat/idle-timeout alignment and stalled-buffer cleanup remain open.
+- `P2` remains mostly backlog, with partial progress on response validation and Elixir test coverage.
+
+This audit was based on task-file and code inspection only; no test suite was executed as part of the review.
+
+## Overlap with newer task set (added 2026-04-08)
+
+There is limited overlap with the newer connection-recovery task set:
+
+- `tasks/20260408-connection-recovery/010-transport-reliability-and-recovery.md`
+  - Expected completion path for remaining item `P1.5 Heartbeat / WS idle timeout alignment`
+  - Partial overlap with remaining item `P1.7 Python: stalled chunked request cleanup / TTL`
+- `tasks/20260408-connection-recovery/020-mobile-resume-lifecycle-and-chat-recovery.md`
+  - No substantial overlap with the still-remaining bridge chunking backlog in this file
+
+Interpretation:
+
+- If `010` is completed with bridge heartbeat / idle-timeout alignment work, `P1.5` should be considered completed via that task.
+- `P1.7` should remain open unless the `010` implementation explicitly includes Python-side chunk-buffer TTL / stale-request scavenging and disconnect cleanup.
+
 
 

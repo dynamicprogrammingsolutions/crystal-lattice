@@ -3,28 +3,17 @@ from __future__ import annotations
 import os
 import time
 from functools import lru_cache
-from pathlib import Path
 from typing import Any
 
 import pytest
 import requests
 
 from agent_core.core import AgentCore
-from plugins.request_options_feature import RequestOptionsFeature
-
-from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
-from reference_openai_compatible_provider.reasoning_extension import (
-    OpenAICompatibleReasoningExtension,
+from hosted_test_utils import (
+    REASONING_TEST_DIR,
+    build_reference_core,
+    load_root_env,
 )
-from reference_openai_compatible_provider.tools_extension import (
-    OpenAICompatibleToolsExtension,
-)
-from reference_openai_compatible_provider.usage_extension import (
-    OpenAICompatibleUsageExtension,
-)
-
-REPO_ROOT = Path(__file__).resolve().parents[3]
-REASONING_TEST_DIR = REPO_ROOT / "core/python/tests/reasoning_test"
 
 DEFAULT_FIREWORKS_BASE_URL = "https://api.fireworks.ai/inference/v1"
 DEFAULT_FIREWORKS_TIMEOUT = 180.0
@@ -39,20 +28,7 @@ FIREWORKS_KIMI_MODEL = "fireworks/kimi-k2p5"
 
 
 def _load_root_env() -> None:
-    env_path = REPO_ROOT / ".env"
-    if not env_path.exists():
-        return
-
-    for raw_line in env_path.read_text().splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        if not key or key in os.environ:
-            continue
-        value = value.strip().strip('"').strip("'")
-        os.environ[key] = value
+    load_root_env()
 
 
 def fireworks_api_key() -> str | None:
@@ -164,23 +140,6 @@ def build_fireworks_cfg(
     if isinstance(request_options, dict) and request_options:
         cfg["request_options"] = request_options
     return cfg
-
-
-def build_reference_core(*tool_plugins: Any) -> AgentCore:
-    core = AgentCore()
-    for tool_plugin in tool_plugins:
-        core.register_tool(tool_plugin)
-    core.register_feature(RequestOptionsFeature)
-    core.register_provider(
-        OpenAICompatibleProvider,
-        extensions=[
-            OpenAICompatibleToolsExtension,
-            OpenAICompatibleReasoningExtension,
-            OpenAICompatibleUsageExtension,
-        ],
-    )
-    return core
-
 
 def send_request_or_skip(core: AgentCore, session: Any, cfg: dict[str, Any]):
     retry_index = 0

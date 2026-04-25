@@ -2,6 +2,14 @@
 
 Parent Task: `tasks/20260306-session-ui-reload/000-main.md`
 
+## Relation
+
+COMPLETED VIA: `tasks/20260306-session-ui-reload/050-session-settings-controller.md` — SDK invalidation mechanism implemented as part of the session settings controller (see `packages/frontend-sdk/src/uiSchema/sessionUiSchemaInvalidation.ts`).
+
+## Status
+
+- [x] Completed (via 050-session-settings-controller)
+
 Description:
 Implement an SDK-level invalidation mechanism so that when this client updates per-session settings (config overrides) or session plugin enablement, the session-specific UI schema cache is invalidated and reloaded automatically.
 
@@ -33,3 +41,35 @@ Acceptance criteria:
 - After changing a session override or session plugins, the chat UI (composer attachments/footer/etc.) updates without requiring manual refresh.
 - Works in both mobile and desktop since both use `useSessionUiSchemaController`.
 - Unit tests cover that successful mutations emit invalidation.
+
+## Completion notes (added during verification)
+
+### Implementation status
+
+This subtask was implemented as part of `tasks/20260306-session-ui-reload/050-session-settings-controller.md`.
+
+### What was implemented
+
+1. **Session UI schema invalidation mechanism** in `packages/frontend-sdk/src/uiSchema/sessionUiSchemaInvalidation.ts`:
+   - `SessionUiSchemaInvalidationEvent` interface
+   - `subscribeSessionUiSchemaInvalidated(backend, sessionId, listener)` 
+   - `emitSessionUiSchemaInvalidated(backend, sessionId, options)`
+
+2. **Integration with REST backend mutations** in `packages/frontend-sdk/src/backend/restBackend.ts`:
+   - `setSessionPlugins(...)` emits `session_plugins_updated`
+   - `clearSessionPlugins(...)` emits `session_plugins_updated`
+   - `patchSessionOverrides(...)` emits `session_overrides_updated`
+   - `deleteSessionOverride(...)` emits `session_overrides_updated`
+
+3. **Controller integration**:
+   - `SessionUiSchemaController.invalidate()` method
+   - `SessionSettingsController.invalidate()` method
+   - Both controllers subscribe to invalidation events and reload
+
+### Files touched
+
+- `packages/frontend-sdk/src/uiSchema/sessionUiSchemaInvalidation.ts`
+- `packages/frontend-sdk/src/backend/restBackend.ts`
+- `packages/frontend-sdk/src/uiSchema/sessionUiSchemaController.ts`
+- `packages/frontend-sdk/src/sessionSettings/sessionSettingsController.ts`
+- `packages/frontend-sdk/src/backend/restBackend.sessionUiSchemaInvalidation.test.ts`

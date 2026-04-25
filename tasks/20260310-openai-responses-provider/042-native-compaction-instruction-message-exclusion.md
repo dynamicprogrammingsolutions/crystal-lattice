@@ -4,10 +4,25 @@ Short description: Add a generic core-owned lifecycle/preparation hook that lets
 
 Parent Task: `tasks/20260310-openai-responses-provider/000-main.md`
 
+## Relation
+
+SPLIT INTO:
+- `tasks/20260310-openai-responses-provider/043-native-message-preparation-for-compaction.md`
+- `tasks/20260310-openai-responses-provider/044-visible-rebuild-from-compacted-native-output.md`
+- `tasks/20260310-openai-responses-provider/046-manual-range-selection-native-compaction.md`
+- `tasks/20260310-openai-responses-provider/047-auto-compaction-after-request-complete.md`
+
+This task was the design umbrella; implementation was split into focused subtasks.
+
+## Status
+
+- [x] Completed (design umbrella split into implementation subtasks)
+
 Depends On:
-- `tasks/20260310-openai-responses-provider/041-system-message-rendering-and-developer-role-followup.md`
 - `tasks/20260310-openai-responses-provider/070-usage-extension-responses-api.md`
 - `tasks/20260310-openai-responses-provider/095-native-compaction-provider-extension.md`
+
+Note: Task `048` (optional) handles `system`/`developer` role normalization separately and is not a dependency.
 
 ## Status note
 

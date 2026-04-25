@@ -178,7 +178,7 @@
             "text": "${file:~/.crystal/CODEX_DEFAULT_GPT_5.3-CODEX.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -207,7 +207,7 @@
             "text": "${file:~/.crystal/CODEX_DEFAULT_GPT_5.3-CODEX.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -227,7 +227,7 @@
             "text": "${file:~/.crystal/CODEX_SYSTEM.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -247,7 +247,7 @@
             "text": "${file:~/.crystal/CODEX_SYSTEM.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -267,7 +267,7 @@
             "text": "${file:~/.crystal/CODEX_SYSTEM.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -287,7 +287,7 @@
             "text": "${file:~/.crystal/CODEX_SYSTEM.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -307,7 +307,7 @@
             "text": "${file:~/.crystal/CODEX_SYSTEM.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -327,7 +327,7 @@
             "text": "${file:~/.crystal/CODEX_DEFAULT_GPT_5.1.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -347,7 +347,7 @@
             "text": "${file:~/.crystal/CODEX_DEFAULT_GPT_5.1.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -367,7 +367,7 @@
             "text": "${file:~/.crystal/CODEX_DEFAULT_GPT_5.2.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -387,7 +387,7 @@
             "text": "${file:~/.crystal/CODEX_DEFAULT_GPT_5.2.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -416,7 +416,7 @@
             "text": "${file:~/.crystal/CODEX_DEFAULT_GPT_5.4.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -445,7 +445,7 @@
             "text": "${file:~/.crystal/CODEX_DEFAULT_GPT_5.4.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
@@ -474,7 +474,7 @@
             "text": "${file:~/.crystal/CODEX_DEFAULT_GPT_5.4.md}"
           },
           "TASKS": {
-            "text": "${file:~/.crystal/TASKS_v5.md}"
+            "text": "${file:~/.crystal/TASKS_v6.md}"
           },
           "AGENTS": {
             "text": "${file:${env:WORKING_DIR}/AGENTS.md}"

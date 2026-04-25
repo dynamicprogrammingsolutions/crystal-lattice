@@ -25,6 +25,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+import time
 
 
 def _add_repo_paths() -> None:
@@ -43,6 +44,10 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, required=True)
     parser.add_argument("--log-level", default="warning")
+    parser.add_argument("--max-events-global", type=int)
+    parser.add_argument("--max-event-age-seconds", type=float)
+    parser.add_argument("--session-save-delay-ms", type=int, default=0)
+    parser.add_argument("--checkpoint-delay-ms", type=int, default=0)
     parser.add_argument(
         "--enable-test-control",
         action="store_true",
@@ -60,6 +65,31 @@ def main() -> None:
 
     from agent_terminal_app import server as server_mod
 
+    class DelayingSessionStore:
+        def __init__(self, inner: object, *, save_delay_seconds: float) -> None:
+            self._inner = inner
+            self._save_delay_seconds = save_delay_seconds
+
+        def load(self, session_id: str):
+            return self._inner.load(session_id)  # type: ignore[attr-defined]
+
+        def save(self, session) -> None:
+            time.sleep(self._save_delay_seconds)
+            self._inner.save(session)  # type: ignore[attr-defined]
+
+        def delete(self, session_id: str) -> None:
+            self._inner.delete(session_id)  # type: ignore[attr-defined]
+
+        def get_file_state(self, session_id: str):
+            return self._inner.get_file_state(session_id)  # type: ignore[attr-defined]
+
+        def save_backup(self, session, *, request_id: str, suffix: str = "tool-loop-conflict"):
+            return self._inner.save_backup(  # type: ignore[attr-defined]
+                session,
+                request_id=request_id,
+                suffix=suffix,
+            )
+
     config_path = Path(args.config).expanduser().resolve()
     sessions_root = Path(args.sessions).expanduser().resolve()
     sessions_root.mkdir(parents=True, exist_ok=True)
@@ -67,8 +97,24 @@ def main() -> None:
     server_mod._agent_app = AgentApplication(
         str(config_path),
         str(sessions_root),
-        event_store=InMemoryEventStore(),
+        event_store=InMemoryEventStore(
+            max_events_global=args.max_events_global,
+            max_event_age_seconds=args.max_event_age_seconds,
+        ),
     )
+    if args.session_save_delay_ms > 0:
+        server_mod._agent_app._session_store = DelayingSessionStore(  # type: ignore[attr-defined]
+            server_mod._agent_app._session_store,  # type: ignore[attr-defined]
+            save_delay_seconds=float(args.session_save_delay_ms) / 1000.0,
+        )
+    if args.checkpoint_delay_ms > 0:
+        original_record_checkpoint = server_mod._agent_app.record_checkpoint
+
+        def _delayed_record_checkpoint(session_id: str, request_id: str | None):
+            time.sleep(float(args.checkpoint_delay_ms) / 1000.0)
+            return original_record_checkpoint(session_id, request_id)
+
+        server_mod._agent_app.record_checkpoint = _delayed_record_checkpoint  # type: ignore[assignment]
 
     import uvicorn
 

@@ -11,6 +11,29 @@ def _format_token_count(value: int | None) -> str | None:
     return f"{value:,}"
 
 
+def _current_turn_id(native_messages: list[dict[str, Any]]) -> int:
+    last_assigned = 0
+    current_open: int | None = None
+
+    for native_message in native_messages:
+        if not isinstance(native_message, dict):
+            continue
+        role = native_message.get("role")
+        if role in ("user", "system"):
+            current_open = None
+            continue
+        usage = _message_usage(native_message)
+        if not isinstance(usage, dict):
+            continue
+        if current_open is None:
+            current_open = last_assigned + 1
+        last_assigned = max(last_assigned, current_open)
+        if not _message_has_tool_calls(native_message):
+            current_open = None
+
+    return current_open if current_open is not None else (last_assigned + 1 if last_assigned > 0 else 1)
+
+
 def _as_int(value: Any) -> int | None:
     if isinstance(value, bool):
         return None
@@ -378,6 +401,11 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
             },
             {
                 "ui_type": "message_footer",
+                "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
+                "template": "turn reasoning: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
                 "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
                 "template": "turn input: {{data}}",
             },
@@ -448,6 +476,9 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
 
         All values are stored in _metadata so from_native_messages can read them.
         """
+        if not final_messages:
+            return final_messages, list(native_messages), state
+
         config = state.get("config") or {}
         token_rates = config.get("token_rates")
 
@@ -458,6 +489,10 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
         turn_metadata = _turn_totals(native_messages, final_messages)
 
         # Process each final message
+        history_before_current = (
+            native_messages[: -len(final_messages)] if len(native_messages) >= len(final_messages) else []
+        )
+        current_turn_id = _current_turn_id(history_before_current)
         new_finals: list[dict[str, Any]] = []
         for msg in final_messages:
             if not isinstance(msg, dict):
@@ -491,6 +526,11 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                 **per_msg_metadata,
                 **session_metadata,
                 **turn_metadata,
+                "turn": {
+                    "id": current_turn_id,
+                    "has_tool_calls": _message_has_tool_calls(msg),
+                    "is_terminal": not _message_has_tool_calls(msg),
+                },
             }
 
             # Update the message's _metadata
@@ -627,6 +667,23 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
             
             # Turn totals only for the last assistant message in a turn
             if native_msg.get("role") == "assistant":
+                separator_index = _last_turn_separator_index(native_messages, index)
+                turn_start = separator_index + 1
+
+                # Turn reasoning is useful on every assistant message in the turn,
+                # including tool-call assistants that precede the turn-closing reply.
+                turn_reasoning = _sum_assistant_metric(
+                    native_messages,
+                    index,
+                    _usage_reasoning_tokens,
+                    start_index=turn_start,
+                )
+                if turn_reasoning is not None:
+                    metadata["usage_turn_reasoning_tokens_cumulative"] = turn_reasoning
+                    metadata["usage_turn_reasoning_tokens_cumulative_formatted"] = (
+                        _format_token_count(turn_reasoning)
+                    )
+
                 # Check if this is the last message or next message is a separator
                 is_last = index == len(native_messages) - 1
                 next_is_separator = False
@@ -638,14 +695,10 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                 
                 if is_last or (next_is_separator and not _message_has_tool_calls(native_msg)):
                     # Calculate turn totals ending at this message
-                    separator_index = _last_turn_separator_index(native_messages, index)
-                    turn_start = separator_index + 1
-                    
                     turn_cost = _sum_assistant_metric(native_messages, index, _usage_cost, start_index=turn_start)
                     turn_input = _sum_assistant_metric(native_messages, index, _usage_input_tokens, start_index=turn_start)
                     turn_cached = _sum_assistant_metric(native_messages, index, _usage_cached_tokens, start_index=turn_start)
                     turn_output = _sum_assistant_metric(native_messages, index, _usage_output_tokens, start_index=turn_start)
-                    turn_reasoning = _sum_assistant_metric(native_messages, index, _usage_reasoning_tokens, start_index=turn_start)
                     
                     if turn_cost is not None:
                         metadata["usage_turn_cost_cumulative"] = turn_cost
@@ -659,9 +712,6 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                     if turn_output is not None:
                         metadata["usage_turn_output_tokens_cumulative"] = turn_output
                         metadata["usage_turn_output_tokens_cumulative_formatted"] = _format_token_count(turn_output)
-                    if turn_reasoning is not None:
-                        metadata["usage_turn_reasoning_tokens_cumulative"] = turn_reasoning
-                        metadata["usage_turn_reasoning_tokens_cumulative_formatted"] = _format_token_count(turn_reasoning)
             
             out.append({**core_msg, "metadata": metadata})
         

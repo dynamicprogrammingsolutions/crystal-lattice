@@ -37,12 +37,8 @@ class DummyExtension(ProviderExtensionPlugin):
         ]
 
     # New lifecycle: init accepts shared state
-    def init(
-        self,
-        config: Dict[str, Any],
-        state: Dict[str, Any],
-        models: Optional[List[Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+
         # Store extension config under provider state's config
         new_config = {**state.get("config", {}), **config}
         # Initialize extension counters within provider runtime_state

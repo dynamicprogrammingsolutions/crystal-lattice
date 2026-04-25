@@ -5,12 +5,16 @@ This page explains how to configure plugins in the application. It covers the `p
 ## Overview
 
 - top-level `plugins`: global plugin package specs shared by all agents.
+- top-level `mixins`: reusable config fragments that can be applied to providers and agents.
 - provider-level `plugins`: additional plugin package specs for agents using that provider config.
 - agent-level `plugins`: additional plugin package specs for that agent only.
 - session metadata `plugins`: still means explicit enabled plugin ids, not plugin package specs.
 - `disabled_plugins`: config-level shorthand for disabling plugin ids by default after the merged catalog is built.
+- `enabled_plugins`: config-level list of plugin ids to enable. Used to re-enable plugins that are disabled by default (via `default_enabled = False` on the plugin class).
+- `force_enabled_plugins`: config-level list of plugin ids to force-enable, overriding tag-based enablement logic (`is_enabled`, `required_tags`, `forbidden_tags`).
 - `plugin_cache_dir`: enables plugin installs and caching (for both `git+...` and `path:...`).
 - `plugin_policy`: controls installation and security policy (see Policy & Security).
+- `mixin_policy`: controls config-mixin merge defaults and recursion depth.
 
 ## Built-in Placeholder Environment Variables
 
@@ -57,6 +61,76 @@ These are especially useful for portable configs:
 - session metadata: explicit enabled plugin ids controlled by the existing session UI/API flow
 
 `disabled_plugins` is available at the top level, provider level, and agent level. It is always a list of plugin ids, never plugin package specs.
+
+## Config Mixins
+
+Application config supports reusable mixins for provider and agent entries.
+
+Top-level keys:
+
+- `mixins`: mapping of mixin id to config fragment
+- `mixin_policy.default_merge`: `"shallow"` (default) or `"deep"`
+- `mixin_policy.max_depth`: positive integer recursion limit, default `16`
+
+Per-provider, per-agent, and per-mixin keys:
+
+- `mixin_refs`: ordered list of mixin ids
+- `mixin_merge`: optional override for how that node merges its referenced mixins with its local keys
+
+Precedence rules:
+
+1. Referenced mixins are resolved recursively.
+2. Mixins are applied in `mixin_refs` order.
+3. Later mixins override earlier mixins.
+4. Keys defined directly on the provider/agent/mixin override mixin-provided keys.
+5. After mixin expansion, normal config layering still applies, so agent config overrides provider config on overlap.
+
+Merge rules:
+
+- `shallow`: replace whole top-level keys
+- `deep`: recursively merge dictionaries
+- for `deep`, lists and scalar values are still replaced rather than concatenated
+
+Example:
+
+```json
+{
+  "mixin_policy": {
+    "default_merge": "deep",
+    "max_depth": 16
+  },
+  "mixins": {
+    "portable-system-message": {
+      "system_message": {
+        "variables": {
+          "AGENTS": {
+            "text": "${file:${env:WORKING_DIR}/AGENTS.md}"
+          }
+        }
+      }
+    },
+    "openai-base": {
+      "mixin_refs": ["portable-system-message"],
+      "provider": "openai_compatible",
+      "model": "gpt-5-mini"
+    }
+  },
+  "providers": {
+    "openai": {
+      "mixin_refs": ["openai-base"],
+      "api_key": "${env:OPENAI_API_KEY}"
+    }
+  },
+  "agents": {
+    "default": {
+      "provider": "openai",
+      "system_message": {
+        "template": "{{AGENTS}}"
+      }
+    }
+  }
+}
+```
 
 ## System Message Templates
 
@@ -154,10 +228,29 @@ The effective plugin catalog for a session is built in this order:
 2. Load `plugins` from the selected provider config.
 3. Load `plugins` from the selected agent config.
 4. Deduplicate by plugin id with first registration winning.
-5. Compute the default enabled set by taking the merged catalog and removing ids listed in merged `disabled_plugins`.
-6. If session metadata contains `plugins`, use that explicit enabled-id list instead of the config-derived default.
+5. Identify plugins with `default_enabled = False` class attribute (disabled by default).
+6. Compute the default enabled set:
+   - Start with the merged catalog
+   - Remove plugins with `default_enabled = False`
+   - Re-add plugins listed in `enabled_plugins` config
+   - Remove plugins listed in merged `disabled_plugins`
+7. If session metadata contains `plugins`, use that explicit enabled-id list instead of the config-derived default.
 
 This means provider-level and agent-level packages are additive. They do not replace the global packages.
+
+### Plugin Enablement at Runtime
+
+During request processing, the core applies tag-based filtering:
+
+1. Compute tags from provider and enabled plugins.
+2. For each plugin, check `is_enabled(config, tags, models, context)`:
+   - If returns `True`: plugin is enabled
+   - If returns `False`: plugin is disabled
+   - If returns `None`: fall back to tag-based check
+3. Tag-based check:
+   - `required_tags()`: all tags must be present
+   - `forbidden_tags()`: no tag may be present
+4. Apply `force_enabled_plugins` config override (plugins listed are always enabled).
 
 ### Duplicate Plugin Ids
 

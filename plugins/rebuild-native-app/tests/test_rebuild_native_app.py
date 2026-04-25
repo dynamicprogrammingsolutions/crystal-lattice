@@ -147,3 +147,85 @@ def test_rebuild_native_app_execute_action_rebuilds_session():
     md = saved.metadata or {}
     assert isinstance(md.get("native_messages"), list)
     assert isinstance(md.get("native_messages_integrity"), dict)
+
+
+def test_rebuild_native_core_method_can_rebuild_selected_range() -> None:
+    core, base_config, session = _build_core_and_session_for_rebuild()
+    rebuilt = core.rebuild_native_history(session, base_config)
+
+    native = list((rebuilt.metadata or {}).get("native_messages") or [])
+    native[1] = {
+        "role": "assistant",
+        "content": "broken world",
+        "_core_metadata": {},
+    }
+    tampered = Session(
+        session_id=rebuilt.session_id,
+        messages=rebuilt.messages,
+        metadata={
+            **(rebuilt.metadata or {}),
+            "native_messages": native,
+            "native_messages_integrity": core._compute_native_integrity(rebuilt.messages),  # type: ignore[attr-defined]
+        },
+    )
+
+    repaired = core.rebuild_native_history(
+        tampered,
+        base_config,
+        start=1,
+        end=2,
+    )
+
+    assert [m.content for m in repaired.messages] == ["hello", "world"]
+    repaired_native = (repaired.metadata or {}).get("native_messages")
+    assert isinstance(repaired_native, list)
+    assert repaired_native[1]["content"] == "world"
+
+
+def test_rebuild_native_app_execute_action_supports_start_end_range() -> None:
+    core, base_config, session = _build_core_and_session_for_rebuild()
+    rebuilt = core.rebuild_native_history(session, base_config)
+    native = list((rebuilt.metadata or {}).get("native_messages") or [])
+    native[1] = {
+        "role": "assistant",
+        "content": "broken world",
+        "_core_metadata": {},
+    }
+    tampered = Session(
+        session_id=rebuilt.session_id,
+        messages=rebuilt.messages,
+        metadata={
+            **(rebuilt.metadata or {}),
+            "native_messages": native,
+            "native_messages_integrity": core._compute_native_integrity(rebuilt.messages),  # type: ignore[attr-defined]
+        },
+    )
+    app = DummyApp(core, base_config, tampered)
+    plugin = RebuildNativeAppPlugin()
+    state = plugin.init({"application": {"rebuild_native_enabled": True}})
+
+    result = plugin.execute_action(
+        app,
+        "rebuild_native_history",
+        {"session_id": tampered.session_id, "start": 1, "end": 2},
+        state,
+    )
+
+    assert result["message"] == "Rebuilt provider-native history for visible messages [1:2]."
+    saved = app.saved_session
+    assert saved is not None
+    assert [m.content for m in saved.messages] == ["hello", "world"]
+
+
+def test_rebuild_native_app_ui_elements_offer_optional_range_input() -> None:
+    plugin = RebuildNativeAppPlugin()
+    state = plugin.init({"application": {"rebuild_native_enabled": True}})
+
+    ui = plugin.get_ui_elements(state)
+    rebuild = next(el for el in ui if el.get("id") == "rebuild_native_history")
+    dialog = rebuild.get("dialog") or {}
+    inputs = dialog.get("inputs") or []
+
+    assert dialog.get("kind") == "form"
+    assert any(input_def.get("name") == "start" for input_def in inputs)
+    assert any(input_def.get("name") == "end" for input_def in inputs)

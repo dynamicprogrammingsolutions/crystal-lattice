@@ -17,6 +17,7 @@ from .types import (
     Message,
     Session,
     MessageRole,
+    ToolDescriptor,
     ProviderPlugin,
     ProviderExtensionPlugin,
     FeaturePlugin,
@@ -38,6 +39,7 @@ __all__ = [
     "Session",
     "Message",
     "MessageRole",
+    "ToolDescriptor",
     # Plugin protocols
     "ProviderPlugin",
     "ProviderExtensionPlugin",

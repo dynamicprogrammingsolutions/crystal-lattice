@@ -59,11 +59,11 @@ This requires adding session plugin endpoints to the Python FastAPI server, exte
 
 ## Subtasks
 
-1. `tasks/20260213-session-plugins-ui/010-server-endpoints.md`
-2. `tasks/20260213-session-plugins-ui/020-shared-frontend-sdk.md`
-3. `tasks/20260213-session-plugins-ui/030-shared-ui-and-controller.md`
-4. `tasks/20260213-session-plugins-ui/040-mobile-integration.md`
-5. `tasks/20260213-session-plugins-ui/050-desktop-integration.md`
+- [x] `tasks/20260213-session-plugins-ui/010-server-endpoints.md`
+- [x] `tasks/20260213-session-plugins-ui/020-shared-frontend-sdk.md`
+- [x] `tasks/20260213-session-plugins-ui/030-shared-ui-and-controller.md`
+- [x] `tasks/20260213-session-plugins-ui/040-mobile-integration.md`
+- [x] `tasks/20260213-session-plugins-ui/050-desktop-integration.md`
 
 ---
 

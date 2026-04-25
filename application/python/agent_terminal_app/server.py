@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import asyncio
 import base64
@@ -23,9 +24,14 @@ except Exception:  # pragma: no cover - optional dependency
 
 from fastapi import Depends, FastAPI, Header, HTTPException  # type: ignore[reportMissingImports]
 
-from agent_app.application_future import AgentApplication
+from agent_app.application_future import (
+    AgentApplication,
+    ReadonlySessionViewError,
+    SessionConflictError,
+)
 from agent_app.config import resolve_request_config
-from agent_core import Session
+from agent_app.sessions import FilesystemSnapshotSelectionStore
+from agent_core import Message, Session
 from agent_terminal_app import bonjour as bonjour_mod
 from agent_terminal_app import bridge_client as bridge_mod
 
@@ -214,17 +220,38 @@ def _load_session_ctx_for_send(
     app_instance: AgentApplication,
     session_id: str,
     overrides: Optional[Dict[str, Any]] = None,
-) -> Tuple[Any, Any, Session]:
+    *,
+    acquire_lock: bool = True,
+) -> Tuple[Any, Any, Session, Any]:
     try:
-        session_record = app_instance.load_session_record(session_id)
-        if session_record is None:
-            raise KeyError(f"Session {session_id!r} not found")
+        @contextmanager
+        def _maybe_lock() -> Iterator[None]:
+            if not acquire_lock:
+                yield
+                return
+            with app_instance.acquire_session_lock(session_id):
+                yield
 
-        ctx = app_instance.load_session(session_id, overrides=overrides)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
+        with _maybe_lock():
+            selected_snapshot_id = app_instance.get_selected_session_snapshot(session_id)
+            if isinstance(selected_snapshot_id, str) and selected_snapshot_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"Session {session_id!r} is viewing readonly snapshot "
+                        f"{selected_snapshot_id!r}; clear snapshot selection before sending"
+                    ),
+                )
+            session_record = app_instance.load_session_record(session_id)
+            if session_record is None:
+                raise KeyError(f"Session {session_id!r} not found")
 
-        return ctx
+            ctx = app_instance.load_session(session_id, overrides=overrides)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            file_state = app_instance.get_session_file_state(session_id)
+            return (*ctx, file_state)
     except KeyError as exc:
         detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
         if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
@@ -232,6 +259,17 @@ def _load_session_ctx_for_send(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+def _snapshot_response_fields(
+    app_instance: AgentApplication,
+    session_id: str,
+) -> Dict[str, Any]:
+    snapshot_id = app_instance.get_selected_session_snapshot(session_id)
+    return {
+        "readonly": bool(snapshot_id),
+        "snapshot_id": snapshot_id,
+    }
 
 
 def _merged_session_overrides(
@@ -338,6 +376,11 @@ def _append_message_to_session_locked(
         metadata,
         config,
         multipart_content=multipart_content,
+        context={
+            "session_id": session.session_id,
+            "session": session.to_dict(),
+            "session_asset_store": app_instance.get_session_asset_store(),
+        },
     )
     app_instance.save_session(new_session)
 
@@ -612,7 +655,12 @@ def _build_default_agent_app() -> AgentApplication:
     cfg = _DEFAULT_CONFIG_PATH
     root = _DEFAULT_SESSION_ROOT
     root.mkdir(parents=True, exist_ok=True)
-    return AgentApplication(str(cfg), str(root))
+    snapshot_selector = FilesystemSnapshotSelectionStore(root / ".snapshots")
+    return AgentApplication(
+        str(cfg),
+        str(root),
+        snapshot_selection_store=snapshot_selector,
+    )
 
 
 _agent_app: Optional[AgentApplication] = None
@@ -732,6 +780,13 @@ def get_api_hello() -> Dict[str, Any]:
 
 if _TEST_CONTROL_ENABLED:
 
+    @app.get("/__test/sleep")
+    def _test_sleep(ms: int = 0) -> Dict[str, Any]:
+        delay_ms = max(0, min(ms, 5000))
+        if delay_ms:
+            time.sleep(delay_ms / 1000.0)
+        return {"slept_ms": delay_ms}
+
     @app.get("/__test/events/status")
     def _test_events_status() -> Dict[str, Any]:
         with _test_events_lock:
@@ -751,6 +806,50 @@ if _TEST_CONTROL_ENABLED:
         _test_events_paused = False
         _test_events_release.set()
         return {"paused": False}
+
+    @app.post("/__test/sessions/{session_id}/inject_pending_tool_call")
+    def _test_inject_pending_tool_call(
+        session_id: str,
+        payload: Optional[Dict[str, Any]] = None,
+        app_instance: AgentApplication = Depends(get_agent_app),
+    ) -> Dict[str, Any]:
+        body = payload or {}
+        tool_name = body.get("tool_name") if isinstance(body.get("tool_name"), str) else "add"
+        arguments = body.get("arguments")
+        if not isinstance(arguments, dict):
+            arguments = {"a": 2, "b": 3}
+        assistant_content = (
+            body.get("assistant_content")
+            if isinstance(body.get("assistant_content"), str)
+            else "Running tools."
+        )
+
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise HTTPException(status_code=404, detail=f"Session {session_id!r} not found")
+        _core, _base_config, session = ctx
+        tool_call = {
+            "id": "test-call-1",
+            "type": "function",
+            "function": {
+                "name": tool_name,
+                "arguments": json.dumps(arguments),
+            },
+        }
+        updated = Session(
+            session_id=session.session_id,
+            messages=[
+                *session.messages,
+                Message(
+                    role="assistant",
+                    content=assistant_content,
+                    metadata={"tool_calls": [tool_call]},
+                ),
+            ],
+            metadata=session.metadata,
+        )
+        app_instance.save_session(updated)
+        return {"session": updated.to_dict(), "tool_call": tool_call}
 
 
 # ---------------------------------------------------------------------------
@@ -987,12 +1086,11 @@ def _run_send_request_background(
     rid = request_id or _generate_request_id(app_instance)
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            _log.warning("send_request background worker: session %r not found", session_id)
-            return
-
-        core, base_config, session = ctx
+        core, base_config, session, baseline_file_state = _load_session_ctx_for_send(
+            app_instance,
+            session_id,
+            overrides=overrides,
+        )
 
         # Merge per-session configuration overrides stored on the
         # session metadata with any overrides provided in the HTTP
@@ -1013,36 +1111,22 @@ def _run_send_request_background(
             merged_overrides,
             stream=True,
             request_id=rid,
+            baseline_file_state=baseline_file_state,
         ):
             etype = ev.get("type")
 
             # Internal checkpoint events carry the live Session object so the
-            # server can persist progress incrementally. They are not
+            # server can track progress incrementally. They are not
             # published to the shared event store or serialized in responses.
             if etype == "session_checkpoint":
                 session_obj = ev.get("session")
                 if isinstance(session_obj, Session):
-                    with app_instance.acquire_session_lock(session_obj.session_id):
-                        try:
-                            app_instance.save_session(session_obj)
-                        except Exception:  # pragma: no cover - defensive
-                            _log.exception(
-                                "failed to save session checkpoint for %r", session_id
-                            )
-                        try:
-                            final_session_dict = session_obj.to_dict()
-                        except Exception:  # pragma: no cover - defensive
-                            _log.exception(
-                                "failed to serialize session checkpoint for %r", session_id
-                            )
-                        try:
-                            app_instance.record_checkpoint(
-                                session_obj.session_id, ev.get("request_id")
-                            )
-                        except Exception:  # pragma: no cover - defensive
-                            _log.exception(
-                                "failed to publish checkpoint event for %r", session_id
-                            )
+                    try:
+                        final_session_dict = session_obj.to_dict()
+                    except Exception:  # pragma: no cover - defensive
+                        _log.exception(
+                            "failed to serialize session checkpoint for %r", session_id
+                        )
                 continue
 
             stored = app_instance.publish_event(ev)
@@ -1055,26 +1139,9 @@ def _run_send_request_background(
                 # a serialized session payload.
                 final_session_dict = stored["session"]
 
-        if final_session_dict is not None:
-            try:
-                final_session = Session.from_dict(final_session_dict)
-                app_instance.save_session(final_session)
-            except Exception:  # pragma: no cover - defensive
-                _log.exception("failed to persist final session for %r", session_id)
-
         # ``final_messages`` and ``request_id`` are intentionally unused
         # here; callers are expected to observe results via the event
         # store and session history.
-
-        # Publish a post-completion checkpoint so that frontends can
-        # observe that there is no active request at/after this point
-        # when loading a session snapshot by cursor.
-        try:
-            app_instance.record_checkpoint(session_id, None)
-        except Exception:  # pragma: no cover - defensive
-            _log.exception(
-                "failed to publish post-completion checkpoint for %r", session_id,
-            )
 
 
     except Exception:  # pragma: no cover - defensive
@@ -1134,6 +1201,77 @@ def get_session_ui_schema(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return {"elements": ui_schema or []}
+
+
+@app.get("/sessions/{session_id}/application/ui-schema")
+def get_session_application_ui_schema(
+    session_id: str,
+    plugin: Optional[str] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return application-level UI schema for a specific session.
+
+    This endpoint computes the session's effective config (base agent config
+    merged with session overrides) and passes it to application plugins,
+    enabling config-aware UI filtering.
+
+    This completes the implementation started in:
+    - tasks/20260128-sandboxing-prereqs/040-session-aware-app-plugin-ui-and-conditions.md
+    - tasks/20260130-openrouter-usage-round-cost-and-ui-schema/010-config-aware-ui-schema-and-conditions.md
+
+    The returned list contains UI elements from all registered application
+    plugins, filtered by the optional ``plugin`` query parameter if provided.
+    Each element includes a ``plugin`` field identifying its source.
+
+    Frontends should call this endpoint when displaying session-scoped actions
+    (e.g., "Compact range") that depend on the session's configuration.
+    """
+
+    try:
+        ctx = app_instance.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+
+        core, base_config, session = ctx
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = resolve_request_config(base_config, overrides)
+
+        # Get tags and models from the core's resolved plugins
+        # This mirrors what AgentCore.get_ui_schema does internally
+        tags: List[str] = []
+        models: List[Dict[str, Any]] = []
+
+        # Try to get tags/models from the core if it has resolved plugins
+        try:
+            if hasattr(core, "_resolve_plugins_for_config"):
+                provider, _, _, _, resolved_tags = core._resolve_plugins_for_config(effective_config)
+                tags = resolved_tags
+                if provider is not None and hasattr(core, "_get_models_for_config"):
+                    models = core._get_models_for_config(provider, effective_config)
+        except Exception:
+            pass  # Tags/models are optional, continue without them
+
+        try:
+            elements = app_instance.get_application_ui_schema(
+                config=effective_config, tags=tags, models=models
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            _log.exception("error getting application_ui_schema: %s", exc)
+            elements = []
+
+        # Filter by plugin if requested
+        if plugin:
+            elements = [e for e in elements if isinstance(e, dict) and e.get("plugin") == plugin]
+        else:
+            elements = [e for e in elements if isinstance(e, dict)]
+
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    return {"elements": elements}
 
 
 @app.get("/sessions/{session_id}/config/schema")
@@ -1227,6 +1365,8 @@ def add_message(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -1291,6 +1431,8 @@ def get_session_overrides(
         )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return {"overrides": overrides}
 
@@ -1311,6 +1453,8 @@ def get_session_plugins(
         plugins = _list_plugins_for_session(app_instance, core, cfg, session)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return {"plugins": plugins}
 
@@ -1370,6 +1514,8 @@ def put_session_plugins(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     response = {"session": loaded_session.to_dict(), "plugins": plugins}
     _idempotency_store(scope, idempotency_key, payload, response)
@@ -1420,6 +1566,8 @@ def delete_session_plugins(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     response = {"session": loaded_session.to_dict(), "plugins": plugins}
     _idempotency_store(scope, idempotency_key, {}, response)
@@ -1807,10 +1955,11 @@ def send_message(
             if cached is not None:
                 return cached
 
-            core, base_config, session = _load_session_ctx_for_send(
+            core, base_config, session, _baseline_file_state = _load_session_ctx_for_send(
                 app_instance,
                 session_id,
                 overrides=overrides,
+                acquire_lock=False,
             )
 
             request_id = _generate_request_id(app_instance)
@@ -1848,6 +1997,8 @@ def send_message(
                 "session_id": session_id,
             }
             _idempotency_store(scope, effective_idempotency_key, idempotency_payload, response)
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -2003,6 +2154,8 @@ def delete_messages(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     response = {"session": new_session.to_dict(), "deleted_indices": concrete_indices}
     _idempotency_store(scope, idempotency_key, body, response)
@@ -2228,6 +2381,195 @@ def list_sessions(
     return {"sessions": items}
 
 
+@app.get("/sessions/{session_id}/snapshots")
+def list_session_snapshots(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    try:
+        snapshots = app_instance.list_session_snapshots(session_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return {
+        "snapshots": [
+            {
+                "snapshot_id": snap.snapshot_id,
+                "session_id": snap.session_id,
+                "created_at": snap.created_at,
+                "reason": snap.reason,
+            }
+            for snap in snapshots
+        ]
+    }
+
+
+@app.post("/sessions/{session_id}/snapshots")
+def create_session_snapshot(
+    session_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    body = payload or {}
+    scope = f"POST /sessions/{session_id}/snapshots"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, body)
+    if cached is not None:
+        return cached
+    reason = body.get("reason")
+    if not isinstance(reason, str) or not reason.strip():
+        raise HTTPException(status_code=400, detail="reason must be a non-empty string")
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            snapshot = app_instance.create_session_snapshot(
+                session_id,
+                reason=reason.strip(),
+                metadata=body.get("metadata") if isinstance(body.get("metadata"), dict) else None,
+            )
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    response = {
+        "snapshot": {
+            "snapshot_id": snapshot.snapshot_id,
+            "session_id": snapshot.session_id,
+            "created_at": snapshot.created_at,
+            "reason": snapshot.reason,
+        }
+    }
+    _idempotency_store(scope, idempotency_key, body, response)
+    return response
+
+
+@app.get("/sessions/{session_id}/snapshots/selected")
+def get_selected_session_snapshot(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    selected = app_instance.get_selected_session_snapshot(session_id)
+    return {"snapshot_id": selected}
+
+
+@app.post("/sessions/{session_id}/snapshots/{snapshot_id}/select")
+def select_session_snapshot(
+    session_id: str,
+    snapshot_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    scope = f"POST /sessions/{session_id}/snapshots/{snapshot_id}/select"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+    if _get_active_send_request_id(session_id) is not None:
+        raise HTTPException(status_code=409, detail="Cannot select snapshot while a request is running")
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            app_instance.select_session_snapshot(session_id, snapshot_id)
+            stored = app_instance.publish_event(
+                {
+                    "type": "session_snapshot_selected",
+                    "session_id": session_id,
+                    "snapshot_id": snapshot_id,
+                }
+            )
+            event_id = stored.get("event_id")
+            if isinstance(event_id, str) and event_id:
+                app_instance.advance_session_cursor(session_id, event_id)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    response = {"status": "ok", "snapshot_id": snapshot_id}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
+@app.delete("/sessions/{session_id}/snapshots/selected")
+def clear_selected_session_snapshot(
+    session_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    scope = f"DELETE /sessions/{session_id}/snapshots/selected"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+    with app_instance.acquire_session_lock(session_id):
+        app_instance.clear_selected_session_snapshot(session_id)
+        stored = app_instance.publish_event(
+            {
+                "type": "session_snapshot_cleared",
+                "session_id": session_id,
+            }
+        )
+        event_id = stored.get("event_id")
+        if isinstance(event_id, str) and event_id:
+            app_instance.advance_session_cursor(session_id, event_id)
+    response = {"status": "ok", "snapshot_id": None}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
+@app.post("/sessions/{session_id}/snapshots/{snapshot_id}/restore")
+def restore_session_snapshot(
+    session_id: str,
+    snapshot_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    scope = f"POST /sessions/{session_id}/snapshots/{snapshot_id}/restore"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+    if _get_active_send_request_id(session_id) is not None:
+        raise HTTPException(status_code=409, detail="Cannot restore snapshot while a request is running")
+    try:
+        with app_instance.acquire_session_lock(session_id):
+            restored = app_instance.restore_session_snapshot(session_id, snapshot_id)
+            stored = app_instance.publish_event(
+                {
+                    "type": "session_restored_from_snapshot",
+                    "session_id": session_id,
+                    "snapshot_id": snapshot_id,
+                }
+            )
+            event_id = stored.get("event_id")
+            if isinstance(event_id, str) and event_id:
+                app_instance.advance_session_cursor(session_id, event_id)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    response = {"status": "ok", "session": restored.to_dict()}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
+@app.delete("/sessions/{session_id}/snapshots/{snapshot_id}")
+def delete_session_snapshot(
+    session_id: str,
+    snapshot_id: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    scope = f"DELETE /sessions/{session_id}/snapshots/{snapshot_id}"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+    try:
+        deleted = app_instance.delete_session_snapshot(session_id, snapshot_id)
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    response = {"status": "ok", "deleted": bool(deleted)}
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
 def _legacy_sort_sessions(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Return sessions ordered by legacy semantics.
 
@@ -2445,6 +2787,8 @@ def fork_session(
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     response = {"session": new_session.to_dict(), "source_session_id": session.session_id}
     _idempotency_store(scope, idempotency_key, data, response)
@@ -2460,6 +2804,7 @@ def list_session_messages(
 ) -> Dict[str, Any]:
     """List messages for a session with optional slice-style bounds."""
 
+    snapshot_fields = _snapshot_response_fields(app_instance, session_id)
     try:
         with app_instance.acquire_session_lock(session_id):
             session = app_instance.load_session_record(session_id)
@@ -2473,6 +2818,7 @@ def list_session_messages(
                     "cursor_event_id": app_instance.get_session_cursor_event_id(
                         session_id
                     ),
+                    **snapshot_fields,
                 }
 
             try:
@@ -2499,7 +2845,7 @@ def list_session_messages(
             # event created via record_checkpoint(session_id,
             # request_id).
             active_request_id: Optional[str] = None
-            if cursor_event_id is not None:
+            if cursor_event_id is not None and not snapshot_fields["readonly"]:
                 store = app_instance.get_event_store()
                 ev = store.get_event_by_id(cursor_event_id)
                 if ev is not None and ev.get("type") == "checkpoint":
@@ -2514,6 +2860,7 @@ def list_session_messages(
         "messages": results,
         "cursor_event_id": cursor_event_id,
         "active_request_id": active_request_id,
+        **snapshot_fields,
     }
 
 
@@ -2539,6 +2886,10 @@ def list_events(
     _maybe_block_events_for_tests()
 
     store = app_instance.get_event_store()
+    try:
+        latest_event_id = store.get_latest_event_id()
+    except AttributeError:  # pragma: no cover - defensive
+        latest_event_id = None
     # ``internal_limit`` bounds the number of raw events loaded from
     # the store so that compaction has sufficient context without
     # unbounded memory usage. ``limit`` caps the number of events
@@ -2551,12 +2902,11 @@ def list_events(
     # return the entire history. Instead, expose only the latest
     # event_id so that clients can start polling from "now".
     if since_id is None and session_id is None and request_id is None:
-        latest_event_id: Optional[str]
-        try:
-            latest_event_id = store.get_latest_event_id()
-        except AttributeError:  # pragma: no cover - defensive
-            latest_event_id = None
-        return {"events": [], "latest_event_id": latest_event_id}
+        return {
+            "events": [],
+            "latest_event_id": latest_event_id,
+            "cursor_expired": False,
+        }
 
     effective_since_id = since_id
     # When filtering by session but no since_id is provided, default to
@@ -2568,16 +2918,32 @@ def list_events(
         except Exception:  # pragma: no cover - defensive
             effective_since_id = None
 
-    events = store.list(
+    listed = store.list(
         since_id=effective_since_id,
         request_id=request_id,
         session_id=session_id,
         limit=internal_limit,
     )
+    events = listed.get("events") or []
     compacted = app_instance.compact_events(events)
+    if session_id is not None:
+        selected_snapshot_id = app_instance.get_selected_session_snapshot(session_id)
+        if isinstance(selected_snapshot_id, str) and selected_snapshot_id:
+            allowed_types = {
+                "session_snapshot_selected",
+                "session_snapshot_cleared",
+                "session_restored_from_snapshot",
+            }
+            compacted = [
+                ev for ev in compacted if isinstance(ev, dict) and ev.get("type") in allowed_types
+            ]
     if len(compacted) > limit:
         compacted = compacted[:limit]
-    return {"events": compacted}
+    return {
+        "events": compacted,
+        "latest_event_id": latest_event_id,
+        "cursor_expired": bool(listed.get("cursor_expired")),
+    }
 
 
 @app.post("/requests/{request_id}/cancel")
@@ -2680,13 +3046,11 @@ def update_session_agent(
 
     try:
         with app_instance.acquire_session_lock(session_id):
-            ctx = app_instance.load_session(session_id)
-            if ctx is None:
+            session = app_instance.load_session_record(session_id)
+            if session is None:
                 raise KeyError(f"Session {session_id!r} not found")
 
-            _core, _base_config, session = ctx
-
-            core, base_config, new_session = app_instance.update_agent(
+            _core, _base_config, new_session = app_instance.update_agent(
                 target_agent_id, session
             )
 
@@ -2816,6 +3180,26 @@ def execute_action(
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "not_found",
+            "message": str(exc),
+            "details": {},
+        }
+    except SessionConflictError as exc:
+        response = {
+            "status": "error",
+            "plugin": plugin_id,
+            "action_id": action_id,
+            "action_owner": action_owner,
+            "error_type": "conflict",
+            "message": str(exc),
+            "details": {},
+        }
+    except ReadonlySessionViewError as exc:
+        response = {
+            "status": "error",
+            "plugin": plugin_id,
+            "action_id": action_id,
+            "action_owner": action_owner,
+            "error_type": "readonly",
             "message": str(exc),
             "details": {},
         }

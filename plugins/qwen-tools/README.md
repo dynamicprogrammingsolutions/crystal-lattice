@@ -21,6 +21,8 @@ Current public tools in this package:
 - `glob`
 - `write_file`
 - `edit`
+- `bash`
+- `web_fetch`
 
 Write/edit surface summary:
 
@@ -36,6 +38,8 @@ The plugin repo exposes these classes through `agent_plugin.json`:
 - `qwen_tools.qwen_glob_tool.QwenGlobTool`
 - `qwen_tools.qwen_write_file_tool.QwenWriteFileTool`
 - `qwen_tools.qwen_edit_tool.QwenEditTool`
+- `qwen_tools.qwen_shell_tool.QwenShellTool`
+- `qwen_tools.qwen_web_fetch_tool.QwenWebFetchTool`
 
 ## Quickstart
 
@@ -245,6 +249,141 @@ L4: # TODO: tighten validation
 ---
 ```
 
+## Shell behavior notes
+
+The Qwen-compatible shell entrypoint is `bash`.
+
+- `command` is the shell command to execute (required).
+- `timeout` is in milliseconds (default: 120000, max: 600000).
+- `description` is an optional brief description of the command purpose.
+- `directory` sets the working directory for execution.
+- `is_background` runs the command in background mode.
+- Output is truncated by lines first (1000 lines), then by characters (25000).
+- Background output includes platform-specific kill hint (`kill` or `taskkill`).
+
+Representative `bash` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "bash",
+    "arguments": {
+      "command": "npm run build",
+      "description": "Build the project",
+      "directory": "/workspace",
+      "timeout": 300000
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+Success (no stderr):
+```text
+Build completed successfully.
+```
+
+Failure:
+```text
+Stdout: (empty)
+Stderr: Build failed
+Error: (none)
+Exit Code: 1
+Signal: (none)
+```
+
+Background (Unix):
+```text
+Background command started. PID: 12345 (Use kill 12345 to stop)
+```
+
+Background (Windows):
+```text
+Background command started. PID: 12345 (Use taskkill /F /T /PID 12345 to stop)
+```
+
+Timeout:
+```text
+Stdout: (empty)
+Stderr: (empty)
+Error: Command timed out after 2.0 seconds
+Exit Code: (none)
+Signal: (none)
+```
+
+Truncation:
+```text
+Build output line 1...
+Build output line 2...
+
+[500 lines truncated]
+```
+
+## Web Fetch behavior notes
+
+The Qwen-compatible web fetch entrypoint is `web_fetch`.
+
+- `url` is the URL to fetch content from (required).
+- `prompt` is the prompt to run on the fetched content (required).
+- Content is fetched directly using HTTP GET.
+- HTML content is converted to plain text using trafilatura.
+- Content is truncated to `web_fetch_max_content_chars` characters.
+- The configured provider is used to summarize content based on the prompt.
+- Supports both public and private/localhost URLs.
+- Rate limited per-host (default: 10 requests per 60 seconds).
+
+Representative `web_fetch` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "web_fetch",
+    "arguments": {
+      "url": "https://example.com/article",
+      "prompt": "Summarize the main points of this article"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+Success:
+```text
+[LLM-summarized content based on the prompt]
+```
+
+Error:
+```text
+Error: Error during fetch for https://example.com: HTTP 404
+```
+
+Rate limited:
+```text
+Error: Rate limit exceeded. Please wait 30 seconds.
+```
+
+### Configuration
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `web_fetch_enabled` | `true` | Enable the web_fetch tool |
+| `web_fetch_timeout_seconds` | `10` | Fetch timeout in seconds |
+| `web_fetch_max_content_chars` | `100000` | Max content length in characters |
+| `web_fetch_rate_limit_requests` | `10` | Max requests per window per host |
+| `web_fetch_rate_limit_window` | `60` | Rate limit window in seconds |
+| `web_fetch_summarization_agent_id` | `null` | Optional dedicated agent for summarization |
+| `web_fetch_summarization_model` | `null` | Optional model override for summarization |
+
+### Known Limitations
+
+- No browser rendering for JavaScript-heavy pages
+- Requires a configured provider for summarization
+- No special handling for private IPs (fetches all URLs directly)
+
 ## Compatibility contract
 
 Parity for this package means:
@@ -292,6 +431,18 @@ Shared package-level config keys used by the current Qwen tools:
 - `user_skills_dir`
   Default: `~/.qwen/skills`.
   Additional allowed location for reads and writes.
+- `shell_timeout_seconds`
+  Default: `120`.
+  Default timeout for shell command execution in seconds.
+- `shell_max_timeout_seconds`
+  Default: `600`.
+  Maximum allowed timeout for shell commands.
+- `shell_max_output_lines`
+  Default: `1000`.
+  Maximum lines to return in shell output before line truncation.
+- `shell_max_output_chars`
+  Default: `25000`.
+  Maximum characters to return in shell output before char truncation.
 - `truncate_tool_output_lines`
   Default: `500`.
   Default line window for `read_file` when `limit` is omitted.

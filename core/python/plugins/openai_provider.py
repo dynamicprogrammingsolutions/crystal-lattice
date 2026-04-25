@@ -7,17 +7,77 @@ Loads configuration only from the provided config dict (no environment variable 
 
 from __future__ import annotations
 
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+from dataclasses import dataclass, field
 import json
+import queue
+import threading
 
 import requests
 
-from agent_core.types import ProviderPlugin
+from agent_core.types import ProviderPlugin, ProviderRequestCancelled
+
+
+@dataclass
+class _InflightRequest:
+    cancelled: threading.Event = field(default_factory=threading.Event)
+    done: threading.Event = field(default_factory=threading.Event)
+    lock: threading.Lock = field(default_factory=threading.Lock)
+    closers: List[Callable[[], None]] = field(default_factory=list)
+
+    def add_closer(self, closer: Callable[[], None]) -> None:
+        with self.lock:
+            self.closers.append(closer)
+            already_cancelled = self.cancelled.is_set()
+        if already_cancelled:
+            try:
+                closer()
+            except Exception:
+                pass
+
+    def cancel(self) -> None:
+        self.cancelled.set()
+        with self.lock:
+            closers = list(self.closers)
+        for closer in closers:
+            try:
+                closer()
+            except Exception:
+                continue
 
 
 class OpenAICompatibleProvider(ProviderPlugin):
     name: str = "openai_compatible"
     version: str = "0.3.0"
+
+    def __init__(self) -> None:
+        self._inflight_lock = threading.Lock()
+        self._inflight_requests: Dict[str, _InflightRequest] = {}
+
+    def _register_inflight(self, request_id: str | None) -> _InflightRequest:
+        runtime = _InflightRequest()
+        if isinstance(request_id, str) and request_id:
+            with self._inflight_lock:
+                self._inflight_requests[request_id] = runtime
+        return runtime
+
+    def _clear_inflight(self, request_id: str | None, runtime: _InflightRequest) -> None:
+        runtime.done.set()
+        if isinstance(request_id, str) and request_id:
+            with self._inflight_lock:
+                current = self._inflight_requests.get(request_id)
+                if current is runtime:
+                    self._inflight_requests.pop(request_id, None)
+
+    def cancel_request(self, request_id: str) -> bool:
+        if not isinstance(request_id, str) or not request_id:
+            return False
+        with self._inflight_lock:
+            runtime = self._inflight_requests.get(request_id)
+        if runtime is None:
+            return False
+        runtime.cancel()
+        return True
 
     # ---------- Schemas ----------
     def get_config_schema(self) -> Dict[str, Any]:
@@ -79,9 +139,13 @@ class OpenAICompatibleProvider(ProviderPlugin):
         return {"config": config}
 
     def initialize_request(
-         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
-     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        _ = request_id
 
         config = state["config"]
 
@@ -173,71 +237,136 @@ class OpenAICompatibleProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         request = state["request"]
+        # Validate native_messages are proper message objects
+        self._validate_message_list(native_messages)
+        # Allow features to override the message history for this
+        # request by placing a rendered list under
+        # state["request"]["messages"].
+        override = request.get("messages")
+        base_history = override if isinstance(override, list) else native_messages
+        # Strip any internal _metadata field before sending to the provider.
+        messages_to_send = [
+            {k: v for k, v in m.items() if k != "_metadata"}
+            for m in base_history
+            if isinstance(m, dict)
+        ]
+        payload = {**request["payload"], "messages": messages_to_send, "stream": False}
+
+        runtime = self._register_inflight(request_id)
+        results: queue.Queue[Tuple[str, Any]] = queue.Queue()
+
+        def _worker() -> None:
+            session = requests.Session()
+            response: requests.Response | None = None
+            runtime.add_closer(session.close)
+            try:
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id)
+                response = session.post(
+                    request["url"],
+                    json=payload,
+                    headers=request["headers"],
+                    timeout=request["timeout"],
+                    stream=True,
+                )
+                runtime.add_closer(response.close)
+                response.encoding = "utf-8"
+                obj = response.json()
+                results.put(("result", obj))
+            except Exception as exc:
+                results.put(("error", exc))
+            finally:
+                try:
+                    if response is not None:
+                        response.close()
+                finally:
+                    session.close()
+                    runtime.done.set()
+
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
+
         try:
-            # Validate native_messages are proper message objects
-            self._validate_message_list(native_messages)
-            # Allow features to override the message history for this
-            # request by placing a rendered list under
-            # state["request"]["messages"].
-            override = request.get("messages")
-            base_history = override if isinstance(override, list) else native_messages
-            # Strip any internal _metadata field before sending to the provider.
-            messages_to_send = [
-                {k: v for k, v in m.items() if k != "_metadata"}
-                for m in base_history
-                if isinstance(m, dict)
-            ]
-            r = requests.post(
-                request["url"],
-                json={**request["payload"], "messages": messages_to_send, "stream": False},
-                headers=request["headers"],
-                timeout=request["timeout"],
-            )
-            # OpenAI-compatible chat completions use UTF-8 JSON responses.
-            # Some environments may mis-detect the encoding (e.g. default
-            # to ISO-8859-1), which corrupts non-ASCII characters like
-            # en/em dashes in tool_call arguments. Force UTF-8 before
-            # parsing JSON so we never depend on response headers.
-            r.encoding = "utf-8"
-            obj = r.json()
-        except requests.RequestException as e:  # pragma: no cover
-            raise RuntimeError(f"OpenAI-compatible call failed: {e}") from e
+            while True:
+                try:
+                    kind, value = results.get(timeout=0.1)
+                except queue.Empty:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    if runtime.done.is_set() and results.empty():
+                        raise RuntimeError(
+                            "OpenAI-compatible call failed: request ended without result"
+                        )
+                    continue
+                if kind == "result":
+                    obj = value
+                    break
+                exc = value
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id) from exc
+                if isinstance(exc, ProviderRequestCancelled):
+                    raise exc
+                if isinstance(exc, requests.RequestException):
+                    raise RuntimeError(f"OpenAI-compatible call failed: {exc}") from exc
+                raise RuntimeError(f"OpenAI-compatible call failed: {exc}") from exc
+        finally:
+            self._clear_inflight(request_id, runtime)
+            worker.join(timeout=1.0)
 
         message = obj.get("choices", [{}])[0].get("message", {})
         return [], [message], [*native_messages, message], state
 
     def stream_api(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
-
         request = state["request"]
-        try:
-            # Validate native_messages before sending stream request
-            self._validate_message_list(native_messages)
-            override = request.get("messages")
-            base_history = override if isinstance(override, list) else native_messages
-            # Strip any internal _metadata field before sending to the provider.
-            messages_to_send = [
-                {k: v for k, v in m.items() if k != "_metadata"}
-                for m in base_history
-                if isinstance(m, dict)
-            ]
-            with requests.post(
-                request["url"],
-                json={**request["payload"], "messages": messages_to_send, "stream": True},
-                headers=request["headers"],
-                timeout=request["timeout"],
-                stream=True,
-            ) as r:
+        # Validate native_messages before sending stream request
+        self._validate_message_list(native_messages)
+        override = request.get("messages")
+        base_history = override if isinstance(override, list) else native_messages
+        # Strip any internal _metadata field before sending to the provider.
+        messages_to_send = [
+            {k: v for k, v in m.items() if k != "_metadata"}
+            for m in base_history
+            if isinstance(m, dict)
+        ]
+        payload = {**request["payload"], "messages": messages_to_send, "stream": True}
+
+        runtime = self._register_inflight(request_id)
+        results: queue.Queue[Tuple[str, Any]] = queue.Queue()
+
+        def _worker() -> None:
+            session = requests.Session()
+            response: requests.Response | None = None
+            runtime.add_closer(session.close)
+            try:
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id)
+                response = session.post(
+                    request["url"],
+                    json=payload,
+                    headers=request["headers"],
+                    timeout=request["timeout"],
+                    stream=True,
+                )
+                runtime.add_closer(response.close)
                 # See call_api above: streaming chunks are UTF-8 JSON.
                 # Force UTF-8 so iter_lines(decode_unicode=True) does not
                 # decode bytes with a legacy charset and garble characters
                 # in tool_call.function.arguments.
-                r.encoding = "utf-8"
-                r.raise_for_status()
-                for line in r.iter_lines(decode_unicode=True):
+                response.encoding = "utf-8"
+                response.raise_for_status()
+                for line in response.iter_lines(decode_unicode=True):
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
                     if not line:
                         continue
                     data_str = line
@@ -251,9 +380,47 @@ class OpenAICompatibleProvider(ProviderPlugin):
                         obj = json.loads(data_str)
                     except json.JSONDecodeError:
                         continue
-                    yield obj
-        except requests.RequestException as e:  # pragma: no cover
-            raise RuntimeError(f"OpenAI-compatible stream failed: {e}") from e
+                    results.put(("chunk", obj))
+                results.put(("done", None))
+            except Exception as exc:
+                results.put(("error", exc))
+            finally:
+                try:
+                    if response is not None:
+                        response.close()
+                finally:
+                    session.close()
+                    runtime.done.set()
+
+        worker = threading.Thread(target=_worker, daemon=True)
+        worker.start()
+
+        try:
+            while True:
+                try:
+                    kind, value = results.get(timeout=0.1)
+                except queue.Empty:
+                    if runtime.cancelled.is_set():
+                        raise ProviderRequestCancelled(request_id)
+                    if runtime.done.is_set() and results.empty():
+                        break
+                    continue
+                if kind == "chunk":
+                    yield value
+                    continue
+                if kind == "done":
+                    break
+                exc = value
+                if runtime.cancelled.is_set():
+                    raise ProviderRequestCancelled(request_id) from exc
+                if isinstance(exc, ProviderRequestCancelled):
+                    raise exc
+                if isinstance(exc, requests.RequestException):
+                    raise RuntimeError(f"OpenAI-compatible stream failed: {exc}") from exc
+                raise RuntimeError(f"OpenAI-compatible stream failed: {exc}") from exc
+        finally:
+            self._clear_inflight(request_id, runtime)
+            worker.join(timeout=1.0)
 
     # ---------- Helpers (default/general implementations) ----------
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import base64
 import json
+import threading
+import time
 from pathlib import Path
 from typing import Any, Dict
 
@@ -9,7 +11,9 @@ import pytest
 
 from agent_app.session_assets import FilesystemSessionAssetStore
 from agent_core import AgentCore
+from agent_core.types import ProviderRequestCancelled
 import openai_responses_plugins.openai_responses_provider as provider_module
+import openai_responses_plugins.openai_responses_runtime as runtime_module
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 from openai_responses_plugins.openai_responses_tools_extension import (
     OpenAIResponsesToolsExtension,
@@ -230,6 +234,75 @@ class _ErrorClient:
     responses = _ErrorResponsesResource()
 
 
+class _BlockingResponsesResource:
+    def __init__(self, gate: threading.Event) -> None:
+        self._gate = gate
+        self.calls: list[Dict[str, Any]] = []
+
+    def create(self, **kwargs: Any) -> Any:
+        self.calls.append(kwargs)
+        while not self._gate.wait(0.05):
+            continue
+        raise RuntimeError("closed")
+
+
+class _BlockingClient:
+    def __init__(self) -> None:
+        self._gate = threading.Event()
+        self.responses = _BlockingResponsesResource(self._gate)
+        self.option_calls: list[Dict[str, Any]] = []
+
+    def with_options(self, **kwargs: Any) -> "_BlockingClient":
+        self.option_calls.append(kwargs)
+        return self
+
+    def close(self) -> None:
+        self._gate.set()
+
+
+class _BlockingStream:
+    def __init__(self) -> None:
+        self.closed = threading.Event()
+
+    def __enter__(self) -> "_BlockingStream":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        _ = (exc_type, exc, tb)
+
+    def close(self) -> None:
+        self.closed.set()
+
+    def __iter__(self):
+        while not self.closed.wait(0.05):
+            continue
+        raise RuntimeError("stream closed")
+
+
+class _BlockingStreamingResponsesResource:
+    def __init__(self, stream: _BlockingStream) -> None:
+        self._stream = stream
+        self.calls: list[Dict[str, Any]] = []
+
+    def create(self, **kwargs: Any) -> _BlockingStream:
+        self.calls.append(kwargs)
+        return self._stream
+
+
+class _BlockingStreamingClient:
+    def __init__(self) -> None:
+        self.stream = _BlockingStream()
+        self.responses = _BlockingStreamingResponsesResource(self.stream)
+        self.option_calls: list[Dict[str, Any]] = []
+
+    def with_options(self, **kwargs: Any) -> "_BlockingStreamingClient":
+        self.option_calls.append(kwargs)
+        return self
+
+    def close(self) -> None:
+        self.stream.close()
+
+
 def _load_fixture() -> Dict[str, Any]:
     return json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
 
@@ -349,7 +422,10 @@ def test_provider_metadata_schema_and_tags() -> None:
     assert "model" in schema
     assert "api_key" in schema
     assert "base_url" in schema
+    assert "instructions" not in schema
     assert "timeout" in schema
+    assert "enable_terminal_error_retries" in schema
+    assert "terminal_error_max_retries" in schema
 
     tags = provider.get_tags({"model": "gpt-5-mini"}, [{"id": "gpt-5-mini"}])
     assert tags == [
@@ -391,7 +467,7 @@ def test_get_models_uses_sdk_and_normalizes_response(
         captured.update(kwargs)
         return fake_client
 
-    monkeypatch.setattr(provider_module, "OpenAI", _fake_openai)
+    monkeypatch.setattr(runtime_module, "OpenAI", _fake_openai)
     monkeypatch.setenv("OPENAI_API_KEY", "test_env_key")
 
     models = provider.get_models({"base_url": "https://example.test/v1", "timeout": 15})
@@ -454,6 +530,276 @@ def test_get_models_returns_empty_list_and_logs_warning_when_sdk_call_fails(
     assert warnings[0][1]["error"] == "network boom"
 
 
+def test_get_models_uses_codex_catalog_for_chatgpt_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "account_id": "acct-123",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, Any] = {}
+
+    def _fake_fetch_codex_models(config: Dict[str, Any]) -> list[Dict[str, Any]]:
+        captured["config"] = dict(config)
+        return [
+            {"id": "gpt-5.4", "name": "gpt-5.4"},
+            {"id": "gpt-5.3-codex", "name": "gpt-5.3-codex"},
+        ]
+
+    monkeypatch.setattr(provider, "_fetch_codex_models", _fake_fetch_codex_models)
+    monkeypatch.setattr(provider_module, "_load_snapshot_model_descriptors_shared", lambda: [])
+    monkeypatch.setattr(provider_module, "_load_manual_chatgpt_model_descriptors_shared", lambda: [])
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_base_url": "https://chatgpt.example.test/backend-api/codex",
+            "chatgpt_credentials_path": str(credentials_path),
+            "timeout": 15,
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.3-codex", "name": "gpt-5.3-codex"},
+        {"id": "gpt-5.4", "name": "gpt-5.4"},
+    ]
+    assert captured["config"]["auth_mode"] == "chatgpt"
+
+
+def test_get_models_merges_chatgpt_manual_models_into_codex_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        provider,
+        "_fetch_codex_models",
+        lambda config: [{"id": "gpt-5.4", "name": "gpt-5.4"}],
+    )
+    monkeypatch.setattr(provider_module, "_load_snapshot_model_descriptors_shared", lambda: [])
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [
+            {"id": "gpt-5.5", "name": "gpt-5.5"},
+            {"id": "gpt-5.4", "name": "GPT-5.4 Override"},
+        ],
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.4", "name": "gpt-5.4"},
+        {"id": "gpt-5.5", "name": "gpt-5.5"},
+    ]
+
+
+def test_get_models_falls_back_to_chatgpt_models_endpoint_when_codex_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "account_id": "acct-123",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        provider,
+        "_fetch_codex_models",
+        lambda config: (_ for _ in ()).throw(RuntimeError("codex unavailable")),
+    )
+    monkeypatch.setattr(provider_module, "_load_snapshot_model_descriptors_shared", lambda: [])
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [{"id": "gpt-5.5", "name": "gpt-5.5"}],
+    )
+
+    class _FakeHttpResponse:
+        def __enter__(self) -> "_FakeHttpResponse":
+            return self
+
+        def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+            _ = (exc_type, exc, tb)
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "models": [
+                        {"slug": "gpt-5.2-codex", "display_name": "GPT-5.2 Codex"},
+                    ]
+                }
+            ).encode("utf-8")
+
+    def _fake_urlopen(request: Any, timeout: float) -> _FakeHttpResponse:
+        captured["url"] = request.full_url
+        captured["headers"] = dict(request.header_items())
+        captured["timeout"] = timeout
+        return _FakeHttpResponse()
+
+    monkeypatch.setattr(provider_module, "urlopen", _fake_urlopen)
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_base_url": "https://chatgpt.example.test/backend-api/codex",
+            "chatgpt_credentials_path": str(credentials_path),
+            "chatgpt_client_version": "0.1.0",
+            "timeout": 15,
+        }
+    )
+
+    assert captured["url"] == "https://chatgpt.example.test/backend-api/codex/models?client_version=0.1.0"
+    normalized_headers = {key.lower(): value for key, value in captured["headers"].items()}
+    assert normalized_headers["authorization"] == "Bearer chatgpt-access-token"
+    assert normalized_headers["chatgpt-account-id"] == "acct-123"
+    assert captured["timeout"] == 15.0
+    assert models == [
+        {"id": "gpt-5.2-codex", "name": "GPT-5.2 Codex"},
+        {"id": "gpt-5.5", "name": "gpt-5.5"},
+    ]
+
+
+def test_get_models_uses_snapshot_when_live_codex_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        provider,
+        "_fetch_codex_models",
+        lambda config: (_ for _ in ()).throw(RuntimeError("codex unavailable")),
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_snapshot_model_descriptors_shared",
+        lambda: [{"id": "gpt-5.4", "name": "gpt-5.4 snapshot"}],
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [{"id": "gpt-5.5", "name": "gpt-5.5"}],
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.4", "name": "gpt-5.4 snapshot"},
+        {"id": "gpt-5.5", "name": "gpt-5.5"},
+    ]
+
+
+def test_get_models_applies_live_over_snapshot_over_manual_precedence(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [
+            {"id": "gpt-5.4", "name": "manual 5.4", "description": "manual"},
+            {"id": "gpt-5.5", "name": "manual 5.5"},
+        ],
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_snapshot_model_descriptors_shared",
+        lambda: [
+            {"id": "gpt-5.4", "name": "snapshot 5.4"},
+            {"id": "gpt-5.6", "name": "snapshot 5.6"},
+        ],
+    )
+    monkeypatch.setattr(
+        provider,
+        "_fetch_codex_models",
+        lambda config: [
+            {"id": "gpt-5.4", "name": "live 5.4"},
+            {"id": "gpt-5.7", "name": "live 5.7"},
+        ],
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.4", "name": "live 5.4"},
+        {"id": "gpt-5.5", "name": "manual 5.5"},
+        {"id": "gpt-5.6", "name": "snapshot 5.6"},
+        {"id": "gpt-5.7", "name": "live 5.7"},
+    ]
+
+
 def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
     provider = OpenAIResponsesProvider()
 
@@ -477,6 +823,30 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
         ],
     }
     assert elements[1] == {
+        "ui_type": "config",
+        "type": "select",
+        "key": "auth_mode",
+        "label": "OpenAI auth mode",
+        "options": [
+            {"value": "api", "label": "API"},
+            {"value": "chatgpt", "label": "ChatGPT"},
+            {"value": "auto", "label": "Auto"},
+        ],
+        "default": "api",
+    }
+    assert elements[2] == {
+        "ui_type": "config",
+        "type": "checkbox",
+        "key": "enable_terminal_error_retries",
+        "label": "Retry on terminal stream errors",
+    }
+    assert elements[3] == {
+        "ui_type": "config",
+        "type": "number",
+        "key": "terminal_error_max_retries",
+        "label": "Terminal error max retries",
+    }
+    assert elements[4] == {
         "ui_type": "model_picker",
         "key": "model",
         "attachment_type": "dropdown",
@@ -487,7 +857,7 @@ def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
         ],
         "label": "model",
     }
-    assert elements[2] == {
+    assert elements[5] == {
         "ui_type": "composer_attachment",
         "key": "openai_responses:attachment:image",
         "attachment_type": "image",
@@ -510,9 +880,15 @@ def test_get_ui_elements_falls_back_to_text_when_models_are_unavailable() -> Non
         "key": "model",
         "label": "OpenAI Model",
     }
-    assert elements[1]["ui_type"] == "model_picker"
-    assert elements[1]["options"] == []
-    assert elements[2]["ui_type"] == "composer_attachment"
+    assert elements[1]["ui_type"] == "config"
+    assert elements[1]["key"] == "auth_mode"
+    assert elements[2]["ui_type"] == "config"
+    assert elements[2]["key"] == "enable_terminal_error_retries"
+    assert elements[3]["ui_type"] == "config"
+    assert elements[3]["key"] == "terminal_error_max_retries"
+    assert elements[4]["ui_type"] == "model_picker"
+    assert elements[4]["options"] == []
+    assert elements[5]["ui_type"] == "composer_attachment"
 
 
 def test_init_uses_env_api_key_when_not_in_config(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -563,6 +939,115 @@ def test_initialize_request_builds_request_state() -> None:
     assert req["headers"]["Authorization"] == "Bearer test_key"
     assert req["headers"]["Content-Type"] == "application/json"
     assert req["timeout"] == 42.0
+
+
+def test_call_api_uses_request_instructions() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureClient(_load_fixture())
+    native_messages = provider.to_native_messages(
+        [{"role": "user", "content": "hello"}],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://api.openai.com/v1/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+            "instructions": "Compiled system instructions",
+        },
+    }
+
+    provider.call_api(native_messages, state)
+
+    assert fixture_client.responses.calls
+    assert fixture_client.responses.calls[0]["instructions"] == "Compiled system instructions"
+
+
+def test_call_api_can_strip_leading_system_message_from_request_history() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureClient(_load_fixture())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "system", "content": "Legacy system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+            "strip_leading_system_or_developer_message": True,
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://api.openai.com/v1/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+            "instructions": "Compiled system instructions",
+        },
+    }
+
+    provider.call_api(native_messages, state)
+
+    sent_input = fixture_client.responses.calls[0]["input"]
+    assert len(sent_input) == 1
+    assert sent_input[0]["role"] == "user"
+
+
+def test_stream_api_can_strip_leading_developer_message_from_request_history() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureStreamingClient(_load_stream_fixture_events())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "developer", "content": "Legacy developer prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+            "strip_leading_system_or_developer_message": True,
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://api.openai.com/v1/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+            "instructions": "Compiled system instructions",
+        },
+    }
+
+    list(provider.stream_api(native_messages, state))
+
+    sent_input = fixture_client.responses.calls[0]["input"]
+    assert len(sent_input) == 1
+    assert sent_input[0]["role"] == "user"
 
 
 def test_to_native_and_from_native_roundtrip_with_tool_output() -> None:
@@ -2098,6 +2583,144 @@ def test_stream_api_preserves_existing_behavior_without_retry_override() -> None
     assert fake_client.option_calls == []
 
 
+def test_stream_api_retries_terminal_error_event_when_enabled() -> None:
+    provider = OpenAIResponsesProvider()
+    error_batch = [{"type": "error", "message": "simulated terminal error"}]
+    success_events = _load_stream_fixture_events()
+    fake_client = _SequentialStreamingClient([error_batch, success_events])
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+            "enable_terminal_error_retries": True,
+            "terminal_error_max_retries": 2,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    normalized = list(
+        provider.stream_api(
+            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            state,
+        )
+    )
+
+    assert len(fake_client.responses.calls) == 2
+    assert all(isinstance(ev, dict) for ev in normalized)
+    assert any(ev.get("type") == "response.output_text.delta" for ev in normalized)
+    assert any(ev.get("type") == "response.completed" for ev in normalized)
+    assert not any(ev.get("type") == "error" for ev in normalized)
+
+
+def test_stream_api_propagates_terminal_error_event_when_retries_disabled() -> None:
+    provider = OpenAIResponsesProvider()
+    error_batch = [{"type": "error", "message": "simulated terminal error"}]
+    fake_client = _FixtureStreamingClient(error_batch)
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    normalized = list(
+        provider.stream_api(
+            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            state,
+        )
+    )
+
+    assert len(fake_client.responses.calls) == 1
+    assert any(ev.get("type") == "error" for ev in normalized)
+
+
+def test_stream_api_propagates_terminal_error_event_when_retries_exhausted() -> None:
+    provider = OpenAIResponsesProvider()
+    error_batch = [{"type": "error", "message": "simulated terminal error"}]
+    fake_client = _SequentialStreamingClient([error_batch, error_batch, error_batch])
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+            "enable_terminal_error_retries": True,
+            "terminal_error_max_retries": 2,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    with pytest.raises(RuntimeError, match="terminal event error"):
+        list(
+            provider.stream_api(
+                [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+                state,
+            )
+        )
+
+    assert len(fake_client.responses.calls) == 3
+
+
+def test_stream_api_does_not_retry_terminal_error_after_visible_output() -> None:
+    provider = OpenAIResponsesProvider()
+    batch_with_output = [
+        {"type": "response.output_text.delta", "delta": "hello"},
+        {"type": "error", "message": "simulated terminal error"},
+    ]
+    fake_client = _FixtureStreamingClient(batch_with_output)
+
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 30,
+            "enable_terminal_error_retries": True,
+            "terminal_error_max_retries": 2,
+        },
+        "client": fake_client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {"Content-Type": "application/json"},
+            "timeout": 30,
+        },
+    }
+
+    normalized = list(
+        provider.stream_api(
+            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            state,
+        )
+    )
+
+    assert len(fake_client.responses.calls) == 1
+    assert any(ev.get("type") == "response.output_text.delta" for ev in normalized)
+    assert any(ev.get("type") == "error" for ev in normalized)
+
+
 def test_stream_api_wraps_sdk_error() -> None:
     provider = OpenAIResponsesProvider()
     state = {
@@ -2488,3 +3111,167 @@ def test_response_internal_metadata_preserves_service_tier() -> None:
     response_md = provider._response_internal_metadata({"id": "resp_1", "service_tier": "flex"})
 
     assert response_md["_openai_responses_service_tier"] == "flex"
+
+
+def test_cancel_request_returns_false_for_unknown_request() -> None:
+    provider = OpenAIResponsesProvider()
+    assert provider.cancel_request("missing-request") is False
+
+
+def test_stream_api_can_be_cancelled_by_request_id() -> None:
+    provider = OpenAIResponsesProvider()
+    client = _BlockingStreamingClient()
+    state = provider.init({"model": "gpt-5-mini", "api_key": "test_key"})
+    state = {
+        **state,
+        "client": client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "timeout": 30,
+            "headers": {},
+        },
+    }
+
+    outcome: dict[str, object] = {}
+
+    def _consume() -> None:
+        try:
+            list(
+                provider.stream_api(
+                    [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hello"}]}],
+                    state,
+                    request_id="req_openai_stream_cancel",
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    time.sleep(0.2)
+    assert provider.cancel_request("req_openai_stream_cancel") is True
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)
+    assert provider.cancel_request("req_openai_stream_cancel") is False
+
+
+def test_call_api_can_be_cancelled_by_request_id() -> None:
+    provider = OpenAIResponsesProvider()
+    client = _BlockingClient()
+    state = provider.init({"model": "gpt-5-mini", "api_key": "test_key"})
+    state = {
+        **state,
+        "client": client,
+        "request": {
+            "payload": {"model": "gpt-5-mini"},
+            "timeout": 30,
+            "headers": {},
+        },
+    }
+
+    outcome: dict[str, object] = {}
+
+    def _consume() -> None:
+        try:
+            provider.call_api(
+                [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hello"}]}],
+                state,
+                request_id="req_openai_call_cancel",
+            )
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    time.sleep(0.2)
+    assert provider.cancel_request("req_openai_call_cancel") is True
+
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)
+    assert provider.cancel_request("req_openai_call_cancel") is False
+
+
+def test_streaming_fixture_finals_receive_feature_finalize_stamps() -> None:
+    """Regression: openai_responses streaming finals must be processed by feature finalize.
+
+    When a provider emits finals during streaming (via process_chunk), those
+    finals accumulate in aggregated_native_finals. The core must pass the
+    combined list (aggregated + provider.finalize) into feature finalize so
+    that features like TimestampExtension and DurationExtension can stamp
+    metadata onto the real assistant messages.
+    """
+    from dataclasses import dataclass
+    from typing import List, Tuple
+
+    from agent_core.types import FeaturePlugin
+
+    @dataclass
+    class _StampFeature(FeaturePlugin):
+        name: str = "stamp_feature"
+        version: str = "1.0.0"
+
+        def get_config_schema(self) -> Dict[str, Any]:
+            return {}
+
+        def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+            return state
+
+        def finalize(
+            self,
+            final_messages: List[Dict[str, Any]],
+            native_messages: List[Dict[str, Any]],
+            state: Dict[str, Any],
+        ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+            stamped = [
+                {**m, "_metadata": {**(m.get("_metadata") or {}), "stamped": True}}
+                for m in final_messages
+            ]
+            # Also stamp history so native rebuilds keep the marker
+            start = len(native_messages) - len(stamped) if len(stamped) <= len(native_messages) else 0
+            stamped_history = list(native_messages)
+            for offset, final_msg in enumerate(stamped):
+                hist_idx = start + offset
+                if 0 <= hist_idx < len(stamped_history):
+                    stamped_history[hist_idx] = final_msg
+            return stamped, stamped_history, state
+
+    core = AgentCore()
+    core.register_provider(_StreamingFixtureProvider)
+    core.register_feature(_StampFeature)
+
+    config = {
+        "model": "gpt-5-mini",
+        "api_key": "test_key",
+        "base_url": "https://api.openai.com/v1",
+        "timeout": 30,
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Reply with STREAM_OK")
+
+    final_messages: list[Dict[str, Any]] = []
+    final_session = None
+    for chunk in core.send_request_stream(session, config):
+        if chunk["type"] == "final":
+            final_messages = chunk.get("messages") or []
+            final_session = chunk.get("session")
+
+    assert final_messages
+    assistant = final_messages[-1]
+    assert assistant.get("role") == "assistant"
+    # Feature stamps _metadata; provider from_native_messages copies relevant
+    # internal metadata into core message metadata.
+    assert assistant.get("metadata", {}).get("stamped") is True
+
+    # Verify native history persistence
+    assert final_session is not None
+    native_history = (final_session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
+    last_native = native_history[-1]
+    assert isinstance(last_native, dict)
+    assert last_native.get("_metadata", {}).get("stamped") is True

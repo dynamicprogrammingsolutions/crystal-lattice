@@ -24,6 +24,27 @@ function looseEqual(a: unknown, b: unknown): boolean {
   return false;
 }
 
+function resolveDottedPath(obj: unknown, path: string): { found: boolean; value: unknown } {
+  if (!obj || typeof obj !== 'object' || typeof path !== 'string' || !path) {
+    return { found: false, value: undefined };
+  }
+
+  const parts = path.split('.').filter(Boolean);
+  if (!parts.length) {
+    return { found: false, value: undefined };
+  }
+
+  let current: unknown = obj;
+  for (const part of parts) {
+    if (!current || typeof current !== 'object' || !hasOwn(current, part)) {
+      return { found: false, value: undefined };
+    }
+    current = (current as Record<string, unknown>)[part];
+  }
+
+  return { found: true, value: current };
+}
+
 export function filterConfigUiSchemaElements(elements: UiSchemaElement[]): UiSchemaElement[] {
   return (Array.isArray(elements) ? elements : []).filter((element) => {
     if (!element || typeof element !== 'object') {
@@ -62,11 +83,11 @@ export function buildConfigSchemaByKey(schema: ConfigSchemaEntry[]): ConfigSchem
 }
 
 function resolveValue(params: {
+  element: UiSchemaElement;
   key: string;
   overrides: Record<string, unknown>;
   baseConfig: Record<string, unknown>;
   schemaByKey: ConfigSchemaByKey;
-  element?: UiSchemaElement | null;
 }): {
   hasOverride: boolean;
   overrideValue: unknown;
@@ -77,7 +98,7 @@ function resolveValue(params: {
   tagLabel: SessionSettingTagLabel;
   effectiveValue: unknown;
 } {
-  const { key, overrides, baseConfig, schemaByKey, element } = params;
+  const { element, key, overrides, baseConfig, schemaByKey } = params;
 
   const hasOverride = hasOwn(overrides, key);
   const overrideValue = hasOverride ? overrides[key] : undefined;
@@ -85,14 +106,15 @@ function resolveValue(params: {
   const baseHasValue = hasOwn(baseConfig, key);
   const baseValue = baseHasValue ? baseConfig[key] : undefined;
 
+  const configPath = typeof (element as any).config_path === 'string' ? ((element as any).config_path as string) : '';
+  const nestedBase = resolveDottedPath(baseConfig, configPath);
+
   const schemaEntry = schemaByKey[key];
   const schemaHasDefault =
     schemaEntry && hasOwn(schemaEntry, 'default') && (schemaEntry as any).default !== undefined;
   const schemaDefaultValue = schemaHasDefault ? (schemaEntry as any).default : undefined;
-
-  const elementHasDefault =
-    element && hasOwn(element, 'default') && (element as any).default !== undefined;
-  const elementDefaultValue = elementHasDefault ? (element as any).default : undefined;
+  const uiHasDefault = hasOwn(element, 'default') && (element as any).default !== undefined;
+  const uiDefaultValue = uiHasDefault ? (element as any).default : undefined;
 
   if (hasOverride) {
     return {
@@ -108,13 +130,10 @@ function resolveValue(params: {
   }
 
   if (baseHasValue) {
-    // When base config value equals schema or element default, show "default" for consistency.
-    const matchesSchemaDefault =
-      schemaHasDefault && looseEqual(baseValue, schemaDefaultValue);
-    const matchesElementDefault =
-      elementHasDefault && looseEqual(baseValue, elementDefaultValue);
+    const matchesSchemaDefault = schemaHasDefault && looseEqual(baseValue, schemaDefaultValue);
+    const matchesUiDefault = uiHasDefault && looseEqual(baseValue, uiDefaultValue);
     const tagLabel: SessionSettingTagLabel =
-      matchesSchemaDefault || matchesElementDefault ? 'default' : 'config';
+      matchesSchemaDefault || matchesUiDefault ? 'default' : 'config';
 
     return {
       hasOverride,
@@ -128,6 +147,37 @@ function resolveValue(params: {
     };
   }
 
+  if (nestedBase.found) {
+    const matchesSchemaDefault = schemaHasDefault && looseEqual(nestedBase.value, schemaDefaultValue);
+    const matchesUiDefault = uiHasDefault && looseEqual(nestedBase.value, uiDefaultValue);
+    const tagLabel: SessionSettingTagLabel =
+      matchesSchemaDefault || matchesUiDefault ? 'default' : 'config';
+
+    return {
+      hasOverride,
+      overrideValue,
+      baseHasValue: true,
+      baseValue: nestedBase.value,
+      schemaDefaultValue,
+      source: 'config',
+      tagLabel,
+      effectiveValue: nestedBase.value,
+    };
+  }
+
+  if (uiHasDefault) {
+    return {
+      hasOverride,
+      overrideValue,
+      baseHasValue,
+      baseValue,
+      schemaDefaultValue,
+      source: 'ui_default',
+      tagLabel: 'default',
+      effectiveValue: uiDefaultValue,
+    };
+  }
+
   if (schemaHasDefault) {
     return {
       hasOverride,
@@ -138,19 +188,6 @@ function resolveValue(params: {
       source: 'schema_default',
       tagLabel: 'default',
       effectiveValue: schemaDefaultValue,
-    };
-  }
-
-  if (elementHasDefault) {
-    return {
-      hasOverride,
-      overrideValue,
-      baseHasValue,
-      baseValue,
-      schemaDefaultValue,
-      source: 'schema_default',
-      tagLabel: 'default',
-      effectiveValue: elementDefaultValue,
     };
   }
 
@@ -197,13 +234,7 @@ export function buildSessionSettingItems(params: {
       const description =
         typeof (element as any).description === 'string' ? ((element as any).description as string) : '';
 
-      const resolved = resolveValue({
-        key,
-        overrides,
-        baseConfig,
-        schemaByKey,
-        element,
-      });
+      const resolved = resolveValue({ element, key, overrides, baseConfig, schemaByKey });
       return {
         key,
         type,

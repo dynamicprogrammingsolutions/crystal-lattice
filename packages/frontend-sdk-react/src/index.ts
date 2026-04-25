@@ -59,6 +59,12 @@ export type {
 export { useSessionUiSchemaController } from './useSessionUiSchemaController';
 
 export type {
+  UseSessionApplicationUiSchemaControllerOptions,
+  UseSessionApplicationUiSchemaControllerResult,
+} from './useSessionApplicationUiSchemaController';
+export { useSessionApplicationUiSchemaController } from './useSessionApplicationUiSchemaController';
+
+export type {
   UseSessionSettingsControllerOptions,
   UseSessionSettingsControllerResult,
 } from './useSessionSettingsController';

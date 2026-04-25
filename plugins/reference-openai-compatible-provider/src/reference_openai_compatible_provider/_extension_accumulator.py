@@ -61,12 +61,6 @@ class AccumulatorExtensionMixin:
         if isinstance(patch, dict) and patch:
             if partial_messages:
                 new_partials = [*partial_messages[:-1], {**partial_messages[-1], **patch}]
-            else:
-                base_partial = {
-                    "role": accumulated.get("role", "assistant"),
-                    "content": accumulated.get("content", ""),
-                }
-                new_partials = [{**base_partial, **patch}]
 
         return (
             new_partials,

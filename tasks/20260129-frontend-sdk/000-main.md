@@ -15,7 +15,8 @@ This task directory is a standalone handoff of the *current plan* (with all phas
 - [x] Phase 4.3: Plugins registry + action runner + React wrappers
 - [x] Phase 4.4: Chat scroll anchoring and restoration
 - [x] Phase 4.5: Event contract + reducer-driven message state (no full session in events)
-- [ ] Phase 5: Desktop frontend (RN macOS)
+- [x] Phase 5: Desktop frontend (RN macOS)
+  - SUPERSEDED BY `tasks/20260202-desktop-macos-frontend/000-main.md`
 - [ ] Phase 6: VS Code extension (future)
 
 ## Subtasks
@@ -28,6 +29,7 @@ This task directory is a standalone handoff of the *current plan* (with all phas
 - `tasks/20260129-frontend-sdk/060-phase-4-4-chat-persistence-scroll-reconcile.md`
 - `tasks/20260129-frontend-sdk/065-phase-4-5-event-contract-and-reducer.md`
 - `tasks/20260129-frontend-sdk/070-phase-5-desktop-frontend.md`
+  - SUPERSEDED BY `tasks/20260202-desktop-macos-frontend/000-main.md`
 - `tasks/20260129-frontend-sdk/080-phase-6-vscode-extension.md`
 
 ## Where things live (current repo state)

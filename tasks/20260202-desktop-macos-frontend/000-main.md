@@ -79,25 +79,25 @@ This task directory is a handoff package for implementing Phase 5 of `tasks/2026
 
 ## Subtasks
 
-- `tasks/20260202-desktop-macos-frontend/010-shared-components-package.md`
-- `tasks/20260202-desktop-macos-frontend/020-rn-macos-scaffold-and-version.md`
-- `tasks/20260202-desktop-macos-frontend/030-desktop-metro-and-ts-wiring.md`
-- `tasks/20260202-desktop-macos-frontend/040-shared-connection-model.md`
-- `tasks/20260202-desktop-macos-frontend/050-desktop-shell-layout.md`
-- `tasks/20260202-desktop-macos-frontend/060-desktop-connections-panel.md`
-- `tasks/20260202-desktop-macos-frontend/065-desktop-tab-strip-styles-and-view-menu.md`
-- `tasks/20260202-desktop-macos-frontend/066-desktop-theming-semantic-colors.md`
-- `tasks/20260202-desktop-macos-frontend/070-desktop-sessions-pane.md`
-- `tasks/20260202-desktop-macos-frontend/080-desktop-chat-tabs-and-chat-pane.md`
-- `tasks/20260202-desktop-macos-frontend/081-desktop-chat-header-and-session-actions.md`
-- `tasks/20260202-desktop-macos-frontend/082-desktop-session-settings-ui.md`
-- `tasks/20260202-desktop-macos-frontend/083-desktop-markdown-renderer.md`
-- `tasks/20260202-desktop-macos-frontend/084-desktop-rich-assistant-rendering.md`
-- `tasks/20260202-desktop-macos-frontend/085-desktop-session-status-bar.md`
-- `tasks/20260202-desktop-macos-frontend/086-desktop-plugin-actions-in-chat.md`
-- `tasks/20260202-desktop-macos-frontend/087-desktop-chat-state-persistence.md`
-- `tasks/20260202-desktop-macos-frontend/089-session-metadata-single-source-of-truth.md`
-- `tasks/20260202-desktop-macos-frontend/090-smoke-tests-and-docs.md`
+- [x] `tasks/20260202-desktop-macos-frontend/010-shared-components-package.md`
+- [x] `tasks/20260202-desktop-macos-frontend/020-rn-macos-scaffold-and-version.md`
+- [x] `tasks/20260202-desktop-macos-frontend/030-desktop-metro-and-ts-wiring.md`
+- [x] `tasks/20260202-desktop-macos-frontend/040-shared-connection-model.md`
+- [x] `tasks/20260202-desktop-macos-frontend/050-desktop-shell-layout.md`
+- [x] `tasks/20260202-desktop-macos-frontend/060-desktop-connections-panel.md`
+- [x] `tasks/20260202-desktop-macos-frontend/065-desktop-tab-strip-styles-and-view-menu.md`
+- [x] `tasks/20260202-desktop-macos-frontend/066-desktop-theming-semantic-colors.md`
+- [x] `tasks/20260202-desktop-macos-frontend/070-desktop-sessions-pane.md`
+- [x] `tasks/20260202-desktop-macos-frontend/080-desktop-chat-tabs-and-chat-pane.md`
+- [x] `tasks/20260202-desktop-macos-frontend/081-desktop-chat-header-and-session-actions.md`
+- [x] `tasks/20260202-desktop-macos-frontend/082-desktop-session-settings-ui.md`
+- [x] `tasks/20260202-desktop-macos-frontend/083-desktop-markdown-renderer.md`
+- [x] `tasks/20260202-desktop-macos-frontend/084-desktop-rich-assistant-rendering.md`
+- [x] `tasks/20260202-desktop-macos-frontend/085-desktop-session-status-bar.md`
+- [x] `tasks/20260202-desktop-macos-frontend/086-desktop-plugin-actions-in-chat.md`
+- [x] `tasks/20260202-desktop-macos-frontend/087-desktop-chat-state-persistence.md`
+- [ ] `tasks/20260202-desktop-macos-frontend/089-session-metadata-single-source-of-truth.md`
+- [ ] `tasks/20260202-desktop-macos-frontend/090-smoke-tests-and-docs.md`
 
 ## Supporting docs
 

@@ -130,4 +130,107 @@ describeIf('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClie
     },
     600_000,
   );
+
+  it(
+    'reconnects and resumes after the bridge restarts',
+    async () => {
+      const bridge = await startBridgeDocker();
+      stopAll.push(bridge.stop);
+
+      const serverId = `e2e-recovery-server-${Date.now()}`;
+
+      const started = await startBackendServer({
+        config: {
+          providers: {
+            test_provider: {
+              provider: 'deterministic_stream',
+              model: 'test-model',
+              timeout: 60,
+              stream_chunk_count: 1,
+              stream_chunk_delay_ms: 0,
+            },
+          },
+          plugins: ['plugins.deterministic_stream_provider.DeterministicStreamProvider'],
+          agents: {
+            default: {
+              provider: 'test_provider',
+            },
+          },
+        },
+        env: {
+          BRIDGE_URL: bridge.bridgeUrl,
+          BRIDGE_SERVER_ID: serverId,
+          BRIDGE_DISPLAY_NAME: 'E2E Recovery Test Server',
+          BRIDGE_HTTP_TIMEOUT_SECONDS: '120.0',
+        },
+      });
+      stopAll.push(started.stop);
+
+      const transport = new BridgeTransport({
+        bridgeUrl: bridge.bridgeUrl,
+        serverId,
+        wsFactory: (url: string): WebSocketLike => new NodeWebSocketWrapper(url),
+        connectTimeoutMs: 5_000,
+        heartbeatIntervalMs: 1_000,
+        heartbeatTimeoutMs: 500,
+        defaultRequestTimeoutMs: 5_000,
+      });
+      await transport.connect();
+
+      await waitForAsync(async () => {
+        const servers = await transport.listServers();
+        return servers.some((s) => s.server_id === serverId);
+      }, { timeoutMs: 30_000, intervalMs: 250 });
+
+      await transport.requestPairing(serverId);
+      const match = await waitForStdoutMatch({
+        stdout: started.stdout,
+        pattern: /PAIRING CODE:\s*(\d{6})/,
+        timeoutMs: 30_000,
+      });
+      const code = match[1];
+
+      await transport.submitPairingCode(serverId, code);
+
+      const initial = await transport.request({
+        method: 'GET',
+        path: '/api/hello',
+        timeoutMs: 5_000,
+      });
+      expect(initial.status).toBe(200);
+      expect(initial.data.message).toMatch(/Hello from Bonjour Server!/);
+
+      await bridge.stop();
+
+      await expect(
+        transport.request({
+          method: 'GET',
+          path: '/api/hello',
+          timeoutMs: 1_500,
+        }),
+      ).rejects.toThrow();
+
+      const restartedBridge = await startBridgeDocker();
+      stopAll.push(restartedBridge.stop);
+
+      await waitForAsync(async () => {
+        try {
+          const servers = await transport.listServers();
+          return servers.some((s) => s.server_id === serverId);
+        } catch {
+          return false;
+        }
+      }, { timeoutMs: 60_000, intervalMs: 500 });
+
+      const resumed = await transport.request({
+        method: 'GET',
+        path: '/api/hello',
+        timeoutMs: 5_000,
+      });
+
+      expect(resumed.status).toBe(200);
+      expect(resumed.data.message).toMatch(/Hello from Bonjour Server!/);
+    },
+    600_000,
+  );
 });

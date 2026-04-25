@@ -43,9 +43,53 @@ export interface ActionUiEffects {
   reload_sessions_list?: boolean;
 }
 
+export interface ActionDisplayOpenUrlAction {
+  kind: 'open_url';
+  id: string;
+  label: string;
+  url: string;
+}
+
+export interface ActionDisplayCopyTextAction {
+  kind: 'copy_text';
+  id: string;
+  label: string;
+  text: string;
+  copied_label?: string;
+}
+
+export interface ActionDisplayRunActionAction {
+  kind: 'run_action';
+  id: string;
+  label: string;
+  plugin: string;
+  action_id: string;
+  action_owner?: string;
+  fixed_params?: Record<string, unknown>;
+  preserve_display?: boolean;
+}
+
+export type ActionDisplayFollowupAction =
+  | ActionDisplayOpenUrlAction
+  | ActionDisplayCopyTextAction
+  | ActionDisplayRunActionAction;
+
+export interface ActionDisplayPayload {
+  format: 'markdown' | 'text';
+  body: string;
+  title?: string;
+  variant?: 'info' | 'success' | 'warning' | 'error';
+  presentation?: 'modal' | 'inline' | 'banner';
+  dismissible?: boolean;
+  actions?: ActionDisplayFollowupAction[];
+  display_id?: string;
+}
+
 export interface StandardActionResult {
   mutations?: ActionMutations;
   ui_effects?: ActionUiEffects;
+  display?: ActionDisplayPayload;
+  message?: string;
   [k: string]: any;
 }
 

@@ -13,6 +13,15 @@ export interface ListMessagesResult {
   messages: IndexedMessage[];
   cursorEventId: string | null;
   activeRequestId: string | null;
+  readonly?: boolean;
+  snapshotId?: string | null;
+}
+
+export interface SessionSnapshotSummary {
+  snapshot_id: string;
+  session_id: string;
+  created_at: string;
+  reason: string;
 }
 
 export interface FeatureCompletion {
@@ -21,6 +30,12 @@ export interface FeatureCompletion {
   display?: string;
   display_meta?: string;
   [key: string]: any;
+}
+
+export interface ListEventsResult {
+  events: Event[];
+  latestEventId: string | null;
+  cursorExpired: boolean;
 }
 
 export interface BackendCapabilities {
@@ -57,6 +72,31 @@ export interface AgentBackend {
     sessionId: string,
     params?: { index?: number; idempotencyKey?: string },
   ): Promise<{ session: { session_id: string; [key: string]: any }; source_session_id: string }>;
+  listSessionSnapshots(sessionId: string): Promise<SessionSnapshotSummary[]>;
+  createSessionSnapshot(
+    sessionId: string,
+    params: { reason: string; metadata?: Record<string, any>; idempotencyKey?: string },
+  ): Promise<SessionSnapshotSummary>;
+  getSelectedSessionSnapshot(sessionId: string): Promise<string | null>;
+  selectSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
+  clearSelectedSessionSnapshot(
+    sessionId: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
+  restoreSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
+  deleteSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
 
   // --- Session plugins ---
   listSessionPlugins(sessionId: string): Promise<SessionPluginEntry[]>;
@@ -125,7 +165,8 @@ export interface AgentBackend {
     sinceId?: string;
     requestId?: string;
     limit?: number;
-  }): Promise<Event[]>;
+  }): Promise<ListEventsResult>;
+  getLatestEventId(): Promise<string | null>;
 
   // --- Feature completions (optional) ---
   getFeatureCompletions?(sessionId: string, text: string): Promise<FeatureCompletion[]>;
@@ -154,6 +195,10 @@ export interface AgentBackend {
   // --- Application plugins/actions ---
   listApplicationActions(params?: { pluginId?: string }): Promise<ApplicationActionDefinition[]>;
   listApplicationUiSchema(params?: { pluginId?: string }): Promise<ApplicationUiElement[]>;
+  getSessionApplicationUiSchema(
+    sessionId: string,
+    params?: { pluginId?: string },
+  ): Promise<ApplicationUiElement[]>;
   executeAction(params: {
     pluginId: string;
     actionId: string;

@@ -171,6 +171,15 @@ ProviderPlugin:
   initialize_request(native_messages: list, state: dict)
     → (native_messages: list, state: dict)
     # Called with provider-native messages; MUST return (native_messages, shared state)
+
+  get_tool_interop_contribution(config: dict, state?: dict) → ToolInteropContribution
+    # Optional; contribute tool schema/call accessors and adapters
+
+  accepted_tool_schema_formats(config: dict, state?: dict) → list[string]
+    # Optional; formats this provider can send directly
+
+  emitted_tool_call_formats(config: dict, state?: dict) → list[string]
+    # Optional; tool-call formats this provider may emit
   
   # Message Conversion (pure)
   to_native_messages(messages: list, state: dict) → list
@@ -231,6 +240,15 @@ Enhances provider streaming with additional processing (citations, reasoning ext
   initialize_request(native_messages: list, state: dict) (optional)
     → (native_messages: list, state: dict)
     # Prepare for a new turn; MUST return (native_messages, shared state)
+
+  get_tool_interop_contribution(config: dict, state?: dict) → ToolInteropContribution
+    # Optional; contribute tool schema/call accessors and adapters
+
+  accepted_tool_schema_formats(config: dict, state?: dict) → list[string]
+    # Optional; additional schema formats this extension can inject directly
+
+  emitted_tool_call_formats(config: dict, state?: dict) → list[string]
+    # Optional; additional tool-call formats this extension may surface
   
   # Models and capabilities
   get_models(config: dict, models: list[ModelDescriptor]) → list[ModelDescriptor]
@@ -380,11 +398,62 @@ ToolPlugin:
   
   # Tool Definition
   get_tool_schemas(state: dict) → list[dict]
-    # Returns OpenAI-style function definitions
+    # Returns tool schemas in any format understood by active interop accessors/adapters
+
+  get_tool_interop_contribution(state: dict) → ToolInteropContribution
+    # Optional; contribute tool schema/call accessors and adapters
+
+  can_handle_tool_call(
+    tool_name: string | null,
+    payload: any,
+    state: dict,
+    payload_kind?: string,
+    payload_format?: string,
+    payload_metadata?: dict,
+    tool_call?: dict,
+    tool_schema?: dict,
+  ) → bool | null
+    # Optional; return True/False for tool-side routing, or null for legacy fallback
   
   # Execution (I/O)
-  execute_tool(tool_name: string, arguments: dict, state: dict) → dict
+  execute_tool(
+    tool_name: string | null,
+    payload: any,
+    state: dict,
+    payload_kind?: string,
+    payload_format?: string,
+    payload_metadata?: dict,
+    tool_call?: dict,
+    cancellation?: any,
+    context?: dict,  # Layered context (core, config, app, base_config, etc.)
+  ) → dict
     # Returns: {success: bool, result: any, error: string}
+    # context provides layered access to runtime capabilities:
+    #   Layer 1 (Core): core, config, trigger_source
+    #   Layer 2 (App): app, application, base_config, session_asset_store
+
+  format_tool_call_preview(
+    tool_name: string | null,
+    payload: any,
+    state: dict,
+    payload_kind?: string,
+    payload_format?: string,
+    payload_metadata?: dict,
+    tool_call?: dict,
+  ) → string
+
+  stream_tool(
+    tool_name: string | null,
+    payload: any,
+    state: dict,
+    payload_kind?: string,
+    payload_format?: string,
+    payload_metadata?: dict,
+    tool_call?: dict,
+    cancellation?: any,
+    context?: dict,  # Layered context (same as execute_tool)
+  ) → Iterator[dict]
+    # Optional; yields display partials and/or final result dicts
   
   format_tool_result(result: dict, state: dict) → string
     # Format result for LLM consumption
@@ -435,6 +504,40 @@ AgentCore:
   import_session(data: string, format: string = "json") → Session
 ```
 
+### Tool Interop Model
+
+The core does not define a single canonical external tool schema or tool-call
+format.
+
+Instead, the runtime uses:
+
+- schema accessors to inspect tool schema objects and extract semantic fields
+- call accessors to inspect tool-call objects and extract semantic fields
+- schema adapters to convert tool schemas between formats when needed
+- call adapters to convert tool calls between formats when needed
+
+Core relies on a small semantic contract rather than a fixed wire shape. For a
+tool call, the relevant semantics are:
+
+- tool name, when available
+- tool call id, when available
+- final payload value
+- payload kind (for example `object` vs `text`)
+- optional payload format and metadata
+
+Registry composition is additive:
+
+- explicit contributions/overrides are tried first
+- provider / extension / tool contributions are tried next
+- built-in defaults are used as fallback
+
+Providers and provider extensions can declare accepted schema formats and
+emitted tool-call formats so adapter selection can target real capabilities
+instead of assuming an OpenAI chat-completions function shape.
+
+Existing tools that still expect object/dict payloads remain valid through the
+Python wrapper compatibility layer.
+
 ### Stream Event Format
 
 Partial Event:
@@ -480,6 +583,81 @@ Important principles:
 - Each request receives its current configuration
 - Plugins extract only the keys they need
 - Flat dictionary for simplicity; plugins validate their own config
+
+### Session Actions
+
+Feature plugins and provider extensions can define session-scoped actions that operate on provider-native message history. Actions are defined via `get_actions()` and executed via `execute_action()`.
+
+```yaml
+# Action definition (returned by get_actions)
+ActionDefinition:
+  id: string                      # Unique action identifier
+  label: string                   # Human-readable label
+  description: string             # Optional description
+  inputs: dict                    # JSON schema for inputs
+  trigger: string | list[string]  # Optional lifecycle trigger(s)
+
+# Action execution context (passed to execute_action)
+ActionContext:
+  # Layer 1: Core-level (always present)
+  core: AgentCore                 # Core instance
+  config: dict                    # Current resolved config
+  trigger_source: string         # "core" | "application"
+  session: dict                   # Serialized session
+  lifecycle: string               # Lifecycle trigger (if applicable)
+
+  # Layer 2: Application-level (when called from AgentApplication)
+  app: AgentApplication          # Application instance
+  base_config: dict              # Full application config
+  session_asset_store: Store     # File attachment store (optional)
+
+# Action return value
+ActionResult:
+  native_messages: list[dict]    # Replacement native history
+  session_metadata: dict         # Patch for session.metadata
+  error: dict                    # Optional error information
+```
+
+Session actions follow these principles:
+
+- **Single-session scope**: Actions operate on one session's native history
+- **Return values only**: Actions return modified data; they don't persist sessions directly
+- **Layered context**: Context provides core capabilities at baseline, with optional application-level enhancements
+- **Graceful degradation**: Plugins should check `context.get("app")` before using application capabilities
+
+### Layered Context
+
+Context passed to `execute_action()` is built up through the call stack:
+
+```
+TerminalApplication.execute_action()
+    ↓ adds: {"terminal": self, ...}
+AgentApplication.run_session_lifecycle()
+    ↓ adds: {"app": self, "base_config": ...}
+AgentCore.execute_lifecycle_actions()
+    ↓ adds: {"core": self, "config": config}
+FeaturePlugin.execute_action(session, native_messages, params, context, state)
+```
+
+Plugins check for capabilities:
+
+```python
+def execute_action(self, action_id, session, native_messages, params, context, state):
+    # Core is always available
+    core = context["core"]
+    config = context["config"]
+    
+    # Application is optional
+    app = context.get("app")
+    base_config = context.get("base_config", config)
+    
+    if app is not None:
+        # Application-level capabilities available
+        pass
+    else:
+        # Core-only mode
+        pass
+```
 
 ## Usage Flow Patterns
 

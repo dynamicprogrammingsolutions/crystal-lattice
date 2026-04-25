@@ -2,11 +2,17 @@
   "module": "codex_tools",
   "subdirectory": ".",
   "entries": [
-    "codex_tools.shell_tool.ShellTool",
-    "codex_tools.apply_patch_tool.ApplyPatchTool"
+    "codex_tools.shell_tool.ShellArrayTool",
+    "codex_tools.shell_command_tool.ShellCommandTool",
+    "codex_tools.shell_tool_legacy.ShellTool",
+    "codex_tools.apply_patch_tool.ApplyPatchTool",
+    "codex_tools.codex_variant_feature.CodexVariantFeature"
   ],
   "kinds": {
-    "codex_tools.shell_tool.ShellTool": "tools",
-    "codex_tools.apply_patch_tool.ApplyPatchTool": "tools"
+    "codex_tools.shell_tool.ShellArrayTool": "tools",
+    "codex_tools.shell_command_tool.ShellCommandTool": "tools",
+    "codex_tools.shell_tool_legacy.ShellTool": "tools",
+    "codex_tools.apply_patch_tool.ApplyPatchTool": "tools",
+    "codex_tools.codex_variant_feature.CodexVariantFeature": "features"
   }
 }

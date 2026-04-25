@@ -13,6 +13,26 @@ export interface MarkdownMessageContentProps {
   variant?: MarkdownMessageVariant;
 }
 
+function inlineCodeText(node: any, children: any): string {
+  if (typeof node?.content === 'string') {
+    return node.content;
+  }
+  if (typeof children === 'string') {
+    return children;
+  }
+  if (Array.isArray(children)) {
+    return children
+      .map((child) => {
+        if (typeof child === 'string') {
+          return child;
+        }
+        return typeof child?.props?.children === 'string' ? child.props.children : '';
+      })
+      .join('');
+  }
+  return '';
+}
+
 interface MarkdownErrorBoundaryProps {
   fallback: React.ReactNode;
   children: React.ReactNode;
@@ -166,8 +186,26 @@ function MarkdownMessageContent({
           </View>
         );
       },
+      code_inline: (node: any, children: any) => {
+        const content = inlineCodeText(node, children);
+        return (
+          <Text
+            key={node.key}
+            style={[
+              styles.inlineCode,
+              {
+                backgroundColor: theme.inlineCodeBg,
+                color: baseTextColor,
+              },
+            ]}
+            selectable
+          >
+            {content}
+          </Text>
+        );
+      },
     }),
-    [isDarkCodeBlock, theme.codeBlockBg],
+    [baseTextColor, isDarkCodeBlock, theme.codeBlockBg, theme.inlineCodeBg],
   );
 
   return (

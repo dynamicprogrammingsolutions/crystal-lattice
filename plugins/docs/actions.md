@@ -34,6 +34,84 @@ After the update, actions will follow these rules:
 - `AgentCore` executes lifecycle-triggered actions for core-side plugins and
   returns a modified `Session`.
 
+## Generic display payloads
+
+Successful actions may return a generic user-facing display payload in
+`result.display`.
+
+This is the preferred way for plugins to tell frontends to show instructions,
+status summaries, or rich follow-up text without introducing plugin-specific
+result keys.
+
+Recommended shape:
+
+```json
+{
+  "display": {
+    "format": "markdown",
+    "title": "ChatGPT Login",
+    "body": "Open [this link](https://example.test) and enter code `ABCD-EFGH`.",
+    "variant": "info",
+    "presentation": "inline",
+    "dismissible": true,
+    "display_id": "chatgpt-auth-login",
+    "actions": [
+      {
+        "kind": "open_url",
+        "id": "open-login-link",
+        "label": "Open link",
+        "url": "https://example.test"
+      },
+      {
+        "kind": "copy_text",
+        "id": "copy-login-code",
+        "label": "Copy code",
+        "text": "ABCD-EFGH"
+      },
+      {
+        "kind": "run_action",
+        "id": "check-login-status",
+        "label": "Check status",
+        "plugin": "chatgpt_auth",
+        "action_id": "check_status",
+        "preserve_display": true
+      }
+    ]
+  }
+}
+```
+
+Fields:
+
+- `format`: `"markdown"` or `"text"`
+- `body`: required display content
+- `title`: optional heading
+- `variant`: optional tone hint such as `info`, `success`, `warning`, or
+  `error`
+- `presentation`: optional frontend hint such as `modal`, `inline`, or
+  `banner`
+- `dismissible`: optional hint controlling whether the user can dismiss the
+  rendered display
+- `display_id`: optional stable id so frontends can update or replace an
+  existing inline/banner display instead of always appending a new one
+- `actions`: optional list of generic follow-up actions
+
+Guidance:
+
+- keep `display` user-oriented and safe to render directly
+- keep machine-readable fields alongside it when frontend logic or tests still
+  need structured state
+- do not overload top-level `message` keys for successful rich content when
+  `display` is more appropriate
+- keep follow-up actions intentionally narrow and generic; current supported
+  shapes are `open_url`, `copy_text`, and `run_action`
+- treat `presentation` as a frontend hint, not a guarantee:
+  current frontends ignore `display` for `session_list_action` surfaces
+  and the desktop app currently coerces session-action displays to `inline`
+- `modal` remains part of the protocol, but richer cross-platform popup support
+  should be added later only when there is a concrete use case and a UI
+  approach that works on both mobile and desktop
+
 ## Dynamic lifecycle names
 
 Lifecycle names are dynamic strings.
@@ -73,6 +151,9 @@ The meaning of common triggers is:
   may need repair or fallback initialization
 - `request_complete`: a request completed successfully and post-request session
   metadata may need to be updated
+- `response_finalize`: core-owned post-finalization stage where in-flight final
+  messages and retained native history may still be adjusted before the final
+  payload is emitted
 - `request_error`: a request failed and failure-related session state may need
   to be recorded
 - `session_fork`: a new forked session has been created from an existing
@@ -144,6 +225,9 @@ The standard lifecycles are triggered at these points:
   effective config resolution and before the tool loop/provider request starts
 - `request_complete`: owned by `AgentApplication.send_request(...)`, after the
   request finishes successfully and a final session exists
+- `response_finalize`: owned by `AgentCore` request execution, after provider /
+  feature native finalization and native-to-core conversion, but before final
+  messages are emitted or appended to the session
 - `request_error`: owned by `AgentApplication.send_request(...)`, when request
   execution raises or returns a terminal error path
 - `session_fork`: owned by session-fork flows in the application layer and runs
@@ -157,6 +241,12 @@ The standard lifecycles are triggered at these points:
 `AgentCore` does not decide when any of these lifecycles happen. It only
 executes matching core-side actions for the lifecycle name that
 `AgentApplication` passes in.
+
+Exception:
+
+- `response_finalize` is a core-owned lifecycle executed directly by
+  `AgentCore` during request finalization so core-side plugins can still mutate
+  the current turn's `final_messages` before they are returned.
 
 ## Dispatcher ownership
 
@@ -200,6 +290,17 @@ For the standard built-in set, the generic flow is:
 6. continue the owning application operation such as save, request, fork, or
    agent switch
 
+For `response_finalize`, the flow is slightly different:
+
+1. `AgentCore` finishes provider / feature native `finalize(...)`
+2. `AgentCore` converts the current turn's native finals back into core
+   `final_messages`
+3. `AgentCore` runs matching core-side actions with `trigger: "response_finalize"`
+4. actions may return replacement `final_messages`, replacement
+   `native_messages`, and `session_metadata`
+5. `AgentCore` emits / returns the updated `final_messages` and stores the
+   updated native history
+
 ## Execution context
 
 Lifecycle-triggered action execution may include extra context in addition to
@@ -241,6 +342,122 @@ The runtime may populate these commonly used keys in `context`:
 
 Plugins may also use additional serializable context keys supplied by the
 caller.
+
+### Layered context for feature/extension plugins
+
+Feature plugins and provider extensions receive **layered context** that provides different capabilities depending on where the action is triggered. This allows plugins to access enhanced capabilities when available while gracefully degrading when running in core-only mode.
+
+#### Layer 1: Core-level context (always present)
+
+When called from `AgentCore.execute_session_action()` or `AgentCore.execute_lifecycle_actions()`:
+
+```python
+context = {
+    "core": self,              # AgentCore instance
+    "config": config,          # Current resolved config
+    "trigger_source": "core",  # Where action was triggered
+    "session": session.to_dict(),  # Serialized session
+    "lifecycle": trigger,      # Lifecycle trigger name (if applicable)
+}
+```
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `core` | `AgentCore` | Core instance for session/message operations |
+| `config` | `dict` | Current resolved request configuration |
+| `trigger_source` | `str` | Where action was triggered (`"core"`, `"application"`) |
+| `session` | `dict` | Serialized session (`session.to_dict()`) |
+| `lifecycle` | `str` | Lifecycle trigger name (for lifecycle-triggered actions) |
+
+#### Layer 2: Application-level context (when called from AgentApplication)
+
+When called from `AgentApplication.execute_session_action()` or `AgentApplication.run_session_lifecycle()`:
+
+```python
+context = {
+    # Layer 1 (from core)
+    "core": core,
+    "config": effective_config,
+    "trigger_source": "application",
+    "session": session.to_dict(),
+    "lifecycle": lifecycle,  # if applicable
+
+    # Layer 2 (from application)
+    "app": self,             # AgentApplication instance
+    "application": self,     # Alias for "app"
+    "base_config": self._config,  # Full base config (all agents)
+    "session_asset_store": self._session_asset_store,  # Optional
+}
+```
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `app` / `application` | `AgentApplication` | Application instance for enhanced capabilities |
+| `base_config` | `dict` | Full application configuration (all agents) |
+| `session_asset_store` | `SessionAssetStore` | File attachment store (optional) |
+
+#### Layer 3: Terminal/Server-level context (implementation-specific)
+
+Terminal or HTTP server implementations may add additional context keys:
+
+```python
+# TerminalApplication may add:
+context["terminal"] = self
+
+# HTTP server may add:
+context["server"] = self
+context["request_id"] = request_id
+```
+
+These keys are implementation-specific and should be documented by the respective applications.
+
+#### Checking for capabilities
+
+Feature and extension plugins should check for capabilities before using them:
+
+```python
+def execute_action(
+    self,
+    action_id: str,
+    session: Session,
+    native_messages: List[Dict[str, Any]],
+    params: Dict[str, Any],
+    context: Optional[Dict[str, Any]],
+    state: Dict[str, Any],
+) -> Dict[str, Any]:
+    # Core is always available
+    core = context["core"]
+    config = context["config"]
+    
+    # Application is optional (check before using)
+    app = context.get("app")
+    base_config = context.get("base_config", config)
+    
+    if app is not None:
+        # Application-level capabilities available
+        # Can switch agents, use full request flow
+        pass
+    else:
+        # Core-only mode
+        # Use core.send_request() for same-agent requests
+        pass
+```
+
+**Note on config resolution:** The `config` key is the resolved request configuration for the current agent. When called from `AgentApplication`, `base_config` contains the full flattened agent configuration (from `build_agent_config()`). For agent-level settings like `compaction`, always use `base_config` when available, falling back to `config` for core-only calls.
+
+#### Context flow diagram
+
+```
+TerminalApplication.execute_action()
+    ↓ adds: {"terminal": self, ...}
+AgentApplication.run_session_lifecycle()
+    ↓ adds: {"app": self, "base_config": ...}
+AgentCore.execute_lifecycle_actions()
+    ↓ adds: {"core": self, "config": config}
+FeaturePlugin.execute_action(session, native_messages, params, context, state)
+    ↓ Plugin checks: app = context.get("app")
+                    core = context["core"]
+```
 
 ## Application plugin contract
 

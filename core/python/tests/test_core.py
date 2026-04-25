@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 import pytest
 from agent_core import AgentCore, FeaturePlugin, Message, Session
+from agent_core.types import ProviderPlugin
 from .dummy_provider import DummyProvider
 from .dummy_feature import DummyFeature
 from .dummy_tool import DummyCalculator
@@ -252,6 +253,7 @@ def test_discover_and_register_plugins():
 
     # At least provider discovered
     assert summary["providers"]
+    assert summary["providers"] == ["dummy_provider"]
 
     # Run a basic streaming flow to ensure discovered registration works
     config = {"model": "test-model", "enabled": True}
@@ -259,6 +261,7 @@ def test_discover_and_register_plugins():
     session = core.add_message(session, "user", "Hello")
 
     final_message = None
+    print("sending request")
     for chunk in core.send_request_stream(session, config):
         if chunk["type"] == "final":
             final_message = chunk["messages"][-1]
@@ -684,3 +687,115 @@ def test_modify_message_shared_indices_cardinality_change_removes_first():
         core._core_messages_to_native_for_config = original_to_native  # type: ignore[assignment]
         core._rebuild_core_from_native = original_rebuild  # type: ignore[assignment]
 
+
+
+def test_streaming_feature_finalize_receives_aggregated_finals():
+    """Regression: feature finalize must see finals emitted during streaming.
+
+    Providers like openai_responses emit final messages during process_chunk
+    (e.g., on response.completed). These accumulate in aggregated_native_finals.
+    Previously, feature finalize only ran on provider.finalize() output,
+    missing the streaming finals entirely.
+    """
+    from dataclasses import dataclass
+    from typing import Iterator, Tuple
+
+    @dataclass
+    class _StreamingFinalsProvider(ProviderPlugin):
+        name: str = "streaming_finals_provider"
+        version: str = "1.0.0"
+
+        def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+            return {"config": config}
+
+        def from_native_messages(
+            self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        ) -> List[Dict[str, Any]]:
+            return native_messages
+
+        def initialize_request(
+            self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+            return list(native_messages), state
+
+        def process_chunk(
+            self,
+            native_chunk: Dict[str, Any],
+            native_messages: List[Dict[str, Any]],
+            state: Dict[str, Any],
+        ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+            partials: List[Dict[str, Any]] = []
+            finals: List[Dict[str, Any]] = []
+            if native_chunk.get("type") == "partial":
+                partials = [{"role": "assistant", "content": native_chunk.get("content", "")}]
+            elif native_chunk.get("type") == "final":
+                finals = [{"role": "assistant", "content": native_chunk.get("content", "")}]
+                native_messages = [*native_messages, *finals]
+            return partials, finals, native_messages, state
+
+        def finalize(
+            self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+            # Provider finalize returns empty finals (already emitted during streaming)
+            return [], list(native_messages), state
+
+        def stream_api(
+            self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        ) -> Iterator[Dict[str, Any]]:
+            yield {"type": "partial", "content": "hello "}
+            yield {"type": "final", "content": "hello world"}
+
+    @dataclass
+    class _StampFeature(FeaturePlugin):
+        name: str = "stamp_feature"
+        version: str = "1.0.0"
+
+        def get_config_schema(self) -> Dict[str, Any]:
+            return {}
+
+        def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+            return state
+
+        def finalize(
+            self,
+            final_messages: List[Dict[str, Any]],
+            native_messages: List[Dict[str, Any]],
+            state: Dict[str, Any],
+        ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+            stamped = [
+                {**m, "metadata": {**(m.get("metadata") or {}), "stamped": True}}
+                for m in final_messages
+            ]
+            # Also stamp the corresponding messages in native history
+            start = len(native_messages) - len(stamped) if len(stamped) <= len(native_messages) else 0
+            stamped_history = list(native_messages)
+            for offset, final_msg in enumerate(stamped):
+                hist_idx = start + offset
+                if 0 <= hist_idx < len(stamped_history):
+                    stamped_history[hist_idx] = final_msg
+            return stamped, stamped_history, state
+
+    core = AgentCore()
+    core.register_provider(_StreamingFinalsProvider)
+    core.register_feature(_StampFeature)
+
+    config = {"model": "test-model"}
+    session = core.create_session()
+    session = core.add_message(session, "user", "hi")
+
+    final_messages: List[Dict[str, Any]] = []
+    final_session = None
+    for chunk in core.send_request_stream(session, config):
+        if chunk["type"] == "final":
+            final_messages = chunk.get("messages") or []
+            final_session = chunk.get("session")
+
+    assert final_messages
+    assert final_messages[-1].get("metadata", {}).get("stamped") is True
+
+    assert final_session is not None
+    native = (final_session.metadata or {}).get("native_messages")
+    assert isinstance(native, list)
+    last_native = native[-1]
+    assert isinstance(last_native, dict)
+    assert last_native.get("metadata", {}).get("stamped") is True

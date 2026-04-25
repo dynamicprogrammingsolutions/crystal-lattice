@@ -1,0 +1,10 @@
+{
+  "module": "context_recording_plugin",
+  "subdirectory": "src",
+  "entries": [
+    "context_recording_plugin.ContextRecordingPlugin"
+  ],
+  "kinds": {
+    "context_recording_plugin.ContextRecordingPlugin": "feature"
+  }
+}

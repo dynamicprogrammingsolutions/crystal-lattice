@@ -78,6 +78,10 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
       return;
     }
 
+    if (state?.eventsStatus === 'expired') {
+      return;
+    }
+
     if (controller.isEventStreaming()) {
       return;
     }
@@ -97,7 +101,7 @@ export function useChatController(options: UseChatControllerOptions): UseChatCon
       controller.getSnapshot().eventsCursorId ??
       null;
     controller.startEventStreaming({ initialSinceId: sinceId });
-  }, [controller, eventsEnabled, initialSinceId, state?.eventsCursorId, state?.messages, state?.loading]);
+  }, [controller, eventsEnabled, initialSinceId, state?.eventsCursorId, state?.messages, state?.loading, state?.eventsStatus]);
 
   return { controller, state };
 }

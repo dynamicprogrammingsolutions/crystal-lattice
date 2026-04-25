@@ -4,12 +4,15 @@ import base64
 import os
 from pathlib import Path
 import subprocess
+import threading
+import time
 
 import pytest
 from dotenv import load_dotenv
 
 from agent_app.session_assets import FilesystemSessionAssetStore
 from agent_core import AgentCore
+from agent_core.types import ProviderRequestCancelled
 from openai_responses_plugins.openai_responses_attachments_extension import (
     OpenAIResponsesAttachmentsExtension,
 )
@@ -217,6 +220,113 @@ def test_openai_responses_streaming_gpt5mini_real_api(ensure_openai_api_key: str
         )
         for item in native_history
     )
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_stream_cancel_soon_after_send_real_api(
+    ensure_openai_api_key: str,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    config = {
+        "model": "gpt-5-mini",
+        "api_key": ensure_openai_api_key,
+        "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
+        "timeout": 120,
+    }
+    state = provider.init(config)
+    native_messages = provider.to_native_messages(
+        [{"role": "user", "content": "Write a long detailed essay about distributed systems."}],
+        state,
+    )
+    native_messages, state = provider.initialize_request(
+        native_messages,
+        state,
+        request_id="openai_responses_cancel_soon",
+    )
+
+    outcome: dict[str, object] = {"chunks": []}
+
+    def _consume() -> None:
+        try:
+            for chunk in provider.stream_api(
+                native_messages,
+                state,
+                request_id="openai_responses_cancel_soon",
+            ):
+                outcome["chunks"].append(chunk)
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    deadline = time.time() + 10.0
+    while time.time() < deadline:
+        if provider.cancel_request("openai_responses_cancel_soon"):
+            break
+        time.sleep(0.02)
+    else:
+        raise AssertionError("OpenAI Responses request was never registered as active")
+
+    worker.join(timeout=20)
+    assert not worker.is_alive()
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_stream_cancel_after_first_partial_real_api(
+    ensure_openai_api_key: str,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    config = {
+        "model": "gpt-5-mini",
+        "api_key": ensure_openai_api_key,
+        "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
+        "timeout": 120,
+    }
+    state = provider.init(config)
+    native_messages = provider.to_native_messages(
+        [{"role": "user", "content": "Write a long detailed essay about concurrency."}],
+        state,
+    )
+    native_messages, state = provider.initialize_request(
+        native_messages,
+        state,
+        request_id="openai_responses_cancel_after_partial",
+    )
+
+    outcome: dict[str, object] = {"chunks": []}
+
+    def _consume() -> None:
+        try:
+            for chunk in provider.stream_api(
+                native_messages,
+                state,
+                request_id="openai_responses_cancel_after_partial",
+            ):
+                outcome["chunks"].append(chunk)
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    deadline = time.time() + 30.0
+    while time.time() < deadline:
+        if outcome["chunks"]:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("OpenAI Responses stream did not emit a partial before cancellation")
+
+    assert provider.cancel_request("openai_responses_cancel_after_partial") is True
+
+    worker.join(timeout=20)
+    assert not worker.is_alive()
+    assert outcome["chunks"]
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)
 
 
 @pytest.mark.integration

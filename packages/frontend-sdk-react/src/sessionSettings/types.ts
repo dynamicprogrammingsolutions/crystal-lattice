@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { ConfigSchemaEntry, UiSchemaElement } from '@crystal-lattice/frontend-sdk';
 
-export type SessionSettingSource = 'override' | 'config' | 'schema_default' | 'none';
+export type SessionSettingSource = 'override' | 'config' | 'ui_default' | 'schema_default' | 'none';
 
 export type SessionSettingTagLabel = 'config' | 'default' | null;
 

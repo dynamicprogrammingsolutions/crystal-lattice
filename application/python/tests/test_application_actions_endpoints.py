@@ -58,12 +58,66 @@ def _make_config_with_dummy_app_plugin(tmp_path: Path) -> Path:
 def _build_app(tmp_path: Path) -> AgentApplication:
     from agent_terminal_app import server as server_mod
 
+    previous = getattr(server_mod, "_agent_app", None)
+    if previous is not None:
+        previous.close()
     config_path = _make_config_with_dummy_app_plugin(tmp_path)
     session_root = tmp_path / "sessions"
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
     # Ensure the server uses this application instance when needed.
+    server_mod._agent_app = app
+    return app
+
+
+def _plugin_entry(repo_name: str, entry: str) -> Dict[str, str]:
+    return {"path": str(ROOT / "plugins" / repo_name), "entry": entry}
+
+
+def _make_config_with_chatgpt_auth(tmp_path: Path, *, auth_mode: str) -> Path:
+    cfg: Dict[str, Any] = {
+        "providers": {
+            "chatgpt": {
+                "provider": "openai_responses",
+                "model": "gpt-5",
+                "auth_mode": auth_mode,
+            }
+        },
+        "plugins": [
+            _plugin_entry("chatgpt-auth-app", "chatgpt_auth_app.ChatGPTAuthAppPlugin"),
+            _plugin_entry("openai_responses", "openai_responses_plugins.OpenAIResponsesProvider"),
+        ],
+        "agents": {
+            "default": {"provider": "chatgpt"},
+        },
+        "application": {
+            "chatgpt_auth": {
+                "credentials_path": "${env:CONFIG_DIR}/auth/chatgpt-auth.json",
+                "rate_limits_path": "${env:CONFIG_DIR}/auth/chatgpt-rate-limits.json",
+            }
+        },
+    }
+    path = tmp_path / f"config_chatgpt_auth_{auth_mode}.json"
+    path.write_text(__import__("json").dumps(cfg), encoding="utf-8")
+    return path
+
+
+def _build_chatgpt_auth_app(tmp_path: Path, *, auth_mode: str) -> AgentApplication:
+    from agent_terminal_app import server as server_mod
+
+    previous = getattr(server_mod, "_agent_app", None)
+    if previous is not None:
+        previous.close()
+    config_path = _make_config_with_chatgpt_auth(tmp_path, auth_mode=auth_mode)
+    session_root = tmp_path / "sessions"
+    events = InMemoryEventStore()
+    app = AgentApplication(
+        str(config_path),
+        str(session_root),
+        event_store=events,
+        env_overrides={"CONFIG_DIR": str(tmp_path)},
+    )
     server_mod._agent_app = app
     return app
 
@@ -247,3 +301,29 @@ def test_execute_action_envelope_never_embeds_sessions(tmp_path: Path) -> None:
     assert "session" not in resp
     result = resp.get("result") or {}
     assert "session" not in result
+
+
+def test_session_application_ui_schema_hides_chatgpt_actions_for_api_mode(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_chatgpt_auth_app(tmp_path, auth_mode="api")
+    _core, _base_config, session = app.create_session("default")
+    app.save_session(session)
+
+    resp = server_mod.get_session_application_ui_schema(session.session_id, app_instance=app)
+    labels = {element.get("label") for element in resp["elements"]}
+    assert "Sign in with ChatGPT" not in labels
+    assert "Show ChatGPT account status" not in labels
+
+
+def test_session_application_ui_schema_shows_chatgpt_actions_for_auto_mode(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_chatgpt_auth_app(tmp_path, auth_mode="auto")
+    _core, _base_config, session = app.create_session("default")
+    app.save_session(session)
+
+    resp = server_mod.get_session_application_ui_schema(session.session_id, app_instance=app)
+    labels = {element.get("label") for element in resp["elements"]}
+    assert "Sign in with ChatGPT" in labels
+    assert "Show ChatGPT account status" in labels

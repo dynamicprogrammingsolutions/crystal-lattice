@@ -158,12 +158,7 @@ class TemplateProviderExtension(ProviderExtensionPlugin):
         # TODO: return tags required for this extension to enable.
         return []
 
-    def init(
-        self,
-        config: Dict[str, Any],
-        state: Dict[str, Any],
-        models: Optional[List[Dict[str, Any]]] = None,
-    ) -> Dict[str, Any]:
+    def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         return state
 
     def initialize_request(

@@ -82,7 +82,7 @@ describe('buildSessionSettingItems', () => {
     const itemC = items[2];
     expect(itemC.type).toBe('select');
     expect(itemC.source).toBe('config');
-    expect(itemC.tagLabel).toBeNull(); // We only show "default" or no tag, never "config"
+    expect(itemC.tagLabel).toBe('config');
     expect(itemC.effectiveValue).toBe('cBase');
 
     const itemD = items[3];
@@ -92,25 +92,73 @@ describe('buildSessionSettingItems', () => {
     expect(itemD.effectiveValue).toBeUndefined();
   });
 
-  it('uses element.default when no override, base, or schema default', () => {
+  it('resolves nested base config values through config_path before defaults', () => {
     const elements = [
-      { key: 'reasoning_effort', type: 'select', label: 'Reasoning Effort', default: 'medium' },
+      {
+        key: 'request_options__reasoning_history',
+        type: 'select',
+        config_path: 'request_options.reasoning_history',
+        default: 'disabled',
+      },
+      {
+        key: 'request_options__thinking__clear_thinking',
+        type: 'checkbox',
+        config_path: 'request_options.thinking.clear_thinking',
+        default: true,
+      },
     ] as UiSchemaElement[];
 
     const items = buildSessionSettingItems({
       elements,
       overrides: {},
-      baseConfig: {},
-      schemaByKey: buildConfigSchemaByKey([]),
+      baseConfig: {
+        request_options: {
+          reasoning_history: 'preserved',
+          thinking: {
+            clear_thinking: false,
+          },
+        },
+      },
+      schemaByKey: {},
     });
 
-    expect(items).toHaveLength(1);
-    expect(items[0].effectiveValue).toBe('medium');
-    expect(items[0].source).toBe('schema_default');
-    expect(items[0].tagLabel).toBe('default');
+    expect(items[0].source).toBe('config');
+    expect(items[0].tagLabel).toBe('config');
+    expect(items[0].effectiveValue).toBe('preserved');
+
+    expect(items[1].source).toBe('config');
+    expect(items[1].tagLabel).toBe('config');
+    expect(items[1].effectiveValue).toBe(false);
   });
 
-  it('shows "default" chip when base config value equals schema default (e.g. enable_reasoning, reasoning_effort)', () => {
+  it('falls back to ui element default before schema default', () => {
+    const elements = [
+      {
+        key: 'request_options__reasoning_history',
+        type: 'select',
+        config_path: 'request_options.reasoning_history',
+        default: 'preserved',
+      },
+    ] as UiSchemaElement[];
+
+    const schemaByKey = buildConfigSchemaByKey([
+      { key: 'request_options__reasoning_history', default: 'disabled' },
+    ] as ConfigSchemaEntry[]);
+
+    const items = buildSessionSettingItems({
+      elements,
+      overrides: {},
+      baseConfig: {},
+      schemaByKey,
+    });
+
+    expect(items[0].source).toBe('ui_default');
+    expect(items[0].tagLabel).toBe('default');
+    expect(items[0].effectiveValue).toBe('preserved');
+    expect(items[0].schemaDefaultValue).toBe('disabled');
+  });
+
+  it('labels base config values that match defaults as default', () => {
     const elements = [
       { key: 'enable_reasoning', type: 'checkbox', label: 'Enable reasoning', default: true },
       { key: 'reasoning_effort', type: 'select', label: 'Reasoning effort', default: 'medium' },
@@ -128,9 +176,39 @@ describe('buildSessionSettingItems', () => {
       schemaByKey,
     });
 
-    expect(items[0].effectiveValue).toBe(true);
+    expect(items[0].source).toBe('config');
     expect(items[0].tagLabel).toBe('default');
-    expect(items[1].effectiveValue).toBe('medium');
+    expect(items[0].effectiveValue).toBe(true);
+    expect(items[1].source).toBe('config');
     expect(items[1].tagLabel).toBe('default');
+    expect(items[1].effectiveValue).toBe('medium');
+  });
+
+  it('still prefers flat overrides over nested base config paths', () => {
+    const elements = [
+      {
+        key: 'request_options__thinking__type',
+        type: 'select',
+        config_path: 'request_options.thinking.type',
+        default: 'enabled',
+      },
+    ] as UiSchemaElement[];
+
+    const items = buildSessionSettingItems({
+      elements,
+      overrides: { request_options__thinking__type: 'disabled' },
+      baseConfig: {
+        request_options: {
+          thinking: {
+            type: 'enabled',
+          },
+        },
+      },
+      schemaByKey: {},
+    });
+
+    expect(items[0].source).toBe('override');
+    expect(items[0].tagLabel).toBeNull();
+    expect(items[0].effectiveValue).toBe('disabled');
   });
 });

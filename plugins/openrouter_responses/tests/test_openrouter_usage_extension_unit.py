@@ -47,6 +47,12 @@ def test_turn_cost_single_response_attaches_formatted_fields() -> None:
 
     assert md.get("usage_turn_cost_cumulative") == pytest.approx(0.123456, rel=1e-9)
     assert md.get("usage_turn_cost_cumulative_formatted") == "$0.123456"
+    assert md.get("usage_turn_input_tokens_cumulative") == 0
+    assert md.get("usage_turn_input_tokens_cumulative_formatted") == "0"
+    assert md.get("usage_turn_cached_tokens_cumulative") == 0
+    assert md.get("usage_turn_cached_tokens_cumulative_formatted") == "0"
+    assert md.get("usage_turn_output_tokens_cumulative") == 0
+    assert md.get("usage_turn_output_tokens_cumulative_formatted") == "0"
     assert md.get("usage_turn_reasoning_tokens_cumulative") == 7
     assert md.get("usage_turn_reasoning_tokens_cumulative_formatted") == "7"
     assert md.get("has_tool_calls") is False
@@ -109,8 +115,63 @@ def test_turn_cost_with_separators_and_tool_calls() -> None:
     # per-turn totals include only the current response.
     assert md.get("usage_turn_cost_cumulative") == pytest.approx(0.1, rel=1e-9)
     assert md.get("usage_turn_cost_cumulative_formatted") == "$0.100000"
+    assert md.get("usage_turn_input_tokens_cumulative_formatted") == "0"
     assert md.get("usage_turn_reasoning_tokens_cumulative") == 3
     assert md.get("usage_turn_reasoning_tokens_cumulative_formatted") == "3"
+
+
+def test_turn_token_breakdown_fields_are_exposed_for_openrouter_responses() -> None:
+    ext = OpenRouterResponsesUsageExtension()
+
+    base_native: List[Dict[str, Any]] = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "hi"}],
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "tool reply"}],
+            "_metadata": {
+                "usage": {
+                    "input_tokens": 8,
+                    "input_tokens_details": {"cached_tokens": 2},
+                    "output_tokens": 4,
+                },
+                "turn": {"id": 1, "has_tool_calls": True, "is_terminal": False},
+                "has_tool_calls": True,
+            },
+        },
+    ]
+
+    final_messages: List[Dict[str, Any]] = [_assistant_output_item("new", response_id="resp_4")]
+    native_messages: List[Dict[str, Any]] = [*base_native, *final_messages]
+    usage = {
+        "input_tokens": 12,
+        "input_tokens_details": {"cached_tokens": 3},
+        "output_tokens": 5,
+        "cost": 0.1,
+    }
+    final_messages[0]["_metadata"]["usage"] = usage
+    native_messages[-1]["_metadata"]["usage"] = usage
+
+    _partials, finals, _native_out, _state = ext.process_chunk(
+        native_chunk={"usage": usage},
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={},
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_turn_input_tokens_cumulative") == 20
+    assert md.get("usage_turn_input_tokens_cumulative_formatted") == "20"
+    assert md.get("usage_turn_cached_tokens_cumulative") == 5
+    assert md.get("usage_turn_cached_tokens_cumulative_formatted") == "5"
+    assert md.get("usage_turn_output_tokens_cumulative") == 9
+    assert md.get("usage_turn_output_tokens_cumulative_formatted") == "9"
+    assert md.get("turn") == {"id": 1, "has_tool_calls": False, "is_terminal": True}
 
 
 def test_from_native_messages_is_noop() -> None:
