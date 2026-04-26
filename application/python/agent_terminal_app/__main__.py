@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import shutil
@@ -9,11 +10,14 @@ import threading
 from pathlib import Path
 from typing import Optional
 
-from agent_core.utils import configure_logging as configure_structlog
+from .runtime_layout import RuntimeLayout, load_runtime_layout
 
 
 def _configure_logging(
-    log_file: Optional[str], *, log_level: Optional[str] = None, disable_structlog_colors: bool
+    log_file: Optional[str],
+    *,
+    log_level: Optional[str] = None,
+    disable_structlog_colors: bool,
 ) -> None:
     """Configure logging for the terminal application.
 
@@ -56,7 +60,9 @@ def _configure_logging(
     if log_file:
         handler = logging.FileHandler(log_file)
         handler.setLevel(effective_level)
-        formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s - %(message)s")
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s %(name)s - %(message)s"
+        )
         handler.setFormatter(formatter)
         root.addHandler(handler)
 
@@ -68,6 +74,8 @@ def _configure_logging(
     #   avoid raw ANSI codes in prompt_toolkit's patched stdout.
     # - When ``log_file`` is provided, route structlog output there.
     try:
+        from agent_core.utils import configure_logging as configure_structlog
+
         structlog_colors = None if not disable_structlog_colors else False
         configure_structlog(colors=structlog_colors, log_file_path=log_file)
     except Exception:
@@ -90,7 +98,9 @@ def _configure_fastapi_logging(fastapi_log_file: Optional[str]) -> None:
         return
 
     try:
-        Path(fastapi_log_file).expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
+        Path(fastapi_log_file).expanduser().resolve().parent.mkdir(
+            parents=True, exist_ok=True
+        )
     except Exception:
         # If the directory can't be created, let FileHandler raise with a clear error.
         pass
@@ -110,7 +120,21 @@ def _configure_fastapi_logging(fastapi_log_file: Optional[str]) -> None:
         logger.propagate = False
 
 
-def _ensure_default_config(path: Path) -> Path:
+_DEFAULT_CONFIG_COPY_EXCLUDES = {"auth", ".plugin_cache", "__pycache__"}
+
+
+def _ignore_default_config_entries(_directory: str, names: list[str]) -> set[str]:
+    return {
+        name
+        for name in names
+        if name in _DEFAULT_CONFIG_COPY_EXCLUDES
+        or name.endswith(".pyc")
+        or name.endswith(".pyo")
+        or name.endswith(".log")
+    }
+
+
+def _ensure_default_config(path: Path, layout: RuntimeLayout) -> Path:
     """Create the bundled portable default config at ``path`` if missing.
 
     The default configuration lives under ``default_config/`` alongside the
@@ -120,19 +144,21 @@ def _ensure_default_config(path: Path) -> Path:
     path.
     """
 
-    template_dir = Path(__file__).resolve().parent / "default_config"
+    template_dir = layout.default_config_template
     template = template_dir / "config.json"
 
     try:
         text = template.read_text(encoding="utf-8")
     except Exception as exc:
-        raise RuntimeError(f"Could not read default config template at {template}: {exc}") from exc
+        raise RuntimeError(
+            f"Could not read default config template at {template}: {exc}"
+        ) from exc
 
     target = path.expanduser()
     target.parent.mkdir(parents=True, exist_ok=True)
 
     for source in template_dir.iterdir():
-        if source.name == "config.json":
+        if source.name == "config.json" or source.name in _DEFAULT_CONFIG_COPY_EXCLUDES:
             continue
 
         destination = target.parent / source.name
@@ -140,7 +166,7 @@ def _ensure_default_config(path: Path) -> Path:
             continue
 
         if source.is_dir():
-            shutil.copytree(source, destination)
+            shutil.copytree(source, destination, ignore=_ignore_default_config_entries)
         else:
             shutil.copy2(source, destination)
 
@@ -261,8 +287,12 @@ def main() -> None:  # pragma: no cover - manual execution only
         action="store_true",
         help="run the API server (default when no flags are given)",
     )
-    parser.add_argument("--host", default="127.0.0.1", help="host to bind the API server to")
-    parser.add_argument("--port", type=int, default=8000, help="port to bind the API server to")
+    parser.add_argument(
+        "--host", default="127.0.0.1", help="host to bind the API server to"
+    )
+    parser.add_argument(
+        "--port", type=int, default=8000, help="port to bind the API server to"
+    )
     parser.add_argument(
         "--log-file",
         type=str,
@@ -312,6 +342,11 @@ def main() -> None:  # pragma: no cover - manual execution only
         default="crystal-lattice",
         help="optional name to set as the terminal title",
     )
+    parser.add_argument(
+        "--runtime-layout-json",
+        action="store_true",
+        help="print resolved Crystal Lattice runtime layout paths as JSON and exit",
+    )
 
     # Optional integrations: Bonjour and bridge
     parser.add_argument(
@@ -323,17 +358,14 @@ def main() -> None:  # pragma: no cover - manual execution only
         "--bonjour-port",
         type=int,
         default=None,
-        help=(
-            "port to advertise over Bonjour (default: server port or 8000)"
-        ),
+        help=("port to advertise over Bonjour (default: server port or 8000)"),
     )
     parser.add_argument(
         "--bonjour-service-name",
         type=str,
         default=None,
         help=(
-            "Bonjour service name to advertise as "
-            "(default: 'Agent Terminal App')"
+            "Bonjour service name to advertise as " "(default: 'Agent Terminal App')"
         ),
     )
 
@@ -406,6 +438,11 @@ def main() -> None:  # pragma: no cover - manual execution only
     )
 
     args = parser.parse_args()
+    runtime_layout = load_runtime_layout()
+
+    if args.runtime_layout_json:
+        print(json.dumps(runtime_layout.to_resolved_dict(), indent=2, sort_keys=True))
+        return
 
     # Map CLI flags for Bonjour / bridge integrations onto environment
     # variables so that the FastAPI server and helper modules can read a
@@ -454,7 +491,9 @@ def main() -> None:  # pragma: no cover - manual execution only
     run_server = args.server or not args.console
     run_console = args.console
 
-    _configure_logging(args.log_file, log_level=args.log_level, disable_structlog_colors=False)
+    _configure_logging(
+        args.log_file, log_level=args.log_level, disable_structlog_colors=False
+    )
     _configure_fastapi_logging(args.fastapi_log_file)
 
     if args.app_name:
@@ -473,22 +512,24 @@ def main() -> None:  # pragma: no cover - manual execution only
     from .server import run_api
     from .terminal import TerminalApplication, run_terminal
 
-    default_local_config = Path(".crystal") / "config.json"
-    default_home_config = Path.home() / ".crystal" / "config.json"
-    default_session_root = Path(".crystal") / "sessions"
+    env_overrides = runtime_layout.env_overrides()
+    default_local_config = runtime_layout.user_path("local_config")
+    default_home_config = runtime_layout.user_path("home_config")
+    default_config = runtime_layout.user_path("default_config")
+    default_session_root = runtime_layout.user_path("default_sessions_dir")
 
     if args.config_local:
         config_path = default_local_config
         if not config_path.is_file():
             try:
-                config_path = _ensure_default_config(config_path)
+                config_path = _ensure_default_config(config_path, runtime_layout)
             except Exception as exc:  # pragma: no cover - defensive
                 parser.error(f"Could not create default config at {config_path}: {exc}")
     elif args.config is not None:
         config_path = Path(args.config).expanduser()
         if not config_path.is_file():
             try:
-                config_path = _ensure_default_config(config_path)
+                config_path = _ensure_default_config(config_path, runtime_layout)
             except Exception as exc:  # pragma: no cover - defensive
                 parser.error(f"Could not create default config at {config_path}: {exc}")
     else:
@@ -500,12 +541,16 @@ def main() -> None:  # pragma: no cover - manual execution only
             config_path = home_config
         else:
             try:
-                config_path = _ensure_default_config(home_config)
+                config_path = _ensure_default_config(default_config, runtime_layout)
             except Exception as exc:  # pragma: no cover - defensive
-                parser.error(f"Could not create default config at {home_config}: {exc}")
+                parser.error(
+                    f"Could not create default config at {default_config}: {exc}"
+                )
 
     session_root = (
-        Path(args.sessions_dir).expanduser() if args.sessions_dir is not None else default_session_root
+        Path(args.sessions_dir).expanduser()
+        if args.sessions_dir is not None
+        else default_session_root
     )
 
     try:
@@ -514,7 +559,9 @@ def main() -> None:  # pragma: no cover - manual execution only
         parser.error(f"Could not create sessions directory {session_root}: {exc}")
 
     # Ensure a .gitignore for any .crystal directory we control.
-    crystal_from_config = config_path.parent if config_path.parent.name == ".crystal" else None
+    crystal_from_config = (
+        config_path.parent if config_path.parent.name == ".crystal" else None
+    )
     crystal_from_sessions = (
         session_root
         if session_root.name == ".crystal"
@@ -540,9 +587,17 @@ def main() -> None:  # pragma: no cover - manual execution only
             str(config_path),
             str(session_root),
             event_store=shared_events,
-            snapshot_selection_store=FilesystemSnapshotSelectionStore(session_root / ".snapshots"),
+            snapshot_selection_store=FilesystemSnapshotSelectionStore(
+                session_root / ".snapshots"
+            ),
+            env_overrides=env_overrides,
         )
-        terminal_agent_app = AgentApplication(str(config_path), str(session_root), event_store=shared_events)
+        terminal_agent_app = AgentApplication(
+            str(config_path),
+            str(session_root),
+            event_store=shared_events,
+            env_overrides=env_overrides,
+        )
         terminal_app = TerminalApplication(
             config_path=str(config_path),
             session_root=str(session_root),
@@ -579,7 +634,9 @@ def main() -> None:  # pragma: no cover - manual execution only
 
             asyncio.run(uvicorn_server.serve())
 
-        thread = threading.Thread(target=_run_uvicorn, name="agent_terminal_app.uvicorn")
+        thread = threading.Thread(
+            target=_run_uvicorn, name="agent_terminal_app.uvicorn"
+        )
         thread.start()
 
         try:
@@ -588,7 +645,11 @@ def main() -> None:  # pragma: no cover - manual execution only
             uvicorn_server.should_exit = True
             thread.join()
     elif run_console:
-        agent_app = AgentApplication(str(config_path), str(session_root))
+        agent_app = AgentApplication(
+            str(config_path),
+            str(session_root),
+            env_overrides=env_overrides,
+        )
         terminal_app = TerminalApplication(
             config_path=str(config_path),
             session_root=str(session_root),
@@ -599,7 +660,10 @@ def main() -> None:  # pragma: no cover - manual execution only
         app_instance = AgentApplication(
             str(config_path),
             str(session_root),
-            snapshot_selection_store=FilesystemSnapshotSelectionStore(session_root / ".snapshots"),
+            snapshot_selection_store=FilesystemSnapshotSelectionStore(
+                session_root / ".snapshots"
+            ),
+            env_overrides=env_overrides,
         )
         run_api(
             host=args.host,

@@ -34,10 +34,14 @@ from agent_app.sessions import FilesystemSnapshotSelectionStore
 from agent_core import Message, Session
 from agent_terminal_app import bonjour as bonjour_mod
 from agent_terminal_app import bridge_client as bridge_mod
+from agent_terminal_app.runtime_layout import load_runtime_layout
 
 
-_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
-_DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
+_DEFAULT_RUNTIME_LAYOUT = load_runtime_layout()
+_DEFAULT_CONFIG_PATH = (
+    _DEFAULT_RUNTIME_LAYOUT.config_examples / "config_openrouter_app_layer.json"
+)
+_DEFAULT_SESSION_ROOT = _DEFAULT_RUNTIME_LAYOUT.user_path("default_sessions_dir")
 
 _log = get_logger(__name__)
 
@@ -156,7 +160,9 @@ def _idempotency_cleanup_locked(now: float) -> None:
         _idempotency_cache.pop(cache_key, None)
 
 
-def _idempotency_maybe_replay(scope: str, key: Optional[str], payload: Any) -> Optional[Any]:
+def _idempotency_maybe_replay(
+    scope: str, key: Optional[str], payload: Any
+) -> Optional[Any]:
     idem_key = _normalize_idempotency_key(key)
     if idem_key is None:
         return None
@@ -188,7 +194,9 @@ def _idempotency_maybe_replay(scope: str, key: Optional[str], payload: Any) -> O
         return response
 
 
-def _idempotency_store(scope: str, key: Optional[str], payload: Any, response: Any) -> None:
+def _idempotency_store(
+    scope: str, key: Optional[str], payload: Any, response: Any
+) -> None:
     idem_key = _normalize_idempotency_key(key)
     if idem_key is None:
         return
@@ -224,6 +232,7 @@ def _load_session_ctx_for_send(
     acquire_lock: bool = True,
 ) -> Tuple[Any, Any, Session, Any]:
     try:
+
         @contextmanager
         def _maybe_lock() -> Iterator[None]:
             if not acquire_lock:
@@ -233,7 +242,9 @@ def _load_session_ctx_for_send(
                 yield
 
         with _maybe_lock():
-            selected_snapshot_id = app_instance.get_selected_session_snapshot(session_id)
+            selected_snapshot_id = app_instance.get_selected_session_snapshot(
+                session_id
+            )
             if isinstance(selected_snapshot_id, str) and selected_snapshot_id:
                 raise HTTPException(
                     status_code=409,
@@ -310,7 +321,11 @@ def _enrich_multipart_part_for_client(
         asset_store = app_instance.get_session_asset_store()
         record = asset_store.load(session_id, asset_id)
     except FileNotFoundError:
-        metadata = enriched.get("metadata") if isinstance(enriched.get("metadata"), dict) else {}
+        metadata = (
+            enriched.get("metadata")
+            if isinstance(enriched.get("metadata"), dict)
+            else {}
+        )
         enriched["metadata"] = {**metadata, "asset_missing": True}
         enriched["content"] = next_content
         return enriched
@@ -325,7 +340,9 @@ def _enrich_multipart_part_for_client(
         and "preview_data_base64" not in next_content
     ):
         payload_bytes = asset_store.load_bytes(session_id, asset_id)
-        next_content["preview_data_base64"] = base64.b64encode(payload_bytes).decode("ascii")
+        next_content["preview_data_base64"] = base64.b64encode(payload_bytes).decode(
+            "ascii"
+        )
         next_content.setdefault("preview_mime_type", record.mime_type)
 
     enriched["content"] = next_content
@@ -342,7 +359,11 @@ def _enrich_message_for_client(
         return enriched
 
     enriched["multipartContent"] = [
-        _enrich_multipart_part_for_client(part, app_instance) if isinstance(part, dict) else part
+        (
+            _enrich_multipart_part_for_client(part, app_instance)
+            if isinstance(part, dict)
+            else part
+        )
         for part in multipart_content
     ]
     return enriched
@@ -446,7 +467,9 @@ async def _on_startup() -> None:
 
         if _bonjour_handle is not None:
             _log.info(
-                "[bonjour] registration finished: service=%r port=%d", service_name, port
+                "[bonjour] registration finished: service=%r port=%d",
+                service_name,
+                port,
             )
         else:
             _log.warning(
@@ -512,7 +535,9 @@ class DataStore:
     """
 
     def __init__(self, initial_data: Optional[Dict[str, Any]] = None) -> None:
-        self._data: Dict[str, Any] = dict(initial_data or {"message": "Initial data", "count": 0})
+        self._data: Dict[str, Any] = dict(
+            initial_data or {"message": "Initial data", "count": 0}
+        )
         self._lock = threading.Lock()
 
     def get(self) -> Dict[str, Any]:
@@ -524,7 +549,9 @@ class DataStore:
     def update(self, new_data: Dict[str, Any]) -> Dict[str, Any]:
         """Merge ``new_data`` into the store and return the updated mapping."""
 
-        if not isinstance(new_data, dict):  # Defensive guard; FastAPI normally enforces this
+        if not isinstance(
+            new_data, dict
+        ):  # Defensive guard; FastAPI normally enforces this
             raise ValueError("new_data must be a mapping")
 
         with self._lock:
@@ -660,6 +687,7 @@ def _build_default_agent_app() -> AgentApplication:
         str(cfg),
         str(root),
         snapshot_selection_store=snapshot_selector,
+        env_overrides=_DEFAULT_RUNTIME_LAYOUT.env_overrides(),
     )
 
 
@@ -814,7 +842,9 @@ if _TEST_CONTROL_ENABLED:
         app_instance: AgentApplication = Depends(get_agent_app),
     ) -> Dict[str, Any]:
         body = payload or {}
-        tool_name = body.get("tool_name") if isinstance(body.get("tool_name"), str) else "add"
+        tool_name = (
+            body.get("tool_name") if isinstance(body.get("tool_name"), str) else "add"
+        )
         arguments = body.get("arguments")
         if not isinstance(arguments, dict):
             arguments = {"a": 2, "b": 3}
@@ -826,7 +856,9 @@ if _TEST_CONTROL_ENABLED:
 
         ctx = app_instance.load_session(session_id)
         if ctx is None:
-            raise HTTPException(status_code=404, detail=f"Session {session_id!r} not found")
+            raise HTTPException(
+                status_code=404, detail=f"Session {session_id!r} not found"
+            )
         _core, _base_config, session = ctx
         tool_call = {
             "id": "test-call-1",
@@ -902,7 +934,9 @@ def create_session(
             )
 
             try:
-                app_instance.record_checkpoint(session.session_id, stored.get("request_id"))
+                app_instance.record_checkpoint(
+                    session.session_id, stored.get("request_id")
+                )
             except Exception:  # pragma: no cover - defensive
                 _log.exception(
                     "failed to publish checkpoint event after session create for %r",
@@ -914,7 +948,10 @@ def create_session(
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    response = {"session": session.to_dict(), "errors": app_instance.get_config_errors()}
+    response = {
+        "session": session.to_dict(),
+        "errors": app_instance.get_config_errors(),
+    }
     _idempotency_store(scope, idempotency_key, data, response)
     return response
 
@@ -931,7 +968,9 @@ def _get_session_root(app_instance: AgentApplication) -> Path:
     store = getattr(app_instance, "_session_store", None)
     root = getattr(store, "_root_dir", None)
     if not isinstance(root, Path):  # pragma: no cover - defensive guard
-        raise HTTPException(status_code=500, detail="Session store does not expose a filesystem root")
+        raise HTTPException(
+            status_code=500, detail="Session store does not expose a filesystem root"
+        )
     return root
 
 
@@ -1064,7 +1103,12 @@ def _list_plugins_for_session(
             src = source
 
         result.append(
-            {**entry, "enabled": enabled, "source": src, "active": _is_active(kind, pid)}
+            {
+                **entry,
+                "enabled": enabled,
+                "source": src,
+                "active": _is_active(kind, pid),
+            }
         )
 
     return result
@@ -1142,7 +1186,6 @@ def _run_send_request_background(
         # ``final_messages`` and ``request_id`` are intentionally unused
         # here; callers are expected to observe results via the event
         # store and session history.
-
 
     except Exception:  # pragma: no cover - defensive
         _log.exception(
@@ -1247,7 +1290,9 @@ def get_session_application_ui_schema(
         # Try to get tags/models from the core if it has resolved plugins
         try:
             if hasattr(core, "_resolve_plugins_for_config"):
-                provider, _, _, _, resolved_tags = core._resolve_plugins_for_config(effective_config)
+                provider, _, _, _, resolved_tags = core._resolve_plugins_for_config(
+                    effective_config
+                )
                 tags = resolved_tags
                 if provider is not None and hasattr(core, "_get_models_for_config"):
                     models = core._get_models_for_config(provider, effective_config)
@@ -1264,7 +1309,9 @@ def get_session_application_ui_schema(
 
         # Filter by plugin if requested
         if plugin:
-            elements = [e for e in elements if isinstance(e, dict) and e.get("plugin") == plugin]
+            elements = [
+                e for e in elements if isinstance(e, dict) and e.get("plugin") == plugin
+            ]
         else:
             elements = [e for e in elements if isinstance(e, dict)]
 
@@ -1340,8 +1387,8 @@ def add_message(
     if cached is not None:
         return cached
 
-    normalized_role, content, metadata, multipart_content = _validate_and_normalize_message_payload(
-        payload
+    normalized_role, content, metadata, multipart_content = (
+        _validate_and_normalize_message_payload(payload)
     )
 
     try:
@@ -1351,7 +1398,9 @@ def add_message(
                 raise KeyError(f"Session {session_id!r} not found")
 
             core, base_config, session = ctx
-            effective_config = _effective_session_config(app_instance, base_config, session)
+            effective_config = _effective_session_config(
+                app_instance, base_config, session
+            )
             new_session = _append_message_to_session_locked(
                 app_instance,
                 core,
@@ -1385,7 +1434,9 @@ def _validate_and_normalize_message_payload(
 
     if multipart_content is not None:
         if not isinstance(multipart_content, list):
-            raise HTTPException(status_code=400, detail="multipartContent must be a list")
+            raise HTTPException(
+                status_code=400, detail="multipartContent must be a list"
+            )
         if not all(isinstance(part, dict) for part in multipart_content):
             raise HTTPException(
                 status_code=400, detail="multipartContent parts must be objects"
@@ -1402,7 +1453,9 @@ def _validate_and_normalize_message_payload(
             detail="content may be empty only when multipartContent is non-empty",
         )
 
-    normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
+    normalized_role = (
+        role if role in {"system", "user", "assistant", "tool"} else "user"
+    )
     return normalized_role, content, metadata, multipart_content
 
 
@@ -1475,7 +1528,9 @@ def put_session_plugins(
 
     enabled_val = (payload or {}).get("enabled")
     if not isinstance(enabled_val, list):
-        raise HTTPException(status_code=400, detail="enabled must be a list of plugin ids")
+        raise HTTPException(
+            status_code=400, detail="enabled must be a list of plugin ids"
+        )
 
     seen: Dict[str, None] = {}
     normalized: List[str] = []
@@ -1837,7 +1892,9 @@ def update_message(
             )
 
             try:
-                app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
+                app_instance.record_checkpoint(
+                    new_session.session_id, stored.get("request_id")
+                )
             except Exception:  # pragma: no cover - defensive
                 _log.exception(
                     "failed to publish checkpoint event after message modify for %r",
@@ -1918,8 +1975,8 @@ def send_message(
     if not isinstance(message, dict):
         raise HTTPException(status_code=400, detail="message must be an object")
 
-    normalized_role, content, metadata, multipart_content = _validate_and_normalize_message_payload(
-        message
+    normalized_role, content, metadata, multipart_content = (
+        _validate_and_normalize_message_payload(message)
     )
 
     raw_overrides = body.get("config_overrides")
@@ -1943,7 +2000,9 @@ def send_message(
         "config_overrides": overrides,
     }
 
-    cached = _idempotency_maybe_replay(scope, effective_idempotency_key, idempotency_payload)
+    cached = _idempotency_maybe_replay(
+        scope, effective_idempotency_key, idempotency_payload
+    )
     if cached is not None:
         return cached
 
@@ -1955,11 +2014,13 @@ def send_message(
             if cached is not None:
                 return cached
 
-            core, base_config, session, _baseline_file_state = _load_session_ctx_for_send(
-                app_instance,
-                session_id,
-                overrides=overrides,
-                acquire_lock=False,
+            core, base_config, session, _baseline_file_state = (
+                _load_session_ctx_for_send(
+                    app_instance,
+                    session_id,
+                    overrides=overrides,
+                    acquire_lock=False,
+                )
             )
 
             request_id = _generate_request_id(app_instance)
@@ -1996,7 +2057,9 @@ def send_message(
                 "request_id": request_id,
                 "session_id": session_id,
             }
-            _idempotency_store(scope, effective_idempotency_key, idempotency_payload, response)
+            _idempotency_store(
+                scope, effective_idempotency_key, idempotency_payload, response
+            )
     except ReadonlySessionViewError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
@@ -2087,7 +2150,9 @@ def delete_messages(
             elif has_range:
                 range_spec = body.get("range") or {}
                 if not isinstance(range_spec, dict):
-                    raise HTTPException(status_code=400, detail="range must be an object")
+                    raise HTTPException(
+                        status_code=400, detail="range must be an object"
+                    )
 
                 start = range_spec.get("start")
                 end = range_spec.get("end")
@@ -2101,7 +2166,9 @@ def delete_messages(
                     )
 
                 try:
-                    start_idx, end_idx = _normalize_slice_bounds(message_count, start, end)
+                    start_idx, end_idx = _normalize_slice_bounds(
+                        message_count, start, end
+                    )
                 except ValueError as exc:
                     raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -2110,7 +2177,9 @@ def delete_messages(
             else:  # has_last
                 last = body.get("last")
                 if not isinstance(last, int):
-                    raise HTTPException(status_code=400, detail="last must be an integer")
+                    raise HTTPException(
+                        status_code=400, detail="last must be an integer"
+                    )
                 if last <= 0:
                     raise HTTPException(
                         status_code=400, detail="count must be a positive integer"
@@ -2121,7 +2190,9 @@ def delete_messages(
                 delete_indices = list(range(start_idx, message_count))
 
             if not delete_indices:
-                raise HTTPException(status_code=400, detail="no messages selected for deletion")
+                raise HTTPException(
+                    status_code=400, detail="no messages selected for deletion"
+                )
 
             # Perform the deletion via the core, mirroring TerminalApplication.delete_messages.
             metadata = session.metadata if isinstance(session.metadata, dict) else {}
@@ -2131,7 +2202,9 @@ def delete_messages(
             )
             config = resolve_request_config(base_config, overrides)
 
-            new_session = core.slice_session(session, config, remove_indices=delete_indices)
+            new_session = core.slice_session(
+                session, config, remove_indices=delete_indices
+            )
             app_instance.save_session(new_session)
 
             concrete_indices = sorted(set(delete_indices))
@@ -2145,7 +2218,9 @@ def delete_messages(
             )
 
             try:
-                app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
+                app_instance.record_checkpoint(
+                    new_session.session_id, stored.get("request_id")
+                )
             except Exception:  # pragma: no cover - defensive
                 _log.exception(
                     "failed to publish checkpoint event after messages delete for %r",
@@ -2193,7 +2268,11 @@ def list_sessions(
     # Resolve the metadata key used for pinned state once per call.
     raw_cfg = getattr(app_instance, "_config", {})
     app_cfg = raw_cfg.get("application") if isinstance(raw_cfg, dict) else {}
-    raw_pinned_key = app_cfg.get("session_pinned_metadata_key") if isinstance(app_cfg, dict) else None
+    raw_pinned_key = (
+        app_cfg.get("session_pinned_metadata_key")
+        if isinstance(app_cfg, dict)
+        else None
+    )
     if isinstance(raw_pinned_key, str) and raw_pinned_key.strip():
         pinned_metadata_key = raw_pinned_key.strip()
     else:
@@ -2427,7 +2506,11 @@ def create_session_snapshot(
             snapshot = app_instance.create_session_snapshot(
                 session_id,
                 reason=reason.strip(),
-                metadata=body.get("metadata") if isinstance(body.get("metadata"), dict) else None,
+                metadata=(
+                    body.get("metadata")
+                    if isinstance(body.get("metadata"), dict)
+                    else None
+                ),
             )
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -2466,7 +2549,9 @@ def select_session_snapshot(
     if cached is not None:
         return cached
     if _get_active_send_request_id(session_id) is not None:
-        raise HTTPException(status_code=409, detail="Cannot select snapshot while a request is running")
+        raise HTTPException(
+            status_code=409, detail="Cannot select snapshot while a request is running"
+        )
     try:
         with app_instance.acquire_session_lock(session_id):
             app_instance.select_session_snapshot(session_id, snapshot_id)
@@ -2527,7 +2612,9 @@ def restore_session_snapshot(
     if cached is not None:
         return cached
     if _get_active_send_request_id(session_id) is not None:
-        raise HTTPException(status_code=409, detail="Cannot restore snapshot while a request is running")
+        raise HTTPException(
+            status_code=409, detail="Cannot restore snapshot while a request is running"
+        )
     try:
         with app_instance.acquire_session_lock(session_id):
             restored = app_instance.restore_session_snapshot(session_id, snapshot_id)
@@ -2762,9 +2849,7 @@ def fork_session(
             app_instance.save_session(new_session)
 
             # Publish a lifecycle event so frontends can surface the fork.
-            md = (
-                new_session.metadata if isinstance(new_session.metadata, dict) else {}
-            )
+            md = new_session.metadata if isinstance(new_session.metadata, dict) else {}
             agent_val = md.get("agent_id")
             agent_id = agent_val.strip() if isinstance(agent_val, str) else ""
             stored = app_instance.publish_event(
@@ -2778,7 +2863,9 @@ def fork_session(
             )
 
             try:
-                app_instance.record_checkpoint(new_session.session_id, stored.get("request_id"))
+                app_instance.record_checkpoint(
+                    new_session.session_id, stored.get("request_id")
+                )
             except Exception:  # pragma: no cover - defensive
                 _log.exception(
                     "failed to publish checkpoint event after fork for %r",
@@ -2790,7 +2877,10 @@ def fork_session(
     except ReadonlySessionViewError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
-    response = {"session": new_session.to_dict(), "source_session_id": session.session_id}
+    response = {
+        "session": new_session.to_dict(),
+        "source_session_id": session.session_id,
+    }
     _idempotency_store(scope, idempotency_key, data, response)
     return response
 
@@ -2832,7 +2922,9 @@ def list_session_messages(
                 results.append(
                     {
                         "index": idx,
-                        "message": _enrich_message_for_client(msg.to_dict(), app_instance),
+                        "message": _enrich_message_for_client(
+                            msg.to_dict(), app_instance
+                        ),
                     }
                 )
 
@@ -2935,7 +3027,9 @@ def list_events(
                 "session_restored_from_snapshot",
             }
             compacted = [
-                ev for ev in compacted if isinstance(ev, dict) and ev.get("type") in allowed_types
+                ev
+                for ev in compacted
+                if isinstance(ev, dict) and ev.get("type") in allowed_types
             ]
     if len(compacted) > limit:
         compacted = compacted[:limit]
@@ -3037,12 +3131,16 @@ def update_session_agent(
 
     target_agent_id = payload.get("agent_id")
     if not isinstance(target_agent_id, str) or not target_agent_id:
-        raise HTTPException(status_code=400, detail="agent_id must be a non-empty string")
+        raise HTTPException(
+            status_code=400, detail="agent_id must be a non-empty string"
+        )
 
     # Validate the target agent using the same semantics as the terminal app.
     available = [a for a in app_instance.list_agents() if isinstance(a, str) and a]
     if target_agent_id not in available:
-        raise HTTPException(status_code=400, detail=f"unknown agent: {target_agent_id!r}")
+        raise HTTPException(
+            status_code=400, detail=f"unknown agent: {target_agent_id!r}"
+        )
 
     try:
         with app_instance.acquire_session_lock(session_id):
@@ -3096,7 +3194,9 @@ def list_application_actions(
 
     actions = app_instance.get_application_actions()
     if plugin:
-        actions = [a for a in actions if isinstance(a, dict) and a.get("plugin") == plugin]
+        actions = [
+            a for a in actions if isinstance(a, dict) and a.get("plugin") == plugin
+        ]
     else:
         actions = [a for a in actions if isinstance(a, dict)]
     return {"actions": actions}
@@ -3116,7 +3216,9 @@ def list_application_ui_schema(
 
     elements = app_instance.get_application_ui_schema()
     if plugin:
-        elements = [e for e in elements if isinstance(e, dict) and e.get("plugin") == plugin]
+        elements = [
+            e for e in elements if isinstance(e, dict) and e.get("plugin") == plugin
+        ]
     else:
         elements = [e for e in elements if isinstance(e, dict)]
     return {"elements": elements}

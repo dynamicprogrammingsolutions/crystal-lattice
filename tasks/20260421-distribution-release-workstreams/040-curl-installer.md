@@ -31,7 +31,7 @@ Depends On: `tasks/20260421-distribution-release-workstreams/030-github-releases
   - fetch the latest GitHub Release tag via the GitHub API unless `VERSION` is provided,
   - construct the expected asset filename,
   - download and extract the matching archive,
-  - install `agent-terminal-app` into `$HOME/.local/bin` by default,
+  - install `crystal-lattice` into `$HOME/.local/bin` by default,
   - allow `INSTALL_DIR` override for custom or privileged installs.
 - Also document the safer review-first path: download the script, inspect it, then run it locally.
 

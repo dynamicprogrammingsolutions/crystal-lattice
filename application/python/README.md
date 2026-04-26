@@ -1,6 +1,6 @@
-# agent-terminal-app
+# crystal-lattice-cli
 
-Minimal example application that combines the core SDK's
+Crystal Lattice command-line application that combines the core SDK's
 `AgentApplication` API with:
 
 - a FastAPI-based JSON API for sessions and requests
@@ -12,6 +12,23 @@ frontends can observe the same session's events (including streaming
 assistant messages) when they run in the same process.
 
 ## Installation
+
+For end users with Python 3.10+ available, the recommended install path is
+`pipx`:
+
+```bash
+pipx install crystal-lattice-cli
+crystal-lattice --help
+```
+
+You can also install into an active virtualenv:
+
+```bash
+pip install crystal-lattice-cli
+crystal-lattice --help
+```
+
+For local development, install from source.
 
 From the repository root:
 
@@ -25,14 +42,85 @@ cd ../../application/python
 pip install -e .
 ```
 
-Python 3.10+ is required.
+Python 3.10+ is required. The installable Python distribution is
+`crystal-lattice-cli`, the user-facing command is `crystal-lattice`, and the
+internal Python module remains `agent_terminal_app`. The module invocation
+`python -m agent_terminal_app` remains supported for development and debugging.
+
+## Release versioning
+
+`agent-core` and `crystal-lattice-cli` version independently. The CLI package
+declares the minimum compatible core version through its `agent-core>=...`
+dependency. When a CLI release needs newer core behavior, bump the
+`agent-core` dependency floor and release the core package first or alongside
+the CLI package.
+
+## Binary builds
+
+The first binary release format is a PyInstaller `--onedir` bundle. It keeps
+the executable, bundled Python runtime, app assets, and built-in plugin source
+projects as separate files so release artifacts are easier to inspect and
+debug.
+
+Install build dependencies from the repository root:
+
+```bash
+python -m pip install -e core/python -e "application/python[binary]"
+```
+
+Build the current platform:
+
+```bash
+python scripts/build_crystal_lattice_binary.py
+```
+
+The script creates a PyInstaller app directory under
+`application/python/dist/crystal-lattice/` and a release archive under
+`dist/crystal-lattice/`, using names such as:
+
+```text
+crystal-lattice-cli-v0.1.0-linux-amd64.tar.gz
+crystal-lattice-cli-v0.1.0-darwin-arm64.tar.gz
+crystal-lattice-cli-v0.1.0-windows-amd64.zip
+```
+
+PyInstaller does not cross-compile. Build Linux, macOS, and Windows binaries on
+matching hosts or CI runners.
+
+Runtime paths are described by `agent_terminal_app/runtime_layout.json` in
+source installs. The binary build script generates a bundled manifest matching
+the PyInstaller layout. `CONFIG_DIR` always remains the directory of the active
+config file; the manifest defines default config/session locations and
+bundle-owned paths such as `BUILTIN_PLUGINS`.
+
+The bundle includes sanitized built-in plugin project directories from the
+repo-root `plugins/` directory. User-owned state stays outside the bundle:
+config files, sessions, auth state, and plugin install caches belong under the
+selected `.crystal` directory.
+
+### Docker Linux bundle test
+
+Linux bundling can be tested locally through pytest and Docker. The test
+exports the staged Git index into a clean snapshot, builds the Linux bundle in
+a Python builder container, then validates the archive in a separate Ubuntu
+runtime container.
+
+Stage the files you want included in the clean snapshot, then run:
+
+```bash
+git add <files-to-test>
+pytest application/python/tests/test_binary_distribution_docker.py -q
+```
+
+This test is marked `integration` and `docker`. Docker validates Linux bundles
+only; macOS and Windows bundles still need native runners.
 
 ## Running the API server
 
-From `application/python`:
+After installation:
 
 ```bash
-python -m agent_terminal_app
+crystal-lattice
 ```
 
 This starts a FastAPI app (via uvicorn) on `http://127.0.0.1:8000` by
@@ -46,7 +134,7 @@ default. The main routes are:
 You can change host and port:
 
 ```bash
-python -m agent_terminal_app --host 0.0.0.0 --port 9000
+crystal-lattice --host 0.0.0.0 --port 9000
 ```
 
 ## Enabling Bonjour (mDNS) and the bridge service
@@ -60,21 +148,19 @@ The API server can optionally:
   clients can reach the server via a WebSocket bridge with a pairing
   flow.
 
-These integrations are configured via command‑line flags when starting
-the app with ``python -m agent_terminal_app``. Under the hood the
+These integrations are configured via command-line flags when starting
+the app with `crystal-lattice`. Under the hood the
 flags are converted to environment variables (``ENABLE_BONJOUR``,
 ``BRIDGE_URL``, etc.) that the FastAPI app reads on startup.
 
 ### Simplest Bonjour command
 
-From ``application/python``:
-
 ```bash
-python -m agent_terminal_app \
+crystal-lattice \
   --host 0.0.0.0 \
   --port 9000 \
   --enable-bonjour
-``
+```
 
 This will:
 
@@ -113,11 +199,11 @@ repository) exposing a WebSocket endpoint such as
 The minimal command is:
 
 ```bash
-python -m agent_terminal_app \
+crystal-lattice \
   --host 0.0.0.0 \
   --port 9000 \
   --bridge-url ws://localhost:4000/ws/websocket
-``
+```
 
 This will:
 
@@ -157,14 +243,14 @@ Under the hood these map to the following environment variables:
 You can enable both integrations at the same time:
 
 ```bash
-python -m agent_terminal_app \
+crystal-lattice \
   --host 0.0.0.0 \
   --port 9000 \
   --enable-bonjour \
   --bridge-url ws://localhost:4000/ws/websocket \
   --bridge-display-name "My Agent Server" \
   --bridge-location "Office"
-``
+```
 
 In this mode:
 
@@ -178,7 +264,7 @@ In this mode:
 To run only the terminal client (no HTTP server in this process):
 
 ```bash
-python -m agent_terminal_app --console
+crystal-lattice --console
 ```
 
 Features:
@@ -203,7 +289,7 @@ in the foreground, sharing the same `AgentApplication` instance and
 in-memory event store:
 
 ```bash
-python -m agent_terminal_app --server --console
+crystal-lattice --server --console
 ```
 
 In this mode, any requests sent through the HTTP API (for the same
@@ -219,13 +305,13 @@ You can mirror logs to a separate file using `--log-file`:
 
 ```bash
 # Server only, with logs mirrored to app.log
-python -m agent_terminal_app --log-file app.log
+crystal-lattice --log-file app.log
 
 # Console only, with logs mirrored to console.log
-python -m agent_terminal_app --console --log-file console.log
+crystal-lattice --console --log-file console.log
 
 # Server + console, with all logs mirrored to combined.log
-python -m agent_terminal_app --server --console --log-file combined.log
+crystal-lattice --server --console --log-file combined.log
 ```
 
 The `--log-file` option adds a file handler to Python's root logger, so
@@ -237,8 +323,8 @@ and the core SDK using `--log-level` (overriding any `LOG_LEVEL`
 environment variable):
 
 ```bash
-python -m agent_terminal_app --log-level DEBUG
-python -m agent_terminal_app --console --log-level INFO
+crystal-lattice --log-level DEBUG
+crystal-lattice --console --log-level INFO
 ```
 
 ## Command-line options
@@ -246,7 +332,7 @@ python -m agent_terminal_app --console --log-level INFO
 You can inspect all available flags with:
 
 ```bash
-python -m agent_terminal_app --help
+crystal-lattice --help
 ```
 
 Common options:

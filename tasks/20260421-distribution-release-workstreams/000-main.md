@@ -4,8 +4,8 @@ Create a complete distribution plan and implementation path for the Python deskt
 
 ## Task checklist
 
-- [ ] `tasks/20260421-distribution-release-workstreams/010-python-packaging-and-cli.md`
-- [ ] `tasks/20260421-distribution-release-workstreams/020-cross-platform-binary-builds.md`
+- [x] `tasks/20260421-distribution-release-workstreams/010-python-packaging-and-cli.md`
+- [x] `tasks/20260421-distribution-release-workstreams/020-cross-platform-binary-builds.md`
 - [ ] `tasks/20260421-distribution-release-workstreams/030-github-releases-and-ci.md`
 - [ ] `tasks/20260421-distribution-release-workstreams/040-curl-installer.md`
 - [ ] `tasks/20260421-distribution-release-workstreams/050-homebrew-distribution.md`
@@ -15,8 +15,8 @@ Create a complete distribution plan and implementation path for the Python deskt
 
 ## Context summary
 
-- Python packaging already exists in `core/python/pyproject.toml:5-43` and `application/python/pyproject.toml:5-26`, but there is not yet a declared console script for `agent-terminal-app`.
-- `agent-terminal-app` currently depends on `agent-core>=0.3.0` and requires Python `>=3.10`; if we want users to avoid managing Python versions, binary packaging needs to bundle the interpreter and dependencies.
+- Python packaging exists in `core/python/pyproject.toml:5-43` and `application/python/pyproject.toml:5-29`; the installable CLI distribution is now `crystal-lattice-cli`, with the `crystal-lattice` console script targeting `agent_terminal_app.__main__:main`.
+- `crystal-lattice-cli` currently depends on `agent-core>=0.3.0` and requires Python `>=3.10`; if we want users to avoid managing Python versions, binary packaging needs to bundle the interpreter and dependencies.
 - The mobile app already has stable package identifiers and basic release metadata anchors:
   - Android package/version settings in `mobile/crystal-lattice-control-rn/android/app/build.gradle:75-107`.
   - iOS bundle/version settings in `mobile/crystal-lattice-control-rn/ios/CrystalLatticeControlRN.xcodeproj/project.pbxproj:260-314`.

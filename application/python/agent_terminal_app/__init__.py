@@ -16,7 +16,16 @@ applications.
 
 from __future__ import annotations
 
-from .server import app, run_api
-from .terminal import run_terminal
-
 __all__ = ["app", "run_api", "run_terminal"]
+
+
+def __getattr__(name: str):
+    if name in {"app", "run_api"}:
+        from .server import app, run_api
+
+        return {"app": app, "run_api": run_api}[name]
+    if name == "run_terminal":
+        from .terminal import run_terminal
+
+        return run_terminal
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

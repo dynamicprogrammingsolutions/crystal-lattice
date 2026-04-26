@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "layout": "source",
+  "bundle_paths": {
+    "builtin_plugins": "../../../plugins",
+    "default_config_template": "default_config",
+    "config_examples": ".",
+    "root_system_messages": "system_messages"
+  },
+  "user_paths": {
+    "local_config": "./.crystal/config.json",
+    "home_config": "~/.crystal/config.json",
+    "default_config": "~/.crystal/config.json",
+    "default_sessions_dir": "./.crystal/sessions"
+  }
+}

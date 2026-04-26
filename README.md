@@ -26,9 +26,16 @@ source .venv/bin/activate  # Linux/macOS
 # .venv\Scripts\activate  # Windows
 ```
 
-### 1. Install from source
+### 1. Install the CLI
 
-From the repository root:
+For a published Python install, use:
+
+```bash
+pipx install crystal-lattice-cli
+crystal-lattice --help
+```
+
+From a local checkout, install the editable packages from the repository root:
 
 ```bash
 # Core SDK + plugins
@@ -90,7 +97,7 @@ From the repo root:
 cd application/python
 mkdir -p .crystal
 cp agent_terminal_app/config_echo_app.json .crystal/config.json
-python -m agent_terminal_app --console
+crystal-lattice --console
 ```
 
 You now have an interactive terminal client:
@@ -195,7 +202,7 @@ From the repo root:
 ```bash
 cd application/python
 export OPENROUTER_API_KEY=...  # or set in a .env file
-python -m agent_terminal_app --console \
+crystal-lattice --console \
   --config agent_terminal_app/config_openrouter_app_layer.json
 ```
 
@@ -579,7 +586,7 @@ python scripts/generate_examples_md.py
 ## Status, Version, License
 
 - Core package: **`agent-core` 0.3.0**
-- Terminal app: **`agent-terminal-app` 0.1.0**
+- Terminal CLI package: **`crystal-lattice-cli` 0.1.0** (`crystal-lattice` command)
 - License: **MIT**
 
 See `core/python/pyproject.toml`, `application/python/pyproject.toml`, and the source files for the most up‑to‑date behavior.

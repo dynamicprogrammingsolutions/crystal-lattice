@@ -22,7 +22,7 @@ Depends On: `tasks/20260421-distribution-release-workstreams/030-github-releases
 
 - Treat npm as optional and secondary to GitHub Releases and `curl` installation.
 - If implemented, publish a small npm package that:
-  - exposes `agent-terminal-app` in the `bin` field,
+  - exposes `crystal-lattice` in the `bin` field,
   - runs a `postinstall` script that detects OS/arch,
   - downloads the matching release archive from GitHub Releases,
   - stores the executable under the package directory,

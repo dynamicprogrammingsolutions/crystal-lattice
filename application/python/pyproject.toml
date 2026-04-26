@@ -3,9 +3,10 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "agent-terminal-app"
+name = "crystal-lattice-cli"
 version = "0.1.0"
-description = "Minimal FastAPI + prompt_toolkit frontend for agent-core"
+description = "Crystal Lattice command-line and HTTP frontend for agent-core"
+readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
@@ -22,12 +23,36 @@ dependencies = [
     "httpx>=0.27.0",
 ]
 
+[project.optional-dependencies]
+binary = [
+    "pyinstaller>=6.0",
+    "tomli>=2.0.0; python_version < '3.11'",
+]
+
+[project.scripts]
+crystal-lattice = "agent_terminal_app.__main__:main"
+
 [tool.setuptools.packages.find]
 include = ["agent_terminal_app*"]
+
+[tool.setuptools.package-data]
+agent_terminal_app = [
+    "*.json",
+    "runtime_layout.json",
+    "default_config/*.json",
+    "default_config/*.md",
+    "default_config/codex/**/*.json",
+    "default_config/codex/**/*.md",
+    "default_config/system_messages/**/*.md",
+    "default_config/system_messages/**/*.py",
+    "system_messages/**/*.md",
+    "system_messages/**/*.py",
+]
 
 [tool.pytest.ini_options]
 markers = [
     "integration: integration tests that may hit real services",
+    "docker: tests that require Docker",
     "openai: tests requiring OpenAI credentials",
     "ollama: Ollama integration tests",
     "openrouter: OpenRouter integration tests",

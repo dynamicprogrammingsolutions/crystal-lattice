@@ -20,9 +20,9 @@ Depends On: `tasks/20260421-distribution-release-workstreams/030-github-releases
 
 ## Proposed solution from conversation
 
-- Start with a custom tap such as `your-org/homebrew-agent-terminal-app` or `your-org/homebrew-tap` rather than targeting `homebrew-core` immediately.
+- Start with a custom tap such as `your-org/homebrew-crystal-lattice-cli` or `your-org/homebrew-tap` rather than targeting `homebrew-core` immediately.
 - Use a formula that downloads prebuilt release archives instead of building from Python source inside Homebrew.
-- In the formula, select the correct URL and SHA-256 for `darwin`/`linux` and `arm64`/`amd64`, then install the `agent-terminal-app` binary into Homebrew's `bin`.
+- In the formula, select the correct URL and SHA-256 for `darwin`/`linux` and `arm64`/`amd64`, then install the `crystal-lattice` binary into Homebrew's `bin`.
 - Keep the formula small and stable by reusing the same GitHub Release assets already produced for direct downloads and the `curl` installer.
 
 ## Deliverables
