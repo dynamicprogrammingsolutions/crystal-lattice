@@ -31,6 +31,7 @@ from agent_app.application_future import AgentApplication
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+pytestmark = pytest.mark.integration
 
 REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
 REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -45,7 +46,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: List[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -90,7 +93,11 @@ def _make_app_config(tmp_path: Path) -> Path:
             "plugins.openai_provider.OpenAICompatibleProvider",
             "plugins.openai_tools_extension.OpenAIToolsExtension",
             "plugins.ollama_thinking_extension.OllamaThinkingExtension",
-            {"node_tool": {"path": "core/python/tests/fixtures/node_tools/js-fs-tools"}},
+            {
+                "node_tool": {
+                    "path": "core/python/tests/fixtures/node_tools/js-fs-tools"
+                }
+            },
         ],
         "agents": {
             "default": {"provider": "ollama_tools"},
@@ -113,7 +120,9 @@ def _collect_events(
     core, base_config, session = ctx
 
     events: List[Dict[str, Any]] = []
-    for ev in app.send_request(core, session, base_config, overrides or {}, stream=stream):
+    for ev in app.send_request(
+        core, session, base_config, overrides or {}, stream=stream
+    ):
         events.append(ev)
     return events
 
@@ -126,7 +135,8 @@ def _extract_tool_names_from_results(events: List[Dict[str, Any]]) -> Set[str]:
     return {
         str((m.get("metadata") or {}).get("tool_name"))
         for m in tool_msgs
-        if isinstance(m, dict) and isinstance((m.get("metadata") or {}).get("tool_name"), str)
+        if isinstance(m, dict)
+        and isinstance((m.get("metadata") or {}).get("tool_name"), str)
     }
 
 
@@ -176,7 +186,9 @@ def _last_assistant_text(events: List[Dict[str, Any]]) -> str:
         return ""
     last_final = finals[-1]
     messages = last_final.get("messages") or []
-    assistants = [m for m in messages if isinstance(m, dict) and m.get("role") == "assistant"]
+    assistants = [
+        m for m in messages if isinstance(m, dict) and m.get("role") == "assistant"
+    ]
     if not assistants:
         return ""
     return str(assistants[-1].get("content") or "")
@@ -206,7 +218,9 @@ def test_application_layer_ollama_js_fs_tools_streaming_emits_tool_partials(
     session_root = tmp_path / "sessions"
     app = AgentApplication(str(config_path), str(session_root))
 
-    write_path = str(REPO_TMP_DIR / f"node_tools_streaming_{os.getpid()}_{os.urandom(4).hex()}.txt")
+    write_path = str(
+        REPO_TMP_DIR / f"node_tools_streaming_{os.getpid()}_{os.urandom(4).hex()}.txt"
+    )
     desired = "HELLO_FROM_JS_STREAMING"
 
     core, _base_config, session = app.create_session("default")
@@ -240,7 +254,9 @@ def test_application_layer_ollama_js_fs_tools_streaming_emits_tool_partials(
 
     session = core.add_message(session, "system", system_message)
     session = core.add_message(session, "user", user_message)
-    session = core.add_message(session, "assistant", "", metadata={"tool_calls": tool_calls})
+    session = core.add_message(
+        session, "assistant", "", metadata={"tool_calls": tool_calls}
+    )
     app.save_session(session)
 
     events = _collect_events(app, session_id, stream=True, overrides=None)
@@ -289,7 +305,9 @@ def test_application_layer_ollama_js_fs_tools_streaming_disabled_has_no_stream_p
     session_root = tmp_path / "sessions"
     app = AgentApplication(str(config_path), str(session_root))
 
-    write_path = str(REPO_TMP_DIR / f"node_tools_no_stream_{os.getpid()}_{os.urandom(4).hex()}.txt")
+    write_path = str(
+        REPO_TMP_DIR / f"node_tools_no_stream_{os.getpid()}_{os.urandom(4).hex()}.txt"
+    )
     desired = "HELLO_FROM_JS_NO_STREAM"
 
     core, _base_config, session = app.create_session("default")
@@ -322,7 +340,9 @@ def test_application_layer_ollama_js_fs_tools_streaming_disabled_has_no_stream_p
 
     session = core.add_message(session, "system", system_message)
     session = core.add_message(session, "user", user_message)
-    session = core.add_message(session, "assistant", "", metadata={"tool_calls": tool_calls})
+    session = core.add_message(
+        session, "assistant", "", metadata={"tool_calls": tool_calls}
+    )
     app.save_session(session)
 
     overrides = {"node_tool_stream_parts": False}
@@ -336,7 +356,8 @@ def test_application_layer_ollama_js_fs_tools_streaming_disabled_has_no_stream_p
     # Even when tools don't stream, the application tool loop emits one
     # tool_partial(end) event per tool call in streaming mode.
     assert not any(
-        ev.get("type") == "tool_partial" and ev.get("phase") in {"start", "stream"} for ev in events
+        ev.get("type") == "tool_partial" and ev.get("phase") in {"start", "stream"}
+        for ev in events
     )
 
     tool_names = _extract_tool_names_from_results(events)

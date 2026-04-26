@@ -9,9 +9,7 @@ DOCS_ROOT = REPO_ROOT / "docs" / "default-system-instructions"
 RUNTIME_SYSTEM_MESSAGES_ROOT = (
     REPO_ROOT / "application" / "python" / "agent_terminal_app" / "system_messages"
 )
-DEFAULT_CONFIG_ROOT = (
-    REPO_ROOT / "application" / "python" / "agent_terminal_app" / "default_config"
-)
+DEFAULT_CONFIG_ROOT = REPO_ROOT / "application" / "python" / "agent_terminal_app" / "default_config"
 
 
 def test_vendor_instruction_directories_exist() -> None:
@@ -206,7 +204,9 @@ def test_runtime_system_message_templates_exist() -> None:
         assert (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).is_file(), relative_path
 
 
-def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_placeholders() -> None:
+def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_placeholders() -> (
+    None
+):
     runtime_templates = {
         "gemini/template.md": {
             "{{AVAILABLE_SUBAGENTS_SECTION}}",
@@ -233,9 +233,7 @@ def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_p
     }
 
     for relative_path, removed_markers in runtime_templates.items():
-        template_text = (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).read_text(
-            encoding="utf-8"
-        )
+        template_text = (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).read_text(encoding="utf-8")
         for marker in removed_markers:
             assert marker not in template_text, (relative_path, marker)
 
@@ -268,8 +266,8 @@ def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_p
     }
 
     for agent_id, removed_keys in removed_variable_keys.items():
-        provider_id = portable_config["agents"][agent_id]["provider"]
-        variables = portable_config["providers"][provider_id]["system_message"]["variables"]
+        mixin_ref = portable_config["agents"][agent_id]["mixin_refs"][0]
+        variables = portable_config["mixins"][mixin_ref]["system_message"]["variables"]
         for key in removed_keys:
             assert key not in variables, (agent_id, key)
 
@@ -281,7 +279,7 @@ def test_portable_default_config_is_self_contained() -> None:
     assert (DEFAULT_CONFIG_ROOT / "codex").is_dir()
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    codex_rows = config["providers"]["openrouter_codex_tools"]["codex_developer_messages"]
+    codex_rows = config["mixins"]["codex_developer_message"]["codex_developer_messages"]
 
     for row in codex_rows:
         text = row["text"]

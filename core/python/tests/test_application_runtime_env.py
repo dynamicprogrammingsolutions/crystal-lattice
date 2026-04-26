@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import gc
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ import pytest
 
 from agent_app.application_future import AgentApplication
 from agent_app.config import build_agent_config
+from agent_app.runtime_env import RuntimeEnvOverlay
 from agent_core import AgentCore
 
 from .dummy_app_plugin import DummyAppPlugin  # noqa: F401
@@ -16,9 +18,7 @@ from .dummy_provider import DummyProvider  # noqa: F401
 
 def _write_config(tmp_path: Path) -> Path:
     cfg = {
-        "providers": {
-            "dummy": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"dummy": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": [
             "tests.dummy_provider.DummyProvider",
             "tests.dummy_app_plugin.DummyAppPlugin",
@@ -33,7 +33,9 @@ def _write_config(tmp_path: Path) -> Path:
     return path
 
 
-def test_application_plugins_receive_runtime_env_overlay_and_agent_config_stays_clean(tmp_path: Path) -> None:
+def test_application_plugins_receive_runtime_env_overlay_and_agent_config_stays_clean(
+    tmp_path: Path,
+) -> None:
     config_path = _write_config(tmp_path)
     app = AgentApplication(
         str(config_path),
@@ -87,7 +89,9 @@ def test_runtime_env_overlay_rejects_conflicting_live_apps(tmp_path: Path) -> No
         env_overrides={"CONFIG_DIR": str(tmp_path / "config-a")},
     )
     try:
-        with pytest.raises(RuntimeError, match="Conflicting runtime environment overlay"):
+        with pytest.raises(
+            RuntimeError, match="Conflicting runtime environment overlay"
+        ):
             AgentApplication(
                 str(config_path),
                 str(tmp_path / "sessions-b"),
@@ -96,3 +100,31 @@ def test_runtime_env_overlay_rejects_conflicting_live_apps(tmp_path: Path) -> No
             )
     finally:
         app.close()
+
+
+def test_runtime_env_overlay_gc_cleanup_during_install_does_not_deadlock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    key = "CRYSTAL_TEST_RUNTIME_ENV_OVERLAY_DEADLOCK"
+    previous = os.environ.get(key)
+    os.environ.pop(key, None)
+
+    first = RuntimeEnvOverlay({key: "first"})
+    second = RuntimeEnvOverlay({key: "second"})
+    first.install()
+
+    def _collect() -> int:
+        first.close()
+        return 0
+
+    monkeypatch.setattr(gc, "collect", _collect)
+    try:
+        second.install()
+        assert os.environ[key] == "second"
+    finally:
+        second.close()
+        first.close()
+        if previous is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = previous

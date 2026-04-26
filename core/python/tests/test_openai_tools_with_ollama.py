@@ -23,6 +23,7 @@ from agent_core import AgentCore
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+pytestmark = pytest.mark.integration
 
 
 REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
@@ -34,7 +35,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -104,7 +107,9 @@ def test_tools_flow_with_ollama(ensure_model):
         md = assistant.get("metadata") or {}
         tool_calls = md.get("tool_calls") or []
         print("\n<== Assistant proposed tool call:")
-        assert len(tool_calls) == 1, f"expected a single tool call, got {len(tool_calls)}"
+        assert (
+            len(tool_calls) == 1
+        ), f"expected a single tool call, got {len(tool_calls)}"
         tc = tool_calls[0]
         fn_info = tc.get("function") or {}
         print(f"  [0] {fn_info.get('name')} args={fn_info.get('arguments')}")

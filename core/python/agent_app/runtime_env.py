@@ -18,7 +18,7 @@ class RuntimeEnvOverlay:
     application roots at once.
     """
 
-    _lock = threading.Lock()
+    _lock = threading.RLock()
     _managed: Dict[str, Dict[str, object]] = {}
 
     def __init__(self, values: Mapping[str, str]) -> None:
@@ -47,7 +47,9 @@ class RuntimeEnvOverlay:
                         gc.collect()
                         self._cleanup_stale_locked()
                         record = self._managed.get(key)
-                        current_value = record.get("value") if record is not None else None
+                        current_value = (
+                            record.get("value") if record is not None else None
+                        )
                     if record is not None and current_value != desired:
                         raise RuntimeError(
                             "Conflicting runtime environment overlay for "
@@ -98,7 +100,9 @@ class RuntimeEnvOverlay:
         self._installed = False
 
     @staticmethod
-    def _live_owner_refs(record: Dict[str, object]) -> list[weakref.ReferenceType["RuntimeEnvOverlay"]]:
+    def _live_owner_refs(
+        record: Dict[str, object],
+    ) -> list[weakref.ReferenceType["RuntimeEnvOverlay"]]:
         raw_owners = record.get("owners")
         if not isinstance(raw_owners, list):
             return []
@@ -136,3 +140,32 @@ class RuntimeEnvOverlay:
             else:
                 os.environ.pop(key, None)
             cls._managed.pop(key, None)
+
+    @classmethod
+    def _reset_for_tests(cls) -> None:
+        """Release all live overlays between tests.
+
+        Production callers should close their owning applications. Test suites
+        often create many short-lived applications without explicit cleanup,
+        so this helper prevents one test's process-wide env overlay from
+        leaking into the next.
+        """
+
+        owners: list[RuntimeEnvOverlay] = []
+        with cls._lock:
+            for record in cls._managed.values():
+                for owner_ref in cls._live_owner_refs(record):
+                    owner = owner_ref()
+                    if owner is not None:
+                        owners.append(owner)
+
+        seen: set[int] = set()
+        for owner in owners:
+            ident = id(owner)
+            if ident in seen:
+                continue
+            seen.add(ident)
+            owner.close()
+
+        with cls._lock:
+            cls._cleanup_stale_locked()

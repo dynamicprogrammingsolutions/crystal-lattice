@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -23,7 +25,11 @@ if str(OPENAI_RESPONSES_SRC) not in sys.path:
 from agent_app.application_future import AgentApplication  # noqa: E402
 from agent_app.events import InMemoryEventStore  # noqa: E402
 from agent_terminal_app import server as server_mod  # noqa: E402
-from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider  # noqa: E402
+from openai_responses_plugins.openai_responses_provider import (
+    OpenAIResponsesProvider,
+)  # noqa: E402
+
+pytestmark = [pytest.mark.integration, pytest.mark.openai]
 
 
 def _write_config(tmp_path: Path) -> Path:
@@ -96,7 +102,10 @@ def test_actions_endpoint_stores_deletes_and_downloads_attachment_asset(
     session_assets = (loaded_session.metadata or {}).get("session_assets")
     assert isinstance(session_assets, dict)
     assert session_assets[asset_id]["filename"] == "brief.pdf"
-    assert app.get_session_asset_store().load_bytes(session.session_id, asset_id) == b"pdf-bytes"
+    assert (
+        app.get_session_asset_store().load_bytes(session.session_id, asset_id)
+        == b"pdf-bytes"
+    )
 
     download_resp = server_mod.execute_action(
         {
@@ -112,10 +121,12 @@ def test_actions_endpoint_stores_deletes_and_downloads_attachment_asset(
     )
 
     assert download_resp["status"] == "ok"
-    assert download_resp["result"]["attachment_asset"]["asset_ref"]["asset_id"] == asset_id
-    assert download_resp["result"]["data_base64"] == base64.b64encode(b"pdf-bytes").decode(
-        "ascii"
+    assert (
+        download_resp["result"]["attachment_asset"]["asset_ref"]["asset_id"] == asset_id
     )
+    assert download_resp["result"]["data_base64"] == base64.b64encode(
+        b"pdf-bytes"
+    ).decode("ascii")
 
     delete_resp = server_mod.execute_action(
         {
@@ -131,7 +142,10 @@ def test_actions_endpoint_stores_deletes_and_downloads_attachment_asset(
     )
 
     assert delete_resp["status"] == "ok"
-    assert delete_resp["result"]["deleted_attachment_asset"]["asset_ref"]["asset_id"] == asset_id
+    assert (
+        delete_resp["result"]["deleted_attachment_asset"]["asset_ref"]["asset_id"]
+        == asset_id
+    )
 
     loaded_after_delete = app.load_session_record(session.session_id)
     assert loaded_after_delete is not None

@@ -294,7 +294,9 @@ def test_request_preflight_applies_override_only_drift_before_first_phase(tmp_pa
     )
     app_server.save_session(updated)
 
-    events = list(app_terminal.send_request(core, stale_session, base_config, overrides=None, stream=False))
+    events = list(
+        app_terminal.send_request(core, stale_session, base_config, overrides=None, stream=False)
+    )
 
     error_events = [ev for ev in events if ev.get("type") == "error"]
     assert not error_events
@@ -327,7 +329,9 @@ def test_request_preflight_allows_non_protected_metadata_drift_before_first_phas
     )
     app_server.save_session(updated)
 
-    events = list(app_terminal.send_request(core, stale_session, base_config, overrides=None, stream=False))
+    events = list(
+        app_terminal.send_request(core, stale_session, base_config, overrides=None, stream=False)
+    )
 
     assert not [ev for ev in events if ev.get("type") == "error"]
     assert [ev for ev in events if ev.get("type") == "final"]
@@ -337,7 +341,9 @@ def test_request_preflight_allows_non_protected_metadata_drift_before_first_phas
     assert stored_final.metadata["pinned"] is True
 
 
-def test_request_preflight_rejects_stale_terminal_session_before_first_phase(tmp_path: Path) -> None:
+def test_request_preflight_rejects_stale_terminal_session_before_first_phase(
+    tmp_path: Path,
+) -> None:
     config_path = _write_config(tmp_path)
     session_root = tmp_path / "sessions"
     app_terminal = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
@@ -349,7 +355,9 @@ def test_request_preflight_rejects_stale_terminal_session_before_first_phase(tmp
     assert fresh_ctx is not None
     server_core, server_base_config, fresh_session = fresh_ctx
     server_events = list(
-        app_server.send_request(server_core, fresh_session, server_base_config, overrides=None, stream=False)
+        app_server.send_request(
+            server_core, fresh_session, server_base_config, overrides=None, stream=False
+        )
     )
     assert [ev for ev in server_events if ev.get("type") == "final"]
 
@@ -384,14 +392,18 @@ def test_fresh_concurrent_request_reloaded_from_storage_fails_later_with_error_e
     ctx_a = app_a.load_session(created.session_id)
     assert ctx_a is not None
     core_a, base_config_a, session_a = ctx_a
-    events_a_iter = app_a.send_request(core_a, session_a, base_config_a, overrides=None, stream=False)
+    events_a_iter = app_a.send_request(
+        core_a, session_a, base_config_a, overrides=None, stream=False
+    )
     events_a: List[Dict[str, Any]] = [next(events_a_iter)]
     assert events_a[0]["type"] == "request_started"
 
     ctx_b = app_b.load_session(created.session_id)
     assert ctx_b is not None
     core_b, base_config_b, session_b = ctx_b
-    events_b_iter = app_b.send_request(core_b, session_b, base_config_b, overrides=None, stream=False)
+    events_b_iter = app_b.send_request(
+        core_b, session_b, base_config_b, overrides=None, stream=False
+    )
     events_b: List[Dict[str, Any]] = [next(events_b_iter)]
     assert events_b[0]["type"] == "request_started"
 
@@ -454,7 +466,16 @@ def test_concurrent_non_protected_metadata_change_is_merged_during_tool_loop(
     assert stored_final.metadata["pinned"] is True
 
 
-def test_cross_process_append_then_send_should_eventually_stop_both_requests(tmp_path: Path) -> None:
+@pytest.mark.xfail(
+    reason=(
+        "Known unresolved append-and-send race: the older request detects the "
+        "conflict, but the request started from the appended session does not."
+    ),
+    strict=True,
+)
+def test_cross_process_append_then_send_should_eventually_stop_both_requests(
+    tmp_path: Path,
+) -> None:
     """Known failing regression for the unresolved append-and-send race.
 
     Current behavior lets the request that appended a user message continue
@@ -473,7 +494,9 @@ def test_cross_process_append_then_send_should_eventually_stop_both_requests(tmp
     ctx_a = app_a.load_session(created.session_id)
     assert ctx_a is not None
     core_a, base_config_a, session_a = ctx_a
-    events_a_iter = app_a.send_request(core_a, session_a, base_config_a, overrides=None, stream=False)
+    events_a_iter = app_a.send_request(
+        core_a, session_a, base_config_a, overrides=None, stream=False
+    )
     events_a: List[Dict[str, Any]] = [next(events_a_iter)]
     assert events_a[0]["type"] == "request_started"
 
@@ -496,7 +519,9 @@ def test_cross_process_append_then_send_should_eventually_stop_both_requests(tmp
     ctx_b = app_b.load_session(created.session_id)
     assert ctx_b is not None
     core_b, base_config_b, session_b = ctx_b
-    events_b = list(app_b.send_request(core_b, session_b, base_config_b, overrides=None, stream=False))
+    events_b = list(
+        app_b.send_request(core_b, session_b, base_config_b, overrides=None, stream=False)
+    )
 
     events_a.extend(list(events_a_iter))
 

@@ -4,6 +4,8 @@ import os
 import sys
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -16,6 +18,7 @@ if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
 
 
+@pytest.mark.integration
 def test_default_config_effective_agent_configs_stay_intact(
     tmp_path: Path,
     monkeypatch,
@@ -37,12 +40,19 @@ def test_default_config_effective_agent_configs_stay_intact(
     monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
 
     config_path = (
-        ROOT / "application" / "python" / "agent_terminal_app" / "default_config" / "config.json"
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
     session_root = tmp_path / "sessions"
 
-    app = AgentApplication(str(config_path), str(session_root), event_store=InMemoryEventStore())
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=InMemoryEventStore()
+    )
     assert app.get_config_errors() == []
 
     cases = {
@@ -54,7 +64,9 @@ def test_default_config_effective_agent_configs_stay_intact(
         "glm": {
             "provider": "openrouter",
             "model": "z-ai/glm-5",
-            "request_options": {"provider": {"order": ["z-ai"], "allow_fallbacks": False}},
+            "request_options": {
+                "provider": {"order": ["z-ai"], "allow_fallbacks": False}
+            },
         },
         "openrouter-image": {
             "provider": "openrouter_image_generation",
@@ -74,11 +86,17 @@ def test_default_config_effective_agent_configs_stay_intact(
         "zai": {
             "provider": "reference_openai_compatible",
             "base_url": "https://api.z.ai/api/paas/v4",
-            "request_options": {"thinking": {"type": "enabled", "clear_thinking": False}},
+            "request_options": {
+                "thinking": {"type": "enabled", "clear_thinking": False}
+            },
         },
     }
 
     for agent_id, expected in cases.items():
         _core, base_config, _session = app.create_session(agent_id)
         for key, expected_value in expected.items():
-            assert base_config[key] == expected_value, (agent_id, key, base_config.get(key))
+            assert base_config[key] == expected_value, (
+                agent_id,
+                key,
+                base_config.get(key),
+            )

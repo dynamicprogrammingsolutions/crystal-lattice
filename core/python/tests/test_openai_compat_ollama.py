@@ -27,6 +27,7 @@ from plugins.openai_provider import OpenAICompatibleProvider
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL = os.getenv("OLLAMA_MODEL", "qwen3:0.6b")  # reasoning model for stable behavior
+pytestmark = pytest.mark.integration
 
 
 def _which(cmd: str) -> Optional[str]:
@@ -34,7 +35,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -134,7 +137,12 @@ def test_openai_compat_stream_cancel_soon_after_send_with_ollama(ensure_model):
     }
     state = provider.init(config)
     native_messages = provider.to_native_messages(
-        [{"role": "user", "content": "Write a long detailed essay about distributed systems."}],
+        [
+            {
+                "role": "user",
+                "content": "Write a long detailed essay about distributed systems.",
+            }
+        ],
         state,
     )
     native_messages, state = provider.initialize_request(
@@ -216,7 +224,9 @@ def test_openai_compat_stream_cancel_after_first_partial_with_ollama(ensure_mode
             break
         time.sleep(0.05)
     else:
-        raise AssertionError("OpenAI-compatible stream did not emit a partial before cancellation")
+        raise AssertionError(
+            "OpenAI-compatible stream did not emit a partial before cancellation"
+        )
 
     assert provider.cancel_request("openai_compat_cancel_after_partial") is True
 

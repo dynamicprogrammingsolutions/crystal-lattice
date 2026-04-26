@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -23,7 +25,11 @@ if str(OPENAI_RESPONSES_SRC) not in sys.path:
 from agent_app.application_future import AgentApplication  # noqa: E402
 from agent_app.events import InMemoryEventStore  # noqa: E402
 from agent_terminal_app import server as server_mod  # noqa: E402
-from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider  # noqa: E402
+from openai_responses_plugins.openai_responses_provider import (
+    OpenAIResponsesProvider,
+)  # noqa: E402
+
+pytestmark = [pytest.mark.integration, pytest.mark.openai]
 
 
 def _write_config(tmp_path: Path) -> Path:
@@ -61,7 +67,9 @@ def _build_app(tmp_path: Path, monkeypatch: Any) -> AgentApplication:
     )
 
 
-def test_list_messages_enriches_asset_ref_images_with_preview_bytes(tmp_path: Path, monkeypatch: Any) -> None:
+def test_list_messages_enriches_asset_ref_images_with_preview_bytes(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     app = _build_app(tmp_path, monkeypatch)
     _core, _base_config, session = app.create_session("default")
     server_mod._agent_app = app
@@ -111,9 +119,9 @@ def test_list_messages_enriches_asset_ref_images_with_preview_bytes(tmp_path: Pa
 
     assert image_part["content"]["filename"] == "square.png"
     assert image_part["content"]["mime_type"] == "image/png"
-    assert image_part["content"]["preview_data_base64"] == base64.b64encode(image_bytes).decode(
-        "ascii"
-    )
+    assert image_part["content"]["preview_data_base64"] == base64.b64encode(
+        image_bytes
+    ).decode("ascii")
     assert image_part["content"]["preview_mime_type"] == "image/png"
 
     assert pdf_part["content"]["filename"] == "brief.pdf"
@@ -121,7 +129,9 @@ def test_list_messages_enriches_asset_ref_images_with_preview_bytes(tmp_path: Pa
     assert "preview_data_base64" not in pdf_part["content"]
 
 
-def test_list_messages_marks_missing_asset_refs(tmp_path: Path, monkeypatch: Any) -> None:
+def test_list_messages_marks_missing_asset_refs(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     app = _build_app(tmp_path, monkeypatch)
     _core, _base_config, session = app.create_session("default")
     server_mod._agent_app = app
@@ -149,7 +159,10 @@ def test_list_messages_marks_missing_asset_refs(tmp_path: Path, monkeypatch: Any
         },
         app_instance=app,
     )
-    assert app.get_session_asset_store().delete(session.session_id, image_record.asset_id) is True
+    assert (
+        app.get_session_asset_store().delete(session.session_id, image_record.asset_id)
+        is True
+    )
 
     response = server_mod.list_session_messages(session.session_id, app_instance=app)
 
