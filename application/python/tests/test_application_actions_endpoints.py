@@ -76,13 +76,17 @@ def _plugin_entry(repo_name: str, entry: str) -> Dict[str, str]:
 
 
 def _make_config_with_chatgpt_auth(tmp_path: Path, *, auth_mode: str) -> Path:
+    provider_config: Dict[str, Any] = {
+        "provider": "openai_responses",
+        "model": "gpt-5",
+        "auth_mode": auth_mode,
+    }
+    if auth_mode == "api":
+        provider_config["api_key"] = "test-openai-api-key"
+
     cfg: Dict[str, Any] = {
         "providers": {
-            "chatgpt": {
-                "provider": "openai_responses",
-                "model": "gpt-5",
-                "auth_mode": auth_mode,
-            }
+            "chatgpt": provider_config
         },
         "plugins": [
             _plugin_entry("chatgpt-auth-app", "chatgpt_auth_app.ChatGPTAuthAppPlugin"),

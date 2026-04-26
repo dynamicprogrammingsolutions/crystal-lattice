@@ -17,8 +17,6 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    env:
-      OPENAI_API_KEY: ci-dummy-openai-key
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
