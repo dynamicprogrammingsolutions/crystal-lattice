@@ -98,6 +98,126 @@ repo-root `plugins/` directory. User-owned state stays outside the bundle:
 config files, sessions, auth state, and plugin install caches belong under the
 selected `.crystal` directory.
 
+### Local install scripts
+
+The repo has a root `noxfile.py` with package.json-like maintainer commands.
+Install `nox` once if it is not already available:
+
+```bash
+python -m pip install nox
+```
+
+Build the current-platform bundle without installing it:
+
+```bash
+nox -s build_bundle
+```
+
+Run a local production install rehearsal:
+
+```bash
+nox -s install_prod_local
+```
+
+This intentionally follows the release installer shape:
+
+1. install local build dependencies,
+2. run `scripts/build_crystal_lattice_binary.py`,
+3. smoke-test the generated release archive,
+4. install from the archive, not from editable source,
+5. link `crystal-lattice` into `~/.local/bin`.
+
+The bundle is installed under `~/.local/opt/crystal-lattice-cli/`, with the
+command pointing at the versioned bundle directory. The installed command should
+report bundled runtime layout:
+
+```bash
+crystal-lattice --runtime-layout-json
+```
+
+Install the editable-source dev command:
+
+```bash
+nox -s install_dev_local
+```
+
+This creates or updates `~/.crystal/dev-cli-venv`, installs the local checkout
+in editable mode, and writes `~/.local/bin/crystal-lattice-cli-dev`. The dev
+command tracks repo-local files and should report source runtime layout:
+
+```bash
+crystal-lattice-cli-dev --runtime-layout-json
+```
+
+### GitHub release workflow
+
+GitHub Releases are the canonical host for binary archives consumed by shell
+installers, Homebrew formulae, and optional wrapper packages.
+
+The release workflow lives at
+`.github/workflows/release-crystal-lattice-cli.yml`. It can be run manually as
+a dry run:
+
+```bash
+gh workflow run release-crystal-lattice-cli.yml
+```
+
+Manual runs execute tests, build every platform archive, smoke-test the
+archives, and upload workflow artifacts. They do not publish a GitHub Release.
+
+Local workflow validation:
+
+```bash
+actionlint .github/workflows/release-crystal-lattice-cli.yml
+
+act workflow_dispatch \
+  -W .github/workflows/release-crystal-lattice-cli.yml \
+  -j test \
+  --container-architecture linux/amd64 \
+  --container-daemon-socket - \
+  -P ubuntu-latest=catthehacker/ubuntu:act-latest
+
+act workflow_dispatch \
+  -W .github/workflows/release-crystal-lattice-cli.yml \
+  -j build \
+  --matrix target:linux-amd64 \
+  --container-architecture linux/amd64 \
+  --container-daemon-socket - \
+  -P ubuntu-latest=catthehacker/ubuntu:act-latest
+```
+
+`act` can validate the Linux-shaped workflow path locally. It cannot prove the
+native macOS or Windows runners, and `actions/upload-artifact` may require
+GitHub's hosted runtime token even after the local build and smoke test pass.
+
+Official releases are created by pushing a tag that matches the CLI package
+version:
+
+```bash
+git tag crystal-lattice-cli-v0.1.0
+git push origin crystal-lattice-cli-v0.1.0
+```
+
+The tag must match `application/python/pyproject.toml`'s
+`project.version`. A tag push builds and publishes:
+
+```text
+crystal-lattice-cli-v0.1.0-linux-amd64.tar.gz
+crystal-lattice-cli-v0.1.0-darwin-amd64.tar.gz
+crystal-lattice-cli-v0.1.0-darwin-arm64.tar.gz
+crystal-lattice-cli-v0.1.0-windows-amd64.zip
+```
+
+Maintainer checklist:
+
+1. Update `application/python/pyproject.toml` if the CLI version is changing.
+2. Update any release notes or user-facing docs that should ship with the tag.
+3. Run local tests or a manual GitHub Actions dry run.
+4. Commit and push the release commit.
+5. Create and push `crystal-lattice-cli-v<version>`.
+6. Verify the GitHub Release contains all four archives and that the workflow
+   smoke tests passed.
+
 ### Docker Linux bundle test
 
 Linux bundling can be tested locally through pytest and Docker. The test

@@ -1,0 +1,155 @@
+name: Release crystal-lattice-cli
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "crystal-lattice-cli-v*"
+
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install test dependencies
+        run: python -m pip install -e "core/python[dev]" -e application/python -e "plugins/openai_responses[dev]"
+
+      - name: Validate release tag version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          import tomllib
+
+          pyproject = Path("application/python/pyproject.toml")
+          version = tomllib.loads(pyproject.read_text(encoding="utf-8"))["project"]["version"]
+          expected = f"crystal-lattice-cli-v{version}"
+          actual = os.environ["RELEASE_TAG"]
+          if actual != expected:
+              raise SystemExit(
+                  f"Release tag must match application package version: "
+                  f"expected {expected}, got {actual}"
+              )
+          PY
+
+      - name: Run core tests
+        run: pytest core/python/tests -q -m "not integration"
+
+      - name: Run application tests
+        run: pytest application/python/tests -q -m "not integration and not docker"
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: test
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-amd64
+            runner: ubuntu-latest
+            platform: linux
+            arch: amd64
+            archive-glob: "*.tar.gz"
+          - target: darwin-amd64
+            runner: macos-15-intel
+            platform: darwin
+            arch: amd64
+            archive-glob: "*.tar.gz"
+          - target: darwin-arm64
+            runner: macos-15
+            platform: darwin
+            arch: arm64
+            archive-glob: "*.tar.gz"
+          - target: windows-amd64
+            runner: windows-latest
+            platform: windows
+            arch: amd64
+            archive-glob: "*.zip"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install build dependencies
+        run: python -m pip install -e core/python -e "application/python[binary]"
+
+      - name: Build binary archive
+        run: |
+          python scripts/build_crystal_lattice_binary.py \
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}"
+
+      - name: Locate release archive
+        env:
+          ARCHIVE_GLOB: ${{ matrix.archive-glob }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          archives = sorted(Path("dist/crystal-lattice").glob(os.environ["ARCHIVE_GLOB"]))
+          archives = [path for path in archives if f"-{os.environ['TARGET']}." in path.name]
+          if len(archives) != 1:
+              found = "\n".join(str(path) for path in archives) or "<none>"
+              raise SystemExit(f"Expected one archive for {os.environ['TARGET']}, found:\n{found}")
+
+          archive = archives[0].as_posix()
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env_file:
+              env_file.write(f"CRYSTAL_RELEASE_ARCHIVE={archive}\n")
+          print(archive)
+          PY
+
+      - name: Smoke-test release archive
+        run: python scripts/smoke_test_crystal_lattice_archive.py "$CRYSTAL_RELEASE_ARCHIVE"
+
+      - name: Upload release archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: crystal-lattice-cli-${{ matrix.target }}
+          path: ${{ env.CRYSTAL_RELEASE_ARCHIVE }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release archive artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+          pattern: crystal-lattice-cli-*
+          merge-multiple: true
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true

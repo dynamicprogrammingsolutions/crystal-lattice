@@ -6,7 +6,7 @@ Create a complete distribution plan and implementation path for the Python deskt
 
 - [x] `tasks/20260421-distribution-release-workstreams/010-python-packaging-and-cli.md`
 - [x] `tasks/20260421-distribution-release-workstreams/020-cross-platform-binary-builds.md`
-- [ ] `tasks/20260421-distribution-release-workstreams/030-github-releases-and-ci.md`
+- [x] `tasks/20260421-distribution-release-workstreams/030-github-releases-and-ci.md`
 - [ ] `tasks/20260421-distribution-release-workstreams/040-curl-installer.md`
 - [ ] `tasks/20260421-distribution-release-workstreams/050-homebrew-distribution.md`
 - [ ] `tasks/20260421-distribution-release-workstreams/060-npm-global-installer.md`
