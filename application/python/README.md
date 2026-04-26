@@ -149,10 +149,84 @@ command tracks repo-local files and should report source runtime layout:
 crystal-lattice-cli-dev --runtime-layout-json
 ```
 
+### Curl installer
+
+The public shell installer downloads from a public S3 bucket so binary installs
+can work even while the GitHub repository is private:
+
+```bash
+curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash
+```
+
+Pinned install:
+
+```bash
+VERSION=0.1.0 \
+  curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash
+```
+
+Review-first install:
+
+```bash
+curl -fsSLO https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh
+less install.sh
+bash install.sh
+```
+
+The installer supports these Unix-like release assets:
+
+```text
+darwin-amd64
+darwin-arm64
+linux-amd64
+```
+
+Windows uses the release `.zip` asset for now; a PowerShell installer can be
+added separately.
+
+Default locations:
+
+```text
+~/.local/opt/crystal-lattice-cli/<asset-stem>/
+~/.local/bin/crystal-lattice
+```
+
+Configurable values:
+
+```bash
+INSTALL_ROOT="$HOME/.local/opt/crystal-lattice-cli"
+BIN_DIR="$HOME/.local/bin"
+COMMAND_NAME="crystal-lattice"
+CRYSTAL_LATTICE_DOWNLOAD_BASE_URL="https://example.com/crystal-lattice-cli"
+```
+
+`CRYSTAL_LATTICE_DOWNLOAD_BASE_URL` is the main switch for moving from direct
+S3 to CloudFront, GitHub Releases, or another bucket later. The same URL base
+is expected to contain `install.sh`, `latest.txt`, and the release archives.
+
+Publish release assets to the current public S3 bucket:
+
+```bash
+python scripts/publish_crystal_lattice_s3.py --assets-dir dist/crystal-lattice
+```
+
+To turn off public S3 downloads quickly, either remove the bucket policy or
+restore restrictive public-access blocking:
+
+```bash
+aws s3api delete-bucket-policy --bucket crystal-lattice-downloads-874087778966
+aws s3api put-public-access-block \
+  --bucket crystal-lattice-downloads-874087778966 \
+  --public-access-block-configuration \
+  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+```
+
 ### GitHub release workflow
 
-GitHub Releases are the canonical host for binary archives consumed by shell
-installers, Homebrew formulae, and optional wrapper packages.
+GitHub Releases are the canonical CI build output for binary archives. While
+the repository is private, public shell installers can consume copies published
+to S3; Homebrew formulae and optional wrapper packages can use either host once
+the public distribution posture is finalized.
 
 The release workflow lives at
 `.github/workflows/release-crystal-lattice-cli.yml`. It can be run manually as
