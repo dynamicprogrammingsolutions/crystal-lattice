@@ -66,3 +66,7 @@ Added during completion.
 - Updated `application/python/README.md` with latest install, pinned install, review-first install, supported platforms, default paths, override variables, S3 publishing, and commands to disable public S3 access.
 - Verified public unauthenticated access to `latest.txt`, `install.sh`, and the `darwin-arm64` archive.
 - Verified latest and pinned public S3 installer runs into temporary install roots on macOS arm64 and both installed commands report bundled runtime layout.
+- Added automatic S3 publishing to `.github/workflows/release-crystal-lattice-cli.yml` after GitHub Release publishing succeeds.
+- Created GitHub Actions OIDC provider `arn:aws:iam::874087778966:oidc-provider/token.actions.githubusercontent.com`.
+- Created IAM role `arn:aws:iam::874087778966:role/CrystalLatticeReleaseS3Publisher` with trust limited to `repo:dynamicprogrammingsolutions/crystal-lattice:ref:refs/tags/crystal-lattice-cli-v*`.
+- Created and attached IAM policy `arn:aws:iam::874087778966:policy/CrystalLatticeReleaseS3PublishPolicy`, scoped to write only under `s3://crystal-lattice-downloads-874087778966/crystal-lattice-cli/*`.

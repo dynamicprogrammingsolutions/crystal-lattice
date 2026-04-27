@@ -204,7 +204,21 @@ CRYSTAL_LATTICE_DOWNLOAD_BASE_URL="https://example.com/crystal-lattice-cli"
 S3 to CloudFront, GitHub Releases, or another bucket later. The same URL base
 is expected to contain `install.sh`, `latest.txt`, and the release archives.
 
-Publish release assets to the current public S3 bucket:
+Release tag workflows publish S3 downloads automatically after GitHub Release
+publishing succeeds. The workflow assumes this OIDC role:
+
+```text
+arn:aws:iam::874087778966:role/CrystalLatticeReleaseS3Publisher
+```
+
+The role trust is limited to this repository's release tags matching
+`refs/tags/crystal-lattice-cli-v*`, and its policy can only write under:
+
+```text
+s3://crystal-lattice-downloads-874087778966/crystal-lattice-cli/*
+```
+
+Manual republish is still available:
 
 ```bash
 python scripts/publish_crystal_lattice_s3.py --assets-dir dist/crystal-lattice
