@@ -1,161 +1,34 @@
 # crystal-lattice-cli
 
-Crystal Lattice command-line application that combines the core SDK's
-`AgentApplication` API with:
+`crystal-lattice-cli` installs the `crystal-lattice` command. The command can
+run:
 
-- a FastAPI-based JSON API for sessions and requests
-- a `prompt_toolkit`-based terminal client with multiline input,
-  slash commands, and keyboard shortcuts
+- a FastAPI HTTP API for sessions, messages, requests, plugins, config, and
+  application actions
+- a `prompt_toolkit` terminal client with slash commands and keyboard shortcuts
+- both together, sharing the same session store and in-memory event stream
+- optional Bonjour/mDNS advertisement for LAN discovery
+- optional bridge registration for paired mobile access across networks
 
-The API and terminal share an in-memory event store so that multiple
-frontends can observe the same session's events (including streaming
-assistant messages) when they run in the same process.
+The internal Python module is still `agent_terminal_app`, so
+`python -m agent_terminal_app` remains useful for development and debugging.
 
 ## Installation
 
-For end users with Python 3.10+ available, the recommended install path is
-`pipx`:
+### Binary Install
 
-```bash
-pipx install crystal-lattice-cli
-crystal-lattice --help
-```
-
-You can also install into an active virtualenv:
-
-```bash
-pip install crystal-lattice-cli
-crystal-lattice --help
-```
-
-For local development, install from source.
-
-From the repository root:
-
-```bash
-# 1. Install the core SDK (provides agent_core, agent_app, plugins)
-cd core/python
-pip install -e ".[dev]"
-
-# 2. Install the terminal application package
-cd ../../application/python
-pip install -e .
-```
-
-Python 3.10+ is required. The installable Python distribution is
-`crystal-lattice-cli`, the user-facing command is `crystal-lattice`, and the
-internal Python module remains `agent_terminal_app`. The module invocation
-`python -m agent_terminal_app` remains supported for development and debugging.
-
-## Release versioning
-
-`agent-core` and `crystal-lattice-cli` version independently. The CLI package
-declares the minimum compatible core version through its `agent-core>=...`
-dependency. When a CLI release needs newer core behavior, bump the
-`agent-core` dependency floor and release the core package first or alongside
-the CLI package.
-
-## Binary builds
-
-The first binary release format is a PyInstaller `--onedir` bundle. It keeps
-the executable, bundled Python runtime, app assets, and built-in plugin source
-projects as separate files so release artifacts are easier to inspect and
-debug.
-
-Install build dependencies from the repository root:
-
-```bash
-python -m pip install -e core/python -e "application/python[binary]"
-```
-
-Build the current platform:
-
-```bash
-python scripts/build_crystal_lattice_binary.py
-```
-
-The script creates a PyInstaller app directory under
-`application/python/dist/crystal-lattice/` and a release archive under
-`dist/crystal-lattice/`, using names such as:
-
-```text
-crystal-lattice-cli-v0.1.0-linux-amd64.tar.gz
-crystal-lattice-cli-v0.1.0-darwin-arm64.tar.gz
-crystal-lattice-cli-v0.1.0-windows-amd64.zip
-```
-
-PyInstaller does not cross-compile. Build Linux, macOS, and Windows binaries on
-matching hosts or CI runners.
-
-Runtime paths are described by `agent_terminal_app/runtime_layout.json` in
-source installs. The binary build script generates a bundled manifest matching
-the PyInstaller layout. `CONFIG_DIR` always remains the directory of the active
-config file; the manifest defines default config/session locations and
-bundle-owned paths such as `BUILTIN_PLUGINS`.
-
-The bundle includes sanitized built-in plugin project directories from the
-repo-root `plugins/` directory. User-owned state stays outside the bundle:
-config files, sessions, auth state, and plugin install caches belong under the
-selected `.crystal` directory.
-
-### Local install scripts
-
-The repo has a root `noxfile.py` with package.json-like maintainer commands.
-Install `nox` once if it is not already available:
-
-```bash
-python -m pip install nox
-```
-
-Build the current-platform bundle without installing it:
-
-```bash
-nox -s build_bundle
-```
-
-Run a local production install rehearsal:
-
-```bash
-nox -s install_prod_local
-```
-
-This intentionally follows the release installer shape:
-
-1. install local build dependencies,
-2. run `scripts/build_crystal_lattice_binary.py`,
-3. smoke-test the generated release archive,
-4. install from the archive, not from editable source,
-5. link `crystal-lattice` into `~/.local/bin`.
-
-The bundle is installed under `~/.local/opt/crystal-lattice-cli/`, with the
-command pointing at the versioned bundle directory. The installed command should
-report bundled runtime layout:
-
-```bash
-crystal-lattice --runtime-layout-json
-```
-
-Install the editable-source dev command:
-
-```bash
-nox -s install_dev_local
-```
-
-This creates or updates `~/.crystal/dev-cli-venv`, installs the local checkout
-in editable mode, and writes `~/.local/bin/crystal-lattice-cli-dev`. The dev
-command tracks repo-local files and should report source runtime layout:
-
-```bash
-crystal-lattice-cli-dev --runtime-layout-json
-```
-
-### Curl installer
-
-The public shell installer downloads from a public S3 bucket so binary installs
-can work even while the GitHub repository is private:
+The bundled installer includes Python and the app runtime. It is the easiest
+path for end users on macOS or Linux:
 
 ```bash
 curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash
+```
+
+The default install locations are:
+
+```text
+~/.local/opt/crystal-lattice-cli/<asset-stem>/
+~/.local/bin/crystal-lattice
 ```
 
 Pinned install:
@@ -173,7 +46,7 @@ less install.sh
 bash install.sh
 ```
 
-The installer supports these Unix-like release assets:
+Supported shell-installer assets:
 
 ```text
 darwin-amd64
@@ -184,14 +57,500 @@ linux-amd64
 Windows uses the release `.zip` asset for now; a PowerShell installer can be
 added separately.
 
-Default locations:
+### Python Install
 
-```text
-~/.local/opt/crystal-lattice-cli/<asset-stem>/
-~/.local/bin/crystal-lattice
+For users with Python 3.10+ available:
+
+```bash
+pipx install crystal-lattice-cli
+crystal-lattice --help
 ```
 
-Configurable values:
+You can also install into an active virtualenv:
+
+```bash
+pip install crystal-lattice-cli
+```
+
+### Source Install
+
+From the repository root:
+
+```bash
+python -m pip install -e "core/python[dev]"
+python -m pip install -e application/python
+```
+
+For binary build work:
+
+```bash
+python -m pip install -e core/python -e "application/python[binary]"
+```
+
+## Running Crystal Lattice
+
+### Server Only
+
+With no mode flags, `crystal-lattice` runs the HTTP API server:
+
+```bash
+crystal-lattice
+```
+
+Defaults:
+
+```text
+host: 127.0.0.1
+port: 8000
+```
+
+Bind to all interfaces when another device, such as a phone, needs to reach the
+server:
+
+```bash
+crystal-lattice --host 0.0.0.0 --port 9000
+```
+
+### Terminal Only
+
+Run only the terminal UI:
+
+```bash
+crystal-lattice --console
+```
+
+In this mode no HTTP server is started in the process.
+
+### Server And Terminal Together
+
+Run the API server in a background thread and the terminal UI in the foreground:
+
+```bash
+crystal-lattice --server --console
+```
+
+For mobile testing from a local project/work directory:
+
+```bash
+mkdir -p ~/crystal-lattice-demo
+cd ~/crystal-lattice-demo
+crystal-lattice --server --console --config-local --host 0.0.0.0 --port 9000
+```
+
+In combined mode, terminal and HTTP requests share an event store. Events from
+requests sent through one frontend can be observed by the other when they refer
+to the same session.
+
+## Configuration
+
+### Config Search Order
+
+Unless `--config` or `--config-local` is supplied, the command searches for:
+
+1. `./.crystal/config.json`
+2. `~/.crystal/config.json`
+
+If neither exists, it creates a default config at the runtime layout's
+`default_config` path.
+
+### Local Config With `--config-local`
+
+Use `--config-local` when you want the app state to belong to the current
+working directory:
+
+```bash
+crystal-lattice --config-local --server --console
+```
+
+This forces `./.crystal/config.json`, creating it from the bundled default
+template when it is missing.
+
+### Explicit Config
+
+Use a specific config file:
+
+```bash
+crystal-lattice --config path/to/config.json --server --console
+```
+
+If the file is missing, the command creates a default config at that path.
+
+### Sessions Directory
+
+Set the session store explicitly:
+
+```bash
+crystal-lattice --sessions-dir ./.crystal/sessions
+```
+
+Source installs default to `./.crystal/sessions`. Bundled installs default to a
+user-owned sessions directory from the bundled runtime layout, currently
+`~/.crystal/sessions`.
+
+### `.env` Files
+
+The app loads `.env` files related to the active config path. This is the
+recommended place for provider keys during local use:
+
+```bash
+OPENAI_API_KEY=...
+OPENROUTER_API_KEY=...
+```
+
+### Runtime Layout
+
+Inspect the active source or bundled layout:
+
+```bash
+crystal-lattice --runtime-layout-json
+```
+
+Runtime paths are described by `agent_terminal_app/runtime_layout.json` in
+source installs. The binary build script generates a bundled manifest matching
+the PyInstaller layout.
+
+Important layout behavior:
+
+- `CONFIG_DIR` always resolves to the directory of the active config file.
+- `BUILTIN_PLUGINS` comes from the runtime layout and points at bundled plugin
+  sources in binary installs.
+- Config files, sessions, auth state, and plugin install caches are user-owned
+  state and stay outside the bundle.
+
+## Provider Credentials
+
+The generated default config includes several real-provider agents. Useful
+model requests require the corresponding credentials, for example:
+
+```bash
+export OPENAI_API_KEY=...
+export OPENROUTER_API_KEY=...
+```
+
+For no-key development from a source checkout, use the echo config:
+
+```bash
+cd application/python
+mkdir -p .crystal
+cp agent_terminal_app/config_echo_app.json .crystal/config.json
+crystal-lattice --server --console --config-local
+```
+
+The echo provider is useful for UI, session, and connectivity checks because it
+does not make network calls.
+
+## Mobile Connectivity
+
+The React Native app lives in
+`mobile/crystal-lattice-control-rn`. See its README for platform setup and
+troubleshooting.
+
+### Direct IP
+
+Start the server on all interfaces:
+
+```bash
+crystal-lattice --server --console --config-local --host 0.0.0.0 --port 9000
+```
+
+Find your computer's LAN IP. On macOS Wi-Fi:
+
+```bash
+ipconfig getifaddr en0
+```
+
+In the mobile app:
+
+```text
+Manual Address -> host: <computer LAN IP> -> port: 9000 -> Connect
+```
+
+### Bonjour/mDNS
+
+Advertise the HTTP API over Bonjour:
+
+```bash
+crystal-lattice \
+  --server \
+  --console \
+  --config-local \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --enable-bonjour
+```
+
+This advertises an `_http._tcp` service named `Agent Terminal App` by default.
+Common options:
+
+- `--enable-bonjour` - turn Bonjour advertisement on.
+- `--bonjour-port` - override the advertised port; defaults to `--port`.
+- `--bonjour-service-name` - set the display name shown in discovery clients.
+
+Verify on macOS:
+
+```bash
+dns-sd -B _http._tcp .
+```
+
+In the mobile app:
+
+```text
+Automatic Discovery -> choose the advertised server
+```
+
+### Bridge
+
+Start a local Docker bridge from the repository root:
+
+```bash
+cd bridge-elixir
+docker-compose up -d
+curl http://localhost:4000/health
+```
+
+Register Crystal Lattice with the bridge:
+
+```bash
+crystal-lattice \
+  --server \
+  --console \
+  --config-local \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --bridge-url ws://localhost:4000/ws/websocket
+```
+
+In the mobile app:
+
+```text
+Bridge Service -> ws://<bridge-host>:4000/ws/websocket -> select server -> enter pairing code
+```
+
+For a physical phone connecting to a bridge on your computer, use the
+computer's LAN IP in the bridge URL, for example
+`ws://192.168.1.25:4000/ws/websocket`.
+
+Common bridge options:
+
+- `--bridge-url` - required to enable bridge registration.
+- `--bridge-display-name` - human-friendly server name shown to clients.
+- `--bridge-location` - optional display metadata.
+- `--bridge-local-http-base` - override the local server URL used by the bridge.
+- `--bridge-server-id` - provide a stable server id.
+- `--bridge-exit-on-superseded` - exit if the bridge reports this server was replaced.
+- `--bridge-local-guard` - opt into a local lockfile guard for the bridge server id.
+- `--bridge-takeover-local` - with the local guard, try to terminate and replace
+  the existing local process.
+
+### Bonjour + Bridge Together
+
+You can enable both:
+
+```bash
+crystal-lattice \
+  --server \
+  --console \
+  --config-local \
+  --host 0.0.0.0 \
+  --port 9000 \
+  --enable-bonjour \
+  --bridge-url ws://localhost:4000/ws/websocket \
+  --bridge-display-name "My Agent Server" \
+  --bridge-location "Office"
+```
+
+LAN clients can use Bonjour/direct HTTP. Remote or cross-network clients can use
+the bridge pairing flow.
+
+## Terminal Usage
+
+Common slash commands:
+
+- `/help` - list commands and shortcuts.
+- `/new` - start a new session.
+- `/session` - inspect or switch sessions.
+- `/agent` - switch between configured agents.
+- `/send` - send a request with current history.
+- `/append` - add a message without sending.
+- `/delete`, `/modify`, `/list` - manage message history.
+- `/plugins` - list, enable, disable, or reset per-session plugins.
+- `/set` - update config overrides from plugin UI schema entries.
+- `/cancel` - cancel an active request.
+- `/exit` or `/quit` - exit the terminal.
+
+Keyboard shortcuts:
+
+- `Ctrl-N` - new session.
+- `Ctrl-Q` - exit.
+- `Ctrl-X S` - send.
+- `Ctrl-X A` - append.
+- `Ctrl-X C` - cancel active request.
+
+### Plugin Controls
+
+The terminal client exposes per-session plugin control:
+
+```text
+/plugins
+/plugins on <id-or-index>
+/plugins off <id-or-index>
+/plugins reset
+```
+
+Changes are stored on the session in `session.metadata["plugins"]`, so
+subsequent requests and reloads use the updated plugin set.
+
+### Listing Messages
+
+The `/list` command shows compact message history, including role, content,
+reasoning/thinking metadata, tool calls, and tool call ids when present.
+
+## Logging
+
+Mirror logs to a file:
+
+```bash
+crystal-lattice --log-file app.log
+crystal-lattice --console --log-file console.log
+crystal-lattice --server --console --log-file combined.log
+```
+
+Set log level:
+
+```bash
+crystal-lattice --log-level DEBUG
+crystal-lattice --console --log-level INFO
+```
+
+When running server and terminal together, `--fastapi-log-file` can route
+FastAPI/uvicorn logs away from terminal stdout:
+
+```bash
+crystal-lattice --server --console --fastapi-log-file fastapi.log
+```
+
+## HTTP API Overview
+
+Important routes include:
+
+- `GET /api/hello` - simple connectivity check used by clients.
+- `GET /api/data`, `PUT /api/data` - demo endpoints used by the mobile app.
+- `POST /sessions` - create a session.
+- `GET /sessions` - list sessions.
+- `GET /sessions/{session_id}/messages` - list session messages.
+- `POST /sessions/{session_id}/messages` - append a message.
+- `POST /sessions/{session_id}/send` - run the model/tool loop.
+- `POST /sessions/{session_id}/send_message` - append and send in one call.
+- `GET /events` - poll request/session events.
+- `POST /requests/{request_id}/cancel` - cancel an active request.
+- `GET /agents` - list configured agents.
+- `PATCH /sessions/{session_id}/agent` - change a session's agent.
+- `GET /sessions/{session_id}/plugins` - list session plugins.
+- `PUT /sessions/{session_id}/plugins` - update enabled session plugins.
+- `GET /application/ui-schema` and `POST /actions` - application UI/actions.
+
+Run the command help for the complete CLI surface:
+
+```bash
+crystal-lattice --help
+```
+
+## Release And Distribution
+
+### Release Versioning
+
+`agent-core` and `crystal-lattice-cli` version independently. The CLI package
+declares the minimum compatible core version through its `agent-core>=...`
+dependency. When a CLI release needs newer core behavior, bump the `agent-core`
+dependency floor and release the core package first or alongside the CLI
+package.
+
+### Binary Builds
+
+The binary release format is a PyInstaller `--onedir` bundle. It keeps the
+executable, bundled Python runtime, app assets, and built-in plugin source
+projects as separate files so release artifacts are easier to inspect and
+debug.
+
+Build the current platform:
+
+```bash
+python scripts/build_crystal_lattice_binary.py
+```
+
+The script creates a PyInstaller app directory under:
+
+```text
+application/python/dist/crystal-lattice/
+```
+
+and a release archive under:
+
+```text
+dist/crystal-lattice/
+```
+
+Archive names look like:
+
+```text
+crystal-lattice-cli-v0.1.0-linux-amd64.tar.gz
+crystal-lattice-cli-v0.1.0-darwin-amd64.tar.gz
+crystal-lattice-cli-v0.1.0-darwin-arm64.tar.gz
+crystal-lattice-cli-v0.1.0-windows-amd64.zip
+```
+
+PyInstaller does not cross-compile. Build Linux, macOS, and Windows binaries on
+matching hosts or CI runners.
+
+The bundle includes sanitized built-in plugin project directories from the
+repo-root `plugins/` directory. User-owned state stays outside the bundle:
+config files, sessions, auth state, and plugin install caches belong under the
+selected `.crystal` directory.
+
+### Local Nox Scripts
+
+The repository root has package.json-like maintainer commands in `noxfile.py`.
+Install `nox` once if needed:
+
+```bash
+python -m pip install nox
+```
+
+Build the current-platform bundle:
+
+```bash
+nox -s build_bundle
+```
+
+Run a local production install rehearsal:
+
+```bash
+nox -s install_prod_local
+```
+
+This intentionally follows the release installer shape:
+
+1. install local build dependencies
+2. run `scripts/build_crystal_lattice_binary.py`
+3. smoke-test the generated release archive
+4. install from the archive, not from editable source
+5. link `crystal-lattice` into `~/.local/bin`
+
+Install an editable-source dev command:
+
+```bash
+nox -s install_dev_local
+```
+
+This creates or updates `~/.crystal/dev-cli-venv`, installs the local checkout
+in editable mode, and writes `~/.local/bin/crystal-lattice-cli-dev`.
+
+### Curl Installer / S3 Downloads
+
+The public shell installer downloads from a public S3 bucket so binary installs
+can work even while the GitHub repository is private.
+
+Configurable installer values:
 
 ```bash
 INSTALL_ROOT="$HOME/.local/opt/crystal-lattice-cli"
@@ -218,14 +577,13 @@ The role trust is limited to this repository's release tags matching
 s3://crystal-lattice-downloads-874087778966/crystal-lattice-cli/*
 ```
 
-Manual republish is still available:
+Manual republish:
 
 ```bash
 python scripts/publish_crystal_lattice_s3.py --assets-dir dist/crystal-lattice
 ```
 
-To turn off public S3 downloads quickly, either remove the bucket policy or
-restore restrictive public-access blocking:
+Turn off public S3 downloads quickly:
 
 ```bash
 aws s3api delete-bucket-policy --bucket crystal-lattice-downloads-874087778966
@@ -235,16 +593,19 @@ aws s3api put-public-access-block \
   BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
 ```
 
-### GitHub release workflow
+### GitHub Release Workflow
 
 GitHub Releases are the canonical CI build output for binary archives. While
-the repository is private, public shell installers can consume copies published
-to S3; Homebrew formulae and optional wrapper packages can use either host once
-the public distribution posture is finalized.
+the repository is private, public shell installers consume copies published to
+S3.
 
-The release workflow lives at
-`.github/workflows/release-crystal-lattice-cli.yml`. It can be run manually as
-a dry run:
+The release workflow lives at:
+
+```text
+.github/workflows/release-crystal-lattice-cli.yml
+```
+
+Manual dry run:
 
 ```bash
 gh workflow run release-crystal-lattice-cli.yml
@@ -286,32 +647,24 @@ git tag crystal-lattice-cli-v0.1.0
 git push origin crystal-lattice-cli-v0.1.0
 ```
 
-The tag must match `application/python/pyproject.toml`'s
-`project.version`. A tag push builds and publishes:
-
-```text
-crystal-lattice-cli-v0.1.0-linux-amd64.tar.gz
-crystal-lattice-cli-v0.1.0-darwin-amd64.tar.gz
-crystal-lattice-cli-v0.1.0-darwin-arm64.tar.gz
-crystal-lattice-cli-v0.1.0-windows-amd64.zip
-```
+The tag must match `application/python/pyproject.toml`'s `project.version`.
 
 Maintainer checklist:
 
 1. Update `application/python/pyproject.toml` if the CLI version is changing.
-2. Update any release notes or user-facing docs that should ship with the tag.
+2. Update release notes or user-facing docs that should ship with the tag.
 3. Run local tests or a manual GitHub Actions dry run.
 4. Commit and push the release commit.
 5. Create and push `crystal-lattice-cli-v<version>`.
-6. Verify the GitHub Release contains all four archives and that the workflow
-   smoke tests passed.
+6. Verify the GitHub Release contains all four archives.
+7. Verify the S3 installer and `latest.txt` point at the expected release.
 
-### Docker Linux bundle test
+### Docker Linux Bundle Test
 
-Linux bundling can be tested locally through pytest and Docker. The test
-exports the staged Git index into a clean snapshot, builds the Linux bundle in
-a Python builder container, then validates the archive in a separate Ubuntu
-runtime container.
+Linux bundling can be tested locally through pytest and Docker. The test exports
+the staged Git index into a clean snapshot, builds the Linux bundle in a Python
+builder container, then validates the archive in a separate Ubuntu runtime
+container.
 
 Stage the files you want included in the clean snapshot, then run:
 
@@ -322,295 +675,3 @@ pytest application/python/tests/test_binary_distribution_docker.py -q
 
 This test is marked `integration` and `docker`. Docker validates Linux bundles
 only; macOS and Windows bundles still need native runners.
-
-## Running the API server
-
-After installation:
-
-```bash
-crystal-lattice
-```
-
-This starts a FastAPI app (via uvicorn) on `http://127.0.0.1:8000` by
-default. The main routes are:
-
-- `POST /sessions` – create a new session
-- `POST /sessions/{session_id}/messages` – append a message
-- `POST /sessions/{session_id}/send` – start the model/tool loop in the background
-- `GET /events` – list events from the shared in-memory event store
-
-You can change host and port:
-
-```bash
-crystal-lattice --host 0.0.0.0 --port 9000
-```
-
-## Enabling Bonjour (mDNS) and the bridge service
-
-The API server can optionally:
-
-- advertise itself on the local network via **Bonjour/mDNS** so that
-  compatible clients (like the React Native demo app) can discover it
-  automatically, and
-- connect to the **Elixir bridge service** so that mobile/desktop
-  clients can reach the server via a WebSocket bridge with a pairing
-  flow.
-
-These integrations are configured via command-line flags when starting
-the app with `crystal-lattice`. Under the hood the
-flags are converted to environment variables (``ENABLE_BONJOUR``,
-``BRIDGE_URL``, etc.) that the FastAPI app reads on startup.
-
-### Simplest Bonjour command
-
-```bash
-crystal-lattice \
-  --host 0.0.0.0 \
-  --port 9000 \
-  --enable-bonjour
-```
-
-This will:
-
-- start the HTTP API on ``http://0.0.0.0:9000``, and
-- advertise a ``_http._tcp`` Bonjour service named
-  ``"Agent Terminal App"`` on port ``9000``.
-
-You normally do **not** need to override the Bonjour options. For
-completeness, the most useful flags are:
-
-- ``--enable-bonjour`` – turn Bonjour advertising on.
-- ``--bonjour-port`` – explicit port to advertise; by default the
-  server port (``--port``) is used.
-- ``--bonjour-service-name`` – human‑readable instance name shown in
-  Bonjour browsers (default: ``"Agent Terminal App"``).
-
-Internally these map to:
-
-- ``ENABLE_BONJOUR=1``
-- ``BONJOUR_PORT=<value>`` (if provided)
-- ``BONJOUR_SERVICE_NAME=<value>`` (if provided)
-
-### Verify
-
-```bash
-dns-sd -B _http._tcp .
-```
-
-### Simplest bridge command
-
-To enable the bridge client, you need a running Elixir bridge
-instance (for example, from the ``bridge-elixir`` directory in the
-repository) exposing a WebSocket endpoint such as
-``ws://localhost:4000/ws/websocket``.
-
-The minimal command is:
-
-```bash
-crystal-lattice \
-  --host 0.0.0.0 \
-  --port 9000 \
-  --bridge-url ws://localhost:4000/ws/websocket
-```
-
-This will:
-
-- start the HTTP API on ``http://0.0.0.0:9000``, and
-- connect to the bridge as a "server" client, registering this
-  process so that mobile/desktop clients can discover and pair with it.
-
-When the bridge is enabled, the server prints human‑facing messages to
-stdout, including a banner with the 6‑digit pairing code and, once
-paired, the bridge session id. This makes it easy to complete the
-pairing flow from the React Native demo app.
-
-The most useful bridge options are:
-
-- ``--bridge-url`` – **required** to enable the bridge; WebSocket URL
-  of the Elixir bridge, for example
-  ``ws://localhost:4000/ws/websocket``.
-- ``--bridge-display-name`` – optional human‑friendly name shown in
-  bridge clients (defaults to ``"Agent Terminal App"``).
-- ``--bridge-location`` – optional free‑text location string (for
-  example, ``"Office"``); purely informational.
-- ``--bridge-local-http-base`` – optional explicit base URL for the
-  local HTTP server as seen from the bridge (default:
-  ``http://<SERVER_HOST>:<SERVER_PORT>`` derived from the ``--host``
-  and ``--port`` flags).
-
-Under the hood these map to the following environment variables:
-
-- ``BRIDGE_URL``
-- ``BRIDGE_DISPLAY_NAME`` (if provided)
-- ``BRIDGE_LOCATION`` (if provided)
-- ``BRIDGE_LOCAL_HTTP_BASE`` (if provided)
-- ``BRIDGE_SERVER_ID`` (if you supply ``--bridge-server-id``)
-
-### Bonjour + bridge together
-
-You can enable both integrations at the same time:
-
-```bash
-crystal-lattice \
-  --host 0.0.0.0 \
-  --port 9000 \
-  --enable-bonjour \
-  --bridge-url ws://localhost:4000/ws/websocket \
-  --bridge-display-name "My Agent Server" \
-  --bridge-location "Office"
-```
-
-In this mode:
-
-- LAN clients can discover the server via Bonjour and talk to it
-  directly over HTTP.
-- Remote clients can connect to the same server via the Elixir bridge
-  using the pairing flow.
-
-## Running the terminal client
-
-To run only the terminal client (no HTTP server in this process):
-
-```bash
-crystal-lattice --console
-```
-
-Features:
-
-- multiline input (press Enter to add lines, Ctrl-D / Ctrl-C to exit)
-- slash commands:
-  - `/help` – list commands and shortcuts
-  - `/new` – start a new session
-  - `/exit` or `/quit` – exit the client
-- keyboard shortcuts:
-  - `Ctrl-N` – start a new session
-  - `Ctrl-Q` – exit the client
-
-Messages and events are printed to stdout; the terminal's own
-scrollback acts as the message history.
-
-## Running server and terminal together
-
-You can run both the API server and the terminal client in a single
-process. The server runs in a background thread while the console runs
-in the foreground, sharing the same `AgentApplication` instance and
-in-memory event store:
-
-```bash
-crystal-lattice --server --console
-```
-
-In this mode, any requests sent through the HTTP API (for the same
-session) will produce events that also appear in the terminal, and vice
-versa.
-
-## Logging
-
-By default, all output goes to stdout and the log level for the
-terminal application starts at `WARNING`.
-
-You can mirror logs to a separate file using `--log-file`:
-
-```bash
-# Server only, with logs mirrored to app.log
-crystal-lattice --log-file app.log
-
-# Console only, with logs mirrored to console.log
-crystal-lattice --console --log-file console.log
-
-# Server + console, with all logs mirrored to combined.log
-crystal-lattice --server --console --log-file combined.log
-```
-
-The `--log-file` option adds a file handler to Python's root logger, so
-uvicorn and the terminal client logs are written both to stdout and to
-the given file.
-
-You can also control the log level for both the terminal application
-and the core SDK using `--log-level` (overriding any `LOG_LEVEL`
-environment variable):
-
-```bash
-crystal-lattice --log-level DEBUG
-crystal-lattice --console --log-level INFO
-```
-
-## Command-line options
-
-You can inspect all available flags with:
-
-```bash
-crystal-lattice --help
-```
-
-Common options:
-
-- `--server` – run the HTTP API server (default when no flags given)
-- `--console` – run the interactive terminal client
-- `--host` / `--port` – bind address and port for the server
-- `--config` – path to a JSON config file
-- `--config-local` – force use of `./.crystal/config.json`, creating a
-  default if missing
-- `--sessions-dir` – directory for session files (default:
-  `./.crystal/sessions`)
-- `--app-name` – name to set as the terminal window title
-- `--log-file` – mirror logs to a file while keeping stdout output
-- `--log-level` – set log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
-
-## Plugins
-
-The terminal client exposes per-session plugin control via `/plugins`.
-
-- `/plugins` – list all known plugins for the active session, including
-  whether they are enabled, their kind (provider/extension/feature/tool),
-  and a stable plugin id.
-- `/plugins on <id-or-index>` – enable a plugin for this session using
-  either its id (e.g. `delay_extension`) or the 1-based index from the
-  last `/plugins` listing.
-- `/plugins off <id-or-index>` – disable a plugin for this session.
-- `/plugins reset` – clear any session-specific overrides and revert to
-  the agent's default plugin configuration (or "all enabled" if no
-  defaults are configured).
-
-Changes are stored on the session (in `session.metadata["plugins"]`), so
-subsequent requests and reloads use the updated plugin set.
-
-Many plugins also expose configuration and display metadata via
-`get_ui_elements(config, tags, models)`:
-
-- Elements with `ui_type == "config"` (or with no `ui_type`, which
-  defaults to `"config"`) describe editable settings. The `/set`
-  command and its completions are driven by these entries.
-- Elements with `ui_type == "message_footer"` describe per-message
-  footer fields (for example, timestamps or cached-token counters).
-  The terminal renders them under each message when present.
-- Elements with `ui_type == "status_bar"` describe status bar fields
-  derived from the last assistant message (for example, cumulative
-  usage cost). These are shown in the bottom status bar next to the
-  agent and session id.
-
-Built-in examples include:
-
-- `TimestampExtension` (feature): adds a `metadata.timestamp` field and
-  a `message_footer` UI element so timestamps appear in message footers.
-- `OpenRouterUsageExtension` (provider extension): adds
-  `message_footer` elements for per-message token/cost info and a
-  `status_bar` element for cumulative cost.
-
-## Listing messages
-
-The `/list` slash command shows recent messages with a compact view of
-content, thinking, and tool usage for each entry:
-
-- `[index] role` – zero-based message index and role.
-- `content:` (or `result:` for `tool` messages) – the message text.
-- `thinking:` – reasoning attached by reasoning-capable providers or
-  extensions (from `metadata["reasoning"]` or `metadata["thinking_blocks"]`).
-- `tools:` – a summary of tool calls attached to assistant messages,
-  counting calls and listing function names from `metadata["tool_calls"]`.
-- `tool_call_id:` – the id of the tool call for `tool` messages when
-  `metadata["tool_call_id"]` is present.
-
-This is the same formatting exercised by
-`test_list_slash_command_shows_thinking_and_tools` in
-`application/python/tests/test_terminal_application.py`.
