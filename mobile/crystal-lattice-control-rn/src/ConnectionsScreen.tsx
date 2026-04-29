@@ -35,6 +35,7 @@ const ConnectionsScreen: React.FC<ConnectionsScreenProps> = ({
   const renderMethodLabel = (kind: ConnectionRecord['kind']) => {
     if (kind === 'manual') return 'Manual';
     if (kind === 'discovery') return 'Discovery';
+    if (kind === 'cloud') return 'Cloud';
     return 'Bridge';
   };
 

@@ -413,6 +413,24 @@ def main() -> None:  # pragma: no cover - manual execution only
         ),
     )
     parser.add_argument(
+        "--cloud-orchestrator-url",
+        type=str,
+        default=None,
+        help=(
+            "Cloud orchestrator HTTP base URL. Config files can reference this "
+            "as ${env:CLOUD_ORCHESTRATOR_URL}."
+        ),
+    )
+    parser.add_argument(
+        "--cloud-orchestrator-token",
+        type=str,
+        default=None,
+        help=(
+            "Optional cloud orchestrator bearer token/secret. Config files can "
+            "reference this as ${env:CLOUD_ORCHESTRATOR_TOKEN}."
+        ),
+    )
+    parser.add_argument(
         "--bridge-exit-on-superseded",
         action="store_true",
         help=(
@@ -513,6 +531,10 @@ def main() -> None:  # pragma: no cover - manual execution only
     from .terminal import TerminalApplication, run_terminal
 
     env_overrides = runtime_layout.env_overrides()
+    if args.cloud_orchestrator_url:
+        env_overrides["CLOUD_ORCHESTRATOR_URL"] = args.cloud_orchestrator_url
+    if args.cloud_orchestrator_token:
+        env_overrides["CLOUD_ORCHESTRATOR_TOKEN"] = args.cloud_orchestrator_token
     default_local_config = runtime_layout.user_path("local_config")
     default_home_config = runtime_layout.user_path("home_config")
     default_config = runtime_layout.user_path("default_config")

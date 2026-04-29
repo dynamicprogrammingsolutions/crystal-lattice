@@ -78,8 +78,14 @@ export type { KeyValueStore } from './storage/keyValueStore';
 
 export { FetchTransport } from './transport/fetchTransport';
 export { BridgeTransport } from './transport/bridgeTransport';
+export {
+  CloudTransport,
+  formatCloudConnectionLink,
+  parseCloudConnectionLink,
+} from './transport/cloudTransport';
 
 export type { BridgeServer, WebSocketLike, WebSocketFactory } from './transport/bridgeTransport';
+export type { CloudConnectionLink } from './transport/cloudTransport';
 
 export type { Subscribable, Unsubscribe } from './util/subscribable';
 export { SimpleSubscribable } from './util/subscribable';
@@ -170,6 +176,7 @@ export type {
   ManualConnectionRecord,
   DiscoveryConnectionRecord,
   BridgeConnectionRecord,
+  CloudConnectionRecord,
   ConnectionRecord,
 } from './connections/types';
 

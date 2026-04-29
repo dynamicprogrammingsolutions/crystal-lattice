@@ -435,6 +435,49 @@ Important routes include:
 
 - `GET /api/hello` - simple connectivity check used by clients.
 - `GET /api/data`, `PUT /api/data` - demo endpoints used by the mobile app.
+
+## Cloud Orchestrator
+
+The terminal/server can be configured with a cloud orchestrator URL so an
+application action can start a cloud agent for a session and return a copyable
+cloud connection link.
+
+CLI startup values are exposed to config placeholders:
+
+```bash
+crystal-lattice \
+  --server \
+  --cloud-orchestrator-url https://cloud.example.com \
+  --cloud-orchestrator-token "$CLOUD_ORCHESTRATOR_TOKEN"
+```
+
+Config example:
+
+```json
+{
+  "plugins": [
+    "plugins.cloud_agent_app_plugin.CloudAgentAppPlugin"
+  ],
+  "application": {
+    "cloud_agent": {
+      "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
+      "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
+      "workspace_dir": ".",
+      "transfer_script": ".cloud-agent/transfer-up",
+      "upload_script": ".cloud-agent/upload",
+      "download_script": ".cloud-agent/download",
+      "apply_script": ".cloud-agent/apply-down",
+      "cloud_workspace_dir": "/workspace"
+    }
+  }
+}
+```
+
+Scripts receive stable environment variables:
+
+- Local transfer: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
+- Cloud setup/export: `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
+- Local apply: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
 - `POST /sessions` - create a session.
 - `GET /sessions` - list sessions.
 - `GET /sessions/{session_id}/messages` - list session messages.

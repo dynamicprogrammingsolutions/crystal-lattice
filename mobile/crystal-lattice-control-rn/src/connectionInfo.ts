@@ -8,5 +8,9 @@ export function getConnectionAdditionalInfo(record: ConnectionRecord): string {
     }
   }
 
+  if (record.kind === 'cloud') {
+    return `session: ${record.sessionId}`;
+  }
+
   return `id: ${record.id}`;
 }

@@ -337,3 +337,10 @@ application/python/agent_terminal_app/_tmp_sessions_help4/3895d4ba-c74d-410d-847
 /mobile/bonjour-example-rn/ios/Pods/*
 /mobile/crystal-lattice-control-rn/ios/Pods/*
 /artifacts
+
+# Cloud orchestrator local build/runtime artifacts
+/cloud-orchestrator/_build/
+/cloud-orchestrator/deps/
+/cloud-orchestrator/.data/
+/cloud-orchestrator/.elixir_ls/
+/cloud-orchestrator/deploy/aws-ec2/.state/

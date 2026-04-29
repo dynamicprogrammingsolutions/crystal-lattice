@@ -17,7 +17,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
 import {
   BridgeTransport,
+  CloudTransport,
   FetchTransport,
+  parseCloudConnectionLink,
   type KeyValueStore,
   loadConnections,
   RestAgentBackend,
@@ -25,6 +27,7 @@ import {
   type AgentBackend,
   type BridgeServer,
   type BridgeConnectionRecord,
+  type CloudConnectionRecord,
   type ConnectionRecord,
   type DiscoveryConnectionRecord,
   type ManualConnectionRecord,
@@ -43,7 +46,7 @@ import {
 import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
 import { PinnedActionsProvider } from './src/PinnedActionsContext';
 
-type ConnectionMethod = 'manual' | 'discovery' | 'bridge';
+type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
 interface Service {
   name: string;
@@ -142,6 +145,16 @@ function createBridgeTransport(options: {
   });
 }
 
+function createCloudTransport(record: Pick<CloudConnectionRecord, 'orchestratorUrl' | 'instanceId' | 'token'>): CloudTransport {
+  return new CloudTransport({
+    orchestratorUrl: record.orchestratorUrl,
+    instanceId: record.instanceId,
+    token: record.token,
+    defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+    timeoutRules: TRANSPORT_TIMEOUT_RULES,
+  });
+}
+
 function getBridgeReconnectErrorCode(error: unknown): 'invalid_pairing_token' | 'server_not_found' | 'server_mismatch' | null {
   const message =
     error instanceof Error ? error.message : typeof error === 'string' ? error : '';
@@ -195,6 +208,7 @@ function App(): React.JSX.Element {
   const [selectedBridgeServer, setSelectedBridgeServer] = useState<BridgeServer | null>(null);
   const [pairingCode, setPairingCode] = useState('');
   const [connectingBridgeTransport, setConnectingBridgeTransport] = useState<BridgeTransport | null>(null);
+  const [cloudConnectionLink, setCloudConnectionLink] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
 
@@ -683,6 +697,7 @@ function App(): React.JSX.Element {
     setBridgeServers([]);
     setSelectedBridgeServer(null);
     setPairingCode('');
+    setCloudConnectionLink('');
   };
 
   const startDiscovery = () => {
@@ -909,6 +924,49 @@ function App(): React.JSX.Element {
     }
   };
 
+  const connectCloud = async () => {
+    if (!cloudConnectionLink.trim()) {
+      Alert.alert('Error', 'Please paste a cloud connection link');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const parsed = parseCloudConnectionLink(cloudConnectionLink.trim());
+      const nextTransport = new CloudTransport({
+        orchestratorUrl: parsed.orchestratorUrl,
+        instanceId: parsed.instanceId,
+        token: parsed.token,
+        defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+        timeoutRules: TRANSPORT_TIMEOUT_RULES,
+      });
+      await nextTransport.request({ method: 'GET', path: '/api/data' });
+      setTransport(nextTransport);
+      setBackend(new RestAgentBackend({ transport: nextTransport }));
+
+      const id = generateId();
+      const record: CloudConnectionRecord = {
+        id,
+        kind: 'cloud',
+        name: `Cloud ${parsed.sessionId}`,
+        orchestratorUrl: parsed.orchestratorUrl,
+        instanceId: parsed.instanceId,
+        sessionId: parsed.sessionId,
+        token: parsed.token,
+        lastUsedAt: Date.now(),
+      };
+      upsertConnection(record);
+      setSelectedConnectionId(id);
+      setShowConnectionWizard(false);
+      setConnectionMethod(null);
+      setCloudConnectionLink('');
+    } catch (error: any) {
+      Alert.alert('Cloud Connection Error', error?.message || 'Could not connect to cloud agent');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDisconnect = () => {
     appendDebugNote({
       scope: 'app',
@@ -975,6 +1033,13 @@ function App(): React.JSX.Element {
         onPress={() => selectMethod('bridge')}>
         <Text style={styles.buttonText}>Bridge Service</Text>
         <Text style={styles.methodDescription}>Connect via bridge server</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.methodButton]}
+        onPress={() => selectMethod('cloud')}>
+        <Text style={styles.buttonText}>Cloud Agent Link</Text>
+        <Text style={styles.methodDescription}>Paste a cloud session connection link</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -1213,10 +1278,41 @@ function App(): React.JSX.Element {
     </View>
   );
 
+  const renderCloudConnection = () => (
+    <View style={styles.container}>
+      <Text style={styles.title}>Cloud Agent Link</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="crystal-lattice-cloud://connect?..."
+        value={cloudConnectionLink}
+        onChangeText={setCloudConnectionLink}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <TouchableOpacity
+        style={[styles.button, styles.primaryButton]}
+        onPress={connectCloud}
+        disabled={isLoading}>
+        <Text style={styles.buttonText}>
+          {isLoading ? 'Connecting...' : 'Connect to Cloud Agent'}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.secondaryButton]}
+        onPress={cancelConnectionWizard}>
+        <Text style={styles.buttonTextSecondary}>Back</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   const renderConnectingScreen = () => {
     if (connectionMethod === 'manual') return renderManualConnection();
     if (connectionMethod === 'discovery') return renderDiscoveryConnection();
     if (connectionMethod === 'bridge') return renderBridgeConnection();
+    if (connectionMethod === 'cloud') return renderCloudConnection();
     return null;
   };
 
@@ -1272,6 +1368,10 @@ function App(): React.JSX.Element {
           throw error;
         }
         nextTransport = bridge;
+      } else if (record.kind === 'cloud') {
+        const cloud = createCloudTransport(record);
+        await cloud.request({ method: 'GET', path: '/api/data' });
+        nextTransport = cloud;
       }
 
       if (nextTransport) {
