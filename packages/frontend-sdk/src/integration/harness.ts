@@ -207,6 +207,13 @@ export interface StartedBridge {
   resume?: () => Promise<void>;
 }
 
+export interface StartedCloudOrchestrator {
+  baseUrl: string;
+  port: number;
+  dataDir: string;
+  stop: () => Promise<void>;
+}
+
 async function commandExists(cmd: string, args: string[]): Promise<boolean> {
   return await new Promise<boolean>((resolve) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'ignore', 'ignore'] });
@@ -237,6 +244,202 @@ async function runCommand(options: { cmd: string; args: string[]; cwd: string })
       }
     });
   });
+}
+
+export async function startCloudOrchestratorLocal(): Promise<StartedCloudOrchestrator> {
+  const repoRoot = findRepoRoot(process.cwd());
+  const cwd = path.join(repoRoot, 'cloud-orchestrator');
+  const port = await getFreePort();
+  const baseUrl = `http://127.0.0.1:${port}`;
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-orchestrator-'));
+
+  await runCommand({
+    cmd: 'docker',
+    args: ['build', '-t', 'cloud-agent-runtime:latest', 'runtime/python'],
+    cwd,
+  });
+
+  const child = spawn('mix', ['run', '--no-halt'], {
+    cwd,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: {
+      ...process.env,
+      PORT: String(port),
+      CLOUD_ORCHESTRATOR_RUNNER: 'docker',
+      CLOUD_ORCHESTRATOR_PUBLIC_URL: baseUrl,
+      CLOUD_ORCHESTRATOR_TOKEN_SECRET: 'integration-token-secret',
+      CLOUD_ORCHESTRATOR_DATA_DIR: dataDir,
+      CLOUD_ORCHESTRATOR_HOST_DATA_DIR: dataDir,
+      PYTHONUNBUFFERED: '1',
+    },
+  });
+
+  const stderr: string[] = [];
+  child.stderr.on('data', (buf) => stderr.push(String(buf)));
+  child.stdout.on('data', (buf) => stderr.push(String(buf)));
+
+  await waitForAsync(async () => {
+    try {
+      const resp = await fetch(`${baseUrl}/health`);
+      return resp.ok;
+    } catch {
+      return false;
+    }
+  }, { timeoutMs: 60_000, intervalMs: 250 });
+
+  async function stop(): Promise<void> {
+    if (!child.killed) {
+      child.kill('SIGTERM');
+      await new Promise<void>((resolve) => {
+        const timeout = setTimeout(() => {
+          child.kill('SIGKILL');
+          resolve();
+        }, 3000);
+        child.on('exit', () => {
+          clearTimeout(timeout);
+          resolve();
+        });
+      });
+    }
+
+    try {
+      const ids = await runCommand({
+        cmd: 'docker',
+        args: ['ps', '-aq', '--filter', 'name=cloud-agent-inst_'],
+        cwd,
+      });
+      const list = ids.split(/\s+/).filter(Boolean);
+      if (list.length > 0) {
+        await runCommand({ cmd: 'docker', args: ['rm', '-f', ...list], cwd });
+      }
+    } catch {
+      // Best-effort cleanup only.
+    }
+
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
+
+  child.on('exit', (code) => {
+    if (code !== 0 && code !== null) {
+      // Keep the buffered output reachable in debugger stacks.
+      stderr.push(`cloud orchestrator exited with ${code}`);
+    }
+  });
+
+  return { baseUrl, port, dataDir, stop };
+}
+
+export async function startCloudOrchestratorForE2E(): Promise<StartedCloudOrchestrator> {
+  const mode = process.env.CLOUD_ORCHESTRATOR_E2E_MODE || 'local';
+
+  if (mode === 'local') {
+    return await startCloudOrchestratorLocal();
+  }
+
+  if (mode === 'external') {
+    const baseUrl = process.env.CLOUD_ORCHESTRATOR_E2E_URL;
+    if (!baseUrl) {
+      throw new Error('CLOUD_ORCHESTRATOR_E2E_URL is required when CLOUD_ORCHESTRATOR_E2E_MODE=external');
+    }
+
+    await waitForAsync(async () => {
+      try {
+        const resp = await fetch(`${baseUrl.replace(/\/$/, '')}/health`);
+        return resp.ok;
+      } catch {
+        return false;
+      }
+    }, { timeoutMs: 60_000, intervalMs: 500 });
+
+    return {
+      baseUrl: baseUrl.replace(/\/$/, ''),
+      port: 0,
+      dataDir: '',
+      stop: async () => {},
+    };
+  }
+
+  if (mode === 'aws-ec2-cloudfront') {
+    return await startCloudOrchestratorAwsEc2();
+  }
+
+  throw new Error(`Unsupported CLOUD_ORCHESTRATOR_E2E_MODE=${mode}`);
+}
+
+async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator> {
+  if (process.env.RUN_AWS_CLOUD_ORCHESTRATOR_TESTS !== '1') {
+    throw new Error('RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1 is required for AWS cloud orchestrator E2E modes');
+  }
+
+  const repoRoot = findRepoRoot(process.cwd());
+  const cwd = path.join(repoRoot, 'cloud-orchestrator');
+  const stackName =
+    process.env.AWS_STACK_NAME ||
+    `crystal-lattice-cloud-orchestrator-e2e-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  const region = process.env.AWS_REGION || 'us-east-1';
+  const deployDir = path.join(cwd, 'deploy', 'aws-ec2');
+
+  await runCommand({
+    cmd: path.join(deployDir, 'build.sh'),
+    args: [
+      '--stack-name',
+      stackName,
+      '--region',
+      region,
+      '--builder',
+      process.env.CLOUD_ORCHESTRATOR_AWS_BUILDER || 'ec2',
+      '--json',
+    ],
+    cwd,
+  });
+
+  const upOutput = await runCommand({
+    cmd: path.join(deployDir, 'up.sh'),
+    args: ['--stack-name', stackName, '--region', region, '--json'],
+    cwd,
+  });
+  const parsed = parseCloudOrchestratorOutput(upOutput);
+  if (parsed.controlToken) {
+    process.env.CLOUD_ORCHESTRATOR_E2E_CONTROL_TOKEN = parsed.controlToken;
+  }
+
+  async function stop(): Promise<void> {
+    await runCommand({
+      cmd: path.join(deployDir, 'down.sh'),
+      args: ['--stack-name', stackName, '--region', region],
+      cwd,
+    });
+  }
+
+  return {
+    baseUrl: parsed.orchestratorUrl,
+    port: 0,
+    dataDir: '',
+    stop,
+  };
+}
+
+function parseCloudOrchestratorOutput(output: string): { orchestratorUrl: string; controlToken?: string } {
+  const trimmed = output.trim();
+  const lines = trimmed.split(/\r?\n/);
+  const jsonLine = [...lines].reverse().find((line) => line.trim().startsWith('{'));
+  if (jsonLine) {
+    const parsed = JSON.parse(jsonLine);
+    const orchestratorUrl = parsed.orchestratorUrl || parsed.cloudFrontUrl || parsed.CloudOrchestratorUrl;
+    if (typeof orchestratorUrl === 'string' && orchestratorUrl) {
+      return {
+        orchestratorUrl,
+        controlToken: typeof parsed.controlToken === 'string' ? parsed.controlToken : undefined,
+      };
+    }
+  }
+
+  const match = trimmed.match(/CloudOrchestratorUrl=([^\s]+)/);
+  if (match) {
+    return { orchestratorUrl: match[1] };
+  }
+
+  throw new Error(`Unable to parse CloudOrchestratorUrl from output:\n${output}`);
 }
 
 export async function startBridgeDocker(): Promise<StartedBridge> {

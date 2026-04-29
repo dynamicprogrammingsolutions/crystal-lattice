@@ -1,0 +1,232 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Crystal Lattice cloud orchestrator EC2 Docker host with CloudFront HTTPS.
+
+Parameters:
+  StackName:
+    Type: String
+  SourceBucket:
+    Type: String
+  OrchestratorImageKey:
+    Type: String
+  RuntimeImageKey:
+    Type: String
+  InstanceType:
+    Type: String
+    Default: t3.micro
+  CpuArchitecture:
+    Type: String
+    Default: X86_64
+    AllowedValues:
+      - X86_64
+      - ARM64
+  KeyName:
+    Type: String
+    Default: ""
+  ControlToken:
+    Type: String
+    NoEcho: true
+  TokenSecret:
+    Type: String
+    NoEcho: true
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
+  IsArm64: !Equals [!Ref CpuArchitecture, ARM64]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.42.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-vpc
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.42.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-public
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref RouteTable
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Cloud orchestrator origin access
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 4100
+          ToPort: 4100
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: SourceBundleRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/${OrchestratorImageKey}
+                  - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/${RuntimeImageKey}
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !If
+        - IsArm64
+        - !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}"
+        - !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}"
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref PublicSubnet
+          GroupSet:
+            - !Ref SecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 16
+            VolumeType: gp3
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-orchestrator
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+          dnf install -y docker awscli tar gzip
+          systemctl enable --now docker
+          mkdir -p /var/lib/cloud-orchestrator
+          aws s3 cp s3://${SourceBucket}/${RuntimeImageKey} /tmp/cloud-agent-runtime-image.tar.gz --region ${AWS::Region}
+          aws s3 cp s3://${SourceBucket}/${OrchestratorImageKey} /tmp/cloud-orchestrator-image.tar.gz --region ${AWS::Region}
+          gunzip -c /tmp/cloud-agent-runtime-image.tar.gz | docker load
+          gunzip -c /tmp/cloud-orchestrator-image.tar.gz | docker load
+          docker tag cloud-agent-runtime:aws-e2e cloud-agent-runtime:latest
+          docker tag cloud-orchestrator:aws-e2e cloud-orchestrator:latest
+          docker rm -f cloud-orchestrator-single || true
+          docker run -d \
+            --name cloud-orchestrator-single \
+            --restart unless-stopped \
+            -p 4100:4100 \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v /var/lib/cloud-orchestrator:/var/lib/cloud-orchestrator \
+            --add-host host.docker.internal:host-gateway \
+            -e MIX_ENV=prod \
+            -e PORT=4100 \
+            -e SECRET_KEY_BASE=$(openssl rand -hex 64) \
+            -e CLOUD_ORCHESTRATOR_RUNNER=docker \
+            -e CLOUD_ORCHESTRATOR_PUBLIC_URL=http://127.0.0.1:4100 \
+            -e CLOUD_ORCHESTRATOR_CONTROL_TOKEN=${ControlToken} \
+            -e CLOUD_ORCHESTRATOR_TOKEN_SECRET=${TokenSecret} \
+            -e CLOUD_ORCHESTRATOR_DATA_DIR=/var/lib/cloud-orchestrator \
+            -e CLOUD_ORCHESTRATOR_HOST_DATA_DIR=/var/lib/cloud-orchestrator \
+            -e CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=host.docker.internal \
+            -e CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=172.17.0.1 \
+            -e CLOUD_WORKSPACE_DIR=/workspace \
+            cloud-orchestrator:latest
+
+  Distribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub ${StackName} cloud orchestrator
+        Origins:
+          - Id: ec2-origin
+            DomainName: !GetAtt Instance.PublicDnsName
+            CustomOriginConfig:
+              HTTPPort: 4100
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          TargetOriginId: ec2-origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: false
+          ForwardedValues:
+            QueryString: true
+            Headers:
+              - Authorization
+              - Content-Type
+            Cookies:
+              Forward: none
+          MinTTL: 0
+          DefaultTTL: 0
+          MaxTTL: 0
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+Outputs:
+  InstanceId:
+    Value: !Ref Instance
+  Ec2PublicDnsName:
+    Value: !GetAtt Instance.PublicDnsName
+  Ec2HttpUrl:
+    Value: !Sub http://${Instance.PublicDnsName}:4100
+  CloudFrontDomain:
+    Value: !GetAtt Distribution.DomainName
+  CloudFrontDistributionId:
+    Value: !Ref Distribution
+  CloudOrchestratorUrl:
+    Value: !Sub https://${Distribution.DomainName}

@@ -3,7 +3,7 @@ Plan and implement cloud agent orchestration for the terminal/server application
 
 ## Task checklist
 
-- [ ] `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/020-linked-readonly-session-ux.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/030-native-cloud-connection-ux.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/040-reuse-multi-session-and-sync-polish.md`
