@@ -175,10 +175,20 @@ More detail:
 - [mobile/crystal-lattice-control-rn/README.md](mobile/crystal-lattice-control-rn/README.md) - React Native setup and connection screens.
 - [bridge-elixir/README.md](bridge-elixir/README.md) - bridge service, Docker cluster, protocol, and deployment notes.
 
-TODO: Add the default external bridge setup once implemented:
-`bridge-elixir/deploy/aws-fargate/up.sh --profile secure` should create a
-Fargate + ALB + CloudFront bridge and print a stable
-`wss://<cloudfront-domain>/ws/websocket` URL.
+Default external bridge setup:
+
+```bash
+cd bridge-elixir
+RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/up.sh \
+  --profile secure \
+  --stack-name crystal-lattice-bridge \
+  --region us-east-1
+```
+
+This creates a Fargate + ALB + CloudFront bridge and prints a stable
+`wss://<cloudfront-domain>/ws/websocket` URL. See
+[bridge-elixir/deploy/aws-fargate/README.md](bridge-elixir/deploy/aws-fargate/README.md)
+for stop/start, cheaper public-task, custom-domain, and AWS smoke-test flows.
 
 ## Plugin Development Quickstart
 

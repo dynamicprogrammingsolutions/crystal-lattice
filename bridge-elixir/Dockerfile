@@ -39,6 +39,6 @@ COPY --from=builder /app/mix.exs /app/mix.lock ./
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 4000
+EXPOSE 4000 4369 9100-9155
 
 ENTRYPOINT ["docker-entrypoint.sh"]

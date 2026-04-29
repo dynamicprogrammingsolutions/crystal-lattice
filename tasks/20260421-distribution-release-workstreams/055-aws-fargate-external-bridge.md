@@ -4,16 +4,16 @@ Make it easy for a user with AWS CLI credentials to start an external Crystal La
 
 ## Requirements checklist
 
-- [ ] Implement stateless signed pairing tokens as a prerequisite for clustered/resumable bridge connections.
-- [ ] Make `resume_session` verify the token and create a fresh ephemeral bridge session id.
-- [ ] Add a default secure AWS deployment profile: Fargate + ALB + CloudFront.
-- [ ] Add start/stop/restart/down/status scripts using AWS CLI and CloudFormation.
-- [ ] Ensure stopped secure deployments avoid most cost, including load balancer cost, while keeping the same public CloudFront domain when restarted.
-- [ ] Add optional autoscaling for the secure profile, intended first for testing.
-- [ ] Add a cheap single-task profile: one public Fargate task with plain HTTP/WebSocket and public IP output.
-- [ ] Add custom-domain support for the secure profile with automatic Route53 setup.
-- [ ] Document AWS prerequisites, costs, security model, connection commands, and cleanup.
-- [ ] Add tests or validation scripts for token behavior and generated deployment templates.
+- [x] Implement stateless signed pairing tokens as a prerequisite for clustered/resumable bridge connections.
+- [x] Make `resume_session` verify the token and create a fresh ephemeral bridge session id.
+- [x] Add a default secure AWS deployment profile: Fargate + ALB + CloudFront.
+- [x] Add start/stop/restart/down/status scripts using AWS CLI and CloudFormation.
+- [x] Ensure stopped secure deployments avoid most cost, including load balancer cost, while keeping the same public CloudFront domain when restarted.
+- [x] Add optional autoscaling for the secure profile, intended first for testing.
+- [x] Add a cheap single-task profile: one public Fargate task with plain HTTP/WebSocket and public IP output.
+- [x] Add custom-domain support for the secure profile with automatic Route53 setup.
+- [x] Document AWS prerequisites, costs, security model, connection commands, and cleanup.
+- [x] Add tests or validation scripts for token behavior and generated deployment templates.
 
 Parent Task: `tasks/20260421-distribution-release-workstreams/000-main.md`
 
@@ -466,3 +466,98 @@ Out of scope for this first task:
 - multi-region bridge
 - production-grade active-connection autoscaling metric unless it turns out to be simple
 - mobile UI changes beyond documenting connection URLs
+
+## Execution plan
+
+Added during completion after user approval.
+
+### Stage 1: stateless pairing token prerequisite
+
+1. Add a dedicated stateless signed token implementation for bridge pairing identity.
+2. Use `BRIDGE_TOKEN_SECRET`, `BRIDGE_TOKEN_SALT`, and `BRIDGE_PAIRING_TOKEN_TTL_SECONDS`.
+3. Keep the current protocol response shape: `pair_submit` returns `session_id` and `pairing_token`; `resume_session` returns a fresh `session_id`.
+4. Make `pairing_token` route to `server_id`; treat `session_id` as ephemeral routing state.
+5. Do not enforce token `client_id` binding in this pass because the current mobile/frontend saved connection persists `pairingToken`, `serverId`, and `bridgeUrl`, but not the generated `clientId`.
+6. Update token/unit tests to prove verification, tamper rejection, server mismatch, and fresh-session resume behavior.
+
+### Stage 2: reuse existing integration and end-to-end tests
+
+1. Reuse the existing frontend SDK bridge E2E as the primary full-stack verification:
+   `packages/frontend-sdk/src/integration/__tests__/bridge.e2e.integration.test.ts`.
+2. Keep the existing Docker behavior as the default E2E provider.
+3. Add bridge-provider selection so the same E2E can run against Docker, an external bridge URL, or AWS-created bridge stacks.
+4. Make `bridge-elixir/test_docker.py` accept `BRIDGE_URL` from the environment so the current protocol smoke test can run unchanged against Docker or AWS.
+5. Extend the protocol smoke test to verify `pairing_token` is returned and `resume_session` creates a usable fresh session.
+
+### Stage 3: AWS deployment scaffold and validation
+
+1. Add deployment files under `bridge-elixir/deploy/aws-fargate/`.
+2. Add the default secure profile using a two-stack model:
+   - edge stack: CloudFront, optional custom domain/Route53, stable public domain
+   - origin stack: ALB, ECS/Fargate service, task networking
+3. Add the cheap `public-task` profile using a single public Fargate task and plain `ws://`.
+4. Add custom-domain support for the secure profile with ACM in `us-east-1` and optional Route53 DNS setup.
+5. Add scripts: `up.sh`, `start.sh`, `stop.sh`, `down.sh`, `status.sh`.
+6. Add static validation commands for CloudFormation templates and shell scripts.
+
+### Stage 4: AWS deployment tests
+
+1. Add AWS smoke tests guarded by `RUN_AWS_BRIDGE_TESTS=1`.
+2. Add `smoke_public_task.sh`:
+   deploy public task, capture URL, run protocol test, clean up.
+3. Add `smoke_secure.sh`:
+   deploy secure profile, wait for CloudFront health, run protocol test, clean up.
+4. Add `smoke_secure_restart.sh`:
+   deploy secure profile, record CloudFront domain, run E2E, stop origin stack, start origin stack, verify same public domain, run resume/request E2E, clean up.
+5. Add optional `smoke_custom_domain.sh` gated by hosted-zone/domain env vars.
+6. Use isolated stack names, AWS tags, cleanup traps, and `--keep-on-failure`.
+
+### Stage 5: docs and task status
+
+1. Document local, Docker, external URL, AWS public-task, AWS secure, and custom-domain verification.
+2. Replace the root README TODO with the real default command once the secure profile has a concrete script path.
+3. Update this task checklist and append completion notes with what was implemented and what remains.
+
+## Completion Notes
+
+Added during completion.
+
+Implemented stateless signed pairing tokens in `bridge-elixir/lib/bridge/pairing_token.ex` and rewired `Bridge.PersistentPairingManager` as a compatibility wrapper around signed-token issue/verify. `pair_submit` still returns `session_id` and `pairing_token`, while `resume_session` now verifies the signed token and creates a fresh ephemeral session id.
+
+Added bridge tests for signed token behavior and app-channel resume behavior, and extended the Docker/Python bridge smoke test so it accepts `BRIDGE_URL`, verifies signed pairing tokens, and verifies resumed sessions are fresh. The Docker integration runner now pins `BRIDGE_URL=ws://localhost:4000/ws/websocket` so a developer shell's external `BRIDGE_URL` cannot accidentally redirect the Docker test.
+
+Added frontend SDK E2E bridge provider selection. Docker remains the default, `BRIDGE_E2E_MODE=external` can target an arbitrary URL, and `BRIDGE_E2E_MODE=aws-public-task` / `aws-secure` can drive the AWS scripts when `RUN_AWS_BRIDGE_TESTS=1`.
+
+Added `bridge-elixir/deploy/aws-fargate/` with CloudFormation templates and scripts:
+
+- `public-task.yaml` plus `up/start/stop/down/status` support for a cheap public Fargate task.
+- `secure-origin.yaml` for ALB + ECS/Fargate, Cloud Map service discovery, DNSPoll clustering, and optional CPU autoscaling.
+- `secure-edge.yaml` for stable CloudFront, optional ACM certificate, and optional Route53 alias.
+- AWS smoke scripts for public task, secure profile, secure stop/start E2E, and custom domain.
+- Deployment README with setup, cost-saving stop/start behavior, custom-domain usage, and smoke-test commands.
+
+Updated the root `README.md` bridge section with the default secure AWS command and a link to the deployment README.
+
+Verification run:
+
+- `mix test --exclude integration --exclude websocket` from `bridge-elixir` passed: 32 tests, 0 failures, 4 excluded. Existing warnings remain for skipped WebSocket tests referencing `Bridge.TestClient`.
+- `BRIDGE_URL=ws://localhost:4000/ws/websocket python3 test_docker.py` passed.
+- `./run-integration-tests.sh` passed after pinning the Docker test URL.
+- `npm test -- bridgeTransport.test.ts` passed: 12 tests.
+- `npm test -- src/integration/__tests__/bridge.e2e.integration.test.ts` passed in skipped mode, proving the updated file loads.
+- `aws --region us-east-1 cloudformation validate-template` passed for `public-task.yaml`, `secure-origin.yaml`, and `secure-edge.yaml`.
+- `shellcheck -x deploy/aws-fargate/*.sh deploy/aws-fargate/tests/*.sh` passed.
+- `bash -n` passed for the deployment scripts.
+- `git diff --check` passed.
+
+Not run:
+
+- Full package `npm exec tsc -- --noEmit` in `packages/frontend-sdk` still fails on pre-existing unrelated test/mock type errors and backend type issues outside this task.
+
+Follow-up AWS test run:
+
+- `RUN_AWS_BRIDGE_TESTS=1 AWS_REGION=us-east-1 ... smoke_public_task.sh` passed against a real public Fargate task.
+- `RUN_AWS_BRIDGE_TESTS=1 AWS_REGION=us-east-1 ... smoke_secure.sh` passed against real Fargate + ALB + CloudFront using `wss://<cloudfront-domain>/ws/websocket`.
+- Initial public-task smoke exposed an architecture mismatch on Apple Silicon. Fixed by making the helper build the native Docker platform by default and pass matching `CpuArchitecture` (`ARM64` here, `X86_64` on x86 CI) to Fargate.
+- Initial secure smoke exposed an invalid CloudFront managed cache policy id. Fixed by using AWS managed `CachingDisabled` id `4135ea2d-6df8-44a3-9df3-4b5a84be39ad`.
+- `smoke_secure_restart.sh` exists and drives the frontend SDK E2E through AWS secure mode, but it currently times out in Vitest during the long CloudFront/Fargate stop-start cycle. The stacks were cleaned up. This test needs follow-up instrumentation and/or a larger timeout/leaner restart strategy before it can be treated as a reliable passing AWS E2E.

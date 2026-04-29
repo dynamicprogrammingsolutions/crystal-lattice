@@ -3,10 +3,13 @@ import WS from 'ws';
 
 import { BridgeTransport } from '../../transport/bridgeTransport';
 import type { WebSocketLike } from '../../transport/bridgeTransport';
-import { startBackendServer, startBridgeDocker, waitForAsync, waitForStdoutMatch } from '../harness';
+import { startBackendServer, startBridgeForE2E, waitForAsync, waitForStdoutMatch } from '../harness';
 
 const RUN = process.env.RUN_BRIDGE_E2E_INTEGRATION === '1';
 const describeIf = RUN ? describe : describe.skip;
+const IS_AWS_E2E = (process.env.BRIDGE_E2E_MODE || '').startsWith('aws-');
+const TEST_TIMEOUT_MS = IS_AWS_E2E ? 2_700_000 : 600_000;
+const HOOK_TIMEOUT_MS = IS_AWS_E2E ? 900_000 : 10_000;
 
 class NodeWebSocketWrapper implements WebSocketLike {
   private sock: WS;
@@ -45,12 +48,12 @@ describeIf('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClie
       await stop();
     }
     stopAll = [];
-  });
+  }, HOOK_TIMEOUT_MS);
 
   it(
     'supports large request + large response bodies',
     async () => {
-      const bridge = await startBridgeDocker();
+      const bridge = await startBridgeForE2E();
       stopAll.push(bridge.stop);
 
       const serverId = `e2e-server-${Date.now()}`;
@@ -128,13 +131,13 @@ describeIf('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClie
       expect(getResp.data.success).toBe(true);
       expect(getResp.data.data.blob.length).toBe(big.length);
     },
-    600_000,
+    TEST_TIMEOUT_MS,
   );
 
   it(
     'reconnects and resumes after the bridge restarts',
     async () => {
-      const bridge = await startBridgeDocker();
+      const bridge = await startBridgeForE2E();
       stopAll.push(bridge.stop);
 
       const serverId = `e2e-recovery-server-${Date.now()}`;
@@ -200,7 +203,11 @@ describeIf('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClie
       expect(initial.status).toBe(200);
       expect(initial.data.message).toMatch(/Hello from Bonjour Server!/);
 
-      await bridge.stop();
+      if (bridge.suspend) {
+        await bridge.suspend();
+      } else {
+        await bridge.stop();
+      }
 
       await expect(
         transport.request({
@@ -210,8 +217,12 @@ describeIf('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClie
         }),
       ).rejects.toThrow();
 
-      const restartedBridge = await startBridgeDocker();
-      stopAll.push(restartedBridge.stop);
+      if (bridge.resume) {
+        await bridge.resume();
+      } else {
+        const restartedBridge = await startBridgeForE2E();
+        stopAll.push(restartedBridge.stop);
+      }
 
       await waitForAsync(async () => {
         try {
@@ -231,6 +242,6 @@ describeIf('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClie
       expect(resumed.status).toBe(200);
       expect(resumed.data.message).toMatch(/Hello from Bonjour Server!/);
     },
-    600_000,
+    TEST_TIMEOUT_MS,
   );
 });

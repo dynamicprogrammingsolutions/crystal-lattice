@@ -203,6 +203,8 @@ export async function startBackendServer(options: {
 export interface StartedBridge {
   bridgeUrl: string;
   stop: () => Promise<void>;
+  suspend?: () => Promise<void>;
+  resume?: () => Promise<void>;
 }
 
 async function commandExists(cmd: string, args: string[]): Promise<boolean> {
@@ -213,8 +215,8 @@ async function commandExists(cmd: string, args: string[]): Promise<boolean> {
   });
 }
 
-async function runCommand(options: { cmd: string; args: string[]; cwd: string }): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
+async function runCommand(options: { cmd: string; args: string[]; cwd: string }): Promise<string> {
+  return await new Promise<string>((resolve, reject) => {
     const child = spawn(options.cmd, options.args, {
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -229,7 +231,7 @@ async function runCommand(options: { cmd: string; args: string[]; cwd: string })
     child.on('error', reject);
     child.on('exit', (code) => {
       if (code === 0) {
-        resolve();
+        resolve(out);
       } else {
         reject(new Error(`Command failed (${options.cmd} ${options.args.join(' ')}):\n${out}`));
       }
@@ -274,6 +276,99 @@ export async function startBridgeDocker(): Promise<StartedBridge> {
     bridgeUrl: 'ws://127.0.0.1:4000/ws/websocket',
     stop,
   };
+}
+
+export async function startBridgeForE2E(): Promise<StartedBridge> {
+  const mode = process.env.BRIDGE_E2E_MODE || 'docker';
+
+  if (mode === 'docker') {
+    return await startBridgeDocker();
+  }
+
+  if (mode === 'external') {
+    const bridgeUrl = process.env.BRIDGE_E2E_URL;
+    if (!bridgeUrl) {
+      throw new Error('BRIDGE_E2E_URL is required when BRIDGE_E2E_MODE=external');
+    }
+    return {
+      bridgeUrl,
+      stop: async () => {},
+    };
+  }
+
+  if (mode === 'aws-public-task' || mode === 'aws-secure') {
+    return await startBridgeAws(mode);
+  }
+
+  throw new Error(`Unsupported BRIDGE_E2E_MODE=${mode}`);
+}
+
+async function startBridgeAws(mode: 'aws-public-task' | 'aws-secure'): Promise<StartedBridge> {
+  if (process.env.RUN_AWS_BRIDGE_TESTS !== '1') {
+    throw new Error('RUN_AWS_BRIDGE_TESTS=1 is required for AWS bridge E2E modes');
+  }
+
+  const repoRoot = findRepoRoot(process.cwd());
+  const cwd = path.join(repoRoot, 'bridge-elixir');
+  const profile = mode === 'aws-public-task' ? 'public-task' : 'secure';
+  const stackName =
+    process.env.AWS_STACK_NAME ||
+    `crystal-lattice-bridge-e2e-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+  const region = process.env.AWS_REGION || 'us-east-1';
+  const script = path.join(cwd, 'deploy', 'aws-fargate', 'up.sh');
+
+  const upOutput = await runCommand({
+    cmd: script,
+    args: ['--profile', profile, '--stack-name', stackName, '--region', region, '--json'],
+    cwd,
+  });
+  const bridgeUrl = parseBridgeUrl(upOutput);
+
+  async function stop(): Promise<void> {
+    await runCommand({
+      cmd: path.join(cwd, 'deploy', 'aws-fargate', 'down.sh'),
+      args: ['--profile', profile, '--stack-name', stackName, '--region', region],
+      cwd,
+    });
+  }
+
+  async function suspend(): Promise<void> {
+    await runCommand({
+      cmd: path.join(cwd, 'deploy', 'aws-fargate', 'stop.sh'),
+      args: ['--profile', profile, '--stack-name', stackName, '--region', region],
+      cwd,
+    });
+  }
+
+  async function resume(): Promise<void> {
+    await runCommand({
+      cmd: path.join(cwd, 'deploy', 'aws-fargate', 'start.sh'),
+      args: ['--profile', profile, '--stack-name', stackName, '--region', region],
+      cwd,
+    });
+  }
+
+  return { bridgeUrl, stop, suspend, resume };
+}
+
+function parseBridgeUrl(output: string): string {
+  const trimmed = output.trim();
+  const lines = trimmed.split(/\r?\n/);
+  const jsonLine = [...lines].reverse().find((line) => line.trim().startsWith('{'));
+  if (jsonLine) {
+    const parsed = JSON.parse(jsonLine);
+    const value = parsed.bridgeWebSocketUrl || parsed.BridgeWebSocketUrl;
+    if (typeof value === 'string') {
+      return value;
+    }
+  }
+
+  const match = trimmed.match(/BridgeWebSocketUrl=([^\s]+)/);
+  if (match) {
+    return match[1];
+  }
+
+  throw new Error(`Unable to parse BridgeWebSocketUrl from output:\n${output}`);
 }
 
 export async function waitForStdoutMatch(options: {
