@@ -27,6 +27,12 @@ config :libcluster,
 config :bridge,
   pairing_code_ttl: String.to_integer(System.get_env("PAIRING_CODE_TTL") || "300"),
   max_pairing_attempts: String.to_integer(System.get_env("MAX_PAIRING_ATTEMPTS") || "3"),
-  session_timeout: String.to_integer(System.get_env("SESSION_TIMEOUT") || "3600")
+  session_timeout: String.to_integer(System.get_env("SESSION_TIMEOUT") || "3600"),
+  pairing_token_secret:
+    System.get_env("BRIDGE_TOKEN_SECRET") ||
+      "crystal-lattice-local-dev-pairing-token-secret",
+  pairing_token_salt: System.get_env("BRIDGE_TOKEN_SALT") || "pairing-token-v1",
+  pairing_token_ttl_seconds:
+    String.to_integer(System.get_env("BRIDGE_PAIRING_TOKEN_TTL_SECONDS") || "2592000")
 
 import_config "#{config_env()}.exs"

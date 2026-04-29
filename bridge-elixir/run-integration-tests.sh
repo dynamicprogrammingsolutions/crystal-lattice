@@ -80,7 +80,7 @@ echo "🧪 Running Integration Tests..."
 echo "=================================="
 echo ""
 
-python3 test_docker.py
+BRIDGE_URL=ws://localhost:4000/ws/websocket python3 test_docker.py
 
 exit_code=$?
 

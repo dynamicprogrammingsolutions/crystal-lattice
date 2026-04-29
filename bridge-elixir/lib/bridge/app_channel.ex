@@ -114,8 +114,6 @@ defmodule Bridge.AppChannel do
                    node()
                  ) do
               {:ok, session_id} ->
-                Bridge.PersistentPairingManager.set_last_session(pairing_token, session_id)
-
                 socket = assign(socket, :session_id, session_id)
                 Phoenix.PubSub.subscribe(Bridge.PubSub, "tunnel:app:#{client_id}")
 
@@ -152,48 +150,16 @@ defmodule Bridge.AppChannel do
         else
           case Bridge.ServerRegistry.get_server(pairing.server_id) do
             {:ok, server_info} ->
-              # Prefer to reuse the last known session_id for this pairing
-              # when it still exists, so the bridge session remains stable
-              # across app reconnects. If it no longer exists (e.g. timed
-              # out), create a new one and remember it.
-              reused_session_id =
-                case pairing.last_session_id do
-                  nil ->
-                    nil
-
-                  last_id ->
-                    case Bridge.SessionManager.get_session(last_id) do
-                      {:ok, _session} -> last_id
-                      {:error, :not_found} -> nil
-                    end
-                end
-
               session_id_result =
-                case reused_session_id do
-                  nil ->
-                    case Bridge.SessionManager.create_session(
-                           pairing.server_id,
-                           client_id,
-                           server_info.node,
-                           node()
-                         ) do
-                      {:ok, new_id} ->
-                        Bridge.PersistentPairingManager.set_last_session(token, new_id)
-                        {:ok, new_id}
-
-                      {:error, reason} ->
-                        {:error, reason}
-                    end
-
-                  existing_id ->
-                    Bridge.SessionManager.update_activity(existing_id)
-                    {:ok, existing_id}
-                end
+                Bridge.SessionManager.create_session(
+                  pairing.server_id,
+                  client_id,
+                  server_info.node,
+                  node()
+                )
 
               case session_id_result do
                 {:ok, session_id} ->
-                  Bridge.PersistentPairingManager.touch(token)
-
                   socket = assign(socket, :session_id, session_id)
                   Phoenix.PubSub.subscribe(Bridge.PubSub, "tunnel:app:#{client_id}")
 
