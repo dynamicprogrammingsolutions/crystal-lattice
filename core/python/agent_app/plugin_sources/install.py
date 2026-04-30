@@ -38,7 +38,7 @@ class PipTargetInstallStrategy:
 
     This strategy owns:
     - Cache directory naming and atomic temp-dir swap
-    - pip invocation (`pip_args`, `install_deps` -> `--no-deps`)
+    - pip invocation (`pip_args`, `install_deps: false` -> `--no-deps`)
     - Writing `plugin_metadata.json`
     - `sys.path` activation (core-first append)
     """
@@ -58,7 +58,7 @@ class PipTargetInstallStrategy:
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         pip_args: List[str] = list(request.policy.get("pip_args") or [])
-        install_deps = bool(request.policy.get("install_deps", False))
+        install_deps = bool(request.policy.get("install_deps", True))
 
         cmd = [
             sys.executable,

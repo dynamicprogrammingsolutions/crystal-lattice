@@ -174,9 +174,11 @@ def test_localpath_source_can_install_sibling_dependency(tmp_path: Path) -> None
     cache_dir.mkdir(parents=True)
 
     spec = {"path": str(plugin), "entry": "pluginrepo.tool_mod.DependentTool"}
-    mgr = PluginManager(cache_dir=cache_dir, policy={"install_deps": True})
+    mgr = PluginManager(cache_dir=cache_dir)
     res = mgr.resolve_all([spec])
 
     assert res.errors == []
     assert [getattr(cls, "__name__", "") for cls in res.classes] == ["DependentTool"]
     assert res.classes[0]().execute_tool("show_value", {}, {})["result"] == 7
+    installed = next(cache_dir.glob("pluginrepo@*"))
+    assert (installed / "sharedpkg").is_dir()

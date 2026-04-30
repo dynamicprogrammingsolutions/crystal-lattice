@@ -13,13 +13,12 @@ license = {text = "MIT"}
 authors = [
   {name = "AI Agent Platform Team"}
 ]
-dependencies = [
-  "agent-core>=0.3.0"
-]
+dynamic = ["dependencies"]
 
 
 [project.optional-dependencies]
 dev = [
+  "agent-core>=0.3.0",
   "pytest>=7.0.0"
 ]
 
