@@ -405,7 +405,8 @@
     "path:${env:BUILTIN_PLUGINS}/rebuild-native-app",
     "path:${env:BUILTIN_PLUGINS}/session-ordering-buckets-app",
     "path:${env:BUILTIN_PLUGINS}/reference-openai-compatible-provider",
-    "path:${env:BUILTIN_PLUGINS}/openai_responses"
+    "path:${env:BUILTIN_PLUGINS}/openai_responses",
+    "plugins.cloud_agent_app_plugin.CloudAgentAppPlugin"
   ],
   "application": {
     "tool_output_line_limit": 20,
@@ -423,7 +424,13 @@
       "reasoningEffort": "low"
     },
     "generate_title_max_messages": 999,
-    "chatgpt_auth": {}
+    "chatgpt_auth": {},
+    "cloud_agent": {
+      "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
+      "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
+      "workspace_dir": ".",
+      "cloud_workspace_dir": "/workspace"
+    }
   },
   "agents": {
     "codex-openrouter": {

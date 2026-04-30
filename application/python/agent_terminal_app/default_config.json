@@ -10,7 +10,13 @@
     },
     "session_title_metadata_key": "title",
     "session_subtitle_metadata_key": "subtitle",
-    "session_pinned_metadata_key": "pinned"
+    "session_pinned_metadata_key": "pinned",
+    "cloud_agent": {
+      "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
+      "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
+      "workspace_dir": ".",
+      "cloud_workspace_dir": "/workspace"
+    }
   },
   "providers": {
     "openrouter_tools": {
@@ -50,7 +56,8 @@
     "path:${env:BUILTIN_PLUGINS}/generate-title-app",
     "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
     "path:${env:BUILTIN_PLUGINS}/session-message-count-meta-app",
-    "path:${env:BUILTIN_PLUGINS}/session-pinned-app"
+    "path:${env:BUILTIN_PLUGINS}/session-pinned-app",
+    "plugins.cloud_agent_app_plugin.CloudAgentAppPlugin"
   ],
   "agents": {
     "default": {

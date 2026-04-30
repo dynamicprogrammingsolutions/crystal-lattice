@@ -112,6 +112,7 @@ celerybeat.pid
 
 # Environments
 .env
+.sshaccess
 .venv
 env/
 venv/
@@ -310,6 +311,9 @@ logs/
 tmp/
 temp/
 *.tmp
+
+# AWS deploy helper state
+**/deploy/aws-*/.state/
 
 # Build artifacts
 *.wasm
