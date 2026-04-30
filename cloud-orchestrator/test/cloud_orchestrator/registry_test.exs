@@ -1,3 +1,44 @@
+defmodule CloudOrchestrator.TestAsyncRunner do
+  @behaviour CloudOrchestrator.Runner
+
+  import Plug.Conn
+
+  @impl true
+  def start_instance(instance, _params) do
+    {:ok,
+     instance
+     |> Map.put("state", "starting")
+     |> Map.put("startup_stage", "container_started")
+     |> Map.put("proxy_base_url", "http://127.0.0.1:9")
+     |> Map.put("runner", "test_async")}
+  end
+
+  @impl true
+  def runtime_status(_instance) do
+    Application.get_env(:cloud_orchestrator, :test_async_runtime_status, {:starting, %{}})
+  end
+
+  @impl true
+  def recent_logs(_instance), do: "test runtime log"
+
+  @impl true
+  def export_instance(instance, params) do
+    {:ok, %{"instance_id" => instance["instance_id"], "transfer_ref" => params["transfer_ref"]}}
+  end
+
+  @impl true
+  def close_instance(instance, _params) do
+    {:ok, %{"instance_id" => instance["instance_id"], "state" => "closed"}}
+  end
+
+  @impl true
+  def handle_proxy_request(_instance, conn, _path) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(200, Jason.encode!(%{ok: true}))
+  end
+end
+
 defmodule CloudOrchestrator.RegistryTest do
   use ExUnit.Case
 
@@ -5,11 +46,16 @@ defmodule CloudOrchestrator.RegistryTest do
 
   setup do
     System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH", "1")
+    previous_runner = Application.get_env(:cloud_orchestrator, :runner)
+    previous_async_status = Application.get_env(:cloud_orchestrator, :test_async_runtime_status)
     TransferRegistry.reset()
     InstanceRegistry.reset()
 
     on_exit(fn ->
+      restore_env(:runner, previous_runner)
+      restore_env(:test_async_runtime_status, previous_async_status)
       TransferRegistry.reset()
+      InstanceRegistry.reset()
       System.delete_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH")
     end)
 
@@ -61,4 +107,96 @@ defmodule CloudOrchestrator.RegistryTest do
                "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]}
              })
   end
+
+  test "async runners return starting instances and later transition to running" do
+    Application.put_env(:cloud_orchestrator, :runner, CloudOrchestrator.TestAsyncRunner)
+
+    Application.put_env(
+      :cloud_orchestrator,
+      :test_async_runtime_status,
+      {:starting, %{"startup_stage" => "agent_application_initializing"}}
+    )
+
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert {:ok, _ready} = TransferRegistry.mark_ready(transfer["transfer_id"])
+
+    assert {:ok, instance} =
+             InstanceRegistry.start_instance(%{
+               "session_id" => "session-async",
+               "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]}
+             })
+
+    assert instance["state"] == "starting"
+    assert instance["startup_stage"] == "container_started"
+    assert is_binary(instance["token"])
+
+    assert {:ok, stored} = InstanceRegistry.get(instance["instance_id"])
+    assert stored["state"] == "starting"
+
+    Application.put_env(
+      :cloud_orchestrator,
+      :test_async_runtime_status,
+      {:ready, %{"startup_stage" => "ready"}}
+    )
+
+    assert eventually(fn ->
+             {:ok, updated} = InstanceRegistry.get(instance["instance_id"])
+             updated["state"] == "running"
+           end)
+  end
+
+  test "export refuses instances that are not ready" do
+    Application.put_env(:cloud_orchestrator, :runner, CloudOrchestrator.TestAsyncRunner)
+
+    Application.put_env(
+      :cloud_orchestrator,
+      :test_async_runtime_status,
+      {:starting, %{"startup_stage" => "agent_application_initializing"}}
+    )
+
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert {:ok, _ready} = TransferRegistry.mark_ready(transfer["transfer_id"])
+
+    assert {:ok, instance} =
+             InstanceRegistry.start_instance(%{
+               "session_id" => "session-async",
+               "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]}
+             })
+
+    assert {:error, 503, %{error: "runtime_not_ready", instance: public}} =
+             InstanceRegistry.export_instance(instance["instance_id"], %{})
+
+    assert public["state"] == "starting"
+  end
+
+  defp eventually(predicate) do
+    deadline = System.monotonic_time(:millisecond) + 2_000
+    eventually(predicate, deadline)
+  end
+
+  defp eventually(predicate, deadline) do
+    if predicate.() do
+      true
+    else
+      if System.monotonic_time(:millisecond) < deadline do
+        Process.sleep(25)
+        eventually(predicate, deadline)
+      else
+        false
+      end
+    end
+  end
+
+  defp restore_env(key, nil), do: Application.delete_env(:cloud_orchestrator, key)
+  defp restore_env(key, value), do: Application.put_env(:cloud_orchestrator, key, value)
 end

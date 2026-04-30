@@ -133,6 +133,7 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
                 {
                     "instance_id": "inst_test",
                     "session_id": session.session_id,
+                    "state": "running",
                     "token": "tok_test",
                 }
             )
@@ -218,6 +219,72 @@ def test_portable_config_removes_cloud_agent_and_preserves_plugin_owned_paths() 
         "path": "application.cloud_agent",
         "reason": "local_orchestrator_config_removed",
     } in manifest["rewrites"]
+
+
+def test_portable_config_resolves_mixins_and_keeps_only_selected_agent_provider() -> (
+    None
+):
+    raw = {
+        "plugin_cache_dir": "${env:CONFIG_DIR}/.plugin_cache/plugins",
+        "mixins": {
+            "codex_defaults": {
+                "system_message": {
+                    "template": "${file:${env:CONFIG_DIR}/system_messages/codex.md}"
+                },
+                "plugins": ["path:${env:BUILTIN_PLUGINS}/shared-tools"],
+            },
+            "provider_defaults": {
+                "timeout": 300,
+            },
+        },
+        "mixin_policy": {"default_merge": "shallow"},
+        "providers": {
+            "kept_provider": {
+                "mixin_refs": ["provider_defaults"],
+                "provider": "kept",
+                "api_key": "${env:KEPT_PROVIDER_API_KEY}",
+            },
+            "removed_provider": {
+                "mixin_refs": ["provider_defaults"],
+                "provider": "removed",
+                "api_key": "${env:REMOVED_PROVIDER_API_KEY}",
+            },
+        },
+        "agents": {
+            "selected": {
+                "mixin_refs": ["codex_defaults"],
+                "provider": "kept_provider",
+                "model": "selected-model",
+            },
+            "other": {
+                "provider": "removed_provider",
+                "plugins": ["path:${env:BUILTIN_PLUGINS}/other-tools"],
+            },
+        },
+        "application": {"cloud_agent": {"orchestrator_url": "http://local"}},
+    }
+
+    portable, manifest = build_portable_config(raw, selected_agent_id="selected")
+
+    assert list(portable["agents"].keys()) == ["selected"]
+    assert list(portable["providers"].keys()) == ["kept_provider"]
+    assert "mixins" not in portable
+    assert "mixin_policy" not in portable
+    assert portable["agents"]["selected"]["plugins"] == [
+        "path:${env:BUILTIN_PLUGINS}/shared-tools"
+    ]
+    assert portable["agents"]["selected"]["system_message"]["template"] == (
+        "${file:${env:CONFIG_DIR}/system_messages/codex.md}"
+    )
+    assert portable["providers"]["kept_provider"]["timeout"] == 300
+    assert portable["providers"]["kept_provider"]["api_key"] == (
+        "${env:KEPT_PROVIDER_API_KEY}"
+    )
+    assert "removed_provider" not in portable["providers"]
+    assert "other" not in portable["agents"]
+    assert portable["plugin_cache_dir"] == CLOUD_PLUGIN_CACHE_DIR
+    assert manifest["optimization"]["kept_agent_ids"] == ["selected"]
+    assert manifest["optimization"]["kept_provider_ids"] == ["kept_provider"]
 
 
 def test_env_scanner_and_runtime_env_policy_respect_excludes_and_reserved_names(

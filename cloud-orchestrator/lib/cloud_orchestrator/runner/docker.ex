@@ -8,6 +8,7 @@ defmodule CloudOrchestrator.Runner.Docker do
   @container_sessions_dir "/cloud-agent/instance/sessions"
   @container_config_path "/cloud-agent/instance/config/config.json"
   @container_config_assets_dir "/cloud-agent/instance/config/assets"
+  @container_cache_dir "/cloud-agent/cache"
 
   @impl true
   def start_instance(instance, params) do
@@ -21,6 +22,7 @@ defmodule CloudOrchestrator.Runner.Docker do
     workspace_path = Path.join(instance_path, "workspace")
     workspace_host_path = Path.join(instance_host_path, "workspace")
     prepare_instance_layout!(instance_path)
+    prepare_runtime_cache!()
 
     args = runtime_container_args(instance, params, port, image)
 
@@ -29,28 +31,59 @@ defmodule CloudOrchestrator.Runner.Docker do
         container_id = String.trim(container_id)
         proxy_base_url = "http://#{proxy_host()}:#{port}"
 
-        case wait_for_health(proxy_base_url) do
-          :ok ->
-            {:ok,
-             instance
-             |> Map.put("state", "running")
-             |> Map.put("runner", "docker")
-             |> Map.put("container_id", container_id)
-             |> Map.put("instance_path", instance_path)
-             |> Map.put("instance_host_path", instance_host_path)
-             |> Map.put("workspace_path", workspace_path)
-             |> Map.put("workspace_host_path", workspace_host_path)
-             |> Map.put("proxy_base_url", proxy_base_url)}
-
-          :timeout ->
-            System.cmd("docker", ["rm", "-f", container_id], stderr_to_stdout: true)
-            {:error, "runtime did not become healthy at #{proxy_base_url}"}
-        end
+        {:ok,
+         instance
+         |> Map.put("state", "starting")
+         |> Map.put("startup_stage", "container_started")
+         |> Map.put("runner", "docker")
+         |> Map.put("container_id", container_id)
+         |> Map.put("instance_path", instance_path)
+         |> Map.put("instance_host_path", instance_host_path)
+         |> Map.put("workspace_path", workspace_path)
+         |> Map.put("workspace_host_path", workspace_host_path)
+         |> Map.put("proxy_base_url", proxy_base_url)}
 
       {output, code} ->
         {:error, "docker run failed with #{code}: #{output}"}
     end
   end
+
+  @impl true
+  def runtime_status(%{"proxy_base_url" => base_url}) when is_binary(base_url) do
+    health_request = Finch.build(:get, "#{base_url}/health")
+
+    case Finch.request(health_request, CloudOrchestrator.Finch, receive_timeout: 1_000) do
+      {:ok, %{status: status}} when status in 200..299 ->
+        ready_status(base_url)
+
+      {:ok, %{status: status, body: body}} ->
+        {:starting,
+         %{
+           "startup_stage" => "process_unhealthy",
+           "startup_error_detail" => bounded(body),
+           "runtime_health_status" => status
+         }}
+
+      {:error, reason} ->
+        {:starting,
+         %{
+           "startup_stage" => "process_waiting",
+           "startup_error_detail" => inspect(reason)
+         }}
+    end
+  end
+
+  def runtime_status(_instance), do: {:error, "instance is missing proxy_base_url"}
+
+  @impl true
+  def recent_logs(%{"container_id" => container_id}) when is_binary(container_id) do
+    case System.cmd("docker", ["logs", "--tail", "200", container_id], stderr_to_stdout: true) do
+      {output, 0} -> bounded(output)
+      {output, code} -> bounded("docker logs failed with #{code}: #{output}")
+    end
+  end
+
+  def recent_logs(_instance), do: nil
 
   def runtime_container_args(instance, _params, port, image) do
     name = "cloud-agent-" <> instance["instance_id"]
@@ -83,10 +116,18 @@ defmodule CloudOrchestrator.Runner.Docker do
       "SESSION_DIR=#{@container_sessions_dir}",
       "-e",
       "SESSION_ID=#{instance["session_id"] || ""}",
+      "-e",
+      "CLOUD_AGENT_CACHE_DIR=#{@container_cache_dir}",
+      "-e",
+      "PIP_CACHE_DIR=#{@container_cache_dir}/pip",
+      "-e",
+      "XDG_CACHE_HOME=#{@container_cache_dir}/xdg",
       "-v",
       "#{instance_host_path}:#{@container_instance_dir}",
       "-v",
       "#{transfer_host_path}:/transfer:ro",
+      "-v",
+      "#{runtime_cache_host_path()}:#{@container_cache_dir}",
       "-p",
       "#{bind_host()}:#{port}:8000",
       image
@@ -150,6 +191,15 @@ defmodule CloudOrchestrator.Runner.Docker do
         ] do
       File.mkdir_p!(Path.join(instance_path, child))
     end
+  end
+
+  defp prepare_runtime_cache! do
+    File.mkdir_p!(runtime_cache_host_path())
+  end
+
+  defp runtime_cache_host_path do
+    System.get_env("CLOUD_ORCHESTRATOR_RUNTIME_CACHE_HOST_DIR") ||
+      Path.join(Application.fetch_env!(:cloud_orchestrator, :host_data_dir), "runtime-cache")
   end
 
   defp proxy_host do
@@ -231,32 +281,71 @@ defmodule CloudOrchestrator.Runner.Docker do
     end
   end
 
-  defp wait_for_health(base_url) do
-    deadline = System.monotonic_time(:millisecond) + runtime_start_timeout_ms()
-    do_wait_for_health(base_url, deadline)
-  end
-
-  defp runtime_start_timeout_ms do
-    case System.get_env("CLOUD_ORCHESTRATOR_RUNTIME_START_TIMEOUT_MS") do
-      nil -> 300_000
-      raw -> String.to_integer(raw)
-    end
-  end
-
-  defp do_wait_for_health(base_url, deadline) do
-    request = Finch.build(:get, "#{base_url}/health")
+  defp ready_status(base_url) do
+    request = Finch.build(:get, "#{base_url}/cloud-agent/runtime/ready")
 
     case Finch.request(request, CloudOrchestrator.Finch, receive_timeout: 1_000) do
-      {:ok, %{status: status}} when status in 200..299 ->
-        :ok
+      {:ok, %{status: status, body: body}} when status in 200..299 ->
+        {:ready, body |> decode_body() |> Map.put_new("startup_stage", "ready")}
 
-      _ ->
-        if System.monotonic_time(:millisecond) < deadline do
-          Process.sleep(500)
-          do_wait_for_health(base_url, deadline)
+      {:ok, %{status: status, body: body}} ->
+        status_payload = decode_body(body)
+        attrs = normalize_runtime_status(status_payload, status)
+
+        if Map.get(attrs, "startup_error") do
+          {:failed, attrs}
         else
-          :timeout
+          {:starting, attrs}
         end
+
+      {:error, reason} ->
+        {:starting,
+         %{
+           "startup_stage" => "readiness_waiting",
+           "startup_error_detail" => inspect(reason)
+         }}
     end
   end
+
+  defp decode_body(body) when is_binary(body) do
+    case Jason.decode(body) do
+      {:ok, decoded} when is_map(decoded) -> decoded
+      _ -> %{"startup_error_detail" => bounded(body)}
+    end
+  end
+
+  defp decode_body(_body), do: %{}
+
+  defp normalize_runtime_status(payload, http_status) do
+    payload =
+      case payload["detail"] do
+        detail when is_map(detail) -> detail
+        _ -> payload
+      end
+
+    stage = payload["startup_stage"] || payload["stage"] || "agent_application_initializing"
+    error = payload["startup_error"] || payload["error"]
+    detail = payload["startup_error_detail"] || payload["detail"]
+
+    %{
+      "startup_stage" => stage,
+      "runtime_readiness_status" => http_status
+    }
+    |> maybe_put("startup_error", error)
+    |> maybe_put("startup_error_detail", detail)
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, _key, ""), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, bounded(value))
+
+  defp bounded(value) when is_binary(value) do
+    if byte_size(value) > 12_000 do
+      binary_part(value, byte_size(value) - 12_000, 12_000)
+    else
+      value
+    end
+  end
+
+  defp bounded(value), do: value |> inspect() |> bounded()
 end

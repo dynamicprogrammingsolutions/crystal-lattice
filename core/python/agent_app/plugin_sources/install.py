@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Protocol
+from typing import Any, Dict, Iterator, List, Mapping, Protocol
 
+import fcntl
 import json
 import shutil
 import subprocess
@@ -52,40 +54,63 @@ class PipTargetInstallStrategy:
             self._activate_sys_path(install_dir)
             return install_dir
 
-        temp_dir = cache_dir / f".{request.safe_id}@{request.revision}.tmp"
-        if temp_dir.exists():
-            shutil.rmtree(temp_dir, ignore_errors=True)
-        temp_dir.mkdir(parents=True, exist_ok=True)
+        with self._install_lock(cache_dir, request.safe_id, request.revision):
+            if install_dir.exists():
+                self._activate_sys_path(install_dir)
+                return install_dir
 
-        pip_args: List[str] = list(request.policy.get("pip_args") or [])
-        install_deps = bool(request.policy.get("install_deps", True))
+            temp_dir = cache_dir / f".{request.safe_id}@{request.revision}.tmp"
+            if temp_dir.exists():
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            temp_dir.mkdir(parents=True, exist_ok=True)
 
-        cmd = [
-            sys.executable,
-            "-m",
-            "pip",
-            "install",
-            "--upgrade",
-            "--target",
-            str(temp_dir),
-            *([] if install_deps else ["--no-deps"]),
-            str(request.project_dir),
-            *pip_args,
-        ]
+            pip_args: List[str] = list(request.policy.get("pip_args") or [])
+            install_deps = bool(request.policy.get("install_deps", True))
 
-        try:
-            subprocess.check_call(cmd)
-            meta = dict(request.metadata)
-            meta.setdefault("id", request.safe_id)
-            meta.setdefault("installed_at", datetime.utcnow().isoformat() + "Z")
-            (temp_dir / "plugin_metadata.json").write_text(json.dumps(meta), encoding="utf-8")
-            temp_dir.replace(install_dir)
-        except Exception as exc:
-            shutil.rmtree(temp_dir, ignore_errors=True)
-            raise PluginInstallError(detail=f"pip install failed: {exc}", path=str(request.project_dir))
+            cmd = [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "--upgrade",
+                "--target",
+                str(temp_dir),
+                *([] if install_deps else ["--no-deps"]),
+                str(request.project_dir),
+                *pip_args,
+            ]
+
+            try:
+                subprocess.check_call(cmd)
+                meta = dict(request.metadata)
+                meta.setdefault("id", request.safe_id)
+                meta.setdefault("installed_at", datetime.utcnow().isoformat() + "Z")
+                (temp_dir / "plugin_metadata.json").write_text(
+                    json.dumps(meta), encoding="utf-8"
+                )
+                temp_dir.replace(install_dir)
+            except Exception as exc:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                raise PluginInstallError(
+                    detail=f"pip install failed: {exc}", path=str(request.project_dir)
+                )
 
         self._activate_sys_path(install_dir)
         return install_dir
+
+    @contextmanager
+    def _install_lock(
+        self, cache_dir: Path, safe_id: str, revision: str
+    ) -> Iterator[None]:
+        lock_dir = cache_dir / ".locks"
+        lock_dir.mkdir(parents=True, exist_ok=True)
+        lock_path = lock_dir / f"{safe_id}@{revision}.lock"
+        with lock_path.open("w", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     def _activate_sys_path(self, install_dir: Path) -> None:
         value = str(install_dir)

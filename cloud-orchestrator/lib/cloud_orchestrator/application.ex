@@ -5,6 +5,7 @@ defmodule CloudOrchestrator.Application do
   def start(_type, _args) do
     children = [
       {Finch, name: CloudOrchestrator.Finch},
+      {Task.Supervisor, name: CloudOrchestrator.TaskSupervisor},
       CloudOrchestrator.TransferRegistry,
       CloudOrchestrator.InstanceRegistry,
       CloudOrchestrator.Endpoint

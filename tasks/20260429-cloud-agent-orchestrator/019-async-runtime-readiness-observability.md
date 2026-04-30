@@ -3,19 +3,19 @@ Make cloud instance startup asynchronous, split container health from AgentAppli
 
 ## Requirements checklist
 
-- [ ] Change orchestrator instance startup so `POST /instances` returns promptly after creating/starting the runtime container, with instance state initially `starting`.
-- [ ] Add explicit readiness/status polling for runtime AgentApplication readiness; clients should use `GET /instances/{instance_id}` or a similarly clear API to observe transition to `running` or `failed`.
-- [ ] Split cloud runtime process health from AgentApplication readiness:
+- [x] Change orchestrator instance startup so `POST /instances` returns promptly after creating/starting the runtime container, with instance state initially `starting`.
+- [x] Add explicit readiness/status polling for runtime AgentApplication readiness; clients should use `GET /instances/{instance_id}` or a similarly clear API to observe transition to `running` or `failed`.
+- [x] Split cloud runtime process health from AgentApplication readiness:
   - `/health` should indicate the FastAPI/runtime process is alive quickly.
   - a separate readiness signal should indicate bootstrap/config/plugin initialization completion.
   - proxy/export/session operations should return clear `503 runtime_not_ready` or orchestrator-level not-ready errors until ready.
-- [ ] Improve startup diagnostics across orchestrator and runtime:
+- [x] Improve startup diagnostics across orchestrator and runtime:
   - record startup stage and last error on the instance record
   - capture/surface runtime container logs when startup fails
   - include actionable error details in local `cloud.start_session_agent` action results
-- [ ] Update `cloud.start_session_agent` to handle asynchronous startup by polling readiness or returning a structured "starting" result with enough data for clients to poll.
-- [ ] Update tests so default-config cloud runtime startup no longer depends on one long synchronous `/instances` request.
-- [ ] Preserve the managed-SSH transfer and explicit four-script contract from `tasks/20260429-cloud-agent-orchestrator/018-explicit-transfer-script-contract.md`.
+- [x] Update `cloud.start_session_agent` to handle asynchronous startup by polling readiness or returning a structured "starting" result with enough data for clients to poll.
+- [x] Update tests so default-config cloud runtime startup no longer depends on one long synchronous `/instances` request.
+- [x] Preserve the managed-SSH transfer and explicit four-script contract from `tasks/20260429-cloud-agent-orchestrator/018-explicit-transfer-script-contract.md`.
 
 Parent Task: tasks/20260429-cloud-agent-orchestrator/000-main.md
 

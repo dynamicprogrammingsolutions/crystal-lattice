@@ -105,6 +105,56 @@ describe('runApplicationAction effect derivation', () => {
     expect(res.effects.some((e) => e.type === 'reloadSession')).toBe(false);
   });
 
+  it('renders display payloads for pollable starting action results', async () => {
+    const display = {
+      format: 'markdown' as const,
+      title: 'Cloud Agent Starting',
+      body: 'The cloud runtime is starting.',
+      variant: 'warning' as const,
+      actions: [
+        {
+          kind: 'copy_text' as const,
+          id: 'copy-cloud-connection-link',
+          label: 'Copy connection link',
+          text: 'crystal-lattice-cloud://connect?instance_id=inst_test',
+        },
+        {
+          kind: 'run_action' as const,
+          id: 'refresh-cloud-agent-status',
+          label: 'Refresh status',
+          plugin: 'cloud',
+          action_id: 'cloud.check_session_agent',
+        },
+      ],
+    };
+    const backend = buildBackend({
+      status: 'ok',
+      plugin: 'cloud',
+      action_id: 'cloud.start_session_agent',
+      result: {
+        state: 'starting',
+        connection_link: 'crystal-lattice-cloud://connect?instance_id=inst_test',
+        display,
+      },
+    });
+
+    const res = await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'session_action',
+        plugin: 'cloud',
+        id: 'cloud_start_session_agent',
+        label: 'Start cloud agent',
+        action_id: 'cloud.start_session_agent',
+      },
+      actionsById: {},
+      context: { sessionId: 's1' },
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.display).toEqual(display);
+  });
+
   it('reloads the current session only when explicitly requested via ui_effects', async () => {
     const backend = buildBackend({
       status: 'ok',

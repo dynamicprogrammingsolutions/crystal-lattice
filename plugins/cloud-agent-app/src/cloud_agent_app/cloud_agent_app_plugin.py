@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
@@ -66,6 +67,16 @@ class CloudAgentAppPlugin:
                 },
             },
             {
+                "id": "cloud.check_session_agent",
+                "label": "Check cloud agent status",
+                "description": "Check whether a cloud agent runtime is ready.",
+                "inputs": {
+                    "instance_id": {"type": "string", "required": True},
+                    "session_id": {"type": "string", "required": False},
+                    "token": {"type": "string", "required": False},
+                },
+            },
+            {
                 "id": "cloud.close_session",
                 "label": "Close cloud session",
                 "description": "Close a cloud session and overwrite/update the local session with remote state.",
@@ -105,6 +116,8 @@ class CloudAgentAppPlugin:
             return self._start_session_agent(app, params, state)
         if action_id == "cloud.sync_down":
             return self._sync_down(params, state)
+        if action_id == "cloud.check_session_agent":
+            return self._check_session_agent(params, state)
         if action_id == "cloud.close_session":
             return self._close_session(app, params, state)
         raise KeyError(f"Unknown cloud action {action_id!r}")
@@ -118,6 +131,10 @@ class CloudAgentAppPlugin:
         if loaded is None:
             raise KeyError(f"Session {session_id!r} not found")
         core, _base_config, session = loaded
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        selected_agent_id = metadata.get("agent_id")
+        if not isinstance(selected_agent_id, str) or not selected_agent_id.strip():
+            selected_agent_id = None
 
         workspace_dir = self._workspace_dir(params, state)
         cloud_workspace_dir = CLOUD_WORKSPACE_DIR
@@ -138,7 +155,12 @@ class CloudAgentAppPlugin:
             self._write_session_export(
                 transfer_dir, session_id, core.export_session(session)
             )
-            self._write_runtime_config_transfer(app, transfer_dir, state)
+            self._write_runtime_config_transfer(
+                app,
+                transfer_dir,
+                state,
+                selected_agent_id=selected_agent_id,
+            )
             self._write_cloud_runtime_scripts(transfer_dir, state, workspace_dir)
 
             key_paths = self._create_transfer_keypair(transfer_dir)
@@ -181,30 +203,50 @@ class CloudAgentAppPlugin:
                 token=state.get("orchestrator_token"),
             )
 
+        instance = self._wait_for_instance_ready(orchestrator_url, instance, state)
         link = self._cloud_link(
             orchestrator_url=orchestrator_url,
             instance_id=str(instance["instance_id"]),
             session_id=session_id,
             token=str(instance["token"]),
         )
-        return {
-            "instance": instance,
-            "connection_link": link,
-            "display": {
-                "format": "markdown",
-                "title": "Cloud Agent Ready",
-                "body": "The cloud session is ready. Copy the connection link and open it from the mobile app.",
-                "variant": "success",
-                "actions": [
-                    {
-                        "kind": "copy_text",
-                        "id": "copy-cloud-connection-link",
-                        "label": "Copy connection link",
-                        "text": link,
-                    }
-                ],
-            },
-        }
+        return self._cloud_connection_result(
+            orchestrator_url=orchestrator_url,
+            instance=instance,
+            session_id=session_id,
+            token=str(instance["token"]),
+            link=link,
+        )
+
+    def _check_session_agent(
+        self, params: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        orchestrator_url = self._required_config(state, "orchestrator_url")
+        instance_id = str(params["instance_id"])
+        instance = self._get_json(
+            orchestrator_url,
+            f"/instances/{instance_id}",
+            token=state.get("orchestrator_token"),
+        )
+        session_id = str(params.get("session_id") or instance.get("session_id") or "")
+        token = str(params.get("token") or instance.get("token") or "")
+        link = (
+            self._cloud_link(
+                orchestrator_url=orchestrator_url,
+                instance_id=instance_id,
+                session_id=session_id,
+                token=token,
+            )
+            if session_id and token
+            else None
+        )
+        return self._cloud_connection_result(
+            orchestrator_url=orchestrator_url,
+            instance=instance,
+            session_id=session_id,
+            token=token,
+            link=link,
+        )
 
     def _sync_down(
         self, params: Dict[str, Any], state: Dict[str, Any]
@@ -330,7 +372,9 @@ class CloudAgentAppPlugin:
         cwd: Path,
     ) -> None:
         if str(transfer.get("method") or DEFAULT_TRANSFER_METHOD) != "managed_ssh":
-            raise ValueError("Only application.cloud_agent.transfer_method=managed_ssh is supported")
+            raise ValueError(
+                "Only application.cloud_agent.transfer_method=managed_ssh is supported"
+            )
         endpoint = transfer.get("endpoint")
         if not isinstance(endpoint, dict):
             raise ValueError("managed SSH transfer endpoint is missing")
@@ -411,7 +455,12 @@ class CloudAgentAppPlugin:
         (session_dir / f"{session_id}.json").write_text(payload, encoding="utf-8")
 
     def _write_runtime_config_transfer(
-        self, app: Any, transfer_dir: Path, state: Dict[str, Any]
+        self,
+        app: Any,
+        transfer_dir: Path,
+        state: Dict[str, Any],
+        *,
+        selected_agent_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         get_raw_config = getattr(app, "get_raw_config", None)
         get_config_path = getattr(app, "get_config_path", None)
@@ -428,6 +477,11 @@ class CloudAgentAppPlugin:
             transfer_dir=transfer_dir,
             cloud_agent_config=state,
             env=get_resolved_env(),
+            selected_agent_id=(
+                selected_agent_id
+                if state.get("optimize_runtime_config", True) is not False
+                else None
+            ),
         )
 
     def _write_cloud_runtime_scripts(
@@ -445,7 +499,9 @@ class CloudAgentAppPlugin:
             if not source.is_absolute():
                 source = workspace_dir / source
             if not source.is_file():
-                raise FileNotFoundError(f"application.cloud_agent.{key} not found: {source}")
+                raise FileNotFoundError(
+                    f"application.cloud_agent.{key} not found: {source}"
+                )
             scripts_dir.mkdir(parents=True, exist_ok=True)
             target = scripts_dir / target_name
             shutil.copy2(source, target)
@@ -488,10 +544,167 @@ class CloudAgentAppPlugin:
                 parsed = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"POST {path} failed with HTTP {exc.code}: {detail}") from exc
+            raise RuntimeError(
+                f"POST {path} failed with HTTP {exc.code}: {detail}"
+            ) from exc
         return parsed if isinstance(parsed, dict) else {}
 
-    def _delete_transfer(self, base_url: str, transfer_id: str, *, token: Any = None) -> None:
+    def _get_json(
+        self, base_url: str, path: str, *, token: Any = None
+    ) -> Dict[str, Any]:
+        headers = {}
+        if isinstance(token, str) and token:
+            headers["authorization"] = f"Bearer {token}"
+        request = Request(base_url.rstrip("/") + path, headers=headers, method="GET")
+        try:
+            with urlopen(request, timeout=30) as response:
+                parsed = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(
+                f"GET {path} failed with HTTP {exc.code}: {detail}"
+            ) from exc
+        return parsed if isinstance(parsed, dict) else {}
+
+    def _wait_for_instance_ready(
+        self, orchestrator_url: str, instance: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        instance_id = str(instance["instance_id"])
+        timeout = self._startup_poll_timeout_seconds(state)
+        interval = self._startup_poll_interval_seconds(state)
+        deadline = time.monotonic() + timeout
+        current = instance
+
+        while current.get("state") == "starting" and time.monotonic() < deadline:
+            time.sleep(interval)
+            current = self._get_json(
+                orchestrator_url,
+                f"/instances/{instance_id}",
+                token=state.get("orchestrator_token"),
+            )
+            if "token" not in current and "token" in instance:
+                current["token"] = instance["token"]
+
+        if "token" not in current and "token" in instance:
+            current["token"] = instance["token"]
+        return current
+
+    def _startup_poll_timeout_seconds(self, state: Dict[str, Any]) -> float:
+        raw = state.get("startup_poll_timeout_seconds")
+        if raw is None:
+            raw = state.get("startup_wait_timeout_seconds")
+        try:
+            return max(0.0, float(raw)) if raw is not None else 90.0
+        except (TypeError, ValueError):
+            return 90.0
+
+    def _startup_poll_interval_seconds(self, state: Dict[str, Any]) -> float:
+        raw = state.get("startup_poll_interval_seconds")
+        try:
+            return max(0.25, float(raw)) if raw is not None else 2.0
+        except (TypeError, ValueError):
+            return 2.0
+
+    def _cloud_connection_result(
+        self,
+        *,
+        orchestrator_url: str,
+        instance: Dict[str, Any],
+        session_id: str,
+        token: str,
+        link: Optional[str],
+    ) -> Dict[str, Any]:
+        state = str(instance.get("state") or "starting")
+        status_url = (
+            f"{orchestrator_url.rstrip('/')}/instances/{instance['instance_id']}"
+        )
+        startup_stage = instance.get("startup_stage")
+        startup_error = instance.get("startup_error")
+        startup_detail = instance.get("startup_error_detail")
+
+        if state == "running":
+            title = "Cloud Agent Ready"
+            variant = "success"
+            body = "The cloud session is ready."
+        elif state == "failed":
+            title = "Cloud Agent Startup Failed"
+            variant = "error"
+            body = self._failure_body(startup_stage, startup_error, startup_detail)
+        else:
+            title = "Cloud Agent Starting"
+            variant = "warning"
+            body = f"The cloud runtime is starting. Current stage: `{startup_stage or 'starting'}`."
+
+        actions: List[Dict[str, Any]] = []
+        if link:
+            actions.append(
+                {
+                    "kind": "copy_text",
+                    "id": "copy-cloud-connection-link",
+                    "label": "Copy connection link",
+                    "text": link,
+                }
+            )
+        actions.append(
+            {
+                "kind": "open_url",
+                "id": "open-cloud-agent-status",
+                "label": "Open status",
+                "url": status_url,
+            }
+        )
+        if state == "starting":
+            actions.append(
+                {
+                    "kind": "run_action",
+                    "id": "refresh-cloud-agent-status",
+                    "label": "Refresh status",
+                    "plugin": "cloud",
+                    "action_id": "cloud.check_session_agent",
+                    "action_owner": "application",
+                    "fixed_params": {
+                        "instance_id": instance["instance_id"],
+                        "session_id": session_id,
+                        "token": token,
+                    },
+                }
+            )
+
+        result: Dict[str, Any] = {
+            "state": state,
+            "instance_state": state,
+            "instance": instance,
+            "instance_id": instance["instance_id"],
+            "session_id": session_id,
+            "connection_link": link,
+            "status_url": status_url,
+            "display": {
+                "format": "markdown",
+                "title": title,
+                "body": body,
+                "variant": variant,
+                "actions": actions,
+            },
+        }
+        return result
+
+    def _failure_body(
+        self, startup_stage: Any, startup_error: Any, startup_detail: Any
+    ) -> str:
+        lines = [
+            f"Startup stage: `{startup_stage or 'failed'}`.",
+            f"Error: `{startup_error or 'runtime_startup_failed'}`.",
+        ]
+        if isinstance(startup_detail, str) and startup_detail.strip():
+            detail = startup_detail.strip()
+            if len(detail) > 4000:
+                detail = detail[-4000:]
+            lines.extend(["", "```text", detail, "```"])
+        return "\n".join(lines)
+
+    def _delete_transfer(
+        self, base_url: str, transfer_id: str, *, token: Any = None
+    ) -> None:
         headers = {}
         if isinstance(token, str) and token:
             headers["authorization"] = f"Bearer {token}"

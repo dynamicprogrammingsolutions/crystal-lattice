@@ -8,9 +8,16 @@ defmodule CloudOrchestrator.Runner.InMemory do
     {:ok,
      instance
      |> Map.put("state", "running")
+     |> Map.put("startup_stage", "ready")
      |> Map.put("proxy_base_url", "http://127.0.0.1:9")
      |> Map.put("runner", "memory")}
   end
+
+  @impl true
+  def runtime_status(_instance), do: {:ready, %{"startup_stage" => "ready"}}
+
+  @impl true
+  def recent_logs(_instance), do: nil
 
   @impl true
   def export_instance(instance, params) do

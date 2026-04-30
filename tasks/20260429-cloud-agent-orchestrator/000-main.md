@@ -11,7 +11,7 @@ Plan and implement cloud agent orchestration for the terminal/server application
 - [ ] `tasks/20260429-cloud-agent-orchestrator/030-native-cloud-connection-ux.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/040-reuse-multi-session-and-sync-polish.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/050-provider-and-deployment-expansion.md`
-- [ ] `tasks/20260429-cloud-agent-orchestrator/055-cloud-runtime-startup-optimizations.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/055-cloud-runtime-startup-optimizations.md`
 
 ## Goals
 

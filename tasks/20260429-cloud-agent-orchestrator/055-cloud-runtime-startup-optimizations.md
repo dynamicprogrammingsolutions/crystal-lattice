@@ -3,11 +3,11 @@ Capture later optimization ideas for making heavyweight cloud runtimes start fas
 
 ## Requirements checklist
 
-- [ ] Do not implement as part of the immediate async startup/readiness fix unless explicitly pulled forward.
-- [ ] Evaluate preinstalling or prewarming built-in/default path plugins in the runtime image.
-- [ ] Evaluate slicing portable cloud config to the selected session/agent rather than transferring the whole terminal default config.
-- [ ] Evaluate a generic long-running application action/job model for cloud start/sync/close and other slow actions.
-- [ ] Preserve explicit transfer scripts and managed-SSH behavior from `tasks/20260429-cloud-agent-orchestrator/018-explicit-transfer-script-contract.md`.
+- [x] Implement deterministic selected-agent cloud config reduction: resolve mixins, keep selected agent, keep only providers referenced by remaining agents.
+- [x] Do not hard-code provider or plugin names into the reduction policy.
+- [x] Move cloud runtime plugin cache to a persistent shared cache mounted by the orchestrator runner.
+- [x] Extend the shared runtime cache to pip downloads/wheels via `PIP_CACHE_DIR`.
+- [x] Preserve explicit transfer scripts and managed-SSH behavior from `tasks/20260429-cloud-agent-orchestrator/018-explicit-transfer-script-contract.md`.
 
 Parent Task: tasks/20260429-cloud-agent-orchestrator/000-main.md
 
@@ -15,11 +15,37 @@ Depends On:
 
 - tasks/20260429-cloud-agent-orchestrator/019-async-runtime-readiness-observability.md
 
+## Execution plan
+
+Added during completion after user approval.
+
+1. Update the cloud-agent transfer preparation to accept the selected session `agent_id`.
+2. Build the portable cloud config by resolving mixins on the raw config, then keeping only the selected agent and providers referenced by the remaining agents.
+3. Keep the policy plugin-agnostic: no allowlists for specific providers or plugins.
+4. Rewrite the cloud plugin cache path to a shared runtime cache location.
+5. Mount a persistent orchestrator runtime cache into Docker runtime containers and set `PIP_CACHE_DIR`/`XDG_CACHE_HOME`.
+6. Add focused tests for config reduction and Docker runner cache args.
+7. Re-run targeted Python/Elixir/frontend and cloud E2E tests, including the default-config Codex E2E.
+
 ## Background
 
 The default-config Codex cloud E2E exposed that runtime startup can be heavyweight because path plugins are resolved/installed and the cloud runtime builds a full `AgentApplication` during startup. `tasks/20260429-cloud-agent-orchestrator/019-async-runtime-readiness-observability.md` should fix the contract problem first: startup should be asynchronous, readiness should be explicit, and diagnostics should be clear.
 
 After that, these optimizations can reduce actual startup time.
+
+## Follow-up Test Evidence
+
+After `tasks/20260429-cloud-agent-orchestrator/019-async-runtime-readiness-observability.md` was completed, the full default-config Codex cloud E2E was re-run with:
+
+```bash
+RUN_CLOUD_ORCHESTRATOR_E2E=1 \
+RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E=1 \
+npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e.integration.test.ts -t default-config
+```
+
+The baseline cloud orchestrator Docker E2E passed, but the full default-config Codex E2E failed for both `codex-openrouter` and `codex-openai` because each cloud runtime reached `runtime_readiness_timeout` after 300 seconds. The new diagnostics showed the runtime process was healthy and `/cloud-agent/runtime/ready` was returning `503` while `AgentApplication` was still installing unrelated default path plugins such as `gemini-tools`, `grok-tools`, and `qwen-tools`.
+
+This confirms the remaining blocker is startup cost, not the async readiness contract. Do not solve this by only increasing timeouts; use the optimization ideas below.
 
 ## Optimization Ideas
 
@@ -99,3 +125,23 @@ Watch areas:
 2. Re-run the default-config Codex cloud E2E to identify remaining startup cost.
 3. Choose between plugin prewarm and config slicing based on measured bottlenecks.
 4. Consider the generic action/job model if UX still suffers from long action execution.
+
+## Completion Notes
+
+Added during completion.
+
+Implemented deterministic selected-agent config reduction in the cloud-agent transfer path. The portable cloud config now resolves mixins first, keeps only the selected session agent, keeps only providers referenced by the remaining agents, and removes the now-unneeded mixin sections. The policy is plugin-agnostic and does not special-case provider or plugin names.
+
+Moved the cloud runtime plugin cache to `/cloud-agent/cache/plugin_cache/plugins`, mounted a persistent orchestrator runtime cache into Docker runtime containers at `/cloud-agent/cache`, and set `PIP_CACHE_DIR=/cloud-agent/cache/pip` plus `XDG_CACHE_HOME=/cloud-agent/cache/xdg`. Added a file lock around path-plugin target installs so shared cache installs do not collide.
+
+Updated the default-config Codex E2E to assert that the compiled default Codex developer message is present and substituted. For OpenAI Responses, the test overrides `system_message_as_instructions=false` and `strip_leading_system_or_developer_message=false` so the compiled message is observable through REST session messages while still using the default config's Codex developer text.
+
+Verification completed:
+
+- `PYTHONPATH=plugins/cloud-agent-app/src:core/python pytest plugins/cloud-agent-app/tests/test_cloud_agent_app_plugin.py -q` passed.
+- `PYTHONPATH=core/python:application/python pytest application/python/tests/test_cloud_agent_runtime.py -q` passed.
+- `mix test` in `cloud-orchestrator` passed.
+- `mix format --check-formatted` in `cloud-orchestrator` passed.
+- `npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e.integration.test.ts` passed in skipped/compile mode.
+- `RUN_CLOUD_ORCHESTRATOR_E2E=1 npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e.integration.test.ts` passed.
+- `RUN_CLOUD_ORCHESTRATOR_E2E=1 RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E=1 npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e.integration.test.ts -t default-config` passed with both provider cases.

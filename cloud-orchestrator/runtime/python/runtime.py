@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import threading
 import time
+import traceback
 from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import HTTPException, Response
+from fastapi.responses import JSONResponse
 
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
@@ -16,6 +19,17 @@ from agent_terminal_app import server as server_mod
 
 
 app = server_mod.app
+_server_get_agent_app = server_mod.get_agent_app
+_runtime_status_lock = threading.Lock()
+_runtime_status: Dict[str, Any] = {
+    "ready": False,
+    "status": "starting",
+    "startup_stage": "process_started",
+    "startup_error": None,
+    "startup_error_detail": None,
+    "started_at": time.time(),
+    "updated_at": time.time(),
+}
 
 
 def instance_dir() -> Path:
@@ -76,6 +90,39 @@ def _copytree_contents(src: Path, dst: Path) -> None:
             shutil.copy2(child, target)
 
 
+def _set_runtime_status(**updates: Any) -> None:
+    with _runtime_status_lock:
+        _runtime_status.update(updates)
+        _runtime_status["updated_at"] = time.time()
+
+
+def _runtime_status_snapshot() -> Dict[str, Any]:
+    with _runtime_status_lock:
+        return dict(_runtime_status)
+
+
+def _runtime_not_ready_exception() -> HTTPException:
+    snapshot = _runtime_status_snapshot()
+    return HTTPException(
+        status_code=503,
+        detail={
+            "error": "runtime_not_ready",
+            "startup_stage": snapshot.get("startup_stage"),
+            "startup_error": snapshot.get("startup_error"),
+            "startup_error_detail": snapshot.get("startup_error_detail"),
+        },
+    )
+
+
+def _get_ready_agent_app() -> AgentApplication:
+    if not _runtime_status_snapshot().get("ready") or server_mod._agent_app is None:
+        raise _runtime_not_ready_exception()
+    return server_mod._agent_app
+
+
+app.dependency_overrides[_server_get_agent_app] = _get_ready_agent_app
+
+
 def _load_dotenv_file(path: Path) -> None:
     if not path.is_file():
         return
@@ -131,6 +178,7 @@ def _copy_workspace_from_transfer(src: Path, dst: Path) -> None:
 
 
 def _bootstrap_from_transfer() -> None:
+    _set_runtime_status(startup_stage="bootstrap_prepare")
     state_dir = instance_dir() / "state"
     marker = state_dir / ".cloud-agent-runtime-ready"
     state_dir.mkdir(parents=True, exist_ok=True)
@@ -140,13 +188,16 @@ def _bootstrap_from_transfer() -> None:
     config_assets_dir().mkdir(parents=True, exist_ok=True)
 
     if marker.exists():
+        _set_runtime_status(startup_stage="runtime_env_loading")
         _load_runtime_env(instance_dir())
         _install_canonical_env()
         return
 
+    _set_runtime_status(startup_stage="workspace_materializing")
     unpacked = transfer_dir()
     _copy_workspace_from_transfer(unpacked, workspace_dir())
 
+    _set_runtime_status(startup_stage="session_materializing")
     cloud_root = unpacked / ".cloud-agent"
     transferred_sessions = cloud_root / "sessions"
     if transferred_sessions.exists():
@@ -165,6 +216,7 @@ def _bootstrap_from_transfer() -> None:
     if transferred_scripts.exists():
         _copytree_contents(transferred_scripts, scripts_dir())
 
+    _set_runtime_status(startup_stage="runtime_env_loading")
     _load_runtime_env(instance_dir())
     _install_canonical_env()
 
@@ -172,6 +224,7 @@ def _bootstrap_from_transfer() -> None:
     if setup_script.exists():
         import subprocess
 
+        _set_runtime_status(startup_stage="cloud_setup_running")
         subprocess.run(
             [str(setup_script)],
             cwd=str(workspace_dir()),
@@ -188,31 +241,79 @@ def _bootstrap_from_transfer() -> None:
 
 @app.on_event("startup")
 def startup() -> None:
-    _bootstrap_from_transfer()
-    server_mod._agent_app = AgentApplication(
-        str(config_path()),
-        str(sessions_dir()),
-        event_store=InMemoryEventStore(),
-        snapshot_selection_store=FilesystemSnapshotSelectionStore(
-            sessions_dir() / ".snapshots"
-        ),
-        env_overrides={
-            "CONFIG_DIR": str(config_assets_dir()),
-            "WORKING_DIR": str(workspace_dir()),
-            "BUILTIN_PLUGINS": os.environ.get(
-                "BUILTIN_PLUGINS", "/opt/ai-agent-platform/plugins"
-            ),
-        },
+    thread = threading.Thread(
+        target=_initialize_runtime, name="cloud-agent-runtime-init"
     )
+    thread.daemon = True
+    thread.start()
+
+
+def _initialize_runtime() -> None:
+    try:
+        _set_runtime_status(
+            ready=False,
+            status="starting",
+            startup_stage="bootstrap_starting",
+            startup_error=None,
+            startup_error_detail=None,
+        )
+        server_mod._agent_app = None
+        _bootstrap_from_transfer()
+        _set_runtime_status(startup_stage="agent_application_initializing")
+        server_mod._agent_app = AgentApplication(
+            str(config_path()),
+            str(sessions_dir()),
+            event_store=InMemoryEventStore(),
+            snapshot_selection_store=FilesystemSnapshotSelectionStore(
+                sessions_dir() / ".snapshots"
+            ),
+            env_overrides={
+                "CONFIG_DIR": str(config_assets_dir()),
+                "WORKING_DIR": str(workspace_dir()),
+                "BUILTIN_PLUGINS": os.environ.get(
+                    "BUILTIN_PLUGINS", "/opt/ai-agent-platform/plugins"
+                ),
+            },
+        )
+        _set_runtime_status(ready=True, status="ready", startup_stage="ready")
+    except Exception as exc:  # pragma: no cover - exercised through readiness API
+        _set_runtime_status(
+            ready=False,
+            status="failed",
+            startup_stage="failed",
+            startup_error=exc.__class__.__name__,
+            startup_error_detail="".join(
+                traceback.format_exception(type(exc), exc, exc.__traceback__)
+            )[-12000:],
+        )
 
 
 @app.get("/health")
 def health() -> Dict[str, Any]:
+    snapshot = _runtime_status_snapshot()
     return {
         "status": "healthy",
         "service": "cloud-agent-runtime",
-        "agent_application": server_mod._agent_app is not None,
+        "runtime_ready": bool(snapshot.get("ready")),
+        "startup_stage": snapshot.get("startup_stage"),
     }
+
+
+@app.get("/cloud-agent/runtime/ready")
+def runtime_ready() -> Any:
+    snapshot = _runtime_status_snapshot()
+    payload = {
+        "ready": bool(snapshot.get("ready")),
+        "status": snapshot.get("status"),
+        "startup_stage": snapshot.get("startup_stage"),
+        "startup_error": snapshot.get("startup_error"),
+        "startup_error_detail": snapshot.get("startup_error_detail"),
+        "started_at": snapshot.get("started_at"),
+        "updated_at": snapshot.get("updated_at"),
+    }
+    if payload["ready"]:
+        return payload
+    return JSONResponse(status_code=503, content=payload)
 
 
 @app.post("/cloud-agent/workspace/files")
@@ -248,6 +349,8 @@ def read_config_asset(file_path: str) -> Dict[str, Any]:
 
 @app.get("/cloud-agent/sessions/{session_id}/export")
 def export_session(session_id: str) -> Response:
+    if not _runtime_status_snapshot().get("ready") or server_mod._agent_app is None:
+        raise _runtime_not_ready_exception()
     if "/" in session_id or "\\" in session_id or session_id in {"", ".", ".."}:
         raise HTTPException(status_code=400, detail="invalid session id")
     path = sessions_dir() / f"{session_id}.json"
@@ -260,6 +363,8 @@ def export_session(session_id: str) -> Response:
 
 @app.post("/cloud-agent/runtime/export")
 def export_runtime_workspace() -> Dict[str, Any]:
+    if not _runtime_status_snapshot().get("ready") or server_mod._agent_app is None:
+        raise _runtime_not_ready_exception()
     export_dir = export_transfer_dir()
     if export_dir.exists():
         shutil.rmtree(export_dir)
@@ -267,7 +372,9 @@ def export_runtime_workspace() -> Dict[str, Any]:
 
     export_script = scripts_dir() / "export"
     if not export_script.exists():
-        raise HTTPException(status_code=409, detail="cloud export script is not configured")
+        raise HTTPException(
+            status_code=409, detail="cloud export script is not configured"
+        )
 
     import subprocess
 

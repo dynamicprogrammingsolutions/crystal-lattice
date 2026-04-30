@@ -7,7 +7,9 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, MutableMapping, Set
+from typing import Any, Dict, Iterable, Mapping, MutableMapping, Optional, Set
+
+from agent_app.config import resolve_config_mixins
 
 
 CLOUD_INSTANCE_DIR = "/cloud-agent/instance"
@@ -15,12 +17,14 @@ CLOUD_WORKSPACE_DIR = f"{CLOUD_INSTANCE_DIR}/workspace"
 CLOUD_SESSIONS_DIR = f"{CLOUD_INSTANCE_DIR}/sessions"
 CLOUD_CONFIG_PATH = f"{CLOUD_INSTANCE_DIR}/config/config.json"
 CLOUD_CONFIG_ASSETS_DIR = f"{CLOUD_INSTANCE_DIR}/config/assets"
-CLOUD_PLUGIN_CACHE_DIR = f"{CLOUD_INSTANCE_DIR}/state/plugin_cache/plugins"
+CLOUD_CACHE_DIR = "/cloud-agent/cache"
+CLOUD_PLUGIN_CACHE_DIR = f"{CLOUD_CACHE_DIR}/plugin_cache/plugins"
 
 ENV_PLACEHOLDER_RE = re.compile(r"\$\{env:([^}]+)\}")
 
 RESERVED_RUNTIME_ENV_NAMES = {
     "BUILTIN_PLUGINS",
+    "CLOUD_AGENT_CACHE_DIR",
     "CLOUD_AGENT_CONFIG_PATH",
     "CLOUD_AGENT_INSTANCE_DIR",
     "CLOUD_AGENT_SESSIONS_DIR",
@@ -32,6 +36,8 @@ RESERVED_RUNTIME_ENV_NAMES = {
     "SESSION_ID",
     "TRANSFER_DIR",
     "WORKING_DIR",
+    "PIP_CACHE_DIR",
+    "XDG_CACHE_HOME",
 }
 
 
@@ -42,6 +48,7 @@ def prepare_cloud_transfer(
     transfer_dir: Path,
     cloud_agent_config: Mapping[str, Any],
     env: Mapping[str, str],
+    selected_agent_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Write cloud runtime config/assets/env into ``transfer_dir``.
 
@@ -58,7 +65,10 @@ def prepare_cloud_transfer(
     config_root.mkdir(parents=True, exist_ok=True)
     env_root.mkdir(parents=True, exist_ok=True)
 
-    portable_config, config_manifest = build_portable_config(raw_config)
+    portable_config, config_manifest = build_portable_config(
+        raw_config,
+        selected_agent_id=selected_agent_id,
+    )
     (config_root / "config.json").write_text(
         json.dumps(portable_config, indent=2, sort_keys=True),
         encoding="utf-8",
@@ -91,8 +101,16 @@ def prepare_cloud_transfer(
 
 def build_portable_config(
     raw_config: Mapping[str, Any],
+    *,
+    selected_agent_id: Optional[str] = None,
 ) -> tuple[Dict[str, Any], Dict[str, Any]]:
-    config = copy.deepcopy(dict(raw_config))
+    if selected_agent_id:
+        config, optimization_manifest = _build_selected_agent_config(
+            raw_config, selected_agent_id=selected_agent_id
+        )
+    else:
+        config = copy.deepcopy(dict(raw_config))
+        optimization_manifest = None
     rewrites = []
 
     app_cfg = config.get("application")
@@ -126,7 +144,54 @@ def build_portable_config(
             {"path": "plugin_policy.base_dir", "reason": "cloud_config_assets_base_dir"}
         )
 
-    return config, {"rewrites": rewrites}
+    manifest: Dict[str, Any] = {"rewrites": rewrites}
+    if optimization_manifest is not None:
+        manifest["optimization"] = optimization_manifest
+    return config, manifest
+
+
+def _build_selected_agent_config(
+    raw_config: Mapping[str, Any], *, selected_agent_id: str
+) -> tuple[Dict[str, Any], Dict[str, Any]]:
+    config, mixin_errors = resolve_config_mixins(raw_config)
+    agent_id = str(selected_agent_id).strip()
+    agents_in = config.get("agents") if isinstance(config.get("agents"), dict) else {}
+    if agent_id not in agents_in:
+        raise ValueError(f"Selected agent {agent_id!r} is not present in config")
+
+    kept_agents = {agent_id: copy.deepcopy(agents_in[agent_id])}
+    used_provider_ids = []
+    for agent_cfg in kept_agents.values():
+        provider_id = agent_cfg.get("provider") if isinstance(agent_cfg, dict) else None
+        if (
+            isinstance(provider_id, str)
+            and provider_id
+            and provider_id not in used_provider_ids
+        ):
+            used_provider_ids.append(provider_id)
+
+    providers_in = (
+        config.get("providers") if isinstance(config.get("providers"), dict) else {}
+    )
+    kept_providers = {
+        provider_id: copy.deepcopy(providers_in[provider_id])
+        for provider_id in used_provider_ids
+        if provider_id in providers_in
+    }
+
+    config["agents"] = kept_agents
+    config["providers"] = kept_providers
+    config.pop("mixins", None)
+    config.pop("mixin_policy", None)
+
+    return config, {
+        "selected_agent_id": agent_id,
+        "kept_agent_ids": list(kept_agents.keys()),
+        "kept_provider_ids": list(kept_providers.keys()),
+        "removed_agent_count": max(0, len(agents_in) - len(kept_agents)),
+        "removed_provider_count": max(0, len(providers_in) - len(kept_providers)),
+        "mixin_errors": mixin_errors,
+    }
 
 
 def copy_config_assets(

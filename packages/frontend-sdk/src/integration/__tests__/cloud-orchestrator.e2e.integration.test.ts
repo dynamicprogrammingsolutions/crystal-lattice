@@ -236,22 +236,6 @@ function patchDefaultCloudConfig(options: {
     process.env.CLOUD_ORCHESTRATOR_E2E_CONTROL_TOKEN || '';
   cfg.application.cloud_agent.workspace_dir = options.workspaceDir;
   cfg.application.cloud_agent.config_assets.max_top_level_entry_bytes = 1_000_000;
-  cfg.plugins = [
-    'path:${env:BUILTIN_PLUGINS}/openrouter',
-    'plugins.tool_gating_feature.ToolGatingFeature',
-    'path:${env:BUILTIN_PLUGINS}/feature-request-options',
-    'path:${env:BUILTIN_PLUGINS}/feature-system-message',
-    'path:${env:BUILTIN_PLUGINS}/openai_responses',
-    'path:${env:BUILTIN_PLUGINS}/cloud-agent-app',
-  ];
-  cfg.providers = {
-    openrouter: cfg.providers.openrouter,
-    openai: cfg.providers.openai,
-  };
-  cfg.agents = {
-    'codex-openrouter': cfg.agents['codex-openrouter'],
-    'codex-openai': cfg.agents['codex-openai'],
-  };
   fs.writeFileSync(options.configPath, JSON.stringify(cfg, null, 2), 'utf8');
 }
 
@@ -278,6 +262,31 @@ function expectShellAndApplyPatch(messages: ListedMessages, label: string): void
   ).toBe(true);
 }
 
+function compiledSystemText(messages: ListedMessages): string {
+  for (const entry of messages.messages) {
+    const message = entry.message;
+    if (message.role !== 'system') continue;
+    const compiled = message.metadata?.compiled_content;
+    if (typeof compiled === 'string' && compiled.length > 0) {
+      return compiled;
+    }
+    if (typeof message.content === 'string' && message.content.length > 0) {
+      return message.content;
+    }
+  }
+  return '';
+}
+
+function expectDefaultCodexDeveloperMessage(messages: ListedMessages, label: string): void {
+  const compiled = compiledSystemText(messages);
+  expect(compiled, `${label}: expected compiled default Codex developer message`).toContain(
+    'You are a coding agent running in the Codex CLI',
+  );
+  expect(compiled, `${label}: expected Codex template substitution`).not.toContain(
+    '{{CODEX_DEVELOPER_MESSAGE}}',
+  );
+}
+
 async function readCloudText(
   cloudTransport: CloudTransport,
   filePath: string,
@@ -290,6 +299,23 @@ async function readCloudText(
   return result.status === 200 && typeof result.data.content === 'string'
     ? result.data.content
     : null;
+}
+
+async function waitForCloudInstanceRunning(
+  cloudLink: ReturnType<typeof parseCloudConnectionLink>,
+  timeoutMs = 240_000,
+): Promise<void> {
+  await waitForAsync(
+    async () => {
+      const response = await fetch(`${cloudLink.orchestratorUrl}/instances/${cloudLink.instanceId}`);
+      const instance = await response.json();
+      if (instance.state === 'failed') {
+        throw new Error(`cloud runtime failed: ${JSON.stringify(instance)}`);
+      }
+      return instance.state === 'running';
+    },
+    { timeoutMs, intervalMs: 1000 },
+  );
 }
 
 async function runDefaultConfigCodexChain(options: {
@@ -334,11 +360,15 @@ async function runDefaultConfigCodexChain(options: {
       working_directory: workspaceDir,
       allowed_paths: [workspaceDir],
       max_output_chars: 20_000,
+      system_message_as_instructions: false,
+      strip_leading_system_or_developer_message: false,
     };
     const cloudOverrides = {
       working_directory: '/cloud-agent/instance/workspace',
       allowed_paths: ['/cloud-agent/instance/workspace'],
       max_output_chars: 20_000,
+      system_message_as_instructions: false,
+      strip_leading_system_or_developer_message: false,
     };
 
     await localBackend.sendMessage(sessionId, {
@@ -347,8 +377,14 @@ async function runDefaultConfigCodexChain(options: {
         content: [
           'Use tools only for the file work.',
           'First use the shell_command tool or shell tool to run a bash command that reads seed.txt.',
-          'Then use the apply_patch tool to create chain.txt with exactly this content:',
-          'local1=alpha',
+          'Use shell only for reading; do not write files with shell.',
+          'Then use the apply_patch tool with exactly this patch:',
+          '*** Begin Patch',
+          '*** Add File: chain.txt',
+          '+local1=alpha',
+          '*** End Patch',
+          'After applying the patch, use shell_command or shell to read chain.txt again.',
+          'Do not reply until chain.txt contains exactly local1=alpha.',
           'Reply done after the patch is applied.',
         ].join('\n'),
       },
@@ -364,6 +400,10 @@ async function runDefaultConfigCodexChain(options: {
       await localBackend.listMessages(sessionId),
       `${options.agentId} local first turn`,
     );
+    expectDefaultCodexDeveloperMessage(
+      await localBackend.listMessages(sessionId),
+      `${options.agentId} local first turn`,
+    );
 
     const startResult = await localBackend.executeAction({
       pluginId: 'cloud',
@@ -373,6 +413,7 @@ async function runDefaultConfigCodexChain(options: {
     });
     expect(startResult.status, JSON.stringify(startResult, null, 2)).toBe('ok');
     const cloudLink = parseCloudConnectionLink((startResult.result as any).connection_link as string);
+    await waitForCloudInstanceRunning(cloudLink, 300_000);
     const cloudTransport = new CloudTransport({
       orchestratorUrl: cloudLink.orchestratorUrl,
       instanceId: cloudLink.instanceId,
@@ -387,9 +428,16 @@ async function runDefaultConfigCodexChain(options: {
         content: [
           'Use tools only for the file work.',
           'First use the shell_command tool or shell tool to run a bash command that reads chain.txt.',
-          'Then use the apply_patch tool to update chain.txt so it contains exactly:',
-          'local1=alpha',
-          'cloud2=alpha-bravo',
+          'Use shell only for reading; do not write files with shell.',
+          'Then use the apply_patch tool with exactly this patch:',
+          '*** Begin Patch',
+          '*** Update File: chain.txt',
+          '@@',
+          ' local1=alpha',
+          '+cloud2=alpha-bravo',
+          '*** End Patch',
+          'After applying the patch, use shell_command or shell to read chain.txt again.',
+          'Do not reply until chain.txt contains exactly two lines: local1=alpha, then cloud2=alpha-bravo.',
           'Reply done after the patch is applied.',
         ].join('\n'),
       },
@@ -400,6 +448,10 @@ async function runDefaultConfigCodexChain(options: {
       { timeoutMs: 180_000, intervalMs: 1000 },
     );
     expectShellAndApplyPatch(
+      await cloudBackend.listMessages(sessionId),
+      `${options.agentId} cloud turn`,
+    );
+    expectDefaultCodexDeveloperMessage(
       await cloudBackend.listMessages(sessionId),
       `${options.agentId} cloud turn`,
     );
@@ -425,10 +477,17 @@ async function runDefaultConfigCodexChain(options: {
         content: [
           'Use tools only for the file work.',
           'First use the shell_command tool or shell tool to run a bash command that reads chain.txt.',
-          'Then use the apply_patch tool to update chain.txt so it contains exactly:',
-          'local1=alpha',
-          'cloud2=alpha-bravo',
-          'local3=alpha-bravo-charlie',
+          'Use shell only for reading; do not write files with shell.',
+          'Then use the apply_patch tool with exactly this patch:',
+          '*** Begin Patch',
+          '*** Update File: chain.txt',
+          '@@',
+          ' local1=alpha',
+          ' cloud2=alpha-bravo',
+          '+local3=alpha-bravo-charlie',
+          '*** End Patch',
+          'After applying the patch, use shell_command or shell to read chain.txt again.',
+          'Do not reply until chain.txt contains exactly three lines: local1=alpha, cloud2=alpha-bravo, local3=alpha-bravo-charlie.',
           'Reply done after the patch is applied.',
         ].join('\n'),
       },
@@ -441,6 +500,10 @@ async function runDefaultConfigCodexChain(options: {
       { timeoutMs: 180_000, intervalMs: 1000 },
     );
     expectShellAndApplyPatch(
+      await localBackend.listMessages(sessionId),
+      `${options.agentId} final local turn`,
+    );
+    expectDefaultCodexDeveloperMessage(
       await localBackend.listMessages(sessionId),
       `${options.agentId} final local turn`,
     );
@@ -539,6 +602,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       const link = (startResult.result as any).connection_link as string;
       const cloudLink = parseCloudConnectionLink(link);
       expect(cloudLink.sessionId).toBe(sessionId);
+      await waitForCloudInstanceRunning(cloudLink);
 
       const cloudTransport = new CloudTransport({
         orchestratorUrl: cloudLink.orchestratorUrl,
@@ -743,6 +807,7 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
       });
 
       const cloudLink = parseCloudConnectionLink((startResult.result as any).connection_link as string);
+      await waitForCloudInstanceRunning(cloudLink, 300_000);
       const cloudTransport = new CloudTransport({
         orchestratorUrl: cloudLink.orchestratorUrl,
         instanceId: cloudLink.instanceId,
