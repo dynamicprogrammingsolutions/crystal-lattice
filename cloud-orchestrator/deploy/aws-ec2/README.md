@@ -53,6 +53,11 @@ The EC2 origin currently exposes port `4100` publicly as the CloudFront origin. 
 
 The runtime EC2 host does not build the application images. `build.sh` uploads a source bundle to S3, uses CodeBuild to build the Docker images, pushes them to ECR, and records the image URIs in local deploy state. `up.sh` only deploys prebuilt images and fails if the build step has not run for the stack.
 
+The source bundle includes the repository paths needed by both images. The
+runtime image is built from the repository root with
+`cloud-orchestrator/runtime/python/Dockerfile` so it can include `core/python`,
+`application/python`, and repo-root built-in plugins.
+
 Build explicitly before running deploys or AWS E2E tests:
 
 ```bash
@@ -88,6 +93,15 @@ Frontend SDK AWS E2E:
 RUN_CLOUD_ORCHESTRATOR_E2E=1 \
 RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1 \
 CLOUD_ORCHESTRATOR_E2E_MODE=aws-ec2-cloudfront \
+npm test --prefix ../packages/frontend-sdk -- cloud-orchestrator.e2e
+```
+
+Real OpenRouter cloud tool-loop coverage is separately gated:
+
+```bash
+RUN_CLOUD_ORCHESTRATOR_E2E=1 \
+RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E=1 \
+OPENROUTER_API_KEY=... \
 npm test --prefix ../packages/frontend-sdk -- cloud-orchestrator.e2e
 ```
 

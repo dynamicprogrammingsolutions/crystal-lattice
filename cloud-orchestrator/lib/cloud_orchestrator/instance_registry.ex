@@ -17,6 +17,9 @@ defmodule CloudOrchestrator.InstanceRegistry do
   def close_instance(id, params),
     do: GenServer.call(__MODULE__, {:close_instance, id, params}, 60_000)
 
+  def handle_proxy_request(instance, conn, path),
+    do: runner().handle_proxy_request(instance, conn, path)
+
   def count, do: GenServer.call(__MODULE__, :count)
   def reset, do: GenServer.call(__MODULE__, :reset)
 
@@ -130,6 +133,8 @@ defmodule CloudOrchestrator.InstanceRegistry do
       "container_id",
       "proxy_base_url",
       "transfer",
+      "instance_path",
+      "instance_host_path",
       "workspace_path",
       "workspace_host_path"
     ])

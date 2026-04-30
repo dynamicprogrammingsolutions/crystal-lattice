@@ -1,6 +1,8 @@
 defmodule CloudOrchestrator.Runner.InMemory do
   @behaviour CloudOrchestrator.Runner
 
+  import Plug.Conn
+
   @impl true
   def start_instance(instance, _params) do
     {:ok,
@@ -22,5 +24,12 @@ defmodule CloudOrchestrator.Runner.InMemory do
   @impl true
   def close_instance(instance, _params) do
     {:ok, %{"instance_id" => instance["instance_id"], "state" => "closed"}}
+  end
+
+  @impl true
+  def handle_proxy_request(_instance, conn, _path) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(501, Jason.encode!(%{error: "memory_runner_not_proxyable"}))
   end
 end
