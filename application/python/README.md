@@ -456,18 +456,46 @@ Config example:
 ```json
 {
   "plugins": [
-    "plugins.cloud_agent_app_plugin.CloudAgentAppPlugin"
+    "path:${env:BUILTIN_PLUGINS}/cloud-agent-app"
   ],
   "application": {
     "cloud_agent": {
       "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
       "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
       "workspace_dir": ".",
-      "transfer_script": ".cloud-agent/transfer-up",
-      "upload_script": ".cloud-agent/upload",
-      "download_script": ".cloud-agent/download",
-      "apply_script": ".cloud-agent/apply-down",
-      "cloud_workspace_dir": "/workspace"
+      "transfer_method": "managed_ssh",
+      "local_transfer_script": ".cloud-agent/transfer-up",
+      "cloud_setup_script": ".cloud-agent/setup-cloud",
+      "cloud_export_script": ".cloud-agent/export-cloud",
+      "local_apply_script": ".cloud-agent/apply-down",
+      "managed_ssh": {
+        "adapter_script": null,
+        "ssh_path": "ssh",
+        "rsync_path": "rsync",
+        "extra_rsync_args": []
+      },
+      "config_assets": {
+        "include_config_dir": true,
+        "exclude": [".env", ".env.*", ".plugin_cache", "logs", "sessions", "auth", "state"],
+        "max_top_level_entry_bytes": 104857600
+      },
+      "runtime_env": {
+        "include_config_env": true,
+        "include": [],
+        "exclude": [
+          "CLOUD_ORCHESTRATOR_URL",
+          "CLOUD_ORCHESTRATOR_TOKEN",
+          "SERVER_HOST",
+          "SERVER_PORT",
+          "BRIDGE_URL",
+          "BRIDGE_LOCAL_HTTP_BASE",
+          "OPENAI_BASE_URL",
+          "CONFIG_DIR",
+          "BUILTIN_PLUGINS",
+          "PLUGIN_CACHE_DIR"
+        ],
+        "env_files": []
+      }
     }
   }
 }
@@ -478,6 +506,24 @@ Scripts receive stable environment variables:
 - Local transfer: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
 - Cloud setup/export: `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
 - Local apply: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
+
+The managed-SSH byte-transfer adapter is platform-owned. By default it runs the
+packaged rsync-over-SSH adapter script against the orchestrator's restricted
+transfer slot. Projects can override `managed_ssh.adapter_script` for unusual
+transport needs, but workspace selection should stay in the project content
+scripts above.
+
+When a cloud agent starts, the local action generates a cloud runtime config
+under `.cloud-agent/config/config.json`, removes the local
+`application.cloud_agent` control-plane section, and copies the configured
+`CONFIG_DIR` asset tree to `.cloud-agent/config/assets/`. The cloud runtime
+sets `CONFIG_DIR` to that copied asset tree and `WORKING_DIR` to the cloud
+workspace. Plugin-owned settings such as `working_directory` and
+`allowed_paths` are preserved as configured.
+
+Environment variables referenced by config placeholders are transferred through
+`.cloud-agent/env/runtime.env` according to `runtime_env`. Values are never
+included in action display payloads.
 - `POST /sessions` - create a session.
 - `GET /sessions` - list sessions.
 - `GET /sessions/{session_id}/messages` - list session messages.

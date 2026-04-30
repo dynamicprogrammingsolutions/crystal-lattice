@@ -17,7 +17,6 @@ config :cloud_orchestrator,
   public_url: System.get_env("CLOUD_ORCHESTRATOR_PUBLIC_URL") || "http://127.0.0.1:4100",
   token_secret: System.get_env("CLOUD_ORCHESTRATOR_TOKEN_SECRET") || "dev-token-secret",
   control_token: System.get_env("CLOUD_ORCHESTRATOR_CONTROL_TOKEN"),
-  cloud_workspace_dir: System.get_env("CLOUD_WORKSPACE_DIR") || "/workspace",
   data_dir: System.get_env("CLOUD_ORCHESTRATOR_DATA_DIR") || "/tmp/cloud-orchestrator",
   host_data_dir:
     System.get_env("CLOUD_ORCHESTRATOR_HOST_DATA_DIR") ||

@@ -1,7 +1,7 @@
 defmodule CloudOrchestrator.Router do
   use Plug.Router
 
-  alias CloudOrchestrator.{InstanceRegistry, Proxy, Token, TransferRegistry}
+  alias CloudOrchestrator.{InstanceRegistry, Token, TransferRegistry}
 
   plug(:match)
   plug(:dispatch)
@@ -35,32 +35,6 @@ defmodule CloudOrchestrator.Router do
       end
     else
       {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
-    end
-  end
-
-  put "/transfers/:transfer_id/upload" do
-    with :ok <- authorize_control(conn),
-         {:ok, body, _conn} <-
-           Plug.Conn.read_body(conn, length: 200_000_000, read_length: 1_000_000),
-         {:ok, transfer} <- TransferRegistry.upload_bundle(transfer_id, body) do
-      send_json(conn, 200, transfer)
-    else
-      {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
-      {:error, :not_found} -> send_json(conn, 404, %{error: "transfer_not_found"})
-      {:more, _body, _conn} -> send_json(conn, 413, %{error: "upload_too_large"})
-      {:error, reason} -> send_json(conn, 400, %{error: to_string(reason)})
-    end
-  end
-
-  get "/transfers/:transfer_id/download" do
-    with :ok <- authorize_control(conn),
-         {:ok, body} <- TransferRegistry.read_bundle(transfer_id) do
-      conn
-      |> put_resp_content_type("application/gzip")
-      |> send_resp(200, body)
-    else
-      {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
-      {:error, :not_found} -> send_json(conn, 404, %{error: "transfer_not_found"})
     end
   end
 
@@ -140,7 +114,7 @@ defmodule CloudOrchestrator.Router do
   match "/instances/:instance_id/proxy/*path" do
     with :ok <- authorize_proxy(conn, instance_id),
          {:ok, instance} <- InstanceRegistry.get_internal(instance_id) do
-      Proxy.forward(conn, instance, "/" <> Enum.join(path, "/"))
+      InstanceRegistry.handle_proxy_request(instance, conn, "/" <> Enum.join(path, "/"))
     else
       {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
       {:error, :not_found} -> send_json(conn, 404, %{error: "instance_not_found"})

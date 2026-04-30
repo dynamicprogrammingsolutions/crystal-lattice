@@ -22,6 +22,7 @@ fi
 
 ensure_ecr_repository "$ORCHESTRATOR_ECR_REPOSITORY"
 ensure_ecr_repository "$RUNTIME_ECR_REPOSITORY"
+ensure_ecr_repository "$TRANSFER_SSH_ECR_REPOSITORY"
 upload_source_bundle
 
 builder_stack="$(builder_stack_name)"
@@ -31,6 +32,7 @@ deploy_stack "$builder_stack" "$SCRIPT_DIR/builder.yaml" \
   SourceBundleKey="$SOURCE_BUNDLE_KEY" \
   OrchestratorRepository="$ORCHESTRATOR_ECR_REPOSITORY" \
   RuntimeRepository="$RUNTIME_ECR_REPOSITORY" \
+  TransferSshRepository="$TRANSFER_SSH_ECR_REPOSITORY" \
   ImageTag="$IMAGE_TAG" \
   DockerPlatform="$DOCKER_PLATFORM"
 
@@ -61,16 +63,18 @@ fi
 
 ORCHESTRATOR_IMAGE_URI="$(ecr_uri_for "$ORCHESTRATOR_ECR_REPOSITORY" "$IMAGE_TAG")"
 RUNTIME_IMAGE_URI="$(ecr_uri_for "$RUNTIME_ECR_REPOSITORY" "$IMAGE_TAG")"
+TRANSFER_SSH_IMAGE_URI="$(ecr_uri_for "$TRANSFER_SSH_ECR_REPOSITORY" "$IMAGE_TAG")"
 save_state
 
 if [ "$JSON_OUTPUT" -eq 1 ]; then
-  printf '{"sourceBucket":"%s","sourceBundleKey":"%s","orchestratorImageUri":"%s","runtimeImageUri":"%s","dockerPlatform":"%s","cpuArchitecture":"%s","instanceType":"%s","builder":"%s","stackName":"%s","region":"%s"}\n' \
-    "$SOURCE_BUCKET" "$SOURCE_BUNDLE_KEY" "$ORCHESTRATOR_IMAGE_URI" "$RUNTIME_IMAGE_URI" "$DOCKER_PLATFORM" "$CPU_ARCHITECTURE" "$INSTANCE_TYPE" "$BUILD_METHOD" "$STACK_NAME" "$REGION"
+  printf '{"sourceBucket":"%s","sourceBundleKey":"%s","orchestratorImageUri":"%s","runtimeImageUri":"%s","transferSshImageUri":"%s","dockerPlatform":"%s","cpuArchitecture":"%s","instanceType":"%s","builder":"%s","stackName":"%s","region":"%s"}\n' \
+    "$SOURCE_BUCKET" "$SOURCE_BUNDLE_KEY" "$ORCHESTRATOR_IMAGE_URI" "$RUNTIME_IMAGE_URI" "$TRANSFER_SSH_IMAGE_URI" "$DOCKER_PLATFORM" "$CPU_ARCHITECTURE" "$INSTANCE_TYPE" "$BUILD_METHOD" "$STACK_NAME" "$REGION"
 else
   echo "SourceBucket=$SOURCE_BUCKET"
   echo "SourceBundleKey=$SOURCE_BUNDLE_KEY"
   echo "OrchestratorImageUri=$ORCHESTRATOR_IMAGE_URI"
   echo "RuntimeImageUri=$RUNTIME_IMAGE_URI"
+  echo "TransferSshImageUri=$TRANSFER_SSH_IMAGE_URI"
   echo "DockerPlatform=$DOCKER_PLATFORM"
   echo "CpuArchitecture=$CPU_ARCHITECTURE"
   echo "InstanceType=$INSTANCE_TYPE"

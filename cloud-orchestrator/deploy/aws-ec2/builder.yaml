@@ -12,6 +12,8 @@ Parameters:
     Type: String
   RuntimeRepository:
     Type: String
+  TransferSshRepository:
+    Type: String
   ImageTag:
     Type: String
   DockerPlatform:
@@ -61,6 +63,7 @@ Resources:
                 Resource:
                   - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${OrchestratorRepository}
                   - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${RuntimeRepository}
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${TransferSshRepository}
 
   BuildProject:
     Type: AWS::CodeBuild::Project
@@ -83,11 +86,13 @@ Resources:
                 - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
             build:
               commands:
-                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RuntimeRepository}:${ImageTag} /workspace/runtime/python
-                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${OrchestratorRepository}:${ImageTag} /workspace
+                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RuntimeRepository}:${ImageTag} -f /workspace/cloud-orchestrator/runtime/python/Dockerfile /workspace
+                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${TransferSshRepository}:${ImageTag} /workspace/cloud-orchestrator/transfer/managed-ssh
+                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${OrchestratorRepository}:${ImageTag} /workspace/cloud-orchestrator
             post_build:
               commands:
                 - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RuntimeRepository}:${ImageTag}
+                - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${TransferSshRepository}:${ImageTag}
                 - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${OrchestratorRepository}:${ImageTag}
       Environment:
         Type: LINUX_CONTAINER

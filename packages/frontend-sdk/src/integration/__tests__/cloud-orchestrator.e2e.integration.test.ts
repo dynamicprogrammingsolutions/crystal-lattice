@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { RestAgentBackend } from '../../backend/restBackend';
 import { FetchTransport } from '../../transport/fetchTransport';
@@ -11,22 +12,56 @@ import {
   parseCloudConnectionLink,
 } from '../../transport/cloudTransport';
 import {
+  type StartedCloudOrchestrator,
   startBackendServer,
   startCloudOrchestratorForE2E,
+  waitForAsync,
 } from '../harness';
 
 const RUN = process.env.RUN_CLOUD_ORCHESTRATOR_E2E === '1';
 const describeIf = RUN ? describe : describe.skip;
+const RUN_OPENROUTER =
+  RUN &&
+  process.env.RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E === '1' &&
+  !!process.env.OPENROUTER_API_KEY;
+const describeOpenRouterIf = RUN_OPENROUTER ? describe : describe.skip;
+const RUN_CODEX_DEFAULT_CONFIG =
+  RUN &&
+  process.env.RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E === '1' &&
+  !!process.env.OPENROUTER_API_KEY &&
+  !!process.env.OPENAI_API_KEY;
+const describeCodexDefaultConfigIf = RUN_CODEX_DEFAULT_CONFIG ? describe.sequential : describe.skip;
 const IS_AWS_E2E = (process.env.CLOUD_ORCHESTRATOR_E2E_MODE || '').startsWith('aws-');
 
 const TEST_TIMEOUT_MS = IS_AWS_E2E ? 2_700_000 : 600_000;
 const HOOK_TIMEOUT_MS = IS_AWS_E2E ? 900_000 : 60_000;
+const CODEX_DEFAULT_CONFIG_HOOK_TIMEOUT_MS = Math.max(HOOK_TIMEOUT_MS, 180_000);
 
 function localBackendConfig(options: { orchestratorUrl: string; workspaceDir: string }) {
   const cloudAgent: Record<string, any> = {
     orchestrator_url: options.orchestratorUrl,
     workspace_dir: options.workspaceDir,
-    cloud_workspace_dir: '/workspace',
+    transfer_method: 'managed_ssh',
+    local_transfer_script: '.cloud-agent/transfer-up',
+    cloud_setup_script: '.cloud-agent/setup-cloud',
+    cloud_export_script: '.cloud-agent/export-cloud',
+    local_apply_script: '.cloud-agent/apply-down',
+    config_assets: {
+      include_config_dir: true,
+      exclude: ['.env'],
+      max_top_level_entry_bytes: 100,
+    },
+    runtime_env: {
+      include_config_env: true,
+      include: [],
+      exclude: [
+        'CLOUD_ORCHESTRATOR_URL',
+        'CLOUD_ORCHESTRATOR_TOKEN',
+        'CONFIG_DIR',
+        'BUILTIN_PLUGINS',
+      ],
+      env_files: [],
+    },
   };
   if (process.env.CLOUD_ORCHESTRATOR_E2E_CONTROL_TOKEN) {
     cloudAgent.orchestrator_token = process.env.CLOUD_ORCHESTRATOR_E2E_CONTROL_TOKEN;
@@ -38,11 +73,12 @@ function localBackendConfig(options: { orchestratorUrl: string; workspaceDir: st
         provider: 'echo_openai_like',
         model: 'test-model',
         timeout: 60,
+        stream: false,
       },
     },
     plugins: [
       'plugins.echo_openai_like_provider.EchoOpenAILikeProvider',
-      'plugins.cloud_agent_app_plugin.CloudAgentAppPlugin',
+      'path:${env:BUILTIN_PLUGINS}/cloud-agent-app',
     ],
     agents: {
       default: {
@@ -53,6 +89,366 @@ function localBackendConfig(options: { orchestratorUrl: string; workspaceDir: st
       cloud_agent: cloudAgent,
     },
   };
+}
+
+function openRouterBackendConfig(options: { orchestratorUrl: string; workspaceDir: string }) {
+  const model = process.env.CLOUD_ORCHESTRATOR_OPENROUTER_MODEL || 'openai/gpt-4.1-mini';
+  const cloudAgent: Record<string, any> = {
+    orchestrator_url: options.orchestratorUrl,
+    workspace_dir: options.workspaceDir,
+    transfer_method: 'managed_ssh',
+    local_transfer_script: '.cloud-agent/transfer-up',
+    cloud_setup_script: '.cloud-agent/setup-cloud',
+    cloud_export_script: '.cloud-agent/export-cloud',
+    local_apply_script: '.cloud-agent/apply-down',
+    config_assets: {
+      include_config_dir: true,
+      exclude: ['.env'],
+      max_top_level_entry_bytes: 1_000_000,
+    },
+    runtime_env: {
+      include_config_env: true,
+      include: [],
+      exclude: [
+        'CLOUD_ORCHESTRATOR_URL',
+        'CLOUD_ORCHESTRATOR_TOKEN',
+        'CONFIG_DIR',
+        'BUILTIN_PLUGINS',
+      ],
+      env_files: [],
+    },
+  };
+  if (process.env.CLOUD_ORCHESTRATOR_E2E_CONTROL_TOKEN) {
+    cloudAgent.orchestrator_token = process.env.CLOUD_ORCHESTRATOR_E2E_CONTROL_TOKEN;
+  }
+
+  return {
+    providers: {
+      openrouter: {
+        provider: 'openrouter',
+        api_key: '${env:OPENROUTER_API_KEY}',
+        base_url: 'https://openrouter.ai/api/v1',
+        model,
+        timeout: 120,
+        working_directory: '${env:WORKING_DIR}',
+        allowed_paths: ['${env:WORKING_DIR}'],
+        system_message_enabled: true,
+        system_message: {
+          template: '${file:${env:CONFIG_DIR}/system_messages/openrouter-e2e.md}',
+        },
+      },
+    },
+    plugins: [
+      'path:${env:BUILTIN_PLUGINS}/openrouter',
+      'path:${env:BUILTIN_PLUGINS}/feature-system-message',
+      'plugins.file_writer_tool.FileWriterTool',
+      'path:${env:BUILTIN_PLUGINS}/cloud-agent-app',
+    ],
+    agents: {
+      default: {
+        provider: 'openrouter',
+      },
+    },
+    application: {
+      cloud_agent: cloudAgent,
+    },
+  };
+}
+
+function writeCloudAgentScripts(workspaceDir: string): void {
+  const scriptsDir = path.join(workspaceDir, '.cloud-agent');
+  fs.mkdirSync(scriptsDir, { recursive: true });
+
+  const scripts: Record<string, string> = {
+    'transfer-up': [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'cd "${LOCAL_WORKSPACE_DIR}"',
+      'mkdir -p "${TRANSFER_DIR}"',
+      'git ls-files -z --cached --modified --others --exclude-standard | rsync -a --from0 --files-from=- ./ "${TRANSFER_DIR}/"',
+    ].join('\n'),
+    'setup-cloud': [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      ': "${CLOUD_WORKSPACE_DIR:?}"',
+      ': "${TRANSFER_DIR:?}"',
+    ].join('\n'),
+    'export-cloud': [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'mkdir -p "${TRANSFER_DIR}"',
+      'rsync -a --exclude .cloud-agent "${CLOUD_WORKSPACE_DIR}/" "${TRANSFER_DIR}/"',
+    ].join('\n'),
+    'apply-down': [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'mkdir -p "${LOCAL_WORKSPACE_DIR}"',
+      'rsync -a "${TRANSFER_DIR}/" "${LOCAL_WORKSPACE_DIR}/"',
+    ].join('\n'),
+  };
+
+  for (const [name, content] of Object.entries(scripts)) {
+    const scriptPath = path.join(scriptsDir, name);
+    fs.writeFileSync(scriptPath, `${content}\n`, { encoding: 'utf8', mode: 0o755 });
+  }
+}
+
+function initializeGitWorkspace(workspaceDir: string): void {
+  execFileSync('git', ['init'], { cwd: workspaceDir, stdio: 'ignore' });
+  execFileSync('git', ['config', 'user.email', 'cloud-e2e@example.invalid'], { cwd: workspaceDir });
+  execFileSync('git', ['config', 'user.name', 'Cloud E2E'], { cwd: workspaceDir });
+}
+
+function findRepoRoot(fromDir: string): string {
+  let current = fromDir;
+  for (let i = 0; i < 10; i += 1) {
+    const candidate = path.join(current, 'application', 'python', 'agent_terminal_app', 'default_config', 'config.json');
+    if (fs.existsSync(candidate)) {
+      return current;
+    }
+    const next = path.dirname(current);
+    if (next === current) {
+      break;
+    }
+    current = next;
+  }
+  throw new Error(`Unable to find repo root from ${fromDir}`);
+}
+
+function copyDefaultConfigRoot(targetRoot: string): string {
+  const repoRoot = findRepoRoot(process.cwd());
+  const source = path.join(repoRoot, 'application', 'python', 'agent_terminal_app', 'default_config');
+  fs.cpSync(source, targetRoot, {
+    recursive: true,
+    filter: (src) => !src.split(path.sep).includes('.plugin_cache'),
+  });
+  return path.join(targetRoot, 'config.json');
+}
+
+function patchDefaultCloudConfig(options: {
+  configPath: string;
+  orchestratorUrl: string;
+  workspaceDir: string;
+}): void {
+  const cfg = JSON.parse(fs.readFileSync(options.configPath, 'utf8'));
+  cfg.application.cloud_agent.orchestrator_url = options.orchestratorUrl;
+  cfg.application.cloud_agent.orchestrator_token =
+    process.env.CLOUD_ORCHESTRATOR_E2E_CONTROL_TOKEN || '';
+  cfg.application.cloud_agent.workspace_dir = options.workspaceDir;
+  cfg.application.cloud_agent.config_assets.max_top_level_entry_bytes = 1_000_000;
+  cfg.plugins = [
+    'path:${env:BUILTIN_PLUGINS}/openrouter',
+    'plugins.tool_gating_feature.ToolGatingFeature',
+    'path:${env:BUILTIN_PLUGINS}/feature-request-options',
+    'path:${env:BUILTIN_PLUGINS}/feature-system-message',
+    'path:${env:BUILTIN_PLUGINS}/openai_responses',
+    'path:${env:BUILTIN_PLUGINS}/cloud-agent-app',
+  ];
+  cfg.providers = {
+    openrouter: cfg.providers.openrouter,
+    openai: cfg.providers.openai,
+  };
+  cfg.agents = {
+    'codex-openrouter': cfg.agents['codex-openrouter'],
+    'codex-openai': cfg.agents['codex-openai'],
+  };
+  fs.writeFileSync(options.configPath, JSON.stringify(cfg, null, 2), 'utf8');
+}
+
+type ListedMessages = Awaited<ReturnType<RestAgentBackend['listMessages']>>;
+
+function toolNamesFromMessages(messages: ListedMessages): string[] {
+  return messages.messages
+    .map((entry) => entry.message)
+    .filter((message) => message.role === 'tool')
+    .map((message) => (message.metadata || {}).tool_name)
+    .filter((name): name is string => typeof name === 'string' && name.length > 0);
+}
+
+function expectShellAndApplyPatch(messages: ListedMessages, label: string): void {
+  const toolNames = toolNamesFromMessages(messages);
+  const serialized = JSON.stringify(messages.messages);
+  expect(
+    toolNames.some((name) => name === 'shell' || name === 'shell_command'),
+    `${label}: expected shell or shell_command tool call, saw ${toolNames.join(', ')}`,
+  ).toBe(true);
+  expect(
+    toolNames.includes('apply_patch') || serialized.includes('apply_patch'),
+    `${label}: expected apply_patch tool call or intercepted apply_patch command, saw ${toolNames.join(', ')}`,
+  ).toBe(true);
+}
+
+async function readCloudText(
+  cloudTransport: CloudTransport,
+  filePath: string,
+): Promise<string | null> {
+  const result = await cloudTransport.request<{ content?: string }>({
+    method: 'GET',
+    path: `/cloud-agent/workspace/files/${filePath}`,
+    timeoutMs: 30_000,
+  });
+  return result.status === 200 && typeof result.data.content === 'string'
+    ? result.data.content
+    : null;
+}
+
+async function runDefaultConfigCodexChain(options: {
+  orchestrator: StartedCloudOrchestrator;
+  agentId: 'codex-openrouter' | 'codex-openai';
+}): Promise<void> {
+  const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), `cl-cloud-${options.agentId}-workspace-`));
+  initializeGitWorkspace(workspaceDir);
+  writeCloudAgentScripts(workspaceDir);
+  fs.writeFileSync(path.join(workspaceDir, 'seed.txt'), 'alpha\n', 'utf8');
+  execFileSync('git', ['add', 'seed.txt'], { cwd: workspaceDir });
+  execFileSync('git', ['commit', '-m', 'initial seed'], { cwd: workspaceDir, stdio: 'ignore' });
+
+  const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), `cl-cloud-${options.agentId}-default-config-`));
+  const configPath = copyDefaultConfigRoot(configRoot);
+  patchDefaultCloudConfig({
+    configPath,
+    orchestratorUrl: options.orchestrator.baseUrl,
+    workspaceDir,
+  });
+
+  const localServer = await startBackendServer({
+    config: {},
+    configPath,
+    startupTimeoutMs: 240_000,
+    env: {
+      CONFIG_DIR: configRoot,
+      WORKING_DIR: workspaceDir,
+      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
+      OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+    },
+  });
+
+  try {
+    const localBackend = new RestAgentBackend({
+      transport: new FetchTransport({ baseUrl: localServer.baseUrl }),
+    });
+    const created = await localBackend.createSession({ agentId: options.agentId });
+    const sessionId = created.session.session_id;
+
+    const localOverrides = {
+      working_directory: workspaceDir,
+      allowed_paths: [workspaceDir],
+      max_output_chars: 20_000,
+    };
+    const cloudOverrides = {
+      working_directory: '/cloud-agent/instance/workspace',
+      allowed_paths: ['/cloud-agent/instance/workspace'],
+      max_output_chars: 20_000,
+    };
+
+    await localBackend.sendMessage(sessionId, {
+      message: {
+        role: 'user',
+        content: [
+          'Use tools only for the file work.',
+          'First use the shell_command tool or shell tool to run a bash command that reads seed.txt.',
+          'Then use the apply_patch tool to create chain.txt with exactly this content:',
+          'local1=alpha',
+          'Reply done after the patch is applied.',
+        ].join('\n'),
+      },
+      configOverrides: localOverrides,
+    });
+    await waitForAsync(
+      async () =>
+        fs.existsSync(path.join(workspaceDir, 'chain.txt')) &&
+        fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim() === 'local1=alpha',
+      { timeoutMs: 180_000, intervalMs: 1000 },
+    );
+    expectShellAndApplyPatch(
+      await localBackend.listMessages(sessionId),
+      `${options.agentId} local first turn`,
+    );
+
+    const startResult = await localBackend.executeAction({
+      pluginId: 'cloud',
+      actionId: 'cloud.start_session_agent',
+      actionOwner: 'application',
+      inputs: { session_id: sessionId },
+    });
+    expect(startResult.status, JSON.stringify(startResult, null, 2)).toBe('ok');
+    const cloudLink = parseCloudConnectionLink((startResult.result as any).connection_link as string);
+    const cloudTransport = new CloudTransport({
+      orchestratorUrl: cloudLink.orchestratorUrl,
+      instanceId: cloudLink.instanceId,
+      token: cloudLink.token,
+      defaultRequestTimeoutMs: 180_000,
+    });
+    const cloudBackend = new RestAgentBackend({ transport: cloudTransport });
+
+    await cloudBackend.sendMessage(sessionId, {
+      message: {
+        role: 'user',
+        content: [
+          'Use tools only for the file work.',
+          'First use the shell_command tool or shell tool to run a bash command that reads chain.txt.',
+          'Then use the apply_patch tool to update chain.txt so it contains exactly:',
+          'local1=alpha',
+          'cloud2=alpha-bravo',
+          'Reply done after the patch is applied.',
+        ].join('\n'),
+      },
+      configOverrides: cloudOverrides,
+    });
+    await waitForAsync(
+      async () => (await readCloudText(cloudTransport, 'chain.txt'))?.trim() === 'local1=alpha\ncloud2=alpha-bravo',
+      { timeoutMs: 180_000, intervalMs: 1000 },
+    );
+    expectShellAndApplyPatch(
+      await cloudBackend.listMessages(sessionId),
+      `${options.agentId} cloud turn`,
+    );
+
+    const closeResult = await localBackend.executeAction({
+      pluginId: 'cloud',
+      actionId: 'cloud.close_session',
+      actionOwner: 'application',
+      inputs: {
+        instance_id: cloudLink.instanceId,
+        session_id: sessionId,
+        workspace_dir: workspaceDir,
+      },
+    });
+    expect(closeResult.status, JSON.stringify(closeResult, null, 2)).toBe('ok');
+    expect(fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim()).toBe(
+      'local1=alpha\ncloud2=alpha-bravo',
+    );
+
+    await localBackend.sendMessage(sessionId, {
+      message: {
+        role: 'user',
+        content: [
+          'Use tools only for the file work.',
+          'First use the shell_command tool or shell tool to run a bash command that reads chain.txt.',
+          'Then use the apply_patch tool to update chain.txt so it contains exactly:',
+          'local1=alpha',
+          'cloud2=alpha-bravo',
+          'local3=alpha-bravo-charlie',
+          'Reply done after the patch is applied.',
+        ].join('\n'),
+      },
+      configOverrides: localOverrides,
+    });
+    await waitForAsync(
+      async () =>
+        fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim() ===
+        'local1=alpha\ncloud2=alpha-bravo\nlocal3=alpha-bravo-charlie',
+      { timeoutMs: 180_000, intervalMs: 1000 },
+    );
+    expectShellAndApplyPatch(
+      await localBackend.listMessages(sessionId),
+      `${options.agentId} final local turn`,
+    );
+  } finally {
+    await localServer.stop();
+    fs.rmSync(workspaceDir, { recursive: true, force: true });
+    fs.rmSync(configRoot, { recursive: true, force: true });
+  }
 }
 
 describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestrator -> cloud runtime)', () => {
@@ -72,16 +468,52 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       stopAll.push(orchestrator.stop);
 
       const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-workspace-'));
+      initializeGitWorkspace(workspaceDir);
+      writeCloudAgentScripts(workspaceDir);
+      fs.writeFileSync(path.join(workspaceDir, '.gitignore'), 'ignored-local.txt\n', 'utf8');
+      fs.writeFileSync(path.join(workspaceDir, 'local.txt'), 'local file before edit\n', 'utf8');
+      execFileSync('git', ['add', '.gitignore', 'local.txt'], { cwd: workspaceDir });
+      execFileSync('git', ['commit', '-m', 'initial workspace'], { cwd: workspaceDir, stdio: 'ignore' });
       fs.writeFileSync(path.join(workspaceDir, 'local.txt'), 'local file\n', 'utf8');
+      fs.writeFileSync(path.join(workspaceDir, 'staged-new.txt'), 'staged file\n', 'utf8');
+      execFileSync('git', ['add', 'staged-new.txt'], { cwd: workspaceDir });
+      fs.writeFileSync(path.join(workspaceDir, 'unstaged-new.txt'), 'unstaged file\n', 'utf8');
+      fs.writeFileSync(path.join(workspaceDir, 'ignored-local.txt'), 'should not transfer\n', 'utf8');
+      const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-config-'));
+      fs.mkdirSync(path.join(configRoot, 'system_messages'), { recursive: true });
+      fs.writeFileSync(
+        path.join(configRoot, 'system_messages', 'test.md'),
+        'cloud config asset intact\n',
+        'utf8',
+      );
+      fs.writeFileSync(path.join(configRoot, '.env'), 'SHOULD_NOT_COPY=1\n', 'utf8');
+      const largeDir = path.join(configRoot, 'large_dir');
+      fs.mkdirSync(largeDir, { recursive: true });
+      fs.writeFileSync(path.join(largeDir, 'payload.bin'), 'x'.repeat(128), 'utf8');
+      const configPath = path.join(configRoot, 'config.json');
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify(
+          localBackendConfig({
+            orchestratorUrl: orchestrator.baseUrl,
+            workspaceDir,
+          }),
+          null,
+          2,
+        ),
+        'utf8',
+      );
 
       const localServer = await startBackendServer({
-        config: localBackendConfig({
-          orchestratorUrl: orchestrator.baseUrl,
-          workspaceDir,
-        }),
+        config: {},
+        configPath,
+        env: {
+          CONFIG_DIR: configRoot,
+        },
       });
       stopAll.push(async () => {
         fs.rmSync(workspaceDir, { recursive: true, force: true });
+        fs.rmSync(configRoot, { recursive: true, force: true });
         await localServer.stop();
       });
 
@@ -118,9 +550,16 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
 
       const cloudSessions = await cloudBackend.listSessions();
       expect(cloudSessions.some((session) => session.session_id === sessionId)).toBe(true);
+      await expect(cloudBackend.listAgents()).resolves.toContain('default');
 
       const cloudMessages = await cloudBackend.listMessages(sessionId);
       expect(cloudMessages.messages[0]?.message.content).toBe('local hello');
+
+      await cloudBackend.send(sessionId);
+      await waitForAsync(async () => {
+        const messages = await cloudBackend.listMessages(sessionId);
+        return messages.messages.length >= 2;
+      }, { timeoutMs: 30_000, intervalMs: 500 });
 
       const transferredLocalFile = await cloudTransport.request<{ content: string }>({
         method: 'GET',
@@ -128,6 +567,33 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         timeoutMs: 30_000,
       });
       expect(transferredLocalFile.data.content).toBe('local file\n');
+      const ignoredProbe = await cloudTransport.request({
+        method: 'GET',
+        path: '/cloud-agent/workspace/files/ignored-local.txt',
+        timeoutMs: 30_000,
+      });
+      expect(ignoredProbe.status).toBe(404);
+      await expect(
+        cloudTransport.request<{ content: string }>({
+          method: 'GET',
+          path: '/cloud-agent/workspace/files/staged-new.txt',
+          timeoutMs: 30_000,
+        }),
+      ).resolves.toMatchObject({ data: { content: 'staged file\n' } });
+      await expect(
+        cloudTransport.request<{ content: string }>({
+          method: 'GET',
+          path: '/cloud-agent/workspace/files/unstaged-new.txt',
+          timeoutMs: 30_000,
+        }),
+      ).resolves.toMatchObject({ data: { content: 'unstaged file\n' } });
+
+      const transferredConfigAsset = await cloudTransport.request<{ content: string }>({
+        method: 'GET',
+        path: '/cloud-agent/config-assets/files/system_messages/test.md',
+        timeoutMs: 30_000,
+      });
+      expect(transferredConfigAsset.data.content).toBe('cloud config asset intact\n');
 
       await cloudTransport.request({
         method: 'POST',
@@ -153,11 +619,6 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         'synced from cloud',
       );
 
-      await cloudBackend.appendMessage(sessionId, {
-        role: 'assistant',
-        content: 'remote hello',
-      });
-
       await localBackend.executeAction({
         pluginId: 'cloud',
         actionId: 'cloud.close_session',
@@ -169,7 +630,175 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       });
 
       const localMessages = await localBackend.listMessages(sessionId);
-      expect(localMessages.messages.map((entry) => entry.message.content)).toContain('remote hello');
+      expect(localMessages.messages.length).toBeGreaterThanOrEqual(2);
+    },
+    TEST_TIMEOUT_MS,
+  );
+});
+
+describeCodexDefaultConfigIf('cloud orchestrator default-config Codex provider e2e', () => {
+  let orchestrator: StartedCloudOrchestrator;
+
+  beforeAll(async () => {
+    orchestrator = await startCloudOrchestratorForE2E();
+  }, CODEX_DEFAULT_CONFIG_HOOK_TIMEOUT_MS);
+
+  afterAll(async () => {
+    if (orchestrator) {
+      await orchestrator.stop();
+    }
+  }, CODEX_DEFAULT_CONFIG_HOOK_TIMEOUT_MS);
+
+  for (const agentId of ['codex-openrouter', 'codex-openai'] as const) {
+    it(
+      `runs local-cloud-local bash and apply_patch chain with ${agentId}`,
+      async () => {
+        await runDefaultConfigCodexChain({ orchestrator, agentId });
+      },
+      TEST_TIMEOUT_MS,
+    );
+  }
+});
+
+describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
+  let stopAll: Array<() => Promise<void>> = [];
+
+  afterAll(async () => {
+    for (const stop of stopAll.reverse()) {
+      await stop();
+    }
+    stopAll = [];
+  }, HOOK_TIMEOUT_MS);
+
+  it(
+    'runs local and cloud OpenRouter tool calls with config assets and sync-back',
+    async () => {
+      const orchestrator = await startCloudOrchestratorForE2E();
+      stopAll.push(orchestrator.stop);
+
+      const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-openrouter-workspace-'));
+      initializeGitWorkspace(workspaceDir);
+      writeCloudAgentScripts(workspaceDir);
+      fs.writeFileSync(path.join(workspaceDir, '.gitignore'), 'ignored-local.txt\n', 'utf8');
+      execFileSync('git', ['add', '.gitignore'], { cwd: workspaceDir });
+      execFileSync('git', ['commit', '-m', 'initial workspace'], { cwd: workspaceDir, stdio: 'ignore' });
+      const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-openrouter-config-'));
+      fs.mkdirSync(path.join(configRoot, 'system_messages'), { recursive: true });
+      fs.writeFileSync(
+        path.join(configRoot, 'system_messages', 'openrouter-e2e.md'),
+        [
+          'You are running a cloud orchestrator integration test.',
+          'When asked to create a file, call the write_file tool.',
+          'Use exactly the requested path and content.',
+        ].join('\n'),
+        'utf8',
+      );
+      fs.writeFileSync(path.join(configRoot, '.env'), 'SHOULD_NOT_COPY=1\n', 'utf8');
+      const configPath = path.join(configRoot, 'config.json');
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify(openRouterBackendConfig({ orchestratorUrl: orchestrator.baseUrl, workspaceDir }), null, 2),
+        'utf8',
+      );
+
+      const localServer = await startBackendServer({
+        config: {},
+        configPath,
+        env: {
+          CONFIG_DIR: configRoot,
+          OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
+          WORKING_DIR: workspaceDir,
+        },
+      });
+      stopAll.push(async () => {
+        fs.rmSync(workspaceDir, { recursive: true, force: true });
+        fs.rmSync(configRoot, { recursive: true, force: true });
+        await localServer.stop();
+      });
+
+      const localBackend = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: localServer.baseUrl }),
+      });
+      const created = await localBackend.createSession({ agentId: 'default' });
+      const sessionId = created.session.session_id;
+
+      await localBackend.sendMessage(sessionId, {
+        message: {
+          role: 'user',
+          content:
+            "Use write_file to create local-openrouter.txt with exactly 'local ok\\n'. Reply done after the tool call.",
+        },
+      });
+      await waitForAsync(
+        async () => fs.existsSync(path.join(workspaceDir, 'local-openrouter.txt')),
+        { timeoutMs: 120_000, intervalMs: 1000 },
+      );
+      expect(fs.readFileSync(path.join(workspaceDir, 'local-openrouter.txt'), 'utf8')).toBe('local ok\n');
+
+      const startResult = await localBackend.executeAction({
+        pluginId: 'cloud',
+        actionId: 'cloud.start_session_agent',
+        actionOwner: 'application',
+        inputs: { session_id: sessionId },
+      });
+
+      const cloudLink = parseCloudConnectionLink((startResult.result as any).connection_link as string);
+      const cloudTransport = new CloudTransport({
+        orchestratorUrl: cloudLink.orchestratorUrl,
+        instanceId: cloudLink.instanceId,
+        token: cloudLink.token,
+        defaultRequestTimeoutMs: 120_000,
+      });
+      const cloudBackend = new RestAgentBackend({ transport: cloudTransport });
+
+      const transferredLocalFile = await cloudTransport.request<{ content: string }>({
+        method: 'GET',
+        path: '/cloud-agent/workspace/files/local-openrouter.txt',
+        timeoutMs: 30_000,
+      });
+      expect(transferredLocalFile.data.content).toBe('local ok\n');
+
+      const transferredConfigAsset = await cloudTransport.request<{ content: string }>({
+        method: 'GET',
+        path: '/cloud-agent/config-assets/files/system_messages/openrouter-e2e.md',
+        timeoutMs: 30_000,
+      });
+      expect(transferredConfigAsset.data.content).toContain('cloud orchestrator integration test');
+
+      const cloudExecutionSession = await cloudBackend.createSession({ agentId: 'default' });
+      const cloudExecutionSessionId = cloudExecutionSession.session.session_id;
+
+      await cloudBackend.sendMessage(cloudExecutionSessionId, {
+        message: {
+          role: 'user',
+          content:
+            "Use write_file to create cloud-openrouter.txt with exactly 'cloud ok\\n'. Reply done after the tool call.",
+        },
+      });
+      await waitForAsync(async () => {
+        try {
+          const result = await cloudTransport.request<{ content: string }>({
+            method: 'GET',
+            path: '/cloud-agent/workspace/files/cloud-openrouter.txt',
+            timeoutMs: 30_000,
+          });
+          return result.data.content === 'cloud ok\n';
+        } catch {
+          return false;
+        }
+      }, { timeoutMs: 180_000, intervalMs: 1000 });
+
+      await localBackend.executeAction({
+        pluginId: 'cloud',
+        actionId: 'cloud.sync_down',
+        actionOwner: 'application',
+        inputs: {
+          instance_id: cloudLink.instanceId,
+          workspace_dir: workspaceDir,
+        },
+      });
+
+      expect(fs.readFileSync(path.join(workspaceDir, 'cloud-openrouter.txt'), 'utf8')).toBe('cloud ok\n');
     },
     TEST_TIMEOUT_MS,
   );

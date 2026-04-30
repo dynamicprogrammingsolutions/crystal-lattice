@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ORCHESTRATOR_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+REPO_DIR="$(cd "$ORCHESTRATOR_DIR/.." && pwd)"
 STATE_DIR="${CLOUD_ORCHESTRATOR_AWS_STATE_DIR:-$SCRIPT_DIR/.state}"
 
 PROFILE="secure"
@@ -18,9 +19,11 @@ SOURCE_BUCKET="${CLOUD_ORCHESTRATOR_SOURCE_BUCKET:-}"
 SOURCE_BUNDLE_KEY="${CLOUD_ORCHESTRATOR_SOURCE_BUNDLE_KEY:-}"
 ORCHESTRATOR_ECR_REPOSITORY="${CLOUD_ORCHESTRATOR_ECR_REPOSITORY:-}"
 RUNTIME_ECR_REPOSITORY="${CLOUD_AGENT_RUNTIME_ECR_REPOSITORY:-}"
+TRANSFER_SSH_ECR_REPOSITORY="${CLOUD_AGENT_TRANSFER_SSH_ECR_REPOSITORY:-}"
 IMAGE_TAG="${CLOUD_ORCHESTRATOR_IMAGE_TAG:-latest}"
 ORCHESTRATOR_IMAGE_URI="${CLOUD_ORCHESTRATOR_IMAGE_URI:-}"
 RUNTIME_IMAGE_URI="${CLOUD_AGENT_RUNTIME_IMAGE_URI:-}"
+TRANSFER_SSH_IMAGE_URI="${CLOUD_AGENT_TRANSFER_SSH_IMAGE_URI:-}"
 CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE="${CLOUD_ORCHESTRATOR_CONTROL_TOKEN:-}"
 CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE="${CLOUD_ORCHESTRATOR_TOKEN_SECRET:-}"
 DOCKER_PLATFORM="${CLOUD_ORCHESTRATOR_DOCKER_PLATFORM:-linux/amd64}"
@@ -40,9 +43,11 @@ Common options:
   --source-bundle-key KEY
   --orchestrator-ecr-repository NAME
   --runtime-ecr-repository NAME
+  --transfer-ssh-ecr-repository NAME
   --image-tag TAG
   --orchestrator-image-uri URI
   --runtime-image-uri URI
+  --transfer-ssh-image-uri URI
   --docker-platform linux/amd64|linux/arm64
   --cpu-architecture X86_64|ARM64
   --builder codebuild
@@ -94,6 +99,10 @@ parse_common_args() {
         RUNTIME_ECR_REPOSITORY="$2"
         shift 2
         ;;
+      --transfer-ssh-ecr-repository)
+        TRANSFER_SSH_ECR_REPOSITORY="$2"
+        shift 2
+        ;;
       --image-tag)
         IMAGE_TAG="$2"
         shift 2
@@ -104,6 +113,10 @@ parse_common_args() {
         ;;
       --runtime-image-uri)
         RUNTIME_IMAGE_URI="$2"
+        shift 2
+        ;;
+      --transfer-ssh-image-uri)
+        TRANSFER_SSH_IMAGE_URI="$2"
         shift 2
         ;;
       --docker-platform)
@@ -169,9 +182,11 @@ SOURCE_BUCKET='${SOURCE_BUCKET:-}'
 SOURCE_BUNDLE_KEY='${SOURCE_BUNDLE_KEY:-}'
 ORCHESTRATOR_ECR_REPOSITORY='${ORCHESTRATOR_ECR_REPOSITORY:-}'
 RUNTIME_ECR_REPOSITORY='${RUNTIME_ECR_REPOSITORY:-}'
+TRANSFER_SSH_ECR_REPOSITORY='${TRANSFER_SSH_ECR_REPOSITORY:-}'
 IMAGE_TAG='${IMAGE_TAG:-}'
 ORCHESTRATOR_IMAGE_URI='${ORCHESTRATOR_IMAGE_URI:-}'
 RUNTIME_IMAGE_URI='${RUNTIME_IMAGE_URI:-}'
+TRANSFER_SSH_IMAGE_URI='${TRANSFER_SSH_IMAGE_URI:-}'
 DOCKER_PLATFORM='${DOCKER_PLATFORM:-}'
 CPU_ARCHITECTURE='${CPU_ARCHITECTURE:-}'
 INSTANCE_TYPE='${INSTANCE_TYPE:-}'
@@ -322,6 +337,7 @@ ensure_artifact_keys() {
   SOURCE_BUNDLE_KEY="${SOURCE_BUNDLE_KEY:-${STACK_NAME}/cloud-orchestrator-source.tar.gz}"
   ORCHESTRATOR_ECR_REPOSITORY="${ORCHESTRATOR_ECR_REPOSITORY:-${STACK_NAME}/cloud-orchestrator}"
   RUNTIME_ECR_REPOSITORY="${RUNTIME_ECR_REPOSITORY:-${STACK_NAME}/cloud-agent-runtime}"
+  TRANSFER_SSH_ECR_REPOSITORY="${TRANSFER_SSH_ECR_REPOSITORY:-${STACK_NAME}/cloud-agent-transfer-ssh}"
   IMAGE_TAG="${IMAGE_TAG:-latest}"
 }
 
@@ -333,10 +349,13 @@ upload_source_bundle() {
   tar \
     --exclude '_build' \
     --exclude 'deps' \
+    --exclude 'node_modules' \
+    --exclude '.venv' \
+    --exclude '.pytest_cache' \
     --exclude '.data' \
     --exclude '.elixir_ls' \
     -czf "$tmp" \
-    -C "$ORCHESTRATOR_DIR" .
+    -C "$REPO_DIR" .
   aws_out s3 cp "$tmp" "s3://${SOURCE_BUCKET}/${SOURCE_BUNDLE_KEY}" >/dev/null
   rm -f "$tmp"
 }
@@ -345,12 +364,13 @@ ensure_artifacts_available() {
   ensure_source_bucket
   ensure_artifact_keys
   ensure_platform_default
-  if [ -z "${ORCHESTRATOR_IMAGE_URI:-}" ] || [ -z "${RUNTIME_IMAGE_URI:-}" ]; then
+  if [ -z "${ORCHESTRATOR_IMAGE_URI:-}" ] || [ -z "${RUNTIME_IMAGE_URI:-}" ] || [ -z "${TRANSFER_SSH_IMAGE_URI:-}" ]; then
     echo "Missing prebuilt cloud orchestrator image URIs. Run deploy/aws-ec2/build.sh first for stack '$STACK_NAME'." >&2
     return 1
   fi
   docker_manifest_exists "$ORCHESTRATOR_IMAGE_URI"
   docker_manifest_exists "$RUNTIME_IMAGE_URI"
+  docker_manifest_exists "$TRANSFER_SSH_IMAGE_URI"
 }
 
 ensure_ecr_repository() {

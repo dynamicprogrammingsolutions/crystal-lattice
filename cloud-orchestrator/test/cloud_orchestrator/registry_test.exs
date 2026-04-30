@@ -4,8 +4,15 @@ defmodule CloudOrchestrator.RegistryTest do
   alias CloudOrchestrator.{InstanceRegistry, TransferRegistry}
 
   setup do
+    System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH", "1")
     TransferRegistry.reset()
     InstanceRegistry.reset()
+
+    on_exit(fn ->
+      TransferRegistry.reset()
+      System.delete_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH")
+    end)
+
     :ok
   end
 
@@ -15,7 +22,8 @@ defmodule CloudOrchestrator.RegistryTest do
                "direction" => "upload",
                "method" => "managed_ssh",
                "public_host" => "cloud.example.test",
-               "port" => 22001
+               "port" => 22001,
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
              })
 
     assert transfer["transfer_id"] =~ "tr_"
@@ -41,7 +49,11 @@ defmodule CloudOrchestrator.RegistryTest do
   end
 
   test "refuses to start from a transfer that is not ready" do
-    assert {:ok, transfer} = TransferRegistry.create(%{"direction" => "upload"})
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
 
     assert {:error, 409, %{error: "transfer_not_ready"}} =
              InstanceRegistry.start_instance(%{

@@ -8,6 +8,8 @@ Parameters:
     Type: String
   RuntimeImageUri:
     Type: String
+  TransferSshImageUri:
+    Type: String
   InstanceType:
     Type: String
     Default: t3.micro
@@ -163,8 +165,10 @@ Resources:
           mkdir -p /var/lib/cloud-orchestrator
           aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
           docker pull ${RuntimeImageUri}
+          docker pull ${TransferSshImageUri}
           docker pull ${OrchestratorImageUri}
           docker tag ${RuntimeImageUri} cloud-agent-runtime:latest
+          docker tag ${TransferSshImageUri} cloud-agent-transfer-ssh:latest
           docker tag ${OrchestratorImageUri} cloud-orchestrator:latest
           docker rm -f cloud-orchestrator-single || true
           docker run -d \
@@ -185,7 +189,6 @@ Resources:
             -e CLOUD_ORCHESTRATOR_HOST_DATA_DIR=/var/lib/cloud-orchestrator \
             -e CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=host.docker.internal \
             -e CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=172.17.0.1 \
-            -e CLOUD_WORKSPACE_DIR=/workspace \
             cloud-orchestrator:latest
 
 Outputs:

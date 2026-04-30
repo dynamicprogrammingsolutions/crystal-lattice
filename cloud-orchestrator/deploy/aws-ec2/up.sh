@@ -21,6 +21,7 @@ deploy_stack "$origin_stack" "$SCRIPT_DIR/secure-origin.yaml" \
   StackName="$STACK_NAME" \
   OrchestratorImageUri="$ORCHESTRATOR_IMAGE_URI" \
   RuntimeImageUri="$RUNTIME_IMAGE_URI" \
+  TransferSshImageUri="$TRANSFER_SSH_IMAGE_URI" \
   InstanceType="$INSTANCE_TYPE" \
   CpuArchitecture="$CPU_ARCHITECTURE" \
   KeyName="$KEY_NAME" \
@@ -43,12 +44,18 @@ save_state
 wait_http_health "${CLOUD_ORCHESTRATOR_EC2_URL%/}/health"
 
 ssm_params="$(mktemp -t cloud-orchestrator-ssm.XXXXXX.json)"
-python3 - "$ssm_params" "$CLOUD_ORCHESTRATOR_URL" "$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" "$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE" <<'PY'
+python3 - "$ssm_params" "$CLOUD_ORCHESTRATOR_URL" "$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" "$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE" "$ORCHESTRATOR_IMAGE_URI" "$RUNTIME_IMAGE_URI" "$TRANSFER_SSH_IMAGE_URI" <<'PY'
 import json
 import sys
 
-path, public_url, control_token, token_secret = sys.argv[1:5]
+path, public_url, control_token, token_secret, orchestrator_image, runtime_image, transfer_ssh_image = sys.argv[1:8]
 commands = [
+    f"docker pull {runtime_image}",
+    f"docker pull {transfer_ssh_image}",
+    f"docker pull {orchestrator_image}",
+    f"docker tag {runtime_image} cloud-agent-runtime:latest",
+    f"docker tag {transfer_ssh_image} cloud-agent-transfer-ssh:latest",
+    f"docker tag {orchestrator_image} cloud-orchestrator:latest",
     "docker rm -f cloud-orchestrator-single || true",
     (
         "docker run -d --name cloud-orchestrator-single --restart unless-stopped "
@@ -67,7 +74,6 @@ commands = [
         "-e CLOUD_ORCHESTRATOR_HOST_DATA_DIR=/var/lib/cloud-orchestrator "
         "-e CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=host.docker.internal "
         "-e CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=172.17.0.1 "
-        "-e CLOUD_WORKSPACE_DIR=/workspace "
         "cloud-orchestrator:latest"
     ),
 ]

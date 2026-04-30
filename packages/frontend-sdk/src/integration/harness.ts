@@ -89,6 +89,7 @@ export async function startBackendServer(options: {
   configPath?: string;
   sessionsRoot?: string;
   port?: number;
+  startupTimeoutMs?: number;
   sessionSaveDelayMs?: number;
   checkpointDelayMs?: number;
   eventStoreOptions?: {
@@ -158,7 +159,7 @@ export async function startBackendServer(options: {
 
   // Wait for readiness.
   await (async () => {
-    const deadline = Date.now() + 10000;
+    const deadline = Date.now() + (options.startupTimeoutMs ?? 10000);
     while (Date.now() < deadline) {
       try {
         const resp = await fetch(`${baseUrl}/api/hello`);
@@ -170,7 +171,7 @@ export async function startBackendServer(options: {
       }
       await new Promise((r) => setTimeout(r, 50));
     }
-    throw new Error(`Backend did not become ready. Stderr:\n${stderr.join('')}`);
+    throw new Error(`Backend did not become ready. Stdout:\n${stdout.join('')}\nStderr:\n${stderr.join('')}`);
   })();
 
   async function stop(): Promise<void> {
@@ -255,9 +256,27 @@ export async function startCloudOrchestratorLocal(): Promise<StartedCloudOrchest
 
   await runCommand({
     cmd: 'docker',
-    args: ['build', '-t', 'cloud-agent-runtime:latest', 'runtime/python'],
-    cwd,
+    args: ['build', '-t', 'cloud-agent-runtime:latest', '-f', 'cloud-orchestrator/runtime/python/Dockerfile', '.'],
+    cwd: repoRoot,
   });
+  await runCommand({
+    cmd: 'docker',
+    args: ['build', '-t', 'cloud-agent-transfer-ssh:latest', 'cloud-orchestrator/transfer/managed-ssh'],
+    cwd: repoRoot,
+  });
+  try {
+    const ids = await runCommand({
+      cmd: 'docker',
+      args: ['ps', '-aq', '--filter', 'name=cloud-agent-inst_', '--filter', 'name=cloud-transfer-tr_'],
+      cwd,
+    });
+    const list = ids.split(/\s+/).filter(Boolean);
+    if (list.length > 0) {
+      await runCommand({ cmd: 'docker', args: ['rm', '-f', ...list], cwd });
+    }
+  } catch {
+    // Best-effort cleanup only.
+  }
 
   const child = spawn('mix', ['run', '--no-halt'], {
     cwd,
@@ -305,7 +324,7 @@ export async function startCloudOrchestratorLocal(): Promise<StartedCloudOrchest
     try {
       const ids = await runCommand({
         cmd: 'docker',
-        args: ['ps', '-aq', '--filter', 'name=cloud-agent-inst_'],
+        args: ['ps', '-aq', '--filter', 'name=cloud-agent-inst_', '--filter', 'name=cloud-transfer-tr_'],
         cwd,
       });
       const list = ids.split(/\s+/).filter(Boolean);

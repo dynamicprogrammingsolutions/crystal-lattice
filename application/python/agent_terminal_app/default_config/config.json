@@ -406,7 +406,7 @@
     "path:${env:BUILTIN_PLUGINS}/session-ordering-buckets-app",
     "path:${env:BUILTIN_PLUGINS}/reference-openai-compatible-provider",
     "path:${env:BUILTIN_PLUGINS}/openai_responses",
-    "plugins.cloud_agent_app_plugin.CloudAgentAppPlugin"
+    "path:${env:BUILTIN_PLUGINS}/cloud-agent-app"
   ],
   "application": {
     "tool_output_line_limit": 20,
@@ -429,14 +429,54 @@
       "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
       "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
       "workspace_dir": ".",
-      "cloud_workspace_dir": "/workspace"
+      "transfer_method": "managed_ssh",
+      "local_transfer_script": ".cloud-agent/transfer-up",
+      "cloud_setup_script": ".cloud-agent/setup-cloud",
+      "cloud_export_script": ".cloud-agent/export-cloud",
+      "local_apply_script": ".cloud-agent/apply-down",
+      "managed_ssh": {
+        "adapter_script": null,
+        "ssh_path": "ssh",
+        "rsync_path": "rsync",
+        "extra_rsync_args": []
+      },
+      "config_assets": {
+        "include_config_dir": true,
+        "exclude": [
+          ".env",
+          ".env.*",
+          ".plugin_cache",
+          "logs",
+          "sessions",
+          "auth",
+          "state"
+        ],
+        "max_top_level_entry_bytes": 104857600
+      },
+      "runtime_env": {
+        "include_config_env": true,
+        "include": [],
+        "exclude": [
+          "CLOUD_ORCHESTRATOR_URL",
+          "CLOUD_ORCHESTRATOR_TOKEN",
+          "SERVER_HOST",
+          "SERVER_PORT",
+          "BRIDGE_URL",
+          "BRIDGE_LOCAL_HTTP_BASE",
+          "OPENAI_BASE_URL",
+          "CONFIG_DIR",
+          "BUILTIN_PLUGINS",
+          "PLUGIN_CACHE_DIR"
+        ],
+        "env_files": []
+      }
     }
   },
   "agents": {
     "codex-openrouter": {
       "mixin_refs": ["codex_developer_message"],
       "provider": "openrouter",
-      "model": "openai/gpt-5.4",
+      "model": "openai/gpt-5.4-mini",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],
@@ -445,7 +485,7 @@
     "codex-openai": {
       "mixin_refs": ["codex_developer_message"],
       "provider": "openai",
-      "model": "gpt-5.4",
+      "model": "gpt-5.4-mini",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],

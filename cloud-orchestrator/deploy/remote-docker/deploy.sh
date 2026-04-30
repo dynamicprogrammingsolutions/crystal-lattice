@@ -46,7 +46,7 @@ quote() {
 }
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-source_dir="${repo_root}/cloud-orchestrator"
+source_dir="${repo_root}"
 
 require_env CLOUD_ORCHESTRATOR_REMOTE
 require_env CLOUD_ORCHESTRATOR_PUBLIC_URL
@@ -58,7 +58,6 @@ control_token="${CLOUD_ORCHESTRATOR_CONTROL_TOKEN:-}"
 host_data_dir="${CLOUD_ORCHESTRATOR_HOST_DATA_DIR:-/var/lib/cloud-orchestrator}"
 port="${CLOUD_ORCHESTRATOR_PORT:-4100}"
 runner="${CLOUD_ORCHESTRATOR_RUNNER:-docker}"
-cloud_workspace_dir="${CLOUD_WORKSPACE_DIR:-/workspace}"
 docker_proxy_host="${CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST:-host.docker.internal}"
 docker_bind_host="${CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST:-172.17.0.1}"
 secret_key_base="${SECRET_KEY_BASE:-$(openssl rand -hex 64)}"
@@ -82,6 +81,9 @@ rsync_args=(
   --delete
   --exclude '_build'
   --exclude 'deps'
+  --exclude 'node_modules'
+  --exclude '.venv'
+  --exclude '.pytest_cache'
   --exclude '.data'
   --exclude '.elixir_ls'
 )
@@ -98,12 +100,13 @@ cd ${remote_dir}
 mkdir -p $(quote "${host_data_dir}")
 if docker compose version >/dev/null 2>&1; then
   compose_cmd='docker compose'
-  compose_file='docker-compose.single-node.yml'
+  compose_file='cloud-orchestrator/docker-compose.single-node.yml'
 else
   compose_cmd='docker-compose'
-  compose_file='docker-compose.single-node-v2.yml'
+  compose_file='cloud-orchestrator/docker-compose.single-node-v2.yml'
 fi
-docker build -t cloud-agent-runtime:latest runtime/python
+docker build -t cloud-agent-runtime:latest -f cloud-orchestrator/runtime/python/Dockerfile .
+docker build -t cloud-agent-transfer-ssh:latest cloud-orchestrator/transfer/managed-ssh
 CLOUD_ORCHESTRATOR_PUBLIC_URL=$(quote "${CLOUD_ORCHESTRATOR_PUBLIC_URL}") \\
 CLOUD_ORCHESTRATOR_TOKEN_SECRET=$(quote "${token_secret}") \\
 CLOUD_ORCHESTRATOR_CONTROL_TOKEN=$(quote "${control_token}") \\
@@ -111,7 +114,6 @@ CLOUD_ORCHESTRATOR_HOST_DATA_DIR=$(quote "${host_data_dir}") \\
 CLOUD_ORCHESTRATOR_RUNNER=$(quote "${runner}") \\
 CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=$(quote "${docker_proxy_host}") \\
 CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=$(quote "${docker_bind_host}") \\
-CLOUD_WORKSPACE_DIR=$(quote "${cloud_workspace_dir}") \\
 SECRET_KEY_BASE=$(quote "${secret_key_base}") \\
 TRANSFER_PORT_START=$(quote "${transfer_port_start}") \\
 TRANSFER_PORT_END=$(quote "${transfer_port_end}") \\
@@ -125,7 +127,6 @@ CLOUD_ORCHESTRATOR_HOST_DATA_DIR=$(quote "${host_data_dir}") \\
 CLOUD_ORCHESTRATOR_RUNNER=$(quote "${runner}") \\
 CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=$(quote "${docker_proxy_host}") \\
 CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=$(quote "${docker_bind_host}") \\
-CLOUD_WORKSPACE_DIR=$(quote "${cloud_workspace_dir}") \\
 SECRET_KEY_BASE=$(quote "${secret_key_base}") \\
 TRANSFER_PORT_START=$(quote "${transfer_port_start}") \\
 TRANSFER_PORT_END=$(quote "${transfer_port_end}") \\

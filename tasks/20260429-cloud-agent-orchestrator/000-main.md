@@ -5,10 +5,13 @@ Plan and implement cloud agent orchestration for the terminal/server application
 
 - [x] `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md`
 - [x] `tasks/20260429-cloud-agent-orchestrator/015-agentapplication-cloud-runtime.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/018-explicit-transfer-script-contract.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/019-async-runtime-readiness-observability.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/020-linked-readonly-session-ux.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/030-native-cloud-connection-ux.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/040-reuse-multi-session-and-sync-polish.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/050-provider-and-deployment-expansion.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/055-cloud-runtime-startup-optimizations.md`
 
 ## Goals
 

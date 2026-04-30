@@ -24,7 +24,6 @@ if config_env() == :prod do
       System.get_env("CLOUD_ORCHESTRATOR_TOKEN_SECRET") ||
         raise("CLOUD_ORCHESTRATOR_TOKEN_SECRET is required in production"),
     control_token: System.get_env("CLOUD_ORCHESTRATOR_CONTROL_TOKEN"),
-    cloud_workspace_dir: System.get_env("CLOUD_WORKSPACE_DIR") || "/workspace",
     data_dir: System.get_env("CLOUD_ORCHESTRATOR_DATA_DIR") || "/var/lib/cloud-orchestrator",
     host_data_dir:
       System.get_env("CLOUD_ORCHESTRATOR_HOST_DATA_DIR") ||

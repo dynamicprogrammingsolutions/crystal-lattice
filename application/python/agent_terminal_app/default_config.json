@@ -15,7 +15,17 @@
       "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
       "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
       "workspace_dir": ".",
-      "cloud_workspace_dir": "/workspace"
+      "transfer_method": "managed_ssh",
+      "local_transfer_script": ".cloud-agent/transfer-up",
+      "cloud_setup_script": ".cloud-agent/setup-cloud",
+      "cloud_export_script": ".cloud-agent/export-cloud",
+      "local_apply_script": ".cloud-agent/apply-down",
+      "managed_ssh": {
+        "adapter_script": null,
+        "ssh_path": "ssh",
+        "rsync_path": "rsync",
+        "extra_rsync_args": []
+      }
     }
   },
   "providers": {
@@ -57,7 +67,7 @@
     "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
     "path:${env:BUILTIN_PLUGINS}/session-message-count-meta-app",
     "path:${env:BUILTIN_PLUGINS}/session-pinned-app",
-    "plugins.cloud_agent_app_plugin.CloudAgentAppPlugin"
+    "path:${env:BUILTIN_PLUGINS}/cloud-agent-app"
   ],
   "agents": {
     "default": {
