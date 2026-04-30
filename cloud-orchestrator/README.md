@@ -107,7 +107,7 @@ curl -fsS -X POST http://127.0.0.1:4100/instances \
 
 ## AWS EC2 Docker Host
 
-The default AWS path provisions an EC2 Docker host and exposes the orchestrator through a generated HTTPS address. It is guarded by `RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1` and should tear down resources after smoke tests.
+The default AWS path provisions an EC2 Docker host and exposes the orchestrator through a generated HTTPS address. It is guarded by `ALLOW_AWS_DEPLOY=1` and should tear down resources after smoke tests.
 
 See `deploy/aws-ec2/README.md`.
 

@@ -8,26 +8,36 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 parse_common_args "$@"
 require_aws_tests_enabled
+assert_supported_profile
 load_state
+parse_common_args "$@"
 ensure_secrets
 ensure_artifacts_available
 
-deploy_stack "$STACK_NAME" "$SCRIPT_DIR/secure.yaml" \
+origin_stack="$(origin_stack_name)"
+edge_stack="$(edge_stack_name)"
+
+deploy_stack "$origin_stack" "$SCRIPT_DIR/secure-origin.yaml" \
   StackName="$STACK_NAME" \
-  SourceBucket="$SOURCE_BUCKET" \
-  OrchestratorImageKey="$ORCHESTRATOR_IMAGE_KEY" \
-  RuntimeImageKey="$RUNTIME_IMAGE_KEY" \
+  OrchestratorImageUri="$ORCHESTRATOR_IMAGE_URI" \
+  RuntimeImageUri="$RUNTIME_IMAGE_URI" \
   InstanceType="$INSTANCE_TYPE" \
   CpuArchitecture="$CPU_ARCHITECTURE" \
   KeyName="$KEY_NAME" \
   ControlToken="$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" \
   TokenSecret="$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE"
 
-CLOUD_ORCHESTRATOR_URL="$(stack_output "$STACK_NAME" CloudOrchestratorUrl)"
-CLOUD_ORCHESTRATOR_EC2_URL="$(stack_output "$STACK_NAME" Ec2HttpUrl)"
-CLOUD_ORCHESTRATOR_CLOUDFRONT_DOMAIN="$(stack_output "$STACK_NAME" CloudFrontDomain)"
-CLOUD_ORCHESTRATOR_DISTRIBUTION_ID="$(stack_output "$STACK_NAME" CloudFrontDistributionId)"
-CLOUD_ORCHESTRATOR_INSTANCE_ID="$(stack_output "$STACK_NAME" InstanceId)"
+CLOUD_ORCHESTRATOR_EC2_URL="$(stack_output "$origin_stack" Ec2HttpUrl)"
+CLOUD_ORCHESTRATOR_INSTANCE_ID="$(stack_output "$origin_stack" InstanceId)"
+origin_domain="$(stack_output "$origin_stack" Ec2PublicDnsName)"
+
+deploy_stack "$edge_stack" "$SCRIPT_DIR/secure-edge.yaml" \
+  StackName="$STACK_NAME" \
+  OriginDomainName="$origin_domain"
+
+CLOUD_ORCHESTRATOR_URL="$(stack_output "$edge_stack" CloudOrchestratorUrl)"
+CLOUD_ORCHESTRATOR_CLOUDFRONT_DOMAIN="$(stack_output "$edge_stack" CloudFrontDomain)"
+CLOUD_ORCHESTRATOR_DISTRIBUTION_ID="$(stack_output "$edge_stack" CloudFrontDistributionId)"
 save_state
 
 wait_http_health "${CLOUD_ORCHESTRATOR_EC2_URL%/}/health"
@@ -72,8 +82,7 @@ command_id="$(aws_out ssm send-command \
   --query Command.CommandId \
   --output text)"
 rm -f "$ssm_params"
-
-aws_out ssm wait command-executed --command-id "$command_id" --instance-id "$CLOUD_ORCHESTRATOR_INSTANCE_ID"
+wait_ssm_command "$command_id" "$CLOUD_ORCHESTRATOR_INSTANCE_ID" 900
 
 wait_http_health "${CLOUD_ORCHESTRATOR_URL%/}/health"
 print_orchestrator_output "$CLOUD_ORCHESTRATOR_URL" "$CLOUD_ORCHESTRATOR_EC2_URL" "$CLOUD_ORCHESTRATOR_CLOUDFRONT_DOMAIN" "$CLOUD_ORCHESTRATOR_DISTRIBUTION_ID" "$CLOUD_ORCHESTRATOR_INSTANCE_ID"

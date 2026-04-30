@@ -1,26 +1,32 @@
 # AWS EC2 Docker-Host Deployment
 
-This deployment path is intentionally different from the bridge Fargate path. The MVP Docker runner needs a normal Docker host so it can start cloud runtime containers.
+This directory contains AWS CLI driven deployment helpers for the Crystal Lattice cloud orchestrator. The MVP Docker runner needs a normal Docker host so it can start cloud runtime containers.
+
+## Prerequisites
+
+- AWS CLI configured locally.
+- Permission to create S3 buckets/objects, CloudFormation stacks, VPC networking, EC2 instances, IAM roles, SSM commands, and CloudFront distributions.
+- `ALLOW_AWS_DEPLOY=1` for commands that create or delete AWS resources.
 
 The scripts are guarded:
 
 ```bash
-export RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1
+export ALLOW_AWS_DEPLOY=1
 ```
 
-Default secure generated-HTTPS flow:
+## Default Secure Setup
 
 ```bash
-RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1 deploy/aws-ec2/build.sh \
-  --stack-name crystal-lattice-cloud-orchestrator-test \
-  --region us-east-1 \
-  --builder ec2
-
-RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1 deploy/aws-ec2/up.sh \
-  --stack-name crystal-lattice-cloud-orchestrator-test \
+cd cloud-orchestrator
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/build.sh \
+  --profile secure \
+  --stack-name crystal-lattice-cloud-orchestrator \
   --region us-east-1
-RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1 deploy/aws-ec2/tests/smoke_secure.sh
-RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1 deploy/aws-ec2/down.sh --stack-name crystal-lattice-cloud-orchestrator-test --region us-east-1
+
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/up.sh \
+  --profile secure \
+  --stack-name crystal-lattice-cloud-orchestrator \
+  --region us-east-1
 ```
 
 The default secure profile creates:
@@ -30,7 +36,7 @@ The default secure profile creates:
 - no load balancer
 - a generated control-plane bearer token
 - a generated runtime token-signing secret
-- prebuilt Docker image artifacts uploaded to S3 before EC2 provisioning
+- prebuilt Docker images pushed to ECR before EC2 provisioning
 
 The script prints:
 
@@ -43,7 +49,38 @@ ControlToken=<token>
 
 The EC2 origin currently exposes port `4100` publicly as the CloudFront origin. The orchestrator still requires the control token for mutating operations, and clients should use the generated CloudFront HTTPS URL. A later hardening pass can restrict origin access to CloudFront origin-facing ranges.
 
-The runtime EC2 host does not build the application images. `build.sh` builds architecture-specific image tarballs and uploads them to S3; `up.sh` provisions EC2, loads those images, and starts containers. Use `--builder ec2` when local Docker cannot build the target architecture. The runtime defaults remain cheap and x86_64 (`linux/amd64` on `t3.micro`); the temporary EC2 builder defaults to `t3.large` and is destroyed after artifacts are uploaded.
+## Build Artifacts
+
+The runtime EC2 host does not build the application images. `build.sh` uploads a source bundle to S3, uses CodeBuild to build the Docker images, pushes them to ECR, and records the image URIs in local deploy state. `up.sh` only deploys prebuilt images and fails if the build step has not run for the stack.
+
+Build explicitly before running deploys or AWS E2E tests:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/build.sh \
+  --profile secure \
+  --stack-name crystal-lattice-cloud-orchestrator \
+  --region us-east-1 \
+  --builder codebuild
+```
+
+## Down
+
+Delete runtime resources:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/down.sh --profile secure --stack-name crystal-lattice-cloud-orchestrator --region us-east-1
+```
+
+The CodeBuild project, ECR repositories, and source bundle are build artifacts and are not removed by `down.sh`.
+
+## Tests
+
+```bash
+aws --region us-east-1 cloudformation validate-template --template-body file://deploy/aws-ec2/builder.yaml
+aws --region us-east-1 cloudformation validate-template --template-body file://deploy/aws-ec2/secure-origin.yaml
+aws --region us-east-1 cloudformation validate-template --template-body file://deploy/aws-ec2/secure-edge.yaml
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/tests/smoke_secure.sh
+```
 
 Frontend SDK AWS E2E:
 
@@ -53,5 +90,7 @@ RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1 \
 CLOUD_ORCHESTRATOR_E2E_MODE=aws-ec2-cloudfront \
 npm test --prefix ../packages/frontend-sdk -- cloud-orchestrator.e2e
 ```
+
+Run `build.sh` first with the same `--stack-name` and `--region`; the E2E harness intentionally fails when prebuilt images are missing.
 
 The E2E deploys, tests through CloudFront HTTPS, and destroys the stack in cleanup.

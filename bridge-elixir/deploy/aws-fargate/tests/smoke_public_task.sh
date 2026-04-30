@@ -15,8 +15,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [ "${RUN_AWS_BRIDGE_TESTS:-}" != "1" ]; then
-  echo "Set RUN_AWS_BRIDGE_TESTS=1 to run AWS smoke tests." >&2
+if [ "${ALLOW_AWS_DEPLOY:-}" != "1" ] && [ "${RUN_AWS_BRIDGE_TESTS:-}" != "1" ]; then
+  echo "Set ALLOW_AWS_DEPLOY=1 to run AWS smoke tests." >&2
   exit 2
 fi
 

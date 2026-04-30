@@ -1,14 +1,12 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Crystal Lattice cloud orchestrator EC2 Docker host with CloudFront HTTPS.
+Description: Crystal Lattice cloud orchestrator EC2 Docker origin.
 
 Parameters:
   StackName:
     Type: String
-  SourceBucket:
+  OrchestratorImageUri:
     Type: String
-  OrchestratorImageKey:
-    Type: String
-  RuntimeImageKey:
+  RuntimeImageUri:
     Type: String
   InstanceType:
     Type: String
@@ -108,15 +106,20 @@ Resources:
               Service: ec2.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: SourceBundleRead
+        - PolicyName: EcrImageRead
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
-                Action: s3:GetObject
-                Resource:
-                  - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/${OrchestratorImageKey}
-                  - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/${RuntimeImageKey}
+                Action:
+                  - ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchCheckLayerAvailability
+                Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
 
@@ -155,15 +158,14 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -euxo pipefail
-          dnf install -y docker awscli tar gzip
+          dnf install -y docker awscli
           systemctl enable --now docker
           mkdir -p /var/lib/cloud-orchestrator
-          aws s3 cp s3://${SourceBucket}/${RuntimeImageKey} /tmp/cloud-agent-runtime-image.tar.gz --region ${AWS::Region}
-          aws s3 cp s3://${SourceBucket}/${OrchestratorImageKey} /tmp/cloud-orchestrator-image.tar.gz --region ${AWS::Region}
-          gunzip -c /tmp/cloud-agent-runtime-image.tar.gz | docker load
-          gunzip -c /tmp/cloud-orchestrator-image.tar.gz | docker load
-          docker tag cloud-agent-runtime:aws-e2e cloud-agent-runtime:latest
-          docker tag cloud-orchestrator:aws-e2e cloud-orchestrator:latest
+          aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+          docker pull ${RuntimeImageUri}
+          docker pull ${OrchestratorImageUri}
+          docker tag ${RuntimeImageUri} cloud-agent-runtime:latest
+          docker tag ${OrchestratorImageUri} cloud-orchestrator:latest
           docker rm -f cloud-orchestrator-single || true
           docker run -d \
             --name cloud-orchestrator-single \
@@ -186,37 +188,6 @@ Resources:
             -e CLOUD_WORKSPACE_DIR=/workspace \
             cloud-orchestrator:latest
 
-  Distribution:
-    Type: AWS::CloudFront::Distribution
-    Properties:
-      DistributionConfig:
-        Enabled: true
-        Comment: !Sub ${StackName} cloud orchestrator
-        Origins:
-          - Id: ec2-origin
-            DomainName: !GetAtt Instance.PublicDnsName
-            CustomOriginConfig:
-              HTTPPort: 4100
-              OriginProtocolPolicy: http-only
-        DefaultCacheBehavior:
-          TargetOriginId: ec2-origin
-          ViewerProtocolPolicy: redirect-to-https
-          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
-          CachedMethods: [GET, HEAD, OPTIONS]
-          Compress: false
-          ForwardedValues:
-            QueryString: true
-            Headers:
-              - Authorization
-              - Content-Type
-            Cookies:
-              Forward: none
-          MinTTL: 0
-          DefaultTTL: 0
-          MaxTTL: 0
-        ViewerCertificate:
-          CloudFrontDefaultCertificate: true
-
 Outputs:
   InstanceId:
     Value: !Ref Instance
@@ -224,9 +195,3 @@ Outputs:
     Value: !GetAtt Instance.PublicDnsName
   Ec2HttpUrl:
     Value: !Sub http://${Instance.PublicDnsName}:4100
-  CloudFrontDomain:
-    Value: !GetAtt Distribution.DomainName
-  CloudFrontDistributionId:
-    Value: !Ref Distribution
-  CloudOrchestratorUrl:
-    Value: !Sub https://${Distribution.DomainName}

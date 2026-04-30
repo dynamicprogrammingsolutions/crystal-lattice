@@ -108,8 +108,8 @@ parse_common_args() {
 }
 
 require_aws_tests_enabled() {
-  if [ "${RUN_AWS_BRIDGE_TESTS:-}" != "1" ]; then
-    echo "Set RUN_AWS_BRIDGE_TESTS=1 to create AWS resources." >&2
+  if [ "${ALLOW_AWS_DEPLOY:-}" != "1" ] && [ "${RUN_AWS_BRIDGE_TESTS:-}" != "1" ]; then
+    echo "Set ALLOW_AWS_DEPLOY=1 to create AWS resources." >&2
     exit 2
   fi
 }

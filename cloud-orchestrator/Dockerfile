@@ -1,4 +1,4 @@
-FROM elixir:1.15-alpine AS builder
+FROM public.ecr.aws/docker/library/elixir:1.15-alpine AS builder
 
 RUN apk add --no-cache build-base git
 
@@ -19,7 +19,7 @@ RUN mix deps.compile && \
     mix compile && \
     mix release
 
-FROM alpine:3.20
+FROM public.ecr.aws/docker/library/alpine:3.20
 
 RUN apk add --no-cache bash libstdc++ ncurses-libs openssl docker-cli openssh-client ca-certificates
 

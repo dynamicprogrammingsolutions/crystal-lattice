@@ -175,20 +175,74 @@ More detail:
 - [mobile/crystal-lattice-control-rn/README.md](mobile/crystal-lattice-control-rn/README.md) - React Native setup and connection screens.
 - [bridge-elixir/README.md](bridge-elixir/README.md) - bridge service, Docker cluster, protocol, and deployment notes.
 
-Default external bridge setup:
+## External Services Deployment
+
+### Combined Bridge And Cloud Orchestrator
+
+For the cheapest single-user or testing setup, deploy both services to one EC2
+Docker host:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/build.sh \
+  --profile secure \
+  --stack-name crystal-lattice-combined \
+  --region us-east-1
+
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/up.sh \
+  --profile secure \
+  --stack-name crystal-lattice-combined \
+  --region us-east-1
+```
+
+This creates one EC2 Docker host and generated CloudFront endpoints for both
+the bridge and cloud orchestrator. See
+[deploy/aws-ec2/README.md](deploy/aws-ec2/README.md) for build/up/down and
+smoke-test flows.
+
+### Bridge
+
+Deploy only the external bridge:
 
 ```bash
 cd bridge-elixir
-RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/up.sh \
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/build.sh \
+  --profile secure \
+  --stack-name crystal-lattice-bridge \
+  --region us-east-1
+
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/up.sh \
   --profile secure \
   --stack-name crystal-lattice-bridge \
   --region us-east-1
 ```
 
-This creates a Fargate + ALB + CloudFront bridge and prints a stable
+This creates a low-cost EC2 Docker host + CloudFront bridge and prints a stable
 `wss://<cloudfront-domain>/ws/websocket` URL. See
-[bridge-elixir/deploy/aws-fargate/README.md](bridge-elixir/deploy/aws-fargate/README.md)
-for stop/start, cheaper public-task, custom-domain, and AWS smoke-test flows.
+[bridge-elixir/deploy/aws-ec2/README.md](bridge-elixir/deploy/aws-ec2/README.md)
+for build/up/down and AWS smoke-test flows. The existing Fargate deployment
+remains available under [bridge-elixir/deploy/aws-fargate/README.md](bridge-elixir/deploy/aws-fargate/README.md).
+
+### Cloud Orchestrator
+
+Deploy only the cloud orchestrator:
+
+```bash
+cd cloud-orchestrator
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/build.sh \
+  --profile secure \
+  --stack-name crystal-lattice-cloud-orchestrator \
+  --region us-east-1
+
+ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/up.sh \
+  --profile secure \
+  --stack-name crystal-lattice-cloud-orchestrator \
+  --region us-east-1
+```
+
+This creates a low-cost EC2 Docker host + CloudFront orchestrator and prints a
+stable `https://<cloudfront-domain>` URL plus a control token. See
+[cloud-orchestrator/deploy/aws-ec2/README.md](cloud-orchestrator/deploy/aws-ec2/README.md)
+for build/up/down and AWS E2E flows.
 
 ## Plugin Development Quickstart
 

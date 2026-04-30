@@ -11,6 +11,11 @@ Generalize the orchestrator and cloud-agent backend model beyond Docker, and har
 - [ ] Add cleanup/TTL policies and operational logs/status endpoints.
 - [ ] Add expanded deployment docs and smoke tests for the new backend/hosting option.
 - [ ] Add optional custom-domain deployment polish where useful, while keeping generated secure endpoints usable for automated tests.
+- [x] Mirror the EC2 Docker-host + CloudFront generated HTTPS deployment shape for the bridge while keeping the existing bridge Fargate deployment intact.
+- [x] Add a frontend SDK bridge E2E mode for the bridge EC2 deployment.
+- [x] Separate AWS EC2 build from deploy/test by using explicit CodeBuild/ECR image builds; AWS E2E deploys fail when the prebuilt images are missing.
+- [x] Provision the AWS bridge deployment once per frontend SDK test suite instead of once per test.
+- [x] Add a combined bridge + cloud orchestrator EC2 deployment that runs both services on one cheap Docker host.
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 Depends On: `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md`
@@ -42,3 +47,6 @@ Examples:
 - Cleanup policies remove stopped/expired resources without deleting active work unexpectedly.
 - Deployment smoke tests verify health and minimal cloud-agent lifecycle for the added backend.
 - Custom-domain support, when added, is tested separately from the default generated-address deployment path.
+- Bridge EC2 E2E verifies pairing/proxy behavior and restart/resume behavior through generated CloudFront WSS.
+- AWS EC2 E2E verifies that deploy/test consume prebuilt ECR images rather than building implicitly.
+- Combined bridge + orchestrator EC2 E2E verifies both generated endpoints and a minimal bridge flow plus a minimal cloud-orchestrator session flow on the shared host.

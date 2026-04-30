@@ -11,7 +11,7 @@ This directory contains AWS CLI driven deployment helpers for the Crystal Lattic
 All commands that create AWS resources require an explicit guard:
 
 ```bash
-export RUN_AWS_BRIDGE_TESTS=1
+export ALLOW_AWS_DEPLOY=1
 ```
 
 If `--image-uri` is omitted, the helper creates an ECR repository, builds the
@@ -22,7 +22,7 @@ Fargate CPU architecture. On Apple Silicon this means `linux/arm64` + `ARM64`;
 on x86 CI this means `linux/amd64` + `X86_64`. Override when needed:
 
 ```bash
-deploy/aws-fargate/up.sh \
+ALLOW_AWS_DEPLOY=1 deploy/aws-fargate/up.sh \
   --profile secure \
   --docker-platform linux/amd64 \
   --cpu-architecture X86_64
@@ -34,7 +34,7 @@ The default profile creates a stable CloudFront URL in front of an ALB and ECS/F
 
 ```bash
 cd bridge-elixir
-RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/up.sh \
+ALLOW_AWS_DEPLOY=1 deploy/aws-fargate/up.sh \
   --profile secure \
   --stack-name crystal-lattice-bridge \
   --region us-east-1
@@ -64,7 +64,7 @@ Connect the mobile app with the same bridge URL.
 For the secure profile, `stop.sh` removes the origin stack, including ALB and Fargate service resources, while keeping the CloudFront edge stack:
 
 ```bash
-RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/stop.sh \
+ALLOW_AWS_DEPLOY=1 deploy/aws-fargate/stop.sh \
   --profile secure \
   --stack-name crystal-lattice-bridge \
   --region us-east-1
@@ -73,7 +73,7 @@ RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/stop.sh \
 Restart with the same CloudFront domain:
 
 ```bash
-RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/start.sh \
+ALLOW_AWS_DEPLOY=1 deploy/aws-fargate/start.sh \
   --profile secure \
   --stack-name crystal-lattice-bridge \
   --region us-east-1
@@ -82,7 +82,7 @@ RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/start.sh \
 Delete everything:
 
 ```bash
-RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/down.sh \
+ALLOW_AWS_DEPLOY=1 deploy/aws-fargate/down.sh \
   --profile secure \
   --stack-name crystal-lattice-bridge \
   --region us-east-1
@@ -93,7 +93,7 @@ RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/down.sh \
 The `public-task` profile runs one public Fargate task and prints a plain WebSocket URL:
 
 ```bash
-RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/up.sh \
+ALLOW_AWS_DEPLOY=1 deploy/aws-fargate/up.sh \
   --profile public-task \
   --stack-name crystal-lattice-bridge-dev \
   --region us-east-1
@@ -112,7 +112,7 @@ This profile is cheaper and useful for temporary testing, but it is not secure a
 For Route53-managed domains:
 
 ```bash
-RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/up.sh \
+ALLOW_AWS_DEPLOY=1 deploy/aws-fargate/up.sh \
   --profile secure \
   --stack-name crystal-lattice-bridge \
   --region us-east-1 \
@@ -135,20 +135,20 @@ aws cloudformation validate-template --template-body file://deploy/aws-fargate/s
 Protocol smoke tests:
 
 ```bash
-RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/tests/smoke_public_task.sh
-RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/tests/smoke_secure.sh
+ALLOW_AWS_DEPLOY=1 deploy/aws-fargate/tests/smoke_public_task.sh
+ALLOW_AWS_DEPLOY=1 deploy/aws-fargate/tests/smoke_secure.sh
 ```
 
 Secure stop/start E2E:
 
 ```bash
-RUN_AWS_BRIDGE_TESTS=1 deploy/aws-fargate/tests/smoke_secure_restart.sh
+ALLOW_AWS_DEPLOY=1 deploy/aws-fargate/tests/smoke_secure_restart.sh
 ```
 
 Custom domain smoke test:
 
 ```bash
-RUN_AWS_BRIDGE_TESTS=1 \
+ALLOW_AWS_DEPLOY=1 \
 BRIDGE_DOMAIN=bridge.example.com \
 AWS_HOSTED_ZONE_ID=Z123456 \
 deploy/aws-fargate/tests/smoke_custom_domain.sh

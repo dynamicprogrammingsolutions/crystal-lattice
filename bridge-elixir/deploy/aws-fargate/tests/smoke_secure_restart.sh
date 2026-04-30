@@ -15,8 +15,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [ "${RUN_AWS_BRIDGE_TESTS:-}" != "1" ]; then
-  echo "Set RUN_AWS_BRIDGE_TESTS=1 to run AWS restart smoke tests." >&2
+if [ "${ALLOW_AWS_DEPLOY:-}" != "1" ] && [ "${RUN_AWS_BRIDGE_TESTS:-}" != "1" ]; then
+  echo "Set ALLOW_AWS_DEPLOY=1 to run AWS restart smoke tests." >&2
   exit 2
 fi
 
@@ -24,6 +24,7 @@ cd "$REPO_ROOT/packages/frontend-sdk"
 
 RUN_BRIDGE_E2E_INTEGRATION=1 \
 RUN_AWS_BRIDGE_TESTS=1 \
+ALLOW_AWS_DEPLOY=1 \
 BRIDGE_E2E_MODE=aws-secure \
 AWS_REGION="$REGION" \
 AWS_STACK_NAME="$STACK_NAME" \

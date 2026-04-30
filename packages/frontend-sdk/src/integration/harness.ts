@@ -370,6 +370,7 @@ async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator>
   if (process.env.RUN_AWS_CLOUD_ORCHESTRATOR_TESTS !== '1') {
     throw new Error('RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1 is required for AWS cloud orchestrator E2E modes');
   }
+  process.env.ALLOW_AWS_DEPLOY = '1';
 
   const repoRoot = findRepoRoot(process.cwd());
   const cwd = path.join(repoRoot, 'cloud-orchestrator');
@@ -379,23 +380,17 @@ async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator>
   const region = process.env.AWS_REGION || 'us-east-1';
   const deployDir = path.join(cwd, 'deploy', 'aws-ec2');
 
-  await runCommand({
-    cmd: path.join(deployDir, 'build.sh'),
+  const upOutput = await runCommand({
+    cmd: path.join(deployDir, 'up.sh'),
     args: [
+      '--profile',
+      'secure',
       '--stack-name',
       stackName,
       '--region',
       region,
-      '--builder',
-      process.env.CLOUD_ORCHESTRATOR_AWS_BUILDER || 'ec2',
       '--json',
     ],
-    cwd,
-  });
-
-  const upOutput = await runCommand({
-    cmd: path.join(deployDir, 'up.sh'),
-    args: ['--stack-name', stackName, '--region', region, '--json'],
     cwd,
   });
   const parsed = parseCloudOrchestratorOutput(upOutput);
@@ -406,7 +401,7 @@ async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator>
   async function stop(): Promise<void> {
     await runCommand({
       cmd: path.join(deployDir, 'down.sh'),
-      args: ['--stack-name', stackName, '--region', region],
+      args: ['--profile', 'secure', '--stack-name', stackName, '--region', region],
       cwd,
     });
   }
@@ -425,7 +420,8 @@ function parseCloudOrchestratorOutput(output: string): { orchestratorUrl: string
   const jsonLine = [...lines].reverse().find((line) => line.trim().startsWith('{'));
   if (jsonLine) {
     const parsed = JSON.parse(jsonLine);
-    const orchestratorUrl = parsed.orchestratorUrl || parsed.cloudFrontUrl || parsed.CloudOrchestratorUrl;
+    const orchestratorUrl =
+      parsed.cloudOrchestratorUrl || parsed.orchestratorUrl || parsed.cloudFrontUrl || parsed.CloudOrchestratorUrl;
     if (typeof orchestratorUrl === 'string' && orchestratorUrl) {
       return {
         orchestratorUrl,
@@ -499,62 +495,117 @@ export async function startBridgeForE2E(): Promise<StartedBridge> {
     };
   }
 
-  if (mode === 'aws-public-task' || mode === 'aws-secure') {
+  if (mode === 'aws-public-task' || mode === 'aws-secure' || mode === 'aws-ec2-secure') {
     return await startBridgeAws(mode);
   }
 
   throw new Error(`Unsupported BRIDGE_E2E_MODE=${mode}`);
 }
 
-async function startBridgeAws(mode: 'aws-public-task' | 'aws-secure'): Promise<StartedBridge> {
+async function startBridgeAws(mode: 'aws-public-task' | 'aws-secure' | 'aws-ec2-secure'): Promise<StartedBridge> {
   if (process.env.RUN_AWS_BRIDGE_TESTS !== '1') {
     throw new Error('RUN_AWS_BRIDGE_TESTS=1 is required for AWS bridge E2E modes');
   }
+  process.env.ALLOW_AWS_DEPLOY = '1';
 
   const repoRoot = findRepoRoot(process.cwd());
   const cwd = path.join(repoRoot, 'bridge-elixir');
+  const isEc2 = mode === 'aws-ec2-secure';
   const profile = mode === 'aws-public-task' ? 'public-task' : 'secure';
   const stackName =
     process.env.AWS_STACK_NAME ||
     `crystal-lattice-bridge-e2e-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   const region = process.env.AWS_REGION || 'us-east-1';
-  const script = path.join(cwd, 'deploy', 'aws-fargate', 'up.sh');
+  const deployDir = path.join(cwd, 'deploy', isEc2 ? 'aws-ec2' : 'aws-fargate');
+  const script = path.join(deployDir, 'up.sh');
+  const upArgs = ['--profile', profile, '--stack-name', stackName, '--region', region, '--json'];
 
   const upOutput = await runCommand({
     cmd: script,
-    args: ['--profile', profile, '--stack-name', stackName, '--region', region, '--json'],
+    args: upArgs,
     cwd,
   });
-  const bridgeUrl = parseBridgeUrl(upOutput);
+  const parsed = parseBridgeOutput(upOutput);
 
   async function stop(): Promise<void> {
     await runCommand({
-      cmd: path.join(cwd, 'deploy', 'aws-fargate', 'down.sh'),
+      cmd: path.join(deployDir, 'down.sh'),
       args: ['--profile', profile, '--stack-name', stackName, '--region', region],
       cwd,
     });
   }
 
-  async function suspend(): Promise<void> {
+  async function runEc2ContainerCommand(command: string): Promise<void> {
+    if (!parsed.instanceId) {
+      throw new Error('EC2 bridge instance id was not returned by deployment output');
+    }
+    const commandId = (
+      await runCommand({
+        cmd: 'aws',
+        args: [
+          '--region',
+          region,
+          'ssm',
+          'send-command',
+          '--instance-ids',
+          parsed.instanceId,
+          '--document-name',
+          'AWS-RunShellScript',
+          '--parameters',
+          `commands=["${command}"]`,
+          '--query',
+          'Command.CommandId',
+          '--output',
+          'text',
+        ],
+        cwd,
+      })
+    ).trim();
     await runCommand({
-      cmd: path.join(cwd, 'deploy', 'aws-fargate', 'stop.sh'),
+      cmd: 'aws',
+      args: [
+        '--region',
+        region,
+        'ssm',
+        'wait',
+        'command-executed',
+        '--command-id',
+        commandId,
+        '--instance-id',
+        parsed.instanceId,
+      ],
+      cwd,
+    });
+  }
+
+  async function suspend(): Promise<void> {
+    if (isEc2) {
+      await runEc2ContainerCommand('docker stop crystal-lattice-bridge');
+      return;
+    }
+    await runCommand({
+      cmd: path.join(deployDir, 'stop.sh'),
       args: ['--profile', profile, '--stack-name', stackName, '--region', region],
       cwd,
     });
   }
 
   async function resume(): Promise<void> {
+    if (isEc2) {
+      await runEc2ContainerCommand('docker start crystal-lattice-bridge');
+      return;
+    }
     await runCommand({
-      cmd: path.join(cwd, 'deploy', 'aws-fargate', 'start.sh'),
+      cmd: path.join(deployDir, 'start.sh'),
       args: ['--profile', profile, '--stack-name', stackName, '--region', region],
       cwd,
     });
   }
 
-  return { bridgeUrl, stop, suspend, resume };
+  return { bridgeUrl: parsed.bridgeUrl, stop, suspend, resume };
 }
 
-function parseBridgeUrl(output: string): string {
+function parseBridgeOutput(output: string): { bridgeUrl: string; instanceId?: string } {
   const trimmed = output.trim();
   const lines = trimmed.split(/\r?\n/);
   const jsonLine = [...lines].reverse().find((line) => line.trim().startsWith('{'));
@@ -562,13 +613,17 @@ function parseBridgeUrl(output: string): string {
     const parsed = JSON.parse(jsonLine);
     const value = parsed.bridgeWebSocketUrl || parsed.BridgeWebSocketUrl;
     if (typeof value === 'string') {
-      return value;
+      return {
+        bridgeUrl: value,
+        instanceId: typeof parsed.instanceId === 'string' ? parsed.instanceId : undefined,
+      };
     }
   }
 
   const match = trimmed.match(/BridgeWebSocketUrl=([^\s]+)/);
   if (match) {
-    return match[1];
+    const instanceMatch = trimmed.match(/InstanceId=([^\s]+)/);
+    return { bridgeUrl: match[1], instanceId: instanceMatch?.[1] };
   }
 
   throw new Error(`Unable to parse BridgeWebSocketUrl from output:\n${output}`);

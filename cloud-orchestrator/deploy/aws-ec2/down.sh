@@ -8,12 +8,9 @@ source "$SCRIPT_DIR/lib/common.sh"
 
 parse_common_args "$@"
 require_aws_tests_enabled
+assert_supported_profile
 load_state
-delete_stack_if_exists "$STACK_NAME"
-if [ -n "${SOURCE_BUCKET:-}" ] && [ -n "${ORCHESTRATOR_IMAGE_KEY:-}" ]; then
-  aws_out s3 rm "s3://${SOURCE_BUCKET}/${ORCHESTRATOR_IMAGE_KEY}" >/dev/null 2>&1 || true
-fi
-if [ -n "${SOURCE_BUCKET:-}" ] && [ -n "${RUNTIME_IMAGE_KEY:-}" ]; then
-  aws_out s3 rm "s3://${SOURCE_BUCKET}/${RUNTIME_IMAGE_KEY}" >/dev/null 2>&1 || true
-fi
+parse_common_args "$@"
+delete_stack_if_exists "$(origin_stack_name)"
+delete_stack_if_exists "$(edge_stack_name)"
 rm -f "$(state_file)"

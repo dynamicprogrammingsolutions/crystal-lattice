@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: Temporary EC2 builder for Crystal Lattice cloud orchestrator image artifacts.
+Description: CodeBuild builder for Crystal Lattice cloud orchestrator images.
 
 Parameters:
   StackName:
@@ -8,77 +8,24 @@ Parameters:
     Type: String
   SourceBundleKey:
     Type: String
-  OrchestratorImageKey:
+  OrchestratorRepository:
     Type: String
-  RuntimeImageKey:
+  RuntimeRepository:
     Type: String
-  InstanceType:
+  ImageTag:
     Type: String
-    Default: t3.large
-  CpuArchitecture:
+  DockerPlatform:
     Type: String
-    Default: X86_64
-    AllowedValues:
-      - X86_64
-      - ARM64
-
-Conditions:
-  IsArm64: !Equals [!Ref CpuArchitecture, ARM64]
+    Default: linux/amd64
 
 Resources:
-  Vpc:
-    Type: AWS::EC2::VPC
+  BuildLogs:
+    Type: AWS::Logs::LogGroup
     Properties:
-      CidrBlock: 10.43.0.0/16
-      EnableDnsHostnames: true
-      EnableDnsSupport: true
+      LogGroupName: !Sub /aws/codebuild/${StackName}-cloud-orchestrator-builder
+      RetentionInDays: 7
 
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-
-  GatewayAttachment:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref Vpc
-      InternetGatewayId: !Ref InternetGateway
-
-  PublicSubnet:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref Vpc
-      AvailabilityZone: !Select [0, !GetAZs ""]
-      CidrBlock: 10.43.1.0/24
-      MapPublicIpOnLaunch: true
-
-  RouteTable:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref Vpc
-
-  DefaultRoute:
-    Type: AWS::EC2::Route
-    DependsOn: GatewayAttachment
-    Properties:
-      RouteTableId: !Ref RouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-
-  RouteTableAssociation:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet
-      RouteTableId: !Ref RouteTable
-
-  SecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: Temporary builder egress only
-      VpcId: !Ref Vpc
-      SecurityGroupEgress:
-        - IpProtocol: -1
-          CidrIp: 0.0.0.0/0
-
-  InstanceRole:
+  BuildRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -86,61 +33,72 @@ Resources:
         Statement:
           - Effect: Allow
             Principal:
-              Service: ec2.amazonaws.com
+              Service: codebuild.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: BuildArtifacts
+        - PolicyName: BuildImages
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
               - Effect: Allow
                 Action:
-                  - s3:GetObject
-                  - s3:PutObject
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/${SourceBundleKey}
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:CompleteLayerUpload
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
                 Resource:
-                  - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/${SourceBundleKey}
-                  - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/${OrchestratorImageKey}
-                  - !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/${RuntimeImageKey}
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${OrchestratorRepository}
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${RuntimeRepository}
 
-  InstanceProfile:
-    Type: AWS::IAM::InstanceProfile
+  BuildProject:
+    Type: AWS::CodeBuild::Project
     Properties:
-      Roles:
-        - !Ref InstanceRole
-
-  Instance:
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: !If
-        - IsArm64
-        - !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}"
-        - !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}"
-      InstanceType: !Ref InstanceType
-      IamInstanceProfile: !Ref InstanceProfile
-      NetworkInterfaces:
-        - AssociatePublicIpAddress: true
-          DeviceIndex: 0
-          SubnetId: !Ref PublicSubnet
-          GroupSet:
-            - !Ref SecurityGroup
-      BlockDeviceMappings:
-        - DeviceName: /dev/xvda
-          Ebs:
-            VolumeSize: 24
-            VolumeType: gp3
-            DeleteOnTermination: true
-      Tags:
-        - Key: Name
-          Value: !Sub ${StackName}-builder
-      UserData:
-        Fn::Base64: |
-          #!/bin/bash
-          set -euxo pipefail
-          dnf install -y docker awscli tar gzip
-          systemctl enable --now docker
+      Name: !Sub ${StackName}-cloud-orchestrator-builder
+      ServiceRole: !GetAtt BuildRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - set -eux
+                - aws s3 cp s3://${SourceBucket}/${SourceBundleKey} /tmp/cloud-orchestrator-source.tar.gz --region ${AWS::Region}
+                - mkdir -p /workspace
+                - tar -xzf /tmp/cloud-orchestrator-source.tar.gz -C /workspace
+                - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+            build:
+              commands:
+                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RuntimeRepository}:${ImageTag} /workspace/runtime/python
+                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${OrchestratorRepository}:${ImageTag} /workspace
+            post_build:
+              commands:
+                - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RuntimeRepository}:${ImageTag}
+                - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${OrchestratorRepository}:${ImageTag}
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        PrivilegedMode: true
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref BuildLogs
 
 Outputs:
-  BuilderInstanceId:
-    Value: !Ref Instance
+  BuildProjectName:
+    Value: !Ref BuildProject

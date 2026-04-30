@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import WS from 'ws';
 
 import { BridgeTransport } from '../../transport/bridgeTransport';
@@ -42,6 +42,14 @@ class NodeWebSocketWrapper implements WebSocketLike {
 
 describeIf('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient -> FastAPI)', () => {
   let stopAll: Array<() => Promise<void>> = [];
+  let sharedAwsBridge: Awaited<ReturnType<typeof startBridgeForE2E>> | null = null;
+
+  beforeAll(async () => {
+    if (IS_AWS_E2E) {
+      sharedAwsBridge = await startBridgeForE2E();
+      stopAll.push(sharedAwsBridge.stop);
+    }
+  }, HOOK_TIMEOUT_MS);
 
   afterAll(async () => {
     for (const stop of stopAll.reverse()) {
@@ -53,8 +61,10 @@ describeIf('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClie
   it(
     'supports large request + large response bodies',
     async () => {
-      const bridge = await startBridgeForE2E();
-      stopAll.push(bridge.stop);
+      const bridge = sharedAwsBridge ?? (await startBridgeForE2E());
+      if (!sharedAwsBridge) {
+        stopAll.push(bridge.stop);
+      }
 
       const serverId = `e2e-server-${Date.now()}`;
 
@@ -137,8 +147,10 @@ describeIf('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClie
   it(
     'reconnects and resumes after the bridge restarts',
     async () => {
-      const bridge = await startBridgeForE2E();
-      stopAll.push(bridge.stop);
+      const bridge = sharedAwsBridge ?? (await startBridgeForE2E());
+      if (!sharedAwsBridge) {
+        stopAll.push(bridge.stop);
+      }
 
       const serverId = `e2e-recovery-server-${Date.now()}`;
 

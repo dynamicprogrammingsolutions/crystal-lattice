@@ -9,18 +9,17 @@ source "$SCRIPT_DIR/lib/common.sh"
 STACK_NAME="${AWS_STACK_NAME:-crystal-lattice-cloud-orchestrator-secure-test-$(date +%s)}"
 REGION="${AWS_REGION:-us-east-1}"
 
-if [ "${RUN_AWS_CLOUD_ORCHESTRATOR_TESTS:-}" != "1" ]; then
-  echo "Set RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1 to run AWS smoke tests." >&2
+if [ "${ALLOW_AWS_DEPLOY:-}" != "1" ] && [ "${RUN_AWS_CLOUD_ORCHESTRATOR_TESTS:-}" != "1" ]; then
+  echo "Set ALLOW_AWS_DEPLOY=1 to run AWS smoke tests." >&2
   exit 2
 fi
 
 cleanup() {
-  "$SCRIPT_DIR/down.sh" --stack-name "$STACK_NAME" --region "$REGION" || true
+  ALLOW_AWS_DEPLOY=1 "$SCRIPT_DIR/down.sh" --profile secure --stack-name "$STACK_NAME" --region "$REGION" || true
 }
 trap cleanup EXIT
 
-"$SCRIPT_DIR/build.sh" --stack-name "$STACK_NAME" --region "$REGION" >/dev/null
-output="$("$SCRIPT_DIR/up.sh" --stack-name "$STACK_NAME" --region "$REGION" --json)"
+output="$(ALLOW_AWS_DEPLOY=1 "$SCRIPT_DIR/up.sh" --profile secure --stack-name "$STACK_NAME" --region "$REGION" --json)"
 orchestrator_url="$(python3 -c 'import json,sys; print(json.loads(sys.stdin.read())["orchestratorUrl"])' <<<"$output")"
 
 if [ -z "$orchestrator_url" ]; then
