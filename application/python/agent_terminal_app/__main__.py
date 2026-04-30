@@ -5,8 +5,10 @@ import json
 import logging
 import os
 import shutil
+import socket
 import sys
 import threading
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -193,21 +195,39 @@ def _ensure_crystal_gitignore(crystal_dir: Path) -> None:
         pass
 
 
-def _load_additional_dotenvs(config_path: Path) -> None:
-    """Load .env files related to the resolved config path.
+def _collect_additional_dotenv_values(config_path: Path) -> dict[str, str]:
+    """Collect .env values related to the resolved config path.
 
     The search order is:
       1. ``<config_dir>/.env`` where ``config_dir`` is ``config_path.parent``
       2. ``./.crystal/.env`` (project-local overrides)
       3. ``~/.crystal/.env`` (user-level overrides)
       4. Standard ``.env`` discovered from the current directory/parents
-    Earlier files take precedence because ``override=False`` is used.
+    Existing process environment values win over dotenv files, and earlier
+    dotenv files win over later files. Values are returned for config
+    placeholder resolution only; this helper does not mutate ``os.environ``.
     """
 
     try:
-        from dotenv import load_dotenv  # type: ignore[import-not-found]
+        from dotenv import dotenv_values, find_dotenv  # type: ignore[import-not-found]
     except Exception:
-        return
+        return {}
+
+    collected: dict[str, str] = {}
+
+    def collect_file(path: Path) -> None:
+        try:
+            values = dotenv_values(str(path))
+        except Exception:
+            return
+        for key, value in values.items():
+            if not isinstance(key, str) or not key:
+                continue
+            if not isinstance(value, str):
+                continue
+            if key in os.environ or key in collected:
+                continue
+            collected[key] = value
 
     # 1) .env next to the actual config file.
     try:
@@ -216,20 +236,14 @@ def _load_additional_dotenvs(config_path: Path) -> None:
         config_dir = config_path.parent
     config_env = config_dir / ".env"
     if config_env.is_file():
-        try:
-            load_dotenv(str(config_env), override=False)
-        except Exception:
-            pass
+        collect_file(config_env)
 
     # 2) Local project .crystal/.env.
     try:
         local_crystal = Path(".crystal").resolve()
         local_env = local_crystal / ".env"
         if local_env.is_file():
-            try:
-                load_dotenv(str(local_env), override=False)
-            except Exception:
-                pass
+            collect_file(local_env)
     except Exception:
         pass
 
@@ -237,16 +251,139 @@ def _load_additional_dotenvs(config_path: Path) -> None:
     user_crystal = Path.home() / ".crystal"
     user_env = user_crystal / ".env"
     if user_env.is_file():
-        try:
-            load_dotenv(str(user_env), override=False)
-        except Exception:
-            pass
+        collect_file(user_env)
 
     # 4) Finally, standard .env search from CWD/parents.
     try:
-        load_dotenv(override=False)
+        standard_env = find_dotenv(usecwd=True)
     except Exception:
-        pass
+        standard_env = ""
+    if standard_env:
+        collect_file(Path(standard_env))
+
+    return collected
+
+
+def _parse_bool_env(value: Optional[str]) -> bool:
+    if value is None:
+        return False
+    return value.strip() in {"1", "true", "True", "yes", "YES"}
+
+
+def _parse_optional_int_env(
+    value: Optional[str], *, default: Optional[int]
+) -> Optional[int]:
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _parse_float_env(value: Optional[str], *, default: float) -> float:
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except ValueError:
+        return default
+
+
+def _build_server_integration_config(
+    args: argparse.Namespace,
+    *,
+    server_mod: object,
+):
+    """Build explicit server integration config from CLI args.
+
+    CLI values override externally supplied environment variables for the same
+    bridge/Bonjour settings, but the process environment itself is left
+    untouched.
+    """
+
+    bonjour_config = None
+    if args.enable_bonjour:
+        port_str = (
+            str(args.bonjour_port)
+            if args.bonjour_port is not None
+            else os.getenv("BONJOUR_PORT") or os.getenv("SERVER_PORT")
+        )
+        try:
+            advertised_port = int(port_str) if port_str else int(args.port)
+        except ValueError:
+            advertised_port = int(args.port)
+        service_name = (
+            args.bonjour_service_name
+            or os.getenv("BONJOUR_SERVICE_NAME")
+            or "Agent Terminal App"
+        )
+        bonjour_config = server_mod.BonjourRuntimeConfig(  # type: ignore[attr-defined]
+            service_name=service_name,
+            port=advertised_port,
+        )
+
+    bridge_config = None
+    if args.bridge_url:
+        bridge_url = args.bridge_url
+        display_name = (
+            args.bridge_display_name
+            or os.getenv("BRIDGE_DISPLAY_NAME")
+            or "Agent Terminal App"
+        )
+        location = args.bridge_location or os.getenv("BRIDGE_LOCATION")
+        local_http_base = args.bridge_local_http_base or os.getenv(
+            "BRIDGE_LOCAL_HTTP_BASE"
+        )
+        if not local_http_base:
+            host = os.getenv("SERVER_HOST", args.host)
+            port = os.getenv("SERVER_PORT", str(args.port))
+            local_http_base = f"http://{host}:{port}"
+
+        bridge_mod = server_mod.bridge_mod  # type: ignore[attr-defined]
+        bridge_config = bridge_mod.BridgeConfig(
+            bridge_url=bridge_url,
+            server_id=args.bridge_server_id
+            or os.getenv("BRIDGE_SERVER_ID")
+            or str(uuid.uuid4()),
+            display_name=display_name,
+            computer_name=socket.gethostname() or "localhost",
+            location=location,
+            local_http_base=local_http_base,
+            ws_max_size_bytes=_parse_optional_int_env(
+                os.getenv("BRIDGE_WS_MAX_SIZE_BYTES"), default=16 * 1024 * 1024
+            ),
+            http_timeout_seconds=_parse_float_env(
+                os.getenv("BRIDGE_HTTP_TIMEOUT_SECONDS"), default=120.0
+            ),
+            request_chunk_size_bytes=int(
+                os.getenv("BRIDGE_HTTP_CHUNK_SIZE_BYTES", str(900 * 1024))
+            ),
+            request_chunking_threshold_bytes=int(
+                os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
+            ),
+            response_chunking_threshold_bytes=int(
+                os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
+            ),
+            max_body_bytes=int(
+                os.getenv("BRIDGE_HTTP_MAX_BODY_BYTES", str(10 * 1024 * 1024))
+            ),
+            debug=_parse_bool_env(os.getenv("BRIDGE_DEBUG")),
+            exit_on_superseded=args.bridge_exit_on_superseded
+            or _parse_bool_env(os.getenv("BRIDGE_EXIT_ON_SUPERSEDED")),
+            local_guard=args.bridge_local_guard
+            or _parse_bool_env(os.getenv("BRIDGE_LOCAL_GUARD")),
+            takeover_local=args.bridge_takeover_local
+            or _parse_bool_env(os.getenv("BRIDGE_TAKEOVER_LOCAL")),
+        )
+
+    if bonjour_config is None and bridge_config is None:
+        return None
+
+    return server_mod.ServerIntegrationRuntimeConfig(  # type: ignore[attr-defined]
+        bonjour=bonjour_config,
+        bridge=bridge_config,
+    )
 
 
 def _set_terminal_title(title: str) -> None:
@@ -462,47 +599,6 @@ def main() -> None:  # pragma: no cover - manual execution only
         print(json.dumps(runtime_layout.to_resolved_dict(), indent=2, sort_keys=True))
         return
 
-    # Map CLI flags for Bonjour / bridge integrations onto environment
-    # variables so that the FastAPI server and helper modules can read a
-    # single configuration source regardless of how the app was started
-    # (``python -m agent_terminal_app`` vs direct uvicorn invocation).
-    if args.enable_bonjour:
-        os.environ["ENABLE_BONJOUR"] = "1"
-        if args.bonjour_port is not None:
-            os.environ["BONJOUR_PORT"] = str(args.bonjour_port)
-        if args.bonjour_service_name:
-            os.environ["BONJOUR_SERVICE_NAME"] = args.bonjour_service_name
-
-        advertised_port = args.bonjour_port or args.port
-        service_name = args.bonjour_service_name or "Agent Terminal App"
-        print(
-            f"[agent_terminal_app] Bonjour enabled: service={service_name!r} "
-            f"port={advertised_port}"
-        )
-
-    if args.bridge_url:
-        os.environ["BRIDGE_URL"] = args.bridge_url
-        if args.bridge_display_name:
-            os.environ["BRIDGE_DISPLAY_NAME"] = args.bridge_display_name
-        if args.bridge_location:
-            os.environ["BRIDGE_LOCATION"] = args.bridge_location
-        if args.bridge_local_http_base:
-            os.environ["BRIDGE_LOCAL_HTTP_BASE"] = args.bridge_local_http_base
-        if args.bridge_server_id:
-            os.environ["BRIDGE_SERVER_ID"] = args.bridge_server_id
-        if args.bridge_exit_on_superseded:
-            os.environ["BRIDGE_EXIT_ON_SUPERSEDED"] = "1"
-        if args.bridge_local_guard:
-            os.environ["BRIDGE_LOCAL_GUARD"] = "1"
-        if args.bridge_takeover_local:
-            os.environ["BRIDGE_TAKEOVER_LOCAL"] = "1"
-
-        display_name = args.bridge_display_name or "Agent Terminal App"
-        print(
-            f"[agent_terminal_app] Bridge enabled: url={args.bridge_url!r} "
-            f"display_name={display_name!r}"
-        )
-
     # Configure logging before importing application modules so that
     # any module-level loggers created during import respect the
     # selected level (CLI or environment).
@@ -527,8 +623,30 @@ def main() -> None:  # pragma: no cover - manual execution only
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
     from agent_app.sessions import FilesystemSnapshotSelectionStore
-    from .server import run_api
     from .terminal import TerminalApplication, run_terminal
+
+    import agent_terminal_app.server as server_mod  # type: ignore[import-not-found]
+
+    run_api = server_mod.run_api
+
+    integration_config = _build_server_integration_config(
+        args,
+        server_mod=server_mod,
+    )
+    if integration_config is not None:
+        server_mod.configure_integrations(integration_config)
+    if integration_config is not None and integration_config.bonjour is not None:
+        print(
+            "[agent_terminal_app] Bonjour enabled: "
+            f"service={integration_config.bonjour.service_name!r} "
+            f"port={integration_config.bonjour.port}"
+        )
+    if integration_config is not None and integration_config.bridge is not None:
+        print(
+            "[agent_terminal_app] Bridge enabled: "
+            f"url={integration_config.bridge.bridge_url!r} "
+            f"display_name={integration_config.bridge.display_name!r}"
+        )
 
     env_overrides = runtime_layout.env_overrides()
     if args.cloud_orchestrator_url:
@@ -593,7 +711,7 @@ def main() -> None:  # pragma: no cover - manual execution only
         if crystal_dir is not None:
             _ensure_crystal_gitignore(crystal_dir)
 
-    _load_additional_dotenvs(config_path)
+    config_env = _collect_additional_dotenv_values(config_path)
 
     print(f"[agent_terminal_app] Using config: {config_path}")
     print(f"[agent_terminal_app] Using sessions dir: {session_root}")
@@ -612,12 +730,14 @@ def main() -> None:  # pragma: no cover - manual execution only
             snapshot_selection_store=FilesystemSnapshotSelectionStore(
                 session_root / ".snapshots"
             ),
+            config_env=config_env,
             env_overrides=env_overrides,
         )
         terminal_agent_app = AgentApplication(
             str(config_path),
             str(session_root),
             event_store=shared_events,
+            config_env=config_env,
             env_overrides=env_overrides,
         )
         terminal_app = TerminalApplication(
@@ -632,8 +752,6 @@ def main() -> None:  # pragma: no cover - manual execution only
             parser.error(
                 f"Uvicorn is required for --server mode but could not be imported: {exc}"
             )
-
-        import agent_terminal_app.server as server_mod  # type: ignore[import-not-found]
 
         server_mod._agent_app = server_app  # type: ignore[attr-defined]
 
@@ -670,6 +788,7 @@ def main() -> None:  # pragma: no cover - manual execution only
         agent_app = AgentApplication(
             str(config_path),
             str(session_root),
+            config_env=config_env,
             env_overrides=env_overrides,
         )
         terminal_app = TerminalApplication(
@@ -685,6 +804,7 @@ def main() -> None:  # pragma: no cover - manual execution only
             snapshot_selection_store=FilesystemSnapshotSelectionStore(
                 session_root / ".snapshots"
             ),
+            config_env=config_env,
             env_overrides=env_overrides,
         )
         run_api(

@@ -58,6 +58,44 @@ def test_application_plugins_receive_runtime_env_overlay_and_agent_config_stays_
         app.close()
 
 
+def test_agent_application_config_env_resolves_without_runtime_overlay(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config_config_env.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "dummy": {
+                        "provider": "dummy_provider",
+                        "model": "${env:CONFIG_ONLY_MODEL}",
+                    }
+                },
+                "plugins": ["tests.dummy_provider.DummyProvider"],
+                "agents": {"default": {"provider": "dummy"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    previous = os.environ.get("CONFIG_ONLY_MODEL")
+    os.environ.pop("CONFIG_ONLY_MODEL", None)
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+        config_env={"CONFIG_ONLY_MODEL": "from-config-env"},
+    )
+    try:
+        assert app._agent_base_configs["default"]["model"] == "from-config-env"
+        assert app.get_resolved_env()["CONFIG_ONLY_MODEL"] == "from-config-env"
+        assert "CONFIG_ONLY_MODEL" not in os.environ
+    finally:
+        app.close()
+        if previous is not None:
+            os.environ["CONFIG_ONLY_MODEL"] = previous
+
+
 def test_runtime_env_overlay_restores_previous_process_env(tmp_path: Path) -> None:
     config_path = _write_config(tmp_path)
     previous = os.environ.get("CONFIG_DIR")

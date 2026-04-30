@@ -237,6 +237,25 @@ def test_build_config_resolution_env_allows_explicit_overrides(tmp_path, monkeyp
     assert env["BUILTIN_PLUGINS"] == str(custom_plugins)
 
 
+def test_build_config_resolution_env_uses_config_env_below_process_env(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    config_path = tmp_path / "config.json"
+
+    env = build_config_resolution_env(
+        config_path,
+        env={"FROM_PROCESS": "process", "SHARED": "process"},
+        config_env={"FROM_CONFIG_ENV": "config", "SHARED": "config"},
+        env_overrides={"FROM_OVERRIDE": "override"},
+    )
+
+    assert env["FROM_CONFIG_ENV"] == "config"
+    assert env["FROM_PROCESS"] == "process"
+    assert env["FROM_OVERRIDE"] == "override"
+    assert env["SHARED"] == "process"
+
+
 def test_resolve_placeholders_supports_config_env_locations(tmp_path, monkeypatch):
     config_dir = tmp_path / "config-dir"
     workspace_dir = tmp_path / "workspace"
@@ -314,7 +333,9 @@ def test_agent_application_accepts_env_overrides(tmp_path):
 def test_agent_application_rejects_invalid_mixin_configs(tmp_path):
     cfg = {
         "mixins": {"broken": {"mixin_refs": ["missing"], "model": "base"}},
-        "providers": {"dummy": {"mixin_refs": ["broken"], "provider": "dummy_provider"}},
+        "providers": {
+            "dummy": {"mixin_refs": ["broken"], "provider": "dummy_provider"}
+        },
         "plugins": ["tests.dummy_provider.DummyProvider"],
         "agents": {"default": {"provider": "dummy"}},
     }
@@ -322,7 +343,9 @@ def test_agent_application_rejects_invalid_mixin_configs(tmp_path):
     config_path.write_text(__import__("json").dumps(cfg), encoding="utf-8")
 
     try:
-        AgentApplication(str(config_path), str(tmp_path / "sessions"), core_factory=AgentCore)
+        AgentApplication(
+            str(config_path), str(tmp_path / "sessions"), core_factory=AgentCore
+        )
     except RuntimeError as exc:
         assert "Configuration resolution failed" in str(exc)
         assert "mixin_missing" in str(exc)

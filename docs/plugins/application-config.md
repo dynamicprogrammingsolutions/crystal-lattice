@@ -21,6 +21,9 @@ This page explains how to configure plugins in the application. It covers the `p
 When the application resolves placeholders, it now provides a few path-oriented
 environment variables automatically. These can still be overridden explicitly
 by the embedding app through `AgentApplication(..., env_overrides=...)`.
+Embedding apps can also pass config-resolution-only values with
+`AgentApplication(..., config_env=...)`; those values are available to
+`${env:...}` placeholders but are not installed into the process environment.
 
 - `CONFIG_DIR`: absolute path to the directory containing the active config file
 - `WORKING_DIR`: absolute path to the current working directory

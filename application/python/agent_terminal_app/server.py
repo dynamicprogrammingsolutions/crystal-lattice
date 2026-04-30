@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
@@ -16,11 +17,6 @@ import uuid
 from datetime import datetime
 
 from agent_core.utils import get_logger
-
-try:  # Optional convenience in local usage
-    from dotenv import load_dotenv  # type: ignore[import-not-found]
-except Exception:  # pragma: no cover - optional dependency
-    load_dotenv = None  # type: ignore[assignment]
 
 from fastapi import Depends, FastAPI, Header, HTTPException  # type: ignore[reportMissingImports]
 
@@ -62,6 +58,47 @@ app = FastAPI(title="Agent Terminal App - Echo provider (AgentApplication)")
 _bonjour_handle: Optional[bonjour_mod.BonjourServiceHandle] = None
 _bridge_client: Optional[bridge_mod.BridgeClient] = None
 _bridge_task: Optional[asyncio.Task[None]] = None
+
+
+@dataclass(frozen=True)
+class BonjourRuntimeConfig:
+    service_name: str
+    port: int
+
+
+@dataclass(frozen=True)
+class ServerIntegrationRuntimeConfig:
+    bonjour: Optional[BonjourRuntimeConfig] = None
+    bridge: Optional[bridge_mod.BridgeConfig] = None
+
+
+_integration_config_explicit = False
+_integration_config: Optional[ServerIntegrationRuntimeConfig] = None
+
+
+def configure_integrations(
+    config: Optional[ServerIntegrationRuntimeConfig],
+) -> None:
+    """Configure optional integrations for the current process.
+
+    The CLI entrypoint uses this hook to pass bridge/Bonjour settings without
+    mutating ``os.environ``. When this hook is not used, startup falls back to
+    environment variables for direct ``uvicorn agent_terminal_app.server:app``
+    launches.
+    """
+
+    global _integration_config_explicit, _integration_config
+    _integration_config_explicit = True
+    _integration_config = config
+
+
+def clear_configured_integrations() -> None:
+    """Return startup integration wiring to direct-env fallback mode."""
+
+    global _integration_config_explicit, _integration_config
+    _integration_config_explicit = False
+    _integration_config = None
+
 
 _log = logging.getLogger(__name__)
 
@@ -435,15 +472,43 @@ def _append_message_to_session_locked(
 async def _on_startup() -> None:
     """FastAPI startup hook.
 
-    * Optionally advertise the HTTP API via Bonjour/mDNS when the
-      ``ENABLE_BONJOUR`` environment variable is set.
-    * Optionally start the bridge client when ``BRIDGE_URL`` is set.
+    * Optionally advertise the HTTP API via Bonjour/mDNS.
+    * Optionally start the bridge client.
+
+    CLI launches configure these integrations explicitly so bridge identities
+    are not added to ambient process env. Direct uvicorn launches continue to
+    use environment variables as a fallback.
     """
 
     global _bonjour_handle, _bridge_client, _bridge_task
 
+    explicit_config = _integration_config if _integration_config_explicit else None
+
     # Bonjour advertising -------------------------------------------------
-    if os.getenv("ENABLE_BONJOUR"):
+    bonjour_config = explicit_config.bonjour if explicit_config is not None else None
+    if bonjour_config is not None:
+        port = bonjour_config.port
+        service_name = bonjour_config.service_name
+        _log.info(
+            "[bonjour] starting registration: service=%r port=%d", service_name, port
+        )
+        _bonjour_handle = await asyncio.to_thread(
+            bonjour_mod.start_bonjour, service_name, port
+        )
+        if _bonjour_handle is not None:
+            _log.info(
+                "[bonjour] registration finished: service=%r port=%d",
+                service_name,
+                port,
+            )
+        else:
+            _log.warning(
+                "[bonjour] registration failed; see earlier logs for details "
+                "(service=%r port=%d)",
+                service_name,
+                port,
+            )
+    elif os.getenv("ENABLE_BONJOUR"):
         # The advertised port can be configured explicitly via
         # ``BONJOUR_PORT``. When not set, fall back to ``SERVER_PORT`` or
         # the common FastAPI default of 8000.
@@ -480,7 +545,10 @@ async def _on_startup() -> None:
             )
 
     # Bridge client -------------------------------------------------------
-    client = bridge_mod.create_bridge_client_from_env()
+    if explicit_config is not None and explicit_config.bridge is not None:
+        client = bridge_mod.BridgeClient(explicit_config.bridge)
+    else:
+        client = bridge_mod.create_bridge_client_from_env()
     if client is not None:
         _bridge_client = client
         # Run the bridge client in the background for the lifetime of the

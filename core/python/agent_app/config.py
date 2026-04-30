@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Set, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Set, Tuple
 import json
 import os
 import importlib
@@ -31,14 +31,15 @@ def build_config_resolution_env(
     config_path: str | Path,
     *,
     env: Mapping[str, str] | None = None,
+    config_env: Mapping[str, str] | None = None,
     env_overrides: Mapping[str, str] | None = None,
 ) -> Dict[str, str]:
     """Build the environment used for config placeholder resolution.
 
-    Resolution starts with derived defaults, then overlays process env, and
-    finally applies explicit ``env_overrides`` from the embedding application.
-    This keeps configs portable while still allowing callers to override path
-    anchors without mutating global process state.
+    Resolution starts with derived defaults, then overlays config-only values,
+    process env, and finally explicit ``env_overrides`` from the embedding
+    application. This keeps configs portable while still allowing callers to
+    provide placeholder values without mutating global process state.
     """
 
     config_dir = str(Path(config_path).expanduser().resolve().parent)
@@ -50,6 +51,8 @@ def build_config_resolution_env(
     }
 
     merged: Dict[str, str] = dict(derived)
+    if config_env:
+        merged.update({key: str(value) for key, value in config_env.items()})
     merged.update(dict(os.environ if env is None else env))
     if env_overrides:
         merged.update({key: str(value) for key, value in env_overrides.items()})
@@ -90,7 +93,9 @@ def load_raw_config(path: str | Path) -> Dict[str, Any]:
         return json.load(f)
 
 
-def _resolve_value(value: Any, path: str, env: Mapping[str, str], errors: List[Dict[str, Any]]) -> Any:
+def _resolve_value(
+    value: Any, path: str, env: Mapping[str, str], errors: List[Dict[str, Any]]
+) -> Any:
     """Resolve a single value, handling ${env:...} and ${file:...} placeholders.
 
     - ${env:VAR} placeholders are now supported anywhere within a string.
@@ -137,7 +142,9 @@ def _resolve_value(value: Any, path: str, env: Mapping[str, str], errors: List[D
     return value
 
 
-def _walk_and_resolve(obj: Any, path: str, env: Mapping[str, str], errors: List[Dict[str, Any]]) -> Any:
+def _walk_and_resolve(
+    obj: Any, path: str, env: Mapping[str, str], errors: List[Dict[str, Any]]
+) -> Any:
     if isinstance(obj, dict):
         out: Dict[str, Any] = {}
         for key, value in obj.items():
@@ -176,7 +183,9 @@ def _copy_jsonish(value: Any) -> Any:
     return value
 
 
-def _strip_mixin_control_keys(mapping: Mapping[str, Any], *, preserve_merge_mode: bool = False) -> Dict[str, Any]:
+def _strip_mixin_control_keys(
+    mapping: Mapping[str, Any], *, preserve_merge_mode: bool = False
+) -> Dict[str, Any]:
     excluded = {_MIXIN_REFS_KEY}
     if not preserve_merge_mode:
         excluded.add(_MIXIN_MERGE_KEY)
@@ -198,7 +207,9 @@ def _deep_merge(base: Mapping[str, Any], overlay: Mapping[str, Any]) -> Dict[str
     return merged
 
 
-def _merge_mappings(base: Mapping[str, Any], overlay: Mapping[str, Any], mode: str) -> Dict[str, Any]:
+def _merge_mappings(
+    base: Mapping[str, Any], overlay: Mapping[str, Any], mode: str
+) -> Dict[str, Any]:
     if mode == "deep":
         return _deep_merge(base, overlay)
     merged: Dict[str, Any] = {key: _copy_jsonish(value) for key, value in base.items()}
@@ -227,7 +238,9 @@ def _coerce_mixin_merge_mode(
     return default_mode
 
 
-def _coerce_mixin_refs(raw_value: Any, path: str, errors: List[Dict[str, Any]]) -> List[str]:
+def _coerce_mixin_refs(
+    raw_value: Any, path: str, errors: List[Dict[str, Any]]
+) -> List[str]:
     if raw_value is None:
         return []
     if not isinstance(raw_value, list):
@@ -256,7 +269,9 @@ def _coerce_mixin_refs(raw_value: Any, path: str, errors: List[Dict[str, Any]]) 
     return refs if not invalid else refs
 
 
-def resolve_config_mixins(raw_config: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+def resolve_config_mixins(
+    raw_config: Mapping[str, Any],
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """Resolve provider/agent mixins in a placeholder-resolved config mapping.
 
     The returned config preserves the original top-level structure, but
@@ -361,14 +376,18 @@ def resolve_config_mixins(raw_config: Mapping[str, Any]) -> Tuple[Dict[str, Any]
         finally:
             resolving.discard(mixin_id)
 
-    def _resolve_node(node_cfg: Mapping[str, Any], path: str, depth: int) -> Dict[str, Any]:
+    def _resolve_node(
+        node_cfg: Mapping[str, Any], path: str, depth: int
+    ) -> Dict[str, Any]:
         mode = _coerce_mixin_merge_mode(
             node_cfg.get(_MIXIN_MERGE_KEY),
             f"{path}.{_MIXIN_MERGE_KEY}",
             errors,
             default_merge,
         )
-        refs = _coerce_mixin_refs(node_cfg.get(_MIXIN_REFS_KEY), f"{path}.{_MIXIN_REFS_KEY}", errors)
+        refs = _coerce_mixin_refs(
+            node_cfg.get(_MIXIN_REFS_KEY), f"{path}.{_MIXIN_REFS_KEY}", errors
+        )
 
         merged: Dict[str, Any] = {}
         for index, mixin_id in enumerate(refs):
@@ -381,7 +400,9 @@ def resolve_config_mixins(raw_config: Mapping[str, Any]) -> Tuple[Dict[str, Any]
                     }
                 )
                 continue
-            merged = _merge_mappings(merged, _resolve_named_mixin(mixin_id, depth + 1), mode)
+            merged = _merge_mappings(
+                merged, _resolve_named_mixin(mixin_id, depth + 1), mode
+            )
 
         preserve_mode = path.startswith("providers.") or path.startswith("agents.")
         return _merge_mappings(
@@ -390,7 +411,9 @@ def resolve_config_mixins(raw_config: Mapping[str, Any]) -> Tuple[Dict[str, Any]
             mode,
         )
 
-    resolved_config: Dict[str, Any] = {key: _copy_jsonish(value) for key, value in config.items()}
+    resolved_config: Dict[str, Any] = {
+        key: _copy_jsonish(value) for key, value in config.items()
+    }
 
     for scope_key in ("providers", "agents"):
         scope_in = config.get(scope_key)
@@ -408,7 +431,9 @@ def resolve_config_mixins(raw_config: Mapping[str, Any]) -> Tuple[Dict[str, Any]
         resolved_scope: Dict[str, Any] = {}
         for entry_id, entry_cfg in scope_in.items():
             if isinstance(entry_cfg, dict):
-                resolved_scope[entry_id] = _resolve_node(entry_cfg, f"{scope_key}.{entry_id}", 0)
+                resolved_scope[entry_id] = _resolve_node(
+                    entry_cfg, f"{scope_key}.{entry_id}", 0
+                )
             else:
                 resolved_scope[entry_id] = _copy_jsonish(entry_cfg)
         resolved_config[scope_key] = resolved_scope
@@ -437,7 +462,9 @@ def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str,
     agent_cfg = dict(agents[agent_id])
     provider_name = agent_cfg.get("provider")
     if not isinstance(provider_name, str) or not provider_name:
-        raise ValueError(f"Agent {agent_id!r} must define a non-empty 'provider' string")
+        raise ValueError(
+            f"Agent {agent_id!r} must define a non-empty 'provider' string"
+        )
 
     providers = resolved_config.get("providers") or {}
     provider_defaults = dict(providers.get(provider_name) or {})
@@ -453,7 +480,8 @@ def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str,
             )
             if (
                 isinstance(resolved_config.get(_MIXIN_POLICY_KEY), dict)
-                and (resolved_config.get(_MIXIN_POLICY_KEY) or {}).get("default_merge") in {"shallow", "deep"}
+                and (resolved_config.get(_MIXIN_POLICY_KEY) or {}).get("default_merge")
+                in {"shallow", "deep"}
             )
             else "shallow"
         ),
@@ -475,7 +503,9 @@ def build_agent_config(resolved_config: JsonMapping, agent_id: str) -> Dict[str,
     return merged
 
 
-def resolve_request_config(base_agent_config: JsonMapping, overrides: Mapping[str, Any] | None) -> Dict[str, Any]:
+def resolve_request_config(
+    base_agent_config: JsonMapping, overrides: Mapping[str, Any] | None
+) -> Dict[str, Any]:
     """Merge per-request overrides into a base agent config.
 
     Callers should treat the returned mapping as immutable.
@@ -503,7 +533,9 @@ def _import_string(path: str) -> type[Any]:
     try:
         return getattr(module, attr)
     except AttributeError as exc:  # pragma: no cover - defensive
-        raise AttributeError(f"Module {module_path!r} has no attribute {attr!r}") from exc
+        raise AttributeError(
+            f"Module {module_path!r} has no attribute {attr!r}"
+        ) from exc
 
 
 def load_plugins(
@@ -604,4 +636,3 @@ def load_application_plugins(
             )
 
     return classes, errors
-

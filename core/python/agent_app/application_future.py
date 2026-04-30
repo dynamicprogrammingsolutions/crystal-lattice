@@ -175,6 +175,7 @@ class AgentApplication:
         event_store: Optional[EventStore] = None,
         snapshot_selection_store: SnapshotSelectionStore | None = None,
         env_overrides: Mapping[str, str] | None = None,
+        config_env: Mapping[str, str] | None = None,
     ) -> None:
         logger = get_logger("AgentApplication")
         self._logger = logger
@@ -199,6 +200,7 @@ class AgentApplication:
         resolution_env = build_config_resolution_env(
             config_path,
             env_overrides=env_overrides,
+            config_env=config_env,
         )
         resolved_config, placeholder_errors = resolve_placeholders(
             raw_config, env=resolution_env
