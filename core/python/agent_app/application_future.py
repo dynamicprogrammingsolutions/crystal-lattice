@@ -1,10 +1,23 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    cast,
+)
 import uuid
 from contextlib import contextmanager
 from datetime import datetime
@@ -178,13 +191,18 @@ class AgentApplication:
         core = core_factory()
         self._core = core
 
-        raw_config = load_raw_config(config_path)
-        config_base_dir = str(Path(config_path).resolve().parent)
+        config_path_resolved = Path(config_path).resolve()
+        self._config_path = config_path_resolved
+        raw_config = load_raw_config(config_path_resolved)
+        self._raw_config: Dict[str, Any] = raw_config
+        config_base_dir = str(config_path_resolved.parent)
         resolution_env = build_config_resolution_env(
             config_path,
             env_overrides=env_overrides,
         )
-        resolved_config, placeholder_errors = resolve_placeholders(raw_config, env=resolution_env)
+        resolved_config, placeholder_errors = resolve_placeholders(
+            raw_config, env=resolution_env
+        )
         mixin_resolved_config, mixin_errors = resolve_config_mixins(resolved_config)
         self._config: Dict[str, Any] = mixin_resolved_config
         self._config_errors: List[Dict[str, Any]] = placeholder_errors + mixin_errors
@@ -221,7 +239,9 @@ class AgentApplication:
                 cache_path = Path(config_base_dir) / cache_path
 
         plugin_policy_in = self._config.get("plugin_policy") or {}
-        plugin_policy: Dict[str, Any] = dict(plugin_policy_in) if isinstance(plugin_policy_in, dict) else {}
+        plugin_policy: Dict[str, Any] = (
+            dict(plugin_policy_in) if isinstance(plugin_policy_in, dict) else {}
+        )
         plugin_policy.setdefault("base_dir", config_base_dir)
 
         mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
@@ -299,8 +319,8 @@ class AgentApplication:
                         }
                     )
 
-        self._plugin_classes, self._plugins_by_kind_and_id = self._dedupe_plugin_classes_by_id(
-            all_plugin_classes_by_kind
+        self._plugin_classes, self._plugins_by_kind_and_id = (
+            self._dedupe_plugin_classes_by_id(all_plugin_classes_by_kind)
         )
 
         # Manual registration from config on the shared core uses the
@@ -324,13 +344,17 @@ class AgentApplication:
             # First registration for a given id wins to preserve config order.
             if plugin_id in self._app_plugins:
                 continue
-            wrapper = ApplicationPluginWrapper(plugin_id=plugin_id, plugin_class=plugin_class)
+            wrapper = ApplicationPluginWrapper(
+                plugin_id=plugin_id, plugin_class=plugin_class
+            )
             wrapper.init(self._config)
             self._app_plugins[plugin_id] = wrapper
 
         session_root_path = Path(session_root)
         self._session_store = FilesystemSessionStore(session_root_path, core)
-        self._snapshot_selection_store = snapshot_selection_store or NullSnapshotSelectionStore()
+        self._snapshot_selection_store = (
+            snapshot_selection_store or NullSnapshotSelectionStore()
+        )
         self._session_asset_store = FilesystemSessionAssetStore(
             session_root_path.parent / "session_assets"
         )
@@ -354,7 +378,9 @@ class AgentApplication:
         for agent_id, agent_cfg in agents.items():
             if not isinstance(agent_cfg, dict):
                 continue
-            self._agent_base_configs[agent_id] = build_agent_config(self._config, agent_id)
+            self._agent_base_configs[agent_id] = build_agent_config(
+                self._config, agent_id
+            )
 
             provider_name = agent_cfg.get("provider")
             provider_spec_list = (
@@ -419,7 +445,9 @@ class AgentApplication:
             disabled_set.update(plugins_disabled_by_default - agent_enabled_plugins)
 
             all_plugin_ids = self._collect_plugin_ids(deduped_by_id)
-            default_enabled_ids = [pid for pid in all_plugin_ids if pid not in disabled_set]
+            default_enabled_ids = [
+                pid for pid in all_plugin_ids if pid not in disabled_set
+            ]
             if default_enabled_ids == all_plugin_ids:
                 default_enabled: Optional[List[str]] = None
             else:
@@ -501,7 +529,8 @@ class AgentApplication:
             details.append(" - ".join(parts))
 
         raise RuntimeError(
-            "Configuration resolution failed:\n" + "\n".join(f"- {item}" for item in details)
+            "Configuration resolution failed:\n"
+            + "\n".join(f"- {item}" for item in details)
         )
 
     @staticmethod
@@ -592,7 +621,9 @@ class AgentApplication:
         return deduped_classes, deduped_by_id
 
     @staticmethod
-    def _collect_plugin_ids(plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]]) -> List[str]:
+    def _collect_plugin_ids(
+        plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]],
+    ) -> List[str]:
         ordered: List[str] = []
         seen: Set[str] = set()
         for kind in ("providers", "extensions", "features", "tools"):
@@ -628,8 +659,14 @@ class AgentApplication:
         if not isinstance(raw_plugins, list):
             return None
 
-        known_ids = set(self._collect_plugin_ids(self._get_agent_plugin_runtime(agent_id).plugins_by_kind_and_id))
-        configured_ids = [item for item in raw_plugins if isinstance(item, str) and item in known_ids]
+        known_ids = set(
+            self._collect_plugin_ids(
+                self._get_agent_plugin_runtime(agent_id).plugins_by_kind_and_id
+            )
+        )
+        configured_ids = [
+            item for item in raw_plugins if isinstance(item, str) and item in known_ids
+        ]
         return configured_ids or None
 
     def _plugin_id_for_class(self, plugin_class: type[Any]) -> str:
@@ -735,7 +772,12 @@ class AgentApplication:
 
         if agent_id is not None:
             provider_classes = list(
-                (self._get_agent_plugin_runtime(agent_id).plugin_classes.get("providers") or [])
+                (
+                    self._get_agent_plugin_runtime(agent_id).plugin_classes.get(
+                        "providers"
+                    )
+                    or []
+                )
             )
         else:
             provider_classes = list(self._plugin_classes.get("providers") or [])
@@ -857,7 +899,10 @@ class AgentApplication:
             suggestions: List[str] = []
             for provider_class in matches:
                 idents = self._provider_identities_for_class(provider_class)
-                fq = next((ident for ident in idents if "." in ident), idents[0] if idents else "")
+                fq = next(
+                    (ident for ident in idents if "." in ident),
+                    idents[0] if idents else "",
+                )
                 if fq:
                     suggestions.append(fq)
             suggestions_str = ", ".join(sorted(set(suggestions)))
@@ -1000,14 +1045,14 @@ class AgentApplication:
         if len(stored_session.messages) != len(baseline_session.messages):
             raise ValueError("message_count_changed")
 
-        if self._session_messages_digest(stored_session) != self._session_messages_digest(
-            baseline_session
-        ):
+        if self._session_messages_digest(
+            stored_session
+        ) != self._session_messages_digest(baseline_session):
             raise ValueError("messages_changed")
 
-        if self._protected_session_metadata(stored_session) != self._protected_session_metadata(
-            baseline_session
-        ):
+        if self._protected_session_metadata(
+            stored_session
+        ) != self._protected_session_metadata(baseline_session):
             raise ValueError("protected_metadata_changed")
 
         merged_metadata = self._merge_non_protected_session_metadata(
@@ -1043,7 +1088,9 @@ class AgentApplication:
                     )
 
                 persisted = self._save_session_low_level(current_session)
-                saved_state = self._session_store.get_file_state(current_session.session_id)
+                saved_state = self._session_store.get_file_state(
+                    current_session.session_id
+                )
                 return persisted, _CheckpointBaseline(
                     session=persisted,
                     file_state=saved_state,
@@ -1054,7 +1101,9 @@ class AgentApplication:
                     return current_session, None
 
                 persisted = self._save_session_low_level(current_session)
-                saved_state = self._session_store.get_file_state(current_session.session_id)
+                saved_state = self._session_store.get_file_state(
+                    current_session.session_id
+                )
                 return persisted, _CheckpointBaseline(
                     session=persisted,
                     file_state=saved_state,
@@ -1112,18 +1161,21 @@ class AgentApplication:
     ) -> Path:
         return self._session_store.save_backup(session, request_id=request_id)
 
-
     @staticmethod
     def _action_matches_trigger(action: Dict[str, Any], lifecycle: str) -> bool:
         trigger_val = action.get("trigger")
         if isinstance(trigger_val, str):
             return trigger_val == lifecycle
         if isinstance(trigger_val, list):
-            return any(isinstance(item, str) and item == lifecycle for item in trigger_val)
+            return any(
+                isinstance(item, str) and item == lifecycle for item in trigger_val
+            )
         return False
 
     @staticmethod
-    def _ensure_serializable_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _ensure_serializable_context(
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         if context is None:
             return {}
         if not isinstance(context, dict):
@@ -1172,20 +1224,30 @@ class AgentApplication:
         next_session = self._session_from_result_value(result.get("session")) or session
 
         metadata_patch_raw = result.get("session_metadata")
-        metadata_patch = metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
+        metadata_patch = (
+            metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
+        )
 
         overrides_patch_raw = result.get("session_overrides")
-        overrides_patch = overrides_patch_raw if isinstance(overrides_patch_raw, dict) else {}
+        overrides_patch = (
+            overrides_patch_raw if isinstance(overrides_patch_raw, dict) else {}
+        )
 
         if not metadata_patch and not overrides_patch:
             return next_session
 
-        metadata = dict(next_session.metadata) if isinstance(next_session.metadata, dict) else {}
+        metadata = (
+            dict(next_session.metadata)
+            if isinstance(next_session.metadata, dict)
+            else {}
+        )
         metadata.update(metadata_patch)
 
         if overrides_patch:
             stored_overrides = metadata.get("overrides")
-            normalized_overrides = stored_overrides if isinstance(stored_overrides, dict) else {}
+            normalized_overrides = (
+                stored_overrides if isinstance(stored_overrides, dict) else {}
+            )
             metadata["overrides"] = {**normalized_overrides, **overrides_patch}
 
         return Session(
@@ -1223,7 +1285,9 @@ class AgentApplication:
         results: List[Dict[str, Any]] = []
 
         for action in self.get_application_actions():
-            if not isinstance(action, dict) or not self._action_matches_trigger(action, lifecycle):
+            if not isinstance(action, dict) or not self._action_matches_trigger(
+                action, lifecycle
+            ):
                 continue
             plugin_id = action.get("plugin")
             action_id = action.get("id")
@@ -1269,7 +1333,9 @@ class AgentApplication:
             context=core_context,
         )
         results.extend(core_results)
-        core, base_config, _ = self._resolve_runtime_for_session(current_session, overrides)
+        core, base_config, _ = self._resolve_runtime_for_session(
+            current_session, overrides
+        )
         return core, base_config, current_session, results
 
     def _load_session_required(self, session_id: str) -> Session:
@@ -1278,7 +1344,9 @@ class AgentApplication:
             raise KeyError(f"Session {session_id!r} not found")
         return session
 
-    def _extract_tool_calls(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _extract_tool_calls(
+        self, messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         tool_calls: List[Dict[str, Any]] = []
         for msg in messages:
             if msg.get("role") != "assistant":
@@ -1289,7 +1357,9 @@ class AgentApplication:
                 tool_calls.extend([c for c in calls if isinstance(c, dict)])
         return tool_calls
 
-    def _extract_pending_tool_calls_from_session(self, session: Session) -> List[Dict[str, Any]]:
+    def _extract_pending_tool_calls_from_session(
+        self, session: Session
+    ) -> List[Dict[str, Any]]:
         """Return tool_calls from the last assistant message, if not yet answered.
 
         A simple heuristic is used: if there is any tool message after the last
@@ -1323,7 +1393,9 @@ class AgentApplication:
     # Public helpers for tests / applications (manual registration)
     # ------------------------------------------------------------------
 
-    def register_provider(self, plugin_class: type, extensions: Optional[List[type]] = None) -> None:
+    def register_provider(
+        self, plugin_class: type, extensions: Optional[List[type]] = None
+    ) -> None:
         self._core.register_provider(plugin_class, extensions=extensions or [])
 
     def register_feature(self, plugin_class: type) -> None:
@@ -1418,7 +1490,9 @@ class AgentApplication:
         # Pass 2: merge consecutive partial/tool_partial events where possible
         # ------------------------------------------------------------------
 
-        def _merge_two(a: Dict[str, Any], b: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        def _merge_two(
+            a: Dict[str, Any], b: Dict[str, Any]
+        ) -> Optional[Dict[str, Any]]:
             """Return a merged event for ``a`` and ``b`` or ``None``.
 
             Only consecutive events of type ``partial`` or
@@ -1455,7 +1529,9 @@ class AgentApplication:
                 content_a = msg_a.get("content")
                 content_b = msg_b.get("content")
 
-                has_reasoning = isinstance(reasoning_a, str) or isinstance(reasoning_b, str)
+                has_reasoning = isinstance(reasoning_a, str) or isinstance(
+                    reasoning_b, str
+                )
                 has_content = isinstance(content_a, str) or isinstance(content_b, str)
                 if not (has_reasoning or has_content):
                     return None
@@ -1598,8 +1674,25 @@ class AgentApplication:
         """
 
         cfg = self._config if isinstance(self._config, dict) else {}
-        raw_app_cfg = cfg.get("application") if isinstance(cfg.get("application"), dict) else {}
+        raw_app_cfg = (
+            cfg.get("application") if isinstance(cfg.get("application"), dict) else {}
+        )
         return cast(Dict[str, Any], raw_app_cfg)
+
+    def get_config_path(self) -> Path:
+        """Return the path of the configuration file used by this application."""
+
+        return self._config_path
+
+    def get_raw_config(self) -> Dict[str, Any]:
+        """Return the unresolved top-level configuration mapping.
+
+        The raw config is useful for tools that need to preserve placeholders
+        such as ``${env:...}`` and ``${file:...}`` when producing derived
+        configuration artifacts.
+        """
+
+        return cast(Dict[str, Any], copy.deepcopy(self._raw_config))
 
     def get_resolved_env(self) -> Dict[str, str]:
         """Return the runtime env mapping used for config placeholder resolution."""
@@ -1760,9 +1853,11 @@ class AgentApplication:
 
         elements: List[Dict[str, Any]] = []
         for plugin_id, wrapper in self._app_plugins.items():
-            for raw_element in wrapper.get_ui_elements(config=config, tags=tags, models=models):
+            for raw_element in wrapper.get_ui_elements(
+                config=config, tags=tags, models=models
+            ):
                 if not isinstance(raw_element, dict):
-                    continue    
+                    continue
                 if "plugin" in raw_element and isinstance(raw_element["plugin"], str):
                     elements.append(raw_element)
                 else:
@@ -1780,7 +1875,9 @@ class AgentApplication:
         error envelopes.
         """
 
-        def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        def __init__(
+            self, message: str, details: Optional[Dict[str, Any]] = None
+        ) -> None:
             super().__init__(message)
             self.details: Dict[str, Any] = details or {}
 
@@ -1814,7 +1911,7 @@ class AgentApplication:
             # ``bool`` is a subclass of ``int``; treat it separately.
             return isinstance(value, int) and not isinstance(value, bool)
         if expected_type == "number":
-            return (isinstance(value, (int, float)) and not isinstance(value, bool))
+            return isinstance(value, (int, float)) and not isinstance(value, bool)
         if expected_type == "boolean":
             return isinstance(value, bool)
         return True
@@ -1924,7 +2021,9 @@ class AgentApplication:
 
         validated_inputs = self._validate_action_inputs(action_def, params)
 
-        return wrapper.execute_action(self, action_id, validated_inputs, context=context)
+        return wrapper.execute_action(
+            self, action_id, validated_inputs, context=context
+        )
 
     def execute_session_action(
         self,
@@ -1962,7 +2061,9 @@ class AgentApplication:
         overrides = metadata.get("overrides")
         if not isinstance(overrides, dict):
             overrides = {}
-        effective_config = self.resolve_effective_config(base_config, session, overrides)
+        effective_config = self.resolve_effective_config(
+            base_config, session, overrides
+        )
 
         action_context = dict(context) if isinstance(context, dict) else {}
         action_context.setdefault("app", self)
@@ -1998,8 +2099,14 @@ class AgentApplication:
         if not isinstance(result, dict):
             result = {}
 
-        mutations = result.get("mutations") if isinstance(result.get("mutations"), dict) else {}
-        ui_effects = result.get("ui_effects") if isinstance(result.get("ui_effects"), dict) else {}
+        mutations = (
+            result.get("mutations") if isinstance(result.get("mutations"), dict) else {}
+        )
+        ui_effects = (
+            result.get("ui_effects")
+            if isinstance(result.get("ui_effects"), dict)
+            else {}
+        )
 
         reload_ids = ui_effects.get("reload_session_ids")
         reload_list = list(reload_ids) if isinstance(reload_ids, list) else []
@@ -2036,16 +2143,26 @@ class AgentApplication:
         """Execute either an application action or a provider-extension session action."""
 
         if action_owner == "application":
-            return self.execute_application_action(plugin_id, action_id, params, context=context)
+            return self.execute_application_action(
+                plugin_id, action_id, params, context=context
+            )
         if action_owner in {"provider_extension", "feature"}:
-            return self.execute_session_action(plugin_id, action_id, params, context=context)
+            return self.execute_session_action(
+                plugin_id, action_id, params, context=context
+            )
 
         try:
-            return self.execute_application_action(plugin_id, action_id, params, context=context)
+            return self.execute_application_action(
+                plugin_id, action_id, params, context=context
+            )
         except KeyError:
-            if not (isinstance(params, dict) and isinstance(params.get("session_id"), str)):
+            if not (
+                isinstance(params, dict) and isinstance(params.get("session_id"), str)
+            ):
                 raise
-            return self.execute_session_action(plugin_id, action_id, params, context=context)
+            return self.execute_session_action(
+                plugin_id, action_id, params, context=context
+            )
 
     def load_session(
         self,
@@ -2066,7 +2183,9 @@ class AgentApplication:
         if session is None:
             return None
 
-        core, base_cfg, _effective_config = self._resolve_runtime_for_session(session, overrides)
+        core, base_cfg, _effective_config = self._resolve_runtime_for_session(
+            session, overrides
+        )
         return core, base_cfg, session
 
     def load_session_record(self, session_id: str) -> Optional[Session]:
@@ -2120,13 +2239,17 @@ class AgentApplication:
         live = self.load_live_session_record(session_id)
         if live is None:
             raise KeyError(f"Session {session_id!r} not found")
-        return self._session_store.create_snapshot(live, reason=reason, metadata=metadata)
+        return self._session_store.create_snapshot(
+            live, reason=reason, metadata=metadata
+        )
 
     def select_session_snapshot(self, session_id: str, snapshot_id: str) -> None:
         if self.load_live_session_record(session_id) is None:
             raise KeyError(f"Session {session_id!r} not found")
         if self._session_store.load(session_id, snapshot_id=snapshot_id) is None:
-            raise KeyError(f"Snapshot {snapshot_id!r} not found for session {session_id!r}")
+            raise KeyError(
+                f"Snapshot {snapshot_id!r} not found for session {session_id!r}"
+            )
         self._snapshot_selection_store.select_snapshot(session_id, snapshot_id)
 
     def clear_selected_session_snapshot(self, session_id: str) -> None:
@@ -2141,7 +2264,9 @@ class AgentApplication:
             raise KeyError(f"Session {session_id!r} not found")
         restored = self._session_store.load(session_id, snapshot_id=snapshot_id)
         if restored is None:
-            raise KeyError(f"Snapshot {snapshot_id!r} not found for session {session_id!r}")
+            raise KeyError(
+                f"Snapshot {snapshot_id!r} not found for session {session_id!r}"
+            )
         if live.to_dict() != restored.to_dict():
             self._session_store.create_snapshot(live, reason="before restore")
         self._snapshot_selection_store.clear_selected_snapshot(session_id)
@@ -2225,7 +2350,9 @@ class AgentApplication:
             )
         self._session_store.delete(session_id)
 
-    def create_session(self, agent_id: str) -> Tuple[AgentCore, Dict[str, Any], Session]:
+    def create_session(
+        self, agent_id: str
+    ) -> Tuple[AgentCore, Dict[str, Any], Session]:
         """Create and persist a new empty session for the given agent.
 
         Returns a tuple of ``(core, base_config, session)`` where ``core`` is a
@@ -2240,7 +2367,9 @@ class AgentApplication:
         core, base_cfg, _effective_config = self._resolve_runtime_for_session(session)
         return core, base_cfg, session
 
-    def create_session_ephemeral(self, agent_id: str) -> Tuple[AgentCore, Dict[str, Any], Session]:
+    def create_session_ephemeral(
+        self, agent_id: str
+    ) -> Tuple[AgentCore, Dict[str, Any], Session]:
         """Create a new empty session for the given agent without persisting it.
 
         This helper mirrors :meth:`create_session` but does not write the
@@ -2318,7 +2447,9 @@ class AgentApplication:
         )
         return core, base_config, new_session
 
-    def update_agent(self, agent_id: str, session: Session) -> Tuple[AgentCore, Dict[str, Any], Session]:
+    def update_agent(
+        self, agent_id: str, session: Session
+    ) -> Tuple[AgentCore, Dict[str, Any], Session]:
         """Reconfigure core/base_config for ``agent_id`` and update session metadata.
 
         This does not persist the session; callers are responsible for deciding
@@ -2329,23 +2460,31 @@ class AgentApplication:
         if not isinstance(agent_id, str) or not agent_id:
             raise ValueError("agent_id must be a non-empty string")
 
-        existing_metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        existing_metadata = (
+            session.metadata if isinstance(session.metadata, dict) else {}
+        )
         previous_agent_id = existing_metadata.get("agent_id")
         switch_context = {
             "session_id": session.session_id,
-            "previous_agent_id": previous_agent_id if isinstance(previous_agent_id, str) else None,
+            "previous_agent_id": (
+                previous_agent_id if isinstance(previous_agent_id, str) else None
+            ),
             "next_agent_id": agent_id,
         }
         previous_agent_unavailable = False
 
         try:
-            current_core, current_base_cfg, _current_config = self._resolve_runtime_for_session(session)
-            _prep_core, _prep_base_cfg, prepared_session, _prep_results = self.run_session_lifecycle(
-                "agent_switch_prepare",
-                session,
-                core=current_core,
-                base_config=current_base_cfg,
-                context=switch_context,
+            current_core, current_base_cfg, _current_config = (
+                self._resolve_runtime_for_session(session)
+            )
+            _prep_core, _prep_base_cfg, prepared_session, _prep_results = (
+                self.run_session_lifecycle(
+                    "agent_switch_prepare",
+                    session,
+                    core=current_core,
+                    base_config=current_base_cfg,
+                    context=switch_context,
+                )
             )
         except KeyError as exc:
             if not self._is_unknown_agent_error(exc):
@@ -2520,14 +2659,16 @@ class AgentApplication:
         }
         try:
             with self.acquire_session_lock(session.session_id):
-                session, request_reconcile_baseline = self._reconcile_session_with_store(
-                    baseline_session=session,
-                    baseline_file_state=baseline_file_state,
-                    current_session=session,
-                    persist_on_success=False,
-                    conflict_prefix="Concurrent session modification detected before request start; ",
-                    backup_on_conflict=True,
-                    conflict_request_id=rid,
+                session, request_reconcile_baseline = (
+                    self._reconcile_session_with_store(
+                        baseline_session=session,
+                        baseline_file_state=baseline_file_state,
+                        current_session=session,
+                        persist_on_success=False,
+                        conflict_prefix="Concurrent session modification detected before request start; ",
+                        backup_on_conflict=True,
+                        conflict_request_id=rid,
+                    )
                 )
         except SessionConflictError as exc:
             yield {
@@ -2583,7 +2724,9 @@ class AgentApplication:
             return cancellation.is_cancelled()
 
         def _refresh_config_for_session(current_session: Session) -> Dict[str, Any]:
-            refreshed = self.resolve_effective_config(base_config, current_session, overrides)
+            refreshed = self.resolve_effective_config(
+                base_config, current_session, overrides
+            )
             core.prepare_tools(
                 refreshed,
                 context={
@@ -2687,7 +2830,9 @@ class AgentApplication:
 
                 yielded_tool_loop_events = False
                 try:
-                    for event in loop_runner.run(session=session, stream=current_stream):
+                    for event in loop_runner.run(
+                        session=session, stream=current_stream
+                    ):
                         yielded_tool_loop_events = True
                         event_type = event.get("type")
 
@@ -2703,22 +2848,26 @@ class AgentApplication:
                             if not error_seen:
                                 error_seen = True
                                 before_session = latest_session
-                                core, base_config, latest_session, _ = self.run_session_lifecycle(
-                                    "request_error",
-                                    latest_session,
-                                    core=core,
-                                    base_config=base_config,
-                                    overrides=overrides,
-                                    context={
-                                        **request_context,
-                                        "error": {
-                                            "message": event.get("detail"),
+                                core, base_config, latest_session, _ = (
+                                    self.run_session_lifecycle(
+                                        "request_error",
+                                        latest_session,
+                                        core=core,
+                                        base_config=base_config,
+                                        overrides=overrides,
+                                        context={
+                                            **request_context,
+                                            "error": {
+                                                "message": event.get("detail"),
+                                            },
                                         },
-                                    },
+                                    )
                                 )
                                 if latest_session != before_session:
                                     try:
-                                        latest_session = _persist_checkpoint(latest_session)
+                                        latest_session = _persist_checkpoint(
+                                            latest_session
+                                        )
                                     except ToolLoopCheckpointError:
                                         pass
                                     else:
@@ -2733,17 +2882,21 @@ class AgentApplication:
                         if event_type == "request_completed":
                             if not error_seen:
                                 before_session = latest_session
-                                core, base_config, latest_session, _ = self.run_session_lifecycle(
-                                    "request_complete",
-                                    latest_session,
-                                    core=core,
-                                    base_config=base_config,
-                                    overrides=overrides,
-                                    context=request_context,
+                                core, base_config, latest_session, _ = (
+                                    self.run_session_lifecycle(
+                                        "request_complete",
+                                        latest_session,
+                                        core=core,
+                                        base_config=base_config,
+                                        overrides=overrides,
+                                        context=request_context,
+                                    )
                                 )
                                 if latest_session != before_session:
                                     try:
-                                        latest_session = _persist_checkpoint(latest_session)
+                                        latest_session = _persist_checkpoint(
+                                            latest_session
+                                        )
                                     except ToolLoopCheckpointError as exc:
                                         error_seen = True
                                         yield {
@@ -2766,10 +2919,7 @@ class AgentApplication:
                         yield event
                     break
                 except NotImplementedError as exc:
-                    if (
-                        not current_stream
-                        or yielded_tool_loop_events
-                    ):
+                    if not current_stream or yielded_tool_loop_events:
                         raise
                     self._mark_provider_non_streaming(provider_class)
                     current_stream = False
