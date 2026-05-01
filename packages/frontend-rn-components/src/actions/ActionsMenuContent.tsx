@@ -11,6 +11,8 @@ import {
 import { useTheme } from '../theme';
 import type { ActionDefinition, ActionKey } from './types';
 
+const PIN_BUTTON_HIT_SLOP = { top: 4, bottom: 4, left: 4, right: 4 };
+
 export interface MenuIconRenderParams {
   name: string;
   size: number;
@@ -105,13 +107,20 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
               <Text
                 style={[
                   styles.menuItemText,
-                  { color: disabled ? theme.textSecondary : theme.text },
+                  {
+                    color: disabled ? theme.textSecondary : theme.text,
+                    fontSize: theme.typography.fontSize.message,
+                  },
                 ]}
               >
                 {action.label}
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.pinButton} onPress={onTogglePinned}>
+            <TouchableOpacity
+              style={styles.pinButton}
+              hitSlop={PIN_BUTTON_HIT_SLOP}
+              onPress={onTogglePinned}
+            >
               {props.renderPinIcon ? (
                 props.renderPinIcon({ pinned, size: pinIconSize, color: pinColor })
               ) : (
@@ -136,7 +145,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingVertical: 0,
+    minHeight: 44,
   },
   menuItemLeft: {
     flexDirection: 'row',
@@ -144,17 +154,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   iconButton: {
-    paddingHorizontal: 6,
+    width: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 0,
     paddingVertical: 2,
-    marginLeft: 4,
   },
   menuItemText: {
     marginLeft: 8,
-    fontSize: 14,
   },
   pinButton: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    minWidth: 44,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   pinText: {
     fontWeight: '800',

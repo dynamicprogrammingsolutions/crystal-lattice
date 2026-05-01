@@ -626,8 +626,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         ),
         uiSchemaElements,
         uiType: 'session_action',
+        context: sessionSummary ?? { session_id: sessionId, metadata: {} },
       }),
-    [sessionAppUiElements, uiSchemaElements],
+    [sessionAppUiElements, sessionId, sessionSummary, uiSchemaElements],
   );
 
   const visibleMessageActions = useMemo(
@@ -1206,6 +1207,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         const isMessage = context.kind === 'message';
         await executePluginAction(element, {
           sessionId,
+          sessionSummary: context.sessionSummary || undefined,
           messageContext: isMessage
             ? { index: (context as any).index, message: (context as any).message }
             : undefined,

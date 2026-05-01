@@ -187,7 +187,7 @@ function createStyles(theme: Theme) {
     errorText: {
       color: theme.danger,
       marginBottom: 10,
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
     },
     loadingRow: {
       flexDirection: 'row',
@@ -197,7 +197,7 @@ function createStyles(theme: Theme) {
     loadingText: {
       marginLeft: 8,
       color: theme.textSecondary,
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
     },
     group: {
       marginBottom: 14,
@@ -210,7 +210,7 @@ function createStyles(theme: Theme) {
     groupTitle: {
       paddingHorizontal: 12,
       paddingVertical: 10,
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
       fontWeight: '700',
       color: theme.text,
       borderBottomWidth: 1,
@@ -237,18 +237,18 @@ function createStyles(theme: Theme) {
     },
     rowTitle: {
       color: theme.text,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
       fontWeight: '600',
       flexShrink: 1,
     },
     rowSubtitle: {
       marginTop: 2,
       color: theme.textSecondary,
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
     },
     inactiveBadge: {
       color: theme.textSecondary,
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
       fontWeight: '600',
     },
     resetButton: {
@@ -265,7 +265,7 @@ function createStyles(theme: Theme) {
     },
     resetText: {
       color: theme.primary,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
       fontWeight: '600',
     },
     resetTextDisabled: {

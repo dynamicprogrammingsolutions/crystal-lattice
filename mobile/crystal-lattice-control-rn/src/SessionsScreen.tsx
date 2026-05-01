@@ -50,6 +50,8 @@ import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
 
+const PIN_BUTTON_HIT_SLOP = { top: 4, bottom: 4, left: 4, right: 4 };
+
 interface SessionsScreenProps {
   backend: AgentBackend | null;
   connectionId: string | null;
@@ -550,6 +552,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           {pinnedToggleElement ? (
             <TouchableOpacity
               style={styles.pinIconButton}
+              hitSlop={PIN_BUTTON_HIT_SLOP}
               onPress={() => {
                 if (!backend) {
                   Alert.alert('Error', 'No active connection');
@@ -874,8 +877,10 @@ const createStyles = (theme: Theme) =>
       marginBottom: 2,
     },
     pinIconButton: {
-      paddingHorizontal: 4,
-      paddingVertical: 4,
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
       marginLeft: 4,
     },
     sessionId: {
@@ -889,7 +894,7 @@ const createStyles = (theme: Theme) =>
       marginBottom: 4,
     },
     sessionMeta: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
     },
     sessionActionsRow: {

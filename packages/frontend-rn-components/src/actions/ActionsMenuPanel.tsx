@@ -52,12 +52,21 @@ export function ActionsMenuPanel<TDef extends ActionDefinition>(
       },
       titleText: {
         color: theme.text,
+        fontSize: theme.typography.fontSize.title,
       },
       closeButtonText: {
         color: theme.primary,
+        fontSize: theme.typography.fontSize.normal,
       },
     }),
-    [theme.border, theme.primary, theme.surface, theme.text],
+    [
+      theme.border,
+      theme.primary,
+      theme.surface,
+      theme.text,
+      theme.typography.fontSize.normal,
+      theme.typography.fontSize.title,
+    ],
   );
 
   return (
@@ -117,7 +126,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   titleText: {
-    fontSize: 18,
     fontWeight: '600',
   },
   body: {
@@ -136,7 +144,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   closeButtonText: {
-    fontSize: 14,
     fontWeight: '600',
   },
 });
