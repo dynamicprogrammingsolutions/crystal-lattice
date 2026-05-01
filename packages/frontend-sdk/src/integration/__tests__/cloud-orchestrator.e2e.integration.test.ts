@@ -20,6 +20,8 @@ import {
 
 const RUN = process.env.RUN_CLOUD_ORCHESTRATOR_E2E === '1';
 const describeIf = RUN ? describe : describe.skip;
+const CLOUD_ORCHESTRATOR_E2E_MODE = process.env.CLOUD_ORCHESTRATOR_E2E_MODE || '';
+const IS_AWS_E2E = CLOUD_ORCHESTRATOR_E2E_MODE.startsWith('aws-');
 const RUN_OPENROUTER =
   RUN &&
   process.env.RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E === '1' &&
@@ -31,7 +33,15 @@ const RUN_CODEX_DEFAULT_CONFIG =
   !!process.env.OPENROUTER_API_KEY &&
   !!process.env.OPENAI_API_KEY;
 const describeCodexDefaultConfigIf = RUN_CODEX_DEFAULT_CONFIG ? describe.sequential : describe.skip;
-const IS_AWS_E2E = (process.env.CLOUD_ORCHESTRATOR_E2E_MODE || '').startsWith('aws-');
+const RUN_CODEX_DEFAULT_CONFIG_EC2 =
+  RUN &&
+  process.env.RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_EC2_E2E === '1' &&
+  CLOUD_ORCHESTRATOR_E2E_MODE === 'aws-ec2-cloudfront' &&
+  !!process.env.OPENROUTER_API_KEY &&
+  !!process.env.OPENAI_API_KEY;
+const describeCodexDefaultConfigEc2If = RUN_CODEX_DEFAULT_CONFIG_EC2
+  ? describe.sequential
+  : describe.skip;
 
 const TEST_TIMEOUT_MS = IS_AWS_E2E ? 2_700_000 : 600_000;
 const HOOK_TIMEOUT_MS = IS_AWS_E2E ? 900_000 : 60_000;
@@ -716,6 +726,30 @@ describeCodexDefaultConfigIf('cloud orchestrator default-config Codex provider e
   for (const agentId of ['codex-openrouter', 'codex-openai'] as const) {
     it(
       `runs local-cloud-local bash and apply_patch chain with ${agentId}`,
+      async () => {
+        await runDefaultConfigCodexChain({ orchestrator, agentId });
+      },
+      TEST_TIMEOUT_MS,
+    );
+  }
+});
+
+describeCodexDefaultConfigEc2If('cloud orchestrator EC2 default-config Codex provider e2e', () => {
+  let orchestrator: StartedCloudOrchestrator;
+
+  beforeAll(async () => {
+    orchestrator = await startCloudOrchestratorForE2E();
+  }, CODEX_DEFAULT_CONFIG_HOOK_TIMEOUT_MS);
+
+  afterAll(async () => {
+    if (orchestrator) {
+      await orchestrator.stop();
+    }
+  }, CODEX_DEFAULT_CONFIG_HOOK_TIMEOUT_MS);
+
+  for (const agentId of ['codex-openrouter', 'codex-openai'] as const) {
+    it(
+      `runs EC2 local-cloud-local bash and apply_patch chain with ${agentId}`,
       async () => {
         await runDefaultConfigCodexChain({ orchestrator, agentId });
       },

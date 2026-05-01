@@ -7,6 +7,9 @@ ORCHESTRATOR_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REPO_DIR="$(cd "$ORCHESTRATOR_DIR/.." && pwd)"
 STATE_DIR="${CLOUD_ORCHESTRATOR_AWS_STATE_DIR:-$SCRIPT_DIR/.state}"
 
+# shellcheck source=deploy/lib/source_bundle.sh
+source "$SCRIPT_DIR/../lib/source_bundle.sh"
+
 PROFILE="secure"
 STACK_NAME="crystal-lattice-cloud-orchestrator"
 REGION="${AWS_REGION:-us-east-1}"
@@ -346,16 +349,7 @@ upload_source_bundle() {
   ensure_artifact_keys
   local tmp
   tmp="$(mktemp -t cloud-orchestrator-source.XXXXXX.tar.gz)"
-  tar \
-    --exclude '_build' \
-    --exclude 'deps' \
-    --exclude 'node_modules' \
-    --exclude '.venv' \
-    --exclude '.pytest_cache' \
-    --exclude '.data' \
-    --exclude '.elixir_ls' \
-    -czf "$tmp" \
-    -C "$REPO_DIR" .
+  create_cloud_orchestrator_source_bundle "$tmp" "$REPO_DIR"
   aws_out s3 cp "$tmp" "s3://${SOURCE_BUCKET}/${SOURCE_BUNDLE_KEY}" >/dev/null
   rm -f "$tmp"
 }

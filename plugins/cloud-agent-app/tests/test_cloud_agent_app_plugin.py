@@ -52,6 +52,43 @@ def _write_config(tmp_path: Path, transfer_script: Path) -> Path:
     return path
 
 
+def test_cloud_start_session_ui_element_maps_current_session_id() -> None:
+    elements = {
+        element["id"]: element for element in CloudAgentAppPlugin().get_ui_elements({})
+    }
+
+    element = elements["cloud_start_session_agent"]
+    assert element["id"] == "cloud_start_session_agent"
+    assert element["action_id"] == "cloud.start_session_agent"
+    assert element["param_map"] == {"session_id": "$session.session_id"}
+    assert element["condition"] == {
+        "not": {"path": "metadata.cloud_agent.instance_id", "exists": True}
+    }
+
+    assert elements["cloud_check_session_agent"]["param_map"] == {
+        "instance_id": "$session.metadata.cloud_agent.instance_id",
+        "session_id": "$session.session_id",
+        "token": "$session.metadata.cloud_agent.token",
+    }
+    assert elements["cloud_sync_down"]["param_map"] == {
+        "instance_id": "$session.metadata.cloud_agent.instance_id",
+        "session_id": "$session.session_id",
+    }
+    assert elements["cloud_close_session"]["param_map"] == {
+        "instance_id": "$session.metadata.cloud_agent.instance_id",
+        "session_id": "$session.session_id",
+    }
+
+
+def test_cloud_start_session_default_wait_timeout_is_short() -> None:
+    plugin = CloudAgentAppPlugin()
+
+    assert plugin._start_action_timeout_seconds({}) == 10.0
+    assert (
+        plugin._start_action_timeout_seconds({"start_action_timeout_seconds": 1}) == 1.0
+    )
+
+
 def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -179,11 +216,95 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
         "transfer_ref": {"transfer_id": "tr_test"},
     }
     assert adapter_calls[0]["direction"] == "upload"
+    assert result["mutations"]["updated_session_ids"] == [session.session_id]
+    assert result["ui_effects"]["reload_session_ids"] == [session.session_id]
+
+    _core, _base_config, updated_session = app.load_session(session.session_id)
+    cloud_agent = updated_session.metadata["cloud_agent"]
+    assert cloud_agent["instance_id"] == "inst_test"
+    assert cloud_agent["session_id"] == session.session_id
+    assert cloud_agent["state"] == "running"
+    assert cloud_agent["token"] == "tok_test"
+    assert cloud_agent["connection_link"] == result["connection_link"]
 
     captured = json.loads(env_capture.read_text(encoding="utf-8"))
     assert captured["LOCAL_WORKSPACE_DIR"] == str(workspace.resolve())
     assert captured["CLOUD_WORKSPACE_DIR"] == CLOUD_WORKSPACE_DIR
     assert captured["TRANSFER_DIR"]
+
+
+def test_cloud_check_session_action_updates_cloud_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    transfer_script = tmp_path / "transfer.py"
+    transfer_script.write_text("#!/usr/bin/env python3\n", encoding="utf-8")
+    transfer_script.chmod(0o755)
+
+    config_path = _write_config(tmp_path, transfer_script)
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "hello cloud", {}, config=base_config)
+    app.save_session(
+        session.__class__(
+            session_id=session.session_id,
+            messages=session.messages,
+            metadata={
+                **session.metadata,
+                "cloud_agent": {
+                    "instance_id": "inst_test",
+                    "session_id": session.session_id,
+                    "state": "starting",
+                    "token": "tok_test",
+                },
+            },
+        )
+    )
+
+    class _Response:
+        def __enter__(self) -> "_Response":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return json.dumps(
+                {
+                    "instance_id": "inst_test",
+                    "session_id": session.session_id,
+                    "state": "running",
+                    "startup_stage": "ready",
+                }
+            ).encode("utf-8")
+
+    def fake_urlopen(request: Any, timeout: float = 30) -> _Response:
+        assert request.full_url == "http://orchestrator.test/instances/inst_test"
+        return _Response()
+
+    monkeypatch.setattr("cloud_agent_app.cloud_agent_app_plugin.urlopen", fake_urlopen)
+
+    result = app.execute_application_action(
+        "cloud",
+        "cloud.check_session_agent",
+        {
+            "instance_id": "inst_test",
+            "session_id": session.session_id,
+            "token": "tok_test",
+        },
+    )
+
+    assert result["state"] == "running"
+    assert result["ui_effects"]["reload_session_ids"] == [session.session_id]
+    _core, _base_config, updated_session = app.load_session(session.session_id)
+    cloud_agent = updated_session.metadata["cloud_agent"]
+    assert cloud_agent["state"] == "running"
+    assert cloud_agent["startup_stage"] == "ready"
+    assert cloud_agent["token"] == "tok_test"
 
 
 def test_portable_config_removes_cloud_agent_and_preserves_plugin_owned_paths() -> None:

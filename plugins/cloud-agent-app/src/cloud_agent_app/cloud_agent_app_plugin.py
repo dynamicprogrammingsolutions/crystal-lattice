@@ -24,6 +24,8 @@ from .cloud_agent_transfer import CLOUD_WORKSPACE_DIR, prepare_cloud_transfer
 
 DEFAULT_TRANSFER_METHOD = "managed_ssh"
 RESERVED_CLOUD_AGENT_DIR = ".cloud-agent"
+CLOUD_AGENT_METADATA_KEY = "cloud_agent"
+DEFAULT_START_ACTION_TIMEOUT_SECONDS = 10.0
 
 
 class CloudAgentAppPlugin:
@@ -95,13 +97,53 @@ class CloudAgentAppPlugin:
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
+        has_cloud_agent = {
+            "path": f"metadata.{CLOUD_AGENT_METADATA_KEY}.instance_id",
+            "exists": True,
+        }
         return [
             {
                 "ui_type": "session_action",
                 "id": "cloud_start_session_agent",
                 "label": "Start cloud agent",
                 "action_id": "cloud.start_session_agent",
-            }
+                "param_map": {"session_id": "$session.session_id"},
+                "condition": {"not": has_cloud_agent},
+            },
+            {
+                "ui_type": "session_action",
+                "id": "cloud_check_session_agent",
+                "label": "Check cloud status",
+                "action_id": "cloud.check_session_agent",
+                "param_map": {
+                    "instance_id": "$session.metadata.cloud_agent.instance_id",
+                    "session_id": "$session.session_id",
+                    "token": "$session.metadata.cloud_agent.token",
+                },
+                "condition": has_cloud_agent,
+            },
+            {
+                "ui_type": "session_action",
+                "id": "cloud_sync_down",
+                "label": "Sync cloud changes",
+                "action_id": "cloud.sync_down",
+                "param_map": {
+                    "instance_id": "$session.metadata.cloud_agent.instance_id",
+                    "session_id": "$session.session_id",
+                },
+                "condition": has_cloud_agent,
+            },
+            {
+                "ui_type": "session_action",
+                "id": "cloud_close_session",
+                "label": "Close cloud agent",
+                "action_id": "cloud.close_session",
+                "param_map": {
+                    "instance_id": "$session.metadata.cloud_agent.instance_id",
+                    "session_id": "$session.session_id",
+                },
+                "condition": has_cloud_agent,
+            },
         ]
 
     def execute_action(
@@ -115,9 +157,9 @@ class CloudAgentAppPlugin:
         if action_id == "cloud.start_session_agent":
             return self._start_session_agent(app, params, state)
         if action_id == "cloud.sync_down":
-            return self._sync_down(params, state)
+            return self._sync_down(app, params, state)
         if action_id == "cloud.check_session_agent":
-            return self._check_session_agent(params, state)
+            return self._check_session_agent(app, params, state)
         if action_id == "cloud.close_session":
             return self._close_session(app, params, state)
         raise KeyError(f"Unknown cloud action {action_id!r}")
@@ -203,23 +245,40 @@ class CloudAgentAppPlugin:
                 token=state.get("orchestrator_token"),
             )
 
-        instance = self._wait_for_instance_ready(orchestrator_url, instance, state)
+        instance = self._wait_for_instance_ready(
+            orchestrator_url,
+            instance,
+            state,
+            timeout_seconds=self._start_action_timeout_seconds(state),
+        )
         link = self._cloud_link(
             orchestrator_url=orchestrator_url,
             instance_id=str(instance["instance_id"]),
             session_id=session_id,
             token=str(instance["token"]),
         )
-        return self._cloud_connection_result(
+        result = self._cloud_connection_result(
             orchestrator_url=orchestrator_url,
             instance=instance,
             session_id=session_id,
             token=str(instance["token"]),
             link=link,
         )
+        self._save_cloud_agent_metadata(
+            app,
+            session_id,
+            self._cloud_agent_metadata(
+                orchestrator_url=orchestrator_url,
+                instance=instance,
+                session_id=session_id,
+                token=str(instance["token"]),
+                link=link,
+            ),
+        )
+        return self._with_session_reload(result, session_id)
 
     def _check_session_agent(
-        self, params: Dict[str, Any], state: Dict[str, Any]
+        self, app: Any, params: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         orchestrator_url = self._required_config(state, "orchestrator_url")
         instance_id = str(params["instance_id"])
@@ -240,21 +299,35 @@ class CloudAgentAppPlugin:
             if session_id and token
             else None
         )
-        return self._cloud_connection_result(
+        result = self._cloud_connection_result(
             orchestrator_url=orchestrator_url,
             instance=instance,
             session_id=session_id,
             token=token,
             link=link,
         )
+        if session_id:
+            self._save_cloud_agent_metadata(
+                app,
+                session_id,
+                self._cloud_agent_metadata(
+                    orchestrator_url=orchestrator_url,
+                    instance=instance,
+                    session_id=session_id,
+                    token=token,
+                    link=link,
+                ),
+            )
+        return self._with_session_reload(result, session_id)
 
     def _sync_down(
-        self, params: Dict[str, Any], state: Dict[str, Any]
+        self, app: Any, params: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         orchestrator_url = self._required_config(state, "orchestrator_url")
         workspace_dir = self._workspace_dir(params, state)
         cloud_workspace_dir = CLOUD_WORKSPACE_DIR
-        instance_id = params["instance_id"]
+        instance_id = str(params["instance_id"])
+        session_id = str(params.get("session_id") or "")
         self._required_script_config(state, "cloud_export_script")
         local_apply_script = self._required_script_config(
             state, "local_apply_script", legacy_key="apply_script"
@@ -306,14 +379,39 @@ class CloudAgentAppPlugin:
                     transfer_id,
                     token=state.get("orchestrator_token"),
                 )
-        return {"status": "ok", "instance_id": instance_id, "export": export_result}
+        if session_id:
+            self._save_cloud_agent_metadata(
+                app,
+                session_id,
+                {
+                    "instance_id": instance_id,
+                    "session_id": session_id,
+                    "orchestrator_url": orchestrator_url,
+                    "state": "running",
+                    "last_synced_at": time.time(),
+                },
+            )
+        return self._with_session_reload(
+            {
+                "status": "ok",
+                "instance_id": instance_id,
+                "export": export_result,
+                "display": {
+                    "format": "markdown",
+                    "title": "Cloud Changes Synced",
+                    "body": "Cloud workspace changes were applied locally.",
+                    "variant": "success",
+                },
+            },
+            session_id,
+        )
 
     def _close_session(
         self, app: Any, params: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         orchestrator_url = self._required_config(state, "orchestrator_url")
-        instance_id = params["instance_id"]
-        sync_result = self._sync_down(params, state)
+        instance_id = str(params["instance_id"])
+        sync_result = self._sync_down(app, params, state)
         result = self._post_json(
             orchestrator_url,
             f"/instances/{instance_id}/close",
@@ -331,12 +429,23 @@ class CloudAgentAppPlugin:
             if loaded is not None:
                 core, _base_config, _old = loaded
                 app.save_session(core.import_session(session_payload))
-        return {
-            "status": "ok",
-            "instance_id": instance_id,
-            "sync_down": sync_result,
-            "close": result,
-        }
+        if isinstance(session_id, str) and session_id:
+            self._clear_cloud_agent_metadata(app, session_id)
+        return self._with_session_reload(
+            {
+                "status": "ok",
+                "instance_id": instance_id,
+                "sync_down": sync_result,
+                "close": result,
+                "display": {
+                    "format": "markdown",
+                    "title": "Cloud Agent Closed",
+                    "body": "Cloud workspace changes were synced and the cloud runtime was closed.",
+                    "variant": "success",
+                },
+            },
+            session_id if isinstance(session_id, str) else "",
+        )
 
     def _required_config(self, state: Dict[str, Any], key: str) -> str:
         value = state.get(key)
@@ -567,16 +676,28 @@ class CloudAgentAppPlugin:
         return parsed if isinstance(parsed, dict) else {}
 
     def _wait_for_instance_ready(
-        self, orchestrator_url: str, instance: Dict[str, Any], state: Dict[str, Any]
+        self,
+        orchestrator_url: str,
+        instance: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        timeout_seconds: Optional[float] = None,
     ) -> Dict[str, Any]:
         instance_id = str(instance["instance_id"])
-        timeout = self._startup_poll_timeout_seconds(state)
+        timeout = (
+            self._startup_poll_timeout_seconds(state)
+            if timeout_seconds is None
+            else max(0.0, timeout_seconds)
+        )
         interval = self._startup_poll_interval_seconds(state)
         deadline = time.monotonic() + timeout
         current = instance
 
-        while current.get("state") == "starting" and time.monotonic() < deadline:
-            time.sleep(interval)
+        while current.get("state") == "starting":
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(interval, remaining))
             current = self._get_json(
                 orchestrator_url,
                 f"/instances/{instance_id}",
@@ -598,12 +719,147 @@ class CloudAgentAppPlugin:
         except (TypeError, ValueError):
             return 90.0
 
+    def _start_action_timeout_seconds(self, state: Dict[str, Any]) -> float:
+        raw = state.get("start_action_timeout_seconds")
+        if raw is None:
+            raw = state.get("startup_start_timeout_seconds")
+        try:
+            return (
+                max(0.0, float(raw))
+                if raw is not None
+                else DEFAULT_START_ACTION_TIMEOUT_SECONDS
+            )
+        except (TypeError, ValueError):
+            return DEFAULT_START_ACTION_TIMEOUT_SECONDS
+
     def _startup_poll_interval_seconds(self, state: Dict[str, Any]) -> float:
         raw = state.get("startup_poll_interval_seconds")
         try:
             return max(0.25, float(raw)) if raw is not None else 2.0
         except (TypeError, ValueError):
             return 2.0
+
+    def _cloud_agent_metadata(
+        self,
+        *,
+        orchestrator_url: str,
+        instance: Dict[str, Any],
+        session_id: str,
+        token: str,
+        link: Optional[str],
+    ) -> Dict[str, Any]:
+        instance_id = str(instance["instance_id"])
+        metadata: Dict[str, Any] = {
+            "orchestrator_url": orchestrator_url.rstrip("/"),
+            "instance_id": instance_id,
+            "session_id": session_id,
+            "state": str(instance.get("state") or "starting"),
+            "status_url": f"{orchestrator_url.rstrip('/')}/instances/{instance_id}",
+        }
+        if token:
+            metadata["token"] = token
+        if link:
+            metadata["connection_link"] = link
+        for key in (
+            "startup_stage",
+            "startup_error",
+            "startup_error_detail",
+            "created_at",
+            "updated_at",
+        ):
+            if key in instance:
+                metadata[key] = instance[key]
+        return metadata
+
+    def _save_cloud_agent_metadata(
+        self, app: Any, session_id: str, cloud_agent: Dict[str, Any]
+    ) -> None:
+        if not session_id:
+            return
+        loaded = app.load_session(session_id)
+        if loaded is None:
+            return
+        _core, _base_config, session = loaded
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        existing = metadata.get(CLOUD_AGENT_METADATA_KEY)
+        existing = existing if isinstance(existing, dict) else {}
+        now = time.time()
+        next_cloud_agent = {
+            **existing,
+            **cloud_agent,
+            "started_at": existing.get("started_at") or now,
+            "updated_at": now,
+        }
+        self._save_session_metadata(
+            app,
+            session,
+            {**metadata, CLOUD_AGENT_METADATA_KEY: next_cloud_agent},
+        )
+
+    def _clear_cloud_agent_metadata(self, app: Any, session_id: str) -> None:
+        if not session_id:
+            return
+        loaded = app.load_session(session_id)
+        if loaded is None:
+            return
+        _core, _base_config, session = loaded
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        if CLOUD_AGENT_METADATA_KEY not in metadata:
+            return
+        next_metadata = dict(metadata)
+        next_metadata.pop(CLOUD_AGENT_METADATA_KEY, None)
+        self._save_session_metadata(app, session, next_metadata)
+
+    def _save_session_metadata(
+        self, app: Any, session: Any, metadata: Dict[str, Any]
+    ) -> None:
+        app.save_session(
+            session.__class__(
+                session_id=session.session_id,
+                messages=session.messages,
+                metadata=metadata,
+            )
+        )
+
+    def _with_session_reload(
+        self, result: Dict[str, Any], session_id: str
+    ) -> Dict[str, Any]:
+        if not session_id:
+            return result
+
+        next_result = dict(result)
+        mutations = (
+            dict(next_result.get("mutations"))
+            if isinstance(next_result.get("mutations"), dict)
+            else {}
+        )
+        updated_ids = [
+            item
+            for item in mutations.get("updated_session_ids", [])
+            if isinstance(item, str)
+        ]
+        if session_id not in updated_ids:
+            updated_ids.append(session_id)
+        mutations.setdefault("created_session_ids", [])
+        mutations["updated_session_ids"] = updated_ids
+        mutations.setdefault("deleted_session_ids", [])
+        next_result["mutations"] = mutations
+
+        ui_effects = (
+            dict(next_result.get("ui_effects"))
+            if isinstance(next_result.get("ui_effects"), dict)
+            else {}
+        )
+        reload_ids = [
+            item
+            for item in ui_effects.get("reload_session_ids", [])
+            if isinstance(item, str)
+        ]
+        if session_id not in reload_ids:
+            reload_ids.append(session_id)
+        ui_effects["reload_session_ids"] = reload_ids
+        next_result["ui_effects"] = ui_effects
+        return next_result
 
     def _cloud_connection_result(
         self,
@@ -653,21 +909,49 @@ class CloudAgentAppPlugin:
                 "url": status_url,
             }
         )
-        if state == "starting":
-            actions.append(
-                {
-                    "kind": "run_action",
-                    "id": "refresh-cloud-agent-status",
-                    "label": "Refresh status",
-                    "plugin": "cloud",
-                    "action_id": "cloud.check_session_agent",
-                    "action_owner": "application",
-                    "fixed_params": {
-                        "instance_id": instance["instance_id"],
-                        "session_id": session_id,
-                        "token": token,
+        actions.append(
+            {
+                "kind": "run_action",
+                "id": "refresh-cloud-agent-status",
+                "label": "Refresh status",
+                "plugin": "cloud",
+                "action_id": "cloud.check_session_agent",
+                "action_owner": "application",
+                "fixed_params": {
+                    "instance_id": instance["instance_id"],
+                    "session_id": session_id,
+                    "token": token,
+                },
+            }
+        )
+        if state == "running":
+            actions.extend(
+                [
+                    {
+                        "kind": "run_action",
+                        "id": "sync-cloud-changes",
+                        "label": "Sync cloud changes",
+                        "plugin": "cloud",
+                        "action_id": "cloud.sync_down",
+                        "action_owner": "application",
+                        "fixed_params": {
+                            "instance_id": instance["instance_id"],
+                            "session_id": session_id,
+                        },
                     },
-                }
+                    {
+                        "kind": "run_action",
+                        "id": "close-cloud-agent",
+                        "label": "Close cloud agent",
+                        "plugin": "cloud",
+                        "action_id": "cloud.close_session",
+                        "action_owner": "application",
+                        "fixed_params": {
+                            "instance_id": instance["instance_id"],
+                            "session_id": session_id,
+                        },
+                    },
+                ]
             )
 
         result: Dict[str, Any] = {

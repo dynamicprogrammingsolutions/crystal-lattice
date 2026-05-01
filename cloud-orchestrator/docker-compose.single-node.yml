@@ -20,7 +20,6 @@ services:
       TRANSFER_PORT_END: "${TRANSFER_PORT_END:-22099}"
     ports:
       - "${CLOUD_ORCHESTRATOR_PORT:-4100}:4100"
-      - "${TRANSFER_PORT_START:-22000}-${TRANSFER_PORT_END:-22099}:${TRANSFER_PORT_START:-22000}-${TRANSFER_PORT_END:-22099}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${CLOUD_ORCHESTRATOR_HOST_DATA_DIR:-/var/lib/cloud-orchestrator}:/var/lib/cloud-orchestrator

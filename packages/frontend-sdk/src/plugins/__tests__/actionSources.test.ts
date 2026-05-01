@@ -93,4 +93,35 @@ describe('session-scoped action sources', () => {
       },
     ]);
   });
+
+  it('filters session actions with UI conditions against the session summary', () => {
+    const result = mergeSessionScopedActionElements({
+      applicationActions: [
+        {
+          ui_type: 'session_action',
+          plugin: 'cloud',
+          id: 'cloud_start_session_agent',
+          action_id: 'cloud.start_session_agent',
+          label: 'Start cloud agent',
+          condition: { not: { path: 'metadata.cloud_agent.instance_id', exists: true } },
+        } as any,
+        {
+          ui_type: 'session_action',
+          plugin: 'cloud',
+          id: 'cloud_check_session_agent',
+          action_id: 'cloud.check_session_agent',
+          label: 'Check cloud status',
+          condition: { path: 'metadata.cloud_agent.instance_id', exists: true },
+        } as any,
+      ],
+      uiSchemaElements: [],
+      uiType: 'session_action',
+      context: {
+        session_id: 's1',
+        metadata: { cloud_agent: { instance_id: 'inst_test' } },
+      },
+    });
+
+    expect(result.map((action) => action.id)).toEqual(['cloud_check_session_agent']);
+  });
 });

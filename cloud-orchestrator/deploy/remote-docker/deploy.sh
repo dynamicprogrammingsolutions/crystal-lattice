@@ -46,7 +46,10 @@ quote() {
 }
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-source_dir="${repo_root}"
+deploy_dir="${repo_root}/cloud-orchestrator/deploy"
+
+# shellcheck source=deploy/lib/source_bundle.sh
+source "${deploy_dir}/lib/source_bundle.sh"
 
 require_env CLOUD_ORCHESTRATOR_REMOTE
 require_env CLOUD_ORCHESTRATOR_PUBLIC_URL
@@ -76,27 +79,39 @@ if [[ -n "${SSH_OPTS:-}" ]]; then
   ssh_extra=(${SSH_OPTS})
 fi
 
-rsync_args=(
-  -az
-  --delete
-  --exclude '_build'
-  --exclude 'deps'
-  --exclude 'node_modules'
-  --exclude '.venv'
-  --exclude '.pytest_cache'
-  --exclude '.data'
-  --exclude '.elixir_ls'
-)
+bundle_path="$(mktemp -t cloud-orchestrator-source.XXXXXX.tar.gz)"
+cleanup() {
+  rm -f "${bundle_path}"
+}
+trap cleanup EXIT
+
+create_cloud_orchestrator_source_bundle "${bundle_path}" "${repo_root}"
+
+ssh_setup_command="
+set -euo pipefail
+mkdir -p $(quote "${remote_dir}")/.deploy
+"
+
+if [[ ${#ssh_extra[@]} -gt 0 ]]; then
+  ssh "${ssh_extra[@]}" "${remote}" "${ssh_setup_command}"
+else
+  ssh "${remote}" "${ssh_setup_command}"
+fi
+
+rsync_args=(-az)
 if [[ ${#rsync_extra[@]} -gt 0 ]]; then
   rsync_args+=("${rsync_extra[@]}")
 fi
-rsync_args+=("${source_dir}/" "${remote}:${remote_dir}/")
+rsync_args+=("${bundle_path}" "${remote}:${remote_dir}/.deploy/source.tar.gz")
 
 rsync "${rsync_args[@]}"
 
 remote_command="
 set -euo pipefail
-cd ${remote_dir}
+mkdir -p $(quote "${remote_dir}")
+cd $(quote "${remote_dir}")
+find . -mindepth 1 -maxdepth 1 ! -name .deploy -exec rm -rf {} +
+tar -xzf .deploy/source.tar.gz -C .
 mkdir -p $(quote "${host_data_dir}")
 if docker compose version >/dev/null 2>&1; then
   compose_cmd='docker compose'
