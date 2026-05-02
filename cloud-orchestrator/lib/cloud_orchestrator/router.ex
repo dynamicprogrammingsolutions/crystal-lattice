@@ -1,7 +1,7 @@
 defmodule CloudOrchestrator.Router do
   use Plug.Router
 
-  alias CloudOrchestrator.{InstanceRegistry, Token, TransferRegistry}
+  alias CloudOrchestrator.{ConnectionRegistry, InstanceRegistry, Token, TransferRegistry}
 
   plug(:match)
   plug(:dispatch)
@@ -52,7 +52,7 @@ defmodule CloudOrchestrator.Router do
   post "/instances" do
     with :ok <- authorize_control(conn),
          {:ok, params} <- read_json_params(conn),
-         {:ok, instance} <- InstanceRegistry.start_instance(params) do
+         {:ok, instance} <- ConnectionRegistry.start_instance(params) do
       send_json(conn, 201, instance)
     else
       {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
@@ -83,11 +83,43 @@ defmodule CloudOrchestrator.Router do
   post "/instances/:instance_id/close" do
     with :ok <- authorize_control(conn),
          {:ok, params} <- read_json_params(conn),
-         {:ok, result} <- InstanceRegistry.close_instance(instance_id, params) do
+         {:ok, result} <- ConnectionRegistry.close_instance(instance_id, params) do
       send_json(conn, 200, result)
     else
       {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
       {:error, :not_found} -> send_json(conn, 404, %{error: "instance_not_found"})
+      {:error, status, payload} -> send_json(conn, status, payload)
+    end
+  end
+
+  post "/connections" do
+    with :ok <- authorize_control(conn),
+         {:ok, params} <- read_json_params(conn),
+         {:ok, connection} <- ConnectionRegistry.create_connection(params) do
+      send_json(conn, 201, connection)
+    else
+      {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
+      {:error, :connection_not_found} -> send_json(conn, 404, %{error: "connection_not_found"})
+      {:error, :connection_key_exists} -> send_json(conn, 409, %{error: "connection_key_exists"})
+      {:error, status, payload} -> send_json(conn, status, payload)
+      {:error, reason} -> send_json(conn, 400, %{error: to_string(reason)})
+    end
+  end
+
+  get "/connections/:connection_id" do
+    case ConnectionRegistry.get(connection_id) do
+      {:ok, connection} -> send_json(conn, 200, connection)
+      {:error, :not_found} -> send_json(conn, 404, %{error: "connection_not_found"})
+    end
+  end
+
+  get "/connections/:connection_id/sessions" do
+    with :ok <- authorize_connection_proxy(conn, connection_id),
+         {:ok, result} <- ConnectionRegistry.list_sessions(connection_id) do
+      send_json(conn, 200, result)
+    else
+      {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
+      {:error, :not_found} -> send_json(conn, 404, %{error: "connection_not_found"})
       {:error, status, payload} -> send_json(conn, status, payload)
     end
   end
@@ -121,6 +153,26 @@ defmodule CloudOrchestrator.Router do
     end
   end
 
+  match "/connections/:connection_id/proxy/*path" do
+    with :ok <- authorize_connection_proxy(conn, connection_id) do
+      case resolve_connection_proxy_instance(conn, connection_id, path) do
+        {:ok, instance} ->
+          InstanceRegistry.handle_proxy_request(instance, conn, "/" <> Enum.join(path, "/"))
+
+        {:sessions, result} ->
+          send_json(conn, 200, result)
+
+        {:error, :not_found} ->
+          send_json(conn, 404, %{error: "route_not_found"})
+
+        {:error, status, payload} ->
+          send_json(conn, status, payload)
+      end
+    else
+      {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
+    end
+  end
+
   match _ do
     send_json(conn, 404, %{error: "not_found"})
   end
@@ -134,6 +186,52 @@ defmodule CloudOrchestrator.Router do
       _ -> {:error, :unauthorized}
     end
   end
+
+  defp authorize_connection_proxy(conn, connection_id) do
+    with ["Bearer " <> token] <- get_req_header(conn, "authorization"),
+         {:ok, claims} <- Token.verify(token),
+         true <- Map.get(claims, "connection_id") == connection_id do
+      :ok
+    else
+      _ -> {:error, :unauthorized}
+    end
+  end
+
+  defp resolve_connection_proxy_instance(%{method: "GET"}, connection_id, ["sessions"]) do
+    case ConnectionRegistry.list_sessions(connection_id) do
+      {:ok, result} -> {:sessions, result}
+      error -> error
+    end
+  end
+
+  defp resolve_connection_proxy_instance(conn, connection_id, path) do
+    case session_id_from_proxy(conn, path) do
+      nil ->
+        ConnectionRegistry.default_instance(connection_id)
+
+      session_id ->
+        case ConnectionRegistry.resolve_route(connection_id, session_id) do
+          {:error, :not_found} -> ConnectionRegistry.default_instance(connection_id)
+          other -> other
+        end
+    end
+  end
+
+  defp session_id_from_proxy(_conn, ["sessions", session_id | _rest])
+       when is_binary(session_id) do
+    URI.decode(session_id)
+  end
+
+  defp session_id_from_proxy(conn, ["events"]) do
+    conn = fetch_query_params(conn)
+
+    case conn.query_params do
+      %{"session_id" => session_id} when is_binary(session_id) and session_id != "" -> session_id
+      _ -> nil
+    end
+  end
+
+  defp session_id_from_proxy(_conn, _path), do: nil
 
   defp read_json_params(conn) do
     case conn.body_params do

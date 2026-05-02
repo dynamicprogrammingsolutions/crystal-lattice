@@ -168,6 +168,7 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
         if request.full_url.endswith("/instances"):
             return _Response(
                 {
+                    "connection_id": "conn_test",
                     "instance_id": "inst_test",
                     "session_id": session.session_id,
                     "state": "running",
@@ -211,16 +212,19 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
     assert "inst_test" in display["actions"][0]["text"]
     assert calls[0]["url"] == "http://orchestrator.test/transfers"
     assert "public_key" in calls[0]["body"]
-    assert calls[2]["body"] == {
-        "session_id": session.session_id,
-        "transfer_ref": {"transfer_id": "tr_test"},
-    }
+    assert calls[2]["body"]["session_id"] == session.session_id
+    assert calls[2]["body"]["transfer_ref"] == {"transfer_id": "tr_test"}
+    assert calls[2]["body"]["connection_ref"]["reuse"] is True
+    assert calls[2]["body"]["connection_ref"]["connection_key"].startswith(
+        "cloud-agent-app:"
+    )
     assert adapter_calls[0]["direction"] == "upload"
     assert result["mutations"]["updated_session_ids"] == [session.session_id]
     assert result["ui_effects"]["reload_session_ids"] == [session.session_id]
 
     _core, _base_config, updated_session = app.load_session(session.session_id)
     cloud_agent = updated_session.metadata["cloud_agent"]
+    assert cloud_agent["connection_id"] == "conn_test"
     assert cloud_agent["instance_id"] == "inst_test"
     assert cloud_agent["session_id"] == session.session_id
     assert cloud_agent["state"] == "running"

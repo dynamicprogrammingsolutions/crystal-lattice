@@ -22,7 +22,13 @@ ssh_args=(
   -o "UserKnownHostsFile=${TRANSFER_SSH_KNOWN_HOSTS}"
 )
 
-rsync_args=(-az --delete)
+rsync_args=(
+  -az
+  --delete
+  --exclude .cloud-agent-transfer-key
+  --exclude .cloud-agent-transfer-key.pub
+  --exclude .cloud-agent-known-hosts
+)
 if [[ -n "${RSYNC_EXTRA_ARGS:-}" ]]; then
   # shellcheck disable=SC2206
   extra_args=(${RSYNC_EXTRA_ARGS})

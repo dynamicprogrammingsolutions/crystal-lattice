@@ -93,6 +93,10 @@ Resources:
           FromPort: 4100
           ToPort: 4100
           CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22000
+          ToPort: 22099
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
         - IpProtocol: -1
           CidrIp: 0.0.0.0/0

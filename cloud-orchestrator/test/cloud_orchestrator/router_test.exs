@@ -9,9 +9,12 @@ defmodule CloudOrchestrator.RouterTest do
     System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH", "1")
     CloudOrchestrator.TransferRegistry.reset()
     CloudOrchestrator.InstanceRegistry.reset()
+    CloudOrchestrator.ConnectionRegistry.reset()
 
     on_exit(fn ->
       CloudOrchestrator.TransferRegistry.reset()
+      CloudOrchestrator.InstanceRegistry.reset()
+      CloudOrchestrator.ConnectionRegistry.reset()
       System.delete_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH")
     end)
 
@@ -107,6 +110,50 @@ defmodule CloudOrchestrator.RouterTest do
     assert %{"error" => "memory_runner_not_proxyable"} = Jason.decode!(proxy_conn.resp_body)
   end
 
+  test "connection proxy route resolves session routes and keeps instance proxy compatibility" do
+    transfer_1 = create_ready_transfer()
+    transfer_2 = create_ready_transfer()
+
+    instance_1 =
+      create_instance(%{
+        "connection_ref" => %{"connection_key" => "router-shared", "reuse" => true},
+        "session_id" => "session-1",
+        "transfer_ref" => %{"transfer_id" => transfer_1["transfer_id"]}
+      })
+
+    instance_2 =
+      create_instance(%{
+        "connection_ref" => %{"connection_key" => "router-shared", "reuse" => true},
+        "session_id" => "session-2",
+        "transfer_ref" => %{"transfer_id" => transfer_2["transfer_id"]}
+      })
+
+    assert instance_1["connection_id"] == instance_2["connection_id"]
+    assert instance_1["instance_id"] != instance_2["instance_id"]
+
+    unauthorized =
+      conn(:get, "/connections/#{instance_1["connection_id"]}/proxy/sessions/session-1/messages")
+      |> put_req_header("authorization", "Bearer #{instance_2["token"] <> "bad"}")
+      |> CloudOrchestrator.Endpoint.call(@opts)
+
+    assert unauthorized.status == 401
+
+    routed =
+      conn(:get, "/connections/#{instance_1["connection_id"]}/proxy/sessions/session-2/messages")
+      |> put_req_header("authorization", "Bearer #{instance_1["token"]}")
+      |> CloudOrchestrator.Endpoint.call(@opts)
+
+    assert routed.status == 501
+    assert %{"error" => "memory_runner_not_proxyable"} = Jason.decode!(routed.resp_body)
+
+    legacy =
+      conn(:get, "/instances/#{instance_1["instance_id"]}/proxy/agents")
+      |> put_req_header("authorization", "Bearer #{instance_1["token"]}")
+      |> CloudOrchestrator.Endpoint.call(@opts)
+
+    assert legacy.status == 501
+  end
+
   test "control token protects mutation routes when configured" do
     previous = Application.get_env(:cloud_orchestrator, :control_token)
     Application.put_env(:cloud_orchestrator, :control_token, "secret")
@@ -166,5 +213,36 @@ defmodule CloudOrchestrator.RouterTest do
       |> CloudOrchestrator.Endpoint.call(@opts)
 
     assert upload_conn.status == 404
+  end
+
+  defp create_ready_transfer do
+    transfer_conn =
+      conn(
+        :post,
+        "/transfers",
+        Jason.encode!(%{
+          "direction" => "upload",
+          "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+        })
+      )
+      |> put_req_header("content-type", "application/json")
+      |> CloudOrchestrator.Endpoint.call(@opts)
+
+    transfer = Jason.decode!(transfer_conn.resp_body)
+
+    conn(:post, "/transfers/#{transfer["transfer_id"]}/ready")
+    |> CloudOrchestrator.Endpoint.call(@opts)
+
+    transfer
+  end
+
+  defp create_instance(payload) do
+    conn(:post, "/instances", Jason.encode!(payload))
+    |> put_req_header("content-type", "application/json")
+    |> CloudOrchestrator.Endpoint.call(@opts)
+    |> then(fn conn ->
+      assert conn.status == 201
+      Jason.decode!(conn.resp_body)
+    end)
   end
 end

@@ -8,6 +8,7 @@ defmodule CloudOrchestrator.Application do
       {Task.Supervisor, name: CloudOrchestrator.TaskSupervisor},
       CloudOrchestrator.TransferRegistry,
       CloudOrchestrator.InstanceRegistry,
+      CloudOrchestrator.ConnectionRegistry,
       CloudOrchestrator.Endpoint
     ]
 

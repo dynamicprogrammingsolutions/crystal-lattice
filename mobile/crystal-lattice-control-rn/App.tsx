@@ -145,9 +145,10 @@ function createBridgeTransport(options: {
   });
 }
 
-function createCloudTransport(record: Pick<CloudConnectionRecord, 'orchestratorUrl' | 'instanceId' | 'token'>): CloudTransport {
+function createCloudTransport(record: Pick<CloudConnectionRecord, 'orchestratorUrl' | 'connectionId' | 'instanceId' | 'token'>): CloudTransport {
   return new CloudTransport({
     orchestratorUrl: record.orchestratorUrl,
+    connectionId: record.connectionId,
     instanceId: record.instanceId,
     token: record.token,
     defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
@@ -935,6 +936,7 @@ function App(): React.JSX.Element {
       const parsed = parseCloudConnectionLink(cloudConnectionLink.trim());
       const nextTransport = new CloudTransport({
         orchestratorUrl: parsed.orchestratorUrl,
+        connectionId: parsed.connectionId,
         instanceId: parsed.instanceId,
         token: parsed.token,
         defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
@@ -948,9 +950,11 @@ function App(): React.JSX.Element {
       const record: CloudConnectionRecord = {
         id,
         kind: 'cloud',
-        name: `Cloud ${parsed.sessionId}`,
+        name: `Cloud ${parsed.sessionId || parsed.connectionId || parsed.instanceId}`,
         orchestratorUrl: parsed.orchestratorUrl,
+        connectionId: parsed.connectionId,
         instanceId: parsed.instanceId,
+        initialSessionId: parsed.sessionId,
         sessionId: parsed.sessionId,
         token: parsed.token,
         lastUsedAt: Date.now(),

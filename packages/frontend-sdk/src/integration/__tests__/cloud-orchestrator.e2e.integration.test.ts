@@ -47,7 +47,10 @@ const TEST_TIMEOUT_MS = IS_AWS_E2E ? 2_700_000 : 600_000;
 const HOOK_TIMEOUT_MS = IS_AWS_E2E ? 900_000 : 60_000;
 const CODEX_DEFAULT_CONFIG_HOOK_TIMEOUT_MS = Math.max(HOOK_TIMEOUT_MS, 180_000);
 
-function localBackendConfig(options: { orchestratorUrl: string; workspaceDir: string }) {
+function localBackendConfig(options: {
+  orchestratorUrl: string;
+  workspaceDir: string;
+}) {
   const cloudAgent: Record<string, any> = {
     orchestrator_url: options.orchestratorUrl,
     workspace_dir: options.workspaceDir,
@@ -84,10 +87,13 @@ function localBackendConfig(options: { orchestratorUrl: string; workspaceDir: st
         model: 'test-model',
         timeout: 60,
         stream: false,
+        working_directory: '${env:WORKING_DIR}',
+        allowed_paths: ['${env:WORKING_DIR}'],
       },
     },
     plugins: [
       'plugins.echo_openai_like_provider.EchoOpenAILikeProvider',
+      'plugins.file_writer_tool.FileWriterTool',
       'path:${env:BUILTIN_PLUGINS}/cloud-agent-app',
     ],
     agents: {
@@ -101,7 +107,10 @@ function localBackendConfig(options: { orchestratorUrl: string; workspaceDir: st
   };
 }
 
-function openRouterBackendConfig(options: { orchestratorUrl: string; workspaceDir: string }) {
+function openRouterBackendConfig(options: {
+  orchestratorUrl: string;
+  workspaceDir: string;
+}) {
   const model = process.env.CLOUD_ORCHESTRATOR_OPENROUTER_MODEL || 'openai/gpt-4.1-mini';
   const cloudAgent: Record<string, any> = {
     orchestrator_url: options.orchestratorUrl,
@@ -297,6 +306,17 @@ function expectDefaultCodexDeveloperMessage(messages: ListedMessages, label: str
   );
 }
 
+function writeFileToolCall(filePath: string, content: string): Record<string, any> {
+  return {
+    id: `call_write_${filePath.replace(/[^A-Za-z0-9_]/g, '_')}`,
+    type: 'function',
+    function: {
+      name: 'write_file',
+      arguments: JSON.stringify({ file_path: filePath, content }),
+    },
+  };
+}
+
 async function readCloudText(
   cloudTransport: CloudTransport,
   filePath: string,
@@ -315,9 +335,13 @@ async function waitForCloudInstanceRunning(
   cloudLink: ReturnType<typeof parseCloudConnectionLink>,
   timeoutMs = 240_000,
 ): Promise<void> {
+  const instanceId = cloudLink.instanceId;
+  if (!instanceId) {
+    throw new Error(`cloud link is missing an instance hint: ${JSON.stringify(cloudLink)}`);
+  }
   await waitForAsync(
     async () => {
-      const response = await fetch(`${cloudLink.orchestratorUrl}/instances/${cloudLink.instanceId}`);
+      const response = await fetch(`${cloudLink.orchestratorUrl}/instances/${instanceId}`);
       const instance = await response.json();
       if (instance.state === 'failed') {
         throw new Error(`cloud runtime failed: ${JSON.stringify(instance)}`);
@@ -326,6 +350,26 @@ async function waitForCloudInstanceRunning(
     },
     { timeoutMs, intervalMs: 1000 },
   );
+}
+
+function cloudTransportFromLink(
+  cloudLink: ReturnType<typeof parseCloudConnectionLink>,
+  defaultRequestTimeoutMs: number,
+): CloudTransport {
+  return new CloudTransport({
+    orchestratorUrl: cloudLink.orchestratorUrl,
+    connectionId: cloudLink.connectionId,
+    instanceId: cloudLink.instanceId,
+    token: cloudLink.token,
+    defaultRequestTimeoutMs,
+  });
+}
+
+function requireCloudInstanceId(cloudLink: ReturnType<typeof parseCloudConnectionLink>): string {
+  if (!cloudLink.instanceId) {
+    throw new Error(`cloud link is missing an instance hint: ${JSON.stringify(cloudLink)}`);
+  }
+  return cloudLink.instanceId;
 }
 
 async function runDefaultConfigCodexChain(options: {
@@ -350,6 +394,7 @@ async function runDefaultConfigCodexChain(options: {
   const localServer = await startBackendServer({
     config: {},
     configPath,
+    cwd: workspaceDir,
     startupTimeoutMs: 240_000,
     env: {
       CONFIG_DIR: configRoot,
@@ -366,16 +411,7 @@ async function runDefaultConfigCodexChain(options: {
     const created = await localBackend.createSession({ agentId: options.agentId });
     const sessionId = created.session.session_id;
 
-    const localOverrides = {
-      working_directory: workspaceDir,
-      allowed_paths: [workspaceDir],
-      max_output_chars: 20_000,
-      system_message_as_instructions: false,
-      strip_leading_system_or_developer_message: false,
-    };
-    const cloudOverrides = {
-      working_directory: '/cloud-agent/instance/workspace',
-      allowed_paths: ['/cloud-agent/instance/workspace'],
+    const codexTurnOverrides = {
       max_output_chars: 20_000,
       system_message_as_instructions: false,
       strip_leading_system_or_developer_message: false,
@@ -398,7 +434,7 @@ async function runDefaultConfigCodexChain(options: {
           'Reply done after the patch is applied.',
         ].join('\n'),
       },
-      configOverrides: localOverrides,
+      configOverrides: codexTurnOverrides,
     });
     await waitForAsync(
       async () =>
@@ -423,13 +459,9 @@ async function runDefaultConfigCodexChain(options: {
     });
     expect(startResult.status, JSON.stringify(startResult, null, 2)).toBe('ok');
     const cloudLink = parseCloudConnectionLink((startResult.result as any).connection_link as string);
+    expect(cloudLink.connectionId).toBeTruthy();
     await waitForCloudInstanceRunning(cloudLink, 300_000);
-    const cloudTransport = new CloudTransport({
-      orchestratorUrl: cloudLink.orchestratorUrl,
-      instanceId: cloudLink.instanceId,
-      token: cloudLink.token,
-      defaultRequestTimeoutMs: 180_000,
-    });
+    const cloudTransport = cloudTransportFromLink(cloudLink, 180_000);
     const cloudBackend = new RestAgentBackend({ transport: cloudTransport });
 
     await cloudBackend.sendMessage(sessionId, {
@@ -451,7 +483,7 @@ async function runDefaultConfigCodexChain(options: {
           'Reply done after the patch is applied.',
         ].join('\n'),
       },
-      configOverrides: cloudOverrides,
+      configOverrides: codexTurnOverrides,
     });
     await waitForAsync(
       async () => (await readCloudText(cloudTransport, 'chain.txt'))?.trim() === 'local1=alpha\ncloud2=alpha-bravo',
@@ -471,7 +503,7 @@ async function runDefaultConfigCodexChain(options: {
       actionId: 'cloud.close_session',
       actionOwner: 'application',
       inputs: {
-        instance_id: cloudLink.instanceId,
+        instance_id: requireCloudInstanceId(cloudLink),
         session_id: sessionId,
         workspace_dir: workspaceDir,
       },
@@ -501,7 +533,7 @@ async function runDefaultConfigCodexChain(options: {
           'Reply done after the patch is applied.',
         ].join('\n'),
       },
-      configOverrides: localOverrides,
+      configOverrides: codexTurnOverrides,
     });
     await waitForAsync(
       async () =>
@@ -582,6 +614,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         configPath,
         env: {
           CONFIG_DIR: configRoot,
+          WORKING_DIR: workspaceDir,
         },
       });
       stopAll.push(async () => {
@@ -612,14 +645,10 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       const link = (startResult.result as any).connection_link as string;
       const cloudLink = parseCloudConnectionLink(link);
       expect(cloudLink.sessionId).toBe(sessionId);
+      expect(cloudLink.connectionId).toBeTruthy();
       await waitForCloudInstanceRunning(cloudLink);
 
-      const cloudTransport = new CloudTransport({
-        orchestratorUrl: cloudLink.orchestratorUrl,
-        instanceId: cloudLink.instanceId,
-        token: cloudLink.token,
-        defaultRequestTimeoutMs: 30_000,
-      });
+      const cloudTransport = cloudTransportFromLink(cloudLink, 30_000);
       const cloudBackend = new RestAgentBackend({ transport: cloudTransport });
 
       const cloudSessions = await cloudBackend.listSessions();
@@ -669,42 +698,155 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       });
       expect(transferredConfigAsset.data.content).toBe('cloud config asset intact\n');
 
-      await cloudTransport.request({
-        method: 'POST',
-        path: '/cloud-agent/workspace/files',
-        body: {
-          path: 'from-cloud.txt',
-          content: 'synced from cloud',
+      const cloudCreatedSession = await cloudBackend.createSession({ agentId: 'default' });
+      const cloudCreatedSessionId = cloudCreatedSession.session.session_id;
+      await cloudBackend.appendMessage(cloudCreatedSessionId, {
+        role: 'assistant',
+        content: 'Calling write_file.',
+        metadata: {
+          tool_calls: [writeFileToolCall('from-cloud.txt', 'synced from cloud\n')],
         },
-        timeoutMs: 30_000,
       });
+      await cloudBackend.send(cloudCreatedSessionId);
+      await waitForAsync(
+        async () =>
+          (await readCloudText(cloudTransport, 'from-cloud.txt')) === 'synced from cloud\n',
+        { timeoutMs: 30_000, intervalMs: 500 },
+      );
 
       await localBackend.executeAction({
         pluginId: 'cloud',
         actionId: 'cloud.sync_down',
         actionOwner: 'application',
         inputs: {
-          instance_id: cloudLink.instanceId,
+          instance_id: requireCloudInstanceId(cloudLink),
           workspace_dir: workspaceDir,
         },
       });
 
       expect(fs.readFileSync(path.join(workspaceDir, 'from-cloud.txt'), 'utf8')).toBe(
-        'synced from cloud',
+        'synced from cloud\n',
       );
+
+      const cloudSessionsAfterCreate = await cloudBackend.listSessions();
+      expect(
+        cloudSessionsAfterCreate.some((session) => session.session_id === cloudCreatedSessionId),
+      ).toBe(true);
 
       await localBackend.executeAction({
         pluginId: 'cloud',
         actionId: 'cloud.close_session',
         actionOwner: 'application',
         inputs: {
-          instance_id: cloudLink.instanceId,
+          instance_id: requireCloudInstanceId(cloudLink),
           session_id: sessionId,
         },
       });
 
       const localMessages = await localBackend.listMessages(sessionId);
       expect(localMessages.messages.length).toBeGreaterThanOrEqual(2);
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    'routes two cloud sessions through one connection-scoped CloudTransport',
+    async () => {
+      const orchestrator = await startCloudOrchestratorForE2E();
+      stopAll.push(orchestrator.stop);
+
+      const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-shared-workspace-'));
+      initializeGitWorkspace(workspaceDir);
+      writeCloudAgentScripts(workspaceDir);
+      fs.writeFileSync(path.join(workspaceDir, 'shared.txt'), 'shared workspace\n', 'utf8');
+      execFileSync('git', ['add', 'shared.txt'], { cwd: workspaceDir });
+      execFileSync('git', ['commit', '-m', 'initial workspace'], { cwd: workspaceDir, stdio: 'ignore' });
+
+      const configRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-shared-config-'));
+      const configPath = path.join(configRoot, 'config.json');
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify(
+          localBackendConfig({
+            orchestratorUrl: orchestrator.baseUrl,
+            workspaceDir,
+          }),
+          null,
+          2,
+        ),
+        'utf8',
+      );
+
+      const localServer = await startBackendServer({
+        config: {},
+        configPath,
+        env: {
+          CONFIG_DIR: configRoot,
+          WORKING_DIR: workspaceDir,
+        },
+      });
+      stopAll.push(async () => {
+        fs.rmSync(workspaceDir, { recursive: true, force: true });
+        fs.rmSync(configRoot, { recursive: true, force: true });
+        await localServer.stop();
+      });
+
+      const localBackend = new RestAgentBackend({
+        transport: new FetchTransport({ baseUrl: localServer.baseUrl }),
+      });
+
+      const session1 = (await localBackend.createSession({ agentId: 'default' })).session.session_id;
+      const session2 = (await localBackend.createSession({ agentId: 'default' })).session.session_id;
+      await localBackend.appendMessage(session1, { role: 'user', content: 'local hello one' });
+      await localBackend.appendMessage(session2, { role: 'user', content: 'local hello two' });
+
+      const start1 = await localBackend.executeAction({
+        pluginId: 'cloud',
+        actionId: 'cloud.start_session_agent',
+        actionOwner: 'application',
+        inputs: { session_id: session1 },
+      });
+      const link1 = parseCloudConnectionLink((start1.result as any).connection_link as string);
+      expect(link1.connectionId).toBeTruthy();
+      await waitForCloudInstanceRunning(link1);
+
+      const start2 = await localBackend.executeAction({
+        pluginId: 'cloud',
+        actionId: 'cloud.start_session_agent',
+        actionOwner: 'application',
+        inputs: { session_id: session2 },
+      });
+      const link2 = parseCloudConnectionLink((start2.result as any).connection_link as string);
+      expect(link2.connectionId).toBe(link1.connectionId);
+      expect(requireCloudInstanceId(link2)).not.toBe(requireCloudInstanceId(link1));
+      await waitForCloudInstanceRunning(link2);
+
+      const cloudTransport = cloudTransportFromLink(link1, 30_000);
+      const cloudBackend = new RestAgentBackend({ transport: cloudTransport });
+      const cloudSessions = await cloudBackend.listSessions();
+      expect(cloudSessions.some((session) => session.session_id === session1)).toBe(true);
+      expect(cloudSessions.some((session) => session.session_id === session2)).toBe(true);
+
+      const messages1 = await cloudBackend.listMessages(session1);
+      const messages2 = await cloudBackend.listMessages(session2);
+      expect(messages1.messages[0]?.message.content).toBe('local hello one');
+      expect(messages2.messages[0]?.message.content).toBe('local hello two');
+
+      await cloudBackend.send(session1);
+      await cloudBackend.send(session2);
+      await waitForAsync(async () => {
+        const [next1, next2] = await Promise.all([
+          cloudBackend.listMessages(session1),
+          cloudBackend.listMessages(session2),
+        ]);
+        return next1.messages.length >= 2 && next2.messages.length >= 2;
+      }, { timeoutMs: 60_000, intervalMs: 500 });
+
+      const connectionResp = await fetch(`${orchestrator.baseUrl}/connections/${link1.connectionId}`);
+      const connection = await connectionResp.json();
+      expect(connection.instance_ids).toEqual(
+        expect.arrayContaining([requireCloudInstanceId(link1), requireCloudInstanceId(link2)]),
+      );
     },
     TEST_TIMEOUT_MS,
   );
@@ -795,7 +937,14 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
       const configPath = path.join(configRoot, 'config.json');
       fs.writeFileSync(
         configPath,
-        JSON.stringify(openRouterBackendConfig({ orchestratorUrl: orchestrator.baseUrl, workspaceDir }), null, 2),
+        JSON.stringify(
+          openRouterBackendConfig({
+            orchestratorUrl: orchestrator.baseUrl,
+            workspaceDir,
+          }),
+          null,
+          2,
+        ),
         'utf8',
       );
 
@@ -841,13 +990,9 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
       });
 
       const cloudLink = parseCloudConnectionLink((startResult.result as any).connection_link as string);
+      expect(cloudLink.connectionId).toBeTruthy();
       await waitForCloudInstanceRunning(cloudLink, 300_000);
-      const cloudTransport = new CloudTransport({
-        orchestratorUrl: cloudLink.orchestratorUrl,
-        instanceId: cloudLink.instanceId,
-        token: cloudLink.token,
-        defaultRequestTimeoutMs: 120_000,
-      });
+      const cloudTransport = cloudTransportFromLink(cloudLink, 120_000);
       const cloudBackend = new RestAgentBackend({ transport: cloudTransport });
 
       const transferredLocalFile = await cloudTransport.request<{ content: string }>({
@@ -892,12 +1037,17 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
         actionId: 'cloud.sync_down',
         actionOwner: 'application',
         inputs: {
-          instance_id: cloudLink.instanceId,
+          instance_id: requireCloudInstanceId(cloudLink),
           workspace_dir: workspaceDir,
         },
       });
 
       expect(fs.readFileSync(path.join(workspaceDir, 'cloud-openrouter.txt'), 'utf8')).toBe('cloud ok\n');
+
+      const cloudSessionsAfterCreate = await cloudBackend.listSessions();
+      expect(
+        cloudSessionsAfterCreate.some((session) => session.session_id === cloudExecutionSessionId),
+      ).toBe(true);
     },
     TEST_TIMEOUT_MS,
   );

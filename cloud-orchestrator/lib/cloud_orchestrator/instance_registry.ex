@@ -55,6 +55,7 @@ defmodule CloudOrchestrator.InstanceRegistry do
          :ok <- require_ready(transfer) do
       instance = %{
         "instance_id" => Id.new("inst"),
+        "connection_id" => Map.get(params, "connection_id"),
         "session_id" => Map.get(params, "session_id"),
         "state" => "starting",
         "startup_stage" => "container_starting",
@@ -77,6 +78,7 @@ defmodule CloudOrchestrator.InstanceRegistry do
           token =
             Token.sign(%{
               "instance_id" => started["instance_id"],
+              "connection_id" => started["connection_id"],
               "session_id" => started["session_id"]
             })
 

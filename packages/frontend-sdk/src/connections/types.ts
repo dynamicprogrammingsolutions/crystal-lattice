@@ -31,8 +31,10 @@ export interface BridgeConnectionRecord extends BaseConnectionRecord {
 export interface CloudConnectionRecord extends BaseConnectionRecord {
   kind: 'cloud';
   orchestratorUrl: string;
-  instanceId: string;
-  sessionId: string;
+  connectionId?: string;
+  instanceId?: string;
+  initialSessionId?: string;
+  sessionId?: string;
   token: string;
 }
 

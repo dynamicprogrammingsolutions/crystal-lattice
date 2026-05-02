@@ -8,8 +8,9 @@ import { resolveTransportTimeoutMs } from './transport';
 
 export interface CloudConnectionLink {
   orchestratorUrl: string;
-  instanceId: string;
-  sessionId: string;
+  connectionId?: string;
+  instanceId?: string;
+  sessionId?: string;
   token: string;
 }
 
@@ -20,24 +21,33 @@ export function parseCloudConnectionLink(raw: string): CloudConnectionLink {
   }
   const params = parseQuery(raw.slice(prefix.length));
   const orchestratorUrl = params.orchestrator || '';
+  const connectionId = params.connection_id || '';
   const instanceId = params.instance_id || '';
   const sessionId = params.session_id || '';
   const token = params.token || '';
 
-  if (!orchestratorUrl || !instanceId || !sessionId || !token) {
+  if (!orchestratorUrl || (!connectionId && !instanceId) || !token) {
     throw new Error('Cloud connection link is missing required fields');
   }
 
-  return { orchestratorUrl, instanceId, sessionId, token };
+  return {
+    orchestratorUrl,
+    ...(connectionId ? { connectionId } : {}),
+    ...(instanceId ? { instanceId } : {}),
+    ...(sessionId ? { sessionId } : {}),
+    token,
+  };
 }
 
 export function formatCloudConnectionLink(link: CloudConnectionLink): string {
-  return `crystal-lattice-cloud://connect?${formatQuery({
+  const values: Record<string, string> = {
     orchestrator: link.orchestratorUrl,
-    instance_id: link.instanceId,
-    session_id: link.sessionId,
     token: link.token,
-  })}`;
+  };
+  if (link.connectionId) values.connection_id = link.connectionId;
+  if (link.instanceId) values.instance_id = link.instanceId;
+  if (link.sessionId) values.session_id = link.sessionId;
+  return `crystal-lattice-cloud://connect?${formatQuery(values)}`;
 }
 
 function parseQuery(query: string): Record<string, string> {
@@ -61,7 +71,8 @@ function formatQuery(values: Record<string, string>): string {
 
 export class CloudTransport implements Transport {
   private readonly orchestratorUrl: string;
-  private readonly instanceId: string;
+  private readonly connectionId?: string;
+  private readonly instanceId?: string;
   private readonly token: string;
   private readonly fetchImpl: typeof fetch;
   private readonly defaultRequestTimeoutMs?: number;
@@ -70,7 +81,8 @@ export class CloudTransport implements Transport {
 
   constructor(options: {
     orchestratorUrl: string;
-    instanceId: string;
+    connectionId?: string;
+    instanceId?: string;
     token: string;
     fetchImpl?: typeof fetch;
     defaultRequestTimeoutMs?: number;
@@ -78,12 +90,16 @@ export class CloudTransport implements Transport {
     timeoutMsByPathPrefix?: PathPrefixTimeoutRule[];
   }) {
     this.orchestratorUrl = options.orchestratorUrl.replace(/\/$/, '');
+    this.connectionId = options.connectionId;
     this.instanceId = options.instanceId;
     this.token = options.token;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.defaultRequestTimeoutMs = options.defaultRequestTimeoutMs;
     this.timeoutRules = options.timeoutRules ?? [];
     this.timeoutMsByPathPrefix = options.timeoutMsByPathPrefix ?? [];
+    if (!this.connectionId && !this.instanceId) {
+      throw new Error('CloudTransport requires connectionId or instanceId');
+    }
   }
 
   async request<T = any>(req: {
@@ -94,7 +110,10 @@ export class CloudTransport implements Transport {
     timeoutMs?: number;
   }): Promise<{ status: number; data: T }> {
     const proxiedPath = req.path.startsWith('/') ? req.path.slice(1) : req.path;
-    const url = `${this.orchestratorUrl}/instances/${encodeURIComponent(this.instanceId)}/proxy/${proxiedPath}`;
+    const proxyPrefix = this.connectionId
+      ? `/connections/${encodeURIComponent(this.connectionId)}/proxy`
+      : `/instances/${encodeURIComponent(this.instanceId || '')}/proxy`;
+    const url = `${this.orchestratorUrl}${proxyPrefix}/${proxiedPath}`;
     const timeoutMs = resolveTransportTimeoutMs({
       method: req.method,
       path: req.path,

@@ -463,6 +463,7 @@ Config example:
       "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
       "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
       "workspace_dir": ".",
+      "connection_key": "optional-stable-project-or-server-key",
       "transfer_method": "managed_ssh",
       "local_transfer_script": ".cloud-agent/transfer-up",
       "cloud_setup_script": ".cloud-agent/setup-cloud",
@@ -500,6 +501,11 @@ Config example:
   }
 }
 ```
+
+`connection_key` is optional. When omitted, the cloud plugin derives an opaque
+stable key from the local config/workspace context so multiple local sessions
+can share one cloud connection while still running as separate cloud instances.
+The orchestrator treats this key as plugin-owned opaque data.
 
 Scripts receive stable environment variables:
 

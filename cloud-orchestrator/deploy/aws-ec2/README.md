@@ -47,7 +47,12 @@ CloudFrontDomain=<cloudfront-domain>
 ControlToken=<token>
 ```
 
-The EC2 origin currently exposes port `4100` publicly as the CloudFront origin. The orchestrator still requires the control token for mutating operations, and clients should use the generated CloudFront HTTPS URL. A later hardening pass can restrict origin access to CloudFront origin-facing ranges.
+The EC2 origin currently exposes port `4100` publicly as the CloudFront origin
+and `22000-22099` for managed SSH transfer slots. The orchestrator still
+requires the control token for mutating operations, and clients should use the
+generated CloudFront HTTPS URL for orchestrator HTTP traffic. A later hardening
+pass can restrict origin access to CloudFront origin-facing ranges and narrow
+transfer ingress.
 
 ## Build Artifacts
 

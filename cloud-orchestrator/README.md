@@ -40,11 +40,12 @@ CLOUD_ORCHESTRATOR_HOST_DATA_DIR=/tmp/cloud-orchestrator-manual \
 mix run --no-halt
 ```
 
-Then start a local terminal/server configured with `path:${env:BUILTIN_PLUGINS}/cloud-agent-app` and `application.cloud_agent.orchestrator_url` pointing at `http://127.0.0.1:4105`. The `cloud.start_session_agent` action returns a `crystal-lattice-cloud://connect?...` link that can be pasted into the mobile app's Cloud Agent Link connection flow.
+Then start a local terminal/server configured with `path:${env:BUILTIN_PLUGINS}/cloud-agent-app` and `application.cloud_agent.orchestrator_url` pointing at `http://127.0.0.1:4105`. The `cloud.start_session_agent` action returns a `crystal-lattice-cloud://connect?...` link that can be pasted into the mobile app's Cloud Agent Link connection flow. New links are connection-scoped and include `connection_id`; legacy instance-scoped links with only `instance_id` continue to work during migration.
 
 The same local flow supports:
 
 - proxying to the runtime through `CloudTransport`
+- one UI cloud connection routing to multiple cloud session instances
 - `cloud.sync_down` for explicit cloud export, managed-SSH rsync download, and local apply
 - `cloud.close_session` for final sync, stop, and local session update
 

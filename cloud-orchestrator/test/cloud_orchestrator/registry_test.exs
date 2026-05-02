@@ -42,7 +42,7 @@ end
 defmodule CloudOrchestrator.RegistryTest do
   use ExUnit.Case
 
-  alias CloudOrchestrator.{InstanceRegistry, TransferRegistry}
+  alias CloudOrchestrator.{ConnectionRegistry, InstanceRegistry, Token, TransferRegistry}
 
   setup do
     System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH", "1")
@@ -50,12 +50,14 @@ defmodule CloudOrchestrator.RegistryTest do
     previous_async_status = Application.get_env(:cloud_orchestrator, :test_async_runtime_status)
     TransferRegistry.reset()
     InstanceRegistry.reset()
+    ConnectionRegistry.reset()
 
     on_exit(fn ->
       restore_env(:runner, previous_runner)
       restore_env(:test_async_runtime_status, previous_async_status)
       TransferRegistry.reset()
       InstanceRegistry.reset()
+      ConnectionRegistry.reset()
       System.delete_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH")
     end)
 
@@ -106,6 +108,53 @@ defmodule CloudOrchestrator.RegistryTest do
                "session_id" => "session-1",
                "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]}
              })
+  end
+
+  test "reuses connection keys and routes sessions to separate instances" do
+    assert {:ok, transfer_1} = ready_transfer()
+    assert {:ok, transfer_2} = ready_transfer()
+
+    assert {:ok, instance_1} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{
+                 "connection_key" => "local-server-test",
+                 "reuse" => true,
+                 "metadata" => %{"label" => "Local Test"}
+               },
+               "session_id" => "session-1",
+               "transfer_ref" => %{"transfer_id" => transfer_1["transfer_id"]}
+             })
+
+    assert {:ok, instance_2} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{
+                 "connection_key" => "local-server-test",
+                 "reuse" => true
+               },
+               "session_id" => "session-2",
+               "transfer_ref" => %{"transfer_id" => transfer_2["transfer_id"]}
+             })
+
+    assert instance_1["connection_id"] == instance_2["connection_id"]
+    assert instance_1["instance_id"] != instance_2["instance_id"]
+
+    assert {:ok, connection} = ConnectionRegistry.get(instance_1["connection_id"])
+    assert connection["default_instance_id"] == instance_1["instance_id"]
+    assert connection["instance_ids"] == [instance_1["instance_id"], instance_2["instance_id"]]
+    refute Map.has_key?(connection, "connection_key")
+
+    assert {:ok, routed_1} =
+             ConnectionRegistry.resolve_route(instance_1["connection_id"], "session-1")
+
+    assert {:ok, routed_2} =
+             ConnectionRegistry.resolve_route(instance_1["connection_id"], "session-2")
+
+    assert routed_1["instance_id"] == instance_1["instance_id"]
+    assert routed_2["instance_id"] == instance_2["instance_id"]
+
+    assert {:ok, claims} = Token.verify(instance_1["token"])
+    assert claims["connection_id"] == instance_1["connection_id"]
+    assert claims["instance_id"] == instance_1["instance_id"]
   end
 
   test "async runners return starting instances and later transition to running" do
@@ -199,4 +248,14 @@ defmodule CloudOrchestrator.RegistryTest do
 
   defp restore_env(key, nil), do: Application.delete_env(:cloud_orchestrator, key)
   defp restore_env(key, value), do: Application.put_env(:cloud_orchestrator, key, value)
+
+  defp ready_transfer do
+    with {:ok, transfer} <-
+           TransferRegistry.create(%{
+             "direction" => "upload",
+             "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+           }) do
+      TransferRegistry.mark_ready(transfer["transfer_id"])
+    end
+  end
 end

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import hashlib
 import shutil
 import subprocess
 import tempfile
@@ -239,6 +240,13 @@ class CloudAgentAppPlugin:
                 orchestrator_url,
                 "/instances",
                 {
+                    "connection_ref": {
+                        "connection_key": self._connection_key(
+                            app, state, workspace_dir=workspace_dir
+                        ),
+                        "reuse": True,
+                        "metadata": {"source": "cloud-agent-app"},
+                    },
                     "session_id": session_id,
                     "transfer_ref": {"transfer_id": transfer_id},
                 },
@@ -253,6 +261,7 @@ class CloudAgentAppPlugin:
         )
         link = self._cloud_link(
             orchestrator_url=orchestrator_url,
+            connection_id=instance.get("connection_id"),
             instance_id=str(instance["instance_id"]),
             session_id=session_id,
             token=str(instance["token"]),
@@ -292,6 +301,7 @@ class CloudAgentAppPlugin:
         link = (
             self._cloud_link(
                 orchestrator_url=orchestrator_url,
+                connection_id=instance.get("connection_id"),
                 instance_id=instance_id,
                 session_id=session_id,
                 token=token,
@@ -344,6 +354,7 @@ class CloudAgentAppPlugin:
                 {
                     "direction": "download",
                     "method": state.get("transfer_method", DEFAULT_TRANSFER_METHOD),
+                    "public_host": state.get("transfer_public_host"),
                     "public_key": key_paths["public_key"],
                 },
                 token=state.get("orchestrator_token"),
@@ -739,6 +750,30 @@ class CloudAgentAppPlugin:
         except (TypeError, ValueError):
             return 2.0
 
+    def _connection_key(
+        self, app: Any, state: Dict[str, Any], *, workspace_dir: Path
+    ) -> str:
+        configured = state.get("connection_key")
+        if isinstance(configured, str) and configured.strip():
+            return configured.strip()
+
+        get_config_path = getattr(app, "get_config_path", None)
+        config_path = get_config_path() if callable(get_config_path) else ""
+        material = json.dumps(
+            {
+                "config_path": (
+                    str(Path(str(config_path)).expanduser().resolve())
+                    if config_path
+                    else ""
+                ),
+                "orchestrator_url": str(state.get("orchestrator_url") or ""),
+                "workspace_dir": str(workspace_dir),
+            },
+            sort_keys=True,
+        )
+        digest = hashlib.sha256(material.encode("utf-8")).hexdigest()[:32]
+        return f"cloud-agent-app:{digest}"
+
     def _cloud_agent_metadata(
         self,
         *,
@@ -749,6 +784,7 @@ class CloudAgentAppPlugin:
         link: Optional[str],
     ) -> Dict[str, Any]:
         instance_id = str(instance["instance_id"])
+        connection_id = instance.get("connection_id")
         metadata: Dict[str, Any] = {
             "orchestrator_url": orchestrator_url.rstrip("/"),
             "instance_id": instance_id,
@@ -756,6 +792,8 @@ class CloudAgentAppPlugin:
             "state": str(instance.get("state") or "starting"),
             "status_url": f"{orchestrator_url.rstrip('/')}/instances/{instance_id}",
         }
+        if isinstance(connection_id, str) and connection_id:
+            metadata["connection_id"] = connection_id
         if token:
             metadata["token"] = token
         if link:
@@ -871,6 +909,7 @@ class CloudAgentAppPlugin:
         link: Optional[str],
     ) -> Dict[str, Any]:
         state = str(instance.get("state") or "starting")
+        connection_id = instance.get("connection_id")
         status_url = (
             f"{orchestrator_url.rstrip('/')}/instances/{instance['instance_id']}"
         )
@@ -970,6 +1009,8 @@ class CloudAgentAppPlugin:
                 "actions": actions,
             },
         }
+        if isinstance(connection_id, str) and connection_id:
+            result["connection_id"] = connection_id
         return result
 
     def _failure_body(
@@ -1004,16 +1045,23 @@ class CloudAgentAppPlugin:
             return
 
     def _cloud_link(
-        self, *, orchestrator_url: str, instance_id: str, session_id: str, token: str
+        self,
+        *,
+        orchestrator_url: str,
+        instance_id: str,
+        session_id: str,
+        token: str,
+        connection_id: Any = None,
     ) -> str:
-        return "crystal-lattice-cloud://connect?" + urlencode(
-            {
-                "orchestrator": orchestrator_url,
-                "instance_id": instance_id,
-                "session_id": session_id,
-                "token": token,
-            }
-        )
+        params = {
+            "orchestrator": orchestrator_url,
+            "instance_id": instance_id,
+            "session_id": session_id,
+            "token": token,
+        }
+        if isinstance(connection_id, str) and connection_id:
+            params["connection_id"] = connection_id
+        return "crystal-lattice-cloud://connect?" + urlencode(params)
 
 
 __all__ = ["CloudAgentAppPlugin"]

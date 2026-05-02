@@ -87,6 +87,7 @@ export async function startBackendServer(options: {
   enableTestControl?: boolean;
   env?: Record<string, string>;
   configPath?: string;
+  cwd?: string;
   sessionsRoot?: string;
   port?: number;
   startupTimeoutMs?: number;
@@ -137,6 +138,7 @@ export async function startBackendServer(options: {
 
   const child = spawn(python, args, {
     stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: options.cwd,
     env: {
       ...process.env,
       ...(options.env || {}),
@@ -433,7 +435,10 @@ async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator>
   };
 }
 
-function parseCloudOrchestratorOutput(output: string): { orchestratorUrl: string; controlToken?: string } {
+function parseCloudOrchestratorOutput(output: string): {
+  orchestratorUrl: string;
+  controlToken?: string;
+} {
   const trimmed = output.trim();
   const lines = trimmed.split(/\r?\n/);
   const jsonLine = [...lines].reverse().find((line) => line.trim().startsWith('{'));
