@@ -42,6 +42,22 @@ defmodule CloudOrchestrator.InstanceRegistry do
     )
   end
 
+  def handle_proxy_request_result(%{"state" => "running"} = instance, conn, path),
+    do: runner().handle_proxy_request_result(instance, conn, path)
+
+  def handle_proxy_request_result(instance, _conn, _path) do
+    {:ok,
+     %{
+       status: 503,
+       headers: [{"content-type", "application/json"}],
+       body:
+         Jason.encode!(%{
+           error: "runtime_not_ready",
+           instance: public_instance(instance)
+         })
+     }}
+  end
+
   def count, do: GenServer.call(__MODULE__, :count)
   def reset, do: GenServer.call(__MODULE__, :reset)
 

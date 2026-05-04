@@ -22,6 +22,7 @@ config :cloud_orchestrator,
     System.get_env("CLOUD_ORCHESTRATOR_HOST_DATA_DIR") ||
       System.get_env("CLOUD_ORCHESTRATOR_DATA_DIR") ||
       "/tmp/cloud-orchestrator",
+  transfer_public_host: System.get_env("CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST"),
   transfer_port_start: String.to_integer(System.get_env("TRANSFER_PORT_START") || "22000"),
   transfer_port_end: String.to_integer(System.get_env("TRANSFER_PORT_END") || "22099")
 

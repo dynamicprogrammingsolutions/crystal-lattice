@@ -3,10 +3,10 @@ Fix cloud runtime tool execution so relative paths resolve inside the transferre
 
 ## Requirements checklist
 
-- [ ] Change the cloud runtime startup to `chdir` into the materialized cloud workspace before initializing `AgentApplication`.
-- [ ] Verify shell/apply-patch tools default to the transferred project directory when config uses `working_directory: "."` without request-time absolute path overrides.
-- [ ] Keep this first fix limited to runtime cwd behavior; do not solve path-policy/config override concerns in the same change unless needed by tests.
-- [ ] Document or test the remaining issue: some directory references, such as `allowed_paths: [".."]`, may need cloud-specific config overrides during transfer.
+- [x] Change the cloud runtime startup to `chdir` into the materialized cloud workspace before initializing `AgentApplication`.
+- [x] Verify shell/apply-patch tools default to the transferred project directory when config uses `working_directory: "."` without request-time absolute path overrides.
+- [x] Keep this first fix limited to runtime cwd behavior; do not solve path-policy/config override concerns in the same change unless needed by tests.
+- [x] Document or test the remaining issue: some directory references, such as `allowed_paths: [".."]`, may need cloud-specific config overrides during transfer.
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
@@ -94,3 +94,29 @@ allowed_paths: ["/cloud-agent/instance/workspace"]
 ```
 
 That masks this bug. The regression test for this task should exercise the default config behavior directly, with `working_directory: "."` resolving from the cloud runtime process cwd after startup changes to `os.chdir(workspace_dir())`.
+
+## Execution plan
+
+Added during completion.
+
+1. Update `cloud-orchestrator/runtime/python/runtime.py` so `_initialize_runtime()` calls `os.chdir(workspace_dir())` after `_bootstrap_from_transfer()` and before `AgentApplication` is initialized.
+2. Keep the fix limited to runtime cwd behavior. Do not rewrite `working_directory`, `allowed_paths`, portable transfer config, or request-time overrides.
+3. Add a focused regression test that imports the runtime module with temporary cloud paths, fakes `AgentApplication`, calls `_initialize_runtime()`, and asserts the process cwd is the materialized workspace at app construction time.
+4. Run the focused regression and nearby cloud-agent transfer tests that do not require cloud credentials.
+5. Record in completion notes that the broader cloud-specific path policy issue remains, especially configs such as `allowed_paths: [".."]`.
+
+## Completion Notes
+
+Added during completion.
+
+- Updated `cloud-orchestrator/runtime/python/runtime.py` so `_initialize_runtime()` changes the process cwd to `workspace_dir()` immediately after transfer bootstrap and before `AgentApplication` construction.
+- Added `application/python/tests/test_cloud_runtime_workdir.py`, which materializes a fake transferred workspace, fakes `AgentApplication`, and asserts app initialization observes the workspace as `Path.cwd()`.
+- Left transfer-time path policy untouched. Config entries such as `allowed_paths: [".."]` may still need a later cloud-specific override mechanism in `prepare_cloud_transfer()`.
+- Verification:
+  - `pytest application/python/tests/test_cloud_runtime_workdir.py -q`
+  - `PYTHONPATH=plugins/cloud-agent-app/src pytest plugins/cloud-agent-app/tests/test_cloud_agent_app_plugin.py -q`
+  - `mix test` from `cloud-orchestrator`
+- Additional gated e2e attempt after provider credentials were loaded from `.env`:
+  - `RUN_CLOUD_ORCHESTRATOR_E2E=1 RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E=1 npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e -t "runs local-cloud-local bash and apply_patch chain with codex-openrouter"`
+  - Result: failed after the cloud turn timed out waiting for `/cloud-agent/workspace/files/chain.txt` to contain `local1=alpha\ncloud2=alpha-bravo`.
+  - Broader cloud e2e runs are deferred until tasks `tasks/20260429-cloud-agent-orchestrator/066-connection-created-session-routing.md` and `tasks/20260429-cloud-agent-orchestrator/067-cloud-transfer-endpoint-configuration.md` are complete or explicitly cleared for testing.

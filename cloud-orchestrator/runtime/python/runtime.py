@@ -259,6 +259,7 @@ def _initialize_runtime() -> None:
         )
         server_mod._agent_app = None
         _bootstrap_from_transfer()
+        os.chdir(workspace_dir())
         _set_runtime_status(startup_stage="agent_application_initializing")
         server_mod._agent_app = AgentApplication(
             str(config_path()),

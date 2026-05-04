@@ -211,12 +211,9 @@ class CloudAgentAppPlugin:
             transfer = self._post_json(
                 orchestrator_url,
                 "/transfers",
-                {
-                    "direction": "upload",
-                    "method": state.get("transfer_method", DEFAULT_TRANSFER_METHOD),
-                    "public_host": state.get("transfer_public_host"),
-                    "public_key": key_paths["public_key"],
-                },
+                self._transfer_create_payload(
+                    state, direction="upload", public_key=key_paths["public_key"]
+                ),
                 token=state.get("orchestrator_token"),
             )
 
@@ -351,12 +348,9 @@ class CloudAgentAppPlugin:
             transfer = self._post_json(
                 orchestrator_url,
                 "/transfers",
-                {
-                    "direction": "download",
-                    "method": state.get("transfer_method", DEFAULT_TRANSFER_METHOD),
-                    "public_host": state.get("transfer_public_host"),
-                    "public_key": key_paths["public_key"],
-                },
+                self._transfer_create_payload(
+                    state, direction="download", public_key=key_paths["public_key"]
+                ),
                 token=state.get("orchestrator_token"),
             )
             transfer_id = str(transfer["transfer_id"])
@@ -541,6 +535,19 @@ class CloudAgentAppPlugin:
             ),
         }
         self._run_script(adapter_script, env, cwd=cwd)
+
+    def _transfer_create_payload(
+        self, state: Dict[str, Any], *, direction: str, public_key: str
+    ) -> Dict[str, Any]:
+        payload = {
+            "direction": direction,
+            "method": state.get("transfer_method", DEFAULT_TRANSFER_METHOD),
+            "public_key": public_key,
+        }
+        public_host = state.get("transfer_public_host")
+        if isinstance(public_host, str) and public_host.strip():
+            payload["public_host"] = public_host
+        return payload
 
     def _join_shell_args(self, value: Any) -> str:
         if not isinstance(value, list):

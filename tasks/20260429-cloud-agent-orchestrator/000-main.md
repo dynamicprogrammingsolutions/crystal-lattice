@@ -14,10 +14,18 @@ Plan and implement cloud agent orchestration for the terminal/server application
 - [x] `tasks/20260429-cloud-agent-orchestrator/055-cloud-runtime-startup-optimizations.md`
 - [x] `tasks/20260429-cloud-agent-orchestrator/060-connection-scoped-cloud-routing.md`
 - [x] `tasks/20260429-cloud-agent-orchestrator/062-clean-up-e2e-test-realism.md`
-- [ ] `tasks/20260429-cloud-agent-orchestrator/065-cloud-runtime-working-directory.md`
-- [ ] `tasks/20260429-cloud-agent-orchestrator/066-connection-created-session-routing.md`
-- [ ] `tasks/20260429-cloud-agent-orchestrator/067-cloud-transfer-endpoint-configuration.md`
-- [ ] `tasks/20260429-cloud-agent-orchestrator/068-real-tool-sync-back-e2e.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/065-cloud-runtime-working-directory.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/066-connection-created-session-routing.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/067-cloud-transfer-endpoint-configuration.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/068-real-tool-sync-back-e2e.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/070-cloud-profile-config-no-behavior-change.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/080-default-cloud-profile-scripts.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/090-sync-profile-selection-ui.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/100-cloud-profile-user-docs.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/110-dockerfile-container-profiles.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/120-explicit-ssh-transfer-adapter-script.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/130-script-driven-cloud-layout.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/140-cloud-specific-config-overrides.md`
 
 ## Goals
 

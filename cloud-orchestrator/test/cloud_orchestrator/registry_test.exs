@@ -37,6 +37,16 @@ defmodule CloudOrchestrator.TestAsyncRunner do
     |> put_resp_content_type("application/json")
     |> send_resp(200, Jason.encode!(%{ok: true}))
   end
+
+  @impl true
+  def handle_proxy_request_result(_instance, _conn, _path) do
+    {:ok,
+     %{
+       status: 200,
+       headers: [{"content-type", "application/json"}],
+       body: Jason.encode!(%{ok: true})
+     }}
+  end
 end
 
 defmodule CloudOrchestrator.RegistryTest do
@@ -48,6 +58,10 @@ defmodule CloudOrchestrator.RegistryTest do
     System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH", "1")
     previous_runner = Application.get_env(:cloud_orchestrator, :runner)
     previous_async_status = Application.get_env(:cloud_orchestrator, :test_async_runtime_status)
+
+    previous_transfer_public_host =
+      Application.get_env(:cloud_orchestrator, :transfer_public_host)
+
     TransferRegistry.reset()
     InstanceRegistry.reset()
     ConnectionRegistry.reset()
@@ -55,6 +69,7 @@ defmodule CloudOrchestrator.RegistryTest do
     on_exit(fn ->
       restore_env(:runner, previous_runner)
       restore_env(:test_async_runtime_status, previous_async_status)
+      restore_env(:transfer_public_host, previous_transfer_public_host)
       TransferRegistry.reset()
       InstanceRegistry.reset()
       ConnectionRegistry.reset()
@@ -94,6 +109,36 @@ defmodule CloudOrchestrator.RegistryTest do
     assert instance["session_id"] == "session-1"
     assert is_binary(instance["token"])
     refute Map.has_key?(instance, "proxy_base_url")
+  end
+
+  test "managed SSH transfer endpoints use configured transfer public host by default" do
+    Application.put_env(:cloud_orchestrator, :transfer_public_host, "origin.example.test")
+
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "method" => "managed_ssh",
+               "port" => 22002,
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert transfer["endpoint"]["host"] == "origin.example.test"
+    assert transfer["endpoint"]["port"] == 22002
+  end
+
+  test "managed SSH request public_host overrides configured transfer public host" do
+    Application.put_env(:cloud_orchestrator, :transfer_public_host, "origin.example.test")
+
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "method" => "managed_ssh",
+               "public_host" => "override.example.test",
+               "port" => 22003,
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert transfer["endpoint"]["host"] == "override.example.test"
   end
 
   test "refuses to start from a transfer that is not ready" do
@@ -155,6 +200,45 @@ defmodule CloudOrchestrator.RegistryTest do
     assert {:ok, claims} = Token.verify(instance_1["token"])
     assert claims["connection_id"] == instance_1["connection_id"]
     assert claims["instance_id"] == instance_1["instance_id"]
+  end
+
+  test "registers routes for sessions created through an existing connection instance" do
+    assert {:ok, transfer} = ready_transfer()
+
+    assert {:ok, instance} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{"connection_key" => "route-created-session", "reuse" => true},
+               "session_id" => "session-original",
+               "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]}
+             })
+
+    connection_id = instance["connection_id"]
+    instance_id = instance["instance_id"]
+
+    assert :ok =
+             ConnectionRegistry.register_route(
+               connection_id,
+               "session-cloud-created",
+               instance_id
+             )
+
+    assert {:ok, routed} =
+             ConnectionRegistry.resolve_route(connection_id, "session-cloud-created")
+
+    assert routed["instance_id"] == instance_id
+
+    assert {:error, :not_found} =
+             ConnectionRegistry.register_route(
+               "missing-connection",
+               "session-cloud-created",
+               instance_id
+             )
+
+    assert {:error, :invalid_session_id} =
+             ConnectionRegistry.register_route(connection_id, "", instance_id)
+
+    assert {:error, :instance_not_in_connection} =
+             ConnectionRegistry.register_route(connection_id, "session-other", "missing-instance")
   end
 
   test "async runners return starting instances and later transition to running" do

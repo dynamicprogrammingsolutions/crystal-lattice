@@ -39,4 +39,14 @@ defmodule CloudOrchestrator.Runner.InMemory do
     |> put_resp_content_type("application/json")
     |> send_resp(501, Jason.encode!(%{error: "memory_runner_not_proxyable"}))
   end
+
+  @impl true
+  def handle_proxy_request_result(_instance, _conn, _path) do
+    {:ok,
+     %{
+       status: 501,
+       headers: [{"content-type", "application/json"}],
+       body: Jason.encode!(%{error: "memory_runner_not_proxyable"})
+     }}
+  end
 end

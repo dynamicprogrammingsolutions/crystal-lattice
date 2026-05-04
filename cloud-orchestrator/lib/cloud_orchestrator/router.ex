@@ -1,7 +1,7 @@
 defmodule CloudOrchestrator.Router do
   use Plug.Router
 
-  alias CloudOrchestrator.{ConnectionRegistry, InstanceRegistry, Token, TransferRegistry}
+  alias CloudOrchestrator.{ConnectionRegistry, InstanceRegistry, Proxy, Token, TransferRegistry}
 
   plug(:match)
   plug(:dispatch)
@@ -157,7 +157,7 @@ defmodule CloudOrchestrator.Router do
     with :ok <- authorize_connection_proxy(conn, connection_id) do
       case resolve_connection_proxy_instance(conn, connection_id, path) do
         {:ok, instance} ->
-          InstanceRegistry.handle_proxy_request(instance, conn, "/" <> Enum.join(path, "/"))
+          handle_connection_proxy_request(conn, connection_id, instance, path)
 
         {:sessions, result} ->
           send_json(conn, 200, result)
@@ -216,6 +216,53 @@ defmodule CloudOrchestrator.Router do
         end
     end
   end
+
+  defp handle_connection_proxy_request(%{method: "POST"} = conn, connection_id, instance, [
+         "sessions"
+       ]) do
+    case InstanceRegistry.handle_proxy_request_result(instance, conn, "/sessions") do
+      {:ok, response} ->
+        maybe_register_created_session(connection_id, instance["instance_id"], response)
+        Proxy.send_proxy_response(conn, response)
+
+      {:error, reason} ->
+        send_json(conn, 502, %{error: "proxy_failed", detail: inspect(reason)})
+    end
+  end
+
+  defp handle_connection_proxy_request(conn, _connection_id, instance, path) do
+    InstanceRegistry.handle_proxy_request(instance, conn, "/" <> Enum.join(path, "/"))
+  end
+
+  defp maybe_register_created_session(connection_id, instance_id, %{status: status, body: body})
+       when status in 200..299 do
+    case created_session_id(body) do
+      nil -> :ok
+      session_id -> ConnectionRegistry.register_route(connection_id, session_id, instance_id)
+    end
+  end
+
+  defp maybe_register_created_session(_connection_id, _instance_id, _response), do: :ok
+
+  defp created_session_id(body) when is_binary(body) do
+    with {:ok, payload} <- Jason.decode(body) do
+      case payload do
+        %{"session" => %{"session_id" => session_id}}
+        when is_binary(session_id) and session_id != "" ->
+          session_id
+
+        %{"session_id" => session_id} when is_binary(session_id) and session_id != "" ->
+          session_id
+
+        _ ->
+          nil
+      end
+    else
+      _ -> nil
+    end
+  end
+
+  defp created_session_id(_body), do: nil
 
   defp session_id_from_proxy(_conn, ["sessions", session_id | _rest])
        when is_binary(session_id) do

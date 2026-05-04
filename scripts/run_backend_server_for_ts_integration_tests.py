@@ -63,6 +63,7 @@ def main() -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
 
+    from agent_terminal_app.__main__ import _collect_additional_dotenv_values
     from agent_terminal_app import server as server_mod
 
     class DelayingSessionStore:
@@ -101,6 +102,9 @@ def main() -> None:
             max_events_global=args.max_events_global,
             max_event_age_seconds=args.max_event_age_seconds,
         ),
+        # Mirror the terminal app entrypoint so TS integration tests exercise
+        # normal config-adjacent and current-directory dotenv resolution.
+        config_env=_collect_additional_dotenv_values(config_path),
     )
     if args.session_save_delay_ms > 0:
         server_mod._agent_app._session_store = DelayingSessionStore(  # type: ignore[attr-defined]

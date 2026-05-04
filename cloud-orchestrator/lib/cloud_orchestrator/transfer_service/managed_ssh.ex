@@ -80,9 +80,17 @@ defmodule CloudOrchestrator.TransferService.ManagedSSH do
 
   defp endpoint_for(params) do
     %{
-      "host" => Map.get(params, "public_host") || host_from_public_url()
+      "host" =>
+        present(Map.get(params, "public_host")) ||
+          present(Application.get_env(:cloud_orchestrator, :transfer_public_host)) ||
+          host_from_public_url()
     }
   end
+
+  defp present(value) when is_binary(value),
+    do: if(String.trim(value) == "", do: nil, else: value)
+
+  defp present(_value), do: nil
 
   defp wait_for_host_key(container_id) do
     deadline = System.monotonic_time(:millisecond) + 15_000

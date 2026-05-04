@@ -17,6 +17,9 @@ defmodule CloudOrchestrator.ConnectionRegistry do
   def resolve_route(connection_id, session_id),
     do: GenServer.call(__MODULE__, {:resolve_route, connection_id, session_id})
 
+  def register_route(connection_id, session_id, instance_id),
+    do: GenServer.call(__MODULE__, {:register_route, connection_id, session_id, instance_id})
+
   def default_instance(connection_id),
     do: GenServer.call(__MODULE__, {:default_instance, connection_id})
 
@@ -85,6 +88,18 @@ defmodule CloudOrchestrator.ConnectionRegistry do
       end
 
     {:reply, reply, state}
+  end
+
+  def handle_call({:register_route, connection_id, session_id, instance_id}, _from, state) do
+    with {:ok, connection} <- fetch_connection(state, connection_id),
+         :ok <- validate_session_id(session_id),
+         true <- instance_id in (connection["instance_ids"] || []),
+         {:ok, _instance} <- InstanceRegistry.get_internal(instance_id) do
+      {:reply, :ok, put_route(state, connection_id, session_id, instance_id)}
+    else
+      false -> {:reply, {:error, :instance_not_in_connection}, state}
+      error -> {:reply, error, state}
+    end
   end
 
   def handle_call({:default_instance, connection_id}, _from, state) do
@@ -240,6 +255,9 @@ defmodule CloudOrchestrator.ConnectionRegistry do
   defp default_instance_id(%{"default_instance_id" => id}) when is_binary(id), do: {:ok, id}
   defp default_instance_id(%{"instance_ids" => [id | _]}) when is_binary(id), do: {:ok, id}
   defp default_instance_id(_connection), do: {:error, :not_found}
+
+  defp validate_session_id(session_id) when is_binary(session_id) and session_id != "", do: :ok
+  defp validate_session_id(_session_id), do: {:error, :invalid_session_id}
 
   defp aggregate_sessions(connection, state) do
     allowed_session_ids =

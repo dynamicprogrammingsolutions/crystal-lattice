@@ -214,6 +214,7 @@ export interface StartedCloudOrchestrator {
   baseUrl: string;
   port: number;
   dataDir: string;
+  transferPublicHost?: string;
   stop: () => Promise<void>;
 }
 
@@ -429,6 +430,7 @@ async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator>
 
   return {
     baseUrl: parsed.orchestratorUrl,
+    transferPublicHost: parsed.transferPublicHost,
     port: 0,
     dataDir: '',
     stop,
@@ -438,6 +440,7 @@ async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator>
 function parseCloudOrchestratorOutput(output: string): {
   orchestratorUrl: string;
   controlToken?: string;
+  transferPublicHost?: string;
 } {
   const trimmed = output.trim();
   const lines = trimmed.split(/\r?\n/);
@@ -449,6 +452,12 @@ function parseCloudOrchestratorOutput(output: string): {
     if (typeof orchestratorUrl === 'string' && orchestratorUrl) {
       return {
         orchestratorUrl,
+        transferPublicHost:
+          typeof parsed.transferPublicHost === 'string'
+            ? parsed.transferPublicHost
+            : typeof parsed.CloudOrchestratorTransferPublicHost === 'string'
+              ? parsed.CloudOrchestratorTransferPublicHost
+              : undefined,
         controlToken: typeof parsed.controlToken === 'string' ? parsed.controlToken : undefined,
       };
     }
@@ -456,7 +465,11 @@ function parseCloudOrchestratorOutput(output: string): {
 
   const match = trimmed.match(/CloudOrchestratorUrl=([^\s]+)/);
   if (match) {
-    return { orchestratorUrl: match[1] };
+    const transferHostMatch = trimmed.match(/CloudOrchestratorTransferPublicHost=([^\s]+)/);
+    return {
+      orchestratorUrl: match[1],
+      transferPublicHost: transferHostMatch ? transferHostMatch[1] : undefined,
+    };
   }
 
   throw new Error(`Unable to parse CloudOrchestratorUrl from output:\n${output}`);

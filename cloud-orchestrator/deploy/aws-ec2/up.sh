@@ -31,6 +31,7 @@ deploy_stack "$origin_stack" "$SCRIPT_DIR/secure-origin.yaml" \
 CLOUD_ORCHESTRATOR_EC2_URL="$(stack_output "$origin_stack" Ec2HttpUrl)"
 CLOUD_ORCHESTRATOR_INSTANCE_ID="$(stack_output "$origin_stack" InstanceId)"
 origin_domain="$(stack_output "$origin_stack" Ec2PublicDnsName)"
+CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST="$origin_domain"
 
 deploy_stack "$edge_stack" "$SCRIPT_DIR/secure-edge.yaml" \
   StackName="$STACK_NAME" \
@@ -44,11 +45,11 @@ save_state
 wait_http_health "${CLOUD_ORCHESTRATOR_EC2_URL%/}/health"
 
 ssm_params="$(mktemp -t cloud-orchestrator-ssm.XXXXXX.json)"
-python3 - "$ssm_params" "$CLOUD_ORCHESTRATOR_URL" "$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" "$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE" "$ORCHESTRATOR_IMAGE_URI" "$RUNTIME_IMAGE_URI" "$TRANSFER_SSH_IMAGE_URI" <<'PY'
+python3 - "$ssm_params" "$CLOUD_ORCHESTRATOR_URL" "$CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST" "$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" "$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE" "$ORCHESTRATOR_IMAGE_URI" "$RUNTIME_IMAGE_URI" "$TRANSFER_SSH_IMAGE_URI" <<'PY'
 import json
 import sys
 
-path, public_url, control_token, token_secret, orchestrator_image, runtime_image, transfer_ssh_image = sys.argv[1:8]
+path, public_url, transfer_public_host, control_token, token_secret, orchestrator_image, runtime_image, transfer_ssh_image = sys.argv[1:9]
 commands = [
     f"docker pull {runtime_image}",
     f"docker pull {transfer_ssh_image}",
@@ -68,6 +69,7 @@ commands = [
         "-e SECRET_KEY_BASE=$(openssl rand -hex 64) "
         "-e CLOUD_ORCHESTRATOR_RUNNER=docker "
         f"-e CLOUD_ORCHESTRATOR_PUBLIC_URL={public_url} "
+        f"-e CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST={transfer_public_host} "
         f"-e CLOUD_ORCHESTRATOR_CONTROL_TOKEN={control_token} "
         f"-e CLOUD_ORCHESTRATOR_TOKEN_SECRET={token_secret} "
         "-e CLOUD_ORCHESTRATOR_DATA_DIR=/var/lib/cloud-orchestrator "

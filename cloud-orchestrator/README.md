@@ -83,7 +83,7 @@ server {
 }
 ```
 
-Expose the configured managed-SSH transfer port range, for example `22000-22099`, to clients that will upload/download workspace data with rsync over SSH.
+Expose the configured managed-SSH transfer port range, for example `22000-22099`, to clients that will upload/download workspace data with rsync over SSH. When the public HTTP URL is not the same host clients should use for those SSH ports, set `CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST` to the SSH-reachable host. If it is unset, managed SSH endpoints fall back to the host from `CLOUD_ORCHESTRATOR_PUBLIC_URL`.
 
 ## Transfer Contract
 
@@ -166,7 +166,7 @@ curl -fsS -X POST http://127.0.0.1:4100/instances \
 
 ## AWS EC2 Docker Host
 
-The default AWS path provisions an EC2 Docker host and exposes the orchestrator through a generated HTTPS address. It is guarded by `ALLOW_AWS_DEPLOY=1` and should tear down resources after smoke tests.
+The default AWS path provisions an EC2 Docker host and exposes the orchestrator HTTP API through a generated CloudFront HTTPS address. Managed SSH transfer slots are advertised with the EC2 origin public DNS so local apps can use CloudFront for HTTP while rsync connects directly to the EC2 transfer ports. It is guarded by `ALLOW_AWS_DEPLOY=1` and should tear down resources after smoke tests.
 
 See `deploy/aws-ec2/README.md`.
 

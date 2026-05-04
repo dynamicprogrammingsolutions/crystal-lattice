@@ -6,4 +6,7 @@ defmodule CloudOrchestrator.Runner do
   @callback export_instance(map(), map()) :: {:ok, map()} | {:error, term()}
   @callback close_instance(map(), map()) :: {:ok, map()} | {:error, term()}
   @callback handle_proxy_request(map(), Plug.Conn.t(), String.t()) :: Plug.Conn.t()
+  @callback handle_proxy_request_result(map(), Plug.Conn.t(), String.t()) ::
+              {:ok, %{status: integer(), headers: [{String.t(), String.t()}], body: String.t()}}
+              | {:error, term()}
 end

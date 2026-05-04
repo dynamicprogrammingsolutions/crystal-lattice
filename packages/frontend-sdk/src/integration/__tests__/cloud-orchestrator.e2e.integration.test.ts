@@ -22,23 +22,22 @@ const RUN = process.env.RUN_CLOUD_ORCHESTRATOR_E2E === '1';
 const describeIf = RUN ? describe : describe.skip;
 const CLOUD_ORCHESTRATOR_E2E_MODE = process.env.CLOUD_ORCHESTRATOR_E2E_MODE || '';
 const IS_AWS_E2E = CLOUD_ORCHESTRATOR_E2E_MODE.startsWith('aws-');
+// Keep provider-gated suites gated only by explicit test flags. The backend
+// application loads dotenv values from the config directory, .crystal dirs, and
+// the current directory/parents; checking provider keys in this Node process
+// would skip before exercising the normal application credential path.
 const RUN_OPENROUTER =
   RUN &&
-  process.env.RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E === '1' &&
-  !!process.env.OPENROUTER_API_KEY;
+  process.env.RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E === '1';
 const describeOpenRouterIf = RUN_OPENROUTER ? describe : describe.skip;
 const RUN_CODEX_DEFAULT_CONFIG =
   RUN &&
-  process.env.RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E === '1' &&
-  !!process.env.OPENROUTER_API_KEY &&
-  !!process.env.OPENAI_API_KEY;
+  process.env.RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E === '1';
 const describeCodexDefaultConfigIf = RUN_CODEX_DEFAULT_CONFIG ? describe.sequential : describe.skip;
 const RUN_CODEX_DEFAULT_CONFIG_EC2 =
   RUN &&
   process.env.RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_EC2_E2E === '1' &&
-  CLOUD_ORCHESTRATOR_E2E_MODE === 'aws-ec2-cloudfront' &&
-  !!process.env.OPENROUTER_API_KEY &&
-  !!process.env.OPENAI_API_KEY;
+  CLOUD_ORCHESTRATOR_E2E_MODE === 'aws-ec2-cloudfront';
 const describeCodexDefaultConfigEc2If = RUN_CODEX_DEFAULT_CONFIG_EC2
   ? describe.sequential
   : describe.skip;
@@ -306,6 +305,129 @@ function expectDefaultCodexDeveloperMessage(messages: ListedMessages, label: str
   );
 }
 
+function hasToolResult(
+  messages: ListedMessages,
+  toolName: string,
+  contentIncludes: string,
+): boolean {
+  return messages.messages.some((entry) => {
+    const message = entry.message;
+    return (
+      message.role === 'tool' &&
+      message.metadata?.tool_name === toolName &&
+      message.content.includes(contentIncludes)
+    );
+  });
+}
+
+function hasPendingToolCall(messages: ListedMessages): boolean {
+  const answered = new Set<string>();
+  for (const entry of messages.messages) {
+    const message = entry.message;
+    const toolCallId = message.metadata?.tool_call_id;
+    if (message.role === 'tool' && typeof toolCallId === 'string' && toolCallId.length > 0) {
+      answered.add(toolCallId);
+    }
+  }
+
+  for (const entry of [...messages.messages].reverse()) {
+    const message = entry.message;
+    if (message.role !== 'assistant') {
+      continue;
+    }
+    const calls = message.metadata?.tool_calls;
+    if (!Array.isArray(calls) || calls.length === 0) {
+      return false;
+    }
+    return calls.some((call) => {
+      const callId = typeof call?.id === 'string' ? call.id : undefined;
+      return callId ? !answered.has(callId) : true;
+    });
+  }
+
+  return false;
+}
+
+function summarizeMessages(messages: ListedMessages): string {
+  return messages.messages
+    .slice(-8)
+    .map((entry) => {
+      const message = entry.message;
+      const metadata = message.metadata || {};
+      const toolName = typeof metadata.tool_name === 'string' ? ` tool=${metadata.tool_name}` : '';
+      const calls = Array.isArray(metadata.tool_calls)
+        ? ` tool_calls=${metadata.tool_calls
+            .map((call) => call?.function?.name || call?.name || call?.id || '?')
+            .join(',')}`
+        : '';
+      const content = String(message.content || '').replace(/\s+/g, ' ').slice(0, 120);
+      return `${entry.index}:${message.role}${toolName}${calls} ${content}`;
+    })
+    .join(' | ');
+}
+
+function hasAssistantOrToolAfter(messages: ListedMessages, startCount: number): boolean {
+  return messages.messages
+    .slice(startCount)
+    .some((entry) => entry.message.role === 'assistant' || entry.message.role === 'tool');
+}
+
+async function waitForRequestIdle(options: {
+  backend: RestAgentBackend;
+  sessionId: string;
+  requestId?: string;
+  startCount: number;
+  label: string;
+  timeoutMs: number;
+  intervalMs?: number;
+  debugContent?: () => string | Promise<string>;
+}): Promise<ListedMessages> {
+  const intervalMs = options.intervalMs ?? 1000;
+  const deadline = Date.now() + options.timeoutMs;
+  let observedRequest = !options.requestId;
+  let latest: ListedMessages | null = null;
+
+  while (Date.now() < deadline) {
+    latest = await options.backend.listMessages(options.sessionId);
+    if (
+      options.requestId &&
+      (latest.activeRequestId === options.requestId ||
+        hasAssistantOrToolAfter(latest, options.startCount))
+    ) {
+      observedRequest = true;
+    }
+    if (
+      observedRequest &&
+      latest.activeRequestId === null &&
+      hasAssistantOrToolAfter(latest, options.startCount)
+    ) {
+      return latest;
+    }
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+
+  const messages = latest ?? await options.backend.listMessages(options.sessionId);
+  const debug = options.debugContent ? await options.debugContent() : '';
+  throw new Error(
+    [
+      `${options.label}: request did not become idle before timeout`,
+      `request_id=${options.requestId || '<unknown>'}`,
+      `active_request_id=${messages.activeRequestId || '<none>'}`,
+      `message_count=${messages.messages.length}`,
+      `recent_messages=${summarizeMessages(messages)}`,
+      debug ? `debug=${debug}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
+  );
+}
+
+function expectCompletedVisibleTurn(messages: ListedMessages, startCount: number, label: string): void {
+  expect(messages.activeRequestId, `${label}: request should be idle`).toBeNull();
+  expect(hasAssistantOrToolAfter(messages, startCount), `${label}: expected assistant/tool activity`).toBe(true);
+  expect(hasPendingToolCall(messages), `${label}: expected no pending tool call`).toBe(false);
+}
+
 function writeFileToolCall(filePath: string, content: string): Record<string, any> {
   return {
     id: `call_write_${filePath.replace(/[^A-Za-z0-9_]/g, '_')}`,
@@ -399,8 +521,8 @@ async function runDefaultConfigCodexChain(options: {
     env: {
       CONFIG_DIR: configRoot,
       WORKING_DIR: workspaceDir,
-      OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+      // Do not pass provider API keys here. Empty values would override the
+      // backend application's normal dotenv lookup from the current directory.
     },
   });
 
@@ -417,7 +539,8 @@ async function runDefaultConfigCodexChain(options: {
       strip_leading_system_or_developer_message: false,
     };
 
-    await localBackend.sendMessage(sessionId, {
+    const localFirstStartCount = (await localBackend.listMessages(sessionId)).messages.length;
+    const localFirstSend = await localBackend.sendMessage(sessionId, {
       message: {
         role: 'user',
         content: [
@@ -436,18 +559,30 @@ async function runDefaultConfigCodexChain(options: {
       },
       configOverrides: codexTurnOverrides,
     });
-    await waitForAsync(
-      async () =>
-        fs.existsSync(path.join(workspaceDir, 'chain.txt')) &&
-        fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim() === 'local1=alpha',
-      { timeoutMs: 180_000, intervalMs: 1000 },
+    const localFirstMessages = await waitForRequestIdle({
+      backend: localBackend,
+      sessionId,
+      requestId: localFirstSend.request_id,
+      startCount: localFirstStartCount,
+      label: `${options.agentId} local first turn`,
+      timeoutMs: 180_000,
+      debugContent: () =>
+        fs.existsSync(path.join(workspaceDir, 'chain.txt'))
+          ? fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8')
+          : '<missing chain.txt>',
+    });
+    expectCompletedVisibleTurn(
+      localFirstMessages,
+      localFirstStartCount,
+      `${options.agentId} local first turn`,
     );
+    expect(fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim()).toBe('local1=alpha');
     expectShellAndApplyPatch(
-      await localBackend.listMessages(sessionId),
+      localFirstMessages,
       `${options.agentId} local first turn`,
     );
     expectDefaultCodexDeveloperMessage(
-      await localBackend.listMessages(sessionId),
+      localFirstMessages,
       `${options.agentId} local first turn`,
     );
 
@@ -464,7 +599,8 @@ async function runDefaultConfigCodexChain(options: {
     const cloudTransport = cloudTransportFromLink(cloudLink, 180_000);
     const cloudBackend = new RestAgentBackend({ transport: cloudTransport });
 
-    await cloudBackend.sendMessage(sessionId, {
+    const cloudStartCount = (await cloudBackend.listMessages(sessionId)).messages.length;
+    const cloudSend = await cloudBackend.sendMessage(sessionId, {
       message: {
         role: 'user',
         content: [
@@ -485,16 +621,29 @@ async function runDefaultConfigCodexChain(options: {
       },
       configOverrides: codexTurnOverrides,
     });
-    await waitForAsync(
-      async () => (await readCloudText(cloudTransport, 'chain.txt'))?.trim() === 'local1=alpha\ncloud2=alpha-bravo',
-      { timeoutMs: 180_000, intervalMs: 1000 },
+    const cloudMessagesAfterTurn = await waitForRequestIdle({
+      backend: cloudBackend,
+      sessionId,
+      requestId: cloudSend.request_id,
+      startCount: cloudStartCount,
+      label: `${options.agentId} cloud turn`,
+      timeoutMs: 180_000,
+      debugContent: async () => (await readCloudText(cloudTransport, 'chain.txt')) || '<missing chain.txt>',
+    });
+    expectCompletedVisibleTurn(
+      cloudMessagesAfterTurn,
+      cloudStartCount,
+      `${options.agentId} cloud turn`,
+    );
+    expect((await readCloudText(cloudTransport, 'chain.txt'))?.trim()).toBe(
+      'local1=alpha\ncloud2=alpha-bravo',
     );
     expectShellAndApplyPatch(
-      await cloudBackend.listMessages(sessionId),
+      cloudMessagesAfterTurn,
       `${options.agentId} cloud turn`,
     );
     expectDefaultCodexDeveloperMessage(
-      await cloudBackend.listMessages(sessionId),
+      cloudMessagesAfterTurn,
       `${options.agentId} cloud turn`,
     );
 
@@ -513,7 +662,8 @@ async function runDefaultConfigCodexChain(options: {
       'local1=alpha\ncloud2=alpha-bravo',
     );
 
-    await localBackend.sendMessage(sessionId, {
+    const localFinalStartCount = (await localBackend.listMessages(sessionId)).messages.length;
+    const localFinalSend = await localBackend.sendMessage(sessionId, {
       message: {
         role: 'user',
         content: [
@@ -535,18 +685,32 @@ async function runDefaultConfigCodexChain(options: {
       },
       configOverrides: codexTurnOverrides,
     });
-    await waitForAsync(
-      async () =>
-        fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim() ===
-        'local1=alpha\ncloud2=alpha-bravo\nlocal3=alpha-bravo-charlie',
-      { timeoutMs: 180_000, intervalMs: 1000 },
+    const localFinalMessages = await waitForRequestIdle({
+      backend: localBackend,
+      sessionId,
+      requestId: localFinalSend.request_id,
+      startCount: localFinalStartCount,
+      label: `${options.agentId} final local turn`,
+      timeoutMs: 180_000,
+      debugContent: () =>
+        fs.existsSync(path.join(workspaceDir, 'chain.txt'))
+          ? fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8')
+          : '<missing chain.txt>',
+    });
+    expectCompletedVisibleTurn(
+      localFinalMessages,
+      localFinalStartCount,
+      `${options.agentId} final local turn`,
+    );
+    expect(fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim()).toBe(
+      'local1=alpha\ncloud2=alpha-bravo\nlocal3=alpha-bravo-charlie',
     );
     expectShellAndApplyPatch(
-      await localBackend.listMessages(sessionId),
+      localFinalMessages,
       `${options.agentId} final local turn`,
     );
     expectDefaultCodexDeveloperMessage(
-      await localBackend.listMessages(sessionId),
+      localFinalMessages,
       `${options.agentId} final local turn`,
     );
   } finally {
@@ -700,6 +864,10 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
 
       const cloudCreatedSession = await cloudBackend.createSession({ agentId: 'default' });
       const cloudCreatedSessionId = cloudCreatedSession.session.session_id;
+      const cloudSessionsAfterCreate = await cloudBackend.listSessions();
+      expect(
+        cloudSessionsAfterCreate.some((session) => session.session_id === cloudCreatedSessionId),
+      ).toBe(true);
       await cloudBackend.appendMessage(cloudCreatedSessionId, {
         role: 'assistant',
         content: 'Calling write_file.',
@@ -710,7 +878,11 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       await cloudBackend.send(cloudCreatedSessionId);
       await waitForAsync(
         async () =>
-          (await readCloudText(cloudTransport, 'from-cloud.txt')) === 'synced from cloud\n',
+          hasToolResult(
+            await cloudBackend.listMessages(cloudCreatedSessionId),
+            'write_file',
+            'from-cloud.txt',
+          ),
         { timeoutMs: 30_000, intervalMs: 500 },
       );
 
@@ -727,11 +899,6 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       expect(fs.readFileSync(path.join(workspaceDir, 'from-cloud.txt'), 'utf8')).toBe(
         'synced from cloud\n',
       );
-
-      const cloudSessionsAfterCreate = await cloudBackend.listSessions();
-      expect(
-        cloudSessionsAfterCreate.some((session) => session.session_id === cloudCreatedSessionId),
-      ).toBe(true);
 
       await localBackend.executeAction({
         pluginId: 'cloud',
@@ -953,8 +1120,9 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
         configPath,
         env: {
           CONFIG_DIR: configRoot,
-          OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || '',
           WORKING_DIR: workspaceDir,
+          // Do not pass provider API keys here. Empty values would override the
+          // backend application's normal dotenv lookup from the current directory.
         },
       });
       stopAll.push(async () => {
@@ -1011,6 +1179,10 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
 
       const cloudExecutionSession = await cloudBackend.createSession({ agentId: 'default' });
       const cloudExecutionSessionId = cloudExecutionSession.session.session_id;
+      const cloudSessionsAfterCreate = await cloudBackend.listSessions();
+      expect(
+        cloudSessionsAfterCreate.some((session) => session.session_id === cloudExecutionSessionId),
+      ).toBe(true);
 
       await cloudBackend.sendMessage(cloudExecutionSessionId, {
         message: {
@@ -1019,18 +1191,15 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
             "Use write_file to create cloud-openrouter.txt with exactly 'cloud ok\\n'. Reply done after the tool call.",
         },
       });
-      await waitForAsync(async () => {
-        try {
-          const result = await cloudTransport.request<{ content: string }>({
-            method: 'GET',
-            path: '/cloud-agent/workspace/files/cloud-openrouter.txt',
-            timeoutMs: 30_000,
-          });
-          return result.data.content === 'cloud ok\n';
-        } catch {
-          return false;
-        }
-      }, { timeoutMs: 180_000, intervalMs: 1000 });
+      await waitForAsync(
+        async () =>
+          hasToolResult(
+            await cloudBackend.listMessages(cloudExecutionSessionId),
+            'write_file',
+            'cloud-openrouter.txt',
+          ),
+        { timeoutMs: 180_000, intervalMs: 1000 },
+      );
 
       await localBackend.executeAction({
         pluginId: 'cloud',
@@ -1043,11 +1212,6 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
       });
 
       expect(fs.readFileSync(path.join(workspaceDir, 'cloud-openrouter.txt'), 'utf8')).toBe('cloud ok\n');
-
-      const cloudSessionsAfterCreate = await cloudBackend.listSessions();
-      expect(
-        cloudSessionsAfterCreate.some((session) => session.session_id === cloudExecutionSessionId),
-      ).toBe(true);
     },
     TEST_TIMEOUT_MS,
   );

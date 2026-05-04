@@ -167,6 +167,11 @@ defmodule CloudOrchestrator.Runner.Docker do
     Proxy.forward(conn, instance, path)
   end
 
+  @impl true
+  def handle_proxy_request_result(instance, conn, path) do
+    Proxy.forward_result(conn, instance, path)
+  end
+
   defp instance_path(instance_id) do
     Path.join([Application.fetch_env!(:cloud_orchestrator, :data_dir), "instances", instance_id])
   end

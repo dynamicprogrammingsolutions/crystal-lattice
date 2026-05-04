@@ -519,6 +519,14 @@ transfer slot. Projects can override `managed_ssh.adapter_script` for unusual
 transport needs, but workspace selection should stay in the project content
 scripts above.
 
+For deployments where the orchestrator HTTP endpoint and managed-SSH endpoint
+are different hosts, such as AWS CloudFront in front of an EC2 Docker host, the
+deployed orchestrator should be configured with its own transfer public host.
+The local app normally only needs `orchestrator_url` and `orchestrator_token`;
+it uses the SSH endpoint returned by `POST /transfers`. Advanced/manual
+deployments may still set `application.cloud_agent.transfer_public_host` to
+override the orchestrator-advertised transfer host.
+
 When a cloud agent starts, the local action generates a cloud runtime config
 under `.cloud-agent/config/config.json`, removes the local
 `application.cloud_agent` control-plane section, and copies the configured

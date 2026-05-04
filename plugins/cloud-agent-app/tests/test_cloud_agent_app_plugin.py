@@ -212,6 +212,7 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
     assert "inst_test" in display["actions"][0]["text"]
     assert calls[0]["url"] == "http://orchestrator.test/transfers"
     assert "public_key" in calls[0]["body"]
+    assert "public_host" not in calls[0]["body"]
     assert calls[2]["body"]["session_id"] == session.session_id
     assert calls[2]["body"]["transfer_ref"] == {"transfer_id": "tr_test"}
     assert calls[2]["body"]["connection_ref"]["reuse"] is True

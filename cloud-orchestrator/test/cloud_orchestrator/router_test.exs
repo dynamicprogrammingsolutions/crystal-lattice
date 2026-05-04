@@ -1,3 +1,79 @@
+defmodule CloudOrchestrator.TestSessionCreateRunner do
+  @behaviour CloudOrchestrator.Runner
+
+  alias CloudOrchestrator.Proxy
+  import Plug.Conn
+
+  @impl true
+  def start_instance(instance, _params) do
+    {:ok,
+     instance
+     |> Map.put("state", "running")
+     |> Map.put("startup_stage", "ready")
+     |> Map.put(
+       "proxy_base_url",
+       Application.fetch_env!(:cloud_orchestrator, :test_proxy_base_url)
+     )
+     |> Map.put("runner", "test_session_create")}
+  end
+
+  @impl true
+  def runtime_status(_instance), do: {:ready, %{"startup_stage" => "ready"}}
+
+  @impl true
+  def recent_logs(_instance), do: nil
+
+  @impl true
+  def export_instance(instance, params) do
+    {:ok, %{"instance_id" => instance["instance_id"], "transfer_ref" => params["transfer_ref"]}}
+  end
+
+  @impl true
+  def close_instance(instance, _params) do
+    {:ok, %{"instance_id" => instance["instance_id"], "state" => "closed"}}
+  end
+
+  @impl true
+  def handle_proxy_request(instance, conn, path), do: Proxy.forward(conn, instance, path)
+
+  @impl true
+  def handle_proxy_request_result(instance, conn, path),
+    do: Proxy.forward_result(conn, instance, path)
+end
+
+defmodule CloudOrchestrator.TestSessionRuntime do
+  use Plug.Router
+
+  plug(:match)
+  plug(:dispatch)
+
+  post "/sessions" do
+    send_json(conn, 201, %{
+      "session" => %{"session_id" => "session-cloud-created", "agent_id" => "default"}
+    })
+  end
+
+  get "/sessions" do
+    send_json(conn, 200, %{
+      "sessions" => [
+        %{"session_id" => "session-original"},
+        %{"session_id" => "session-cloud-created"},
+        %{"session_id" => "session-unrouted"}
+      ]
+    })
+  end
+
+  match _ do
+    send_json(conn, 404, %{error: "not_found"})
+  end
+
+  defp send_json(conn, status, data) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(status, Jason.encode!(data))
+  end
+end
+
 defmodule CloudOrchestrator.RouterTest do
   use ExUnit.Case
   import Plug.Conn
@@ -7,11 +83,15 @@ defmodule CloudOrchestrator.RouterTest do
 
   setup do
     System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH", "1")
+    previous_runner = Application.get_env(:cloud_orchestrator, :runner)
+    previous_proxy_base_url = Application.get_env(:cloud_orchestrator, :test_proxy_base_url)
     CloudOrchestrator.TransferRegistry.reset()
     CloudOrchestrator.InstanceRegistry.reset()
     CloudOrchestrator.ConnectionRegistry.reset()
 
     on_exit(fn ->
+      restore_env(:runner, previous_runner)
+      restore_env(:test_proxy_base_url, previous_proxy_base_url)
       CloudOrchestrator.TransferRegistry.reset()
       CloudOrchestrator.InstanceRegistry.reset()
       CloudOrchestrator.ConnectionRegistry.reset()
@@ -154,6 +234,61 @@ defmodule CloudOrchestrator.RouterTest do
     assert legacy.status == 501
   end
 
+  test "connection proxy registers sessions created by proxied POST sessions" do
+    base_url = start_test_session_runtime!()
+    Application.put_env(:cloud_orchestrator, :runner, CloudOrchestrator.TestSessionCreateRunner)
+    Application.put_env(:cloud_orchestrator, :test_proxy_base_url, base_url)
+
+    transfer = create_ready_transfer()
+
+    instance =
+      create_instance(%{
+        "connection_ref" => %{"connection_key" => "created-session-routing", "reuse" => true},
+        "session_id" => "session-original",
+        "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]}
+      })
+
+    created =
+      conn(
+        :post,
+        "/connections/#{instance["connection_id"]}/proxy/sessions",
+        Jason.encode!(%{"agent_id" => "default"})
+      )
+      |> put_req_header("authorization", "Bearer #{instance["token"]}")
+      |> put_req_header("content-type", "application/json")
+      |> CloudOrchestrator.Endpoint.call(@opts)
+
+    assert created.status == 201
+
+    assert %{"session" => %{"session_id" => "session-cloud-created"}} =
+             Jason.decode!(created.resp_body)
+
+    assert {:ok, routed} =
+             CloudOrchestrator.ConnectionRegistry.resolve_route(
+               instance["connection_id"],
+               "session-cloud-created"
+             )
+
+    assert routed["instance_id"] == instance["instance_id"]
+
+    listed =
+      conn(:get, "/connections/#{instance["connection_id"]}/sessions")
+      |> put_req_header("authorization", "Bearer #{instance["token"]}")
+      |> CloudOrchestrator.Endpoint.call(@opts)
+
+    assert listed.status == 200
+
+    session_ids =
+      listed.resp_body
+      |> Jason.decode!()
+      |> Map.fetch!("sessions")
+      |> Enum.map(& &1["session_id"])
+
+    assert "session-original" in session_ids
+    assert "session-cloud-created" in session_ids
+    refute "session-unrouted" in session_ids
+  end
+
   test "control token protects mutation routes when configured" do
     previous = Application.get_env(:cloud_orchestrator, :control_token)
     Application.put_env(:cloud_orchestrator, :control_token, "secret")
@@ -245,4 +380,19 @@ defmodule CloudOrchestrator.RouterTest do
       Jason.decode!(conn.resp_body)
     end)
   end
+
+  defp start_test_session_runtime! do
+    ref = :"test_session_runtime_#{System.unique_integer([:positive])}"
+    {:ok, _pid} = Plug.Cowboy.http(CloudOrchestrator.TestSessionRuntime, [], port: 0, ref: ref)
+    port = :ranch.get_port(ref)
+
+    on_exit(fn ->
+      Plug.Cowboy.shutdown(ref)
+    end)
+
+    "http://127.0.0.1:#{port}"
+  end
+
+  defp restore_env(key, nil), do: Application.delete_env(:cloud_orchestrator, key)
+  defp restore_env(key, value), do: Application.put_env(:cloud_orchestrator, key, value)
 end

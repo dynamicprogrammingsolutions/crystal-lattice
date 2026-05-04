@@ -176,6 +176,7 @@ PROFILE='$PROFILE'
 REGION='$REGION'
 CLOUD_ORCHESTRATOR_URL='${CLOUD_ORCHESTRATOR_URL:-}'
 CLOUD_ORCHESTRATOR_EC2_URL='${CLOUD_ORCHESTRATOR_EC2_URL:-}'
+CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST='${CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST:-}'
 CLOUD_ORCHESTRATOR_CLOUDFRONT_DOMAIN='${CLOUD_ORCHESTRATOR_CLOUDFRONT_DOMAIN:-}'
 CLOUD_ORCHESTRATOR_DISTRIBUTION_ID='${CLOUD_ORCHESTRATOR_DISTRIBUTION_ID:-}'
 CLOUD_ORCHESTRATOR_INSTANCE_ID='${CLOUD_ORCHESTRATOR_INSTANCE_ID:-}'
@@ -454,12 +455,13 @@ print_orchestrator_output() {
   local instance_id="$5"
 
   if [ "$JSON_OUTPUT" -eq 1 ]; then
-    printf '{"cloudOrchestratorUrl":"%s","cloudOrchestratorHealthUrl":"%s","orchestratorUrl":"%s","cloudFrontUrl":"%s","ec2HttpUrl":"%s","cloudFrontDomain":"%s","cloudFrontDistributionId":"%s","instanceId":"%s","stackName":"%s","region":"%s","controlToken":"%s"}\n' \
-      "$url" "${url%/}/health" "$url" "$url" "$ec2_url" "$cloudfront_domain" "$distribution_id" "$instance_id" "$STACK_NAME" "$REGION" "$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE"
+    printf '{"cloudOrchestratorUrl":"%s","cloudOrchestratorHealthUrl":"%s","orchestratorUrl":"%s","cloudFrontUrl":"%s","ec2HttpUrl":"%s","transferPublicHost":"%s","cloudFrontDomain":"%s","cloudFrontDistributionId":"%s","instanceId":"%s","stackName":"%s","region":"%s","controlToken":"%s"}\n' \
+      "$url" "${url%/}/health" "$url" "$url" "$ec2_url" "${CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST:-}" "$cloudfront_domain" "$distribution_id" "$instance_id" "$STACK_NAME" "$REGION" "$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE"
   else
     echo "CloudOrchestratorUrl=$url"
     echo "CloudOrchestratorHealthUrl=${url%/}/health"
     echo "CloudOrchestratorEc2Url=$ec2_url"
+    echo "CloudOrchestratorTransferPublicHost=${CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST:-}"
     echo "CloudFrontDomain=$cloudfront_domain"
     echo "CloudFrontDistributionId=$distribution_id"
     echo "InstanceId=$instance_id"

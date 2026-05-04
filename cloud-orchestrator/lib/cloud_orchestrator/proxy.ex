@@ -2,6 +2,24 @@ defmodule CloudOrchestrator.Proxy do
   import Plug.Conn
 
   def forward(conn, %{"proxy_base_url" => base_url}, path) do
+    case forward_result(conn, %{"proxy_base_url" => base_url}, path) do
+      {:ok, response} ->
+        send_proxy_response(conn, response)
+
+      {:error, reason} ->
+        conn
+        |> put_resp_content_type("application/json")
+        |> send_resp(502, Jason.encode!(%{error: "proxy_failed", detail: inspect(reason)}))
+    end
+  end
+
+  def forward(conn, _instance, _path) do
+    conn
+    |> put_resp_content_type("application/json")
+    |> send_resp(409, Jason.encode!(%{error: "instance_not_proxyable"}))
+  end
+
+  def forward_result(conn, %{"proxy_base_url" => base_url}, path) do
     target_path =
       case conn.query_string do
         "" -> String.trim_leading(path, "/")
@@ -20,24 +38,29 @@ defmodule CloudOrchestrator.Proxy do
 
     case Finch.request(request, CloudOrchestrator.Finch) do
       {:ok, response} ->
-        conn =
-          Enum.reduce(response.headers, conn, fn {name, value}, acc ->
-            put_resp_header(acc, String.downcase(name), value)
-          end)
-
-        send_resp(conn, response.status, response.body)
+        {:ok, %{status: response.status, headers: response.headers, body: response.body}}
 
       {:error, reason} ->
-        conn
-        |> put_resp_content_type("application/json")
-        |> send_resp(502, Jason.encode!(%{error: "proxy_failed", detail: inspect(reason)}))
+        {:error, reason}
     end
   end
 
-  def forward(conn, _instance, _path) do
-    conn
-    |> put_resp_content_type("application/json")
-    |> send_resp(409, Jason.encode!(%{error: "instance_not_proxyable"}))
+  def forward_result(_conn, _instance, _path) do
+    {:ok,
+     %{
+       status: 409,
+       headers: [{"content-type", "application/json"}],
+       body: Jason.encode!(%{error: "instance_not_proxyable"})
+     }}
+  end
+
+  def send_proxy_response(conn, %{status: status, headers: headers, body: body}) do
+    conn =
+      Enum.reduce(headers, conn, fn {name, value}, acc ->
+        put_resp_header(acc, String.downcase(name), value)
+      end)
+
+    send_resp(conn, status, body)
   end
 
   defp read_body!(conn) do
