@@ -63,11 +63,11 @@ class ToolSchemaAdapter(Protocol):
     target_format: str
     priority: int
 
-    def can_handle(self, schema: Any) -> bool:
-        ...
+    def can_handle(self, schema: Any) -> bool: ...
 
-    def convert(self, schema: JsonObject, *, target: ToolInteropTarget) -> JsonObject:
-        ...
+    def convert(
+        self, schema: JsonObject, *, target: ToolInteropTarget
+    ) -> JsonObject: ...
 
 
 class ToolCallAdapter(Protocol):
@@ -75,11 +75,9 @@ class ToolCallAdapter(Protocol):
     target_format: str
     priority: int
 
-    def can_handle(self, call: Any) -> bool:
-        ...
+    def can_handle(self, call: Any) -> bool: ...
 
-    def convert(self, call: JsonObject, *, target: ToolInteropTarget) -> JsonObject:
-        ...
+    def convert(self, call: JsonObject, *, target: ToolInteropTarget) -> JsonObject: ...
 
 
 class ToolSchemaAccessor(Protocol):
@@ -87,26 +85,19 @@ class ToolSchemaAccessor(Protocol):
     format_id: str
     priority: int
 
-    def can_handle(self, schema: Any) -> bool:
-        ...
+    def can_handle(self, schema: Any) -> bool: ...
 
-    def get_tool_type(self, schema: JsonObject) -> str:
-        ...
+    def get_tool_type(self, schema: JsonObject) -> str: ...
 
-    def get_tool_name(self, schema: JsonObject) -> Optional[str]:
-        ...
+    def get_tool_name(self, schema: JsonObject) -> Optional[str]: ...
 
-    def get_description(self, schema: JsonObject) -> Optional[str]:
-        ...
+    def get_description(self, schema: JsonObject) -> Optional[str]: ...
 
-    def get_parameters_schema(self, schema: JsonObject) -> Optional[JsonObject]:
-        ...
+    def get_parameters_schema(self, schema: JsonObject) -> Optional[JsonObject]: ...
 
-    def get_tool_kind(self, schema: JsonObject) -> Optional[str]:
-        ...
+    def get_tool_kind(self, schema: JsonObject) -> Optional[str]: ...
 
-    def get_schema_format(self, schema: JsonObject) -> Optional[str]:
-        ...
+    def get_schema_format(self, schema: JsonObject) -> Optional[str]: ...
 
 
 class ToolCallAccessor(Protocol):
@@ -114,29 +105,21 @@ class ToolCallAccessor(Protocol):
     format_id: str
     priority: int
 
-    def can_handle(self, call: Any) -> bool:
-        ...
+    def can_handle(self, call: Any) -> bool: ...
 
-    def get_call_id(self, call: JsonObject) -> Optional[str]:
-        ...
+    def get_call_id(self, call: JsonObject) -> Optional[str]: ...
 
-    def get_tool_type(self, call: JsonObject) -> str:
-        ...
+    def get_tool_type(self, call: JsonObject) -> str: ...
 
-    def get_tool_name(self, call: JsonObject) -> Optional[str]:
-        ...
+    def get_tool_name(self, call: JsonObject) -> Optional[str]: ...
 
-    def get_payload(self, call: JsonObject) -> Any:
-        ...
+    def get_payload(self, call: JsonObject) -> Any: ...
 
-    def get_payload_kind(self, call: JsonObject) -> Optional[str]:
-        ...
+    def get_payload_kind(self, call: JsonObject) -> Optional[str]: ...
 
-    def get_payload_format(self, call: JsonObject) -> Optional[str]:
-        ...
+    def get_payload_format(self, call: JsonObject) -> Optional[str]: ...
 
-    def get_payload_metadata(self, call: JsonObject) -> Optional[JsonObject]:
-        ...
+    def get_payload_metadata(self, call: JsonObject) -> Optional[JsonObject]: ...
 
     def sanitize_call(self, call: JsonObject) -> JsonObject:
         """Return a sanitized copy of the call with valid arguments.
@@ -188,7 +171,9 @@ def get_schema_target_formats_from_config(config: Dict[str, Any]) -> List[str]:
     return []
 
 
-def get_registry_from_context(context: Optional[Dict[str, Any]]) -> "ToolInteropRegistry":
+def get_registry_from_context(
+    context: Optional[Dict[str, Any]],
+) -> "ToolInteropRegistry":
     if isinstance(context, dict):
         tool_interop = context.get(TOOL_INTEROP_CONTEXT_KEY)
         if isinstance(tool_interop, dict):
@@ -327,7 +312,9 @@ class ToolInteropRegistry:
         for accessor in self._schema_accessors:
             if accessor.can_handle(schema):
                 return accessor
-        raise ToolInteropError(f"No schema accessor matched: keys={list(schema.keys())}")
+        raise ToolInteropError(
+            f"No schema accessor matched: keys={list(schema.keys())}"
+        )
 
     def get_call_accessor(self, call: JsonObject) -> ToolCallAccessor:
         for accessor in self._call_accessors:
@@ -432,7 +419,9 @@ class ToolInteropRegistry:
     ) -> ToolSchemaAdapter:
         source_format = self._match_schema_format(schema)
         if source_format is None:
-            raise ToolInteropError(f"Could not determine schema format: keys={list(schema.keys())}")
+            raise ToolInteropError(
+                f"Could not determine schema format: keys={list(schema.keys())}"
+            )
         if target_formats and source_format in target_formats:
             return _IdentitySchemaAdapter(source_format)
 
@@ -467,7 +456,9 @@ class ToolInteropRegistry:
     ) -> ToolCallAdapter:
         source_format = self._match_call_format(call)
         if source_format is None:
-            raise ToolInteropError(f"Could not determine call format: keys={list(call.keys())}")
+            raise ToolInteropError(
+                f"Could not determine call format: keys={list(call.keys())}"
+            )
         if target_formats and source_format in target_formats:
             return _IdentityCallAdapter(source_format)
 
@@ -560,7 +551,11 @@ class ToolInteropRegistry:
                 adapters=effective_adapters,
                 target_formats=requested_formats,
             )
-            converted.append(adapter.convert(schema, target=target or ToolInteropTarget("tool_interop")))
+            converted.append(
+                adapter.convert(
+                    schema, target=target or ToolInteropTarget("tool_interop")
+                )
+            )
         return converted
 
     def convert_tool_calls(
@@ -580,7 +575,11 @@ class ToolInteropRegistry:
                 adapters=effective_adapters,
                 target_formats=requested_formats,
             )
-            converted.append(adapter.convert(call, target=target or ToolInteropTarget("tool_interop")))
+            converted.append(
+                adapter.convert(
+                    call, target=target or ToolInteropTarget("tool_interop")
+                )
+            )
         return converted
 
 
@@ -976,6 +975,32 @@ class OpenAIChatToolSchemaToOpenAIResponsesToolSchema:
         return out
 
 
+class OpenAIResponsesFunctionToolSchemaToOpenAIChatToolSchema:
+    source_format = OpenAIResponsesFunctionToolSchemaAccessor.format_id
+    target_format = OpenAIChatToolSchemaAccessor.format_id
+    priority = 100
+
+    _schema_accessor = OpenAIResponsesFunctionToolSchemaAccessor()
+
+    def can_handle(self, schema: Any) -> bool:
+        return self._schema_accessor.can_handle(schema)
+
+    def convert(self, schema: JsonObject, *, target: ToolInteropTarget) -> JsonObject:
+        fn: JsonObject = {"name": self._schema_accessor.get_tool_name(schema)}
+
+        desc = self._schema_accessor.get_description(schema)
+        if desc is not None:
+            fn["description"] = desc
+        params = self._schema_accessor.get_parameters_schema(schema)
+        if params is not None:
+            fn["parameters"] = params
+        strict = schema.get("strict")
+        if isinstance(strict, bool):
+            fn["strict"] = strict
+
+        return {"type": "function", "function": fn}
+
+
 class OpenAIResponsesToolCallToOpenAIChatToolCall:
     source_format = OpenAIResponsesFunctionCallAccessor.format_id
     target_format = OpenAIChatToolCallAccessor.format_id
@@ -994,7 +1019,9 @@ class OpenAIResponsesToolCallToOpenAIChatToolCall:
         item = call
         if not self._call_accessor.can_handle(item):
             maybe_item = call.get("item")
-            if isinstance(maybe_item, dict) and self._call_accessor.can_handle(maybe_item):
+            if isinstance(maybe_item, dict) and self._call_accessor.can_handle(
+                maybe_item
+            ):
                 item = maybe_item
             else:
                 raise ToolInteropError("Unsupported Responses tool call object")
@@ -1021,7 +1048,10 @@ class OpenAIResponsesToolCallToOpenAIChatToolCall:
 # Runtime code should prefer ``get_registry_from_context(...)`` so core-owned,
 # config-specific contributions are respected.
 DEFAULT_TOOL_INTEROP_REGISTRY = ToolInteropRegistry(
-    schema_adapters=[OpenAIChatToolSchemaToOpenAIResponsesToolSchema()],
+    schema_adapters=[
+        OpenAIChatToolSchemaToOpenAIResponsesToolSchema(),
+        OpenAIResponsesFunctionToolSchemaToOpenAIChatToolSchema(),
+    ],
     call_adapters=[OpenAIResponsesToolCallToOpenAIChatToolCall()],
     schema_accessors=[
         OpenAIChatToolSchemaAccessor(),

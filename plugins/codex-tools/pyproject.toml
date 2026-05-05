@@ -39,3 +39,8 @@ include = ["codex_tools*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+  "integration: tests that call real provider APIs",
+  "openai: tests that call OpenAI APIs",
+  "openrouter: tests that call OpenRouter APIs",
+]

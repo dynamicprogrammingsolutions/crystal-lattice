@@ -189,7 +189,11 @@ class _SequentialStreamingResponsesResource:
         self.calls.append(kwargs)
         if kwargs.get("stream") is not True:
             raise AssertionError("expected stream=True")
-        index = self._cursor if self._cursor < len(self._event_batches) else len(self._event_batches) - 1
+        index = (
+            self._cursor
+            if self._cursor < len(self._event_batches)
+            else len(self._event_batches) - 1
+        )
         self._cursor += 1
         return _FixtureStream(self._event_batches[index])
 
@@ -342,12 +346,20 @@ def _premature_stream_events(*, include_partial: bool) -> list[Dict[str, Any]]:
         {
             "type": "response.created",
             "sequence_number": 0,
-            "response": {"id": "resp_retry_fixture", "status": "in_progress", "output": []},
+            "response": {
+                "id": "resp_retry_fixture",
+                "status": "in_progress",
+                "output": [],
+            },
         },
         {
             "type": "response.in_progress",
             "sequence_number": 1,
-            "response": {"id": "resp_retry_fixture", "status": "in_progress", "output": []},
+            "response": {
+                "id": "resp_retry_fixture",
+                "status": "in_progress",
+                "output": [],
+            },
         },
     ]
     if include_partial:
@@ -557,8 +569,12 @@ def test_get_models_uses_codex_catalog_for_chatgpt_discovery(
         ]
 
     monkeypatch.setattr(provider, "_fetch_codex_models", _fake_fetch_codex_models)
-    monkeypatch.setattr(provider_module, "_load_snapshot_model_descriptors_shared", lambda: [])
-    monkeypatch.setattr(provider_module, "_load_manual_chatgpt_model_descriptors_shared", lambda: [])
+    monkeypatch.setattr(
+        provider_module, "_load_snapshot_model_descriptors_shared", lambda: []
+    )
+    monkeypatch.setattr(
+        provider_module, "_load_manual_chatgpt_model_descriptors_shared", lambda: []
+    )
 
     models = provider.get_models(
         {
@@ -598,7 +614,9 @@ def test_get_models_merges_chatgpt_manual_models_into_codex_catalog(
         "_fetch_codex_models",
         lambda config: [{"id": "gpt-5.4", "name": "gpt-5.4"}],
     )
-    monkeypatch.setattr(provider_module, "_load_snapshot_model_descriptors_shared", lambda: [])
+    monkeypatch.setattr(
+        provider_module, "_load_snapshot_model_descriptors_shared", lambda: []
+    )
     monkeypatch.setattr(
         provider_module,
         "_load_manual_chatgpt_model_descriptors_shared",
@@ -645,7 +663,9 @@ def test_get_models_falls_back_to_chatgpt_models_endpoint_when_codex_fetch_fails
         "_fetch_codex_models",
         lambda config: (_ for _ in ()).throw(RuntimeError("codex unavailable")),
     )
-    monkeypatch.setattr(provider_module, "_load_snapshot_model_descriptors_shared", lambda: [])
+    monkeypatch.setattr(
+        provider_module, "_load_snapshot_model_descriptors_shared", lambda: []
+    )
     monkeypatch.setattr(
         provider_module,
         "_load_manual_chatgpt_model_descriptors_shared",
@@ -686,8 +706,13 @@ def test_get_models_falls_back_to_chatgpt_models_endpoint_when_codex_fetch_fails
         }
     )
 
-    assert captured["url"] == "https://chatgpt.example.test/backend-api/codex/models?client_version=0.1.0"
-    normalized_headers = {key.lower(): value for key, value in captured["headers"].items()}
+    assert (
+        captured["url"]
+        == "https://chatgpt.example.test/backend-api/codex/models?client_version=0.1.0"
+    )
+    normalized_headers = {
+        key.lower(): value for key, value in captured["headers"].items()
+    }
     assert normalized_headers["authorization"] == "Bearer chatgpt-access-token"
     assert normalized_headers["chatgpt-account-id"] == "acct-123"
     assert captured["timeout"] == 15.0
@@ -891,7 +916,9 @@ def test_get_ui_elements_falls_back_to_text_when_models_are_unavailable() -> Non
     assert elements[5]["ui_type"] == "composer_attachment"
 
 
-def test_init_uses_env_api_key_when_not_in_config(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_init_uses_env_api_key_when_not_in_config(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "test_env_key")
     provider = OpenAIResponsesProvider()
 
@@ -971,7 +998,10 @@ def test_call_api_uses_request_instructions() -> None:
     provider.call_api(native_messages, state)
 
     assert fixture_client.responses.calls
-    assert fixture_client.responses.calls[0]["instructions"] == "Compiled system instructions"
+    assert (
+        fixture_client.responses.calls[0]["instructions"]
+        == "Compiled system instructions"
+    )
 
 
 def test_call_api_can_strip_leading_system_message_from_request_history() -> None:
@@ -1066,7 +1096,7 @@ def test_to_native_and_from_native_roundtrip_with_tool_output() -> None:
         },
         {
             "role": "tool",
-            "content": "{\"ok\": true}",
+            "content": '{"ok": true}',
             "metadata": {"tool_call_id": "call_123", "trace_id": "t1"},
         },
     ]
@@ -1084,7 +1114,7 @@ def test_to_native_and_from_native_roundtrip_with_tool_output() -> None:
 
     assert native[2]["type"] == "function_call_output"
     assert native[2]["call_id"] == "call_123"
-    assert native[2]["output"] == "{\"ok\": true}"
+    assert native[2]["output"] == '{"ok": true}'
     assert native[2]["_metadata"] == {"trace_id": "t1"}
 
     rebuilt = provider.from_native_messages(native, {})
@@ -1099,7 +1129,7 @@ def test_to_native_and_from_native_roundtrip_with_tool_output() -> None:
     assert rebuilt[1]["metadata"]["native_indices"] == [1]
 
     assert rebuilt[2]["role"] == "tool"
-    assert rebuilt[2]["content"] == "{\"ok\": true}"
+    assert rebuilt[2]["content"] == '{"ok": true}'
     assert rebuilt[2]["metadata"]["tool_call_id"] == "call_123"
     assert rebuilt[2]["metadata"]["trace_id"] == "t1"
     assert rebuilt[2]["metadata"]["native_indices"] == [2]
@@ -1158,6 +1188,42 @@ def test_to_native_messages_supports_image_url_and_data_url() -> None:
                         },
                     },
                 ]
+            },
+        }
+    ]
+
+
+def test_to_native_messages_preserves_structured_tool_output_content() -> None:
+    provider = OpenAIResponsesProvider()
+    image_item = {
+        "type": "input_image",
+        "image_url": "data:image/png;base64,AAA",
+        "detail": "high",
+    }
+
+    native = provider.to_native_messages(
+        [
+            {
+                "role": "tool",
+                "content": '{"image_url":"data:image/png;base64,AAA"}',
+                "metadata": {
+                    "tool_call_id": "call_view_1",
+                    "tool_output_content": [image_item],
+                    "trace_id": "t1",
+                },
+            }
+        ],
+        {},
+    )
+
+    assert native == [
+        {
+            "type": "function_call_output",
+            "call_id": "call_view_1",
+            "output": [image_item],
+            "_metadata": {
+                "tool_output_content": [image_item],
+                "trace_id": "t1",
             },
         }
     ]
@@ -1258,7 +1324,11 @@ def test_to_native_messages_adds_pdf_input_file_when_upload_mode_enabled() -> No
                 ],
             }
         ],
-        {"openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"}},
+        {
+            "openai_responses_attachments": {
+                "attachment_upload_mode": "upload_before_send"
+            }
+        },
     )
 
     assert native == [
@@ -1267,7 +1337,11 @@ def test_to_native_messages_adds_pdf_input_file_when_upload_mode_enabled() -> No
             "role": "user",
             "content": [
                 {"type": "input_text", "text": "read this pdf"},
-                {"type": "input_file", "file_data": "JVBERi0xLjQK", "filename": "brief.pdf"},
+                {
+                    "type": "input_file",
+                    "file_data": "JVBERi0xLjQK",
+                    "filename": "brief.pdf",
+                },
             ],
             "_metadata": {
                 "_openai_responses_attachment_sources": [
@@ -1328,9 +1402,9 @@ def test_attachment_modes_normalize_legacy_direct_to_inline_images() -> None:
     )
 
     assert mode == "inline"
-    assert provider._attachment_upload_mode({"config": {"attachment_upload_mode": "direct"}}) == (
-        "upload_before_send"
-    )
+    assert provider._attachment_upload_mode(
+        {"config": {"attachment_upload_mode": "direct"}}
+    ) == ("upload_before_send")
 
 
 def test_from_native_messages_preserves_image_multipart_content() -> None:
@@ -1458,7 +1532,9 @@ def test_from_native_messages_preserves_uploaded_attachment_sources() -> None:
     ]
 
 
-def test_from_native_messages_assigns_response_segment_indices_for_unconverted_items() -> None:
+def test_from_native_messages_assigns_response_segment_indices_for_unconverted_items() -> (
+    None
+):
     provider = OpenAIResponsesProvider()
 
     native_messages = [
@@ -1487,7 +1563,9 @@ def test_from_native_messages_assigns_response_segment_indices_for_unconverted_i
     assert md.get("native_indices") == [0, 1]
 
 
-def test_from_native_messages_collapses_commentary_and_empty_final_answer_into_one_assistant() -> None:
+def test_from_native_messages_collapses_commentary_and_empty_final_answer_into_one_assistant() -> (
+    None
+):
     provider = OpenAIResponsesProvider()
 
     native_messages = [
@@ -1532,7 +1610,9 @@ def test_from_native_messages_collapses_commentary_and_empty_final_answer_into_o
     assert phase_messages[1]["content"] == ""
 
 
-def test_from_native_messages_collapses_reasoning_and_function_call_into_one_assistant_anchor() -> None:
+def test_from_native_messages_collapses_reasoning_and_function_call_into_one_assistant_anchor() -> (
+    None
+):
     provider = OpenAIResponsesProvider()
     tools_ext = OpenAIResponsesToolsExtension()
 
@@ -1546,7 +1626,7 @@ def test_from_native_messages_collapses_reasoning_and_function_call_into_one_ass
             "type": "function_call",
             "call_id": "call_1",
             "name": "lookup",
-            "arguments": "{\"id\":1}",
+            "arguments": '{"id":1}',
             "_metadata": {"response_id": "resp_2"},
         },
         {
@@ -1574,7 +1654,9 @@ def test_from_native_messages_collapses_reasoning_and_function_call_into_one_ass
     assert (tool_calls[0].get("function") or {}).get("name") == "lookup"
 
 
-def test_from_native_messages_preserves_phase_messages_when_final_and_tool_call_share_segment() -> None:
+def test_from_native_messages_preserves_phase_messages_when_final_and_tool_call_share_segment() -> (
+    None
+):
     provider = OpenAIResponsesProvider()
 
     native_messages = [
@@ -1617,11 +1699,16 @@ def test_from_native_messages_preserves_phase_messages_when_final_and_tool_call_
     assert md.get("phase") == "final_answer"
     assert md.get("native_indices") == [0, 1, 2, 3]
     phase_messages = md.get("phase_messages") or []
-    assert [entry.get("phase") for entry in phase_messages] == ["commentary", "final_answer"]
+    assert [entry.get("phase") for entry in phase_messages] == [
+        "commentary",
+        "final_answer",
+    ]
     assert [entry.get("content") for entry in phase_messages] == ["working", "done"]
 
 
-def test_from_native_messages_assigns_tool_call_indices_without_tool_calls_metadata() -> None:
+def test_from_native_messages_assigns_tool_call_indices_without_tool_calls_metadata() -> (
+    None
+):
     provider = OpenAIResponsesProvider()
 
     native_messages = [
@@ -1629,7 +1716,7 @@ def test_from_native_messages_assigns_tool_call_indices_without_tool_calls_metad
             "type": "function_call",
             "call_id": "call_1",
             "name": "lookup",
-            "arguments": "{\"id\":1}",
+            "arguments": '{"id":1}',
             "_metadata": {"response_id": "resp_2"},
         },
         {
@@ -1732,7 +1819,7 @@ def test_call_api_strips_output_only_fields_from_input_history() -> None:
             "type": "function_call",
             "call_id": "call_123",
             "name": "add",
-            "arguments": "{\"a\": 1, \"b\": 2}",
+            "arguments": '{"a": 1, "b": 2}',
             "id": "fc_123",
             "status": "completed",
             "namespace": None,
@@ -1762,7 +1849,7 @@ def test_call_api_strips_output_only_fields_from_input_history() -> None:
         "type": "function_call",
         "call_id": "call_123",
         "name": "add",
-        "arguments": "{\"a\": 1, \"b\": 2}",
+        "arguments": '{"a": 1, "b": 2}',
     }
 
 
@@ -1818,7 +1905,11 @@ def test_call_api_upload_mode_rewrites_inline_image_and_pdf_before_send() -> Non
             "content": [
                 {"type": "input_text", "text": "see attachments"},
                 {"type": "input_image", "image_url": "data:image/png;base64,Zm9v"},
-                {"type": "input_file", "file_data": "JVBERi0xLjQK", "filename": "brief.pdf"},
+                {
+                    "type": "input_file",
+                    "file_data": "JVBERi0xLjQK",
+                    "filename": "brief.pdf",
+                },
             ],
             "_metadata": {
                 "_openai_responses_attachment_sources": [
@@ -1892,11 +1983,27 @@ def test_call_api_upload_mode_rewrites_inline_image_and_pdf_before_send() -> Non
         "file_data": "JVBERi0xLjQK",
         "filename": "brief.pdf",
     }
-    assert stored_input["_metadata"]["_openai_responses_attachment_sources"][0]["multipart_part"]["type"] == "image"
-    assert stored_input["_metadata"]["_openai_responses_attachment_sources"][1]["multipart_part"]["type"] == "pdf"
+    assert (
+        stored_input["_metadata"]["_openai_responses_attachment_sources"][0][
+            "multipart_part"
+        ]["type"]
+        == "image"
+    )
+    assert (
+        stored_input["_metadata"]["_openai_responses_attachment_sources"][1][
+            "multipart_part"
+        ]["type"]
+        == "pdf"
+    )
     assert stored_input["_metadata"]["_openai_responses_uploaded_attachments"] == [
-        {"content_index": 1, "uploaded_part": {"type": "input_image", "file_id": "file_1"}},
-        {"content_index": 2, "uploaded_part": {"type": "input_file", "file_id": "file_2"}},
+        {
+            "content_index": 1,
+            "uploaded_part": {"type": "input_image", "file_id": "file_1"},
+        },
+        {
+            "content_index": 2,
+            "uploaded_part": {"type": "input_file", "file_id": "file_2"},
+        },
     ]
     assert new_state["_openai_responses_upload_cache"]
 
@@ -2017,7 +2124,9 @@ def test_call_api_leaves_inline_images_direct_when_image_mode_is_inline() -> Non
     }
 
 
-def test_to_native_messages_resolves_session_asset_refs_to_inline_parts(tmp_path: Path) -> None:
+def test_to_native_messages_resolves_session_asset_refs_to_inline_parts(
+    tmp_path: Path,
+) -> None:
     provider = OpenAIResponsesProvider()
     asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
     image_record = asset_store.store_base64(
@@ -2085,7 +2194,8 @@ def test_to_native_messages_resolves_session_asset_refs_to_inline_parts(tmp_path
                 {"type": "input_text", "text": "review these"},
                 {
                     "type": "input_image",
-                    "image_url": "data:image/png;base64," + base64.b64encode(b"image-bytes").decode("ascii"),
+                    "image_url": "data:image/png;base64,"
+                    + base64.b64encode(b"image-bytes").decode("ascii"),
                 },
                 {
                     "type": "input_file",
@@ -2175,7 +2285,9 @@ def test_call_api_upload_mode_uses_cached_session_asset_provider_ref_without_reu
                 "timeout": 12,
                 "_session_asset_store": asset_store,
             },
-            "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+            "openai_responses_attachments": {
+                "attachment_upload_mode": "upload_before_send"
+            },
         },
     )
 
@@ -2207,7 +2319,10 @@ def test_call_api_upload_mode_uses_cached_session_asset_provider_ref_without_reu
         {"type": "input_image", "file_id": "file_existing"},
     ]
     assert fake_client.files.calls == []
-    assert asset_store.load("sess_asset", image_record.asset_id).provider_refs == image_record.provider_refs
+    assert (
+        asset_store.load("sess_asset", image_record.asset_id).provider_refs
+        == image_record.provider_refs
+    )
 
 
 def test_call_api_upload_mode_reuploads_session_asset_when_cached_ref_is_rejected(
@@ -2301,7 +2416,10 @@ def test_call_api_upload_mode_reuploads_session_asset_when_cached_ref_is_rejecte
     assert len(fake_client.files.calls) == 1
     assert fake_client.files.calls[0]["purpose"] == "vision"
     assert full_native[0]["_metadata"]["_openai_responses_uploaded_attachments"] == [
-        {"content_index": 1, "uploaded_part": {"type": "input_image", "file_id": "file_1"}}
+        {
+            "content_index": 1,
+            "uploaded_part": {"type": "input_image", "file_id": "file_1"},
+        }
     ]
 
     updated_record = asset_store.load("sess_asset", image_record.asset_id)
@@ -2319,7 +2437,9 @@ def test_initialize_request_does_not_upload_attachments() -> None:
             "base_url": "https://api.openai.com/v1",
             "timeout": 12,
         },
-        "openai_responses_attachments": {"attachment_upload_mode": "upload_before_send"},
+        "openai_responses_attachments": {
+            "attachment_upload_mode": "upload_before_send"
+        },
         "client": fake_client,
     }
 
@@ -2328,7 +2448,9 @@ def test_initialize_request_does_not_upload_attachments() -> None:
             {
                 "type": "message",
                 "role": "user",
-                "content": [{"type": "input_image", "image_url": "data:image/png;base64,Zm9v"}],
+                "content": [
+                    {"type": "input_image", "image_url": "data:image/png;base64,Zm9v"}
+                ],
             }
         ],
         state,
@@ -2338,7 +2460,9 @@ def test_initialize_request_does_not_upload_attachments() -> None:
         {
             "type": "message",
             "role": "user",
-            "content": [{"type": "input_image", "image_url": "data:image/png;base64,Zm9v"}],
+            "content": [
+                {"type": "input_image", "image_url": "data:image/png;base64,Zm9v"}
+            ],
         }
     ]
     assert fake_client.files.calls == []
@@ -2388,7 +2512,13 @@ def test_call_api_wraps_sdk_error() -> None:
 
     with pytest.raises(RuntimeError, match="OpenAI Responses call failed"):
         provider.call_api(
-            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hi"}],
+                }
+            ],
             state,
         )
 
@@ -2413,7 +2543,13 @@ def test_call_api_raises_on_missing_output_in_response() -> None:
 
     with pytest.raises(RuntimeError, match="missing output list"):
         provider.call_api(
-            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hi"}],
+                }
+            ],
             state,
         )
 
@@ -2483,7 +2619,13 @@ def test_call_api_applies_request_retry_override_via_sdk_options() -> None:
     }
 
     provider.call_api(
-        [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+        [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": "hi"}],
+            }
+        ],
         state,
     )
 
@@ -2515,7 +2657,13 @@ def test_stream_api_applies_request_retry_override_via_sdk_options() -> None:
 
     list(
         provider.stream_api(
-            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hi"}],
+                }
+            ],
             state,
         )
     )
@@ -2547,7 +2695,13 @@ def test_call_api_preserves_existing_behavior_without_retry_override() -> None:
     }
 
     provider.call_api(
-        [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+        [
+            {
+                "type": "message",
+                "role": "user",
+                "content": [{"type": "input_text", "text": "hi"}],
+            }
+        ],
         state,
     )
 
@@ -2575,7 +2729,13 @@ def test_stream_api_preserves_existing_behavior_without_retry_override() -> None
 
     list(
         provider.stream_api(
-            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hi"}],
+                }
+            ],
             state,
         )
     )
@@ -2608,7 +2768,13 @@ def test_stream_api_retries_terminal_error_event_when_enabled() -> None:
 
     normalized = list(
         provider.stream_api(
-            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hi"}],
+                }
+            ],
             state,
         )
     )
@@ -2642,7 +2808,13 @@ def test_stream_api_propagates_terminal_error_event_when_retries_disabled() -> N
 
     normalized = list(
         provider.stream_api(
-            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hi"}],
+                }
+            ],
             state,
         )
     )
@@ -2676,7 +2848,13 @@ def test_stream_api_propagates_terminal_error_event_when_retries_exhausted() -> 
     with pytest.raises(RuntimeError, match="terminal event error"):
         list(
             provider.stream_api(
-                [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+                [
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "hi"}],
+                    }
+                ],
                 state,
             )
         )
@@ -2711,7 +2889,13 @@ def test_stream_api_does_not_retry_terminal_error_after_visible_output() -> None
 
     normalized = list(
         provider.stream_api(
-            [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+            [
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hi"}],
+                }
+            ],
             state,
         )
     )
@@ -2741,7 +2925,13 @@ def test_stream_api_wraps_sdk_error() -> None:
     with pytest.raises(RuntimeError, match="OpenAI Responses stream failed"):
         list(
             provider.stream_api(
-                [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}],
+                [
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "hi"}],
+                    }
+                ],
                 state,
             )
         )
@@ -2816,7 +3006,9 @@ def test_process_chunk_emits_partials_and_completed_finals_only() -> None:
     finals_out: list[Dict[str, Any]] = []
 
     for event in events:
-        partials, finals, native_messages, _state = provider.process_chunk(event, native_messages, {})
+        partials, finals, native_messages, _state = provider.process_chunk(
+            event, native_messages, {}
+        )
         partials_out.extend(partials)
         finals_out.extend(finals)
 
@@ -2881,7 +3073,9 @@ def test_process_chunk_keeps_stream_deltas_as_separate_chunks() -> None:
     state: Dict[str, Any] = {}
 
     for event in events:
-        partials, _finals, native_messages, state = provider.process_chunk(event, native_messages, state)
+        partials, _finals, native_messages, state = provider.process_chunk(
+            event, native_messages, state
+        )
         seen_partials.extend(partials)
 
     assert seen_partials == [
@@ -2911,7 +3105,9 @@ def test_process_chunk_raises_on_response_failed_terminal_event() -> None:
     state: Dict[str, Any] = {}
 
     for event in events[:-1]:
-        _partials, _finals, native_messages, state = provider.process_chunk(event, native_messages, state)
+        _partials, _finals, native_messages, state = provider.process_chunk(
+            event, native_messages, state
+        )
 
     with pytest.raises(RuntimeError, match="response.failed"):
         provider.process_chunk(events[-1], native_messages, state)
@@ -2941,9 +3137,13 @@ def test_finalize_is_noop_after_streaming_reduction() -> None:
     native_messages: list[Dict[str, Any]] = []
     state: Dict[str, Any] = {}
     for event in events:
-        _partials, _finals, native_messages, state = provider.process_chunk(event, native_messages, state)
+        _partials, _finals, native_messages, state = provider.process_chunk(
+            event, native_messages, state
+        )
 
-    final_messages, native_after_finalize, _state = provider.finalize(native_messages, state)
+    final_messages, native_after_finalize, _state = provider.finalize(
+        native_messages, state
+    )
 
     assert final_messages == []
     assert native_after_finalize == native_messages
@@ -3028,7 +3228,9 @@ def test_send_request_stream_raises_on_failed_terminal_event() -> None:
         list(core.send_request_stream(session, config))
 
 
-def test_send_request_stream_recovers_premature_flex_stream_in_early_only_mode() -> None:
+def test_send_request_stream_recovers_premature_flex_stream_in_early_only_mode() -> (
+    None
+):
     core = AgentCore()
     core.register_provider(_EarlyOnlyRecoveryProvider)
 
@@ -3054,7 +3256,9 @@ def test_send_request_stream_recovers_premature_flex_stream_in_early_only_mode()
     assert [call.get("stream") for call in client.responses.calls] == [True, True]
 
 
-def test_send_request_stream_does_not_recover_visible_partials_in_early_only_mode() -> None:
+def test_send_request_stream_does_not_recover_visible_partials_in_early_only_mode() -> (
+    None
+):
     core = AgentCore()
     core.register_provider(_EarlyOnlyVisiblePartialProvider)
 
@@ -3108,7 +3312,9 @@ def test_send_request_stream_recovers_visible_partials_in_aggressive_mode() -> N
 def test_response_internal_metadata_preserves_service_tier() -> None:
     provider = OpenAIResponsesProvider()
 
-    response_md = provider._response_internal_metadata({"id": "resp_1", "service_tier": "flex"})
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_1", "service_tier": "flex"}
+    )
 
     assert response_md["_openai_responses_service_tier"] == "flex"
 
@@ -3138,7 +3344,13 @@ def test_stream_api_can_be_cancelled_by_request_id() -> None:
         try:
             list(
                 provider.stream_api(
-                    [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hello"}]}],
+                    [
+                        {
+                            "type": "message",
+                            "role": "user",
+                            "content": [{"type": "input_text", "text": "hello"}],
+                        }
+                    ],
                     state,
                     request_id="req_openai_stream_cancel",
                 )
@@ -3177,7 +3389,13 @@ def test_call_api_can_be_cancelled_by_request_id() -> None:
     def _consume() -> None:
         try:
             provider.call_api(
-                [{"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hello"}]}],
+                [
+                    {
+                        "type": "message",
+                        "role": "user",
+                        "content": [{"type": "input_text", "text": "hello"}],
+                    }
+                ],
                 state,
                 request_id="req_openai_call_cancel",
             )
@@ -3232,7 +3450,11 @@ def test_streaming_fixture_finals_receive_feature_finalize_stamps() -> None:
                 for m in final_messages
             ]
             # Also stamp history so native rebuilds keep the marker
-            start = len(native_messages) - len(stamped) if len(stamped) <= len(native_messages) else 0
+            start = (
+                len(native_messages) - len(stamped)
+                if len(stamped) <= len(native_messages)
+                else 0
+            )
             stamped_history = list(native_messages)
             for offset, final_msg in enumerate(stamped):
                 hist_idx = start + offset

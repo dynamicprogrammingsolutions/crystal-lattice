@@ -1174,8 +1174,15 @@ class AgentCore:
             message_count = len(session.messages)
             start_idx = 0 if start is None else start
             end_idx = message_count if end is None else end
-            if start_idx < 0 or end_idx < 0 or start_idx >= end_idx or end_idx > message_count:
-                raise ValueError("start/end must select a non-empty visible message slice")
+            if (
+                start_idx < 0
+                or end_idx < 0
+                or start_idx >= end_idx
+                or end_idx > message_count
+            ):
+                raise ValueError(
+                    "start/end must select a non-empty visible message slice"
+                )
 
             retained_native = None
             base_metadata: Dict[str, Any] = (
@@ -1195,7 +1202,9 @@ class AgentCore:
             target_messages = session.messages[start_idx:end_idx]
             target_native_indices: List[int] = []
             for message in target_messages:
-                metadata = message.metadata if isinstance(message.metadata, dict) else {}
+                metadata = (
+                    message.metadata if isinstance(message.metadata, dict) else {}
+                )
                 native_indices = metadata.get("native_indices")
                 if not isinstance(native_indices, list) or not native_indices:
                     raise RuntimeError(
@@ -1206,7 +1215,9 @@ class AgentCore:
                 )
 
             if not target_native_indices:
-                raise RuntimeError("selected visible message slice maps to no native history")
+                raise RuntimeError(
+                    "selected visible message slice maps to no native history"
+                )
 
             unique_indices = sorted(set(target_native_indices))
             expected_indices = list(range(unique_indices[0], unique_indices[-1] + 1))
@@ -2453,7 +2464,9 @@ class AgentCore:
                 context=request_context,
             )
 
-        logger.debug("streaming complete", combined_native_finals=combined_native_finals)
+        logger.debug(
+            "streaming complete", combined_native_finals=combined_native_finals
+        )
 
         # Convert provider-native finals to core messages
         final_core = provider.from_native_messages(
@@ -3818,9 +3831,7 @@ class AgentCore:
             state = self._prepared_tool_states.get(cache_key)
             if not isinstance(state, dict):
                 state = tool.init(tool_init_config)
-            tool_states.append(
-                (tool, state, self._prepared_tool_data.get(cache_key))
-            )
+            tool_states.append((tool, state, self._prepared_tool_data.get(cache_key)))
         return (
             provider,
             extensions,
@@ -3887,8 +3898,8 @@ class AgentCore:
         *,
         context: Optional[Dict[str, Any]] = None,
     ) -> None:
-        provider, extensions, enabled_tools = self._resolve_tool_participants_for_config(
-            config
+        provider, extensions, enabled_tools = (
+            self._resolve_tool_participants_for_config(config)
         )
         tool_init_config = self._build_tool_init_config(
             config,
@@ -3898,7 +3909,10 @@ class AgentCore:
         tool_context = self._build_tool_runtime_context(tool_init_config, context)
         for tool in enabled_tools:
             cache_key = self._tool_prepare_cache_key(tool, tool_init_config)
-            if cache_key in self._prepared_tool_states and cache_key in self._prepared_tool_data:
+            if (
+                cache_key in self._prepared_tool_states
+                and cache_key in self._prepared_tool_data
+            ):
                 continue
             state = self._prepared_tool_states.get(cache_key)
             if not isinstance(state, dict):
@@ -3919,8 +3933,8 @@ class AgentCore:
         *,
         context: Optional[Dict[str, Any]] = None,
     ) -> None:
-        provider, extensions, enabled_tools = self._resolve_tool_participants_for_config(
-            config
+        provider, extensions, enabled_tools = (
+            self._resolve_tool_participants_for_config(config)
         )
         tool_init_config = self._build_tool_init_config(
             config,
@@ -3930,7 +3944,10 @@ class AgentCore:
         tool_context = self._build_tool_runtime_context(tool_init_config, context)
         for tool in enabled_tools:
             cache_key = self._tool_prepare_cache_key(tool, tool_init_config)
-            if cache_key in self._prepared_tool_states and cache_key in self._prepared_tool_data:
+            if (
+                cache_key in self._prepared_tool_states
+                and cache_key in self._prepared_tool_data
+            ):
                 continue
             state = self._prepared_tool_states.get(cache_key)
             if not isinstance(state, dict):
@@ -4128,10 +4145,15 @@ class AgentCore:
         self,
         registry: Any,
         tool_states: List[_PreparedToolState],
-    ) -> Dict[str, Tuple[ToolWrapper, Dict[str, Any], Optional[Dict[str, Any]], Dict[str, Any]]]:
+    ) -> Dict[
+        str,
+        Tuple[ToolWrapper, Dict[str, Any], Optional[Dict[str, Any]], Dict[str, Any]],
+    ]:
         name_to_tool: Dict[
             str,
-            Tuple[ToolWrapper, Dict[str, Any], Optional[Dict[str, Any]], Dict[str, Any]],
+            Tuple[
+                ToolWrapper, Dict[str, Any], Optional[Dict[str, Any]], Dict[str, Any]
+            ],
         ] = {}
         for tool, state, prepared in tool_states:
             try:
@@ -4365,12 +4387,26 @@ class AgentCore:
                 metadata["tool_plugin"] = plugin_name
             if display_payload is not None:
                 metadata["display"] = display_payload
+            tool_output_content = last_result.get("tool_output_content")
+            if isinstance(tool_output_content, list):
+                metadata["tool_output_content"] = [
+                    item for item in tool_output_content if isinstance(item, dict)
+                ]
 
-            yield {
+            tool_message = {
                 "role": "tool",
                 "content": formatted_content or "",
                 "metadata": metadata,
             }
+            multipart_content = last_result.get("multipartContent")
+            if isinstance(multipart_content, list):
+                filtered_multipart = [
+                    item for item in multipart_content if isinstance(item, dict)
+                ]
+                if filtered_multipart:
+                    tool_message["multipartContent"] = filtered_multipart
+
+            yield tool_message
 
     def execute_tool_calls(
         self,
@@ -4596,10 +4632,13 @@ class AgentCore:
                     features.append(obj)
             module_providers.sort(
                 key=lambda obj: (
-                    0
-                    if _normalize_identifier(getattr(obj, "name", "")) == module_basename
-                    or _class_identifier(obj) == module_basename
-                    else 1,
+                    (
+                        0
+                        if _normalize_identifier(getattr(obj, "name", ""))
+                        == module_basename
+                        or _class_identifier(obj) == module_basename
+                        else 1
+                    ),
                     obj.__name__,
                 )
             )

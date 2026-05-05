@@ -44,6 +44,16 @@ Apply Codex-style `*** Begin Patch` edits to files.
 - **Fallback schema**: Function tool with a single `input` string on OpenAI-compatible chat-completions paths
 - **Execution**: Shared internal patch runtime used by both the dedicated tool and optional shell interception
 
+### View Image
+Load a local image file for model-visible vision input.
+
+- **Plugin name**: `view_image`
+- **Schema name**: `view_image`
+- **Primary schema**: OpenAI Responses function tool with `output_schema`
+- **Chat fallback**: OpenAI chat-completions function schema plus JSON/text tool result containing the image data URL
+- **Parameters**: `path` (string, required), `detail` (optional `"original"` when enabled)
+- **Execution**: Resolves paths against `working_directory`, enforces `allowed_paths`, validates PNG/JPEG/GIF/WebP magic bytes, and returns a data URL
+
 ## Exposed Features
 
 ### CodexVariantFeature
@@ -110,6 +120,8 @@ shell_tool_mode = "shell_command"
 |-----|-------|-------------|
 | `shell_tool_mode` | Agent | Shell tool selection mode: `"auto"` (default), `"shell"`, `"shell_command"` |
 | `intercept_apply_patch` | Agent/Provider | When true, shell tools intercept Codex-style `apply_patch` shell invocations and route them to the internal patch runtime |
+| `enable_view_image_detail_original` | Agent | When true, exposes and honors `view_image.detail = "original"` |
+| `view_image_max_bytes` | Agent | Maximum local image size accepted by `view_image` |
 | `enabled_plugins` | Agent | List of plugin IDs to enable (re-enables `default_enabled = false` plugins) |
 | `disabled_plugins` | Agent/Provider/Global | List of plugin IDs to disable |
 | `force_enabled_plugins` | Agent | List of plugin IDs to force-enable (overrides tag-based selection) |

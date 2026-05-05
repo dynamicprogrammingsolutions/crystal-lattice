@@ -82,7 +82,9 @@ from .openai_responses_runtime import (
     should_strip_leading_system_or_developer_message as _should_strip_leading_shared,
     strip_leading_system_or_developer_message as _strip_leading_shared,
 )
-from .openai_responses_codex_models import fetch_codex_models as _fetch_codex_models_shared
+from .openai_responses_codex_models import (
+    fetch_codex_models as _fetch_codex_models_shared,
+)
 from .openai_responses_codex_models import (
     load_manual_chatgpt_model_descriptors as _load_manual_chatgpt_model_descriptors_shared,
     load_snapshot_model_descriptors as _load_snapshot_model_descriptors_shared,
@@ -143,7 +145,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 self._inflight_requests[request_id] = runtime
         return runtime
 
-    def _clear_inflight(self, request_id: str | None, runtime: _InflightRequest) -> None:
+    def _clear_inflight(
+        self, request_id: str | None, runtime: _InflightRequest
+    ) -> None:
         runtime.done.set()
         if isinstance(request_id, str) and request_id:
             with self._inflight_lock:
@@ -261,7 +265,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             model_name = model.get("name")
             model_options.append(
                 {
-                    "label": str(model_name) if model_name is not None else str(model_id),
+                    "label": (
+                        str(model_name) if model_name is not None else str(model_id)
+                    ),
                     "value": str(model_id),
                 }
             )
@@ -331,7 +337,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             )
             return []
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         tags = [
             "provider:openai_responses",
             "openai_responses",
@@ -351,7 +359,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         try:
             timeout = float(raw)
         except (TypeError, ValueError) as exc:
-            raise ValueError("[openai_responses_provider] timeout must be numeric") from exc
+            raise ValueError(
+                "[openai_responses_provider] timeout must be numeric"
+            ) from exc
         if timeout <= 0:
             raise ValueError("[openai_responses_provider] timeout must be > 0")
         return timeout
@@ -360,7 +370,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         try:
             max_retries = int(raw)
         except (TypeError, ValueError) as exc:
-            raise ValueError("[openai_responses_provider] max_retries must be an integer") from exc
+            raise ValueError(
+                "[openai_responses_provider] max_retries must be an integer"
+            ) from exc
         if max_retries < 0:
             raise ValueError("[openai_responses_provider] max_retries must be >= 0")
         return max_retries
@@ -397,7 +409,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
     def _create_sdk_client(self, config: Dict[str, Any]) -> OpenAI:
         timeout = self._coerce_timeout(config.get("timeout", _DEFAULT_TIMEOUT))
-        return self._create_sdk_client_with_options(config, timeout=timeout, max_retries=None)
+        return self._create_sdk_client_with_options(
+            config, timeout=timeout, max_retries=None
+        )
 
     def _chatgpt_default_headers(self, config: Dict[str, Any]) -> Dict[str, str]:
         return _chatgpt_default_headers_shared(config)
@@ -442,7 +456,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
     ) -> List[Dict[str, Any]]:
         return _strip_leading_shared(native_messages)
 
-    def _request_client(self, client: Any, *, timeout: float, max_retries: Optional[int]) -> Any:
+    def _request_client(
+        self, client: Any, *, timeout: float, max_retries: Optional[int]
+    ) -> Any:
         if max_retries is None:
             return client
 
@@ -545,7 +561,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
     def _chatgpt_credentials_are_valid(self, credentials: Dict[str, Any]) -> bool:
         return _chatgpt_credentials_are_valid_shared(credentials)
 
-    def _chatgpt_credentials_can_attempt_request(self, credentials: Dict[str, Any]) -> bool:
+    def _chatgpt_credentials_can_attempt_request(
+        self, credentials: Dict[str, Any]
+    ) -> bool:
         return credentials_have_access_token(credentials)
 
     def _capture_chatgpt_rate_limits(
@@ -556,7 +574,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if self._effective_auth_mode(config) != "chatgpt" or headers is None:
             return
         try:
-            header_map = {str(key).lower(): value for key, value in dict(headers).items()}
+            header_map = {
+                str(key).lower(): value for key, value in dict(headers).items()
+            }
         except Exception:
             return
         snapshots = parse_all_rate_limit_headers(header_map)
@@ -590,7 +610,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             updated["chatgpt_account_id"] = account_id.strip()
         else:
             updated.pop("chatgpt_account_id", None)
-        updated["chatgpt_credentials_path"] = str(self._chatgpt_credentials_path(config))
+        updated["chatgpt_credentials_path"] = str(
+            self._chatgpt_credentials_path(config)
+        )
         updated["_openai_responses_effective_auth_mode"] = "chatgpt"
         updated["base_url"] = self._resolve_base_url(updated)
         return updated
@@ -625,7 +647,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
         next_token = credentials.get("access_token")
         if not isinstance(next_token, str) or not next_token.strip():
             return None
-        if isinstance(current_token, str) and current_token.strip() == next_token.strip():
+        if (
+            isinstance(current_token, str)
+            and current_token.strip() == next_token.strip()
+        ):
             return None
         return self._chatgpt_config_with_credentials(config, credentials)
 
@@ -717,12 +742,18 @@ class OpenAIResponsesProvider(ProviderPlugin):
         try:
             payload = json.loads(body)
         except Exception as exc:
-            raise RuntimeError("chatgpt models discovery returned invalid JSON") from exc
+            raise RuntimeError(
+                "chatgpt models discovery returned invalid JSON"
+            ) from exc
         if not isinstance(payload, dict):
-            raise RuntimeError("chatgpt models discovery returned an unexpected payload")
+            raise RuntimeError(
+                "chatgpt models discovery returned an unexpected payload"
+            )
         return payload
 
-    def _fetch_chatgpt_discovery_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]] | Dict[str, Any]:
+    def _fetch_chatgpt_discovery_models(
+        self, config: Dict[str, Any]
+    ) -> List[Dict[str, Any]] | Dict[str, Any]:
         # Validate credentials up front so ChatGPT mode still requires a valid login.
         self._chatgpt_discovery_credentials(config)
 
@@ -731,7 +762,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         codex_error: Exception | None = None
         try:
             codex_models = self._fetch_codex_models(config)
-            return self._merge_model_descriptors(manual_models, snapshot_models, codex_models)
+            return self._merge_model_descriptors(
+                manual_models, snapshot_models, codex_models
+            )
         except Exception as exc:
             codex_error = exc
 
@@ -743,7 +776,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 )
             return self._merge_model_descriptors(manual_models, snapshot_models)
 
-        fallback_models = self._normalize_model_descriptors(self._fetch_chatgpt_models(config))
+        fallback_models = self._normalize_model_descriptors(
+            self._fetch_chatgpt_models(config)
+        )
         merged = self._merge_model_descriptors(manual_models, fallback_models)
         if codex_error is not None:
             log.warning(
@@ -757,7 +792,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         if isinstance(data, dict) and isinstance(data.get("models"), list):
             data = data.get("models")
         if not isinstance(data, list):
-            raise ValueError("[openai_responses_provider] models list response missing data list")
+            raise ValueError(
+                "[openai_responses_provider] models list response missing data list"
+            )
 
         normalized: List[Dict[str, Any]] = []
         for item in data:
@@ -897,7 +934,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 file_id = part.get("file_id")
                 if isinstance(file_id, str) and file_id:
                     multipart_parts.append(
-                        {"type": "image", "content": {"file_id": file_id}, "metadata": {}}
+                        {
+                            "type": "image",
+                            "content": {"file_id": file_id},
+                            "metadata": {},
+                        }
                     )
                 continue
 
@@ -916,7 +957,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 if isinstance(filename, str) and filename:
                     payload["filename"] = filename
                 if payload:
-                    multipart_parts.append({"type": "pdf", "content": payload, "metadata": {}})
+                    multipart_parts.append(
+                        {"type": "pdf", "content": payload, "metadata": {}}
+                    )
 
         return "\n".join(text_parts).strip(), multipart_parts
 
@@ -926,10 +969,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
     def _image_attachment_mode(self, state: Dict[str, Any]) -> str:
         return resolve_image_attachment_mode(state)
 
-    def _normalized_multipart_part(self, part: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _normalized_multipart_part(
+        self, part: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         return normalized_multipart_part(part)
 
-    def _attachment_source_map(self, raw_internal_metadata: Optional[Dict[str, Any]]) -> Dict[int, Dict[str, Any]]:
+    def _attachment_source_map(
+        self, raw_internal_metadata: Optional[Dict[str, Any]]
+    ) -> Dict[int, Dict[str, Any]]:
         return attachment_source_map(raw_internal_metadata)
 
     def _uploaded_attachment_map(
@@ -947,12 +994,18 @@ class OpenAIResponsesProvider(ProviderPlugin):
         state: Dict[str, Any],
         context: Optional[Dict[str, Any]] = None,
     ) -> Any:
-        resolved_context = context if isinstance(context, dict) else self._request_context(state)
+        resolved_context = (
+            context if isinstance(context, dict) else self._request_context(state)
+        )
         store = (
             resolved_context.get("session_asset_store")
             if isinstance(resolved_context, dict)
             else None
         )
+        if store is None:
+            config = state.get("config")
+            if isinstance(config, dict):
+                store = config.get("_session_asset_store")
         if store is None:
             raise RuntimeError(
                 "[openai_responses_provider] session asset attachment requires session_asset_store in context"
@@ -971,7 +1024,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         session_id = asset_ref.get("session_id")
         asset_id = asset_ref.get("asset_id")
         if not isinstance(session_id, str) or not isinstance(asset_id, str):
-            raise ValueError("[openai_responses_provider] invalid session asset reference")
+            raise ValueError(
+                "[openai_responses_provider] invalid session asset reference"
+            )
         record = store.load(session_id, asset_id)
         if record.attachment_type != expected_attachment_type:
             raise ValueError(
@@ -1045,7 +1100,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         response_obj = self._safe_dict_payload(upload_response)
         file_id = response_obj.get("id")
         if not isinstance(file_id, str) or not file_id:
-            raise RuntimeError("[openai_responses_provider] file upload response missing id")
+            raise RuntimeError(
+                "[openai_responses_provider] file upload response missing id"
+            )
         return file_id
 
     def _file_object_reference(
@@ -1059,7 +1116,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         response_obj = self._safe_dict_payload(upload_response)
         file_id = response_obj.get("id")
         if not isinstance(file_id, str) or not file_id:
-            raise RuntimeError("[openai_responses_provider] file upload response missing id")
+            raise RuntimeError(
+                "[openai_responses_provider] file upload response missing id"
+            )
         return build_openai_provider_ref(
             file_id=file_id,
             purpose=purpose,
@@ -1133,11 +1192,20 @@ class OpenAIResponsesProvider(ProviderPlugin):
         force_reupload: bool = False,
     ) -> Dict[str, Any]:
         part_type = part.get("type")
-        source_content = source_override.get("content") if isinstance(source_override, dict) else {}
+        source_content = (
+            source_override.get("content") if isinstance(source_override, dict) else {}
+        )
         asset_ref = session_asset_ref_from_content(source_content)
-        detail = part.get("detail") if isinstance(part.get("detail"), str) and part.get("detail") else None
+        detail = (
+            part.get("detail")
+            if isinstance(part.get("detail"), str) and part.get("detail")
+            else None
+        )
 
-        if part_type == "input_image" and self._image_attachment_mode(state) != _IMAGE_ATTACHMENT_MODE_UPLOAD:
+        if (
+            part_type == "input_image"
+            and self._image_attachment_mode(state) != _IMAGE_ATTACHMENT_MODE_UPLOAD
+        ):
             return dict(part)
 
         if asset_ref is not None:
@@ -1168,7 +1236,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             self._session_asset_store(state, context).update_manifest(
                 record.session_id,
                 record.asset_id,
-                provider_refs=merge_openai_provider_ref(record.provider_refs, upload_ref),
+                provider_refs=merge_openai_provider_ref(
+                    record.provider_refs, upload_ref
+                ),
                 metadata=record.metadata,
             )
             uploaded = {"type": part_type, "file_id": upload_ref["file_id"]}
@@ -1176,7 +1246,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 uploaded["detail"] = detail
             return uploaded
 
-        if not force_reupload and isinstance(uploaded_override, dict) and uploaded_override:
+        if (
+            not force_reupload
+            and isinstance(uploaded_override, dict)
+            and uploaded_override
+        ):
             return dict(uploaded_override)
 
         if part_type == "input_image":
@@ -1188,8 +1262,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 return dict(part)
 
             mime_type, data_base64 = decode_data_url(image_url)
-            payload_bytes = decode_base64_bytes(data_base64, field_name="input_image.image_url")
-            filename = source_content.get("filename") if isinstance(source_content, dict) else None
+            payload_bytes = decode_base64_bytes(
+                data_base64, field_name="input_image.image_url"
+            )
+            filename = (
+                source_content.get("filename")
+                if isinstance(source_content, dict)
+                else None
+            )
             if not isinstance(filename, str) or not filename:
                 filename = default_filename_for_mime(mime_type, "attachment-image")
 
@@ -1225,10 +1305,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
             file_data = part.get("file_data")
             file_url = part.get("file_url")
             if isinstance(file_data, str) and file_data:
-                payload_bytes = decode_base64_bytes(file_data, field_name="input_file.file_data")
+                payload_bytes = decode_base64_bytes(
+                    file_data, field_name="input_file.file_data"
+                )
             elif isinstance(file_url, str) and file_url.startswith("data:"):
                 mime_type, data_base64 = decode_data_url(file_url)
-                payload_bytes = decode_base64_bytes(data_base64, field_name="input_file.file_url")
+                payload_bytes = decode_base64_bytes(
+                    data_base64, field_name="input_file.file_url"
+                )
             elif isinstance(file_url, str) and file_url:
                 return dict(part)
             else:
@@ -1276,7 +1360,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 rewritten.append(dict(item))
                 continue
 
-            raw_metadata = item.get("_metadata") if isinstance(item.get("_metadata"), dict) else {}
+            raw_metadata = (
+                item.get("_metadata") if isinstance(item.get("_metadata"), dict) else {}
+            )
             source_map = self._attachment_source_map(raw_metadata)
             uploaded_map = self._uploaded_attachment_map(raw_metadata)
             next_content: List[Dict[str, Any]] = []
@@ -1355,7 +1441,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     continue
 
                 for annotation in annotations:
-                    if not isinstance(annotation, dict) or annotation.get("type") != "url_citation":
+                    if (
+                        not isinstance(annotation, dict)
+                        or annotation.get("type") != "url_citation"
+                    ):
                         continue
 
                     payload = (
@@ -1476,7 +1565,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
         segment_output_items: List[Dict[str, Any]] = []
 
         for native_index, item, internal_md in segment:
-            raw_internal_md = item.get("_metadata") if isinstance(item.get("_metadata"), dict) else None
+            raw_internal_md = (
+                item.get("_metadata")
+                if isinstance(item.get("_metadata"), dict)
+                else None
+            )
             segment_indices.append(native_index)
             segment_output_items.append(item)
             if response_id is None:
@@ -1512,7 +1605,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
         for candidate in assistant_candidates:
             candidate_md = candidate.get("metadata") or {}
             phase_entry: Dict[str, Any] = {
-                "content": candidate.get("content") if isinstance(candidate.get("content"), str) else "",
+                "content": (
+                    candidate.get("content")
+                    if isinstance(candidate.get("content"), str)
+                    else ""
+                ),
                 "native_index": candidate.get("_segment_native_index"),
             }
             phase = candidate_md.get("phase")
@@ -1521,7 +1618,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
             multipart = candidate.get("multipartContent")
             if isinstance(multipart, list) and multipart:
                 phase_entry["multipartContent"] = multipart
-            extra_md = {k: v for k, v in candidate_md.items() if k not in {"phase", "response_id"}}
+            extra_md = {
+                k: v
+                for k, v in candidate_md.items()
+                if k not in {"phase", "response_id"}
+            }
             if extra_md:
                 phase_entry["metadata"] = extra_md
             phase_messages.append(phase_entry)
@@ -1542,7 +1643,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             return {"role": "assistant", "content": "", "metadata": metadata}
 
         canonical_md_raw = canonical.get("metadata") or {}
-        canonical_md = dict(canonical_md_raw) if isinstance(canonical_md_raw, dict) else {}
+        canonical_md = (
+            dict(canonical_md_raw) if isinstance(canonical_md_raw, dict) else {}
+        )
         if response_id:
             canonical_md["response_id"] = response_id
         url_citations = self._extract_url_citations(segment_output_items)
@@ -1557,7 +1660,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         out: Dict[str, Any] = {
             "role": "assistant",
-            "content": canonical.get("content") if isinstance(canonical.get("content"), str) else "",
+            "content": (
+                canonical.get("content")
+                if isinstance(canonical.get("content"), str)
+                else ""
+            ),
             "metadata": canonical_md,
         }
         multipart = canonical.get("multipartContent")
@@ -1594,7 +1701,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 parts: List[Dict[str, Any]] = []
                 attachment_sources: List[Dict[str, Any]] = []
                 if text:
-                    text_part_type = "output_text" if role == "assistant" else "input_text"
+                    text_part_type = (
+                        "output_text" if role == "assistant" else "input_text"
+                    )
                     parts.append({"type": text_part_type, "text": text})
 
                 multipart = msg.get("multipartContent")
@@ -1641,7 +1750,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 if internal_md:
                     item["_metadata"] = internal_md
                 if attachment_sources:
-                    base_metadata = item.get("_metadata") if isinstance(item.get("_metadata"), dict) else {}
+                    base_metadata = (
+                        item.get("_metadata")
+                        if isinstance(item.get("_metadata"), dict)
+                        else {}
+                    )
                     item["_metadata"] = {
                         **base_metadata,
                         _ATTACHMENT_SOURCES_METADATA_KEY: attachment_sources,
@@ -1658,12 +1771,21 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         "[openai_responses_provider] tool message requires metadata.tool_call_id"
                     )
 
-                output = msg.get("content", "")
-                if not isinstance(output, str):
-                    try:
-                        output = json.dumps(output, ensure_ascii=False)
-                    except Exception:
-                        output = ""
+                output: Any = None
+                if isinstance(metadata, dict):
+                    structured_output = metadata.get("tool_output_content")
+                    if isinstance(structured_output, list) and all(
+                        isinstance(item, dict) for item in structured_output
+                    ):
+                        output = structured_output
+
+                if output is None:
+                    output = msg.get("content", "")
+                    if not isinstance(output, str):
+                        try:
+                            output = json.dumps(output, ensure_ascii=False)
+                        except Exception:
+                            output = ""
 
                 item = {
                     "type": "function_call_output",
@@ -1695,7 +1817,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         current_segment: List[Tuple[int, Dict[str, Any], Dict[str, Any]]] = []
         current_response_id: Optional[str] = None
 
-        def _append_core_message(core_msg: Dict[str, Any], *, owned_indices: List[int]) -> None:
+        def _append_core_message(
+            core_msg: Dict[str, Any], *, owned_indices: List[int]
+        ) -> None:
             out.append(core_msg)
             owned_native_indices.update(i for i in owned_indices if isinstance(i, int))
 
@@ -1704,9 +1828,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
             md = dict(raw_md) if isinstance(raw_md, dict) else {}
             existing = md.get("native_indices")
             existing_indices = (
-                [i for i in existing if isinstance(i, int)] if isinstance(existing, list) else []
+                [i for i in existing if isinstance(i, int)]
+                if isinstance(existing, list)
+                else []
             )
-            merged = sorted(set(existing_indices + [i for i in indices if isinstance(i, int)]))
+            merged = sorted(
+                set(existing_indices + [i for i in indices if isinstance(i, int)])
+            )
             md["native_indices"] = merged
             out[core_index] = {**out[core_index], "metadata": md}
             owned_native_indices.update(merged)
@@ -1722,7 +1850,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             assistant_indices = assistant_md.get("native_indices")
             _append_core_message(
                 assistant_message,
-                owned_indices=assistant_indices if isinstance(assistant_indices, list) else [],
+                owned_indices=(
+                    assistant_indices if isinstance(assistant_indices, list) else []
+                ),
             )
 
             for native_index, item, internal_md in current_segment:
@@ -1755,10 +1885,16 @@ class OpenAIResponsesProvider(ProviderPlugin):
             if not isinstance(item, dict):
                 continue
 
-            raw_internal_md = item.get("_metadata") if isinstance(item.get("_metadata"), dict) else {}
-            internal_md = self._core_metadata_from_native_internal(item.get("_metadata"))
+            raw_internal_md = (
+                item.get("_metadata") if isinstance(item.get("_metadata"), dict) else {}
+            )
+            internal_md = self._core_metadata_from_native_internal(
+                item.get("_metadata")
+            )
             response_id = (
-                internal_md.get("response_id") if isinstance(internal_md.get("response_id"), str) else None
+                internal_md.get("response_id")
+                if isinstance(internal_md.get("response_id"), str)
+                else None
             )
 
             if response_id:
@@ -1772,8 +1908,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
             # Streaming partial compatibility: allow chat-like shape.
             if "type" not in item and ("role" in item or "content" in item):
-                role = item.get("role") if isinstance(item.get("role"), str) else "assistant"
-                content = item.get("content") if isinstance(item.get("content"), str) else ""
+                role = (
+                    item.get("role")
+                    if isinstance(item.get("role"), str)
+                    else "assistant"
+                )
+                content = (
+                    item.get("content") if isinstance(item.get("content"), str) else ""
+                )
                 md = dict(internal_md)
                 md["native_indices"] = [native_index]
                 _append_core_message(
@@ -1785,7 +1927,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
             item_type = item.get("type")
 
             if item_type == "message":
-                role = item.get("role") if isinstance(item.get("role"), str) else "assistant"
+                role = (
+                    item.get("role")
+                    if isinstance(item.get("role"), str)
+                    else "assistant"
+                )
                 text, images = self._extract_text_and_images_from_content(
                     item.get("content"),
                     raw_internal_md,
@@ -1839,9 +1985,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         _flush_response_segment()
 
         dict_native_indices = {
-            idx
-            for idx, item in enumerate(native_messages)
-            if isinstance(item, dict)
+            idx for idx, item in enumerate(native_messages) if isinstance(item, dict)
         }
         orphan_indices = sorted(dict_native_indices.difference(owned_native_indices))
         if not orphan_indices:
@@ -1904,7 +2048,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
         content = sanitized.get("content")
         if isinstance(content, list):
             cleaned_content: List[Dict[str, Any]] = []
-            role = sanitized.get("role") if isinstance(sanitized.get("role"), str) else None
+            role = (
+                sanitized.get("role")
+                if isinstance(sanitized.get("role"), str)
+                else None
+            )
             for part in content:
                 if not isinstance(part, dict):
                     continue
@@ -1934,12 +2082,16 @@ class OpenAIResponsesProvider(ProviderPlugin):
             dumped = event.model_dump(mode="python")
             if isinstance(dumped, dict):
                 return dumped
-        raise RuntimeError("[openai_responses_provider] invalid SDK stream event payload")
+        raise RuntimeError(
+            "[openai_responses_provider] invalid SDK stream event payload"
+        )
 
     def _iter_raw_sse_event_dicts(self, response: Any) -> Iterator[Dict[str, Any]]:
         iter_lines = getattr(response, "iter_lines", None)
         if not callable(iter_lines):
-            raise RuntimeError("[openai_responses_provider] raw streaming response is missing iter_lines()")
+            raise RuntimeError(
+                "[openai_responses_provider] raw streaming response is missing iter_lines()"
+            )
 
         data_lines: List[str] = []
         for raw_line in iter_lines():
@@ -1992,16 +2144,32 @@ class OpenAIResponsesProvider(ProviderPlugin):
             return None
 
         if event_type == "error":
-            message = event.get("message") if isinstance(event.get("message"), str) else "unknown error"
+            message = (
+                event.get("message")
+                if isinstance(event.get("message"), str)
+                else "unknown error"
+            )
             code = event.get("code") if isinstance(event.get("code"), str) else None
             details = f" code={code}" if code else ""
             return f"OpenAI Responses stream failed: terminal event error{details}: {message}"
 
         if event_type == "response.failed":
             response_obj = self._safe_dict_payload(event.get("response"))
-            response_id = response_obj.get("id") if isinstance(response_obj.get("id"), str) else None
-            error_obj = response_obj.get("error") if isinstance(response_obj.get("error"), dict) else {}
-            code = error_obj.get("code") if isinstance(error_obj.get("code"), str) else None
+            response_id = (
+                response_obj.get("id")
+                if isinstance(response_obj.get("id"), str)
+                else None
+            )
+            error_obj = (
+                response_obj.get("error")
+                if isinstance(response_obj.get("error"), dict)
+                else {}
+            )
+            code = (
+                error_obj.get("code")
+                if isinstance(error_obj.get("code"), str)
+                else None
+            )
             message = (
                 error_obj.get("message")
                 if isinstance(error_obj.get("message"), str)
@@ -2017,13 +2185,21 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         if event_type == "response.incomplete":
             response_obj = self._safe_dict_payload(event.get("response"))
-            response_id = response_obj.get("id") if isinstance(response_obj.get("id"), str) else None
+            response_id = (
+                response_obj.get("id")
+                if isinstance(response_obj.get("id"), str)
+                else None
+            )
             details_obj = (
                 response_obj.get("incomplete_details")
                 if isinstance(response_obj.get("incomplete_details"), dict)
                 else {}
             )
-            reason = details_obj.get("reason") if isinstance(details_obj.get("reason"), str) else None
+            reason = (
+                details_obj.get("reason")
+                if isinstance(details_obj.get("reason"), str)
+                else None
+            )
             context: List[str] = []
             if isinstance(response_id, str) and response_id:
                 context.append(f"response_id={response_id}")
@@ -2034,7 +2210,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         return None
 
-    def _response_internal_metadata(self, response_obj: Dict[str, Any]) -> Dict[str, Any]:
+    def _response_internal_metadata(
+        self, response_obj: Dict[str, Any]
+    ) -> Dict[str, Any]:
         md: Dict[str, Any] = {}
 
         response_id = response_obj.get("id")
@@ -2068,10 +2246,14 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 continue
 
             base_internal = item.get("_metadata")
-            base_internal_dict = base_internal if isinstance(base_internal, dict) else {}
+            base_internal_dict = (
+                base_internal if isinstance(base_internal, dict) else {}
+            )
 
             if response_md:
-                annotated.append({**item, "_metadata": {**base_internal_dict, **response_md}})
+                annotated.append(
+                    {**item, "_metadata": {**base_internal_dict, **response_md}}
+                )
                 continue
 
             annotated.append(item)
@@ -2083,7 +2265,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         state: Dict[str, Any],
         *,
         request_id: str | None = None,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         request = state.get("request")
         if not isinstance(request, dict):
             raise RuntimeError("[openai_responses_provider] missing request in state")
@@ -2118,7 +2302,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 timeout=timeout,
                 max_retries=max_retries,
             )
-        request_client = self._request_client(client, timeout=timeout, max_retries=max_retries)
+        request_client = self._request_client(
+            client, timeout=timeout, max_retries=max_retries
+        )
 
         upload_cache = self._upload_state_cache(state)
         if self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
@@ -2162,9 +2348,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         timeout=timeout,
                     )
                 except Exception as exc:
-                    if (
-                        self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
-                        and self._is_attachment_reference_error(exc)
+                    if self._attachment_upload_mode(
+                        state
+                    ) == _ATTACHMENT_UPLOAD_MODE_UPLOAD and self._is_attachment_reference_error(
+                        exc
                     ):
                         retry_history = self._prepare_uploaded_native_messages(
                             request_history,
@@ -2217,7 +2404,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     if runtime.cancelled.is_set():
                         raise ProviderRequestCancelled(request_id)
                     if runtime.done.is_set() and results.empty():
-                        raise RuntimeError("OpenAI Responses call failed: request ended without result")
+                        raise RuntimeError(
+                            "OpenAI Responses call failed: request ended without result"
+                        )
                     continue
                 if kind == "result":
                     response_obj = value
@@ -2230,15 +2419,18 @@ class OpenAIResponsesProvider(ProviderPlugin):
             self._clear_inflight(request_id, runtime)
             worker.join(timeout=1.0)
 
-
         output = response_obj.get("output")
         if not isinstance(output, list):
-            raise RuntimeError("OpenAI Responses call failed: missing output list in response")
+            raise RuntimeError(
+                "OpenAI Responses call failed: missing output list in response"
+            )
 
         output_items = [item for item in output if isinstance(item, dict)]
 
         response_md = self._response_internal_metadata(response_obj)
-        annotated_output = self._attach_internal_metadata_to_output(output_items, response_md)
+        annotated_output = self._attach_internal_metadata_to_output(
+            output_items, response_md
+        )
 
         new_state = {**state, "_openai_responses_upload_cache": upload_cache}
         return [], annotated_output, [*native_messages, *annotated_output], new_state
@@ -2283,7 +2475,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 timeout=timeout,
                 max_retries=max_retries,
             )
-        request_client = self._request_client(client, timeout=timeout, max_retries=max_retries)
+        request_client = self._request_client(
+            client, timeout=timeout, max_retries=max_retries
+        )
 
         upload_cache = self._upload_state_cache(state)
         if self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD:
@@ -2317,12 +2511,17 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         def _worker() -> None:
             local_request_client = request_client
-            runtime.add_closer(lambda candidate=local_request_client: _close_candidate(candidate))
+            runtime.add_closer(
+                lambda candidate=local_request_client: _close_candidate(candidate)
+            )
             auth_recovery_used = False
 
             def _attempt_chatgpt_auth_recovery(exc: Exception) -> bool:
                 nonlocal local_cfg, local_request_client, auth_recovery_used
-                if auth_recovery_used or self._effective_auth_mode(local_cfg) != "chatgpt":
+                if (
+                    auth_recovery_used
+                    or self._effective_auth_mode(local_cfg) != "chatgpt"
+                ):
                     return False
                 if not self._is_unauthorized_error(exc):
                     return False
@@ -2336,7 +2535,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         max_retries=max_retries,
                     )
                     runtime.add_closer(
-                        lambda candidate=local_request_client: _close_candidate(candidate)
+                        lambda candidate=local_request_client: _close_candidate(
+                            candidate
+                        )
                     )
                     log.warning(
                         "chatgpt_auth_recovery_retrying",
@@ -2348,7 +2549,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     return True
 
                 try:
-                    refreshed_cfg = self._refresh_chatgpt_config(local_cfg, timeout=timeout)
+                    refreshed_cfg = self._refresh_chatgpt_config(
+                        local_cfg, timeout=timeout
+                    )
                 except ChatGPTRefreshPermanentError as refresh_exc:
                     raise RuntimeError(str(refresh_exc)) from refresh_exc
                 except ChatGPTRefreshTransientError as refresh_exc:
@@ -2360,7 +2563,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     timeout=timeout,
                     max_retries=max_retries,
                 )
-                runtime.add_closer(lambda candidate=local_request_client: _close_candidate(candidate))
+                runtime.add_closer(
+                    lambda candidate=local_request_client: _close_candidate(candidate)
+                )
                 log.warning(
                     "chatgpt_auth_recovery_retrying",
                     action="stream_api",
@@ -2376,14 +2581,18 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 while True:
                     if runtime.cancelled.is_set():
                         raise ProviderRequestCancelled(request_id)
-                    responses_resource = getattr(local_request_client, "responses", None)
+                    responses_resource = getattr(
+                        local_request_client, "responses", None
+                    )
                     raw_stream_resource = (
                         getattr(responses_resource, "with_streaming_response", None)
-                        if responses_resource is not None and self._effective_auth_mode(local_cfg) == "chatgpt"
+                        if responses_resource is not None
+                        and self._effective_auth_mode(local_cfg) == "chatgpt"
                         else None
                     )
                     use_raw_streaming = bool(
-                        raw_stream_resource is not None and hasattr(raw_stream_resource, "create")
+                        raw_stream_resource is not None
+                        and hasattr(raw_stream_resource, "create")
                     )
                     try:
                         if use_raw_streaming:
@@ -2399,9 +2608,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                 timeout=timeout,
                             )
                     except Exception as exc:
-                        if (
-                            self._attachment_upload_mode(state) == _ATTACHMENT_UPLOAD_MODE_UPLOAD
-                            and self._is_attachment_reference_error(exc)
+                        if self._attachment_upload_mode(
+                            state
+                        ) == _ATTACHMENT_UPLOAD_MODE_UPLOAD and self._is_attachment_reference_error(
+                            exc
                         ):
                             retry_history = self._prepare_uploaded_native_messages(
                                 request_history,
@@ -2423,7 +2633,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                 force_reupload=True,
                             )
                             retry_input_items = [
-                                self._sanitize_input_item(item) for item in retry_history
+                                self._sanitize_input_item(item)
+                                for item in retry_history
                             ]
                             log.warning(
                                 "attachment_upload_retrying",
@@ -2432,13 +2643,21 @@ class OpenAIResponsesProvider(ProviderPlugin):
                             )
                             if use_raw_streaming:
                                 sdk_stream = raw_stream_resource.create(  # type: ignore[union-attr]
-                                    **{**payload, "input": retry_input_items, "stream": True},
+                                    **{
+                                        **payload,
+                                        "input": retry_input_items,
+                                        "stream": True,
+                                    },
                                     extra_headers=extra_headers,
                                     timeout=timeout,
                                 )
                             else:
                                 sdk_stream = local_request_client.responses.create(  # type: ignore[union-attr]
-                                    **{**payload, "input": retry_input_items, "stream": True},
+                                    **{
+                                        **payload,
+                                        "input": retry_input_items,
+                                        "stream": True,
+                                    },
                                     extra_headers=extra_headers,
                                     timeout=timeout,
                                 )
@@ -2447,15 +2666,23 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                 continue
                             raise
 
-                    runtime.add_closer(lambda stream=sdk_stream: _close_candidate(stream))
+                    runtime.add_closer(
+                        lambda stream=sdk_stream: _close_candidate(stream)
+                    )
                     saw_completed = False
                     emitted_visible_output = False
                     stream_error: Exception | None = None
 
                     try:
-                        if hasattr(sdk_stream, "__enter__") and hasattr(sdk_stream, "__exit__"):
+                        if hasattr(sdk_stream, "__enter__") and hasattr(
+                            sdk_stream, "__exit__"
+                        ):
                             with sdk_stream as stream:
-                                runtime.add_closer(lambda active_stream=stream: _close_candidate(active_stream))
+                                runtime.add_closer(
+                                    lambda active_stream=stream: _close_candidate(
+                                        active_stream
+                                    )
+                                )
                                 if use_raw_streaming:
                                     self._capture_chatgpt_rate_limits(
                                         local_cfg,
@@ -2463,7 +2690,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                     )
                                     event_iter = self._iter_raw_sse_event_dicts(stream)
                                 else:
-                                    self._capture_chatgpt_rate_limits_from_stream(local_cfg, stream)
+                                    self._capture_chatgpt_rate_limits_from_stream(
+                                        local_cfg, stream
+                                    )
                                     event_iter = stream
                                 for event in event_iter:
                                     if runtime.cancelled.is_set():
@@ -2471,16 +2700,26 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                     event_dict = self._stream_event_to_dict(event)
                                     if event_dict.get("type") == "response.completed":
                                         saw_completed = True
-                                    if self._stream_event_has_visible_output(event_dict):
+                                    if self._stream_event_has_visible_output(
+                                        event_dict
+                                    ):
                                         emitted_visible_output = True
                                     if event_dict.get("type") == "error":
                                         if (
-                                            self._config_terminal_error_retries_enabled(local_cfg)
+                                            self._config_terminal_error_retries_enabled(
+                                                local_cfg
+                                            )
                                             and not emitted_visible_output
                                         ):
-                                            terminal_msg = self._terminal_stream_error_message(event_dict)
+                                            terminal_msg = (
+                                                self._terminal_stream_error_message(
+                                                    event_dict
+                                                )
+                                            )
                                             if terminal_msg is not None:
-                                                stream_error = RuntimeError(terminal_msg)
+                                                stream_error = RuntimeError(
+                                                    terminal_msg
+                                                )
                                                 break
                                     results.put(("chunk", event_dict))
                         else:
@@ -2494,10 +2733,16 @@ class OpenAIResponsesProvider(ProviderPlugin):
                                     emitted_visible_output = True
                                 if event_dict.get("type") == "error":
                                     if (
-                                        self._config_terminal_error_retries_enabled(local_cfg)
+                                        self._config_terminal_error_retries_enabled(
+                                            local_cfg
+                                        )
                                         and not emitted_visible_output
                                     ):
-                                        terminal_msg = self._terminal_stream_error_message(event_dict)
+                                        terminal_msg = (
+                                            self._terminal_stream_error_message(
+                                                event_dict
+                                            )
+                                        )
                                         if terminal_msg is not None:
                                             stream_error = RuntimeError(terminal_msg)
                                             break
@@ -2520,7 +2765,8 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         stream_error is not None
                         and not emitted_visible_output
                         and self._config_terminal_error_retries_enabled(local_cfg)
-                        and terminal_error_attempts < self._config_terminal_error_max_retries(local_cfg)
+                        and terminal_error_attempts
+                        < self._config_terminal_error_max_retries(local_cfg)
                     ):
                         terminal_error_attempts += 1
                         log.warning(
@@ -2534,7 +2780,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     should_recover = (
                         stream_recovery_mode != "disabled"
                         and recovery_attempts < stream_recovery_retries
-                        and (stream_recovery_mode == "aggressive" or not emitted_visible_output)
+                        and (
+                            stream_recovery_mode == "aggressive"
+                            or not emitted_visible_output
+                        )
                     )
                     if should_recover:
                         recovery_attempts += 1
@@ -2586,7 +2835,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         event = native_chunk if isinstance(native_chunk, dict) else {}
         event_type = event.get("type")
 
@@ -2624,7 +2875,11 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 delta = raw_text if isinstance(raw_text, str) else None
             if isinstance(delta, str) and delta:
                 emitted_partials.append(
-                    {"role": "assistant", "content": "", "_metadata": {"reasoning": delta}}
+                    {
+                        "role": "assistant",
+                        "content": "",
+                        "_metadata": {"reasoning": delta},
+                    }
                 )
 
         if event_type == "response.output_item.done":
@@ -2647,7 +2902,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             if not output_items and output_items_state:
                 output_items = list(output_items_state)
             response_md = self._response_internal_metadata(response_obj)
-            emitted_finals = self._attach_internal_metadata_to_output(output_items, response_md)
+            emitted_finals = self._attach_internal_metadata_to_output(
+                output_items, response_md
+            )
 
             new_state = {
                 **new_state,
@@ -2656,7 +2913,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
             }
 
             if emitted_finals:
-                return emitted_partials, emitted_finals, [*native_messages, *emitted_finals], new_state
+                return (
+                    emitted_partials,
+                    emitted_finals,
+                    [*native_messages, *emitted_finals],
+                    new_state,
+                )
 
         return emitted_partials, emitted_finals, list(native_messages), new_state
 
