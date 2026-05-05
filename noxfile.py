@@ -25,8 +25,7 @@ def build_bundle(session: nox.Session) -> None:
 
 @nox.session(python=False)
 def install_prod_local(session: nox.Session) -> None:
-    """Build, smoke-test, and install the bundled production command locally."""
-    _build_bundle(session)
+    """Smoke-test and install the current-platform production archive locally."""
     session.run("python", "scripts/install_crystal_lattice_archive.py")
 
 

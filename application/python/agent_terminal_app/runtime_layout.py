@@ -46,12 +46,9 @@ class RuntimeLayout:
         return _resolve_user_path(self.user_paths[name])
 
     def env_overrides(self) -> dict[str, str]:
-        values = {
+        return {
             "BUILTIN_PLUGINS": str(self.builtin_plugins),
         }
-        if self.layout == "bundled":
-            values["CRYSTAL_BUNDLED_PLUGIN_ROOT"] = str(self.builtin_plugins)
-        return values
 
     def to_resolved_dict(self) -> dict[str, Any]:
         return {

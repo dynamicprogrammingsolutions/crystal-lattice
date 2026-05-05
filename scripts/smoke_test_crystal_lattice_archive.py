@@ -146,13 +146,6 @@ def validate_bundle(bundle_dir: Path) -> None:
             "BUILTIN_PLUGINS points to the wrong path: "
             f"expected {expected_plugins}, got {actual_plugins}"
         )
-    bundled_root = env_overrides.get("CRYSTAL_BUNDLED_PLUGIN_ROOT")
-    if Path(str(bundled_root)).resolve() != expected_plugins:
-        raise RuntimeError(
-            "CRYSTAL_BUNDLED_PLUGIN_ROOT points to the wrong path: "
-            f"expected {expected_plugins}, got {bundled_root}"
-        )
-
 
 def executable_name() -> str:
     return "crystal-lattice.exe" if os.name == "nt" else "crystal-lattice"

@@ -665,13 +665,13 @@ Build the current-platform bundle:
 nox -s build_bundle
 ```
 
-Run a local production install rehearsal:
+Run a local production install rehearsal from the generated archive:
 
 ```bash
 nox -s install_prod_local
 ```
 
-This intentionally follows the release installer shape:
+Together these commands intentionally follow the release installer shape:
 
 1. install local build dependencies
 2. run `scripts/build_crystal_lattice_binary.py`

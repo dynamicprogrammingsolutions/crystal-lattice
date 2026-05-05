@@ -169,7 +169,7 @@ def prepare_staged_assets() -> None:
             "local_config": "./.crystal/config.json",
             "home_config": "~/.crystal/config.json",
             "default_config": "~/.crystal/config.json",
-            "default_sessions_dir": "~/.crystal/sessions",
+            "default_sessions_dir": "./.crystal/sessions",
         },
     }
     (staged_app / "runtime_layout.json").write_text(
@@ -216,8 +216,11 @@ def run_pyinstaller() -> None:
     bundled_python_paths = discover_plugin_python_paths(
         ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME
     )
-    hidden_imports = discover_plugin_hidden_imports(
-        ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME
+    hidden_imports = sorted(
+        {
+            *discover_core_plugin_hidden_imports(CORE_DIR / "plugins"),
+            *discover_plugin_hidden_imports(ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME),
+        }
     )
     command = [
         sys.executable,
@@ -238,8 +241,6 @@ def run_pyinstaller() -> None:
         str(CORE_DIR),
         "--paths",
         str(APP_DIR),
-        "--collect-submodules",
-        "plugins",
         "--add-data",
         add_data_arg(ASSET_STAGE_DIR / "agent_terminal_app", "agent_terminal_app"),
         "--add-data",
@@ -266,6 +267,15 @@ def discover_plugin_python_paths(plugin_root: Path) -> list[Path]:
         elif (project / "pyproject.toml").is_file() or (project / "setup.py").is_file():
             paths.append(project)
     return paths
+
+
+def discover_core_plugin_hidden_imports(plugin_package_dir: Path) -> list[str]:
+    modules = ["plugins"]
+    for module_path in sorted(plugin_package_dir.glob("*.py")):
+        if module_path.name == "__init__.py":
+            continue
+        modules.append(f"plugins.{module_path.stem}")
+    return modules
 
 
 def discover_plugin_hidden_imports(plugin_root: Path) -> list[str]:

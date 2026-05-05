@@ -203,7 +203,7 @@ def test_bundled_localpath_source_activates_source_tree_without_pip(
 
     installer = PipTargetInstallStrategy()
     original_sys_path = list(sys.path)
-    monkeypatch.setenv("CRYSTAL_BUNDLED_PLUGIN_ROOT", str(bundled_root))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str(bundled_root))
 
     try:
         install_dir = installer.ensure_installed(
@@ -223,3 +223,19 @@ def test_bundled_localpath_source_activates_source_tree_without_pip(
         assert not (tmp_path / "cache").exists()
     finally:
         sys.path[:] = original_sys_path
+
+
+def test_non_bundled_builtin_plugins_path_still_installs_to_cache(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repo = _make_dev_repo(tmp_path)
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True)
+    monkeypatch.setenv("BUILTIN_PLUGINS", str(repo.parent))
+
+    spec = {"path": str(repo), "entry": "myplugins.provider_mod.DevProvider"}
+    mgr = PluginManager(cache_dir=cache_dir)
+    res = mgr.resolve_all([spec])
+
+    assert res.errors == []
+    assert next(cache_dir.glob("repo@*")).is_dir()

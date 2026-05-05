@@ -23,7 +23,6 @@ test ! -e "$bundle_dir/_internal/agent_terminal_app/default_config/.plugin_cache
 
 grep -q '"layout": "bundled"' /tmp/crystal-lattice-layout.json
 grep -q '"BUILTIN_PLUGINS":' /tmp/crystal-lattice-layout.json
-grep -q '"CRYSTAL_BUNDLED_PLUGIN_ROOT":' /tmp/crystal-lattice-layout.json
 grep -q '/_internal/bundled_plugins' /tmp/crystal-lattice-layout.json
 
 echo "bundle smoke test passed: $bundle_dir"

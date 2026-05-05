@@ -123,13 +123,13 @@ class PipTargetInstallStrategy:
             sys.path.append(value)
 
     def _maybe_activate_bundled_source(self, request: InstallRequest) -> Path | None:
-        root_raw = request.policy.get("bundled_plugin_root") or os.environ.get(
-            "CRYSTAL_BUNDLED_PLUGIN_ROOT"
-        )
+        root_raw = request.policy.get("bundled_plugin_root") or os.environ.get("BUILTIN_PLUGINS")
         if not isinstance(root_raw, str) or not root_raw.strip():
             return None
 
         root = Path(root_raw).expanduser().resolve()
+        if root.name != "bundled_plugins":
+            return None
         project_dir = request.project_dir.resolve()
         try:
             project_dir.relative_to(root)

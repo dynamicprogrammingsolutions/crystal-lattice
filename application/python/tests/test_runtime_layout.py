@@ -81,7 +81,7 @@ def test_bundled_runtime_layout_exposes_bundled_plugin_root(tmp_path: Path) -> N
                     "local_config": "./.crystal/config.json",
                     "home_config": "~/.crystal/config.json",
                     "default_config": "~/.crystal/config.json",
-                    "default_sessions_dir": "~/.crystal/sessions",
+                    "default_sessions_dir": "./.crystal/sessions",
                 },
             }
         ),
@@ -94,8 +94,8 @@ def test_bundled_runtime_layout_exposes_bundled_plugin_root(tmp_path: Path) -> N
     assert layout.env_overrides()["BUILTIN_PLUGINS"] == str(
         tmp_path / "bundled_plugins"
     )
-    assert layout.env_overrides()["CRYSTAL_BUNDLED_PLUGIN_ROOT"] == str(
-        tmp_path / "bundled_plugins"
+    assert layout.user_path("default_sessions_dir") == (
+        Path.cwd() / ".crystal" / "sessions"
     )
 
 
