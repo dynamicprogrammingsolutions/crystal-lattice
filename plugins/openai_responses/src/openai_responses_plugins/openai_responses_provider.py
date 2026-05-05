@@ -317,6 +317,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "ui_type": "composer_attachment",
                 "key": "openai_responses:attachment:image",
                 "attachment_type": "image",
+                "attachment_action_plugin": "openai_responses_attachments",
                 "supports_url": True,
                 "supported_file_types": _IMAGE_ATTACHMENT_TYPES,
                 "display_placement": "below",

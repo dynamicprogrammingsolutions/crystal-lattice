@@ -130,8 +130,6 @@ const MessageAttachments: React.FC<{
   const [loadingFullResolutionById, setLoadingFullResolutionById] = useState<Record<string, boolean>>({});
   const localFilePromisesRef = useRef<Partial<Record<string, Promise<string>>>>({});
 
-  if (parts.length === 0) return null;
-
   const attachments: AttachmentLike[] = parts.map((part, idx) => {
     const type = typeof part?.type === 'string' ? part.type : 'attachment';
     return {
@@ -282,6 +280,8 @@ const MessageAttachments: React.FC<{
     },
     [ensureAttachmentLocalFile, fullResolutionUriById, loadingFullResolutionById],
   );
+
+  if (parts.length === 0) return null;
 
   return (
     <View style={[styles.attachmentsWrapper, onBlue && styles.attachmentsWrapperOnBlue]}>

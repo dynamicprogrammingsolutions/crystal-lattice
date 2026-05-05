@@ -157,6 +157,7 @@ type ComposerActionUiElementBase = UiSchemaElement & {
   title?: string;
   icon?: string;
   options?: ComposerActionOptions;
+  attachment_action_plugin?: string;
 };
 
 type ComposerAttachmentUiElement = ComposerActionUiElementBase & {
@@ -227,6 +228,18 @@ function upsertInlineDisplay(
     }
   }
   return [...current, nextEntry];
+}
+
+function resolveAttachmentActionPluginId(element: ComposerAttachmentUiElement): string | null {
+  const actionPlugin = (element as any).attachment_action_plugin;
+  if (typeof actionPlugin === 'string' && actionPlugin.trim()) {
+    return actionPlugin.trim();
+  }
+  const plugin = (element as any).plugin;
+  if (typeof plugin === 'string' && plugin.trim()) {
+    return plugin.trim();
+  }
+  return null;
 }
 
 const TRANSCRIPT_STATUS_ROW: TranscriptRow = { kind: 'status' };
@@ -1474,11 +1487,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       status: options.status ?? 'ready',
       errorMessage: options.errorMessage ?? null,
       attachmentKey: attachmentKeyRaw,
-      pluginId:
-        typeof (options.element as any).plugin === 'string' &&
-        String((options.element as any).plugin).trim()
-          ? String((options.element as any).plugin).trim()
-          : null,
+      pluginId: resolveAttachmentActionPluginId(options.element),
       title: String(titleRaw),
       iconName: iconNameRaw,
       metadataUi:
@@ -1510,6 +1519,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           ? (options.element.metadata_ui as AttachmentMetadataUi)
           : null;
       const defaults = buildAttachmentMetadataDefaults(metadataUi);
+      const actionPluginId = resolveAttachmentActionPluginId(options.element);
 
       const shouldPrompt = shouldPromptForAttachmentMetadata({ metadataUi });
       if (shouldPrompt) {
@@ -1537,11 +1547,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           content: options.content,
           previewUrl: options.previewUrl ?? null,
           pendingAssetId: options.pendingAssetId ?? null,
-          pluginId:
-            typeof (options.element as any).plugin === 'string' &&
-            String((options.element as any).plugin).trim()
-              ? String((options.element as any).plugin).trim()
-              : null,
+          pluginId: actionPluginId,
         });
         setAttachmentMetadataVisible(true);
         return;
@@ -1568,11 +1574,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         metadata: {
           ...defaults,
           ...(
-            typeof (options.element as any).plugin === 'string' &&
-            String((options.element as any).plugin).trim() &&
-            options.element.attachment_type === 'image'
+            actionPluginId && options.element.attachment_type === 'image'
               ? {
-                  download_plugin_id: String((options.element as any).plugin).trim(),
+                  download_plugin_id: actionPluginId,
                 }
               : {}
           ),
@@ -1646,11 +1650,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       }
 
       const previewUrl = options.element.attachment_type === 'image' ? options.dataUrl : null;
-      const pluginId =
-        typeof (options.element as any).plugin === 'string' &&
-        String((options.element as any).plugin).trim()
-          ? String((options.element as any).plugin).trim()
-          : null;
+      const pluginId = resolveAttachmentActionPluginId(options.element);
       const draftId = addAttachmentPart({
         element: options.element,
         content: {
@@ -1678,11 +1678,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           filename: options.filename,
           mimeType: options.mimeType,
           dataUrl: options.dataUrl,
-          pluginId:
-            typeof (options.element as any).plugin === 'string' &&
-            String((options.element as any).plugin).trim()
-              ? String((options.element as any).plugin).trim()
-              : undefined,
+          pluginId: pluginId ?? undefined,
         });
 
         beginAddAttachmentPart({
