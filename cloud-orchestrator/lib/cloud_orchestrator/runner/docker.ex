@@ -146,6 +146,13 @@ defmodule CloudOrchestrator.Runner.Docker do
   end
 
   @impl true
+  def mark_sync_applied(instance, _params) do
+    with :ok <- maybe_mark_sync_applied(instance) do
+      {:ok, %{"instance_id" => instance["instance_id"], "status" => "ok"}}
+    end
+  end
+
+  @impl true
   def close_instance(instance, _params) do
     session = fetch_session(instance)
 
@@ -230,6 +237,23 @@ defmodule CloudOrchestrator.Runner.Docker do
 
   defp maybe_export_workspace(_instance, nil), do: :ok
   defp maybe_export_workspace(instance, transfer), do: export_workspace(instance, transfer)
+
+  defp maybe_mark_sync_applied(%{"proxy_base_url" => base_url}) when is_binary(base_url) do
+    request = Finch.build(:post, "#{base_url}/cloud-agent/runtime/sync-applied", [], "")
+
+    case Finch.request(request, CloudOrchestrator.Finch, receive_timeout: 120_000) do
+      {:ok, %{status: status}} when status in 200..299 ->
+        :ok
+
+      {:ok, %{status: status, body: body}} ->
+        {:error, "runtime sync-applied failed with #{status}: #{bounded(body)}"}
+
+      {:error, reason} ->
+        {:error, "runtime sync-applied request failed: #{inspect(reason)}"}
+    end
+  end
+
+  defp maybe_mark_sync_applied(_instance), do: {:error, "instance is missing proxy_base_url"}
 
   defp export_workspace(
          %{"proxy_base_url" => base_url, "instance_path" => instance_path},

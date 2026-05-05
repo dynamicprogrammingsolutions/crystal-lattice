@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
@@ -38,6 +37,8 @@ def test_default_config_effective_agent_configs_stay_intact(
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
     monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
     monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
+    monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
+    monkeypatch.setenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token")
 
     config_path = (
         ROOT

@@ -97,6 +97,17 @@ Project scripts receive:
 
 The local transfer script receives all three. The cloud setup script receives `CLOUD_WORKSPACE_DIR` and `TRANSFER_DIR`. Return/sync-down uses the same names in reverse with a cloud export script and local apply script. These scripts choose file contents only; the software moves bytes between transfer slots.
 
+The local cloud app selects configured default cloud profiles automatically.
+The portable default config ships bundled transfer/install/sync scripts under
+`CONFIG_DIR`. A project can override the defaults from one optional workdir
+file, `.cloud-agent/cloud-agent.json`, which may change default profile ids or
+override individual script fields. Script fields may be strings or ordered
+fallback lists; the first existing script path is used. Relative script paths
+in the project file resolve from `WORKING_DIR`.
+Patch-based sync profiles may include a cloud-side mark-synced script that runs
+only after local apply succeeds, advancing the cloud git baseline for
+incremental syncs while preserving retry safety.
+
 ## Runtime Config, Assets, And Env
 
 When `cloud.start_session_agent` runs, the local application writes a portable

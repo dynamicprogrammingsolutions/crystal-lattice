@@ -41,6 +41,7 @@ agent_terminal_app = [
     "runtime_layout.json",
     "default_config/*.json",
     "default_config/*.md",
+    "default_config/cloud-agent/**/*",
     "default_config/codex/**/*.json",
     "default_config/codex/**/*.md",
     "default_config/system_messages/**/*.md",

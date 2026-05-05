@@ -29,6 +29,11 @@ defmodule CloudOrchestrator.TestSessionCreateRunner do
   end
 
   @impl true
+  def mark_sync_applied(instance, _params) do
+    {:ok, %{"instance_id" => instance["instance_id"], "status" => "ok"}}
+  end
+
+  @impl true
   def close_instance(instance, _params) do
     {:ok, %{"instance_id" => instance["instance_id"], "state" => "closed"}}
   end
@@ -147,6 +152,14 @@ defmodule CloudOrchestrator.RouterTest do
     instance = Jason.decode!(instance_conn.resp_body)
     assert instance["state"] == "running"
     assert is_binary(instance["token"])
+
+    sync_applied_conn =
+      conn(:post, "/instances/#{instance["instance_id"]}/sync-applied", Jason.encode!(%{}))
+      |> put_req_header("content-type", "application/json")
+      |> CloudOrchestrator.Endpoint.call(@opts)
+
+    assert sync_applied_conn.status == 200
+    assert %{"status" => "ok"} = Jason.decode!(sync_applied_conn.resp_body)
   end
 
   test "proxy route validates token and delegates request handling to runner" do

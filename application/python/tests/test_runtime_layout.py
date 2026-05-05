@@ -71,5 +71,6 @@ def test_default_config_bootstrap_excludes_generated_private_state(
 
     assert config_path.is_file()
     assert (config_path.parent / "system_messages").is_dir()
+    assert (config_path.parent / "cloud-agent" / "profiles").is_dir()
     assert not (config_path.parent / "auth").exists()
     assert not (config_path.parent / ".plugin_cache").exists()

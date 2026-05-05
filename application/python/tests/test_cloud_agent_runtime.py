@@ -169,6 +169,12 @@ def test_cloud_runtime_materializes_transfer_and_runs_setup_and_export_scripts(
         encoding="utf-8",
     )
     export_script.chmod(0o755)
+    mark_synced_script = scripts_dir / "sync-applied"
+    mark_synced_script.write_text(
+        '#!/usr/bin/env bash\nset -euo pipefail\nprintf synced > "$CLOUD_WORKSPACE_DIR/synced-ran.txt"\n',
+        encoding="utf-8",
+    )
+    mark_synced_script.chmod(0o755)
 
     monkeypatch.setenv("CLOUD_AGENT_INSTANCE_DIR", str(instance_dir))
     monkeypatch.setenv("CLOUD_AGENT_WORKSPACE_DIR", str(instance_dir / "workspace"))
@@ -199,6 +205,12 @@ def test_cloud_runtime_materializes_transfer_and_runs_setup_and_export_scripts(
         assert (instance_dir / "transfer" / "export" / "exported.txt").read_text(
             encoding="utf-8"
         ) == "from local\n"
+
+        marked = client.post("/cloud-agent/runtime/sync-applied")
+        assert marked.status_code == 200
+        assert (instance_dir / "workspace" / "synced-ran.txt").read_text(
+            encoding="utf-8"
+        ) == "synced"
 
 
 def test_cloud_runtime_health_is_available_before_agent_application_ready(

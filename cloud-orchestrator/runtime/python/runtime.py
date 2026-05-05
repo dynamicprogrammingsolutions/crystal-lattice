@@ -392,6 +392,29 @@ def export_runtime_workspace() -> Dict[str, Any]:
     return {"status": "ok", "transfer_dir": str(export_dir)}
 
 
+@app.post("/cloud-agent/runtime/sync-applied")
+def mark_runtime_workspace_synced() -> Dict[str, Any]:
+    if not _runtime_status_snapshot().get("ready") or server_mod._agent_app is None:
+        raise _runtime_not_ready_exception()
+
+    mark_synced_script = scripts_dir() / "sync-applied"
+    if not mark_synced_script.exists():
+        return {"status": "ok", "script": "missing"}
+
+    import subprocess
+
+    subprocess.run(
+        [str(mark_synced_script)],
+        cwd=str(workspace_dir()),
+        env={
+            **os.environ,
+            "CLOUD_WORKSPACE_DIR": str(workspace_dir()),
+        },
+        check=True,
+    )
+    return {"status": "ok", "script": "ran"}
+
+
 @app.get("/cloud-agent/runtime/manifest")
 def runtime_manifest() -> Dict[str, Any]:
     path = instance_dir() / "transfer" / ".cloud-agent" / "manifest.json"

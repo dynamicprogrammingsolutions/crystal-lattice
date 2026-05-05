@@ -29,6 +29,11 @@ defmodule CloudOrchestrator.Runner.InMemory do
   end
 
   @impl true
+  def mark_sync_applied(instance, _params) do
+    {:ok, %{"instance_id" => instance["instance_id"], "status" => "ok"}}
+  end
+
+  @impl true
   def close_instance(instance, _params) do
     {:ok, %{"instance_id" => instance["instance_id"], "state" => "closed"}}
   end

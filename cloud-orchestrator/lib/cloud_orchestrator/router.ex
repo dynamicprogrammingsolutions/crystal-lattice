@@ -80,6 +80,18 @@ defmodule CloudOrchestrator.Router do
     end
   end
 
+  post "/instances/:instance_id/sync-applied" do
+    with :ok <- authorize_control(conn),
+         {:ok, params} <- read_json_params(conn),
+         {:ok, result} <- InstanceRegistry.mark_sync_applied(instance_id, params) do
+      send_json(conn, 200, result)
+    else
+      {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
+      {:error, :not_found} -> send_json(conn, 404, %{error: "instance_not_found"})
+      {:error, status, payload} -> send_json(conn, status, payload)
+    end
+  end
+
   post "/instances/:instance_id/close" do
     with :ok <- authorize_control(conn),
          {:ok, params} <- read_json_params(conn),

@@ -24,6 +24,9 @@ defmodule CloudOrchestrator.InstanceRegistry do
   def export_instance(id, params),
     do: GenServer.call(__MODULE__, {:export_instance, id, params}, 60_000)
 
+  def mark_sync_applied(id, params),
+    do: GenServer.call(__MODULE__, {:mark_sync_applied, id, params}, 60_000)
+
   def close_instance(id, params),
     do: GenServer.call(__MODULE__, {:close_instance, id, params}, 60_000)
 
@@ -136,6 +139,25 @@ defmodule CloudOrchestrator.InstanceRegistry do
 
       {:error, reason} ->
         {:reply, {:error, 500, %{error: "runner_export_failed", detail: inspect(reason)}}, state}
+    end
+  end
+
+  def handle_call({:mark_sync_applied, id, params}, _from, state) do
+    with {:ok, instance} <- fetch(state, id),
+         :ok <- require_running(instance),
+         {:ok, result} <- runner().mark_sync_applied(instance, params) do
+      {:reply, {:ok, result}, state}
+    else
+      {:error, :not_found} ->
+        {:reply, {:error, :not_found}, state}
+
+      {:error, :runtime_not_ready, instance} ->
+        {:reply,
+         {:error, 503, %{error: "runtime_not_ready", instance: public_instance(instance)}}, state}
+
+      {:error, reason} ->
+        {:reply, {:error, 500, %{error: "runner_sync_applied_failed", detail: inspect(reason)}},
+         state}
     end
   end
 

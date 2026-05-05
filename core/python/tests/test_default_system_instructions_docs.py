@@ -9,7 +9,9 @@ DOCS_ROOT = REPO_ROOT / "docs" / "default-system-instructions"
 RUNTIME_SYSTEM_MESSAGES_ROOT = (
     REPO_ROOT / "application" / "python" / "agent_terminal_app" / "system_messages"
 )
-DEFAULT_CONFIG_ROOT = REPO_ROOT / "application" / "python" / "agent_terminal_app" / "default_config"
+DEFAULT_CONFIG_ROOT = (
+    REPO_ROOT / "application" / "python" / "agent_terminal_app" / "default_config"
+)
 
 
 def test_vendor_instruction_directories_exist() -> None:
@@ -233,7 +235,9 @@ def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_p
     }
 
     for relative_path, removed_markers in runtime_templates.items():
-        template_text = (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).read_text(encoding="utf-8")
+        template_text = (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).read_text(
+            encoding="utf-8"
+        )
         for marker in removed_markers:
             assert marker not in template_text, (relative_path, marker)
 
@@ -279,6 +283,18 @@ def test_portable_default_config_is_self_contained() -> None:
     assert (DEFAULT_CONFIG_ROOT / "codex").is_dir()
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
+    cloud_agent = config["application"]["cloud_agent"]
+    for old_key in (
+        "local_transfer_script",
+        "cloud_setup_script",
+        "cloud_export_script",
+        "local_apply_script",
+    ):
+        assert old_key not in cloud_agent
+    assert cloud_agent["project_config_path"] == (
+        "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json"
+    )
+
     codex_rows = config["mixins"]["codex_developer_message"]["codex_developer_messages"]
 
     for row in codex_rows:
@@ -312,6 +328,11 @@ def test_portable_default_config_is_self_contained() -> None:
         "system_messages/kimi/general-guidelines-for-coding.md",
         "system_messages/kimi/general-guidelines-for-research-and-data-processing.md",
         "system_messages/kimi/ultimate-reminders.md",
+        "cloud-agent/profiles/working-tree-current-state/transfer-up",
+        "cloud-agent/profiles/repo-install/install",
+        "cloud-agent/profiles/working-tree-patch/export",
+        "cloud-agent/profiles/working-tree-patch/mark-synced",
+        "cloud-agent/profiles/working-tree-patch/apply-down",
     ]
 
     for relative_path in helper_paths:

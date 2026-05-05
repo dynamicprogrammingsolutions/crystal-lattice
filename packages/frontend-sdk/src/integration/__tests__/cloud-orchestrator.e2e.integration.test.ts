@@ -54,10 +54,7 @@ function localBackendConfig(options: {
     orchestrator_url: options.orchestratorUrl,
     workspace_dir: options.workspaceDir,
     transfer_method: 'managed_ssh',
-    local_transfer_script: '.cloud-agent/transfer-up',
-    cloud_setup_script: '.cloud-agent/setup-cloud',
-    cloud_export_script: '.cloud-agent/export-cloud',
-    local_apply_script: '.cloud-agent/apply-down',
+    project_config_path: '${env:WORKING_DIR}/.cloud-agent/cloud-agent.json',
     config_assets: {
       include_config_dir: true,
       exclude: ['.env'],
@@ -115,10 +112,7 @@ function openRouterBackendConfig(options: {
     orchestrator_url: options.orchestratorUrl,
     workspace_dir: options.workspaceDir,
     transfer_method: 'managed_ssh',
-    local_transfer_script: '.cloud-agent/transfer-up',
-    cloud_setup_script: '.cloud-agent/setup-cloud',
-    cloud_export_script: '.cloud-agent/export-cloud',
-    local_apply_script: '.cloud-agent/apply-down',
+    project_config_path: '${env:WORKING_DIR}/.cloud-agent/cloud-agent.json',
     config_assets: {
       include_config_dir: true,
       exclude: ['.env'],
@@ -181,27 +175,76 @@ function writeCloudAgentScripts(workspaceDir: string): void {
     'transfer-up': [
       '#!/usr/bin/env bash',
       'set -euo pipefail',
+      ': "${LOCAL_WORKSPACE_DIR:?}"',
+      ': "${TRANSFER_DIR:?}"',
       'cd "${LOCAL_WORKSPACE_DIR}"',
-      'mkdir -p "${TRANSFER_DIR}"',
-      'git ls-files -z --cached --modified --others --exclude-standard | rsync -a --from0 --files-from=- ./ "${TRANSFER_DIR}/"',
+      'payload_dir="${TRANSFER_DIR}/.cloud-agent"',
+      'mkdir -p "${payload_dir}"',
+      'git rev-parse --show-toplevel >/dev/null',
+      'git archive --format=tar --output="${payload_dir}/project.tar" HEAD',
+      'index_file="${payload_dir}/transfer.index"',
+      'rm -f "${index_file}"',
+      'GIT_INDEX_FILE="${index_file}" git read-tree HEAD',
+      'GIT_INDEX_FILE="${index_file}" git add -A -- . \':(exclude).cloud-agent\'',
+      'GIT_INDEX_FILE="${index_file}" git diff --cached --binary HEAD > "${payload_dir}/working.patch"',
+      'rm -f "${index_file}"',
     ].join('\n'),
     'setup-cloud': [
       '#!/usr/bin/env bash',
       'set -euo pipefail',
       ': "${CLOUD_WORKSPACE_DIR:?}"',
       ': "${TRANSFER_DIR:?}"',
+      'payload_dir="${TRANSFER_DIR}/.cloud-agent"',
+      'archive_path="${payload_dir}/project.tar"',
+      'patch_path="${payload_dir}/working.patch"',
+      'mkdir -p "${CLOUD_WORKSPACE_DIR}"',
+      'tar -xf "${archive_path}" -C "${CLOUD_WORKSPACE_DIR}"',
+      'cd "${CLOUD_WORKSPACE_DIR}"',
+      'git init -q',
+      'git add -A',
+      'git -c user.name=\'Cloud Agent\' -c user.email=\'cloud-agent@example.invalid\' commit -q -m \'cloud-agent baseline\'',
+      'if [ -s "${patch_path}" ]; then',
+      '  git apply --binary "${patch_path}"',
+      '  git add -A',
+      '  git -c user.name=\'Cloud Agent\' -c user.email=\'cloud-agent@example.invalid\' commit -q -m \'cloud-agent local input\'',
+      'fi',
     ].join('\n'),
     'export-cloud': [
       '#!/usr/bin/env bash',
       'set -euo pipefail',
-      'mkdir -p "${TRANSFER_DIR}"',
-      'rsync -a --exclude .cloud-agent "${CLOUD_WORKSPACE_DIR}/" "${TRANSFER_DIR}/"',
+      ': "${CLOUD_WORKSPACE_DIR:?}"',
+      ': "${TRANSFER_DIR:?}"',
+      'payload_dir="${TRANSFER_DIR}/.cloud-agent"',
+      'mkdir -p "${payload_dir}"',
+      'cd "${CLOUD_WORKSPACE_DIR}"',
+      'git add -A',
+      'git diff --cached --binary HEAD > "${payload_dir}/cloud.patch"',
     ].join('\n'),
     'apply-down': [
       '#!/usr/bin/env bash',
       'set -euo pipefail',
-      'mkdir -p "${LOCAL_WORKSPACE_DIR}"',
-      'rsync -a "${TRANSFER_DIR}/" "${LOCAL_WORKSPACE_DIR}/"',
+      ': "${LOCAL_WORKSPACE_DIR:?}"',
+      ': "${TRANSFER_DIR:?}"',
+      'patch_path="${TRANSFER_DIR}/.cloud-agent/cloud.patch"',
+      'cd "${LOCAL_WORKSPACE_DIR}"',
+      'if [ -s "${patch_path}" ]; then',
+      '  if git apply --check --binary "${patch_path}" >/dev/null 2>&1; then',
+      '    git apply --binary "${patch_path}"',
+      '  elif git apply --reverse --check --binary "${patch_path}" >/dev/null 2>&1; then',
+      '    exit 0',
+      '  else',
+      '    git apply --check --binary "${patch_path}"',
+      '  fi',
+      'fi',
+    ].join('\n'),
+    'mark-synced': [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      ': "${CLOUD_WORKSPACE_DIR:?}"',
+      'cd "${CLOUD_WORKSPACE_DIR}"',
+      'if ! git diff --cached --quiet --binary HEAD; then',
+      '  git -c user.name=\'Cloud Agent\' -c user.email=\'cloud-agent@example.invalid\' commit -q -m \'cloud-agent synced changes\'',
+      'fi',
     ].join('\n'),
   };
 
@@ -209,6 +252,49 @@ function writeCloudAgentScripts(workspaceDir: string): void {
     const scriptPath = path.join(scriptsDir, name);
     fs.writeFileSync(scriptPath, `${content}\n`, { encoding: 'utf8', mode: 0o755 });
   }
+
+  fs.writeFileSync(
+    path.join(scriptsDir, 'cloud-agent.json'),
+    `${JSON.stringify(
+      {
+        default_transfer_up_profile: 'working-tree-current-state',
+        default_sync_down_profile: 'working-tree-patch',
+        default_container_profile: 'default-runtime',
+        transfer_up_profiles: {
+          'working-tree-current-state': {
+            label: 'Working tree current state',
+            local_transfer_script: '.cloud-agent/transfer-up',
+            install_profile: 'repo-install',
+            compatible_sync_down_profiles: ['working-tree-patch'],
+          },
+        },
+        install_profiles: {
+          'repo-install': {
+            label: 'Repository install',
+            cloud_install_script: '.cloud-agent/setup-cloud',
+          },
+        },
+        sync_down_profiles: {
+          'working-tree-patch': {
+            label: 'Apply cloud patch to current worktree',
+            cloud_export_script: '.cloud-agent/export-cloud',
+            cloud_mark_synced_script: '.cloud-agent/mark-synced',
+            local_apply_script: '.cloud-agent/apply-down',
+            compatible_transfer_up_profiles: ['working-tree-current-state'],
+          },
+        },
+        container_profiles: {
+          'default-runtime': {
+            label: 'Default cloud agent runtime',
+            image: 'cloud-agent-runtime:latest',
+          },
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    { encoding: 'utf8' },
+  );
 }
 
 function initializeGitWorkspace(workspaceDir: string): void {
@@ -900,6 +986,24 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         'synced from cloud\n',
       );
 
+      await cloudBackend.appendMessage(cloudCreatedSessionId, {
+        role: 'assistant',
+        content: 'Calling write_file again.',
+        metadata: {
+          tool_calls: [writeFileToolCall('from-cloud-2.txt', 'second sync from cloud\n')],
+        },
+      });
+      await cloudBackend.send(cloudCreatedSessionId);
+      await waitForAsync(
+        async () =>
+          hasToolResult(
+            await cloudBackend.listMessages(cloudCreatedSessionId),
+            'write_file',
+            'from-cloud-2.txt',
+          ),
+        { timeoutMs: 30_000, intervalMs: 500 },
+      );
+
       await localBackend.executeAction({
         pluginId: 'cloud',
         actionId: 'cloud.close_session',
@@ -910,6 +1014,9 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         },
       });
 
+      expect(fs.readFileSync(path.join(workspaceDir, 'from-cloud-2.txt'), 'utf8')).toBe(
+        'second sync from cloud\n',
+      );
       const localMessages = await localBackend.listMessages(sessionId);
       expect(localMessages.messages.length).toBeGreaterThanOrEqual(2);
     },

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -9,6 +11,7 @@ import pytest
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
 from cloud_agent_app.cloud_agent_app_plugin import CloudAgentAppPlugin
+from cloud_agent_app.cloud_agent_profiles import resolve_cloud_agent_profiles
 from cloud_agent_app.cloud_agent_transfer import (
     CLOUD_WORKSPACE_DIR,
     CLOUD_PLUGIN_CACHE_DIR,
@@ -23,6 +26,10 @@ def _plugin_path() -> str:
     return str(Path(__file__).resolve().parents[1])
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[3]
+
+
 def _write_config(tmp_path: Path, transfer_script: Path) -> Path:
     cfg: Dict[str, Any] = {
         "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
@@ -35,10 +42,34 @@ def _write_config(tmp_path: Path, transfer_script: Path) -> Path:
             "cloud_agent": {
                 "orchestrator_url": "http://orchestrator.test",
                 "workspace_dir": str(tmp_path / "workspace"),
-                "local_transfer_script": str(transfer_script),
-                "cloud_export_script": str(transfer_script),
-                "local_apply_script": str(transfer_script),
                 "transfer_method": "managed_ssh",
+                "default_transfer_up_profile": "test-transfer",
+                "default_sync_down_profile": "test-sync",
+                "default_container_profile": "test-runtime",
+                "transfer_up_profiles": {
+                    "test-transfer": {
+                        "local_transfer_script": str(transfer_script),
+                        "install_profile": "test-install",
+                        "compatible_sync_down_profiles": ["test-sync"],
+                    }
+                },
+                "install_profiles": {
+                    "test-install": {
+                        "cloud_install_script": str(transfer_script),
+                    }
+                },
+                "sync_down_profiles": {
+                    "test-sync": {
+                        "cloud_export_script": str(transfer_script),
+                        "local_apply_script": str(transfer_script),
+                        "compatible_transfer_up_profiles": ["test-transfer"],
+                    }
+                },
+                "container_profiles": {
+                    "test-runtime": {
+                        "image": "cloud-agent-runtime:latest",
+                    }
+                },
                 "config_assets": {
                     "include_config_dir": True,
                     "exclude": [".plugin_cache"],
@@ -50,6 +81,25 @@ def _write_config(tmp_path: Path, transfer_script: Path) -> Path:
     path = tmp_path / "config.json"
     path.write_text(json.dumps(cfg), encoding="utf-8")
     return path
+
+
+def _write_script(path: Path, body: str = "") -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"#!/usr/bin/env bash\nset -euo pipefail\n{body}", encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def _run_cloud_profile_script(script: Path, env: Dict[str, str], *, cwd: Path) -> None:
+    subprocess.run(
+        [str(script)],
+        cwd=str(cwd),
+        env={**os.environ, **env},
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
 
 
 def test_cloud_start_session_ui_element_maps_current_session_id() -> None:
@@ -86,6 +136,268 @@ def test_cloud_start_session_default_wait_timeout_is_short() -> None:
     assert plugin._start_action_timeout_seconds({}) == 10.0
     assert (
         plugin._start_action_timeout_seconds({"start_action_timeout_seconds": 1}) == 1.0
+    )
+
+
+def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    workspace = tmp_path / "workspace"
+    transfer = _write_script(config_dir / "cloud-agent" / "transfer-up")
+    install = _write_script(config_dir / "cloud-agent" / "install")
+    export = _write_script(config_dir / "cloud-agent" / "export")
+    apply_down = _write_script(config_dir / "cloud-agent" / "apply-down")
+
+    resolved = resolve_cloud_agent_profiles(
+        {
+            "default_transfer_up_profile": "working-tree-current-state",
+            "default_sync_down_profile": "working-tree-patch",
+            "default_container_profile": "default-runtime",
+            "transfer_up_profiles": {
+                "working-tree-current-state": {
+                    "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/transfer-up",
+                    "install_profile": "repo-install",
+                    "compatible_sync_down_profiles": ["working-tree-patch"],
+                }
+            },
+            "install_profiles": {
+                "repo-install": {
+                    "cloud_install_script": "${env:CONFIG_DIR}/cloud-agent/install"
+                }
+            },
+            "sync_down_profiles": {
+                "working-tree-patch": {
+                    "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/export",
+                    "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/apply-down",
+                    "compatible_transfer_up_profiles": ["working-tree-current-state"],
+                }
+            },
+            "container_profiles": {
+                "default-runtime": {"image": "cloud-agent-runtime:latest"}
+            },
+        },
+        env={"CONFIG_DIR": str(config_dir), "WORKING_DIR": str(workspace)},
+    )
+
+    assert resolved["selected_transfer_up_profile"] == "working-tree-current-state"
+    assert resolved["selected_install_profile"] == "repo-install"
+    assert resolved["selected_sync_down_profile"] == "working-tree-patch"
+    assert resolved["selected_container_profile"] == "default-runtime"
+    assert resolved["local_transfer_script"] == str(transfer.resolve())
+    assert resolved["cloud_setup_script"] == str(install.resolve())
+    assert resolved["cloud_export_script"] == str(export.resolve())
+    assert resolved["local_apply_script"] == str(apply_down.resolve())
+    assert resolved["cloud_mark_synced_script"] is None
+    assert resolved["runtime_image"] == "cloud-agent-runtime:latest"
+
+
+def test_profile_resolver_loads_single_project_config_and_falls_back_to_base_script(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    project_config = workspace / ".cloud-agent" / "cloud-agent.json"
+    base_transfer = _write_script(tmp_path / "base-transfer")
+    custom_apply = _write_script(workspace / ".cloud-agent" / "scripts" / "apply-down")
+    install = _write_script(tmp_path / "install")
+    export = _write_script(tmp_path / "export")
+    base_apply = _write_script(tmp_path / "base-apply")
+    project_config.parent.mkdir(parents=True, exist_ok=True)
+    project_config.write_text(
+        json.dumps(
+            {
+                "sync_down_profiles": {
+                    "patch": {
+                        "local_apply_script": [
+                            ".cloud-agent/missing/apply-down",
+                            ".cloud-agent/scripts/apply-down",
+                        ]
+                    }
+                },
+                "transfer_up_profiles": {
+                    "current": {
+                        "local_transfer_script": [".cloud-agent/missing/transfer-up"]
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    resolved = resolve_cloud_agent_profiles(
+        {
+            "default_transfer_up_profile": "current",
+            "default_sync_down_profile": "patch",
+            "default_container_profile": "runtime",
+            "transfer_up_profiles": {
+                "current": {
+                    "local_transfer_script": str(base_transfer),
+                    "install_profile": "install",
+                }
+            },
+            "install_profiles": {"install": {"cloud_install_script": str(install)}},
+            "sync_down_profiles": {
+                "patch": {
+                    "cloud_export_script": str(export),
+                    "local_apply_script": str(base_apply),
+                }
+            },
+            "container_profiles": {"runtime": {"image": "runtime:test"}},
+        },
+        env={"WORKING_DIR": str(workspace), "CONFIG_DIR": str(tmp_path / "config")},
+    )
+
+    assert resolved["local_transfer_script"] == str(base_transfer.resolve())
+    assert resolved["local_apply_script"] == str(custom_apply.resolve())
+
+
+def test_profile_resolver_rejects_incompatible_defaults(tmp_path: Path) -> None:
+    transfer = _write_script(tmp_path / "transfer")
+    install = _write_script(tmp_path / "install")
+    export = _write_script(tmp_path / "export")
+    apply_down = _write_script(tmp_path / "apply-down")
+
+    with pytest.raises(ValueError, match="not compatible"):
+        resolve_cloud_agent_profiles(
+            {
+                "default_transfer_up_profile": "current",
+                "default_sync_down_profile": "patch",
+                "default_container_profile": "runtime",
+                "transfer_up_profiles": {
+                    "current": {
+                        "local_transfer_script": str(transfer),
+                        "install_profile": "install",
+                        "compatible_sync_down_profiles": ["other-patch"],
+                    }
+                },
+                "install_profiles": {"install": {"cloud_install_script": str(install)}},
+                "sync_down_profiles": {
+                    "patch": {
+                        "cloud_export_script": str(export),
+                        "local_apply_script": str(apply_down),
+                    },
+                    "other-patch": {
+                        "cloud_export_script": str(export),
+                        "local_apply_script": str(apply_down),
+                    },
+                },
+                "container_profiles": {"runtime": {"image": "runtime:test"}},
+            },
+            env={"WORKING_DIR": str(tmp_path), "CONFIG_DIR": str(tmp_path)},
+        )
+
+
+def test_profile_resolver_rejects_requires_dependency_declarations(
+    tmp_path: Path,
+) -> None:
+    transfer = _write_script(tmp_path / "transfer")
+
+    with pytest.raises(ValueError, match="requires is not supported"):
+        resolve_cloud_agent_profiles(
+            {
+                "default_transfer_up_profile": "current",
+                "transfer_up_profiles": {
+                    "current": {
+                        "local_transfer_script": str(transfer),
+                        "install_profile": "install",
+                        "requires": {"git": True},
+                    }
+                },
+            },
+            env={"WORKING_DIR": str(tmp_path), "CONFIG_DIR": str(tmp_path)},
+        )
+
+
+def test_default_patch_scripts_support_incremental_sync_after_mark_synced(
+    tmp_path: Path,
+) -> None:
+    scripts_root = (
+        _repo_root()
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "cloud-agent"
+        / "profiles"
+    )
+    transfer_up = scripts_root / "working-tree-current-state" / "transfer-up"
+    install = scripts_root / "repo-install" / "install"
+    export = scripts_root / "working-tree-patch" / "export"
+    mark_synced = scripts_root / "working-tree-patch" / "mark-synced"
+    apply_down = scripts_root / "working-tree-patch" / "apply-down"
+
+    local = tmp_path / "local"
+    cloud = tmp_path / "cloud"
+    local.mkdir()
+    cloud.mkdir()
+    subprocess.run(["git", "init"], cwd=local, check=True, stdout=subprocess.PIPE)
+    subprocess.run(
+        ["git", "config", "user.email", "local@example.invalid"],
+        cwd=local,
+        check=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "Local Test"],
+        cwd=local,
+        check=True,
+    )
+    (local / "chain.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "add", "chain.txt"], cwd=local, check=True)
+    subprocess.run(
+        ["git", "commit", "-m", "base"],
+        cwd=local,
+        check=True,
+        stdout=subprocess.PIPE,
+    )
+
+    upload = tmp_path / "upload"
+    upload.mkdir()
+    _run_cloud_profile_script(
+        transfer_up,
+        {"LOCAL_WORKSPACE_DIR": str(local), "TRANSFER_DIR": str(upload)},
+        cwd=local,
+    )
+    _run_cloud_profile_script(
+        install,
+        {"CLOUD_WORKSPACE_DIR": str(cloud), "TRANSFER_DIR": str(upload)},
+        cwd=cloud,
+    )
+
+    (cloud / "chain.txt").write_text("base\nchange1\n", encoding="utf-8")
+    sync1 = tmp_path / "sync1"
+    sync1.mkdir()
+    _run_cloud_profile_script(
+        export,
+        {"CLOUD_WORKSPACE_DIR": str(cloud), "TRANSFER_DIR": str(sync1)},
+        cwd=cloud,
+    )
+    _run_cloud_profile_script(
+        apply_down,
+        {"LOCAL_WORKSPACE_DIR": str(local), "TRANSFER_DIR": str(sync1)},
+        cwd=local,
+    )
+    _run_cloud_profile_script(
+        mark_synced,
+        {"CLOUD_WORKSPACE_DIR": str(cloud)},
+        cwd=cloud,
+    )
+
+    (cloud / "chain.txt").write_text("base\nchange1\nchange2\n", encoding="utf-8")
+    sync2 = tmp_path / "sync2"
+    sync2.mkdir()
+    _run_cloud_profile_script(
+        export,
+        {"CLOUD_WORKSPACE_DIR": str(cloud), "TRANSFER_DIR": str(sync2)},
+        cwd=cloud,
+    )
+    _run_cloud_profile_script(
+        apply_down,
+        {"LOCAL_WORKSPACE_DIR": str(local), "TRANSFER_DIR": str(sync2)},
+        cwd=local,
+    )
+
+    assert (local / "chain.txt").read_text(encoding="utf-8") == (
+        "base\nchange1\nchange2\n"
     )
 
 
@@ -215,6 +527,7 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
     assert "public_host" not in calls[0]["body"]
     assert calls[2]["body"]["session_id"] == session.session_id
     assert calls[2]["body"]["transfer_ref"] == {"transfer_id": "tr_test"}
+    assert calls[2]["body"]["runtime_image"] == "cloud-agent-runtime:latest"
     assert calls[2]["body"]["connection_ref"]["reuse"] is True
     assert calls[2]["body"]["connection_ref"]["connection_key"].startswith(
         "cloud-agent-app:"
@@ -310,6 +623,137 @@ def test_cloud_check_session_action_updates_cloud_metadata(
     assert cloud_agent["state"] == "running"
     assert cloud_agent["startup_stage"] == "ready"
     assert cloud_agent["token"] == "tok_test"
+
+
+def test_sync_down_marks_cloud_synced_after_local_apply(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    local_apply = _write_script(tmp_path / "apply")
+    plugin = CloudAgentAppPlugin()
+    calls: List[str] = []
+
+    monkeypatch.setattr(
+        plugin,
+        "_create_transfer_keypair",
+        lambda transfer_dir: {
+            "private_key_path": transfer_dir / "key",
+            "public_key": "ssh-ed25519 test",
+        },
+    )
+    monkeypatch.setattr(
+        plugin,
+        "_run_managed_ssh_adapter",
+        lambda *args, **kwargs: calls.append("download"),
+    )
+
+    def fake_run_script(raw_path: str, env: Dict[str, str], *, cwd: Path) -> None:
+        assert raw_path == str(local_apply)
+        calls.append("apply")
+
+    monkeypatch.setattr(plugin, "_run_script", fake_run_script)
+
+    def fake_post_json(
+        base_url: str, path: str, payload: Dict[str, Any], *, token: Any = None
+    ) -> Dict[str, Any]:
+        calls.append(path)
+        if path == "/transfers":
+            return {"transfer_id": "tr_sync", "method": "managed_ssh", "endpoint": {}}
+        if path == "/instances/inst_test/export":
+            return {"status": "ok"}
+        if path == "/instances/inst_test/sync-applied":
+            return {"status": "ok"}
+        raise AssertionError(path)
+
+    monkeypatch.setattr(plugin, "_post_json", fake_post_json)
+    monkeypatch.setattr(plugin, "_delete_transfer", lambda *args, **kwargs: None)
+
+    result = plugin._sync_down(
+        app=object(),
+        params={"instance_id": "inst_test", "workspace_dir": str(workspace)},
+        state={
+            "orchestrator_url": "http://orchestrator.test",
+            "cloud_export_script": str(tmp_path / "export"),
+            "local_apply_script": str(local_apply),
+            "cloud_mark_synced_script": str(tmp_path / "mark-synced"),
+        },
+    )
+
+    assert result["status"] == "ok"
+    assert calls == [
+        "/transfers",
+        "/instances/inst_test/export",
+        "download",
+        "apply",
+        "/instances/inst_test/sync-applied",
+    ]
+
+
+def test_sync_down_does_not_mark_cloud_synced_when_local_apply_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    local_apply = _write_script(tmp_path / "apply")
+    plugin = CloudAgentAppPlugin()
+    calls: List[str] = []
+
+    monkeypatch.setattr(
+        plugin,
+        "_create_transfer_keypair",
+        lambda transfer_dir: {
+            "private_key_path": transfer_dir / "key",
+            "public_key": "ssh-ed25519 test",
+        },
+    )
+    monkeypatch.setattr(
+        plugin,
+        "_run_managed_ssh_adapter",
+        lambda *args, **kwargs: calls.append("download"),
+    )
+
+    def fake_run_script(raw_path: str, env: Dict[str, str], *, cwd: Path) -> None:
+        calls.append("apply")
+        raise RuntimeError("apply failed")
+
+    monkeypatch.setattr(plugin, "_run_script", fake_run_script)
+
+    def fake_post_json(
+        base_url: str, path: str, payload: Dict[str, Any], *, token: Any = None
+    ) -> Dict[str, Any]:
+        calls.append(path)
+        if path == "/transfers":
+            return {"transfer_id": "tr_sync", "method": "managed_ssh", "endpoint": {}}
+        if path == "/instances/inst_test/export":
+            return {"status": "ok"}
+        if path == "/instances/inst_test/sync-applied":
+            raise AssertionError("sync-applied should not run after apply failure")
+        raise AssertionError(path)
+
+    monkeypatch.setattr(plugin, "_post_json", fake_post_json)
+    monkeypatch.setattr(plugin, "_delete_transfer", lambda *args, **kwargs: None)
+
+    with pytest.raises(RuntimeError, match="apply failed"):
+        plugin._sync_down(
+            app=object(),
+            params={"instance_id": "inst_test", "workspace_dir": str(workspace)},
+            state={
+                "orchestrator_url": "http://orchestrator.test",
+                "cloud_export_script": str(tmp_path / "export"),
+                "local_apply_script": str(local_apply),
+                "cloud_mark_synced_script": str(tmp_path / "mark-synced"),
+            },
+        )
+
+    assert calls == [
+        "/transfers",
+        "/instances/inst_test/export",
+        "download",
+        "apply",
+    ]
 
 
 def test_portable_config_removes_cloud_agent_and_preserves_plugin_owned_paths() -> None:

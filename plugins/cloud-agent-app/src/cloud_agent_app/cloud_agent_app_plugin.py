@@ -20,6 +20,7 @@ from urllib.parse import urlencode
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from .cloud_agent_profiles import resolve_cloud_agent_profiles
 from .cloud_agent_transfer import CLOUD_WORKSPACE_DIR, prepare_cloud_transfer
 
 
@@ -46,7 +47,9 @@ class CloudAgentAppPlugin:
             app_config.get("application") if isinstance(app_config, dict) else {}
         )
         cloud = application.get("cloud_agent") if isinstance(application, dict) else {}
-        return dict(cloud) if isinstance(cloud, dict) else {}
+        if not isinstance(cloud, dict):
+            return {}
+        return resolve_cloud_agent_profiles(cloud)
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [
@@ -246,6 +249,7 @@ class CloudAgentAppPlugin:
                     },
                     "session_id": session_id,
                     "transfer_ref": {"transfer_id": transfer_id},
+                    "runtime_image": state.get("runtime_image"),
                 },
                 token=state.get("orchestrator_token"),
             )
@@ -378,6 +382,13 @@ class CloudAgentAppPlugin:
                     },
                     cwd=workspace_dir,
                 )
+                if state.get("cloud_mark_synced_script"):
+                    self._post_json(
+                        orchestrator_url,
+                        f"/instances/{instance_id}/sync-applied",
+                        {},
+                        token=state.get("orchestrator_token"),
+                    )
             finally:
                 self._delete_transfer(
                     orchestrator_url,
@@ -618,6 +629,7 @@ class CloudAgentAppPlugin:
         for key, target_name in (
             ("cloud_setup_script", "setup"),
             ("cloud_export_script", "export"),
+            ("cloud_mark_synced_script", "sync-applied"),
         ):
             raw = state.get(key)
             if not isinstance(raw, str) or not raw.strip():

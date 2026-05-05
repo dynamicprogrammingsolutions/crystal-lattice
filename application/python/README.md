@@ -465,10 +465,39 @@ Config example:
       "workspace_dir": ".",
       "connection_key": "optional-stable-project-or-server-key",
       "transfer_method": "managed_ssh",
-      "local_transfer_script": ".cloud-agent/transfer-up",
-      "cloud_setup_script": ".cloud-agent/setup-cloud",
-      "cloud_export_script": ".cloud-agent/export-cloud",
-      "local_apply_script": ".cloud-agent/apply-down",
+      "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
+      "default_transfer_up_profile": "working-tree-current-state",
+      "default_sync_down_profile": "working-tree-patch",
+      "default_container_profile": "default-runtime",
+      "transfer_up_profiles": {
+        "working-tree-current-state": {
+          "label": "Working tree current state",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state/transfer-up",
+          "install_profile": "repo-install",
+          "compatible_sync_down_profiles": ["working-tree-patch"]
+        }
+      },
+      "install_profiles": {
+        "repo-install": {
+          "label": "Repository install",
+          "cloud_install_script": "${env:CONFIG_DIR}/cloud-agent/profiles/repo-install/install"
+        }
+      },
+      "sync_down_profiles": {
+        "working-tree-patch": {
+          "label": "Apply cloud patch to current worktree",
+          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/export",
+          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/mark-synced",
+          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/apply-down",
+          "compatible_transfer_up_profiles": ["working-tree-current-state"]
+        }
+      },
+      "container_profiles": {
+        "default-runtime": {
+          "label": "Default cloud agent runtime",
+          "image": "cloud-agent-runtime:latest"
+        }
+      },
       "managed_ssh": {
         "adapter_script": null,
         "ssh_path": "ssh",
@@ -506,6 +535,17 @@ Config example:
 stable key from the local config/workspace context so multiple local sessions
 can share one cloud connection while still running as separate cloud instances.
 The orchestrator treats this key as plugin-owned opaque data.
+
+The configured default profiles are selected automatically. Projects can
+override the bundled defaults from a single optional workdir file at
+`.cloud-agent/cloud-agent.json`. That file may override default profile ids or
+individual profile fields. Script fields can be a string or an ordered fallback
+list; the first existing script path is used, and fallback lists in the project
+file fall back to the inherited bundled script when no project path exists.
+Relative script paths in the project file resolve from `WORKING_DIR`.
+Patch-based sync profiles can also define `cloud_mark_synced_script`; it runs
+only after the local apply step succeeds, so the cloud-side baseline advances
+without breaking retry safety.
 
 Scripts receive stable environment variables:
 
