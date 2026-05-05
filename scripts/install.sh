@@ -103,7 +103,7 @@ verify_install() {
   layout="$("$command_path" --runtime-layout-json)"
   printf '%s\n' "$layout" | grep -q '"layout": "bundled"' \
     || fail "installed command did not report bundled runtime layout"
-  printf '%s\n' "$layout" | grep -q '/_internal/plugins' \
+  printf '%s\n' "$layout" | grep -q '/_internal/bundled_plugins' \
     || fail "installed command did not report bundled plugin path"
 }
 

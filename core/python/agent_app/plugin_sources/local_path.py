@@ -201,7 +201,8 @@ class LocalPathRepoSource:
 
         try:
             repo_root = subprocess.check_output(
-                ["git", "-C", str(base), "rev-parse", "--show-toplevel"]
+                ["git", "-C", str(base), "rev-parse", "--show-toplevel"],
+                stderr=subprocess.DEVNULL,
             ).decode().strip()
         except Exception:
             return None

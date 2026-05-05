@@ -63,6 +63,42 @@ def test_runtime_layout_resolves_user_paths_from_current_working_directory(
     assert layout.user_path("default_sessions_dir") == cwd / ".crystal" / "sessions"
 
 
+def test_bundled_runtime_layout_exposes_bundled_plugin_root(tmp_path: Path) -> None:
+    manifest = tmp_path / "agent_terminal_app" / "runtime_layout.json"
+    manifest.parent.mkdir()
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "layout": "bundled",
+                "bundle_paths": {
+                    "builtin_plugins": "../bundled_plugins",
+                    "default_config_template": "default_config",
+                    "config_examples": ".",
+                    "root_system_messages": "system_messages",
+                },
+                "user_paths": {
+                    "local_config": "./.crystal/config.json",
+                    "home_config": "~/.crystal/config.json",
+                    "default_config": "~/.crystal/config.json",
+                    "default_sessions_dir": "~/.crystal/sessions",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    layout = load_runtime_layout(manifest)
+
+    assert layout.builtin_plugins == tmp_path / "bundled_plugins"
+    assert layout.env_overrides()["BUILTIN_PLUGINS"] == str(
+        tmp_path / "bundled_plugins"
+    )
+    assert layout.env_overrides()["CRYSTAL_BUNDLED_PLUGIN_ROOT"] == str(
+        tmp_path / "bundled_plugins"
+    )
+
+
 def test_default_config_bootstrap_excludes_generated_private_state(
     tmp_path: Path,
 ) -> None:

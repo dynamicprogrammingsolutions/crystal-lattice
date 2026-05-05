@@ -12,9 +12,9 @@ test -n "$bundle_dir"
 test -x "$bundle_dir/crystal-lattice"
 test -f "$bundle_dir/_internal/agent_terminal_app/runtime_layout.json"
 test -f "$bundle_dir/_internal/agent_terminal_app/default_config/config.json"
-test -f "$bundle_dir/_internal/plugins/openrouter/agent_plugin.json"
-test -f "$bundle_dir/_internal/plugins/codex-tools/agent_plugin.json"
-test -f "$bundle_dir/_internal/plugins/feature-system-message/agent_plugin.json"
+test -f "$bundle_dir/_internal/bundled_plugins/openrouter/agent_plugin.json"
+test -f "$bundle_dir/_internal/bundled_plugins/codex-tools/agent_plugin.json"
+test -f "$bundle_dir/_internal/bundled_plugins/feature-system-message/agent_plugin.json"
 test ! -e "$bundle_dir/_internal/agent_terminal_app/default_config/auth"
 test ! -e "$bundle_dir/_internal/agent_terminal_app/default_config/.plugin_cache"
 
@@ -23,6 +23,7 @@ test ! -e "$bundle_dir/_internal/agent_terminal_app/default_config/.plugin_cache
 
 grep -q '"layout": "bundled"' /tmp/crystal-lattice-layout.json
 grep -q '"BUILTIN_PLUGINS":' /tmp/crystal-lattice-layout.json
-grep -q '/_internal/plugins' /tmp/crystal-lattice-layout.json
+grep -q '"CRYSTAL_BUNDLED_PLUGIN_ROOT":' /tmp/crystal-lattice-layout.json
+grep -q '/_internal/bundled_plugins' /tmp/crystal-lattice-layout.json
 
 echo "bundle smoke test passed: $bundle_dir"

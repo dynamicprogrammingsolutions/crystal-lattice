@@ -24,6 +24,7 @@ APP_DIR = ROOT / "application" / "python"
 APP_PACKAGE_DIR = APP_DIR / "agent_terminal_app"
 CORE_DIR = ROOT / "core" / "python"
 PLUGINS_DIR = ROOT / "plugins"
+BUNDLED_PLUGINS_DIRNAME = "bundled_plugins"
 PYPROJECT = APP_DIR / "pyproject.toml"
 BUILD_DIR = ROOT / "build" / "crystal-lattice-binary"
 PYINSTALLER_WORK_DIR = BUILD_DIR / "pyinstaller-work"
@@ -159,7 +160,7 @@ def prepare_staged_assets() -> None:
         "schema_version": 1,
         "layout": "bundled",
         "bundle_paths": {
-            "builtin_plugins": "../plugins",
+            "builtin_plugins": f"../{BUNDLED_PLUGINS_DIRNAME}",
             "default_config_template": "default_config",
             "config_examples": ".",
             "root_system_messages": "system_messages",
@@ -176,7 +177,7 @@ def prepare_staged_assets() -> None:
         encoding="utf-8",
     )
 
-    copytree_sanitized(PLUGINS_DIR, ASSET_STAGE_DIR / "plugins")
+    copytree_sanitized(PLUGINS_DIR, ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME)
 
     entrypoint = ASSET_STAGE_DIR / "crystal_lattice_pyinstaller_entry.py"
     entrypoint.write_text(
@@ -212,6 +213,12 @@ def copytree_sanitized(
 
 def run_pyinstaller() -> None:
     entrypoint = ASSET_STAGE_DIR / "crystal_lattice_pyinstaller_entry.py"
+    bundled_python_paths = discover_plugin_python_paths(
+        ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME
+    )
+    hidden_imports = discover_plugin_hidden_imports(
+        ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME
+    )
     command = [
         sys.executable,
         "-m",
@@ -236,10 +243,48 @@ def run_pyinstaller() -> None:
         "--add-data",
         add_data_arg(ASSET_STAGE_DIR / "agent_terminal_app", "agent_terminal_app"),
         "--add-data",
-        add_data_arg(ASSET_STAGE_DIR / "plugins", "plugins"),
-        str(entrypoint),
+        add_data_arg(
+            ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME, BUNDLED_PLUGINS_DIRNAME
+        ),
     ]
+    for path in bundled_python_paths:
+        command.extend(["--paths", str(path)])
+    for module in hidden_imports:
+        command.extend(["--hidden-import", module])
+    command.append(str(entrypoint))
     subprocess.run(command, cwd=str(ROOT), check=True)
+
+
+def discover_plugin_python_paths(plugin_root: Path) -> list[Path]:
+    paths: list[Path] = []
+    for project in sorted(plugin_root.iterdir()):
+        if not project.is_dir():
+            continue
+        src = project / "src"
+        if src.is_dir():
+            paths.append(src)
+        elif (project / "pyproject.toml").is_file() or (project / "setup.py").is_file():
+            paths.append(project)
+    return paths
+
+
+def discover_plugin_hidden_imports(plugin_root: Path) -> list[str]:
+    modules: set[str] = set()
+    for descriptor_path in sorted(plugin_root.glob("*/agent_plugin.json")):
+        try:
+            descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        module = descriptor.get("module")
+        if isinstance(module, str) and module.strip():
+            modules.add(module.strip())
+        entries = descriptor.get("entries")
+        if isinstance(entries, list):
+            for entry in entries:
+                if not isinstance(entry, str) or "." not in entry:
+                    continue
+                modules.add(entry.rsplit(".", 1)[0])
+    return sorted(modules)
 
 
 def add_data_arg(source: Path, destination: str) -> str:
@@ -260,9 +305,12 @@ def verify_output_tree(output_dir: Path) -> None:
     required_paths = [
         internal_dir / "agent_terminal_app" / "runtime_layout.json",
         internal_dir / "agent_terminal_app" / "default_config" / "config.json",
-        internal_dir / "plugins" / "openrouter" / "agent_plugin.json",
-        internal_dir / "plugins" / "codex-tools" / "agent_plugin.json",
-        internal_dir / "plugins" / "feature-system-message" / "agent_plugin.json",
+        internal_dir / BUNDLED_PLUGINS_DIRNAME / "openrouter" / "agent_plugin.json",
+        internal_dir / BUNDLED_PLUGINS_DIRNAME / "codex-tools" / "agent_plugin.json",
+        internal_dir
+        / BUNDLED_PLUGINS_DIRNAME
+        / "feature-system-message"
+        / "agent_plugin.json",
     ]
     for path in required_paths:
         if not path.exists():

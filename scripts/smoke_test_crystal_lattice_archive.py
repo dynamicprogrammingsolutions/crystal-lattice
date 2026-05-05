@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 from pathlib import Path
-import shutil
 import subprocess
 import sys
 import tarfile
@@ -94,11 +93,19 @@ def validate_bundle(bundle_dir: Path) -> None:
         / "agent_terminal_app"
         / "default_config"
         / "config.json",
-        bundle_dir / "_internal" / "plugins" / "openrouter" / "agent_plugin.json",
-        bundle_dir / "_internal" / "plugins" / "codex-tools" / "agent_plugin.json",
         bundle_dir
         / "_internal"
-        / "plugins"
+        / "bundled_plugins"
+        / "openrouter"
+        / "agent_plugin.json",
+        bundle_dir
+        / "_internal"
+        / "bundled_plugins"
+        / "codex-tools"
+        / "agent_plugin.json",
+        bundle_dir
+        / "_internal"
+        / "bundled_plugins"
         / "feature-system-message"
         / "agent_plugin.json",
     ]
@@ -132,12 +139,18 @@ def validate_bundle(bundle_dir: Path) -> None:
     if not isinstance(env_overrides, dict) or "BUILTIN_PLUGINS" not in env_overrides:
         raise RuntimeError("Runtime layout did not expose BUILTIN_PLUGINS")
 
-    expected_plugins = (bundle_dir / "_internal" / "plugins").resolve()
+    expected_plugins = (bundle_dir / "_internal" / "bundled_plugins").resolve()
     actual_plugins = Path(env_overrides["BUILTIN_PLUGINS"]).resolve()
     if actual_plugins != expected_plugins:
         raise RuntimeError(
             "BUILTIN_PLUGINS points to the wrong path: "
             f"expected {expected_plugins}, got {actual_plugins}"
+        )
+    bundled_root = env_overrides.get("CRYSTAL_BUNDLED_PLUGIN_ROOT")
+    if Path(str(bundled_root)).resolve() != expected_plugins:
+        raise RuntimeError(
+            "CRYSTAL_BUNDLED_PLUGIN_ROOT points to the wrong path: "
+            f"expected {expected_plugins}, got {bundled_root}"
         )
 
 

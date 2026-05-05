@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterator, List, Mapping, Protocol
 
 import fcntl
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -46,6 +47,10 @@ class PipTargetInstallStrategy:
     """
 
     def ensure_installed(self, request: InstallRequest) -> Path:  # type: ignore[override]
+        bundled_install_dir = self._maybe_activate_bundled_source(request)
+        if bundled_install_dir is not None:
+            return bundled_install_dir
+
         cache_dir = request.cache_dir
         cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -116,3 +121,32 @@ class PipTargetInstallStrategy:
         value = str(install_dir)
         if value not in sys.path:
             sys.path.append(value)
+
+    def _maybe_activate_bundled_source(self, request: InstallRequest) -> Path | None:
+        root_raw = request.policy.get("bundled_plugin_root") or os.environ.get(
+            "CRYSTAL_BUNDLED_PLUGIN_ROOT"
+        )
+        if not isinstance(root_raw, str) or not root_raw.strip():
+            return None
+
+        root = Path(root_raw).expanduser().resolve()
+        project_dir = request.project_dir.resolve()
+        try:
+            project_dir.relative_to(root)
+        except ValueError:
+            return None
+
+        self._activate_bundled_source_tree(root)
+        return project_dir
+
+    def _activate_bundled_source_tree(self, root: Path) -> None:
+        if not root.is_dir():
+            return
+        for project in sorted(root.iterdir()):
+            if not project.is_dir():
+                continue
+            src_dir = project / "src"
+            if src_dir.is_dir():
+                self._activate_sys_path(src_dir)
+            elif (project / "pyproject.toml").is_file() or (project / "setup.py").is_file():
+                self._activate_sys_path(project)
