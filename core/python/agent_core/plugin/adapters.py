@@ -658,6 +658,30 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
             return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
         return {"native_messages": list(native_messages)}
 
+    def intercept_tool_call(  # type: ignore[override]
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        fn = self._get_impl_method("intercept_tool_call", ProviderExtensionPlugin)
+        if fn is None:
+            return {"kind": "continue"}
+        out = self._call_with_optional_kwargs(fn, payload, context, state)
+        return out if isinstance(out, dict) else {"kind": "continue"}
+
+    def intercept_tool_result(  # type: ignore[override]
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        fn = self._get_impl_method("intercept_tool_result", ProviderExtensionPlugin)
+        if fn is None:
+            return {"kind": "continue"}
+        out = self._call_with_optional_kwargs(fn, payload, context, state)
+        return out if isinstance(out, dict) else {"kind": "continue"}
+
 
 class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
     """Adapter providing defaults for FeaturePlugin implementations."""
@@ -822,6 +846,30 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
             )
             return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
         return {"native_messages": list(native_messages)}
+
+    def intercept_tool_call(  # type: ignore[override]
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        fn = self._get_impl_method("intercept_tool_call", FeaturePlugin)
+        if fn is None:
+            return {"kind": "continue"}
+        out = self._call_with_optional_kwargs(fn, payload, context, state)
+        return out if isinstance(out, dict) else {"kind": "continue"}
+
+    def intercept_tool_result(  # type: ignore[override]
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        fn = self._get_impl_method("intercept_tool_result", FeaturePlugin)
+        if fn is None:
+            return {"kind": "continue"}
+        out = self._call_with_optional_kwargs(fn, payload, context, state)
+        return out if isinstance(out, dict) else {"kind": "continue"}
 
     def get_completions(  # type: ignore[override]
         self,

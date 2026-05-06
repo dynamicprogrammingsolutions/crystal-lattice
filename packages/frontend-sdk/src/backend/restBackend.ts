@@ -13,6 +13,7 @@ import type {
   AgentBackend,
   BackendCapabilities,
   ListMessagesResult,
+  ToolPromptListItem,
 } from './backend';
 import { generateIdempotencyKey } from '../utils/idempotency';
 import { emitSessionUiSchemaInvalidated } from '../uiSchema/sessionUiSchemaInvalidation';
@@ -249,6 +250,42 @@ export class RestAgentBackend implements AgentBackend {
       headers: this.buildIdempotencyHeaders(options.idempotencyKey),
       body: {},
     });
+  }
+
+  async listSessionToolPrompts(sessionId: string): Promise<ToolPromptListItem[]> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/tool-prompts`;
+    const resp = await this.transport.request<{ prompts?: ToolPromptListItem[] }>({
+      method: 'GET',
+      path,
+    });
+    const prompts = Array.isArray(resp.data?.prompts) ? resp.data.prompts : [];
+    return prompts.filter(
+      (p) =>
+        p &&
+        typeof p === 'object' &&
+        typeof (p as ToolPromptListItem).message_index === 'number' &&
+        typeof (p as ToolPromptListItem).prompt === 'object' &&
+        (p as ToolPromptListItem).prompt !== null,
+    ) as ToolPromptListItem[];
+  }
+
+  async submitSessionToolPromptResponse(
+    sessionId: string,
+    body: { prompt_id: string; button_id: string; values: Record<string, unknown> },
+    options: { idempotencyKey?: string } = {},
+  ): Promise<{ status?: string; request?: Record<string, unknown> }> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/tool-prompts/respond`;
+    const resp = await this.transport.request<{ status?: string; request?: Record<string, unknown> }>({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: {
+        prompt_id: body.prompt_id,
+        button_id: body.button_id,
+        values: body.values ?? {},
+      },
+    });
+    return (resp.data ?? {}) as { status?: string; request?: Record<string, unknown> };
   }
 
   async listEvents(params: {

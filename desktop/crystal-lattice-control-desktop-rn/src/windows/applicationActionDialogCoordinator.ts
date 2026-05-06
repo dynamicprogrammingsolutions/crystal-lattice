@@ -8,7 +8,10 @@ export interface ApplicationActionDialogState {
 }
 
 export interface ApplicationActionDialogHandlers {
-  onSubmit: (values: Record<string, any>) => void | Promise<void>;
+  onSubmit: (payload: {
+    values: Record<string, any>;
+    buttonId?: string;
+  }) => void | Promise<void>;
   onCancel: () => void;
 }
 

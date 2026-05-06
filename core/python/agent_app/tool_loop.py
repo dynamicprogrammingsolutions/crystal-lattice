@@ -407,10 +407,32 @@ class ToolLoopRunner:
             tool_states=tool_states,
         )
 
-        # Stable ordering by (priority asc, original registration order).
+        # Resolve provider-shared state so extensions/features can optionally
+        # participate in interception using the same hook names.
+        _provider2, _extensions2, features, tools, _tags = core._resolve_plugins_for_config(config)
+        _provider_config2, shared_state = core._init_provider_and_features_for_config(
+            _provider2,
+            features,
+            tools,
+            config,
+        )
+
+        raw_interceptors: List[tuple[int, Any, Dict[str, Any]]] = []
+        reg_order = 0
+        for tool_plugin, tool_state in tool_states:
+            raw_interceptors.append((reg_order, tool_plugin, tool_state))
+            reg_order += 1
+        for ext in extensions:
+            raw_interceptors.append((reg_order, ext, shared_state))
+            reg_order += 1
+        for feature in features:
+            raw_interceptors.append((reg_order, feature, shared_state))
+            reg_order += 1
+
+        # Stable ordering by (priority asc, registration order).
         interceptors = sorted(
-            list(enumerate(tool_states)),
-            key=lambda item: (int(getattr(item[1][0], "priority", 100)), item[0]),
+            raw_interceptors,
+            key=lambda item: (int(getattr(item[1], "priority", 100)), item[0]),
         )
 
         current_session = session
@@ -510,7 +532,7 @@ class ToolLoopRunner:
                             current_session = self._set_message_metadata(current_session, assistant_idx, md)
 
                 # Call-phase interception
-                for _order, (interceptor, interceptor_state) in interceptors:
+                for _order, interceptor, interceptor_state in interceptors:
                     response = interceptor.intercept_tool_call(
                         {
                             "tool_call_id": call_id,
@@ -749,7 +771,7 @@ class ToolLoopRunner:
                         # Result-phase interception (transform/respond only in 020)
                         final_result = last_result
                         tool_phase_md: Dict[str, Any] = {}
-                        for _order, (interceptor, interceptor_state) in interceptors:
+                        for _order, interceptor, interceptor_state in interceptors:
                             response = interceptor.intercept_tool_result(
                                 {
                                     "tool_call_id": call_id,

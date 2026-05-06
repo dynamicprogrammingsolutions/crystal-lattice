@@ -1,0 +1,10 @@
+{
+  "module": "interceptor_tool_plugin",
+  "subdirectory": ".",
+  "entries": [
+    "interceptor_tool_plugin.InterceptorCalculator"
+  ],
+  "kinds": {
+    "interceptor_tool_plugin.InterceptorCalculator": "tools"
+  }
+}

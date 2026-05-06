@@ -37,7 +37,7 @@ export interface UseMacOSApplicationActionDialogOptions {
   ownerId: string;
   activeElement: ActionUiElement | null;
   prefillContext?: any;
-  onSubmit: (values: Record<string, any>) => void | Promise<void>;
+  onSubmit: (payload: { values: Record<string, any>; buttonId?: string }) => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -138,8 +138,8 @@ export function useMacOSApplicationActionDialog({
       },
       handlers: {
         onCancel,
-        onSubmit: async (values) => {
-          await onSubmit(values);
+        onSubmit: async (payload) => {
+          await onSubmit(payload);
         },
       },
     });

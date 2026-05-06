@@ -183,6 +183,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
   const [sendInProgress, setSendInProgress] = useState(false);
+  const [toolPromptSubmittingKey, setToolPromptSubmittingKey] = useState<string | null>(null);
   const [composeText, setComposeText] = useState(initialComposeText ?? '');
   const [attachmentsAbove, setAttachmentsAbove] = useState<MultipartPartDraft[]>([]);
   const [attachmentsBelow, setAttachmentsBelow] = useState<MultipartPartDraft[]>([]);
@@ -1627,6 +1628,48 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
+  const handleToolInterceptorPromptSubmit = useCallback(
+    async (args: {
+      messageIndex: number;
+      promptId: string;
+      buttonId: string;
+      values: Record<string, unknown>;
+    }) => {
+      if (!backend) {
+        Alert.alert('Offline', 'Connect to a server to respond.');
+        return;
+      }
+      const key = `${args.messageIndex}:${args.promptId}`;
+      setToolPromptSubmittingKey(key);
+      try {
+        await backend.submitSessionToolPromptResponse(sessionId, {
+          prompt_id: args.promptId,
+          button_id: args.buttonId,
+          values: args.values,
+        });
+        if (chatController) {
+          await chatController.loadMessages();
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('404')) {
+          Alert.alert(
+            'Prompt unavailable',
+            'This prompt may have been answered elsewhere. Refreshing messages.',
+          );
+          if (chatController) {
+            await chatController.loadMessages();
+          }
+        } else {
+          Alert.alert('Error', msg || 'Failed to submit prompt response');
+        }
+      } finally {
+        setToolPromptSubmittingKey(null);
+      }
+    },
+    [backend, chatController, sessionId],
+  );
+
   const handleComposerAction = useCallback(
     (key: string) => {
       if (key === 'resend') {
@@ -2239,6 +2282,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	                renderMode="markdown"
 	                footerElements={footerElements}
 	                pluginActionDefs={pluginMessageActionDefs}
+	                onToolInterceptorPromptSubmit={handleToolInterceptorPromptSubmit}
+	                toolInterceptorPromptSubmittingKey={toolPromptSubmittingKey}
 	              />
 	            );
 	          }
@@ -2270,6 +2315,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	              renderMode={renderMode}
 	              footerElements={footerElements}
 	              pluginActionDefs={pluginMessageActionDefs}
+	              onToolInterceptorPromptSubmit={handleToolInterceptorPromptSubmit}
+	              toolInterceptorPromptSubmittingKey={toolPromptSubmittingKey}
 	            />
 	          );
 	        }}

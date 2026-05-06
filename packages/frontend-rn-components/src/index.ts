@@ -13,6 +13,8 @@ export {
 } from './sessionActions';
 
 export type {
+  ActionDialogSubmitPayload,
+  ApplicationActionDialogDensity,
   ApplicationActionDialogPrefillContext,
   ApplicationActionDialogProps,
 } from './ApplicationActionDialog';

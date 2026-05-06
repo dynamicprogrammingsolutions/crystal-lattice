@@ -781,7 +781,7 @@ function SessionsPanelInner({
           dialog={(activePluginDialogElement as any)?.dialog}
           titleFallback={activePluginDialogElement?.label}
           prefillContext={{ session: activePluginDialogContext }}
-          onSubmit={(values) => handleSubmitPluginDialog(values)}
+          onSubmit={handleSubmitPluginDialog}
           onCancel={handleCancelPluginDialog}
         />
       )}

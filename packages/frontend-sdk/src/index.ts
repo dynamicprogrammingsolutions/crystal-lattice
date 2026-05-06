@@ -22,6 +22,7 @@ export type {
   AssistantMessageEvent,
   PartialEvent,
   CheckpointEvent,
+  ToolInterceptorPromptEvent,
   Event,
 } from './types/events';
 
@@ -120,6 +121,9 @@ export { ChatController } from './chat/chatController';
 
 export { selectLastAssistantMessage, deriveChatStatusBarParts } from './chat/presentation';
 
+export type { PendingToolPromptRow } from './toolInterceptor/selectPendingToolPrompts';
+export { selectPendingToolPrompts } from './toolInterceptor/selectPendingToolPrompts';
+
 export type { SessionUiSchemaControllerState } from './uiSchema/sessionUiSchemaController';
 export { SessionUiSchemaController } from './uiSchema/sessionUiSchemaController';
 
@@ -142,6 +146,7 @@ export type {
   AgentBackend,
   BackendCapabilities,
   ListMessagesResult,
+  ToolPromptListItem,
   FeatureCompletion,
 } from './backend/backend';
 

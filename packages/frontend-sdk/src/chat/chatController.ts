@@ -339,7 +339,11 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     // applied safely. We still apply streaming/request lifecycle updates.
     const applyHistory = next.followTail;
 
+    let needsPromptReload = false;
     for (const ev of relevant) {
+      if ((ev as { type?: string }).type === 'tool_interceptor_prompt') {
+        needsPromptReload = true;
+      }
       if (!next.dirty && applyHistory) {
         const history = reduceMessageHistoryWithOptions(next.messages, ev, {
           maxMessages: next.maxMessages,
@@ -375,6 +379,15 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
           ev,
         ),
       };
+    }
+
+    if (needsPromptReload) {
+      next = {
+        ...next,
+        dirty: true,
+        dirtyReason: next.dirtyReason ?? 'tool_interceptor_prompt',
+      };
+      this.scheduleAutoReload('tool_interceptor_prompt');
     }
 
     this.setSnapshot(next);

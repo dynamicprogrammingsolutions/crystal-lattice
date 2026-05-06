@@ -2678,7 +2678,7 @@ export const ChatPane = React.memo(function ChatPane({
           dialog={(activePluginDialogElement as any)?.dialog}
           titleFallback={activePluginDialogElement?.label}
           prefillContext={pluginDialogPrefillContext}
-          onSubmit={(values) => handleSubmitPluginDialog(values)}
+          onSubmit={handleSubmitPluginDialog}
           onCancel={handleCancelPluginDialog}
         />
       )}
