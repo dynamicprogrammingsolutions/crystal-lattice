@@ -170,6 +170,24 @@ class ToolWrapper(ToolPlugin):
         working_state = state or self.state
         return self.plugin.intercept_tool_result(payload, context, working_state)
 
+    def materialize_interception_prompt(
+        self,
+        state: Dict[str, Any],
+        *,
+        schema_id: str,
+        schema_params: Dict[str, Any],
+        tool_call_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        if self.state is None:
+            raise RuntimeError(f"Tool {self.name} not initialized")
+        working_state = state or self.state
+        return self.plugin.materialize_interception_prompt(
+            working_state,
+            schema_id=schema_id,
+            schema_params=schema_params,
+            tool_call_id=tool_call_id,
+        )
+
     async def execute_tool_async(
         self,
         tool_name: Optional[str],

@@ -820,6 +820,33 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         """
         return {"native_messages": list(native_messages)}
 
+    def get_interception_ui_schema(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Optional catalog of interception prompt layouts for UIs.
+
+        Return a dict typically shaped as ``{\"schemas\": {\"<schema_id>\": {...}}}``.
+        Each layout may include ``title`` / ``message`` (``str.format`` templates),
+        ``buttons`` (list of ``{\"id\", \"label\", ...}``), ``ui_type``, and other
+        opaque keys for clients. Pair with :meth:`materialize_interception_prompt`
+        or return a full ``prompt`` from ``intercept_tool_call`` when using
+        ``schema_id`` + ``schema_params``.
+        """
+        return {"schemas": {}}
+
+    def materialize_interception_prompt(
+        self,
+        state: Dict[str, Any],
+        *,
+        schema_id: str,
+        schema_params: Dict[str, Any],
+        tool_call_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Optional: return the full wire-format ``prompt`` dict for this interceptor.
+
+        When omitted or returning ``None``, the tool loop uses a generic fallback
+        prompt (unless ``intercept_tool_call`` returned a full ``prompt`` dict).
+        """
+        return None
+
     def intercept_tool_call(
         self,
         payload: Dict[str, Any],
@@ -1105,6 +1132,25 @@ class FeaturePlugin(BasePlugin, Protocol):
         """
         return {"native_messages": list(native_messages)}
 
+    def get_interception_ui_schema(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Optional interception prompt layout catalog (see :class:`ProviderExtensionPlugin`)."""
+        return {"schemas": {}}
+
+    def materialize_interception_prompt(
+        self,
+        state: Dict[str, Any],
+        *,
+        schema_id: str,
+        schema_params: Dict[str, Any],
+        tool_call_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Optional wire-format ``prompt`` for ``schema_id`` (see :class:`ProviderExtensionPlugin`).
+
+        Return ``None`` to use the generic fallback unless a full ``prompt`` was
+        included on the ``intercept_tool_call`` response.
+        """
+        return None
+
     def intercept_tool_call(
         self,
         payload: Dict[str, Any],
@@ -1343,6 +1389,25 @@ class ToolPlugin(BasePlugin, Protocol):
         """Return whether this tool can handle the inspected tool call.
 
         ``None`` means no opinion and allows legacy name-based fallback.
+        """
+        return None
+
+    def get_interception_ui_schema(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        """Optional interception prompt layout catalog (see :class:`ProviderExtensionPlugin`)."""
+        return {"schemas": {}}
+
+    def materialize_interception_prompt(
+        self,
+        state: Dict[str, Any],
+        *,
+        schema_id: str,
+        schema_params: Dict[str, Any],
+        tool_call_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Optional wire-format ``prompt`` for ``schema_id`` (see :class:`ProviderExtensionPlugin`).
+
+        Return ``None`` to use the generic fallback unless a full ``prompt`` was
+        included on the ``intercept_tool_call`` response.
         """
         return None
 

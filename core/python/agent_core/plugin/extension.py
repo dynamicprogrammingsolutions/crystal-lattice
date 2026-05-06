@@ -167,3 +167,18 @@ class ExtensionWrapper(ProviderExtensionPlugin):
     ) -> Dict[str, Any]:
         """Execute a session-scoped action from the extension."""
         return self.plugin.execute_action(action_id, session, native_messages, params, context, state)
+
+    def materialize_interception_prompt(
+        self,
+        state: Dict[str, Any],
+        *,
+        schema_id: str,
+        schema_params: Dict[str, Any],
+        tool_call_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        return self.plugin.materialize_interception_prompt(
+            state,
+            schema_id=schema_id,
+            schema_params=schema_params,
+            tool_call_id=tool_call_id,
+        )

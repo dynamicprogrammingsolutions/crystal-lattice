@@ -658,6 +658,25 @@ class ProviderExtensionDefaultsAdapter(_BasePluginDefaults, ProviderExtensionPlu
             return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
         return {"native_messages": list(native_messages)}
 
+    def materialize_interception_prompt(  # type: ignore[override]
+        self,
+        state: Dict[str, Any],
+        *,
+        schema_id: str,
+        schema_params: Dict[str, Any],
+        tool_call_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        fn = self._get_impl_method("materialize_interception_prompt", ProviderExtensionPlugin)
+        if fn is None:
+            return None
+        out = fn(
+            state,
+            schema_id=schema_id,
+            schema_params=schema_params,
+            tool_call_id=tool_call_id,
+        )
+        return out if isinstance(out, dict) else None
+
     def intercept_tool_call(  # type: ignore[override]
         self,
         payload: Dict[str, Any],
@@ -847,6 +866,25 @@ class FeatureDefaultsAdapter(_BasePluginDefaults, FeaturePlugin):
             return out if isinstance(out, dict) else {"native_messages": list(native_messages)}
         return {"native_messages": list(native_messages)}
 
+    def materialize_interception_prompt(  # type: ignore[override]
+        self,
+        state: Dict[str, Any],
+        *,
+        schema_id: str,
+        schema_params: Dict[str, Any],
+        tool_call_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        fn = self._get_impl_method("materialize_interception_prompt", FeaturePlugin)
+        if fn is None:
+            return None
+        out = fn(
+            state,
+            schema_id=schema_id,
+            schema_params=schema_params,
+            tool_call_id=tool_call_id,
+        )
+        return out if isinstance(out, dict) else None
+
     def intercept_tool_call(  # type: ignore[override]
         self,
         payload: Dict[str, Any],
@@ -998,6 +1036,25 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
             tool_schema=tool_schema,
         )
         return out if isinstance(out, bool) else None
+
+    def materialize_interception_prompt(  # type: ignore[override]
+        self,
+        state: Dict[str, Any],
+        *,
+        schema_id: str,
+        schema_params: Dict[str, Any],
+        tool_call_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        fn = self._get_impl_method("materialize_interception_prompt", ToolPlugin)
+        if fn is None:
+            return None
+        out = fn(
+            state,
+            schema_id=schema_id,
+            schema_params=schema_params,
+            tool_call_id=tool_call_id,
+        )
+        return out if isinstance(out, dict) else None
 
     def intercept_tool_call(  # type: ignore[override]
         self,

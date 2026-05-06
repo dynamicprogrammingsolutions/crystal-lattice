@@ -55,7 +55,9 @@ def _make_interceptor_tool_config(
         },
     }
     if tool_prompt_override is not None:
-        cfg["interceptor_calculator"] = tool_prompt_override
+        default_agent = dict(cfg["agents"]["default"])
+        default_agent["interceptor_calculator"] = tool_prompt_override
+        cfg["agents"] = {**cfg["agents"], "default": default_agent}
     path = tmp_path / "config_interceptor.json"
     path.write_text(json.dumps(cfg), encoding="utf-8")
     return path
@@ -306,5 +308,55 @@ def test_interceptor_transform_and_stop_semantics(tmp_path: Path) -> None:
     assert isinstance(sess2, Session)
     tool_messages = [m for m in sess2.messages if m.role == "tool"]
     assert tool_messages
-    # Transform rewrote args to a=2, b=8 → add returns 10; no result-phase rewrite.
-    assert "Result: 10" in tool_messages[-1].content
+    # Transform rewrote args to a=2, b=8 → raw sum 10; intercept_tool_result caps values > 8 to 8.
+    assert "Result: 8" in tool_messages[-1].content
+
+
+def test_interceptor_transform_responses_shaped_tool_call(tmp_path: Path) -> None:
+    """Transform must rewrite top-level ``arguments`` for OpenAI Responses ``function_call`` items."""
+    config_path = _make_interceptor_tool_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    core, base_config, session = app.create_session("default")
+
+    calls: List[Dict[str, object]] = [
+        {
+            "type": "function_call",
+            "call_id": "fc_add",
+            "name": "add",
+            "arguments": json.dumps({"a": 5, "b": 6}),
+        },
+    ]
+    session = core.add_message(session, "assistant", "", {"tool_calls": calls})
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
+    final_session = [ev for ev in events if ev.get("type") == "session_checkpoint"][-1]["session"]
+    assert isinstance(final_session, Session)
+    assistant = final_session.messages[-1]
+    current = (assistant.metadata or {}).get("interception_current")
+    assert isinstance(current, dict)
+    prompt = current.get("pending_prompt")
+    assert isinstance(prompt, dict)
+
+    md = dict(assistant.metadata or {})
+    current = dict(current)
+    current["answer"] = {"prompt_id": prompt.get("id"), "button_id": "transform", "values": {}}
+    md["interception_current"] = current
+    resumed = Session(
+        session_id=final_session.session_id,
+        messages=[
+            *final_session.messages[:-1],
+            Message(
+                role=assistant.role,
+                content=assistant.content,
+                metadata=md,
+                multipart_content=assistant.multipart_content,
+            ),
+        ],
+        metadata=final_session.metadata,
+    )
+    events2 = list(app.send_request(core, resumed, base_config, overrides=None, stream=False))
+    sess2 = [ev for ev in events2 if ev.get("type") == "session_checkpoint"][-1]["session"]
+    assert isinstance(sess2, Session)
+    tool_messages = [m for m in sess2.messages if m.role == "tool"]
+    assert tool_messages
+    assert "Result: 8" in tool_messages[-1].content

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import threading
-from typing import Any, Dict, Iterator, List, Optional
 import traceback  # Add this import at the beginning of your file
-
+from typing import Any, Dict, Iterator, List, Optional
 
 from agent_core import AgentCore, Message, MessageRole, Session
 from agent_core.types import ProviderRequestCancelled
@@ -556,6 +555,23 @@ class ToolLoopRunner:
                     continue_loop = response.get("continue_loop")
                     if kind == "prompt":
                         prompt = response.get("prompt") or {}
+                        sid_raw = response.get("schema_id")
+                        if isinstance(sid_raw, str) and sid_raw.strip():
+                            sp = response.get("schema_params")
+                            params_dict = sp if isinstance(sp, dict) else {}
+                            built = None
+                            materialize_fn = getattr(
+                                interceptor, "materialize_interception_prompt", None
+                            )
+                            if callable(materialize_fn):
+                                built = materialize_fn(
+                                    interceptor_state,
+                                    schema_id=sid_raw.strip(),
+                                    schema_params=params_dict,
+                                    tool_call_id=call_id,
+                                )
+                            if isinstance(built, dict):
+                                prompt = built
                         if (
                             not isinstance(prompt, dict)
                             or not isinstance(prompt.get("buttons"), list)
@@ -624,38 +640,43 @@ class ToolLoopRunner:
                         break
                     transformed_call = response.get("tool_call")
                     if isinstance(transformed_call, dict):
-                        effective_call = transformed_call
                         try:
-                            inspected_call = registry.inspect_call(effective_call)
-                            effective_payload = inspected_call.payload
-                            name = inspected_call.tool_name
-                            call_id = inspected_call.call_id
-                            tool, state, matched_schema = core._resolve_tool_handler_for_call(
-                                inspected_call,
+                            new_inspected = registry.inspect_call(transformed_call)
+                            new_tool, new_state, new_matched_schema = core._resolve_tool_handler_for_call(
+                                new_inspected,
                                 tool_states,
                                 registry,
                             )
                         except Exception:
                             pass
-                        if assistant_idx is not None:
-                            msg = current_session.messages[assistant_idx]
-                            md = dict(msg.metadata or {})
-                            md = self._append_interception_phase_entry(
-                                md,
-                                {
-                                    "entry_type": "plugin_response",
-                                    "phase": "tool_call",
-                                    "tool_call_id": call_id,
-                                    "tool_name": name,
-                                    "plugin": getattr(interceptor, "name", interceptor.__class__.__name__),
-                                    "plugin_response": {
-                                        "kind": "continue",
-                                        "tool_call": transformed_call,
-                                        "continue_loop": continue_loop,
+                        else:
+                            effective_call = transformed_call
+                            inspected_call = new_inspected
+                            effective_payload = new_inspected.payload
+                            name = new_inspected.tool_name
+                            call_id = new_inspected.call_id
+                            tool = new_tool
+                            state = new_state
+                            matched_schema = new_matched_schema
+                            if assistant_idx is not None:
+                                msg = current_session.messages[assistant_idx]
+                                md = dict(msg.metadata or {})
+                                md = self._append_interception_phase_entry(
+                                    md,
+                                    {
+                                        "entry_type": "plugin_response",
+                                        "phase": "tool_call",
+                                        "tool_call_id": call_id,
+                                        "tool_name": name,
+                                        "plugin": getattr(interceptor, "name", interceptor.__class__.__name__),
+                                        "plugin_response": {
+                                            "kind": "continue",
+                                            "tool_call": transformed_call,
+                                            "continue_loop": continue_loop,
+                                        },
                                     },
-                                },
-                            )
-                            current_session = self._set_message_metadata(current_session, assistant_idx, md)
+                                )
+                                current_session = self._set_message_metadata(current_session, assistant_idx, md)
                     transformed_result = response.get("tool_result")
                     if isinstance(transformed_result, dict):
                         synthetic_result = transformed_result
