@@ -15,4 +15,10 @@ def _web_fetch_shared_dependency() -> str:
     return f"web-fetch-shared @ file://{sibling}"
 
 
-setup(install_requires=[_shared_dependency(), _web_fetch_shared_dependency()])
+setup(
+    install_requires=[
+        _shared_dependency(),
+        _web_fetch_shared_dependency(),
+        "aiohttp>=3.8.0",
+    ]
+)

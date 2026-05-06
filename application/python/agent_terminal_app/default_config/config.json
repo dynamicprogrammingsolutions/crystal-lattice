@@ -597,7 +597,11 @@
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/kimi-tools"
       ],
-      "disabled_plugins": ["apply_patch"]
+      "disabled_plugins": ["apply_patch"],
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api"
     },
     "claude": {
       "mixin_refs": ["claude_system_message"],

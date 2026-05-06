@@ -637,10 +637,10 @@ class KimiWebSearchTool(ToolPlugin):
 
 | Test | Config | Expected |
 |------|--------|----------|
-| Disabled by default | `{}` | `is_enabled()` returns False |
+| Disabled by default | `{}` | Plugin remains visible for UI; no tool schema is exposed |
 | Enabled with Moonshot | `{web_search_enabled: True, services: {moonshot_search: {...}}}` | `is_enabled()` returns None |
 | Enabled with Tavily | `{web_search_enabled: True, tavily_api_key: "key"}` | `is_enabled()` returns None |
-| Enabled without any provider | `{web_search_enabled: True}` | `is_enabled()` returns False |
+| Enabled without any provider | `{web_search_enabled: True}` | Plugin remains visible for UI; no tool schema is exposed |
 
 ### Error Message Tests
 
@@ -658,4 +658,78 @@ class KimiWebSearchTool(ToolPlugin):
 4. Updated `plugins/kimi-tools/pyproject.toml` (add aiohttp dependency)
 5. Tests in `plugins/kimi-tools/tests/test_kimi_web_search_tool.py`
 
-## Status: TODO
+## Status: DONE
+
+## Execution plan
+
+Added during completion after checking the Kimi CLI source of truth and the existing real API test patterns.
+
+1. Implement `KimiWebSearchTool` in `plugins/kimi-tools/src/kimi_tools/kimi_web_search_tool.py`.
+   - Match Kimi CLI shape exactly: tool name `SearchWeb`, params `query`, `limit`, `include_content`, Kimi CLI descriptions, no provider parameter.
+   - Keep `web_search_enabled` disabled by default.
+   - Use `moonshot` as the source-of-truth backend shape, with mocked HTTP tests only because `MOONSHOT_API_KEY` is not available.
+   - Use shared `TavilyProvider` and `GeminiApiProvider` as real alternate providers. Do not use `GoogleProvider`; dependency task 121 replaced it with `GeminiApiProvider`.
+   - Keep all LLM-visible formatting in the Kimi plugin: `Title`, `Date`, `URL`, `Summary`, optional raw content, separated by `---\n\n`.
+
+2. Wire package discovery.
+   - Export `KimiWebSearchTool` from `plugins/kimi-tools/src/kimi_tools/__init__.py`.
+   - Add it to `plugins/kimi-tools/agent_plugin.json`.
+   - Keep packaging dependencies consistent with `plugins/kimi-tools/setup.py`; add a direct `aiohttp` dependency if the Moonshot implementation imports `aiohttp` directly.
+
+3. Add unit and mocked integration tests in `plugins/kimi-tools/tests/test_kimi_web_search_tool.py`.
+   - Schema parity, config schema, visibility, disabled/default behavior.
+   - Provider selection for `moonshot`, `tavily`, and `gemini_api`.
+   - Moonshot request body/header behavior using mocked `aiohttp`.
+   - Moonshot status and parse errors.
+   - Kimi-format output for single result, multiple results, empty results, and content.
+   - Tavily/Gemini provider execution using mocked providers returning `SearchResponse`.
+
+4. Add real backend API integration tests.
+   - Load `.env` using the existing Kimi test pattern.
+   - Mark tests with `@pytest.mark.integration`.
+   - Add real Tavily backend test gated by `TAVILY_API_KEY`.
+   - Add real Gemini backend test gated by `GEMINI_API_KEY`.
+   - Do not add a real Moonshot test because the Moonshot API key is not available.
+
+5. Add OpenRouter LLM/tool-call integration test in `plugins/kimi-tools/tests/test_kimi_web_search_tool_openrouter_integration.py`.
+   - Mark with `@pytest.mark.integration` and `@pytest.mark.openrouter`.
+   - Use `OPENROUTER_MODEL_KIMI_TOOLS`, defaulting to `moonshotai/kimi-k2.5`.
+   - Register `OpenRouterProvider`, `OpenRouterToolsExtension`, `RequestOptionsFeature`, and `KimiWebSearchTool`.
+   - Use `web_search_provider="tavily"` because `TAVILY_API_KEY` is available.
+   - Assert the model calls `SearchWeb`, the real search tool execution succeeds, and the final response contains `OK`.
+
+6. Verification.
+   - `pytest plugins/kimi-tools/tests/test_kimi_web_search_tool.py -q`
+   - `pytest plugins/kimi-tools/tests/test_kimi_web_search_tool.py -m integration -q`
+   - `pytest plugins/kimi-tools/tests/test_kimi_web_search_tool_openrouter_integration.py -m "integration and openrouter" -q`
+   - `pytest plugins/kimi-tools/tests -q`
+
+## Completion Notes
+
+Added during completion.
+
+Implemented `KimiWebSearchTool` in `plugins/kimi-tools/src/kimi_tools/kimi_web_search_tool.py`.
+
+Key implementation details:
+- Tool schema matches Kimi CLI shape: `SearchWeb` with `query`, `limit`, and `include_content`.
+- Moonshot backend mirrors the Kimi CLI request shape: `text_query`, `limit`, `enable_page_crawling`, `timeout_seconds: 30`, `Authorization`, and `X-Msh-Tool-Call-Id` when the core provides a tool call id.
+- Real alternate backends use shared `TavilyProvider` and `GeminiApiProvider`; stale `GoogleProvider` references from the original task text were not used because task 121 replaced Google Custom Search with Gemini API Google Search grounding.
+- All result formatting stays in the Kimi tool and uses Kimi's `Title`/`Date`/`URL`/`Summary` format with `---\n\n` separators.
+- `web_search_enabled` controls model-facing schema exposure and execution, not plugin visibility. The plugin remains visible so the UI can explain missing providers; `SearchWeb` is exposed only when enabled and at least one provider is configured.
+
+Files changed:
+- `plugins/kimi-tools/src/kimi_tools/kimi_web_search_tool.py`
+- `plugins/kimi-tools/src/kimi_tools/__init__.py`
+- `plugins/kimi-tools/agent_plugin.json`
+- `plugins/kimi-tools/setup.py`
+- `plugins/kimi-tools/tests/test_kimi_web_search_tool.py`
+- `plugins/kimi-tools/tests/test_kimi_web_search_tool_openrouter_integration.py`
+- `tasks/20260315-gemini-qwen-grok-tool-packages/000-main.md`
+- `application/python/agent_terminal_app/default_config/config.json`
+- `application/python/tests/test_kimi_web_search_integration.py`
+
+Verification:
+- Passed: `pytest plugins/kimi-tools/tests/test_kimi_web_search_tool.py -q` (`27 passed`)
+- Passed: `pytest plugins/kimi-tools/tests/test_kimi_web_search_tool.py -m integration -q` (`2 passed, 25 deselected`)
+- Passed: `pytest plugins/kimi-tools/tests/test_kimi_web_search_tool_openrouter_integration.py -m "integration and openrouter" -q` (`1 passed`)
+- Partial: `pytest plugins/kimi-tools/tests -q` produced `160 passed, 1 skipped, 11 failed`. The failures are all pre-existing/unrelated `KimiShellTool` async-wrapper compatibility failures: `KimiShellTool.execute_tool()` does not accept newer wrapper kwargs such as `payload_kind`.

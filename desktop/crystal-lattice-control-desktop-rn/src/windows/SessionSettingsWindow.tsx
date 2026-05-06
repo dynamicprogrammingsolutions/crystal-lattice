@@ -114,6 +114,10 @@ function SessionSettingsWindowInner(): React.JSX.Element {
 
   const handleToggleCheckbox = useCallback(
     async (key: string, next: boolean) => {
+      if (itemByKey[key]?.disabled) {
+        return;
+      }
+
       if (!active) {
         return;
       }
@@ -128,11 +132,15 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         // Controller state captures errors.
       }
     },
-    [active, controller],
+    [active, controller, itemByKey],
   );
 
   const handleSelectOption = useCallback(
     async (key: string, value: string) => {
+      if (itemByKey[key]?.disabled) {
+        return;
+      }
+
       if (!active) {
         return;
       }
@@ -147,11 +155,15 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         // Controller state captures errors.
       }
     },
-    [active, controller],
+    [active, controller, itemByKey],
   );
 
   const handleSaveText = useCallback(
     async (key: string) => {
+      if (itemByKey[key]?.disabled) {
+        return;
+      }
+
       if (!active) {
         return;
       }
@@ -180,6 +192,10 @@ function SessionSettingsWindowInner(): React.JSX.Element {
 
   const handleRevertToDefault = useCallback(
     async (key: string) => {
+      if (itemByKey[key]?.disabled) {
+        return;
+      }
+
       if (!active) {
         return;
       }
@@ -200,7 +216,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
         // Controller state captures errors.
       }
     },
-    [active, controller],
+    [active, controller, itemByKey],
   );
 
   const renderers: SessionSettingsRenderers = useMemo(() => {
@@ -224,6 +240,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       return (
         <Pressable
           onPress={() => ctx.actions.revertToDefault(ctx.item.key)}
+          disabled={ctx.item.disabled}
           style={(state) => [styles.resetButton, state.pressed && styles.resetButtonPressed]}
         >
           <Icon name="rotate-ccw" size={14} color={theme.textSecondary} />
@@ -246,20 +263,31 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       const multiline = item.type === 'multiline';
 
       return (
-        <View style={styles.itemRow}>
+        <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
           <View style={styles.itemHeaderRow}>
             <View style={styles.itemTitleRow}>
-              <Text style={styles.itemLabel}>{item.label}</Text>
+              <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
+                {item.label}
+              </Text>
               {renderTag(item.tagLabel)}
             </View>
             {renderReset(ctx)}
           </View>
-          {item.description ? <Text style={styles.itemDescription}>{item.description}</Text> : null}
+          {item.description ? (
+            <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+              {item.description}
+            </Text>
+          ) : null}
           <View style={styles.textRow}>
             <TextInput
-              style={[styles.textInput, multiline && styles.textInputMultiline]}
+              style={[
+                styles.textInput,
+                multiline && styles.textInputMultiline,
+                item.disabled && styles.textInputDisabled,
+              ]}
               value={textValue}
               multiline={multiline}
+              editable={!item.disabled}
               onChangeText={(txt) =>
                 setPendingTextByKey((prev) => ({
                   ...prev,
@@ -273,14 +301,17 @@ function SessionSettingsWindowInner(): React.JSX.Element {
               style={(state) => [
                 styles.saveButton,
                 (state.pressed || savingKeySet.has(key)) && styles.saveButtonPressed,
+                item.disabled && styles.saveButtonDisabled,
               ]}
               onPress={() => actions.saveText(key)}
-              disabled={savingKeySet.has(key)}
+              disabled={savingKeySet.has(key) || item.disabled}
             >
               {savingKeySet.has(key) ? (
                 <ActivityIndicator size="small" color={theme.textOnPrimary} />
               ) : (
-                <Text style={styles.saveButtonText}>Save</Text>
+                <Text style={[styles.saveButtonText, item.disabled && styles.saveButtonTextDisabled]}>
+                  Save
+                </Text>
               )}
             </Pressable>
           </View>
@@ -314,14 +345,20 @@ function SessionSettingsWindowInner(): React.JSX.Element {
             : '';
 
         return (
-          <View style={styles.itemRow}>
+          <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
             <View style={styles.itemHeaderRow}>
               <View style={styles.itemTitleRow}>
-                <Text style={styles.itemLabel}>{item.label}</Text>
+                <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
+                  {item.label}
+                </Text>
                 {renderTag(item.tagLabel)}
               </View>
             </View>
-            {item.description ? <Text style={styles.itemDescription}>{item.description}</Text> : null}
+            {item.description ? (
+              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+                {item.description}
+              </Text>
+            ) : null}
             <View style={styles.readonlyValueBox}>
               <Text style={styles.readonlyValueText}>{value || 'Not set'}</Text>
             </View>
@@ -331,13 +368,14 @@ function SessionSettingsWindowInner(): React.JSX.Element {
       checkbox: ({ item, actions }) => {
         const boolValue = Boolean(item.effectiveValue ?? false);
         return (
-          <View style={styles.itemRow}>
+          <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
             <View style={styles.itemHeaderRow}>
               <View style={styles.itemTitleRow}>
                 <MacCheckbox
                   style={styles.macCheckbox}
                   label={item.label}
                   value={boolValue}
+                  enabled={!item.disabled}
                   onValueChange={(next) => actions.toggleCheckbox(item.key, next)}
                 />
                 {renderTag(item.tagLabel)}
@@ -346,6 +384,7 @@ function SessionSettingsWindowInner(): React.JSX.Element {
                 {item.hasOverride ? (
                   <Pressable
                     onPress={() => actions.revertToDefault(item.key)}
+                    disabled={item.disabled}
                     style={(state) => [
                       styles.resetButton,
                       state.pressed && styles.resetButtonPressed,
@@ -357,7 +396,11 @@ function SessionSettingsWindowInner(): React.JSX.Element {
                 ) : null}
               </View>
             </View>
-            {item.description ? <Text style={styles.itemDescription}>{item.description}</Text> : null}
+            {item.description ? (
+              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+                {item.description}
+              </Text>
+            ) : null}
           </View>
         );
       },
@@ -372,15 +415,18 @@ function SessionSettingsWindowInner(): React.JSX.Element {
           item.effectiveValue !== undefined && item.effectiveValue !== null ? String(item.effectiveValue) : '';
 
         return (
-          <View style={styles.itemRow}>
+          <View style={[styles.itemRow, item.disabled && styles.itemRowDisabled]}>
             <View style={styles.itemHeaderRow}>
               <View style={styles.itemTitleRow}>
-                <Text style={styles.itemLabel}>{item.label}</Text>
+                <Text style={[styles.itemLabel, item.disabled && styles.itemLabelDisabled]}>
+                  {item.label}
+                </Text>
                 {renderTag(item.tagLabel)}
               </View>
               {item.hasOverride ? (
                 <Pressable
                   onPress={() => actions.revertToDefault(item.key)}
+                  disabled={item.disabled}
                   style={(state) => [
                     styles.resetButton,
                     state.pressed && styles.resetButtonPressed,
@@ -391,13 +437,21 @@ function SessionSettingsWindowInner(): React.JSX.Element {
                 </Pressable>
               ) : null}
             </View>
-            {item.description ? <Text style={styles.itemDescription}>{item.description}</Text> : null}
+            {item.description ? (
+              <Text style={[styles.itemDescription, item.disabled && styles.itemDescriptionDisabled]}>
+                {item.description}
+              </Text>
+            ) : null}
             <MacSelect
               style={styles.macSelect}
               options={options}
               selectedValue={selectedValue}
               placeholder="None"
+              enabled={!item.disabled}
               onValueChange={(value) => {
+                if (item.disabled) {
+                  return;
+                }
                 // Treat the placeholder/empty value as "no selection".
                 // If an override exists, clear it; otherwise leave state as-is.
                 if (!value) {
@@ -585,6 +639,9 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       borderBottomColor: theme.border,
       gap: 6,
     },
+    itemRowDisabled: {
+      opacity: 0.65,
+    },
     itemHeaderRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -613,8 +670,14 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       color: theme.text,
       flexShrink: 1,
     },
+    itemLabelDisabled: {
+      color: theme.textSecondary,
+    },
     itemDescription: {
       fontSize: 12,
+      color: theme.textSecondary,
+    },
+    itemDescriptionDisabled: {
       color: theme.textSecondary,
     },
     tagConfig: {
@@ -679,6 +742,10 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       color: theme.text,
       backgroundColor: theme.background,
     },
+    textInputDisabled: {
+      backgroundColor: theme.surfaceAlt,
+      color: theme.textSecondary,
+    },
     textInputMultiline: {
       minHeight: 72,
       textAlignVertical: 'top',
@@ -707,10 +774,18 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
     saveButtonPressed: {
       opacity: 0.85,
     },
+    saveButtonDisabled: {
+      backgroundColor: theme.surfaceAlt,
+      borderWidth,
+      borderColor: theme.border,
+    },
     saveButtonText: {
       fontSize: 12,
       fontWeight: '800',
       color: theme.textOnPrimary,
+    },
+    saveButtonTextDisabled: {
+      color: theme.textSecondary,
     },
   });
 }

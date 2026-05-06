@@ -211,4 +211,19 @@ describe('buildSessionSettingItems', () => {
     expect(items[0].tagLabel).toBeNull();
     expect(items[0].effectiveValue).toBe('disabled');
   });
+
+  it('propagates disabled UI schema state to setting items', () => {
+    const items = buildSessionSettingItems({
+      elements: [
+        { key: 'enabled_control', type: 'checkbox' },
+        { key: 'disabled_control', type: 'checkbox', disabled: true },
+      ] as UiSchemaElement[],
+      overrides: {},
+      baseConfig: {},
+      schemaByKey: {},
+    });
+
+    expect(items[0].disabled).toBe(false);
+    expect(items[1].disabled).toBe(true);
+  });
 });

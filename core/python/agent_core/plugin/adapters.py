@@ -1343,7 +1343,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         context: Optional[Dict[str, Any]] = None,
         prepared: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        fn = getattr(self.impl, "execute_tool_async", None)
+        fn = self._get_impl_method("execute_tool_async", ToolPlugin)
         if callable(fn):
             out = self._call_with_optional_kwargs(
                 fn,
@@ -1411,7 +1411,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         context: Optional[Dict[str, Any]] = None,
         prepared: Optional[Dict[str, Any]] = None,
     ) -> AsyncIterator[Dict[str, Any]]:
-        fn = getattr(self.impl, "stream_tool_async", None)
+        fn = self._get_impl_method("stream_tool_async", ToolPlugin)
         if callable(fn):
             out = self._call_with_optional_kwargs(
                 fn,

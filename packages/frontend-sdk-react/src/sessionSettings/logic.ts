@@ -233,6 +233,7 @@ export function buildSessionSettingItems(params: {
           : key;
       const description =
         typeof (element as any).description === 'string' ? ((element as any).description as string) : '';
+      const disabled = Boolean((element as any).disabled);
 
       const resolved = resolveValue({ element, key, overrides, baseConfig, schemaByKey });
       return {
@@ -241,6 +242,7 @@ export function buildSessionSettingItems(params: {
         element,
         label,
         description,
+        disabled,
         hasOverride: resolved.hasOverride,
         effectiveValue: resolved.effectiveValue,
         source: resolved.source,

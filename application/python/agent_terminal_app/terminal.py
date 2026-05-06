@@ -1176,11 +1176,12 @@ async def _cmd_set(
         for key in sorted(by_key.keys()):
             options = by_key[key].get("options") or []
             normalized = _normalize_setting_options(options)
+            disabled_suffix = " [disabled]" if by_key[key].get("disabled") else ""
             if normalized:
                 display_opts = [opt_display for _, opt_display in normalized]
-                write(f"  {key} (options: {', '.join(display_opts)})")
+                write(f"  {key} (options: {', '.join(display_opts)}){disabled_suffix}")
             else:
-                write(f"  {key}")
+                write(f"  {key}{disabled_suffix}")
         return
 
     name_and_val = text.split(" ", 1)
@@ -1190,6 +1191,11 @@ async def _cmd_set(
     el = by_key.get(key)
     if el is None:
         raise TerminalUserError(f"unknown key: {key!r}")
+
+    if el.get("disabled"):
+        desc = el.get("description")
+        reason = f": {desc}" if isinstance(desc, str) and desc else ""
+        raise TerminalUserError(f"setting {key!r} is disabled{reason}")
 
     if not value:
         raise TerminalUserError(f"missing value for {key!r}")
