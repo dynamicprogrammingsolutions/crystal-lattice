@@ -71,6 +71,7 @@ class PipTargetInstallStrategy:
 
             pip_args: List[str] = list(request.policy.get("pip_args") or [])
             install_deps = bool(request.policy.get("install_deps", True))
+            cache_args = self._pip_cache_args(request, pip_args)
 
             cmd = [
                 sys.executable,
@@ -80,6 +81,7 @@ class PipTargetInstallStrategy:
                 "--upgrade",
                 "--target",
                 str(temp_dir),
+                *cache_args,
                 *([] if install_deps else ["--no-deps"]),
                 str(request.project_dir),
                 *pip_args,
@@ -90,9 +92,7 @@ class PipTargetInstallStrategy:
                 meta = dict(request.metadata)
                 meta.setdefault("id", request.safe_id)
                 meta.setdefault("installed_at", datetime.utcnow().isoformat() + "Z")
-                (temp_dir / "plugin_metadata.json").write_text(
-                    json.dumps(meta), encoding="utf-8"
-                )
+                (temp_dir / "plugin_metadata.json").write_text(json.dumps(meta), encoding="utf-8")
                 temp_dir.replace(install_dir)
             except Exception as exc:
                 shutil.rmtree(temp_dir, ignore_errors=True)
@@ -104,9 +104,7 @@ class PipTargetInstallStrategy:
         return install_dir
 
     @contextmanager
-    def _install_lock(
-        self, cache_dir: Path, safe_id: str, revision: str
-    ) -> Iterator[None]:
+    def _install_lock(self, cache_dir: Path, safe_id: str, revision: str) -> Iterator[None]:
         lock_dir = cache_dir / ".locks"
         lock_dir.mkdir(parents=True, exist_ok=True)
         lock_path = lock_dir / f"{safe_id}@{revision}.lock"
@@ -121,6 +119,22 @@ class PipTargetInstallStrategy:
         value = str(install_dir)
         if value not in sys.path:
             sys.path.append(value)
+
+    def _pip_cache_args(self, request: InstallRequest, pip_args: List[str]) -> List[str]:
+        if "--no-cache-dir" in pip_args:
+            return []
+        if any(arg == "--cache-dir" or arg.startswith("--cache-dir=") for arg in pip_args):
+            return []
+
+        raw_cache_dir = request.policy.get("pip_cache_dir")
+        if not isinstance(raw_cache_dir, str) or not raw_cache_dir.strip():
+            return []
+
+        cache_dir = Path(os.path.expanduser(raw_cache_dir))
+        if not cache_dir.is_absolute():
+            cache_dir = request.cache_dir / cache_dir
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        return ["--cache-dir", str(cache_dir)]
 
     def _maybe_activate_bundled_source(self, request: InstallRequest) -> Path | None:
         root_raw = request.policy.get("bundled_plugin_root") or os.environ.get("BUILTIN_PLUGINS")

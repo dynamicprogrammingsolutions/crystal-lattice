@@ -518,6 +518,7 @@ exits.
   - `allow_remote` (default false): allow `https/ssh` and similar remote Git URLs.
   - `allowed_git_hosts`: optional allowlist of hosts for remote Git (enforced when `allow_remote` is true).
   - `pip_args`: extra pip args for Git and local installs.
+  - `pip_cache_dir`: pip download/build cache for Git and local installs. Defaults to a sibling `pip` directory next to the plugin install cache, such as `${CONFIG_DIR}/.plugin_cache/pip` when `plugin_cache_dir` is `${CONFIG_DIR}/.plugin_cache/plugins`.
   - `install_deps` (default false): when false, installs run with `--no-deps`.
 
 Node.js tool policy keys:

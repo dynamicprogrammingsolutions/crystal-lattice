@@ -125,6 +125,7 @@ Applications support multiple ways to reference plugins:
 - Git installs run arbitrary code via `pip install`.
 - Prefer pinned refs (tag/commit) and host allowlists.
 - Remote git URLs are typically disabled by default; enable explicitly with `plugin_policy.allow_remote`.
+- Python dependency installs use `plugin_policy.pip_cache_dir` as pip's cache. When omitted, it defaults to a sibling `pip` directory next to the plugin install cache, for example `~/.crystal/cache/pip` when `plugin_cache_dir` is `~/.crystal/cache/plugins`.
 
 ## Reference configs
 

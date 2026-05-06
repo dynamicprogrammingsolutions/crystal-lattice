@@ -184,7 +184,6 @@ class LocalPathRepoSource:
                 metadata["scope"] = parts[3]
         if dependency_fps:
             metadata["local_dependencies"] = dependency_fps
-        install_policy = self._install_policy(ctx.policy, dependency_fps)
 
         src_root = cache_dir / "src"
         src_root.mkdir(parents=True, exist_ok=True)
@@ -195,7 +194,7 @@ class LocalPathRepoSource:
                     safe_id=safe_id,
                     revision=revision,
                     project_dir=project_dir,
-                    policy=install_policy,
+                    policy=ctx.policy,
                     metadata=metadata,
                 )
             )
@@ -292,18 +291,6 @@ class LocalPathRepoSource:
                 except Exception:
                     continue
         return "\n".join(chunks)
-
-    def _install_policy(
-        self,
-        policy: Mapping[str, Any],
-        dependency_fps: Dict[str, str],
-    ) -> Mapping[str, Any]:
-        if not dependency_fps:
-            return policy
-        pip_args = list(policy.get("pip_args") or [])
-        if "--no-cache-dir" not in pip_args:
-            pip_args.append("--no-cache-dir")
-        return {**policy, "pip_args": pip_args}
 
     def _fingerprint_git(self, base: Path, project_dir: Path) -> Optional[str]:
         """Return a git-based fingerprint scoped to the plugin project directory.
