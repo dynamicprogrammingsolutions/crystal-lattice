@@ -11,8 +11,21 @@ from agent_core.utils import get_logger
 
 from .descriptor import read_descriptor
 from .importing import import_dotted_class
-from .install import InstallRequest, InstallStrategy, PipTargetInstallStrategy, PluginInstallError
+from .install import (
+    InstallRequest,
+    InstallStrategy,
+    PipTargetInstallStrategy,
+    PluginInstallError,
+)
 from .types import PluginContext, PluginResolution
+
+
+_LOCAL_PATH_DEPENDENCY_NAMES = (
+    "tool-compat-shared",
+    "web-fetch-shared",
+    "mcp-shared",
+    "gemini-compaction-app",
+)
 
 
 class LocalPathRepoSource:
@@ -43,11 +56,16 @@ class LocalPathRepoSource:
 
         if isinstance(spec, str):
             if "::" in spec:
-                return PluginResolution(classes=[], errors=[{
-                    "type": "plugin_path_invalid",
-                    "detail": "Local path specs no longer support '::' forms; use a dict with 'entry'",
-                    "path": spec,
-                }])
+                return PluginResolution(
+                    classes=[],
+                    errors=[
+                        {
+                            "type": "plugin_path_invalid",
+                            "detail": "Local path specs no longer support '::' forms; use a dict with 'entry'",
+                            "path": spec,
+                        }
+                    ],
+                )
             parsed_path = spec.split(":", 1)[1]
         elif isinstance(spec, dict):
             parsed_path = spec.get("path")
@@ -56,37 +74,58 @@ class LocalPathRepoSource:
             if isinstance(spec.get("subdirectory"), str) and str(spec.get("subdirectory")).strip():
                 explicit_subdir = str(spec.get("subdirectory")).strip()
         else:
-            return PluginResolution(classes=[], errors=[{
-                "type": "plugin_path_invalid",
-                "detail": "Local path spec must be a string or dict",
-                "path": spec,
-            }])
+            return PluginResolution(
+                classes=[],
+                errors=[
+                    {
+                        "type": "plugin_path_invalid",
+                        "detail": "Local path spec must be a string or dict",
+                        "path": spec,
+                    }
+                ],
+            )
 
         if not isinstance(parsed_path, str) or not parsed_path.strip():
-            return PluginResolution(classes=[], errors=[{
-                "type": "plugin_path_invalid",
-                "detail": "Local path spec must include a non-empty path",
-                "path": spec,
-            }])
+            return PluginResolution(
+                classes=[],
+                errors=[
+                    {
+                        "type": "plugin_path_invalid",
+                        "detail": "Local path spec must include a non-empty path",
+                        "path": spec,
+                    }
+                ],
+            )
 
         base = self._resolve_base_dir(parsed_path, ctx.policy)
         if not base.exists():
-            return PluginResolution(classes=[], errors=[{
-                "type": "plugin_path_invalid",
-                "detail": f"Local path {str(base)!r} does not exist",
-                "path": parsed_path,
-            }])
+            return PluginResolution(
+                classes=[],
+                errors=[
+                    {
+                        "type": "plugin_path_invalid",
+                        "detail": f"Local path {str(base)!r} does not exist",
+                        "path": parsed_path,
+                    }
+                ],
+            )
 
         descriptor = None
         descriptor_err = None
         if explicit_entry is None:
             descriptor, descriptor_err = read_descriptor(base)
             if descriptor_err is not None or descriptor is None:
-                return PluginResolution(classes=[], errors=[descriptor_err or {
-                    "type": "plugin_descriptor_invalid",
-                    "detail": "Invalid agent_plugin.json",
-                    "path": str(base),
-                }])
+                return PluginResolution(
+                    classes=[],
+                    errors=[
+                        descriptor_err
+                        or {
+                            "type": "plugin_descriptor_invalid",
+                            "detail": "Invalid agent_plugin.json",
+                            "path": str(base),
+                        }
+                    ],
+                )
 
         entries = [explicit_entry] if explicit_entry is not None else list(descriptor.entries)
         subdir = explicit_subdir
@@ -95,23 +134,36 @@ class LocalPathRepoSource:
 
         project_dir = (base / subdir).resolve() if isinstance(subdir, str) else base
         if not project_dir.is_dir():
-            return PluginResolution(classes=[], errors=[{
-                "type": "plugin_path_invalid",
-                "detail": f"Project directory {str(project_dir)!r} does not exist",
-                "path": str(project_dir),
-            }])
+            return PluginResolution(
+                classes=[],
+                errors=[
+                    {
+                        "type": "plugin_path_invalid",
+                        "detail": f"Project directory {str(project_dir)!r} does not exist",
+                        "path": str(project_dir),
+                    }
+                ],
+            )
         if not self._is_installable_project(project_dir):
-            return PluginResolution(classes=[], errors=[{
-                "type": "plugin_install_error",
-                "detail": "Local path plugins must be pip-installable (pyproject.toml or setup.py)",
-                "path": str(project_dir),
-            }])
+            return PluginResolution(
+                classes=[],
+                errors=[
+                    {
+                        "type": "plugin_install_error",
+                        "detail": "Local path plugins must be pip-installable (pyproject.toml or setup.py)",
+                        "path": str(project_dir),
+                    }
+                ],
+            )
 
         cache_dir = ctx.cache_dir
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         git_fp = self._fingerprint_git(base, project_dir)
-        fp = git_fp or self._fingerprint_files(project_dir)
+        dependency_fps = self._fingerprint_local_path_dependencies(base, project_dir)
+        fp = self._combine_fingerprints(
+            git_fp or self._fingerprint_files(project_dir), dependency_fps
+        )
         revision = hashlib.sha256(fp.encode("utf-8", errors="ignore")).hexdigest()
         safe_id = base.name or "plugin"
 
@@ -130,6 +182,9 @@ class LocalPathRepoSource:
                 metadata["status_hash"] = status_hash
             if len(parts) == 4:
                 metadata["scope"] = parts[3]
+        if dependency_fps:
+            metadata["local_dependencies"] = dependency_fps
+        install_policy = self._install_policy(ctx.policy, dependency_fps)
 
         src_root = cache_dir / "src"
         src_root.mkdir(parents=True, exist_ok=True)
@@ -140,22 +195,32 @@ class LocalPathRepoSource:
                     safe_id=safe_id,
                     revision=revision,
                     project_dir=project_dir,
-                    policy=ctx.policy,
+                    policy=install_policy,
                     metadata=metadata,
                 )
             )
         except PluginInstallError as exc:
-            return PluginResolution(classes=[], errors=[{
-                "type": "plugin_install_error",
-                "detail": exc.detail,
-                "path": exc.path,
-            }])
+            return PluginResolution(
+                classes=[],
+                errors=[
+                    {
+                        "type": "plugin_install_error",
+                        "detail": exc.detail,
+                        "path": exc.path,
+                    }
+                ],
+            )
         except Exception as exc:
-            return PluginResolution(classes=[], errors=[{
-                "type": "plugin_install_error",
-                "detail": f"install failed: {exc}",
-                "path": str(project_dir),
-            }])
+            return PluginResolution(
+                classes=[],
+                errors=[
+                    {
+                        "type": "plugin_install_error",
+                        "detail": f"install failed: {exc}",
+                        "path": str(project_dir),
+                    }
+                ],
+            )
 
         logger.info("plugin_local_resolved", path=str(base), install_dir=str(install_dir))
 
@@ -164,7 +229,14 @@ class LocalPathRepoSource:
         for entry in entries:
             cls, err = import_dotted_class(entry)
             if err is not None or cls is None:
-                errors.append(err or {"type": "plugin_import_error", "detail": "unknown", "path": entry})
+                errors.append(
+                    err
+                    or {
+                        "type": "plugin_import_error",
+                        "detail": "unknown",
+                        "path": entry,
+                    }
+                )
                 continue
             classes.append(cls)
 
@@ -179,6 +251,59 @@ class LocalPathRepoSource:
 
     def _is_installable_project(self, project_dir: Path) -> bool:
         return (project_dir / "pyproject.toml").is_file() or (project_dir / "setup.py").is_file()
+
+    def _combine_fingerprints(self, primary: str, dependencies: Dict[str, str]) -> str:
+        if not dependencies:
+            return primary
+        dependency_payload = "\n".join(
+            f"{name}:{fingerprint}" for name, fingerprint in sorted(dependencies.items())
+        )
+        return f"{primary}\nlocal-dependencies:\n{dependency_payload}"
+
+    def _fingerprint_local_path_dependencies(
+        self,
+        base: Path,
+        project_dir: Path,
+    ) -> Dict[str, str]:
+        declared_text = self._project_declaration_text(project_dir)
+        if not declared_text:
+            return {}
+
+        fingerprints: Dict[str, str] = {}
+        for dependency_name in _LOCAL_PATH_DEPENDENCY_NAMES:
+            if dependency_name not in declared_text:
+                continue
+            dependency_dir = (base.parent / dependency_name).resolve()
+            if not dependency_dir.is_dir() or not self._is_installable_project(dependency_dir):
+                continue
+            fingerprints[dependency_name] = self._fingerprint_git(
+                dependency_dir,
+                dependency_dir,
+            ) or self._fingerprint_files(dependency_dir)
+        return fingerprints
+
+    def _project_declaration_text(self, project_dir: Path) -> str:
+        chunks: list[str] = []
+        for filename in ("pyproject.toml", "setup.py", "setup.cfg"):
+            path = project_dir / filename
+            if path.is_file():
+                try:
+                    chunks.append(path.read_text(encoding="utf-8", errors="ignore"))
+                except Exception:
+                    continue
+        return "\n".join(chunks)
+
+    def _install_policy(
+        self,
+        policy: Mapping[str, Any],
+        dependency_fps: Dict[str, str],
+    ) -> Mapping[str, Any]:
+        if not dependency_fps:
+            return policy
+        pip_args = list(policy.get("pip_args") or [])
+        if "--no-cache-dir" not in pip_args:
+            pip_args.append("--no-cache-dir")
+        return {**policy, "pip_args": pip_args}
 
     def _fingerprint_git(self, base: Path, project_dir: Path) -> Optional[str]:
         """Return a git-based fingerprint scoped to the plugin project directory.
@@ -200,10 +325,14 @@ class LocalPathRepoSource:
         """
 
         try:
-            repo_root = subprocess.check_output(
-                ["git", "-C", str(base), "rev-parse", "--show-toplevel"],
-                stderr=subprocess.DEVNULL,
-            ).decode().strip()
+            repo_root = (
+                subprocess.check_output(
+                    ["git", "-C", str(base), "rev-parse", "--show-toplevel"],
+                    stderr=subprocess.DEVNULL,
+                )
+                .decode()
+                .strip()
+            )
         except Exception:
             return None
 
@@ -216,9 +345,22 @@ class LocalPathRepoSource:
         scope = "." if str(scope_path) == "." else str(scope_path)
 
         try:
-            commit = subprocess.check_output(
-                ["git", "-C", str(repo_root_path), "rev-list", "-1", "HEAD", "--", scope]
-            ).decode().strip()
+            commit = (
+                subprocess.check_output(
+                    [
+                        "git",
+                        "-C",
+                        str(repo_root_path),
+                        "rev-list",
+                        "-1",
+                        "HEAD",
+                        "--",
+                        scope,
+                    ]
+                )
+                .decode()
+                .strip()
+            )
             if not commit:
                 return None
         except Exception:
@@ -235,9 +377,7 @@ class LocalPathRepoSource:
         if status.strip():
             project_hash = self._fingerprint_files(project_dir)
             combined = f"{status_hash}:{project_hash}"
-            state_hash = hashlib.sha256(
-                combined.encode("utf-8", errors="ignore")
-            ).hexdigest()
+            state_hash = hashlib.sha256(combined.encode("utf-8", errors="ignore")).hexdigest()
         else:
             state_hash = status_hash
         return f"git:{commit}:{state_hash}:{scope}"
@@ -270,6 +410,8 @@ class LocalPathRepoSource:
                     continue
                 rel = str(Path(rel_root) / filename)
                 hasher.update(rel.encode("utf-8", errors="ignore"))
-                hasher.update(str(getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9))).encode("utf-8"))
+                hasher.update(
+                    str(getattr(st, "st_mtime_ns", int(st.st_mtime * 1e9))).encode("utf-8")
+                )
                 hasher.update(str(st.st_size).encode("utf-8"))
         return hasher.hexdigest()

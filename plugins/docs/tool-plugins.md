@@ -332,7 +332,7 @@ class ToolPlugin(BasePlugin, Protocol):
 
     async def execute_tool_async(...) -> dict[str, Any]: ...
 
-    def format_tool_result(self, result: dict[str, Any], state: dict[str, Any]) -> str: ...
+    def format_tool_result(self, result: dict[str, Any], state: dict[str, Any]) -> Any: ...
 
     def format_tool_call_preview(
         self,
@@ -383,7 +383,8 @@ Additional common hooks:
 - `get_tool_schemas(...)` describes what the model can call
 - `can_handle_tool_call(...)` optionally claims responsibility for a call
 - `execute_tool(...)` performs the work and returns a result dict
-- `format_tool_result(...)` produces the string the model sees
+- `format_tool_result(...)` produces the string or explicit provider-native
+  envelope the model sees
 - `to_display_format(...)` produces richer UI-only output for humans
 
 ---
@@ -613,8 +614,11 @@ rewrite.
 
 ### `format_tool_result(...)` is what the model sees
 
-The final string returned by `format_tool_result(...)` becomes the tool
-message `content` sent back into the conversation.
+The value returned by `format_tool_result(...)` becomes the tool message
+`content` sent back into the conversation.
+
+Most tools should return a plain string. This is the stable compatibility path
+for text tools:
 
 Example:
 
@@ -625,10 +629,42 @@ def format_tool_result(self, result: dict[str, Any], state: dict[str, Any]) -> s
     return f"Error: {result.get('error')}"
 ```
 
+Provider-specific multimodal tools may instead return an explicit
+provider-native tool result envelope. Do this only when the provider adapter is
+known to support the envelope format:
+
+```python
+from agent_core.tool_result_payloads import (
+    FORMAT_OPENAI_CHAT_COMPLETIONS,
+    make_provider_native_tool_result,
+)
+
+
+def format_tool_result(self, result: dict[str, Any], state: dict[str, Any]) -> Any:
+    return make_provider_native_tool_result(
+        format=FORMAT_OPENAI_CHAT_COMPLETIONS,
+        content=[
+            {"type": "text", "text": "<image path=\"/tmp/image.png\">"},
+            {
+                "type": "image_url",
+                "image_url": {"url": result["image_url"]},
+            },
+            {"type": "text", "text": "</image>"},
+        ],
+    )
+```
+
+Only explicit envelopes with `type == "provider_native_tool_result"` are
+preserved as structured model-facing content by the default adapter. Ordinary
+non-string values are stringified for compatibility, so accidental dictionaries
+do not silently become provider-native payloads.
+
 ### `to_display_format(...)` is for richer UI output
 
 `to_display_format(...)` lets tools attach a richer display payload under
-`metadata["display"]` without changing what the model sees.
+`metadata["display"]` without changing what the model sees. When
+`format_tool_result(...)` returns a provider-native envelope, core passes an
+empty string as the `text` argument; use the raw `result` dict for display data.
 
 Example:
 

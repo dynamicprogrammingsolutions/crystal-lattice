@@ -17,6 +17,7 @@ import inspect
 from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple, cast
 
 from ..tool_interop import ToolInteropContribution
+from ..tool_result_payloads import is_provider_native_tool_result
 from ..types import (
     FeaturePlugin,
     ProviderExtensionPlugin,
@@ -1232,11 +1233,11 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
 
     def format_tool_result(  # type: ignore[override]
         self, result: Dict[str, Any], state: Dict[str, Any]
-    ) -> str:
+    ) -> Any:
         fn = getattr(self.impl, "format_tool_result", None)
         if callable(fn):
             out = fn(result, state)
-            return str(out)
+            return out if is_provider_native_tool_result(out) else str(out)
         if result.get("success"):
             return f"Result: {result.get('result')}"
         return f"Error: {result.get('error')}"

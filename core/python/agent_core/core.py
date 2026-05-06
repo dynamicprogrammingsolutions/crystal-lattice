@@ -639,7 +639,7 @@ class AgentCore:
         self,
         session: Session,
         role: MessageRole,
-        content: str,
+        content: Any,
         metadata: Optional[Dict[str, Any]] = None,
         config: Optional[Dict[str, Any]] = None,
         *,
@@ -4364,10 +4364,13 @@ class AgentCore:
             except Exception as exc:
                 formatted_content = f"Tool formatting error: {exc}"
 
+            display_text = (
+                formatted_content if isinstance(formatted_content, str) else ""
+            )
             display_payload: Dict[str, Any] | None = None
             try:
                 display_candidate = tool.to_display_format(
-                    formatted_content or "",
+                    display_text,
                     last_result,
                     state,
                 )
@@ -4395,7 +4398,7 @@ class AgentCore:
 
             tool_message = {
                 "role": "tool",
-                "content": formatted_content or "",
+                "content": formatted_content if formatted_content is not None else "",
                 "metadata": metadata,
             }
             multipart_content = last_result.get("multipartContent")

@@ -79,7 +79,14 @@ The `execute_tool` result is expected to be the same shape as a Python tool resu
 - `get_ui_elements() -> [object]`
 - `get_tags({"config": <object>, "models": [object]}) -> [string]`
 - `required_tags() -> [string]`
-- `format_tool_result({"result": <object>, "state": <object>}) -> string`
+- `format_tool_result({"result": <object>, "state": <object>}) -> string | provider-native envelope`
+
+`format_tool_result` should normally return a string. A tool host may opt into
+structured provider-native tool output by returning an explicit JSON object with
+`type: "provider_native_tool_result"` and a supported `format`, such as
+`openai.chat_completions` or `openai.responses`. The Python host preserves only
+that explicit envelope shape as structured model-facing content; ordinary
+objects are compatibility text.
 - `format_tool_call_preview({"tool_name": "...", "arguments": <object>, "state": <object>}) -> string`
 - `to_display_format({"text": "...", "result": <object>, "state": <object>}) -> object`
 

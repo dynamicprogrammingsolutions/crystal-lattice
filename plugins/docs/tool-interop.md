@@ -52,6 +52,26 @@ There is currently no separate tool-result interop adapter registry.
 That means result conversion is handled by normal provider or provider-extension
 message conversion code, not by `ToolInteropRegistry`.
 
+For ordinary text tools, `format_tool_result(...)` returns a string and that
+string becomes the core tool message `content`. For provider-specific
+multimodal output, `format_tool_result(...)` may return an explicit
+provider-native envelope:
+
+```python
+{
+    "type": "provider_native_tool_result",
+    "format": "openai.chat_completions",
+    "content": [
+        {"type": "text", "text": "<image path=\"/tmp/image.png\">"},
+        {"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}},
+        {"type": "text", "text": "</image>"},
+    ],
+}
+```
+
+Only explicit envelopes are preserved as structured content. Ordinary dict/list
+formatter outputs are compatibility-stringified by the default tool adapter.
+
 ## Runtime ownership
 
 Tool interop is owned by core for the active request.
@@ -646,6 +666,8 @@ That means:
 - schema adapters are for request-time tool declarations
 - call adapters/accessors are for provider response tool calls
 - tool result conversion lives in provider/provider-extension message mapping
+- provider-native tool result envelopes are interpreted by provider message
+  conversion, not by the tool loop
 
 ### Why results are different
 
@@ -728,6 +750,8 @@ The clean mental model is:
 - providers/extensions sanitize streamed calls during `finalize(...)`
 - core executes tools using normalized payload semantics
 - tool results return through normal core-message/provider-native message conversion
+- provider-native result envelopes are an explicit content payload carried by
+  core and interpreted by providers that support their `format`
 
 See also:
 

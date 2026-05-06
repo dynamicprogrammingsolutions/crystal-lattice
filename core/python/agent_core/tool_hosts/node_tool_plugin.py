@@ -9,6 +9,7 @@ import subprocess
 import time
 import uuid
 
+from agent_core.tool_result_payloads import is_provider_native_tool_result
 from agent_core.utils import get_logger
 
 
@@ -157,12 +158,14 @@ class NodeToolPlugin:
         except Exception as exc:
             yield {"success": False, "error": f"node tool host error: {exc}"}
 
-    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
         out, new_state = self._rpc_call_with_state(
             "format_tool_result", {"result": result, "state": state}
         )
         self._update_state_in_place(state, new_state)
         if isinstance(out, str) and out:
+            return out
+        if is_provider_native_tool_result(out):
             return out
         if result.get("success"):
             return f"Result: {result.get('result')}"

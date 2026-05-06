@@ -6,6 +6,10 @@ from pathlib import Path
 import pytest
 
 from agent_app.session_assets import FilesystemSessionAssetStore
+from agent_core.tool_result_payloads import (
+    FORMAT_OPENAI_CHAT_COMPLETIONS,
+    make_provider_native_tool_result,
+)
 
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
 
@@ -44,11 +48,54 @@ def test_provider_converts_image_url_and_base64_parts() -> None:
             "role": "user",
             "content": [
                 {"type": "text", "text": "describe"},
-                {"type": "image_url", "image_url": {"url": "https://example.com/cat.png"}},
-                {"type": "image_url", "image_url": {"url": "data:image/png;base64,QUJDRA=="}},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "https://example.com/cat.png"},
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,QUJDRA=="},
+                },
             ],
         }
     ]
+
+
+def test_provider_preserves_provider_native_tool_result_content() -> None:
+    provider = OpenAICompatibleProvider()
+    state = provider.init({"model": "test-model"})
+    payload = make_provider_native_tool_result(
+        format=FORMAT_OPENAI_CHAT_COMPLETIONS,
+        content=[
+            {"type": "text", "text": '<image path="sample.png">'},
+            {
+                "type": "image_url",
+                "image_url": {"url": "data:image/png;base64,QUJDRA=="},
+            },
+            {"type": "text", "text": "</image>"},
+        ],
+    )
+
+    native = provider.to_native_messages(
+        [
+            {
+                "role": "tool",
+                "content": payload,
+                "metadata": {"tool_call_id": "call_1"},
+            }
+        ],
+        state,
+    )
+
+    assert native == [
+        {
+            "role": "tool",
+            "content": payload["content"],
+            "tool_call_id": "call_1",
+        }
+    ]
+    assert "QUJDRA==" not in native[0]["content"][0]["text"]
+    assert "QUJDRA==" not in native[0]["content"][2]["text"]
 
 
 def test_provider_converts_session_asset_refs_to_data_urls(tmp_path: Path) -> None:
@@ -82,6 +129,7 @@ def test_provider_converts_session_asset_refs_to_data_urls(tmp_path: Path) -> No
             }
         ],
         state,
+        context={"session_asset_store": asset_store, "session_id": "sess_asset"},
     )
 
     assert native[0]["content"][1] == {

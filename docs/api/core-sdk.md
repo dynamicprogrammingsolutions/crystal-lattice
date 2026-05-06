@@ -483,7 +483,10 @@ Execute a batch of tool calls via registered tool plugins and return core "tool"
 - Tool calls are inspected through the active tool interop registry rather than one fixed wire shape.
 - Built-in support includes OpenAI chat-completions function calls, OpenAI Responses `function_call` items, and Responses `custom_tool_call` items.
 - The tool plugin receives the final payload object directly, along with optional payload metadata such as payload kind / format.
-- Formats results using each tool's `format_tool_result`.
+- Formats results using each tool's `format_tool_result`. The common path is a
+  string tool message. Tools may also return an explicit
+  `provider_native_tool_result` envelope for provider-specific structured
+  content; providers interpret those envelopes during message conversion.
 
 **Parameters:**
 - `tool_calls` (list): tool-call dicts in any format supported by active call accessors

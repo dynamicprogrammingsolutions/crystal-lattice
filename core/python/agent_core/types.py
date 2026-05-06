@@ -1479,7 +1479,7 @@ class ToolPlugin(BasePlugin, Protocol):
         """
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
-    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
         """Format a tool result dictionary for LLM consumption/display.
 
         Args:
@@ -1487,7 +1487,8 @@ class ToolPlugin(BasePlugin, Protocol):
             state: Current tool state.
 
         Returns:
-            Human-readable string representation.
+            Human-readable string representation or an explicit provider-native
+            tool result payload.
         """
         if result.get("success"):
             return f"Result: {result.get('result')}"
@@ -1666,7 +1667,7 @@ class Message:
     """
 
     role: MessageRole
-    content: str
+    content: Any
     metadata: Optional[Dict[str, Any]] = None
     multipart_content: Optional[List[Dict[str, Any]]] = None
 
@@ -1710,7 +1711,7 @@ class PartialMessage:
     """Partial message type used during streaming (forwarded to frontend as-is)."""
 
     role: MessageRole
-    content: str
+    content: Any
     metadata: Optional[Dict[str, Any]] = None
 
 

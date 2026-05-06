@@ -29,6 +29,12 @@ from .plugin import (
     FeatureWrapper,
     ToolWrapper,
 )
+from .tool_result_payloads import (
+    FORMAT_OPENAI_CHAT_COMPLETIONS,
+    FORMAT_OPENAI_RESPONSES,
+    PROVIDER_NATIVE_TOOL_RESULT_TYPE,
+    make_provider_native_tool_result,
+)
 
 __version__ = "0.3.0"
 
@@ -50,4 +56,8 @@ __all__ = [
     "ExtensionWrapper",
     "FeatureWrapper",
     "ToolWrapper",
+    "PROVIDER_NATIVE_TOOL_RESULT_TYPE",
+    "FORMAT_OPENAI_CHAT_COMPLETIONS",
+    "FORMAT_OPENAI_RESPONSES",
+    "make_provider_native_tool_result",
 ]

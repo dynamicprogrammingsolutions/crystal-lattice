@@ -27,6 +27,7 @@ from urllib.request import Request, urlopen
 
 from openai import OpenAI
 
+from agent_core.tool_result_payloads import openai_responses_tool_result_output
 from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
 from .openai_responses_attachment_assets import (
@@ -1772,11 +1773,13 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         "[openai_responses_provider] tool message requires metadata.tool_call_id"
                     )
 
-                output: Any = None
+                output: Any = openai_responses_tool_result_output(msg.get("content"))
                 if isinstance(metadata, dict):
                     structured_output = metadata.get("tool_output_content")
-                    if isinstance(structured_output, list) and all(
-                        isinstance(item, dict) for item in structured_output
+                    if (
+                        output is None
+                        and isinstance(structured_output, list)
+                        and all(isinstance(item, dict) for item in structured_output)
                     ):
                         output = structured_output
 

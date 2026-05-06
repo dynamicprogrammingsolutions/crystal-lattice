@@ -6,6 +6,8 @@ import json
 import mimetypes
 import os
 import re
+from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional
 
@@ -15,6 +17,13 @@ DEFAULT_GEMINI_LINE_LIMIT = 2000
 DEFAULT_GEMINI_LINE_CHAR_LIMIT = 2000
 DEFAULT_QWEN_LINE_LIMIT = 500
 DEFAULT_QWEN_CHAR_LIMIT = 2500
+MEDIA_SNIFF_BYTES = 512
+
+
+@dataclass(frozen=True)
+class MediaFileType:
+    kind: str
+    mime_type: str
 
 
 def detect_bom(payload: bytes) -> tuple[str, int] | None:
@@ -49,7 +58,7 @@ def _decode_utf32(payload: bytes, *, little_endian: bool) -> str:
         if code_point <= 0x10FFFF and not (0xD800 <= code_point <= 0xDFFF):
             out.append(chr(code_point))
         else:
-            out.append("\uFFFD")
+            out.append("\ufffd")
     return "".join(out)
 
 
@@ -71,6 +80,72 @@ def read_file_with_encoding(file_path: str | Path) -> str:
     if encoding == "utf32le":
         return _decode_utf32(content, little_endian=True)
     return _decode_utf32(content, little_endian=False)
+
+
+def detect_media_file_type(
+    file_path: str | Path,
+    *,
+    header: bytes | None = None,
+) -> MediaFileType:
+    """Detect image/video/text/unknown media using content signatures first."""
+    target = Path(file_path)
+    sample = header if header is not None else target.read_bytes()[:MEDIA_SNIFF_BYTES]
+
+    if sample.startswith(b"\x89PNG\r\n\x1a\n"):
+        return MediaFileType("image", "image/png")
+    if sample.startswith(b"\xff\xd8\xff"):
+        return MediaFileType("image", "image/jpeg")
+    if sample.startswith((b"GIF87a", b"GIF89a")):
+        return MediaFileType("image", "image/gif")
+    if len(sample) >= 12 and sample[:4] == b"RIFF" and sample[8:12] == b"WEBP":
+        return MediaFileType("image", "image/webp")
+    if len(sample) >= 12 and sample[4:8] == b"ftyp":
+        brand = sample[8:12]
+        if brand in {
+            b"mp41",
+            b"mp42",
+            b"isom",
+            b"iso2",
+            b"avc1",
+            b"M4V ",
+            b"qt  ",
+        }:
+            return MediaFileType(
+                "video", "video/quicktime" if brand == b"qt  " else "video/mp4"
+            )
+    if sample.startswith(b"\x1aE\xdf\xa3"):
+        return MediaFileType("video", "video/webm")
+
+    mime_type, _encoding = mimetypes.guess_type(str(target))
+    if isinstance(mime_type, str):
+        if mime_type.startswith("image/"):
+            return MediaFileType("image", mime_type)
+        if mime_type.startswith("video/"):
+            return MediaFileType("video", mime_type)
+
+    if not sample:
+        return MediaFileType("unknown", "application/octet-stream")
+    if detect_bom(sample[:4]) or not is_binary_file(target):
+        return MediaFileType("text", "text/plain")
+    return MediaFileType("unknown", "application/octet-stream")
+
+
+def media_data_url(mime_type: str, data: bytes) -> str:
+    encoded = base64.b64encode(data).decode("ascii")
+    return f"data:{mime_type};base64,{encoded}"
+
+
+def extract_image_size(data: bytes) -> tuple[int, int] | None:
+    try:
+        from PIL import Image
+    except Exception:
+        return None
+    try:
+        with Image.open(BytesIO(data)) as image:
+            image.load()
+            return image.size
+    except Exception:
+        return None
 
 
 def is_within(base_path: str | Path, candidate_path: str | Path) -> bool:
@@ -130,7 +205,9 @@ def is_binary_file(file_path: str | Path) -> bool:
     return (non_printable / len(sample)) > 0.3
 
 
-def _inline_data_payload(file_path: str, *, include_display_name: bool) -> dict[str, Any]:
+def _inline_data_payload(
+    file_path: str, *, include_display_name: bool
+) -> dict[str, Any]:
     mime_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
     payload = {
         "data": base64.b64encode(Path(file_path).read_bytes()).decode("ascii"),
@@ -141,7 +218,9 @@ def _inline_data_payload(file_path: str, *, include_display_name: bool) -> dict[
     return {"inlineData": payload}
 
 
-def _read_common_file(file_path: str, *, display_root: str, include_display_name: bool) -> dict[str, Any]:
+def _read_common_file(
+    file_path: str, *, display_root: str, include_display_name: bool
+) -> dict[str, Any]:
     target = Path(file_path)
     display_path = _display_path(target, Path(display_root))
     if not target.exists():
@@ -195,7 +274,9 @@ def _read_common_file(file_path: str, *, display_root: str, include_display_name
     if file_type in {"image", "audio", "video", "pdf"}:
         return {
             "ok": True,
-            "llm_content": _inline_data_payload(str(target), include_display_name=include_display_name),
+            "llm_content": _inline_data_payload(
+                str(target), include_display_name=include_display_name
+            ),
             "return_display": f"Read {file_type} file: {display_path}",
             "kind": "inline",
         }
@@ -224,7 +305,13 @@ def qwen_display_path(file_path: str, root: str) -> str:
     return _display_path(Path(file_path), Path(root))
 
 
-def _slice_gemini_text(content: str, *, start_line: Optional[int], end_line: Optional[int], display_path: str) -> dict[str, Any]:
+def _slice_gemini_text(
+    content: str,
+    *,
+    start_line: Optional[int],
+    end_line: Optional[int],
+    display_path: str,
+) -> dict[str, Any]:
     lines = content.split("\n")
     original_line_count = len(lines)
     slice_start = start_line - 1 if isinstance(start_line, int) else 0
@@ -278,7 +365,9 @@ def read_gemini_style_file(
     start_line: Optional[int] = None,
     end_line: Optional[int] = None,
 ) -> dict[str, Any]:
-    common = _read_common_file(file_path, display_root=display_root, include_display_name=False)
+    common = _read_common_file(
+        file_path, display_root=display_root, include_display_name=False
+    )
     if common["kind"] != "text-source":
         return common
     display_path = gemini_display_path(file_path, display_root)
@@ -337,7 +426,9 @@ def _slice_qwen_text(
         return_display = f"Read lines {actual_start + 1}-{actual_end} of {original_line_count} from {display_path}"
         if length_truncated:
             return_display += " (truncated)"
-        body = build_qwen_truncation_wrapper(body, actual_start + 1, actual_end, original_line_count)
+        body = build_qwen_truncation_wrapper(
+            body, actual_start + 1, actual_end, original_line_count
+        )
     return {
         "llm_content": body,
         "return_display": return_display,
@@ -347,7 +438,9 @@ def _slice_qwen_text(
     }
 
 
-def build_qwen_truncation_wrapper(body: str, start_line: int, end_line: int, total_lines: int) -> str:
+def build_qwen_truncation_wrapper(
+    body: str, start_line: int, end_line: int, total_lines: int
+) -> str:
     return f"Showing lines {start_line}-{end_line} of {total_lines} total lines.\n\n---\n\n{body}"
 
 
@@ -360,7 +453,9 @@ def read_qwen_style_file(
     line_limit: int = DEFAULT_QWEN_LINE_LIMIT,
     char_limit: Optional[int] = DEFAULT_QWEN_CHAR_LIMIT,
 ) -> dict[str, Any]:
-    common = _read_common_file(file_path, display_root=display_root, include_display_name=True)
+    common = _read_common_file(
+        file_path, display_root=display_root, include_display_name=True
+    )
     if common["kind"] != "text-source":
         return common
     display_path = qwen_display_path(file_path, display_root)
@@ -384,11 +479,20 @@ def grok_directory_listing(directory_path: str, *, display_root: str) -> dict[st
         entries.append(name)
     body = "\n".join(entries)
     if display_path == ".":
-        return {"ok": True, "kind": "text", "llm_content": body, "return_display": "Listed directory contents."}
+        return {
+            "ok": True,
+            "kind": "text",
+            "llm_content": body,
+            "return_display": "Listed directory contents.",
+        }
     return {
         "ok": True,
         "kind": "text",
-        "llm_content": f"Directory listing for {display_path}:\n{body}" if body else f"Directory listing for {display_path}:",
+        "llm_content": (
+            f"Directory listing for {display_path}:\n{body}"
+            if body
+            else f"Directory listing for {display_path}:"
+        ),
         "return_display": f"Listed directory contents for {display_path}.",
     }
 
@@ -423,7 +527,9 @@ def is_path_ignored(path_value: str, *, root: str, ignore_filename: str) -> bool
             if relative == prefix or relative.startswith(prefix + "/"):
                 return True
             continue
-        if fnmatch.fnmatch(relative, normalized) or fnmatch.fnmatch(target.name, normalized):
+        if fnmatch.fnmatch(relative, normalized) or fnmatch.fnmatch(
+            target.name, normalized
+        ):
             return True
     return False
 
@@ -442,7 +548,9 @@ def truncate_line(line: str, max_length: int, marker: str = "...") -> str:
     return line[: effective_max - len(end)] + end
 
 
-def format_with_line_numbers(lines: list[str], start_line: int = 1, width: int = 6) -> str:
+def format_with_line_numbers(
+    lines: list[str], start_line: int = 1, width: int = 6
+) -> str:
     """Format lines with right-aligned line numbers and a tab separator (cat -n style).
 
     Each line is terminated with a newline character. The input lines should
@@ -459,7 +567,9 @@ def format_tool_result_payload(outcome: dict[str, Any]) -> dict[str, Any]:
     if not outcome.get("ok"):
         return {
             "success": False,
-            "error": str(outcome.get("error") or outcome.get("llm_content") or "Unknown error"),
+            "error": str(
+                outcome.get("error") or outcome.get("llm_content") or "Unknown error"
+            ),
             "result": outcome.get("llm_content", ""),
             "return_display": outcome.get("return_display", ""),
         }

@@ -276,7 +276,7 @@ class ToolWrapper(ToolPlugin):
             prepared=working_prepared,
         )
 
-    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
         """Format tool result via plugin; requires initialized state."""
         if self.state is None:
             raise RuntimeError(f"Tool {self.name} not initialized")

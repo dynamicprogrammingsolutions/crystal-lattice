@@ -183,6 +183,8 @@ Key observations:
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/122-gemini-web-search.md` — Gemini google_web_search tool
   - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/123-qwen-web-search.md` — Qwen web_search tool
   - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/124-kimi-web-search.md` — Kimi SearchWeb tool
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/126-kimi-read-media-file-tool.md` — Kimi ReadMediaFile tool for filesystem images/media
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/127-provider-native-tool-result-payloads.md` — Provider-native structured tool result payloads for Kimi media parity
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/135-background-process-management.md` — Background process management (application layer, Tier 2)
 

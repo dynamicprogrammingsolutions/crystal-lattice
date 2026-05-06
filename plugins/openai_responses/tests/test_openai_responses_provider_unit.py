@@ -11,6 +11,11 @@ import pytest
 
 from agent_app.session_assets import FilesystemSessionAssetStore
 from agent_core import AgentCore
+from agent_core.tool_result_payloads import (
+    FORMAT_OPENAI_CHAT_COMPLETIONS,
+    FORMAT_OPENAI_RESPONSES,
+    make_provider_native_tool_result,
+)
 from agent_core.types import ProviderRequestCancelled
 import openai_responses_plugins.openai_responses_provider as provider_module
 import openai_responses_plugins.openai_responses_runtime as runtime_module
@@ -1227,6 +1232,72 @@ def test_to_native_messages_preserves_structured_tool_output_content() -> None:
                 "trace_id": "t1",
             },
         }
+    ]
+
+
+def test_to_native_messages_uses_openai_responses_tool_result_envelope() -> None:
+    provider = OpenAIResponsesProvider()
+    image_item = {"type": "input_image", "image_url": "data:image/png;base64,AAA"}
+    payload = make_provider_native_tool_result(
+        format=FORMAT_OPENAI_RESPONSES,
+        output=[
+            {"type": "input_text", "text": "<image>"},
+            image_item,
+            {"type": "input_text", "text": "</image>"},
+        ],
+    )
+
+    native = provider.to_native_messages(
+        [
+            {
+                "role": "tool",
+                "content": payload,
+                "metadata": {"tool_call_id": "call_view_1"},
+            }
+        ],
+        {},
+    )
+
+    assert native == [
+        {
+            "type": "function_call_output",
+            "call_id": "call_view_1",
+            "output": payload["output"],
+        }
+    ]
+
+
+def test_to_native_messages_converts_openai_chat_tool_result_envelope() -> None:
+    provider = OpenAIResponsesProvider()
+    payload = make_provider_native_tool_result(
+        format=FORMAT_OPENAI_CHAT_COMPLETIONS,
+        content=[
+            {"type": "text", "text": "<image>"},
+            {
+                "type": "image_url",
+                "image_url": {"url": "data:image/png;base64,AAA"},
+            },
+            {"type": "text", "text": "</image>"},
+        ],
+    )
+
+    native = provider.to_native_messages(
+        [
+            {
+                "role": "tool",
+                "content": payload,
+                "metadata": {"tool_call_id": "call_view_1"},
+            }
+        ],
+        {},
+    )
+
+    assert native[0]["type"] == "function_call_output"
+    assert native[0]["call_id"] == "call_view_1"
+    assert native[0]["output"] == [
+        {"type": "input_text", "text": "<image>"},
+        {"type": "input_image", "image_url": "data:image/png;base64,AAA"},
+        {"type": "input_text", "text": "</image>"},
     ]
 
 

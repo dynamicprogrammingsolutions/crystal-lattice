@@ -27,6 +27,7 @@ from agent_core.tool_interop import (
     get_registry_from_context,
     get_schema_target_formats_from_context,
 )
+from agent_core.tool_result_payloads import openai_responses_tool_result_output
 from agent_core.types import ProviderPlugin
 from agent_core.utils import get_logger
 
@@ -556,7 +557,12 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 if not isinstance(tcid, str) or not tcid:
                     tcid = f"call_{hash(str(msg)) % 1000000:06d}"
                 output_val = msg.get("content", "")
-                output = output_val if isinstance(output_val, str) else ""
+                structured_output = openai_responses_tool_result_output(output_val)
+                output: Any = (
+                    structured_output
+                    if structured_output is not None
+                    else output_val if isinstance(output_val, str) else ""
+                )
 
                 internal_md = self._native_internal_from_core_metadata_excluding(
                     md,

@@ -1,6 +1,6 @@
 # kimi-tools
 
-Kimi CLI-compatible tool plugin bundle. Provides file tools (ReadFile, WriteFile, StrReplaceFile, Glob, Grep, FetchURL, Shell) with schemas, parameter names, output formatting, and behavioral semantics matching MoonshotAI's `kimi-cli`.
+Kimi CLI-compatible tool plugin bundle. Provides file tools (ReadFile, ReadMediaFile, WriteFile, StrReplaceFile, Glob, Grep, FetchURL, Shell) with schemas, parameter names, output formatting, and behavioral semantics matching MoonshotAI's `kimi-cli`.
 
 ## Exposed Tools
 
@@ -11,6 +11,16 @@ Read text content from a file with line-numbered output (cat -n format).
 - **Limits**: 1000 lines, 2000 chars/line, 100KB total output
 - **Output**: 6-digit right-aligned line numbers with tab separator
 - **Truncation**: Per-line truncation with `"..."` marker; Kimi-style truncation messages
+
+### ReadMediaFile
+Read image media content from a local file and return it in model-visible form.
+
+- **Parameters**: `path` (required)
+- **Capabilities**: Exposed when `kimi_read_media_capabilities` includes `image_in` or `video_in`
+- **Image support**: PNG, JPEG, GIF, and WebP are returned as data URLs plus structured image output
+- **Video support**: Detected and capability-gated, but model-visible video output is currently deferred
+- **Limits**: 100MB by default via `kimi_read_media_max_bytes`
+- **Output**: Kimi-style `<image path="...">...</image>` fallback text, `multipartContent` for image-capable chat providers, and structured image output for providers that support it
 
 ### FetchURL
 Fetch a web page from a URL and extract main text content from it.
@@ -84,7 +94,7 @@ Search for patterns in file contents using regular expressions.
 
 ## Kimi-Specific Behavior Notes
 
-1. **PascalCase tool names**: `ReadFile`, `WriteFile`, `StrReplaceFile`, `Glob`, `Grep`, `FetchURL`, `Shell`
+1. **PascalCase tool names**: `ReadFile`, `ReadMediaFile`, `WriteFile`, `StrReplaceFile`, `Glob`, `Grep`, `FetchURL`, `Shell`
 2. **Line-numbered output**: ReadFile returns `cat -n` style line numbers
 3. **Append mode**: WriteFile supports `mode: "append"` for appending content
 4. **Multi-edit**: StrReplaceFile accepts single Edit or list of Edit structs
@@ -102,6 +112,8 @@ Search for patterns in file contents using regular expressions.
   "working_directory": "/path/to/project",
   "allowed_paths": ["/path/to/project"],
   "project_temp_dir": "/path/to/project/.temp",
+  "kimi_read_media_capabilities": ["image_in"],
+  "kimi_read_media_max_bytes": 104857600,
   "shell_timeout_seconds": 60,
   "shell_max_timeout_seconds": 300,
   "shell_clean_env": true,
@@ -118,6 +130,8 @@ Search for patterns in file contents using regular expressions.
 - `working_directory`: Base for relative paths
 - `allowed_paths`: Allowed directories for file access
 - `project_temp_dir`: Default: `<working_directory>/.temp`
+- `kimi_read_media_capabilities`: Media capabilities for exposing `ReadMediaFile`; defaults to `["image_in"]`. Use `[]` to hide the tool.
+- `kimi_read_media_max_bytes`: Maximum file size for `ReadMediaFile`; defaults to `104857600` bytes.
 
 **Shell tool:**
 - `shell_timeout_seconds`: Default timeout for shell commands (default: 60)

@@ -521,7 +521,7 @@ Key methods (subset):
 - `get_tool_interop_contribution(state) -> ToolInteropContribution` (optional)
 - `can_handle_tool_call(tool_name, payload, state, ...) -> bool | None` (optional)
 - `execute_tool(tool_name, payload, state, ...) -> dict`
-- `format_tool_result(result, state) -> str`
+- `format_tool_result(result, state) -> str | provider-native envelope`
  - `format_tool_call_preview(tool_name, payload, state, ...) -> str` (optional)
  - `stream_tool(tool_name, payload, state, ...) -> Iterator[dict]` (optional)
  - `to_display_format(text, result, state) -> dict` (optional)
@@ -534,6 +534,10 @@ Interop note:
 - `get_tool_schemas(...)` may return any schema shape understood by the active tool interop accessors/adapters.
 - At execution time the tool receives the final payload object directly, plus optional semantic metadata such as `payload_kind` and `payload_format`.
 - Legacy dict-argument tools remain supported through the Python wrapper compatibility layer.
+- `format_tool_result(...)` should usually return a string. Provider-specific
+  multimodal tools may return an explicit provider-native envelope with
+  `type == "provider_native_tool_result"`; ordinary dict/list values are
+  compatibility-stringified by the default adapter.
 
 Minimal example (calculator):
 ```python
@@ -608,8 +612,10 @@ class Calculator(ToolPlugin):
     # ) -> Dict[str, Any]:
     #     """Convert the tool result into a UI display payload.
     #
-    #     ``text`` is the string from ``format_tool_result``; ``result``
-    #     is the raw result dict from ``execute_tool`` / ``stream_tool``.
+    #     ``text`` is the string from ``format_tool_result``. If
+    #     ``format_tool_result`` returned a provider-native envelope, core
+    #     passes an empty string here. ``result`` is the raw result dict from
+    #     ``execute_tool`` / ``stream_tool``.
     #     The adapter attaches this payload under
     #     ``metadata.display`` on the resulting ``tool`` message so UIs
     #     can show richer output (for example, the executed shell

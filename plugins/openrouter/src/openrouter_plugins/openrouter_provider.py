@@ -15,6 +15,7 @@ import threading
 
 import requests
 
+from agent_core.tool_result_payloads import openai_chat_tool_result_content
 from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
 
@@ -314,13 +315,26 @@ class OpenRouterProvider(ProviderPlugin):
                 continue
 
             role = msg.get("role", "user")
-            content = msg.get("content", "")
+            raw_content = msg.get("content", "")
             raw_metadata = msg.get("metadata")
             metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+            native_tool_content = (
+                openai_chat_tool_result_content(raw_content)
+                if role == "tool"
+                else None
+            )
+            content = raw_content
             if not isinstance(content, str):
                 content = ""
 
-            native_message: Dict[str, Any] = {"role": role, "content": content}
+            native_message: Dict[str, Any] = {
+                "role": role,
+                "content": (
+                    native_tool_content
+                    if native_tool_content is not None
+                    else content
+                ),
+            }
 
             tool_calls = metadata.get("tool_calls")
             if role == "assistant" and isinstance(tool_calls, list) and tool_calls:
@@ -333,6 +347,10 @@ class OpenRouterProvider(ProviderPlugin):
             internal_metadata = self._native_internal_from_core_metadata(metadata)
             if internal_metadata:
                 native_message["_metadata"] = internal_metadata
+
+            if native_tool_content is not None:
+                native.append(native_message)
+                continue
 
             multipart = msg.get("multipartContent")
             if not isinstance(multipart, list) or not multipart:

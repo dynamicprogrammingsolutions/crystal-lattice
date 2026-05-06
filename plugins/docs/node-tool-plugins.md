@@ -456,6 +456,10 @@ failure path too.
 - Do not print logs to `stdout`; use `stderr`.
 - Keep returned state JSON-serializable.
 - Keep tool results JSON-serializable.
+- `format_tool_result` should usually return a string. It may return an
+  explicit provider-native envelope with
+  `type: "provider_native_tool_result"` when the target provider supports that
+  format. Arbitrary objects are not treated as structured model-facing content.
 - Prefer small, copyable schemas and result objects.
 - Remember that host protocol methods are still object-arguments-based.
 - If you need raw-text/freeform payloads today, prefer a Python tool.

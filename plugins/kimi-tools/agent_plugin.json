@@ -8,7 +8,8 @@
     "kimi_tools.kimi_glob_tool.KimiGlobTool",
     "kimi_tools.kimi_grep_tool.KimiGrepTool",
     "kimi_tools.kimi_shell_tool.KimiShellTool",
-    "kimi_tools.kimi_fetch_url_tool.KimiFetchURLTool"
+    "kimi_tools.kimi_fetch_url_tool.KimiFetchURLTool",
+    "kimi_tools.kimi_read_media_file_tool.KimiReadMediaFileTool"
   ],
   "kinds": {
     "kimi_tools.kimi_read_file_tool.KimiReadFileTool": "tools",
@@ -17,6 +18,7 @@
     "kimi_tools.kimi_glob_tool.KimiGlobTool": "tools",
     "kimi_tools.kimi_grep_tool.KimiGrepTool": "tools",
     "kimi_tools.kimi_shell_tool.KimiShellTool": "tools",
-    "kimi_tools.kimi_fetch_url_tool.KimiFetchURLTool": "tools"
+    "kimi_tools.kimi_fetch_url_tool.KimiFetchURLTool": "tools",
+    "kimi_tools.kimi_read_media_file_tool.KimiReadMediaFileTool": "tools"
   }
 }

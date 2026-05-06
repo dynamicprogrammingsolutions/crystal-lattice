@@ -57,7 +57,9 @@ def _git_commit(repo_root: Path, message: str) -> str:
         ],
         cwd=str(repo_root),
     )
-    return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(repo_root)).decode().strip()
+    return (
+        subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(repo_root)).decode().strip()
+    )
 
 
 def test_localpath_git_fingerprint_scoped_to_project_dir(tmp_path: Path) -> None:
@@ -145,5 +147,108 @@ def test_localpath_git_fingerprint_scoped_to_project_dir(tmp_path: Path) -> None
         assert res4.errors == []
         rev4 = installer.requests[-1].revision
         assert rev4 != rev2
+    finally:
+        installer.cleanup()
+
+
+def test_localpath_git_fingerprint_includes_declared_sibling_dependency(
+    tmp_path: Path,
+) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git is not installed")
+
+    repo_root = tmp_path / "repo"
+    plugin_dir = repo_root / "qwen-tools"
+    shared_dir = repo_root / "tool-compat-shared"
+    pkg_name = "dep_fingerprint_plugin"
+    plugin_pkg = plugin_dir / pkg_name
+    shared_pkg = shared_dir / "src" / "tool_compat_shared"
+    plugin_pkg.mkdir(parents=True, exist_ok=True)
+    shared_pkg.mkdir(parents=True, exist_ok=True)
+    (plugin_pkg / "__init__.py").write_text("", encoding="utf-8")
+    (plugin_pkg / "tool_mod.py").write_text(
+        textwrap.dedent(
+            """
+            class MyTool:
+                name = "my_tool"
+
+                def init(self, config):
+                    return {}
+
+                def get_tool_schemas(self, state):
+                    return []
+            """
+        ).lstrip(),
+        encoding="utf-8",
+    )
+    (plugin_dir / "setup.py").write_text(
+        textwrap.dedent(
+            """
+            from pathlib import Path
+            from setuptools import setup
+
+            sibling = (Path(__file__).resolve().parents[1] / "tool-compat-shared").resolve()
+
+            setup(
+                name="qwen-tools",
+                version="0.0.1",
+                packages=["dep_fingerprint_plugin"],
+                install_requires=[f"tool-compat-shared @ file://{sibling}"],
+            )
+            """
+        ).lstrip(),
+        encoding="utf-8",
+    )
+    (shared_dir / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """
+            [build-system]
+            requires = ["setuptools>=61.0", "wheel"]
+            build-backend = "setuptools.build_meta"
+
+            [project]
+            name = "tool-compat-shared"
+            version = "0.0.1"
+
+            [tool.setuptools]
+            package-dir = {"" = "src"}
+
+            [tool.setuptools.packages.find]
+            where = ["src"]
+            """
+        ).lstrip(),
+        encoding="utf-8",
+    )
+    (shared_pkg / "__init__.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    subprocess.check_call(["git", "init"], cwd=str(repo_root))
+    _git_commit(repo_root, "init")
+
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    installer = _RecordingInstaller()
+    try:
+        mgr = PluginManager(
+            cache_dir=cache_dir,
+            sources=[LocalPathRepoSource(installer=installer)],
+        )
+        spec = {
+            "path": str(plugin_dir),
+            "entry": f"{pkg_name}.tool_mod.MyTool",
+        }
+
+        res1 = mgr.resolve_all([spec])
+        assert res1.errors == []
+        rev1 = installer.requests[-1].revision
+        assert "tool-compat-shared" in installer.requests[-1].metadata["local_dependencies"]
+        assert "--no-cache-dir" in installer.requests[-1].policy["pip_args"]
+
+        (shared_pkg / "__init__.py").write_text("VALUE = 2\n", encoding="utf-8")
+        res2 = mgr.resolve_all([spec])
+        assert res2.errors == []
+        rev2 = installer.requests[-1].revision
+
+        assert rev2 != rev1
     finally:
         installer.cleanup()
