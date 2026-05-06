@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from agent_app.application_future import AgentApplication
 from agent_app.tool_loop import ToolLoopRunner
@@ -37,8 +37,12 @@ def _make_tool_config(tmp_path: Path) -> Path:
     return path
 
 
-def _make_interceptor_tool_config(tmp_path: Path) -> Path:
-    cfg = {
+def _make_interceptor_tool_config(
+    tmp_path: Path,
+    *,
+    tool_prompt_override: Dict[str, Any] | None = None,
+) -> Path:
+    cfg: Dict[str, Any] = {
         "providers": {
             "dummy": {"provider": "dummy_provider", "model": "test-model"}
         },
@@ -50,6 +54,8 @@ def _make_interceptor_tool_config(tmp_path: Path) -> Path:
             "default": {"provider": "dummy"},
         },
     }
+    if tool_prompt_override is not None:
+        cfg["interceptor_calculator"] = tool_prompt_override
     path = tmp_path / "config_interceptor.json"
     path.write_text(json.dumps(cfg), encoding="utf-8")
     return path
@@ -172,6 +178,39 @@ def test_pending_tool_calls_returned_for_unresolved_tail_assistant() -> None:
     assert runner._extract_pending_tool_calls_from_session(session) == [tool_call]
 
 
+def test_interceptor_tool_prompt_title_overridable_from_config(tmp_path: Path) -> None:
+    config_path = _make_interceptor_tool_config(
+        tmp_path,
+        tool_prompt_override={
+            "tool_call_prompts": {
+                "add": {
+                    "title": "Custom title from config",
+                    "message": "Custom body from config.",
+                }
+            }
+        },
+    )
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    core, base_config, session = app.create_session("default")
+
+    tool_call: Dict[str, object] = {
+        "id": "call_prompt_copy",
+        "type": "function",
+        "function": {"name": "add", "arguments": json.dumps({"a": 1, "b": 2})},
+    }
+    session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
+    checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
+    final_session = checkpoints[-1]["session"]
+    assert isinstance(final_session, Session)
+    assistant = final_session.messages[-1]
+    prompt = (assistant.metadata or {}).get("interception_current", {}).get("pending_prompt")
+    assert isinstance(prompt, dict)
+    assert prompt.get("title") == "Custom title from config"
+    assert prompt.get("message") == "Custom body from config."
+
+
 def test_interceptor_prompt_suspend_and_resume(tmp_path: Path) -> None:
     config_path = _make_interceptor_tool_config(tmp_path)
     session_root = tmp_path / "sessions"
@@ -269,4 +308,5 @@ def test_interceptor_transform_and_stop_semantics(tmp_path: Path) -> None:
     assert isinstance(sess2, Session)
     tool_messages = [m for m in sess2.messages if m.role == "tool"]
     assert tool_messages
-    assert "Result: 8" in tool_messages[-1].content
+    # Transform rewrote args to a=2, b=8 → add returns 10; no result-phase rewrite.
+    assert "Result: 10" in tool_messages[-1].content

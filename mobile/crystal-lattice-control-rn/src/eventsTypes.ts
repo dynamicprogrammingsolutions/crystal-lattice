@@ -9,5 +9,6 @@ export type {
   AssistantMessageEvent,
   PartialEvent,
   CheckpointEvent,
+  ToolInterceptorPromptEvent,
   Event,
 } from '@crystal-lattice/frontend-sdk';

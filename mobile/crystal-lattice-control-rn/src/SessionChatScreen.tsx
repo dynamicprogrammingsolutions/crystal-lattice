@@ -263,6 +263,15 @@ type ChatTranscriptProps = {
   onOpenAttachment: (attachment: MessageAttachmentSnapshot) => void;
   onRestoreScroll: () => void;
   onScroll: (event: any) => void;
+  onToolInterceptorPromptSubmit: (args: {
+    messageIndex: number;
+    phase: string | null;
+    toolCallId: string | null;
+    promptId: string;
+    buttonId: string;
+    values: Record<string, unknown>;
+  }) => void;
+  toolInterceptorPromptSubmittingKey: string | null;
 };
 
 const ChatTranscript = React.memo(({
@@ -288,6 +297,8 @@ const ChatTranscript = React.memo(({
   onOpenAttachment,
   onRestoreScroll,
   onScroll,
+  onToolInterceptorPromptSubmit,
+  toolInterceptorPromptSubmittingKey,
 }: ChatTranscriptProps) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -349,6 +360,8 @@ const ChatTranscript = React.memo(({
           renderMode,
           isEditing,
           isEditing ? editingText : null,
+          onToolInterceptorPromptSubmit,
+          toolInterceptorPromptSubmittingKey,
         ];
       }}
       renderItem={({ item: row }) => {
@@ -390,6 +403,8 @@ const ChatTranscript = React.memo(({
               renderMode="markdown"
               footerElements={footerElements}
               pluginActionDefs={pluginMessageActionDefs}
+              onToolInterceptorPromptSubmit={onToolInterceptorPromptSubmit}
+              toolInterceptorPromptSubmittingKey={toolInterceptorPromptSubmittingKey}
             />
           );
         }
@@ -422,6 +437,8 @@ const ChatTranscript = React.memo(({
             renderMode={renderMode}
             footerElements={footerElements}
             pluginActionDefs={pluginMessageActionDefs}
+            onToolInterceptorPromptSubmit={onToolInterceptorPromptSubmit}
+            toolInterceptorPromptSubmittingKey={toolInterceptorPromptSubmittingKey}
           />
         );
       }}
@@ -711,6 +728,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
   const [sendInProgress, setSendInProgress] = useState(false);
+  const [toolPromptSubmittingKey, setToolPromptSubmittingKey] = useState<string | null>(null);
+  const toolPromptSubmittingRef = React.useRef(false);
   const [attachmentsAbove, setAttachmentsAbove] = useState<MultipartPartDraft[]>([]);
   const [attachmentsBelow, setAttachmentsBelow] = useState<MultipartPartDraft[]>([]);
   const [attachmentsManageVisible, setAttachmentsManageVisible] = useState(false);
@@ -2841,6 +2860,59 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     }
   };
 
+  const handleToolInterceptorPromptSubmit = useCallback(
+    async (args: {
+      messageIndex: number;
+      phase: string | null;
+      toolCallId: string | null;
+      promptId: string;
+      buttonId: string;
+      values: Record<string, unknown>;
+    }) => {
+      if (!backend) {
+        Alert.alert('Offline', 'Connect to a server to respond.');
+        return;
+      }
+      const key = `${args.messageIndex}:${args.promptId}`;
+      // Prevent double-submit while already processing any prompt
+      if (toolPromptSubmittingRef.current) {
+        return;
+      }
+      toolPromptSubmittingRef.current = true;
+      setToolPromptSubmittingKey(key);
+      try {
+        await backend.submitSessionToolPromptResponse(sessionId, {
+          message_index: args.messageIndex,
+          phase: args.phase ?? 'tool_call',
+          tool_call_id: args.toolCallId ?? '',
+          prompt_id: args.promptId,
+          button_id: args.buttonId,
+          values: args.values,
+        });
+        if (chatController) {
+          await chatController.loadMessages();
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('404')) {
+          Alert.alert(
+            'Prompt unavailable',
+            'This prompt may have been answered elsewhere. Refreshing messages.',
+          );
+          if (chatController) {
+            await chatController.loadMessages();
+          }
+        } else {
+          Alert.alert('Error', msg || 'Failed to submit prompt response');
+        }
+      } finally {
+        toolPromptSubmittingRef.current = false;
+        setToolPromptSubmittingKey(null);
+      }
+    },
+    [backend, chatController, sessionId],
+  );
+
   const handleComposerAction = useCallback(
     (key: string) => {
       if (key === 'resend') {
@@ -3546,6 +3618,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           onOpenAttachment={setSelectedAttachment}
           onRestoreScroll={maybeRestoreScroll}
           onScroll={handleListScroll}
+          onToolInterceptorPromptSubmit={handleToolInterceptorPromptSubmit}
+          toolInterceptorPromptSubmittingKey={toolPromptSubmittingKey}
         />
 
       {activeError && (

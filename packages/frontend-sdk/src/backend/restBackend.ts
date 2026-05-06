@@ -361,6 +361,35 @@ export class RestAgentBackend implements AgentBackend {
     });
   }
 
+  async submitSessionToolPromptResponse(
+    sessionId: string,
+    body: {
+      message_index: number;
+      phase: string;
+      tool_call_id: string;
+      prompt_id: string;
+      button_id: string;
+      values: Record<string, unknown>;
+    },
+    options: { idempotencyKey?: string } = {},
+  ): Promise<{ status?: string; request?: Record<string, unknown> }> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/tool-prompts/respond`;
+    const resp = await this.transport.request<{ status?: string; request?: Record<string, unknown> }>({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: {
+        message_index: body.message_index,
+        phase: body.phase,
+        tool_call_id: body.tool_call_id,
+        prompt_id: body.prompt_id,
+        button_id: body.button_id,
+        values: body.values ?? {},
+      },
+    });
+    return (resp.data ?? {}) as { status?: string; request?: Record<string, unknown> };
+  }
+
   async listEvents(params: {
     sessionId: string;
     sinceId?: string;

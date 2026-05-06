@@ -54,7 +54,40 @@ class InterceptorCalculator:
         context: Dict[str, Any],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
-        if payload.get("tool_name") != "add":
+        tool_name = payload.get("tool_name")
+        tool_name_str = str(tool_name) if isinstance(tool_name, str) else ""
+        args = payload.get("arguments")
+        url = args.get("url") if isinstance(args, dict) else None
+
+        is_web_access = (
+            ("web" in tool_name_str and ("fetch" in tool_name_str or "search" in tool_name_str))
+            or isinstance(url, str)
+        )
+
+        if is_web_access:
+            answer = context.get("answer") if isinstance(context.get("answer"), dict) else None
+            if answer is None:
+                return {
+                    "kind": "prompt",
+                    "prompt": {
+                        "id": f"approve_web_{payload.get('tool_call_id')}",
+                        "title": "Do you want to access this link?",
+                        "message": str(url) if isinstance(url, str) else "External web access requested.",
+                        "buttons": [
+                            {"id": "accept", "label": "Accept", "default": True},
+                            {"id": "reject", "label": "Reject"},
+                        ],
+                    },
+                }
+            if answer.get("button_id") == "reject":
+                return {
+                    "kind": "respond",
+                    "tool_result": {"success": False, "error": "Rejected web access"},
+                    "continue_loop": True,
+                }
+            return {"kind": "continue"}
+
+        if tool_name != "add":
             return {"kind": "continue"}
         answer = context.get("answer") if isinstance(context.get("answer"), dict) else None
         if answer is None:
@@ -62,8 +95,8 @@ class InterceptorCalculator:
                 "kind": "prompt",
                 "prompt": {
                     "id": f"approve_{payload.get('tool_call_id')}",
-                    "title": "Allow add tool call?",
-                    "message": "Choose how to handle this tool call.",
+                    "title": "Allow adding the numbers?",
+                    "message": "The model wants to sum two numbers. Pick an action below.",
                     "buttons": [
                         {"id": "allow", "label": "Allow", "default": True},
                         {"id": "deny", "label": "Deny"},

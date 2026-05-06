@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   ScrollView,
@@ -10,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
+import { ApplicationActionDialogLayout } from '@crystal-lattice/frontend-rn-components';
 import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
@@ -46,6 +48,21 @@ function selectWebLinkEntries(value: any): WebLinkEntry[] {
     if (!entry || typeof entry !== 'object') return false;
     return typeof (entry as any).url === 'string' || typeof (entry as any).title === 'string';
   });
+}
+
+function resolveInterceptorPromptButtonLabel(
+  pending: Record<string, unknown>,
+  buttonId: string,
+): string {
+  const buttons = pending.buttons;
+  if (!Array.isArray(buttons)) return buttonId;
+  for (const raw of buttons) {
+    if (!raw || typeof raw !== 'object') continue;
+    const id = (raw as { id?: unknown }).id;
+    const label = (raw as { label?: unknown }).label;
+    if (id === buttonId && typeof label === 'string' && label) return label;
+  }
+  return buttonId;
 }
 
 const MessageAttachmentsPreview: React.FC<{
@@ -97,6 +114,15 @@ export interface MessageBubbleProps {
   renderMode?: 'markdown' | 'raw';
   footerElements?: UiSchemaElement[];
   pluginActionDefs?: MessageActionDefinition[];
+  onToolInterceptorPromptSubmit?: (args: {
+    messageIndex: number;
+    phase: string | null;
+    toolCallId: string | null;
+    promptId: string;
+    buttonId: string;
+    values: Record<string, unknown>;
+  }) => void | Promise<void>;
+  toolInterceptorPromptSubmittingKey?: string | null;
 }
 
 const UserMessageBubble: React.FC<MessageBubbleProps> = ({
@@ -495,6 +521,8 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   renderMode,
   footerElements,
   pluginActionDefs,
+  onToolInterceptorPromptSubmit,
+  toolInterceptorPromptSubmittingKey = null,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -540,6 +568,57 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
     () => Array.from(new Set(toolCallNames)),
     [toolCallNames],
   );
+  const mdIntercept = (message.metadata || {}) as Record<string, any>;
+  const interceptionCurrent = mdIntercept.interception_current;
+  const rawPending =
+    interceptionCurrent && typeof interceptionCurrent === 'object'
+      ? interceptionCurrent.pending_prompt
+      : null;
+  const hasInterceptorPrompt =
+    rawPending &&
+    typeof rawPending === 'object' &&
+    Array.isArray(rawPending.buttons) &&
+    rawPending.buttons.length > 0;
+  const interceptorDialog = hasInterceptorPrompt
+    ? (() => {
+        const inputs = Array.isArray(rawPending.inputs) ? rawPending.inputs : [];
+        return {
+          kind: inputs.length ? 'form' : 'confirm',
+          title:
+            typeof rawPending.title === 'string' && rawPending.title
+              ? rawPending.title
+              : 'Tool confirmation',
+          message: typeof rawPending.message === 'string' ? rawPending.message : '',
+          inputs,
+          buttons: rawPending.buttons,
+        };
+      })()
+    : null;
+  const promptIdForSubmit =
+    hasInterceptorPrompt && typeof rawPending.id === 'string' ? rawPending.id : '';
+  const submitKey =
+    promptIdForSubmit !== '' ? `${index}:${promptIdForSubmit}` : '';
+  const storedAnswerRaw =
+    interceptionCurrent && typeof interceptionCurrent === 'object'
+      ? (interceptionCurrent as Record<string, unknown>).answer
+      : null;
+  const storedAnswer =
+    storedAnswerRaw && typeof storedAnswerRaw === 'object' && storedAnswerRaw !== null
+      ? (storedAnswerRaw as Record<string, unknown>)
+      : null;
+  const answerPromptId =
+    storedAnswer && typeof storedAnswer.prompt_id === 'string' ? storedAnswer.prompt_id : '';
+  const answerButtonId =
+    storedAnswer && typeof storedAnswer.button_id === 'string' ? storedAnswer.button_id : '';
+  const answerForThisPrompt =
+    hasInterceptorPrompt &&
+    answerPromptId !== '' &&
+    answerPromptId === promptIdForSubmit &&
+    answerButtonId !== '';
+  const selectedChoiceLabel =
+    answerForThisPrompt && rawPending && typeof rawPending === 'object'
+      ? resolveInterceptorPromptButtonLabel(rawPending as Record<string, unknown>, answerButtonId)
+      : '';
   const role = 'assistant';
   const footerParts = useMemo(() => {
     const elements = footerElements || [];
@@ -828,6 +907,58 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {distinctToolCallNames.join(', ')}
           </Text>
         )}
+
+        {interceptorDialog && onToolInterceptorPromptSubmit && promptIdForSubmit ? (
+          <View style={styles.interceptorPromptWrap}>
+            {answerForThisPrompt ? (
+              <View style={styles.interceptorAnswerSummary}>
+                <Icon name="check-circle" size={16} color={theme.textSecondary} />
+                <View style={styles.interceptorAnswerSummaryTextCol}>
+                  <Text style={styles.interceptorAnswerSummaryTitle}>
+                    {(typeof rawPending.title === 'string' && rawPending.title) ||
+                      'Tool confirmation'}
+                  </Text>
+                  <Text style={styles.interceptorAnswerSummaryChoice}>
+                    Selected: {selectedChoiceLabel || answerButtonId}
+                  </Text>
+                </View>
+              </View>
+            ) : toolInterceptorPromptSubmittingKey === submitKey ? (
+              <View style={styles.interceptorSubmittingRow}>
+                <ActivityIndicator size="small" color={theme.primary} />
+                <Text style={styles.interceptorSubmittingText}>Sending choice…</Text>
+              </View>
+            ) : (
+              <ApplicationActionDialogLayout
+                dialog={interceptorDialog}
+                titleFallback="Tool confirmation"
+                density="compact"
+                onSubmit={(payload) => {
+                  const bid =
+                    typeof payload.buttonId === 'string' && payload.buttonId.trim()
+                      ? payload.buttonId.trim()
+                      : '';
+                  if (!bid) {
+                    return;
+                  }
+                  void onToolInterceptorPromptSubmit({
+                    messageIndex: index,
+                    phase: typeof interceptionCurrent?.phase === 'string' ? interceptionCurrent.phase : null,
+                    toolCallId: typeof interceptionCurrent?.tool_call_id === 'string' ? interceptionCurrent.tool_call_id : null,
+                    promptId: promptIdForSubmit,
+                    buttonId: bid,
+                    values: payload.values || {},
+                  });
+                }}
+                onCancel={() => {}}
+                showCancelButton={false}
+                disabled={false}
+                style={styles.interceptorPromptLayout}
+              />
+            )}
+          </View>
+        ) : null}
+
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
@@ -865,8 +996,9 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
   renderMode,
   footerElements,
   pluginActionDefs,
+  onToolInterceptorPromptSubmit,
+  toolInterceptorPromptSubmittingKey,
 }) => {
-  console.log("Rendering MessageBubble", { index, role: message.role });
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -951,6 +1083,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}
+        onToolInterceptorPromptSubmit={onToolInterceptorPromptSubmit}
+        toolInterceptorPromptSubmittingKey={toolInterceptorPromptSubmittingKey}
       />
     );
   }
@@ -1200,6 +1334,50 @@ const createStyles = (theme: Theme) =>
     },
     attachmentsWrapperOnBlue: {
       marginTop: 8,
+    },
+    interceptorPromptWrap: {
+      marginTop: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      padding: 8,
+      backgroundColor: theme.surfaceAlt,
+    },
+    interceptorPromptLayout: {
+      width: '100%',
+      backgroundColor: 'transparent',
+      padding: 0,
+      borderRadius: 0,
+    },
+    interceptorAnswerSummary: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      paddingVertical: 4,
+    },
+    interceptorAnswerSummaryTextCol: {
+      flex: 1,
+      minWidth: 0,
+    },
+    interceptorAnswerSummaryTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 2,
+    },
+    interceptorAnswerSummaryChoice: {
+      fontSize: 13,
+      color: theme.textSecondary,
+    },
+    interceptorSubmittingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingVertical: 6,
+    },
+    interceptorSubmittingText: {
+      fontSize: 13,
+      color: theme.textSecondary,
     },
     rawReadonlyInput: {
       marginTop: 2,

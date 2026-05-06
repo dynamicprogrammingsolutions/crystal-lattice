@@ -78,6 +78,14 @@ export interface CheckpointEvent extends BaseEvent {
   timestamp?: string;
 }
 
+/** Published when a tool interceptor returns kind=prompt and execution suspends. */
+export interface ToolInterceptorPromptEvent extends BaseEvent {
+  type: 'tool_interceptor_prompt';
+  tool_call_id?: string | null;
+  phase: string;
+  prompt: Record<string, any>;
+}
+
 export type Event =
   | SessionCreatedEvent
   | FinalEvent
@@ -91,4 +99,5 @@ export type Event =
   | PartialEvent
   | RequestCompletedEvent
   | CheckpointEvent
+  | ToolInterceptorPromptEvent
   | BaseEvent;

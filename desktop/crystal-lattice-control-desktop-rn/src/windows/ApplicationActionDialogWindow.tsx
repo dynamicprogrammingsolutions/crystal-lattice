@@ -54,10 +54,10 @@ function ApplicationActionDialogWindowInner(
     active.handlers.onCancel();
   };
 
-  const handleSubmit = async (values: Record<string, any>) => {
+  const handleSubmit = async (payload: { values: Record<string, any>; buttonId?: string }) => {
     clearActiveApplicationActionDialog(active.state.id);
     closeWindow();
-    await active.handlers.onSubmit(values);
+    await active.handlers.onSubmit(payload);
   };
 
   return (

@@ -522,6 +522,8 @@ class ProviderPlugin(BasePlugin, Protocol):
 
 
 class ProviderExtensionPlugin(BasePlugin, Protocol):
+    # Optional interception priority. Lower runs first.
+    priority: int = 100
     """Protocol for provider extension plugins (shared provider state, hot + cold path observers).
 
     Provider extensions run in the provider's language and observe/transform streaming
@@ -862,8 +864,28 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         """
         return {"native_messages": list(native_messages)}
 
+    def intercept_tool_call(
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Optional pre-execution tool interception hook."""
+        return {"kind": "continue"}
+
+    def intercept_tool_result(
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Optional post-execution tool interception hook."""
+        return {"kind": "continue"}
+
 
 class FeaturePlugin(BasePlugin, Protocol):
+    # Optional interception priority. Lower runs first.
+    priority: int = 100
     """Protocol for feature plugins (cold path; shared provider state).
 
     Features operate on the cold path only (no per-chunk processing). They can
@@ -1176,6 +1198,24 @@ class FeaturePlugin(BasePlugin, Protocol):
         Features can check for enhanced capabilities using ``context.get("app")``.
         """
         return {"native_messages": list(native_messages)}
+
+    def intercept_tool_call(
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Optional pre-execution tool interception hook."""
+        return {"kind": "continue"}
+
+    def intercept_tool_result(
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Optional post-execution tool interception hook."""
+        return {"kind": "continue"}
 
     # Completion / templates
     def get_template(self, config: Dict[str, Any]) -> str:

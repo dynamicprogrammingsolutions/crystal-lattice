@@ -10,7 +10,7 @@ export interface UsePluginActionDialogResult<Context> {
   activeElement: ActionUiElement | null;
   context: Context | null;
   openForElement: (element: ActionUiElement, context: Context) => void;
-  handleSubmit: (values: Record<string, any>) => Promise<void>;
+  handleSubmit: (payload: { values: Record<string, any>; buttonId?: string }) => Promise<void>;
   handleCancel: () => void;
 }
 
@@ -52,11 +52,11 @@ export function usePluginActionDialog<Context = any>(
   );
 
   const handleSubmit = useCallback(
-    async (values: Record<string, any>) => {
+    async (payload: { values: Record<string, any>; buttonId?: string }) => {
       const current = active;
       if (!current) return;
       setActive(null);
-      await runAction(current.element, current.context, values);
+      await runAction(current.element, current.context, payload.values);
     },
     [active, runAction],
   );

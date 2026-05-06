@@ -191,6 +191,16 @@ function buildSummary(ev: Event): string {
     case 'checkpoint': {
       return 'checkpoint marker';
     }
+    case 'tool_interceptor_prompt': {
+      const e = ev as { tool_call_id?: string; phase?: string; prompt?: { title?: string } };
+      const title =
+        e.prompt && typeof e.prompt === 'object' && typeof e.prompt.title === 'string'
+          ? e.prompt.title
+          : '';
+      const tid = typeof e.tool_call_id === 'string' ? e.tool_call_id : '';
+      const phase = typeof e.phase === 'string' ? e.phase : '';
+      return `tool_interceptor_prompt – phase=${phase}${tid ? ` id=${tid}` : ''}${title ? ` "${title}"` : ''}`;
+    }
     default:
       return '';
   }

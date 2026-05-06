@@ -24,6 +24,16 @@ export interface SessionSnapshotSummary {
   reason: string;
 }
 
+/** One pending tool interception prompt from GET /sessions/{id}/tool-prompts. */
+export interface ToolPromptListItem {
+  message_index: number;
+  phase?: string | null;
+  tool_call_id?: string | null;
+  tool_name?: string | null;
+  plugin?: string | null;
+  prompt: Record<string, any>;
+}
+
 export interface FeatureCompletion {
   replacement: string;
   start: number;
@@ -168,6 +178,14 @@ export interface AgentBackend {
     limit?: number;
   }): Promise<ListEventsResult>;
   getLatestEventId(): Promise<string | null>;
+
+  // --- Tool interceptor prompts ---
+  listSessionToolPrompts(sessionId: string): Promise<ToolPromptListItem[]>;
+  submitSessionToolPromptResponse(
+    sessionId: string,
+    body: { prompt_id: string; button_id: string; values: Record<string, unknown> },
+    options?: { idempotencyKey?: string },
+  ): Promise<{ status?: string; request?: Record<string, unknown> }>;
 
   // --- Feature completions (optional) ---
   getFeatureCompletions?(sessionId: string, text: string): Promise<FeatureCompletion[]>;
