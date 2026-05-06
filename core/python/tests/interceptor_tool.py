@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -12,6 +13,126 @@ class InterceptorCalculator:
 
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         return {"config": config}
+
+    def get_interception_ui_schema(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        add_confirmation: Dict[str, Any] = {
+            "ui_type": "tool_interceptor_prompt",
+            "title": "Allow adding the numbers?",
+            "message": "The model wants to sum two numbers (a={a}, b={b}). Pick an action below.",
+            "buttons": [
+                {"id": "allow", "label": "Allow", "default": True},
+                {"id": "deny", "label": "Deny"},
+                {"id": "deny_stop", "label": "Deny and stop"},
+                {"id": "transform", "label": "Transform"},
+            ],
+        }
+        web_access: Dict[str, Any] = {
+            "ui_type": "tool_interceptor_prompt",
+            "title": "Do you want to access this link?",
+            "message": "{url}",
+            "buttons": [
+                {"id": "accept", "label": "Accept", "default": True},
+                {"id": "reject", "label": "Reject"},
+            ],
+        }
+        cfg_raw = state.get("config")
+        root: Dict[str, Any] = cfg_raw if isinstance(cfg_raw, dict) else {}
+        icfg = root.get("interceptor_calculator")
+        if isinstance(icfg, dict):
+            prompts = icfg.get("tool_call_prompts")
+            if isinstance(prompts, dict):
+                o = prompts.get("add")
+                if isinstance(o, dict):
+                    if isinstance(o.get("title"), str) and o["title"]:
+                        add_confirmation = {**add_confirmation, "title": o["title"]}
+                    if isinstance(o.get("message"), str) and o["message"]:
+                        add_confirmation = {**add_confirmation, "message": o["message"]}
+        return {"schemas": {"add_confirmation": add_confirmation, "web_access": web_access}}
+
+    def materialize_interception_prompt(
+        self,
+        state: Dict[str, Any],
+        *,
+        schema_id: str,
+        schema_params: Dict[str, Any],
+        tool_call_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        raw = self.get_interception_ui_schema(state)
+        schemas = raw.get("schemas") if isinstance(raw, dict) else None
+        if not isinstance(schemas, dict):
+            return None
+        entry = schemas.get(schema_id)
+        if not isinstance(entry, dict):
+            return None
+        params = dict(schema_params or {})
+
+        def fmt(template: str) -> str:
+            try:
+                m = {str(k): ("" if params[k] is None else params[k]) for k in params}
+
+                class _Keep(dict):
+                    __slots__ = ()
+
+                    def __missing__(self, key: str) -> str:
+                        return "{" + key + "}"
+
+                return template.format_map(_Keep(m))
+            except Exception:
+                return template
+
+        title_t = entry.get("title")
+        msg_t = entry.get("message")
+        title = fmt(str(title_t)) if isinstance(title_t, str) else ""
+        message = fmt(str(msg_t)) if isinstance(msg_t, str) else ""
+
+        buttons: List[Dict[str, Any]] = []
+        bl = entry.get("buttons")
+        if isinstance(bl, list):
+            for b in bl:
+                if not isinstance(b, dict):
+                    continue
+                bid = b.get("id")
+                if not isinstance(bid, str) or not bid:
+                    continue
+                nb: Dict[str, Any] = {"id": bid}
+                lab = b.get("label")
+                if isinstance(lab, str):
+                    nb["label"] = lab
+                if b.get("default") is True:
+                    nb["default"] = True
+                for key in ("style", "icon", "order", "metadata"):
+                    if key in b:
+                        nb[key] = b[key]
+                buttons.append(nb)
+        if not buttons:
+            return None
+
+        pid = entry.get("id")
+        if isinstance(pid, str) and pid:
+            prompt_id = fmt(pid)
+        else:
+            suf = tool_call_id if isinstance(tool_call_id, str) and tool_call_id else "tool"
+            prompt_id = f"{schema_id}_{suf}"
+
+        out: Dict[str, Any] = {
+            "id": prompt_id,
+            "title": title,
+            "message": message,
+            "buttons": buttons,
+            "schema_id": schema_id,
+        }
+        if params:
+            out["schema_params"] = params
+        ut = entry.get("ui_type")
+        if isinstance(ut, str) and ut:
+            out["ui_type"] = ut
+        sv = entry.get("schema_version")
+        if isinstance(sv, (int, str)):
+            out["schema_version"] = sv
+        ex = entry.get("extras")
+        if isinstance(ex, dict):
+            out["extras"] = ex
+        return out
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [
@@ -67,17 +188,11 @@ class InterceptorCalculator:
         if is_web_access:
             answer = context.get("answer") if isinstance(context.get("answer"), dict) else None
             if answer is None:
+                display_url = str(url) if isinstance(url, str) else "External web access requested."
                 return {
                     "kind": "prompt",
-                    "prompt": {
-                        "id": f"approve_web_{payload.get('tool_call_id')}",
-                        "title": "Do you want to access this link?",
-                        "message": str(url) if isinstance(url, str) else "External web access requested.",
-                        "buttons": [
-                            {"id": "accept", "label": "Accept", "default": True},
-                            {"id": "reject", "label": "Reject"},
-                        ],
-                    },
+                    "schema_id": "web_access",
+                    "schema_params": {"url": display_url},
                 }
             if answer.get("button_id") == "reject":
                 return {
@@ -91,19 +206,12 @@ class InterceptorCalculator:
             return {"kind": "continue"}
         answer = context.get("answer") if isinstance(context.get("answer"), dict) else None
         if answer is None:
+            raw_args = payload.get("arguments")
+            a_b: Dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
             return {
                 "kind": "prompt",
-                "prompt": {
-                    "id": f"approve_{payload.get('tool_call_id')}",
-                    "title": "Allow adding the numbers?",
-                    "message": "The model wants to sum two numbers. Pick an action below.",
-                    "buttons": [
-                        {"id": "allow", "label": "Allow", "default": True},
-                        {"id": "deny", "label": "Deny"},
-                        {"id": "deny_stop", "label": "Deny and stop"},
-                        {"id": "transform", "label": "Transform"},
-                    ],
-                },
+                "schema_id": "add_confirmation",
+                "schema_params": {"a": a_b.get("a", ""), "b": a_b.get("b", "")},
             }
         button_id = answer.get("button_id")
         if button_id == "deny":
@@ -119,12 +227,16 @@ class InterceptorCalculator:
                 "continue_loop": False,
             }
         if button_id == "transform":
-            call = payload.get("raw_call")
-            if isinstance(call, dict):
-                call = dict(call)
-                fn = dict(call.get("function") or {})
-                fn["arguments"] = '{"a": 2, "b": 8}'
-                call["function"] = fn
+            raw = payload.get("raw_call")
+            if isinstance(raw, dict):
+                call = dict(raw)
+                args_json = json.dumps({"a": 2, "b": 8}, separators=(",", ":"))
+                if call.get("type") == "function_call":
+                    call["arguments"] = args_json
+                else:
+                    fn = dict(call.get("function") or {})
+                    fn["arguments"] = args_json
+                    call["function"] = fn
                 return {"kind": "continue", "tool_call": call}
         return {"kind": "continue"}
 

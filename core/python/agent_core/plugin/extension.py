@@ -203,3 +203,5 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         return self.plugin.execute_action(
             action_id, session, native_messages, params, context, state
         )
+
+
