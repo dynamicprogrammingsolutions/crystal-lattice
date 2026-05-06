@@ -288,7 +288,6 @@ services:
 - No IDE integration for approval flows
 - No browser rendering for JavaScript-heavy pages
 - Extraction quality depends on trafilatura
-```
 
 ## Requirements Checklist
 
