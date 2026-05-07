@@ -282,7 +282,9 @@ def test_compaction_toggle_ui_label_depends_on_config() -> None:
     assert expand_toggle["label"] == "Expand compacted messages"
 
 
-def test_from_native_messages_surfaces_compaction_summary_as_local_placeholder() -> None:
+def test_from_native_messages_surfaces_compaction_summary_as_local_placeholder() -> (
+    None
+):
     extension = OpenAIResponsesNativeCompactionExtension()
 
     native_messages = [
@@ -347,7 +349,9 @@ def test_toggle_compaction_transcript_mode_updates_overrides_and_rebuilds() -> N
     session = Session(
         session_id="session-toggle",
         messages=[
-            Message(role="user", content="first turn", metadata={"native_indices": [0]}),
+            Message(
+                role="user", content="first turn", metadata={"native_indices": [0]}
+            ),
         ],
         metadata={
             "native_messages": [
@@ -362,7 +366,13 @@ def test_toggle_compaction_transcript_mode_updates_overrides_and_rebuilds() -> N
                 },
             ],
             "native_messages_integrity": core._compute_native_integrity(  # type: ignore[attr-defined]
-                [Message(role="user", content="first turn", metadata={"native_indices": [0]})]
+                [
+                    Message(
+                        role="user",
+                        content="first turn",
+                        metadata={"native_indices": [0]},
+                    )
+                ]
             ),
         },
     )
@@ -398,9 +408,7 @@ def test_toggle_compaction_transcript_mode_updates_overrides_and_rebuilds() -> N
     assert (expanded_session.metadata or {}).get("overrides") == {
         "use_compaction_placeholder_transcript": False
     }
-    assert [message.content for message in expanded_session.messages] == [
-        "first turn"
-    ]
+    assert [message.content for message in expanded_session.messages] == ["first turn"]
 
 
 def test_compaction_allows_missing_compaction_summary_index_in_visible_prefix(
@@ -435,7 +443,9 @@ def test_compaction_allows_missing_compaction_summary_index_in_visible_prefix(
         }
         for i in range(102)
     ]
-    native_messages.append({"type": "compaction_summary", "encrypted_content": "opaque-summary"})
+    native_messages.append(
+        {"type": "compaction_summary", "encrypted_content": "opaque-summary"}
+    )
     native_messages.append(
         {
             "type": "message",
@@ -536,7 +546,9 @@ def test_core_session_action_rebuilds_from_compacted_native_output_and_keeps_fut
     assert isinstance(compacted_native, list)
     assert compacted_native[-1]["type"] == "compaction"
 
-    compacted_session = core.add_message(compacted_session, "user", "second turn", config=config)
+    compacted_session = core.add_message(
+        compacted_session, "user", "second turn", config=config
+    )
     session_after_second, second_finals = core.send_request(compacted_session, config)
 
     assert second_finals[-1]["content"] == "Second answer"
@@ -548,7 +560,11 @@ def test_core_session_action_rebuilds_from_compacted_native_output_and_keeps_fut
     create_calls = _ScriptedCompactionProvider.scripted_client.responses.create_calls
     assert len(create_calls) == 2
     second_input = create_calls[1]["input"]
-    assert any(item.get("type") == "compaction" for item in second_input if isinstance(item, dict))
+    assert any(
+        item.get("type") == "compaction"
+        for item in second_input
+        if isinstance(item, dict)
+    )
     assert all(
         item.get("content") != "Earlier conversation compacted to reduce context size."
         for item in second_input
@@ -631,7 +647,9 @@ def test_core_session_action_can_use_placeholder_transcript_when_enabled(
     assert placeholder_metadata["native_indices"] == [0, 1]
     assert "openai_responses_compaction" in placeholder_metadata
 
-    compacted_session = core.add_message(compacted_session, "user", "second turn", config=config)
+    compacted_session = core.add_message(
+        compacted_session, "user", "second turn", config=config
+    )
     session_after_second, second_finals = core.send_request(compacted_session, config)
 
     assert second_finals[-1]["content"] == "Second answer"
@@ -643,7 +661,11 @@ def test_core_session_action_can_use_placeholder_transcript_when_enabled(
     create_calls = _ScriptedCompactionProvider.scripted_client.responses.create_calls
     assert len(create_calls) == 2
     second_input = create_calls[1]["input"]
-    assert any(item.get("type") == "compaction" for item in second_input if isinstance(item, dict))
+    assert any(
+        item.get("type") == "compaction"
+        for item in second_input
+        if isinstance(item, dict)
+    )
     assert all(
         item.get("content") != "Earlier conversation compacted to reduce context size."
         for item in second_input
@@ -733,7 +755,9 @@ def test_core_session_action_compacts_only_visible_prefix_slice(
         "Second answer",
     ]
 
-    compacted_session = core.add_message(compacted_session, "user", "third turn", config=config)
+    compacted_session = core.add_message(
+        compacted_session, "user", "third turn", config=config
+    )
     session_after_third, third_finals = core.send_request(compacted_session, config)
 
     assert third_finals[-1]["content"] == "Third answer"
@@ -763,7 +787,11 @@ def test_core_session_action_compacts_only_visible_prefix_slice(
     create_calls = _ScriptedCompactionProvider.scripted_client.responses.create_calls
     assert len(create_calls) == 3
     third_input = create_calls[2]["input"]
-    assert any(item.get("type") == "compaction" for item in third_input if isinstance(item, dict))
+    assert any(
+        item.get("type") == "compaction"
+        for item in third_input
+        if isinstance(item, dict)
+    )
     assert any(
         item.get("type") == "message"
         and item.get("role") == "user"
@@ -789,7 +817,9 @@ def test_compaction_uses_chatgpt_effective_endpoint_when_enabled(
     extension = OpenAIResponsesNativeCompactionExtension()
     session = Session(
         session_id="session-chatgpt",
-        messages=[Message(role="assistant", content="hello", metadata={"native_indices": [0]})],
+        messages=[
+            Message(role="assistant", content="hello", metadata={"native_indices": [0]})
+        ],
     )
     native_messages = [
         {
@@ -841,7 +871,9 @@ def test_compaction_can_force_api_endpoint_when_chatgpt_compaction_disabled(
     extension = OpenAIResponsesNativeCompactionExtension()
     session = Session(
         session_id="session-api",
-        messages=[Message(role="assistant", content="hello", metadata={"native_indices": [0]})],
+        messages=[
+            Message(role="assistant", content="hello", metadata={"native_indices": [0]})
+        ],
     )
     native_messages = [
         {
@@ -884,7 +916,13 @@ def test_core_session_action_uses_compiled_request_instructions_and_strips_leadi
         create_payloads=[],
         compact_payload={
             "id": "cmp_strip",
-            "output": [{"id": "comp_strip", "type": "compaction", "encrypted_content": "opaque"}],
+            "output": [
+                {
+                    "id": "comp_strip",
+                    "type": "compaction",
+                    "encrypted_content": "opaque",
+                }
+            ],
         },
     )
     _patch_extension_client(monkeypatch)
@@ -905,9 +943,15 @@ def test_core_session_action_uses_compiled_request_instructions_and_strips_leadi
     session = Session(
         session_id="session-strip",
         messages=[
-            Message(role="system", content="Old persisted system", metadata={"native_indices": [0]}),
+            Message(
+                role="system",
+                content="Old persisted system",
+                metadata={"native_indices": [0]},
+            ),
             Message(role="user", content="hello", metadata={"native_indices": [1]}),
-            Message(role="assistant", content="world", metadata={"native_indices": [2]}),
+            Message(
+                role="assistant", content="world", metadata={"native_indices": [2]}
+            ),
         ],
         metadata={
             "native_messages": [
@@ -929,9 +973,19 @@ def test_core_session_action_uses_compiled_request_instructions_and_strips_leadi
             ],
             "native_messages_integrity": core._compute_native_integrity(  # type: ignore[attr-defined]
                 [
-                    Message(role="system", content="Old persisted system", metadata={"native_indices": [0]}),
-                    Message(role="user", content="hello", metadata={"native_indices": [1]}),
-                    Message(role="assistant", content="world", metadata={"native_indices": [2]}),
+                    Message(
+                        role="system",
+                        content="Old persisted system",
+                        metadata={"native_indices": [0]},
+                    ),
+                    Message(
+                        role="user", content="hello", metadata={"native_indices": [1]}
+                    ),
+                    Message(
+                        role="assistant",
+                        content="world",
+                        metadata={"native_indices": [2]},
+                    ),
                 ]
             ),
         },
@@ -1110,6 +1164,126 @@ def test_core_session_action_message_injection_compaction_uses_rendered_system_m
     }
 
 
+def test_chatgpt_message_injection_compaction_sends_rendered_system_as_instructions_and_preserves_history(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[],
+        compact_payload={
+            "id": "cmp_chatgpt_message_injection",
+            "output": [
+                {
+                    "id": "comp_chatgpt_message_injection",
+                    "type": "compaction",
+                    "encrypted_content": "opaque",
+                },
+            ],
+        },
+    )
+    _patch_extension_client(monkeypatch)
+
+    core = AgentCore()
+    core.register_provider(
+        _ScriptedCompactionProvider,
+        [OpenAIResponsesNativeCompactionExtension],
+    )
+    core.register_feature(SystemMessageFeature)
+
+    config = {
+        **_config(),
+        "auth_mode": "chatgpt",
+        "_openai_responses_effective_auth_mode": "chatgpt",
+        "chatgpt_access_token": "test_chatgpt_token",
+        "system_message_as_instructions": False,
+        "system_message": {
+            "variables": {
+                "PROJECT": "AI Agent Platform",
+            }
+        },
+    }
+    messages = [
+        Message(
+            role="system",
+            content="You are helping {{PROJECT}}.",
+            metadata={"native_indices": [0]},
+        ),
+        Message(role="user", content="hello", metadata={"native_indices": [1]}),
+        Message(role="assistant", content="world", metadata={"native_indices": [2]}),
+    ]
+    session = Session(
+        session_id="session-chatgpt-message-injection",
+        messages=messages,
+        metadata={
+            "native_messages": [
+                {
+                    "type": "message",
+                    "role": "system",
+                    "content": [
+                        {
+                            "type": "input_text",
+                            "text": "You are helping {{PROJECT}}.",
+                        }
+                    ],
+                    "_metadata": {
+                        "compiled_content": "You are helping AI Agent Platform.",
+                        "system_message_compiled_logged": True,
+                    },
+                },
+                {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": "hello"}],
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": "world"}],
+                },
+            ],
+            "native_messages_integrity": core._compute_native_integrity(messages),  # type: ignore[attr-defined]
+        },
+    )
+
+    compacted_session, result = core.execute_session_action(
+        session,
+        config,
+        plugin_id="openai_responses_native_compaction",
+        action_id="compact_native_history",
+        params={},
+    )
+
+    assert result["message"] == "Compacted the full visible history."
+    calls = _ScriptedCompactionProvider.scripted_client.responses.compact_calls
+    assert len(calls) == 1
+    assert calls[0]["instructions"] == "You are helping AI Agent Platform."
+    assert calls[0]["input"] == [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "hello"}],
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "world"}],
+        },
+    ]
+
+    compacted_native = (compacted_session.metadata or {}).get("native_messages")
+    assert isinstance(compacted_native, list)
+    assert compacted_native[0]["role"] == "system"
+    assert compacted_native[0]["content"] == [
+        {
+            "type": "input_text",
+            "text": "You are helping {{PROJECT}}.",
+        }
+    ]
+    assert compacted_native[1]["type"] == "compaction"
+    assert compacted_session.messages
+    assert compacted_session.messages[0].role == "system"
+    assert compacted_session.messages[0].content == "You are helping {{PROJECT}}."
+
+
 def test_compaction_disabled_chatgpt_mode_requires_api_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1117,7 +1291,9 @@ def test_compaction_disabled_chatgpt_mode_requires_api_key(
     extension = OpenAIResponsesNativeCompactionExtension()
     session = Session(
         session_id="session-error",
-        messages=[Message(role="assistant", content="hello", metadata={"native_indices": [0]})],
+        messages=[
+            Message(role="assistant", content="hello", metadata={"native_indices": [0]})
+        ],
     )
     native_messages = [
         {

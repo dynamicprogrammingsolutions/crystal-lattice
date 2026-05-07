@@ -17,7 +17,6 @@ import io
 import json
 import queue
 import threading
-from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
@@ -78,6 +77,7 @@ from .openai_responses_runtime import (
     chatgpt_default_headers as _chatgpt_default_headers_shared,
     effective_auth_mode as _effective_auth_mode_shared,
     normalize_auth_mode as _normalize_auth_mode_shared,
+    prepare_input_and_instructions_for_endpoint as _prepare_input_and_instructions_shared,
     resolve_api_key as _resolve_api_key_shared,
     resolve_base_url as _resolve_base_url_shared,
     should_strip_leading_system_or_developer_message as _should_strip_leading_shared,
@@ -2282,18 +2282,21 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "[openai_responses_provider] chatgpt auth_mode requires streaming requests; use send_request_stream or switch auth_mode to api/auto"
             )
 
-        payload = dict(request.get("payload") or {})
-        instructions = self._request_instructions(request)
-        if instructions is not None:
-            payload["instructions"] = instructions
-
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
-        if self._should_strip_leading_system_or_developer_message(cfg):
-            base_history = self._strip_leading_system_or_developer_message(base_history)
         self._validate_native_item_list(base_history)
+        prepared_input = _prepare_input_and_instructions_shared(
+            base_history,
+            self._request_instructions(request),
+            cfg,
+        )
+        self._validate_native_item_list(prepared_input.input_items)
 
-        request_history = [item for item in base_history if isinstance(item, dict)]
+        payload = dict(request.get("payload") or {})
+        if prepared_input.instructions is not None:
+            payload["instructions"] = prepared_input.instructions
+
+        request_history = list(prepared_input.input_items)
 
         timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
         max_retries = self._request_max_retries(request)
@@ -2451,19 +2454,22 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise RuntimeError("[openai_responses_provider] missing request in state")
         context = self._request_context(state)
 
-        payload = dict(request.get("payload") or {})
-        instructions = self._request_instructions(request)
-        if instructions is not None:
-            payload["instructions"] = instructions
-
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
         cfg = state.get("config") or {}
-        if self._should_strip_leading_system_or_developer_message(cfg):
-            base_history = self._strip_leading_system_or_developer_message(base_history)
         self._validate_native_item_list(base_history)
+        prepared_input = _prepare_input_and_instructions_shared(
+            base_history,
+            self._request_instructions(request),
+            cfg,
+        )
+        self._validate_native_item_list(prepared_input.input_items)
 
-        request_history = [item for item in base_history if isinstance(item, dict)]
+        payload = dict(request.get("payload") or {})
+        if prepared_input.instructions is not None:
+            payload["instructions"] = prepared_input.instructions
+
+        request_history = list(prepared_input.input_items)
 
         timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
         max_retries = self._request_max_retries(request)

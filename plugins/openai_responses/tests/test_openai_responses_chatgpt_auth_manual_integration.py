@@ -16,6 +16,9 @@ from openai_responses_plugins import (
     OpenAIResponsesProvider,
     OpenAIResponsesUsageExtension,
 )
+from openai_responses_plugins.openai_responses_native_compaction_extension import (
+    OpenAIResponsesNativeCompactionExtension,
+)
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -60,6 +63,16 @@ def _chatgpt_config(credentials_path: Path) -> dict[str, object]:
     }
 
 
+def _chatgpt_visible_system_config(credentials_path: Path) -> dict[str, object]:
+    config = dict(_chatgpt_config(credentials_path))
+    config.pop("system_message_as_instructions", None)
+    config.pop("strip_leading_system_or_developer_message", None)
+    config["system_message"] = (
+        "You are a precise assistant. Reply exactly with the requested text."
+    )
+    return config
+
+
 def _fast_mode_models() -> list[str]:
     raw = os.getenv("OPENAI_RESPONSES_CHATGPT_FAST_MODE_MODELS")
     if isinstance(raw, str) and raw.strip():
@@ -86,7 +99,9 @@ class _RecordedResponsesProxy:
         self._recorder = recorder
         streaming = getattr(target, "with_streaming_response", None)
         self.with_streaming_response = (
-            _RecordedResponsesCreateProxy(streaming, recorder) if streaming is not None else None
+            _RecordedResponsesCreateProxy(streaming, recorder)
+            if streaming is not None
+            else None
         )
 
     def create(self, **kwargs: Any) -> Any:
@@ -177,13 +192,127 @@ def test_openai_responses_chatgpt_saved_login_real_request() -> None:
 
     native_history = (final_session.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
-    assert any(isinstance(item, dict) and item.get("type") == "message" for item in native_history)
+    assert any(
+        isinstance(item, dict) and item.get("type") == "message"
+        for item in native_history
+    )
     assert any(
         isinstance(item, dict)
         and item.get("role") == "user"
-        and item.get("content") == [{"type": "input_text", "text": "Reply with exactly: CHATGPT_AUTH_RESPONSES_OK"}]
+        and item.get("content")
+        == [
+            {
+                "type": "input_text",
+                "text": "Reply with exactly: CHATGPT_AUTH_RESPONSES_OK",
+            }
+        ]
         for item in native_history
     )
+
+
+@pytest.mark.manual_integration
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_chatgpt_visible_system_message_round_trip_and_compaction() -> (
+    None
+):
+    load_dotenv(REPO_ROOT / ".env")
+
+    credentials_path = _credentials_path()
+    _load_saved_credentials()
+
+    _RecordingChatGPTProvider.recorded_requests = []
+
+    core = AgentCore()
+    core.register_provider(
+        _RecordingChatGPTProvider,
+        [OpenAIResponsesNativeCompactionExtension],
+    )
+    core.register_feature(OpenAIResponsesChatGPTAuthFeature)
+    core.register_feature(SystemMessageFeature)
+
+    config = _chatgpt_visible_system_config(credentials_path)
+
+    session = core.create_session()
+    session = core.add_message(
+        session,
+        "user",
+        "Reply with exactly: CHATGPT_VISIBLE_SYSTEM_ONE",
+        config=config,
+    )
+
+    first_session = None
+    first_messages = None
+    for chunk in core.send_request_stream(session, config):
+        if chunk.get("type") == "final":
+            first_session = chunk.get("session")
+            first_messages = chunk.get("messages")
+
+    assert first_session is not None
+    assert isinstance(first_messages, list)
+    final = _last_assistant_message(first_messages)
+    assert isinstance(final.get("content"), str)
+    assert "CHATGPT_VISIBLE_SYSTEM_ONE" in final["content"]
+
+    assert _RecordingChatGPTProvider.recorded_requests
+    first_request = _RecordingChatGPTProvider.recorded_requests[0]
+    assert (
+        first_request.get("instructions")
+        == "You are a precise assistant. Reply exactly with the requested text."
+    )
+    first_input = first_request.get("input")
+    assert isinstance(first_input, list)
+    assert first_input
+    assert not (
+        isinstance(first_input[0], dict)
+        and first_input[0].get("role") in {"system", "developer"}
+    )
+
+    native_history = (first_session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
+    assert native_history
+    assert isinstance(native_history[0], dict)
+    assert native_history[0].get("role") == "system"
+
+    compacted_session, result = core.execute_session_action(
+        first_session,
+        config,
+        plugin_id="openai_responses_native_compaction",
+        action_id="compact_native_history",
+        params={},
+    )
+
+    assert result["message"] == "Compacted the full visible history."
+    compacted_native = (compacted_session.metadata or {}).get("native_messages")
+    assert isinstance(compacted_native, list)
+    assert compacted_native
+    assert isinstance(compacted_native[0], dict)
+    assert compacted_native[0].get("role") == "system"
+    assert any(
+        isinstance(item, dict)
+        and item.get("type") in {"compaction", "compaction_summary"}
+        for item in compacted_native
+    )
+
+    compacted_session = core.add_message(
+        compacted_session,
+        "user",
+        "Reply with exactly: CHATGPT_VISIBLE_SYSTEM_TWO",
+        config=config,
+    )
+
+    final_session = None
+    final_messages = None
+    for chunk in core.send_request_stream(compacted_session, config):
+        if chunk.get("type") == "final":
+            final_session = chunk.get("session")
+            final_messages = chunk.get("messages")
+
+    assert final_session is not None
+    assert isinstance(final_messages, list)
+    final = _last_assistant_message(final_messages)
+    assert isinstance(final.get("content"), str)
+    assert "CHATGPT_VISIBLE_SYSTEM_TWO" in final["content"]
 
 
 @pytest.mark.manual_integration
@@ -201,7 +330,10 @@ def test_openai_responses_chatgpt_saved_login_fast_mode_round_trip() -> None:
         core = AgentCore()
         core.register_provider(
             _RecordingChatGPTProvider,
-            extensions=[OpenAIResponsesFastModeExtension, OpenAIResponsesUsageExtension],
+            extensions=[
+                OpenAIResponsesFastModeExtension,
+                OpenAIResponsesUsageExtension,
+            ],
         )
         core.register_feature(OpenAIResponsesChatGPTAuthFeature)
         core.register_feature(SystemMessageFeature)
@@ -230,7 +362,9 @@ def test_openai_responses_chatgpt_saved_login_fast_mode_round_trip() -> None:
                 final_messages = chunk.get("messages")
 
         assert final_session is not None, f"expected final session for model {model}"
-        assert isinstance(final_messages, list), f"expected final messages list for model {model}"
+        assert isinstance(
+            final_messages, list
+        ), f"expected final messages list for model {model}"
         final = _last_assistant_message(final_messages)
         assert isinstance(final.get("content"), str)
         assert "CHATGPT_FAST_MODE_OK" in final["content"]
@@ -240,9 +374,12 @@ def test_openai_responses_chatgpt_saved_login_fast_mode_round_trip() -> None:
             for request in _RecordingChatGPTProvider.recorded_requests
             if request.get("service_tier") is not None
         ]
-        assert service_tier_requests, f"expected at least one recorded request with service_tier for model {model}"
+        assert (
+            service_tier_requests
+        ), f"expected at least one recorded request with service_tier for model {model}"
         assert any(
-            request.get("service_tier") == "priority" for request in service_tier_requests
+            request.get("service_tier") == "priority"
+            for request in service_tier_requests
         ), f"expected a priority-tier request for model {model}, got {service_tier_requests!r}"
 
         metadata = final.get("metadata") or {}

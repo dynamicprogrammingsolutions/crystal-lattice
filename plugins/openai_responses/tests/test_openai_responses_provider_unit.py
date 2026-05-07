@@ -1048,6 +1048,185 @@ def test_call_api_can_strip_leading_system_message_from_request_history() -> Non
     assert sent_input[0]["role"] == "user"
 
 
+def test_api_mode_keeps_leading_system_message_without_strip_flag() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureClient(_load_fixture())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "system", "content": "Visible system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://api.openai.com/v1/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+        },
+    }
+
+    provider.call_api(native_messages, state)
+
+    call = fixture_client.responses.calls[0]
+    assert "instructions" not in call
+    assert [item["role"] for item in call["input"]] == ["system", "user"]
+
+
+def test_chatgpt_stream_moves_leading_system_message_to_instructions() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureStreamingClient(_load_stream_fixture_events())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "system", "content": "Visible system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    original_native = list(native_messages)
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+            "_openai_responses_effective_auth_mode": "chatgpt",
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://chatgpt.com/backend-api/codex/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+        },
+    }
+
+    list(provider.stream_api(native_messages, state))
+
+    call = fixture_client.responses.calls[0]
+    assert call["instructions"] == "Visible system prompt"
+    assert [item["role"] for item in call["input"]] == ["user"]
+    assert native_messages == original_native
+
+
+def test_chatgpt_stream_moves_leading_developer_message_to_instructions() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureStreamingClient(_load_stream_fixture_events())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "developer", "content": "Visible developer prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+            "_openai_responses_effective_auth_mode": "chatgpt",
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://chatgpt.com/backend-api/codex/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+        },
+    }
+
+    list(provider.stream_api(native_messages, state))
+
+    call = fixture_client.responses.calls[0]
+    assert call["instructions"] == "Visible developer prompt"
+    assert [item["role"] for item in call["input"]] == ["user"]
+
+
+def test_chatgpt_stream_preserves_existing_request_instructions() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureStreamingClient(_load_stream_fixture_events())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "system", "content": "Visible system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+            "_openai_responses_effective_auth_mode": "chatgpt",
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://chatgpt.com/backend-api/codex/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+            "instructions": "Explicit instructions",
+        },
+    }
+
+    list(provider.stream_api(native_messages, state))
+
+    call = fixture_client.responses.calls[0]
+    assert call["instructions"] == "Explicit instructions"
+    assert [item["role"] for item in call["input"]] == ["system", "user"]
+
+
+def test_runtime_extracts_leading_system_text_from_responses_parts() -> None:
+    native_messages = [
+        {
+            "type": "message",
+            "role": "system",
+            "content": [
+                {"type": "input_text", "text": "First"},
+                {"type": "input_image", "image_url": "data:image/png;base64,AAA"},
+                {"type": "text", "text": "Second"},
+            ],
+        },
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "hello"}],
+        },
+    ]
+
+    prepared = runtime_module.prepare_input_and_instructions_for_endpoint(
+        native_messages,
+        None,
+        {"_openai_responses_effective_auth_mode": "chatgpt"},
+    )
+
+    assert prepared.instructions == "First\nSecond"
+    assert prepared.input_items == [native_messages[1]]
+    assert prepared.stripped_leading_message == native_messages[0]
+
+
 def test_stream_api_can_strip_leading_developer_message_from_request_history() -> None:
     provider = OpenAIResponsesProvider()
     fixture_client = _FixtureStreamingClient(_load_stream_fixture_events())
