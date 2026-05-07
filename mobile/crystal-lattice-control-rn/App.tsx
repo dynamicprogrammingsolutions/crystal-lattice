@@ -13,6 +13,7 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
 import {
@@ -1401,65 +1402,70 @@ function App(): React.JSX.Element {
   };
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider theme={theme}>
-        <PinnedActionsProvider>
-          <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-            <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-          {/** Determine active connection info for display components */}
-          {/** This is derived once here and passed down rather than recomputed in children. */}
-          {(() => {
-          const activeConnectionAdditionalInfo =
-            activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
-          const activeConnectionName = activeConnection != null ? activeConnection.name : null;
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <SafeAreaProvider>
+        <ThemeProvider theme={theme}>
+          <PinnedActionsProvider>
+            <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+              <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+              {/** Determine active connection info for display components */}
+              {/** This is derived once here and passed down rather than recomputed in children. */}
+              {(() => {
+                const activeConnectionAdditionalInfo =
+                  activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
+                const activeConnectionName = activeConnection != null ? activeConnection.name : null;
 
-          return (
-            <ConnectedRoot
-              backend={backend}
-              transport={transport}
-              onDisconnect={handleDisconnect}
-              connections={connections}
-              connectionsLoading={connectionsLoading}
-              onSelectConnectionRecord={handleSelectSavedConnection}
-              onNewConnectionRequested={() => {
-                if (backend) {
-                  handleDisconnect();
-                }
-                setConnectionMethod(null);
-                setShowConnectionWizard(true);
-              }}
-              renderConnectionWizard={() => {
-                if (!showConnectionWizard) {
-                  return null;
-                }
-                if (!connectionMethod) {
-                  return renderMethodSelection();
-                }
-                return renderConnectingScreen();
-              }}
-              onDeleteConnectionRecord={handleDeleteConnection}
-              activeConnectionId={selectedConnectionId}
-              activeConnectionName={activeConnectionName}
-              activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
-              sessionsCache={sessionsCache}
-              onUpdateSessionsCache={updateSessionsCache}
-              messagesCache={messagesCache}
-              onUpdateMessagesCache={updateMessagesCache}
-              onSaveMessagesComposeText={saveMessagesComposeText}
-              onSaveMessagesScrollAnchor={saveMessagesScrollAnchor}
-              debugTimeline={debugTimeline}
-              onAppendDebugTimelineEntry={appendDebugNote}
-            />
-          );
-          })()}
-          </SafeAreaView>
-        </PinnedActionsProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+                return (
+                  <ConnectedRoot
+                    backend={backend}
+                    transport={transport}
+                    onDisconnect={handleDisconnect}
+                    connections={connections}
+                    connectionsLoading={connectionsLoading}
+                    onSelectConnectionRecord={handleSelectSavedConnection}
+                    onNewConnectionRequested={() => {
+                      if (backend) {
+                        handleDisconnect();
+                      }
+                      setConnectionMethod(null);
+                      setShowConnectionWizard(true);
+                    }}
+                    renderConnectionWizard={() => {
+                      if (!showConnectionWizard) {
+                        return null;
+                      }
+                      if (!connectionMethod) {
+                        return renderMethodSelection();
+                      }
+                      return renderConnectingScreen();
+                    }}
+                    onDeleteConnectionRecord={handleDeleteConnection}
+                    activeConnectionId={selectedConnectionId}
+                    activeConnectionName={activeConnectionName}
+                    activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
+                    sessionsCache={sessionsCache}
+                    onUpdateSessionsCache={updateSessionsCache}
+                    messagesCache={messagesCache}
+                    onUpdateMessagesCache={updateMessagesCache}
+                    onSaveMessagesComposeText={saveMessagesComposeText}
+                    onSaveMessagesScrollAnchor={saveMessagesScrollAnchor}
+                    debugTimeline={debugTimeline}
+                    onAppendDebugTimelineEntry={appendDebugNote}
+                  />
+                );
+              })()}
+            </SafeAreaView>
+          </PinnedActionsProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
+    gestureRoot: {
+      flex: 1,
+    },
     safeArea: {
       flex: 1,
       backgroundColor: theme.background,
