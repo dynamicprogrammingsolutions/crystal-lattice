@@ -12,6 +12,26 @@ export interface MarkdownMessageContentProps {
   variant?: MarkdownMessageVariant;
 }
 
+function inlineCodeText(node: any, children: any): string {
+  if (typeof node?.content === 'string') {
+    return node.content;
+  }
+  if (typeof children === 'string') {
+    return children;
+  }
+  if (Array.isArray(children)) {
+    return children
+      .map((child) => {
+        if (typeof child === 'string') {
+          return child;
+        }
+        return typeof child?.props?.children === 'string' ? child.props.children : '';
+      })
+      .join('');
+  }
+  return '';
+}
+
 const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
   text,
   variant = 'assistant',
@@ -24,14 +44,17 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
 
   const markdownStyle = useMemo(() => {
     const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
+    const messageFontSize = theme.typography.fontSize.message;
 
     return {
       body: {
         ...styles.bodyText,
+        fontSize: messageFontSize,
         color: baseTextColor,
       },
       text: {
         ...styles.bodyText,
+        fontSize: messageFontSize,
         color: baseTextColor,
       },
       strong: {
@@ -47,6 +70,7 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
       },
       code_inline: {
         ...styles.inlineCode,
+        fontSize: messageFontSize,
         backgroundColor: theme.inlineCodeBg,
       },
       code_block: styles.codeBlockContainer,
@@ -62,6 +86,14 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
       heading6: styles.heading,
     } as const;
   }, [variant, theme]);
+
+  const codeBlockInnerStyle = useMemo(
+    () => ({
+      ...styles.codeBlockInner,
+      fontSize: theme.typography.fontSize.code,
+    }),
+    [theme.typography.fontSize.code],
+  );
 
   const rules = useMemo(
     () => ({
@@ -102,7 +134,7 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
                       : (hljsStyles as any).atomOneLight) as any
                   }
                   highlighter="hljs"
-                  customStyle={styles.codeBlockInner}
+                  customStyle={codeBlockInnerStyle}
                   PreTag={View as any}
                   CodeTag={Text as any}
                 >
@@ -150,7 +182,7 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
                       : (hljsStyles as any).atomOneLight) as any
                   }
                   highlighter="hljs"
-                  customStyle={styles.codeBlockInner}
+                  customStyle={codeBlockInnerStyle}
                   PreTag={View as any}
                   CodeTag={Text as any}
                 >
@@ -161,8 +193,37 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
           </View>
         );
       },
+      code_inline: (node: any, children: any) => {
+        const content = inlineCodeText(node, children);
+        return (
+          <Text
+            key={node.key}
+            style={[
+              styles.inlineCode,
+              {
+                fontSize: theme.typography.fontSize.message,
+                backgroundColor: theme.inlineCodeBg,
+                color: variant === 'user' ? theme.textOnPrimary : theme.text,
+              },
+            ]}
+            selectable
+          >
+            {content}
+          </Text>
+        );
+      },
     }),
-    [isDarkCodeBlock, theme.border, theme.codeBlockBg],
+    [
+      codeBlockInnerStyle,
+      isDarkCodeBlock,
+      theme.border,
+      theme.codeBlockBg,
+      theme.inlineCodeBg,
+      theme.text,
+      theme.textOnPrimary,
+      theme.typography.fontSize.message,
+      variant,
+    ],
   );
 
   return (
@@ -177,7 +238,6 @@ const MarkdownMessageContent: React.FC<MarkdownMessageContentProps> = ({
 
 const styles = StyleSheet.create({
   bodyText: {
-    fontSize: 14,
   },
   heading: {
     fontWeight: '700',
@@ -192,7 +252,6 @@ const styles = StyleSheet.create({
   },
   inlineCode: {
     fontFamily: 'Courier',
-    fontSize: 14,
     borderRadius: 3,
     paddingHorizontal: 3,
     paddingVertical: 1,

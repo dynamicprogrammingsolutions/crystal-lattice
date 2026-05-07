@@ -43,6 +43,12 @@ def test_turn_cost_single_assistant_no_tools() -> None:
     # Per-turn cumulative should equal the current cost (no prior messages)
     assert internal_md.get("usage_turn_cost_cumulative") == pytest.approx(0.123456, rel=1e-9)
     assert internal_md.get("usage_turn_cost_cumulative_formatted") == "$0.123456"
+    assert internal_md.get("usage_turn_input_tokens_cumulative") == 0
+    assert internal_md.get("usage_turn_input_tokens_cumulative_formatted") == "0"
+    assert internal_md.get("usage_turn_cached_tokens_cumulative") == 0
+    assert internal_md.get("usage_turn_cached_tokens_cumulative_formatted") == "0"
+    assert internal_md.get("usage_turn_output_tokens_cumulative") == 0
+    assert internal_md.get("usage_turn_output_tokens_cumulative_formatted") == "0"
     # Per-turn reasoning tokens should equal the current reasoning tokens
     assert internal_md.get("usage_turn_reasoning_tokens_cumulative") == 7
     assert internal_md.get("usage_turn_reasoning_tokens_cumulative_formatted") == "7"
@@ -84,6 +90,53 @@ def test_turn_cost_with_separators_and_tool_calls() -> None:
     # No assistant messages after the last separator, so turn reasoning is current only
     assert internal_md.get("usage_turn_reasoning_tokens_cumulative") == 3
     assert internal_md.get("usage_turn_reasoning_tokens_cumulative_formatted") == "3"
+
+
+def test_turn_token_breakdown_fields_are_exposed_for_openrouter() -> None:
+    ext = OpenRouterUsageExtension()
+
+    state = {"partial": make_partial()}
+    native_messages: List[Dict[str, Any]] = [
+        {"role": "user", "content": "hi"},
+        {
+            "role": "assistant",
+            "content": "tool reply",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 8,
+                    "prompt_tokens_details": {"cached_tokens": 2},
+                    "completion_tokens": 4,
+                },
+                "turn": {"id": 1, "has_tool_calls": True, "is_terminal": False},
+            },
+            "tool_calls": [{"id": "t1"}],
+        },
+    ]
+    native_chunk = {
+        "usage": {
+            "prompt_tokens": 12,
+            "prompt_tokens_details": {"cached_tokens": 3},
+            "completion_tokens": 5,
+            "cost": 0.1,
+        }
+    }
+
+    _, _, _, new_state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=[],
+        native_messages=native_messages,
+        state=state,
+    )
+
+    internal_md = new_state.get("partial", {}).get("_metadata") or {}
+    assert internal_md.get("usage_turn_input_tokens_cumulative") == 20
+    assert internal_md.get("usage_turn_input_tokens_cumulative_formatted") == "20"
+    assert internal_md.get("usage_turn_cached_tokens_cumulative") == 5
+    assert internal_md.get("usage_turn_cached_tokens_cumulative_formatted") == "5"
+    assert internal_md.get("usage_turn_output_tokens_cumulative") == 9
+    assert internal_md.get("usage_turn_output_tokens_cumulative_formatted") == "9"
+    assert internal_md.get("turn") == {"id": 1, "has_tool_calls": False, "is_terminal": True}
 
 
 def test_from_native_messages_turn_field_visibility() -> None:

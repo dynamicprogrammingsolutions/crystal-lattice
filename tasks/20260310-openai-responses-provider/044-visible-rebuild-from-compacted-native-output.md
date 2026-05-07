@@ -2,6 +2,13 @@
 
 Short description: Update `openai_responses` native compaction so the compact API's returned native messages are rebuilt into visible core messages directly, instead of being hidden behind a single placeholder message that owns the whole compacted native range.
 
+## Requirements checklist
+
+- [x] Native compaction keeps the compact API output as retained native history.
+- [x] The visible transcript after compaction is rebuilt from that native output through the normal conversion pipeline.
+- [x] The compacted transcript is no longer hidden behind a single placeholder message by default.
+- [x] Follow-up requests still work after both full and partial compaction.
+
 Parent Task: `tasks/20260310-openai-responses-provider/000-main.md`
 
 Depends On:
@@ -147,3 +154,23 @@ For prefix-slice compaction, verify that:
 2. The visible transcript after compaction is rebuilt from that native output through the normal conversion pipeline.
 3. The compacted transcript is no longer hidden behind a single placeholder message by default.
 4. Follow-up requests still work after both full and partial compaction.
+
+## Completion Notes
+
+Added during completion:
+
+1. Removed the placeholder-focused `from_native_messages(...)` / `to_native_messages(...)` behavior from `OpenAIResponsesNativeCompactionExtension`.
+2. Native compaction now returns retained compacted native history directly and lets the normal provider rebuild path surface visible messages from that native output.
+3. Updated the compaction unit tests so visible results are asserted against rebuilt native output rather than the old placeholder transcript.
+4. Updated integration expectations to verify retained native compaction artifacts and follow-up request continuity without placeholder round-trip behavior.
+5. Updated `plugins/openai_responses/README.md` so the docs match the new direct visible rebuild behavior.
+
+Verification run during completion:
+
+- `python -m pytest plugins/openai_responses/tests/test_openai_responses_native_compaction_extension_unit.py -q`
+- `python -m pytest plugins/openai_responses/tests/test_openai_responses_imports.py -q`
+- `python -m pytest plugins/openai_responses/tests/test_openai_responses_native_compaction_integration.py --collect-only -q`
+
+Notes:
+
+- The real OpenAI integration compaction tests were updated to the new expectations, but only collected in this completion step rather than executed live.

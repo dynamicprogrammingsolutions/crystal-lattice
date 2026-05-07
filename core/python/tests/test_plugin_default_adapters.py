@@ -195,9 +195,11 @@ def test_adapter_init_and_initialize_request_default_passthrough(adapter_cls: An
     state: Dict[str, Any] = {"k": "v"}
     config: Dict[str, Any] = {"x": 1}
 
-    # init should return the same state by default
+    # Extension and feature adapters guarantee config is available in state,
+    # even when the implementation does not provide an init hook.
     new_state = adapter.init(config, state)
-    assert new_state is state
+    assert new_state == {"k": "v", "config": config}
+    assert state == {"k": "v"}
 
     # initialize_request should also default to passthrough for both
     # native_messages and state when not implemented on the plugin.

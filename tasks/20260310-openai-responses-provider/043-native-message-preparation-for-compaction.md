@@ -2,6 +2,23 @@
 
 Short description: Add generic action lifecycles owned by `AgentApplication` that run automatically before and after actions, and use the pre-action lifecycle to prepare provider-native messages for `openai_responses` native compaction without mutating or persisting the session.
 
+## Requirements checklist
+
+- [x] Fix the original compaction-preparation bug for the top-level `instructions` path by letting actions explicitly reuse request-time provider/feature initialization.
+- [x] Preserve plugin decoupling: compaction must not import or special-case `SystemMessageFeature` by name.
+- [ ] Make compaction use the same rendered request-time message override path as a normal request when `feature-system-message` injects the prompt as a provider-native `system`/`developer` message rather than top-level `instructions`.
+- [x] Reevaluate the broader `AgentApplication`-owned pre/post action lifecycle design.
+
+Status note:
+- The original design in this task is partially superseded.
+- We did not add generic `AgentApplication`-owned pre/post action lifecycles.
+- Instead, the implemented path is an explicit core helper plus action context contract:
+  - `AgentCore.initialize_action_request(native_messages, state, request_runtime, request_context)`
+  - `request_runtime` and `request_context` are injected into session-action context
+- That explicit helper solved the `system_message_as_instructions` compaction path.
+- The remaining behavioral gap for message-injection mode is tracked in:
+  - `tasks/20260310-openai-responses-provider/045-message-injection-compaction-request-messages.md`
+
 Parent Task: `tasks/20260310-openai-responses-provider/000-main.md`
 
 Depends On:
@@ -24,7 +41,10 @@ For implementation, the approved scope is intentionally narrower:
 
 Make `compact_native_history` compact the same effective native instruction messages that a real outbound request would use, while keeping the solution generic and non-persisting.
 
-The mechanism should not be a one-off helper called only by compaction. Instead, `AgentApplication` should provide generic action-scoped lifecycles that run automatically around actions so plugins can prepare action inputs before execution and react after completion.
+The original proposal below used `AgentApplication`-owned action lifecycles.
+That mechanism is no longer the preferred design. Keep reading this file as
+historical context for the original split and motivation, not as the current
+implementation plan.
 
 The first motivating case is `feature-system-message`, where retained native history may store template-form instruction content such as `{{VARIABLES}}`, but request preparation renders concrete text only for the outbound request.
 

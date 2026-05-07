@@ -10,7 +10,52 @@
     },
     "session_title_metadata_key": "title",
     "session_subtitle_metadata_key": "subtitle",
-    "session_pinned_metadata_key": "pinned"
+    "session_pinned_metadata_key": "pinned",
+    "cloud_agent": {
+      "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
+      "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
+      "workspace_dir": ".",
+      "transfer_method": "managed_ssh",
+      "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
+      "default_transfer_up_profile": "working-tree-current-state",
+      "default_sync_down_profile": "working-tree-patch",
+      "default_container_profile": "default-runtime",
+      "transfer_up_profiles": {
+        "working-tree-current-state": {
+          "label": "Working tree current state",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state/transfer-up",
+          "install_profile": "repo-install",
+          "compatible_sync_down_profiles": ["working-tree-patch"]
+        }
+      },
+      "install_profiles": {
+        "repo-install": {
+          "label": "Repository install",
+          "cloud_install_script": "${env:CONFIG_DIR}/cloud-agent/profiles/repo-install/install"
+        }
+      },
+      "sync_down_profiles": {
+        "working-tree-patch": {
+          "label": "Apply cloud patch to current worktree",
+          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/export",
+          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/mark-synced",
+          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/apply-down",
+          "compatible_transfer_up_profiles": ["working-tree-current-state"]
+        }
+      },
+      "container_profiles": {
+        "default-runtime": {
+          "label": "Default cloud agent runtime",
+          "image": "cloud-agent-runtime:latest"
+        }
+      },
+      "managed_ssh": {
+        "adapter_script": null,
+        "ssh_path": "ssh",
+        "rsync_path": "rsync",
+        "extra_rsync_args": []
+      }
+    }
   },
   "providers": {
     "openrouter_tools": {
@@ -26,6 +71,14 @@
       "reasoning_effort": "medium",
       "system_message_enabled": true,
       "system_message": "You are a helpful coding assistant. Respond concisely."
+    },
+    "openrouter_image_generation": {
+      "provider": "openrouter_image_generation",
+      "model": "black-forest-labs/flux.2-klein-4b",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "timeout": 180,
+      "aspect_ratio": "1:1"
     }
   },
   "plugins": [
@@ -42,7 +95,8 @@
     "path:${env:BUILTIN_PLUGINS}/generate-title-app",
     "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
     "path:${env:BUILTIN_PLUGINS}/session-message-count-meta-app",
-    "path:${env:BUILTIN_PLUGINS}/session-pinned-app"
+    "path:${env:BUILTIN_PLUGINS}/session-pinned-app",
+    "path:${env:BUILTIN_PLUGINS}/cloud-agent-app"
   ],
   "agents": {
     "default": {
@@ -56,6 +110,9 @@
     "reasoning": {
       "provider": "openrouter_tools",
       "reasoning_effort": "medium"
+    },
+    "openrouter-image": {
+      "provider": "openrouter_image_generation"
     }
   }
 }

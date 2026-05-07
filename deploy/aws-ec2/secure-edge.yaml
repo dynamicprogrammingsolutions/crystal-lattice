@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Generated CloudFront endpoints for combined Crystal Lattice EC2 deployment.
+
+Parameters:
+  StackName:
+    Type: String
+  OriginDomainName:
+    Type: String
+
+Resources:
+  BridgeDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub ${StackName} bridge
+        Origins:
+          - Id: bridge-origin
+            DomainName: !Ref OriginDomainName
+            CustomOriginConfig:
+              HTTPPort: 4000
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          TargetOriginId: bridge-origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: false
+          ForwardedValues:
+            QueryString: true
+            Headers:
+              - Authorization
+              - Content-Type
+              - Sec-WebSocket-Key
+              - Sec-WebSocket-Version
+              - Sec-WebSocket-Protocol
+              - Sec-WebSocket-Accept
+            Cookies:
+              Forward: none
+          MinTTL: 0
+          DefaultTTL: 0
+          MaxTTL: 0
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+  OrchestratorDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub ${StackName} cloud orchestrator
+        Origins:
+          - Id: orchestrator-origin
+            DomainName: !Ref OriginDomainName
+            CustomOriginConfig:
+              HTTPPort: 4100
+              OriginProtocolPolicy: http-only
+        DefaultCacheBehavior:
+          TargetOriginId: orchestrator-origin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD, OPTIONS]
+          Compress: false
+          ForwardedValues:
+            QueryString: true
+            Headers:
+              - Authorization
+              - Content-Type
+            Cookies:
+              Forward: none
+          MinTTL: 0
+          DefaultTTL: 0
+          MaxTTL: 0
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+Outputs:
+  BridgeHttpUrl:
+    Value: !Sub https://${BridgeDistribution.DomainName}/health
+  BridgeWebSocketUrl:
+    Value: !Sub wss://${BridgeDistribution.DomainName}/ws/websocket
+  BridgeDistributionId:
+    Value: !Ref BridgeDistribution
+  BridgeCloudFrontDomain:
+    Value: !GetAtt BridgeDistribution.DomainName
+  CloudOrchestratorUrl:
+    Value: !Sub https://${OrchestratorDistribution.DomainName}
+  CloudOrchestratorDistributionId:
+    Value: !Ref OrchestratorDistribution
+  CloudOrchestratorCloudFrontDomain:
+    Value: !GetAtt OrchestratorDistribution.DomainName

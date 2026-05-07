@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${LOCAL_WORKSPACE_DIR:?}"
+: "${TRANSFER_DIR:?}"
+
+patch_path="${TRANSFER_DIR}/.cloud-agent/cloud.patch"
+
+cd "${LOCAL_WORKSPACE_DIR}"
+if [ -s "${patch_path}" ]; then
+  if git apply --check --binary "${patch_path}" >/dev/null 2>&1; then
+    git apply --binary "${patch_path}"
+  elif git apply --reverse --check --binary "${patch_path}" >/dev/null 2>&1; then
+    exit 0
+  else
+    git apply --check --binary "${patch_path}"
+  fi
+fi

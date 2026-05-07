@@ -22,7 +22,11 @@ def _write_config(
     *,
     provider_class: str = "tests.dummy_provider.DummyProvider",
 ) -> Path:
-    provider_name = "failing_dummy_provider" if provider_class.endswith("FailingOnceDummyProvider") else "dummy_provider"
+    provider_name = (
+        "failing_dummy_provider"
+        if provider_class.endswith("FailingOnceDummyProvider")
+        else "dummy_provider"
+    )
     cfg: Dict[str, Any] = {
         "providers": {
             "dummy": {"provider": provider_name, "model": "test-model"},
@@ -150,11 +154,11 @@ def test_agent_switch_resets_stale_session_plugin_selection(tmp_path: Path) -> N
         "agents": {
             "default": {
                 "provider": "dummy",
-                "plugins": ["dummy_provider"],
+                "disabled_plugins": ["failing_dummy_provider"],
             },
             "other": {
                 "provider": "other",
-                "plugins": ["failing_dummy_provider"],
+                "disabled_plugins": ["dummy_provider"],
             },
         },
     }

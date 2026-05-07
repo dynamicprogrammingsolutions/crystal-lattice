@@ -10,6 +10,20 @@ export { ThemeProvider, useTheme };
 export type { Theme };
 
 export const lightTheme: Theme = {
+  typography: {
+    fontSize: {
+      tiny: 11,
+      small: 12,
+      secondary: 13,
+      normal: 14,
+      message: 15,
+      large: 16,
+      title: 18,
+      screenTitle: 24,
+      display: 28,
+      code: 14,
+    },
+  },
   background: '#F2F2F7',
   backgroundAlt: '#FFFFFF',
   surface: '#FFFFFF',
@@ -37,6 +51,20 @@ export const lightTheme: Theme = {
 };
 
 export const darkTheme: Theme = {
+  typography: {
+    fontSize: {
+      tiny: 11,
+      small: 12,
+      secondary: 13,
+      normal: 14,
+      message: 15,
+      large: 16,
+      title: 18,
+      screenTitle: 24,
+      display: 28,
+      code: 14,
+    },
+  },
   background: '#000000',
   backgroundAlt: '#1C1C1E',
   surface: '#1C1C1E',

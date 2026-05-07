@@ -2,11 +2,12 @@
 
 - **`ToolPlugin.execute_tool` (core contract)**
     - Called by the tool wrapper (`ToolWrapper.execute_tool`) for a single, non‑streaming tool invocation.
-    - Signature: `execute_tool(self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]`.
+    - Signature: `execute_tool(self, tool_name: str | None, payload: Any, state: Dict[str, Any], *, payload_kind: str | None = None, payload_format: str | None = None, payload_metadata: Dict[str, Any] | None = None, tool_call: Dict[str, Any] | None = None) -> Dict[str, Any]`.
+    - `payload` is the final payload object extracted by the active tool-call accessor. For classic function tools this is typically a dict; for freeform/custom tools it may be a raw string.
     - Expected to return a **result dict** like `{"success": bool, "result": <any>, "error": <str>, ...}`.
     - In `ApplyPatchTool.execute_tool`:
         - Validates `tool_name == "apply_patch"`.
-        - Validates `patch_text` is a non‑empty string and within `max_patch_bytes`.
+        - Validates the expected patch payload is a non‑empty string and within `max_patch_bytes`.
         - Calls `_process_patch_sandboxed`, which:
             - Resolves and validates paths (`working_directory`, `allowed_paths`).
             - Reads existing files, parses the Codex‑style patch, builds and applies a `Commit`.
@@ -23,7 +24,7 @@
           (currently without including the original patch text).
 
 - **`ToolPlugin.stream_tool` (tool‑side streaming)**
-    - Signature: `stream_tool(self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]) -> Iterator[Dict[str, Any]]`.
+    - Signature: `stream_tool(self, tool_name: str | None, payload: Any, state: Dict[str, Any], *, payload_kind: str | None = None, payload_format: str | None = None, payload_metadata: Dict[str, Any] | None = None, tool_call: Dict[str, Any] | None = None) -> Iterator[Dict[str, Any]]`.
     - **Adapter behavior** (`ToolPluginAdapter.stream_tool`):
         - If the plugin does **not** implement `stream_tool`, the adapter:
             - Calls `execute_tool(...)` once and yields that single RESULT dict.
@@ -37,10 +38,13 @@
             - Any other dict is wrapped as `{"part": chunk}` for backwards compatibility.
         - If no RESULT dict was ever seen, core synthesizes an error `tool` message like `Error: no tool handled 'name'`.
 
-- **`ToolPlugin.format_tool_result` (LLM‑visible text)**
-    - Signature: `format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str`.
+- **`ToolPlugin.format_tool_result` (LLM-visible content)**
+    - Signature: `format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str | provider-native envelope`.
     - Called once per tool call **after** streaming completes, with `last_result`.
     - Default adapter behavior: if not overridden, formats as `"Result: ..." / "Error: ..."` from `result`.
+    - Most tools return strings. Provider-specific multimodal tools may return
+      an explicit envelope with `type == "provider_native_tool_result"`.
+      Ordinary non-string formatter values are stringified for compatibility.
     - In `ApplyPatchTool.format_tool_result`:
         - On success:
             - Returns a multi‑line summary string:
@@ -53,7 +57,9 @@
 
 - **`ToolPlugin.to_display_format` (UI‑only display payload)**
     - Signature: `to_display_format(self, text: str, result: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]`.
-        - `text` is exactly the string from `format_tool_result`.
+        - `text` is the string from `format_tool_result`. If
+          `format_tool_result` returned a provider-native envelope, core passes
+          an empty string here.
         - `result` is the full RESULT dict from `execute_tool` / `stream_tool`.
     - Default implementations:
         - In `ToolPlugin` (protocol): returns `{"type": "text", "content": text}`.
@@ -97,6 +103,11 @@
     - `docs/plugins/development.md`’s **Tool Plugin** section currently documents only:
         - `init`, `get_tool_schemas`, `execute_tool`, `format_tool_result`.
     - It **does not mention**:
-        - `stream_tool(tool_name, arguments, state) -> Iterator[dict]` for streaming tools.
+        - `stream_tool(tool_name, payload, state, ...) -> Iterator[dict]` for streaming tools.
         - `to_display_format(text, result, state) -> dict` for display‑only payloads (e.g. showing commands or patches).
     - AGENTS.md and the actual type definitions (`ToolPlugin` in `agent_core/types.py` and adapters) clearly support and expect these optional hooks, so the plugin dev guide is incomplete here.
+
+- **Interop note**
+    - `get_tool_schemas(...)` is no longer limited to OpenAI chat-completions function schemas.
+    - The active tool interop registry decides which schema/call accessors and adapters are available for a request.
+    - Existing dict-argument tools remain compatible because the wrapper still passes object payloads through to older implementations.

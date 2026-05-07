@@ -26,6 +26,8 @@ from typing import (
     Tuple,
     Protocol,
     Iterator,
+    AsyncIterator,
+    TYPE_CHECKING,
     runtime_checkable,
 )
 from dataclasses import dataclass, field
@@ -33,7 +35,29 @@ from copy import deepcopy
 
 MessageRole = Literal["system", "user", "assistant", "tool"]
 
+
+@dataclass(frozen=True)
+class ToolDescriptor:
+    """Normalized metadata for a tool schema exposed to UI and requests."""
+
+    plugin_name: str
+    tool_name: str
+    schema: Dict[str, Any]
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+
+if TYPE_CHECKING:
+    from .tool_interop import ToolInteropContribution
+
 # Plugin Protocol Types
+
+
+class ProviderRequestCancelled(RuntimeError):
+    """Raised when a provider request is cancelled by request id."""
+
+    def __init__(self, request_id: str | None = None):
+        super().__init__("Provider request cancelled")
+        self.request_id = request_id
 
 
 @runtime_checkable
@@ -63,8 +87,7 @@ class BasePlugin(Protocol):
     def get_ui_elements(
         self,
         config: Dict[str, Any],
-        tags: List[str],
-        models: List[Dict[str, Any]],
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Return UI element definitions contributed by this plugin.
 
@@ -75,14 +98,16 @@ class BasePlugin(Protocol):
 
         Args:
             config: Effective configuration for the current agent/request.
-            tags: Capability tags computed for this config.
-            models: Model descriptors computed for this config.
+            context: Optional derived context for schema generation. The core
+                provides keys such as `tags`, `models`, `available_tools`,
+                and `tools` here.
 
         Note:
-            The core calls this hook with `(config, tags, models)`. For backward
-            compatibility, adapters will also accept legacy plugin
-            implementations that define `get_ui_elements(self)` with no
-            arguments.
+            The canonical hook shape is `(config, context=None)`. For backward
+            compatibility, adapters also accept legacy plugin
+            implementations that define `get_ui_elements(self)`,
+            `get_ui_elements(self, config)`, `get_ui_elements(self, config, tags, models)`,
+            or `get_ui_elements(self, config, tags, models, context)`.
 
         Recommended element shapes:
 
@@ -143,14 +168,7 @@ class BasePlugin(Protocol):
 
         Args:
             config: Effective configuration for the current agent/request.
-            tags: Capability/environment tags computed for this config.
-            models: Model descriptors computed for this config.
-
-        Note:
-            The core calls this hook with `(config, tags, models)`. For backward
-            compatibility, adapters may also accept legacy plugin
-            implementations that define `get_ui_elements(self)` with no
-            arguments.
+            context: Optional derived context for schema generation.
 
         Returns:
             List of UI element dictionaries.
@@ -181,7 +199,7 @@ class ProviderPlugin(BasePlugin, Protocol):
             version = "1.0.0"
             def get_config_schema(self) -> Dict[str, Any]:
                 return {"model": {"type": "string", "default": "echo-1"}}
-	            def get_ui_elements(self, config: Dict[str, Any], tags: List[str], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:  # optional
+                    def get_ui_elements(self, config: Dict[str, Any], tags: List[str], models: List[Dict[str, Any]]) -> List[Dict[str, Any]]:  # optional
                 return []
             def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
                 # Provider state is an opaque dict; this minimal example
@@ -226,7 +244,11 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # Message conversion
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Convert core messages to this provider's native wire format.
 
@@ -242,6 +264,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Args:
             messages: Core session messages (may be a single-element list for add_message).
             state: Current shared provider state.
+            context: Optional request/runtime context for this conversion.
 
         Returns:
             Provider-native messages suitable for API calls.
@@ -253,7 +276,11 @@ class ProviderPlugin(BasePlugin, Protocol):
         ]
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Convert provider-native messages into core message dictionaries.
 
@@ -271,6 +298,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Args:
             native_messages: Provider-native messages to convert.
             state: Current shared provider state.
+            context: Optional request/runtime context for this conversion.
 
         Returns:
             Core messages derived from native messages.
@@ -290,7 +318,12 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     # New request lifecycle
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
 
@@ -304,12 +337,41 @@ class ProviderPlugin(BasePlugin, Protocol):
         Args:
             native_messages: Provider-native messages for this request.
             state: Current shared provider state.
+            context: Optional request context. The core provides keys such as
+                `core`, `config`, `request_id`, `tags`, `models`,
+                `available_tools`, `tools`, and `tool_interop` here.
 
         Returns:
             Tuple of (provider-native messages for this request, updated shared state).
             Implementations MAY return the same native_messages when only state changes.
         """
         return native_messages, state
+
+    def get_tool_interop_contribution(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> "ToolInteropContribution":
+        """Return provider-contributed tool interop accessors/adapters."""
+        from .tool_interop import ToolInteropContribution
+
+        return ToolInteropContribution()
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return schema formats this provider can send without further adaptation."""
+        return []
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return tool-call formats this provider may emit in responses."""
+        return []
 
     def process_chunk(
         self,
@@ -341,7 +403,10 @@ class ProviderPlugin(BasePlugin, Protocol):
 
     def finalize(
         self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Perform final processing after streaming completes.
 
@@ -355,6 +420,7 @@ class ProviderPlugin(BasePlugin, Protocol):
         Args:
             native_messages: Full provider-native message history (all prior turns plus any for this turn).
             state: Current shared provider state.
+            context: Optional request context for this turn.
 
         Returns:
             Tuple of (final_messages, native_messages, new_state).
@@ -405,7 +471,10 @@ class ProviderPlugin(BasePlugin, Protocol):
     # I/O entry points now take native messages
     def call_api(
         self,
-        native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
     ]:
@@ -423,7 +492,11 @@ class ProviderPlugin(BasePlugin, Protocol):
     # Returns: (partial_messages, final_messages, native_messages, new_state)
 
     def stream_api(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Make a streaming API call; yields provider-native chunks.
 
@@ -436,6 +509,16 @@ class ProviderPlugin(BasePlugin, Protocol):
         """
         return iter([])
 
+    def cancel_request(self, request_id: str) -> bool:
+        """Best-effort cancellation for an in-flight request.
+
+        Providers that track active runtime requests by ``request_id`` should
+        attempt to cancel the matching request and return ``True`` when a
+        matching in-flight request was found. Returning ``False`` indicates the
+        provider did not recognize the request id or had nothing active to
+        cancel.
+        """
+        return False
 
 
 class ProviderExtensionPlugin(BasePlugin, Protocol):
@@ -477,23 +560,23 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Note:
             In the default ``AgentCore`` request flow, provider extensions are
             initialized after the provider's ``init`` hook.
- 
+
         Args:
             config: Application-supplied configuration.
             state: Current shared provider state.
- 
+
         Returns:
             Updated shared provider state (or the same state).
         """
         return state
- 
+
     def get_models(
         self,
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
         """Statelessly transform or provide model descriptors.
- 
+
         Implementations must not mutate the incoming models list; they
         should instead return a new list.
 
@@ -503,7 +586,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             extension's ``get_models`` hook.
         """
         return list(models)
- 
+
     def get_tags(
         self,
         config: Dict[str, Any],
@@ -517,7 +600,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             features, and tools to decide which plugins are enabled.
         """
         return []
- 
+
     def required_tags(self) -> List[str]:
         """Tags that must be present for this extension to be enabled."""
         return []
@@ -562,9 +645,13 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
 
     # Stateless transforms
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-
         """Transform provider-native messages using visibility of core messages.
 
         Note:
@@ -579,6 +666,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             messages: Core session messages for context (may be a single-element list for add_message).
             native_messages: Current provider-native messages.
             state: Optional shared provider state (available when called via ProviderWrapper).
+            context: Optional request/runtime context for this conversion.
 
         Returns:
             Updated provider-native messages.
@@ -586,7 +674,12 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         return list(native_messages)
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        native_messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Transform provider-native messages back into core messages.
 
@@ -599,6 +692,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             native_messages: Provider-native messages to transform.
             messages: Core session messages for context.
             state: Optional shared provider state (available when called via ProviderWrapper).
+            context: Optional request/runtime context for this conversion.
 
         Returns:
             Updated core messages.
@@ -606,7 +700,11 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         return list(messages)
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
 
@@ -618,12 +716,41 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         Args:
             native_messages: Provider-native messages for this request.
             state: Current shared provider state.
+            context: Optional request context. The core provides keys such as
+                `core`, `config`, `request_id`, `tags`, `models`,
+                `available_tools`, `tools`, and `tool_interop` here.
 
         Returns:
             Tuple of (provider-native messages for this request, updated shared state).
             Implementations MAY return the same native_messages when only state changes.
         """
         return native_messages, state
+
+    def get_tool_interop_contribution(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> "ToolInteropContribution":
+        """Return extension-contributed tool interop accessors/adapters."""
+        from .tool_interop import ToolInteropContribution
+
+        return ToolInteropContribution()
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return additional tool schema formats this extension can inject."""
+        return []
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return additional tool-call formats this extension can surface."""
+        return []
 
     def process_chunk(
         self,
@@ -663,6 +790,8 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Final cold-path processing after provider streaming/finalize.
 
@@ -670,6 +799,7 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
             final_messages: Provider-native final messages emitted this turn (deltas).
             native_messages: Full provider-native message history for this turn.
             state: Current shared provider state.
+            context: Optional request context for this turn.
 
         Returns:
             Tuple of (final_messages, native_messages, new_state), all provider-native.
@@ -719,6 +849,10 @@ class ProviderExtensionPlugin(BasePlugin, Protocol):
         the core include:
 
         - ``session_metadata``: mapping merged into ``session.metadata``
+
+        For the core-owned ``response_finalize`` lifecycle, actions may also
+        return ``final_messages`` to replace the current turn's in-flight final
+        core messages before they are emitted or appended to the session.
 
         Additional keys are preserved and surfaced back to higher layers as an
         opaque result payload.
@@ -771,16 +905,16 @@ class FeaturePlugin(BasePlugin, Protocol):
             In the default ``AgentCore`` request flow, feature init hooks run
             after the provider (and any active provider extensions) have
             initialized.
- 
+
         Args:
             config: Application-supplied configuration.
             state: Current shared provider state.
- 
+
         Returns:
             Updated shared provider state (or the same state).
         """
         return state
- 
+
     def get_models(
         self,
         config: Dict[str, Any],
@@ -794,7 +928,7 @@ class FeaturePlugin(BasePlugin, Protocol):
             extensions, and finally through feature ``get_models`` hooks.
         """
         return list(models)
- 
+
     def get_tags(
         self,
         config: Dict[str, Any],
@@ -808,7 +942,7 @@ class FeaturePlugin(BasePlugin, Protocol):
             tools to decide which plugins are enabled.
         """
         return []
- 
+
     def required_tags(self) -> List[str]:
         """Tags that must be present for this feature to be enabled."""
         return []
@@ -853,9 +987,13 @@ class FeaturePlugin(BasePlugin, Protocol):
 
     # Stateless transforms
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-
         """Transform provider-native messages using visibility of core messages.
 
         Note:
@@ -877,7 +1015,12 @@ class FeaturePlugin(BasePlugin, Protocol):
         return list(native_messages)
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        native_messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Transform provider-native messages back into core messages.
 
@@ -897,7 +1040,11 @@ class FeaturePlugin(BasePlugin, Protocol):
         return list(messages)
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new request with provider-native messages.
 
@@ -909,6 +1056,9 @@ class FeaturePlugin(BasePlugin, Protocol):
         Args:
             native_messages: Provider-native messages for this request.
             state: Current shared provider state.
+            context: Optional request context. The core provides keys such as
+                `core`, `config`, `request_id`, `tags`, `models`,
+                `available_tools`, `tools`, and `tool_interop` here.
 
         Returns:
             Tuple of (provider-native messages for this request, updated shared state).
@@ -916,11 +1066,39 @@ class FeaturePlugin(BasePlugin, Protocol):
         """
         return native_messages, state
 
+    def prepare_tools(
+        self,
+        config: Dict[str, Any],
+        tools: List["ToolDescriptor"],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List["ToolDescriptor"]:
+        """Filter or transform the available tool catalog for a request.
+
+        This hook runs before provider/extensions/features ``init`` hooks for
+        the request so that the effective tool list can be threaded through the
+        compatibility shim at `config["tools"]`.
+
+        Args:
+            config: Effective configuration for this request, including any
+                UI-driven tool gating selections.
+            tools: Normalized tool catalog for this request before policy
+                filtering.
+            context: Request-preparation context. The core provides keys such
+                as `provider`, `tags`, `models`, `available_tools`, and
+                `tools` here.
+
+        Returns:
+            The effective tool descriptor list for this request.
+        """
+        return list(tools)
+
     def finalize(
         self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Final cold-path processing after provider and extensions complete.
 
@@ -928,6 +1106,7 @@ class FeaturePlugin(BasePlugin, Protocol):
             final_messages: Provider-native final messages emitted this turn (deltas).
             native_messages: Full provider-native message history for this turn.
             state: Current shared provider state.
+            context: Optional request context for this turn.
 
         Returns:
             Tuple of (final_messages, native_messages, new_state), all provider-native.
@@ -958,6 +1137,10 @@ class FeaturePlugin(BasePlugin, Protocol):
         features may return replacement ``native_messages`` and/or a
         ``session_metadata`` mapping that is merged into the session.
 
+        For the core-owned ``response_finalize`` lifecycle, features may also
+        return ``final_messages`` to replace the current turn's final core
+        messages before they are emitted or appended to the session.
+
         The ``context`` parameter provides layered access to runtime capabilities:
 
         **Layer 1 (Core - always present):**
@@ -966,6 +1149,16 @@ class FeaturePlugin(BasePlugin, Protocol):
             - ``trigger_source``: Where the action was triggered ("core", "application")
             - ``session``: Serialized session dict (session.to_dict())
             - ``lifecycle``: Lifecycle trigger name (for lifecycle-triggered actions)
+            - ``final_messages``: Current turn final core messages for
+              ``response_finalize``
+            - ``native_final_messages``: Provider-native finals for the current
+              turn for ``response_finalize``
+            - ``native_messages``: Full provider-native history for
+              ``response_finalize``
+            - ``stream``: Whether the request is streaming for
+              ``response_finalize``
+            - ``turn_native_start_index``: Native-history starting offset for
+              the current turn for ``response_finalize``
 
         **Layer 2 (Application - when called from AgentApplication):**
             - ``app`` and ``application``: AgentApplication instance
@@ -1104,7 +1297,6 @@ class ToolPlugin(BasePlugin, Protocol):
         return {"config": config}
 
     def get_tags(
-
         self,
         config: Dict[str, Any],
         models: List[Dict[str, Any]],
@@ -1160,33 +1352,134 @@ class ToolPlugin(BasePlugin, Protocol):
         """
         return None
 
-    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Return OpenAI-style function definitions provided by this tool.
+    def prepare(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Perform optional long-running preparation for later cheap hooks.
+
+        ``prepare`` is separate from :meth:`init` so callers can keep schema
+        discovery and preview helpers cheap by default. Implementations may do
+        I/O, subprocess startup, discovery, or cache hydration here, but should
+        return only JSON-like prepared data.
+        """
+        return {}
+
+    async def prepare_async(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Async variant of :meth:`prepare` with identical semantics."""
+        return self.prepare(config, state, context=context)
+
+    def get_tool_schemas(
+        self,
+        state: Dict[str, Any],
+        *,
+        prepared: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return tool schemas provided by this tool.
 
         Args:
             state: Current tool state (if needed by the tool).
+            prepared: Optional JSON-like prepared data returned by
+                :meth:`prepare` or :meth:`prepare_async`.
 
         Returns:
-            List of tool/function definition dictionaries.
+            List of tool definition dictionaries in any format understood by the
+            active interop accessors/adapters.
         """
         return []
 
+    def get_tool_interop_contribution(
+        self,
+        state: Dict[str, Any],
+    ) -> "ToolInteropContribution":
+        """Return tool-contributed tool interop accessors/adapters."""
+        from .tool_interop import ToolInteropContribution
+
+        return ToolInteropContribution()
+
+    def can_handle_tool_call(
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        tool_schema: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
+    ) -> Optional[bool]:
+        """Return whether this tool can handle the inspected tool call.
+
+        ``None`` means no opinion and allows legacy name-based fallback.
+        """
+        return None
+
     def execute_tool(
-        self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Execute a tool function by name with structured arguments.
+        """Execute a tool call using the final payload object.
 
         Args:
-            tool_name: Name of the tool/function to execute.
-            arguments: Structured arguments for the tool.
+            tool_name: Name of the tool/function when available.
+            payload: Final payload for the tool call, such as a dict or raw text.
             state: Current tool state.
+            payload_kind: Optional semantic payload kind such as ``"object"`` or
+                ``"text"``.
+            payload_format: Optional format identifier for the payload itself.
+            payload_metadata: Optional extra payload metadata from the accessor.
+            tool_call: Optional original tool-call dict.
+            context: Optional layered context providing access to runtime capabilities.
+            prepared: Optional JSON-like prepared data returned by
+                :meth:`prepare` or :meth:`prepare_async`.
+
+        The ``context`` parameter provides layered access to runtime capabilities:
+
+        **Layer 1 (Core - always present when called from AgentCore):**
+            - ``core``: AgentCore instance for session/message operations and LLM calls
+            - ``config``: Current resolved request configuration
+            - ``trigger_source``: Where the tool was triggered ("core")
+            - ``session``: Serialized session dict (session.to_dict()) when available
+
+        **Layer 2 (Application - when called from AgentApplication):**
+            - ``app`` and ``application``: AgentApplication instance
+            - ``base_config``: Full base configuration (all agents)
+            - ``session_asset_store``: Session asset store for file attachments
+
+        Tools can use context to make LLM calls::
+
+            core = (context or {}).get("core")
+            if core:
+                temp_session = core.create_session()
+                events = core.stream_request(temp_session, config)
 
         Returns:
             Result dictionary, e.g., {"success": bool, "result": any, "error": str}.
         """
         return {"success": False, "error": f"Unknown tool: {tool_name}"}
 
-    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
         """Format a tool result dictionary for LLM consumption/display.
 
         Args:
@@ -1194,7 +1487,8 @@ class ToolPlugin(BasePlugin, Protocol):
             state: Current tool state.
 
         Returns:
-            Human-readable string representation.
+            Human-readable string representation or an explicit provider-native
+            tool result payload.
         """
         if result.get("success"):
             return f"Result: {result.get('result')}"
@@ -1202,9 +1496,15 @@ class ToolPlugin(BasePlugin, Protocol):
 
     def format_tool_call_preview(
         self,
-        tool_name: str,
-        arguments: Dict[str, Any],
+        tool_name: Optional[str],
+        payload: Any,
         state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate a pre-execution preview for a tool call.
 
@@ -1216,9 +1516,11 @@ class ToolPlugin(BasePlugin, Protocol):
         tool calls) and should not be used for model-facing tool output.
 
         Args:
-            tool_name: Name of the tool/function being called.
-            arguments: Structured arguments for the tool call.
+            tool_name: Name of the tool/function when available.
+            payload: Final payload for the tool call.
             state: Current tool state.
+            prepared: Optional JSON-like prepared data returned by
+                :meth:`prepare` or :meth:`prepare_async`.
 
         Returns:
             A short string (preferably single-line). Return an empty string when
@@ -1229,17 +1531,100 @@ class ToolPlugin(BasePlugin, Protocol):
 
     def stream_tool(
         self,
-        tool_name: str,
-        arguments: Dict[str, Any],
+        tool_name: Optional[str],
+        payload: Any,
         state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
     ) -> Iterator[Dict[str, Any]]:
         """Optional streaming execution hook for tools.
 
         Default implementation yields nothing. Concrete tools may override this
         to provide incremental, display-oriented results for long-running
         operations.
+
+        Args:
+            tool_name: Name of the tool/function when available.
+            payload: Final payload for the tool call.
+            state: Current tool state.
+            payload_kind: Optional semantic payload kind.
+            payload_format: Optional format identifier for the payload.
+            payload_metadata: Optional extra payload metadata.
+            tool_call: Optional original tool-call dict.
+            cancellation: Optional cancellation token.
+            context: Optional layered context providing access to runtime capabilities.
+                See :meth:`execute_tool` for context structure documentation.
+            prepared: Optional JSON-like prepared data returned by
+                :meth:`prepare` or :meth:`prepare_async`.
+
+        Yields:
+            Dictionary chunks with partial results ({"part": ...}) or final
+            result ({"success": bool, ...}).
         """
         return iter(())
+
+    async def execute_tool_async(
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Optional async execution hook for tool authors using async libraries."""
+        return self.execute_tool(
+            tool_name,
+            payload,
+            state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            cancellation=cancellation,
+            context=context,
+            prepared=prepared,
+        )
+
+    async def stream_tool_async(
+        self,
+        tool_name: Optional[str],
+        payload: Any,
+        state: Dict[str, Any],
+        *,
+        payload_kind: Optional[str] = None,
+        payload_format: Optional[str] = None,
+        payload_metadata: Optional[Dict[str, Any]] = None,
+        tool_call: Optional[Dict[str, Any]] = None,
+        cancellation: Any | None = None,
+        context: Optional[Dict[str, Any]] = None,
+        prepared: Optional[Dict[str, Any]] = None,
+    ) -> AsyncIterator[Dict[str, Any]]:
+        """Optional async streaming hook for tool authors using async libraries."""
+        for chunk in self.stream_tool(
+            tool_name,
+            payload,
+            state,
+            payload_kind=payload_kind,
+            payload_format=payload_format,
+            payload_metadata=payload_metadata,
+            tool_call=tool_call,
+            cancellation=cancellation,
+            context=context,
+            prepared=prepared,
+        ):
+            yield chunk
 
     def to_display_format(
         self,
@@ -1282,7 +1667,7 @@ class Message:
     """
 
     role: MessageRole
-    content: str
+    content: Any
     metadata: Optional[Dict[str, Any]] = None
     multipart_content: Optional[List[Dict[str, Any]]] = None
 
@@ -1326,7 +1711,7 @@ class PartialMessage:
     """Partial message type used during streaming (forwarded to frontend as-is)."""
 
     role: MessageRole
-    content: str
+    content: Any
     metadata: Optional[Dict[str, Any]] = None
 
 

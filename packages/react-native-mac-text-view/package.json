@@ -1,0 +1,35 @@
+{
+  "name": "@crystal-lattice/react-native-mac-text-view",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reusable macOS native text view for React Native New Architecture consumers",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "react-native": "src/index.ts",
+  "files": [
+    "src",
+    "apple",
+    "example",
+    "CrystalLatticeReactNativeMacTextView.podspec",
+    "README.md"
+  ],
+  "nativePackage": true,
+  "codegenConfig": {
+    "name": "CLCMacTextViewSpec",
+    "type": "components",
+    "jsSrcsDir": "./src/specs",
+    "ios": {
+      "componentProvider": {
+        "CLCMacTextView": "CLCMacTextView"
+      }
+    }
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.4",
+    "@types/react-native": "^0.73.0"
+  }
+}

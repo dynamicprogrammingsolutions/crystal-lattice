@@ -1,0 +1,216 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Crystal Lattice combined bridge and cloud orchestrator EC2 Docker origin.
+
+Parameters:
+  StackName:
+    Type: String
+  BridgeImageUri:
+    Type: String
+  OrchestratorImageUri:
+    Type: String
+  RuntimeImageUri:
+    Type: String
+  InstanceType:
+    Type: String
+    Default: t3.micro
+  CpuArchitecture:
+    Type: String
+    Default: X86_64
+    AllowedValues:
+      - X86_64
+      - ARM64
+  KeyName:
+    Type: String
+    Default: ""
+  BridgeTokenSecret:
+    Type: String
+    NoEcho: true
+  Cookie:
+    Type: String
+    NoEcho: true
+  ControlToken:
+    Type: String
+    NoEcho: true
+  TokenSecret:
+    Type: String
+    NoEcho: true
+
+Conditions:
+  HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
+  IsArm64: !Equals [!Ref CpuArchitecture, ARM64]
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.46.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.46.1.0/24
+      MapPublicIpOnLaunch: true
+
+  RouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  DefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref RouteTable
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Combined bridge and cloud orchestrator origin access
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 4000
+          ToPort: 4000
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 4100
+          ToPort: 4100
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: EcrImageRead
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchCheckLayerAvailability
+                Resource: !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/*
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !If
+        - IsArm64
+        - !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64}}"
+        - !Sub "{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}"
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      KeyName: !If [HasKeyName, !Ref KeyName, !Ref AWS::NoValue]
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: 0
+          SubnetId: !Ref PublicSubnet
+          GroupSet:
+            - !Ref SecurityGroup
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeSize: 20
+            VolumeType: gp3
+            DeleteOnTermination: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-combined
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+          dnf install -y docker awscli
+          systemctl enable --now docker
+          mkdir -p /var/lib/cloud-orchestrator
+          aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+          docker pull ${BridgeImageUri}
+          docker pull ${RuntimeImageUri}
+          docker pull ${OrchestratorImageUri}
+          docker tag ${BridgeImageUri} crystal-lattice-bridge:latest
+          docker tag ${RuntimeImageUri} cloud-agent-runtime:latest
+          docker tag ${OrchestratorImageUri} cloud-orchestrator:latest
+          docker rm -f crystal-lattice-bridge cloud-orchestrator-single || true
+          docker run -d \
+            --name crystal-lattice-bridge \
+            --restart unless-stopped \
+            -p 4000:4000 \
+            -e MIX_ENV=prod \
+            -e PORT=4000 \
+            -e SECRET_KEY_BASE=$(openssl rand -hex 64) \
+            -e BRIDGE_TOKEN_SECRET=${BridgeTokenSecret} \
+            -e COOKIE=${Cookie} \
+            crystal-lattice-bridge:latest
+          docker run -d \
+            --name cloud-orchestrator-single \
+            --restart unless-stopped \
+            -p 4100:4100 \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v /var/lib/cloud-orchestrator:/var/lib/cloud-orchestrator \
+            --add-host host.docker.internal:host-gateway \
+            -e MIX_ENV=prod \
+            -e PORT=4100 \
+            -e SECRET_KEY_BASE=$(openssl rand -hex 64) \
+            -e CLOUD_ORCHESTRATOR_RUNNER=docker \
+            -e CLOUD_ORCHESTRATOR_PUBLIC_URL=http://127.0.0.1:4100 \
+            -e CLOUD_ORCHESTRATOR_CONTROL_TOKEN=${ControlToken} \
+            -e CLOUD_ORCHESTRATOR_TOKEN_SECRET=${TokenSecret} \
+            -e CLOUD_ORCHESTRATOR_DATA_DIR=/var/lib/cloud-orchestrator \
+            -e CLOUD_ORCHESTRATOR_HOST_DATA_DIR=/var/lib/cloud-orchestrator \
+            -e CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=host.docker.internal \
+            -e CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=172.17.0.1 \
+            -e CLOUD_WORKSPACE_DIR=/workspace \
+            cloud-orchestrator:latest
+
+Outputs:
+  InstanceId:
+    Value: !Ref Instance
+  Ec2PublicDnsName:
+    Value: !GetAtt Instance.PublicDnsName
+  BridgeEc2HttpUrl:
+    Value: !Sub http://${Instance.PublicDnsName}:4000/health
+  CloudOrchestratorEc2Url:
+    Value: !Sub http://${Instance.PublicDnsName}:4100

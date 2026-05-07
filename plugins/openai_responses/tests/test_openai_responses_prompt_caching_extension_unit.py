@@ -86,6 +86,29 @@ def test_initialize_request_defaults_prompt_cache_key_support_to_enabled() -> No
     assert state["request"]["payload"]["prompt_cache_key"] == "generated-like-key"
 
 
+def test_initialize_request_strips_prompt_cache_retention_in_chatgpt_mode() -> None:
+    extension = OpenAIResponsesPromptCachingExtension()
+    native_messages = [{"type": "message", "role": "user"}]
+
+    returned_native_messages, state = extension.initialize_request(
+        native_messages,
+        {
+            "config": _config(
+                auth_mode="auto",
+                _openai_responses_effective_auth_mode="chatgpt",
+                enable_prompt_cache_key=True,
+                prompt_cache_key="manual-key",
+                enable_prompt_cache_retention_24h=True,
+            ),
+            "request": {"payload": {"model": "gpt-5-mini", "prompt_cache_retention": "24h"}},
+        },
+    )
+
+    assert returned_native_messages is native_messages
+    assert state["request"]["payload"]["prompt_cache_key"] == "manual-key"
+    assert "prompt_cache_retention" not in state["request"]["payload"]
+
+
 def test_initialize_request_preserves_references_when_nothing_changes() -> None:
     extension = OpenAIResponsesPromptCachingExtension()
     native_messages = [{"type": "message", "role": "user"}]

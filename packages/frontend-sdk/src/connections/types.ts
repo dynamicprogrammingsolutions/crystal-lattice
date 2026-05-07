@@ -1,4 +1,4 @@
-export type ConnectionKind = 'manual' | 'discovery' | 'bridge';
+export type ConnectionKind = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
 export interface BaseConnectionRecord {
   id: string;
@@ -28,7 +28,18 @@ export interface BridgeConnectionRecord extends BaseConnectionRecord {
   pairingToken: string | null;
 }
 
+export interface CloudConnectionRecord extends BaseConnectionRecord {
+  kind: 'cloud';
+  orchestratorUrl: string;
+  connectionId?: string;
+  instanceId?: string;
+  initialSessionId?: string;
+  sessionId?: string;
+  token: string;
+}
+
 export type ConnectionRecord =
   | ManualConnectionRecord
   | DiscoveryConnectionRecord
-  | BridgeConnectionRecord;
+  | BridgeConnectionRecord
+  | CloudConnectionRecord;

@@ -26,6 +26,19 @@ from typing import Any, Dict, List, Tuple
 from agent_core.types import ProviderExtensionPlugin
 
 
+def _message_usage(native_message: Dict[str, Any]) -> Dict[str, Any] | None:
+    internal_md = native_message.get("_metadata")
+    if not isinstance(internal_md, dict):
+        return None
+    usage = internal_md.get("usage")
+    return usage if isinstance(usage, dict) else None
+
+
+def _message_has_tool_calls(native_message: Dict[str, Any]) -> bool:
+    tool_calls = native_message.get("tool_calls")
+    return isinstance(tool_calls, list) and bool(tool_calls)
+
+
 class OpenRouterUsageExtension(ProviderExtensionPlugin):
     """Provider extension that surfaces OpenRouter usage metadata.
 
@@ -51,6 +64,68 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
 
     name: str = "openrouter_usage"
     version: str = "0.1.0"
+
+    @staticmethod
+    def _usage_input_tokens(usage: Dict[str, Any]) -> int | None:
+        value = usage.get("prompt_tokens")
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return None
+
+    @staticmethod
+    def _usage_cached_tokens(usage: Dict[str, Any]) -> int | None:
+        details = usage.get("prompt_tokens_details")
+        if not isinstance(details, dict):
+            return None
+        value = details.get("cached_tokens")
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return None
+
+    @staticmethod
+    def _usage_output_tokens(usage: Dict[str, Any]) -> int | None:
+        value = usage.get("completion_tokens")
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return None
+
+    @staticmethod
+    def _format_token_count(value: int | None) -> str | None:
+        if not isinstance(value, int):
+            return None
+        return f"{value:,}"
+
+    @classmethod
+    def _message_turn_has_tool_calls(cls, message: Dict[str, Any]) -> bool:
+        internal_md = message.get("_metadata") or {}
+        if isinstance(internal_md, dict):
+            turn = internal_md.get("turn")
+            if isinstance(turn, dict) and isinstance(turn.get("has_tool_calls"), bool):
+                return bool(turn.get("has_tool_calls"))
+        return _message_has_tool_calls(message)
+
+    @classmethod
+    def _current_turn_id(cls, native_messages: List[Dict[str, Any]]) -> int:
+        last_assigned = 0
+        current_open: int | None = None
+
+        for message in native_messages:
+            if not isinstance(message, dict):
+                continue
+            role = message.get("role")
+            if role in ("user", "system"):
+                current_open = None
+                continue
+            usage = _message_usage(message)
+            if not isinstance(usage, dict):
+                continue
+            if current_open is None:
+                current_open = last_assigned + 1
+            last_assigned = max(last_assigned, current_open)
+            if not cls._message_turn_has_tool_calls(message):
+                current_open = None
+
+        return current_open if current_open is not None else (last_assigned + 1 if last_assigned > 0 else 1)
 
     # ---- Config / UI ----
     def get_config_schema(self) -> Dict[str, Any]:
@@ -97,6 +172,21 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 "ui_type": "message_footer",
                 "data": "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
                 "template": "reasoning: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_input_tokens_cumulative_formatted",
+                "template": "turn input: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_cached_tokens_cumulative_formatted",
+                "template": "turn cached: {{data}}",
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_turn_output_tokens_cumulative_formatted",
+                "template": "turn output: {{data}}",
             },
             {
                 "ui_type": "status_bar",
@@ -198,6 +288,30 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                             core_md["usage_turn_reasoning_tokens_cumulative_formatted"] = internal_md[
                                 "usage_turn_reasoning_tokens_cumulative_formatted"
                             ]
+                        if "usage_turn_input_tokens_cumulative" in internal_md:
+                            core_md["usage_turn_input_tokens_cumulative"] = internal_md[
+                                "usage_turn_input_tokens_cumulative"
+                            ]
+                        if "usage_turn_input_tokens_cumulative_formatted" in internal_md:
+                            core_md["usage_turn_input_tokens_cumulative_formatted"] = internal_md[
+                                "usage_turn_input_tokens_cumulative_formatted"
+                            ]
+                        if "usage_turn_cached_tokens_cumulative" in internal_md:
+                            core_md["usage_turn_cached_tokens_cumulative"] = internal_md[
+                                "usage_turn_cached_tokens_cumulative"
+                            ]
+                        if "usage_turn_cached_tokens_cumulative_formatted" in internal_md:
+                            core_md["usage_turn_cached_tokens_cumulative_formatted"] = internal_md[
+                                "usage_turn_cached_tokens_cumulative_formatted"
+                            ]
+                        if "usage_turn_output_tokens_cumulative" in internal_md:
+                            core_md["usage_turn_output_tokens_cumulative"] = internal_md[
+                                "usage_turn_output_tokens_cumulative"
+                            ]
+                        if "usage_turn_output_tokens_cumulative_formatted" in internal_md:
+                            core_md["usage_turn_output_tokens_cumulative_formatted"] = internal_md[
+                                "usage_turn_output_tokens_cumulative_formatted"
+                            ]
                 enhanced.append({**msg, "metadata": core_md})
             return enhanced
 
@@ -258,6 +372,30 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                     if "usage_turn_reasoning_tokens_cumulative_formatted" in internal_md:
                         core_md["usage_turn_reasoning_tokens_cumulative_formatted"] = internal_md[
                             "usage_turn_reasoning_tokens_cumulative_formatted"
+                        ]
+                    if "usage_turn_input_tokens_cumulative" in internal_md:
+                        core_md["usage_turn_input_tokens_cumulative"] = internal_md[
+                            "usage_turn_input_tokens_cumulative"
+                        ]
+                    if "usage_turn_input_tokens_cumulative_formatted" in internal_md:
+                        core_md["usage_turn_input_tokens_cumulative_formatted"] = internal_md[
+                            "usage_turn_input_tokens_cumulative_formatted"
+                        ]
+                    if "usage_turn_cached_tokens_cumulative" in internal_md:
+                        core_md["usage_turn_cached_tokens_cumulative"] = internal_md[
+                            "usage_turn_cached_tokens_cumulative"
+                        ]
+                    if "usage_turn_cached_tokens_cumulative_formatted" in internal_md:
+                        core_md["usage_turn_cached_tokens_cumulative_formatted"] = internal_md[
+                            "usage_turn_cached_tokens_cumulative_formatted"
+                        ]
+                    if "usage_turn_output_tokens_cumulative" in internal_md:
+                        core_md["usage_turn_output_tokens_cumulative"] = internal_md[
+                            "usage_turn_output_tokens_cumulative"
+                        ]
+                    if "usage_turn_output_tokens_cumulative_formatted" in internal_md:
+                        core_md["usage_turn_output_tokens_cumulative_formatted"] = internal_md[
+                            "usage_turn_output_tokens_cumulative_formatted"
                         ]
 
                 enhanced[-1] = {**last_msg, "metadata": core_md}
@@ -386,38 +524,20 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 # user/system message or an assistant message that has no
                 # tool calls. Sum assistant costs after that separator.
                 base_total_turn = 0.0
+                base_total_turn_input = 0
+                base_total_turn_cached = 0
+                base_total_turn_output = 0
                 base_total_turn_reasoning = 0
+                current_turn_id = self._current_turn_id(native_messages)
                 try:
-                    last_sep_idx = -1
-                    for idx, msg in enumerate(native_messages):
-                        if not isinstance(msg, dict):
-                            continue
-                        role = msg.get("role")
-                        if role in ("user", "system"):
-                            last_sep_idx = idx
-                            continue
-                        if role == "assistant":
-                            # Detect tool calls on the assistant message.
-                            has_tool_calls = False
-                            tcs = msg.get("tool_calls")
-                            if isinstance(tcs, list) and tcs:
-                                has_tool_calls = True
-                            else:
-                                md_prev = msg.get("_metadata") or {}
-                                if isinstance(md_prev, dict) and md_prev.get("tool_calls"):
-                                    has_tool_calls = True
-                            if not has_tool_calls:
-                                last_sep_idx = idx
-
-                    for idx, msg in enumerate(native_messages):
-                        if not isinstance(msg, dict):
-                            continue
-                        if idx <= last_sep_idx:
-                            continue
-                        if msg.get("role") != "assistant":
+                    for msg in native_messages:
+                        if not isinstance(msg, dict) or msg.get("role") != "assistant":
                             continue
                         md_prev = msg.get("_metadata") or {}
                         if not isinstance(md_prev, dict):
+                            continue
+                        turn = md_prev.get("turn")
+                        if not isinstance(turn, dict) or turn.get("id") != current_turn_id:
                             continue
                         usage_prev = md_prev.get("usage") or {}
                         if not isinstance(usage_prev, dict):
@@ -427,6 +547,16 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                         ).get("upstream_inference_cost", 0)
                         if isinstance(prev_cost, (int, float)):
                             base_total_turn += float(prev_cost)
+
+                        prev_input = self._usage_input_tokens(usage_prev)
+                        if isinstance(prev_input, int):
+                            base_total_turn_input += prev_input
+                        prev_cached = self._usage_cached_tokens(usage_prev)
+                        if isinstance(prev_cached, int):
+                            base_total_turn_cached += prev_cached
+                        prev_output = self._usage_output_tokens(usage_prev)
+                        if isinstance(prev_output, int):
+                            base_total_turn_output += prev_output
 
                         # Sum reasoning tokens for per-turn reasoning total.
                         prev_reasoning = None
@@ -448,6 +578,18 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
 
                 usage_turn_cumulative = base_total_turn + current_cost
                 usage_turn_cumulative_str = f"${usage_turn_cumulative:.6f}"
+                current_input = self._usage_input_tokens(usage)
+                current_cached = self._usage_cached_tokens(usage)
+                current_output = self._usage_output_tokens(usage)
+                usage_turn_input_cumulative = base_total_turn_input + (
+                    current_input if isinstance(current_input, int) else 0
+                )
+                usage_turn_cached_cumulative = base_total_turn_cached + (
+                    current_cached if isinstance(current_cached, int) else 0
+                )
+                usage_turn_output_cumulative = base_total_turn_output + (
+                    current_output if isinstance(current_output, int) else 0
+                )
 
                 # Compute per-turn reasoning tokens. Look for
                 # completion_tokens_details.reasoning_tokens on the
@@ -501,11 +643,33 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
             # Attach per-turn cumulative cost (for assistant messages
             # that have no tool calls). These are computed above.
             try:
+                current_turn_id = self._current_turn_id(native_messages)
+                has_tool_calls = self._message_turn_has_tool_calls(accumulated)
+                internal_md["turn"] = {
+                    "id": current_turn_id,
+                    "has_tool_calls": has_tool_calls,
+                    "is_terminal": not has_tool_calls,
+                }
                 if "usage_turn_cumulative" in locals():
                     internal_md["usage_turn_cost_cumulative"] = usage_turn_cumulative
                 if "usage_turn_cumulative_str" in locals():
                     internal_md["usage_turn_cost_cumulative_formatted"] = (
                         usage_turn_cumulative_str
+                    )
+                if "usage_turn_input_cumulative" in locals():
+                    internal_md["usage_turn_input_tokens_cumulative"] = usage_turn_input_cumulative
+                    internal_md["usage_turn_input_tokens_cumulative_formatted"] = (
+                        self._format_token_count(usage_turn_input_cumulative)
+                    )
+                if "usage_turn_cached_cumulative" in locals():
+                    internal_md["usage_turn_cached_tokens_cumulative"] = usage_turn_cached_cumulative
+                    internal_md["usage_turn_cached_tokens_cumulative_formatted"] = (
+                        self._format_token_count(usage_turn_cached_cumulative)
+                    )
+                if "usage_turn_output_cumulative" in locals():
+                    internal_md["usage_turn_output_tokens_cumulative"] = usage_turn_output_cumulative
+                    internal_md["usage_turn_output_tokens_cumulative_formatted"] = (
+                        self._format_token_count(usage_turn_output_cumulative)
                     )
                 if "usage_turn_reasoning_cumulative" in locals() and usage_turn_reasoning_cumulative is not None:
                     internal_md["usage_turn_reasoning_tokens_cumulative"] = usage_turn_reasoning_cumulative

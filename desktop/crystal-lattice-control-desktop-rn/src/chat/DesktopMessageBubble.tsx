@@ -18,9 +18,8 @@ import {
   selectDisplayContent,
   selectSingleLineContent,
 } from '@crystal-lattice/frontend-sdk';
+import { MacTextView } from '@crystal-lattice/react-native-mac-text-view';
 import { useTheme, type Theme } from '@crystal-lattice/frontend-rn-components';
-
-import { MacTextView } from '../native/MacTextView';
 
 import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
 

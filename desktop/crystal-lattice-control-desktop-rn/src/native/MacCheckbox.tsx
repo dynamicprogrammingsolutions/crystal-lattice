@@ -31,8 +31,14 @@ export function MacCheckbox({ onValueChange, ...props }: MacCheckboxProps): Reac
   if (!NativeMacCheckbox) {
     return (
       <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8 }, props.style]}>
-        <Switch value={props.value} onValueChange={(next) => onValueChange?.(next)} />
-        <Text>{props.label}</Text>
+        <Switch
+          value={props.value}
+          disabled={props.enabled === false}
+          onValueChange={(next) => onValueChange?.(next)}
+        />
+        <Text style={props.enabled === false ? { opacity: 0.65 } : undefined}>
+          {props.label}
+        </Text>
       </View>
     );
   }

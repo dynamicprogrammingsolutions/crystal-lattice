@@ -7,8 +7,10 @@ Local path repos are installed into the plugin cache via
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 import textwrap
 
+from agent_app.plugin_sources.install import InstallRequest, PipTargetInstallStrategy
 from agent_app.plugin_manager import PluginManager
 
 
@@ -174,9 +176,66 @@ def test_localpath_source_can_install_sibling_dependency(tmp_path: Path) -> None
     cache_dir.mkdir(parents=True)
 
     spec = {"path": str(plugin), "entry": "pluginrepo.tool_mod.DependentTool"}
-    mgr = PluginManager(cache_dir=cache_dir, policy={"install_deps": True})
+    mgr = PluginManager(cache_dir=cache_dir)
     res = mgr.resolve_all([spec])
 
     assert res.errors == []
     assert [getattr(cls, "__name__", "") for cls in res.classes] == ["DependentTool"]
     assert res.classes[0]().execute_tool("show_value", {}, {})["result"] == 7
+    installed = next(cache_dir.glob("pluginrepo@*"))
+    assert (installed / "sharedpkg").is_dir()
+
+
+def test_bundled_localpath_source_activates_source_tree_without_pip(
+    tmp_path: Path, monkeypatch
+) -> None:
+    bundled_root = tmp_path / "bundled_plugins"
+    plugin = bundled_root / "pluginrepo"
+    shared = bundled_root / "sharedpkg"
+    plugin_pkg = plugin / "src" / "pluginrepo"
+    shared_pkg = shared / "src" / "sharedpkg"
+    plugin_pkg.mkdir(parents=True, exist_ok=True)
+    shared_pkg.mkdir(parents=True, exist_ok=True)
+    (plugin / "pyproject.toml").write_text("", encoding="utf-8")
+    (shared / "pyproject.toml").write_text("", encoding="utf-8")
+    (plugin_pkg / "__init__.py").write_text("", encoding="utf-8")
+    (shared_pkg / "__init__.py").write_text("VALUE = 11\n", encoding="utf-8")
+
+    installer = PipTargetInstallStrategy()
+    original_sys_path = list(sys.path)
+    monkeypatch.setenv("BUILTIN_PLUGINS", str(bundled_root))
+
+    try:
+        install_dir = installer.ensure_installed(
+            InstallRequest(
+                cache_dir=tmp_path / "cache",
+                safe_id="pluginrepo",
+                revision="rev",
+                project_dir=plugin,
+                policy={},
+                metadata={},
+            )
+        )
+
+        assert install_dir == plugin.resolve()
+        assert str(plugin / "src") in sys.path
+        assert str(shared / "src") in sys.path
+        assert not (tmp_path / "cache").exists()
+    finally:
+        sys.path[:] = original_sys_path
+
+
+def test_non_bundled_builtin_plugins_path_still_installs_to_cache(
+    tmp_path: Path, monkeypatch
+) -> None:
+    repo = _make_dev_repo(tmp_path)
+    cache_dir = tmp_path / "cache"
+    cache_dir.mkdir(parents=True)
+    monkeypatch.setenv("BUILTIN_PLUGINS", str(repo.parent))
+
+    spec = {"path": str(repo), "entry": "myplugins.provider_mod.DevProvider"}
+    mgr = PluginManager(cache_dir=cache_dir)
+    res = mgr.resolve_all([spec])
+
+    assert res.errors == []
+    assert next(cache_dir.glob("repo@*")).is_dir()

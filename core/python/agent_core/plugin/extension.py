@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple, Optional
 
+from ..tool_interop import ToolInteropContribution
 from ..types import ProviderExtensionPlugin, Session
 from .adapters import ProviderExtensionDefaultsAdapter
 
@@ -37,10 +38,9 @@ class ExtensionWrapper(ProviderExtensionPlugin):
     def get_ui_elements(
         self,
         config: Dict[str, Any],
-        tags: List[str],
-        models: List[Dict[str, Any]],
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        return self.plugin.get_ui_elements(config, tags, models)
+        return self.plugin.get_ui_elements(config, context)
 
     def get_models(
         self,
@@ -76,22 +76,74 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         """Return whether this extension should be enabled given the context."""
         return self.plugin.is_enabled(config, tags, models, context)
 
+    def get_tool_interop_contribution(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> ToolInteropContribution:
+        """Return extension-contributed tool interop accessors/adapters."""
+        return self.plugin.get_tool_interop_contribution(config, state)
+
+    def accepted_tool_schema_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return tool schema formats this extension can inject directly."""
+        return self.plugin.accepted_tool_schema_formats(config, state)
+
+    def emitted_tool_call_formats(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any] | None = None,
+    ) -> List[str]:
+        """Return tool-call formats this extension may surface."""
+        return self.plugin.emitted_tool_call_formats(config, state)
+
     # Stateless transforms
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        return self.plugin.to_native_messages(messages, native_messages, state)
+        return self.plugin.to_native_messages(
+            messages,
+            native_messages,
+            state,
+            context=context,
+        )
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        native_messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        return self.plugin.from_native_messages(native_messages, messages, state)
+        return self.plugin.from_native_messages(
+            native_messages,
+            messages,
+            state,
+            context=context,
+        )
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """Prepare for a new turn; MUST return (native_messages, shared state)."""
-        return self.plugin.initialize_request(native_messages, state)
+        return self.plugin.initialize_request(
+            native_messages,
+            state,
+            context=context,
+        )
 
     def process_chunk(
         self,
@@ -123,9 +175,16 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Finalize after provider; return (final_messages, native_messages, new_state)."""
-        return self.plugin.finalize(final_messages, native_messages, state)
+        return self.plugin.finalize(
+            final_messages,
+            native_messages,
+            state,
+            context=context,
+        )
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return session-scoped action definitions from the extension."""
@@ -141,4 +200,6 @@ class ExtensionWrapper(ProviderExtensionPlugin):
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Execute a session-scoped action from the extension."""
-        return self.plugin.execute_action(action_id, session, native_messages, params, context, state)
+        return self.plugin.execute_action(
+            action_id, session, native_messages, params, context, state
+        )

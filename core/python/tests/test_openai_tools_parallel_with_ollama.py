@@ -22,6 +22,7 @@ from agent_core import AgentCore
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+pytestmark = pytest.mark.integration
 
 
 REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
@@ -33,7 +34,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -110,7 +113,9 @@ def test_parallel_tools_read_multiple_files(ensure_model):
         tool_calls = md.get("tool_calls") or []
         print("\n<== Assistant proposed tool calls (expect >= 2)")
         print("  count:", len(tool_calls))
-        assert len(tool_calls) >= 2, f"expected at least two tool calls, got {len(tool_calls)}"
+        assert (
+            len(tool_calls) >= 2
+        ), f"expected at least two tool calls, got {len(tool_calls)}"
 
         # Execute both tool calls (no loop, index explicitly)
         tool_msgs = core.execute_tool_calls(tool_calls, config)

@@ -180,4 +180,155 @@ describe('SessionSettingsController', () => {
 
     controller.dispose();
   });
+
+  describe('type coercion in patchOverride', () => {
+    it('coerces string "42" to int 42 for number type element', async () => {
+      const backend = createBackend({
+        getSessionUiSchema: vi.fn(async () => [
+          { key: 'seed', ui_type: 'config', type: 'number' },
+        ]),
+        getSessionOverrides: vi.fn(async () => ({})),
+        getSessionConfigSchema: vi.fn(async () => []),
+        getSessionBaseConfig: vi.fn(async () => ({})),
+        patchSessionOverrides: vi.fn(async () => {}),
+      });
+
+      const controller = new SessionSettingsController({ backend, cacheKey: 'c1', sessionId: 's1' });
+      await controller.load();
+
+      await controller.patchOverride('seed', '42');
+
+      // Check optimistic state has coerced value
+      expect(controller.getSnapshot().overrides.seed).toBe(42);
+      expect(typeof controller.getSnapshot().overrides.seed).toBe('number');
+
+      // Check backend was called with coerced value
+      expect(backend.patchSessionOverrides).toHaveBeenCalledWith('s1', { seed: 42 });
+
+      controller.dispose();
+    });
+
+    it('coerces string "0.7" to float 0.7 for number type element', async () => {
+      const backend = createBackend({
+        getSessionUiSchema: vi.fn(async () => [
+          { key: 'temperature', ui_type: 'config', type: 'number' },
+        ]),
+        getSessionOverrides: vi.fn(async () => ({ temperature: 0.5 })),
+        getSessionConfigSchema: vi.fn(async () => []),
+        getSessionBaseConfig: vi.fn(async () => ({})),
+        patchSessionOverrides: vi.fn(async () => {}),
+      });
+
+      const controller = new SessionSettingsController({ backend, cacheKey: 'c1', sessionId: 's1' });
+      await controller.load();
+
+      await controller.patchOverride('temperature', '0.7');
+
+      expect(controller.getSnapshot().overrides.temperature).toBe(0.7);
+      expect(typeof controller.getSnapshot().overrides.temperature).toBe('number');
+      expect(backend.patchSessionOverrides).toHaveBeenCalledWith('s1', { temperature: 0.7 });
+
+      controller.dispose();
+    });
+
+    it('coerces string "true" to boolean true for checkbox type element', async () => {
+      const backend = createBackend({
+        getSessionUiSchema: vi.fn(async () => [
+          { key: 'enable_thinking', ui_type: 'config', type: 'checkbox' },
+        ]),
+        getSessionOverrides: vi.fn(async () => ({ enable_thinking: false })),
+        getSessionConfigSchema: vi.fn(async () => []),
+        getSessionBaseConfig: vi.fn(async () => ({})),
+        patchSessionOverrides: vi.fn(async () => {}),
+      });
+
+      const controller = new SessionSettingsController({ backend, cacheKey: 'c1', sessionId: 's1' });
+      await controller.load();
+
+      await controller.patchOverride('enable_thinking', 'true');
+
+      expect(controller.getSnapshot().overrides.enable_thinking).toBe(true);
+      expect(typeof controller.getSnapshot().overrides.enable_thinking).toBe('boolean');
+      expect(backend.patchSessionOverrides).toHaveBeenCalledWith('s1', { enable_thinking: true });
+
+      controller.dispose();
+    });
+
+    it('leaves select type values as strings', async () => {
+      const backend = createBackend({
+        getSessionUiSchema: vi.fn(async () => [
+          { key: 'model', ui_type: 'config', type: 'select', options: ['a', 'b', 'c'] },
+        ]),
+        getSessionOverrides: vi.fn(async () => ({ model: 'a' })),
+        getSessionConfigSchema: vi.fn(async () => []),
+        getSessionBaseConfig: vi.fn(async () => ({})),
+        patchSessionOverrides: vi.fn(async () => {}),
+      });
+
+      const controller = new SessionSettingsController({ backend, cacheKey: 'c1', sessionId: 's1' });
+      await controller.load();
+
+      await controller.patchOverride('model', 'b');
+
+      expect(controller.getSnapshot().overrides.model).toBe('b');
+      expect(typeof controller.getSnapshot().overrides.model).toBe('string');
+      expect(backend.patchSessionOverrides).toHaveBeenCalledWith('s1', { model: 'b' });
+
+      controller.dispose();
+    });
+
+    it('leaves unknown element types unchanged', async () => {
+      const backend = createBackend({
+        getSessionUiSchema: vi.fn(async () => [
+          { key: 'custom', ui_type: 'config' }, // no type field
+        ]),
+        getSessionOverrides: vi.fn(async () => ({})),
+        getSessionConfigSchema: vi.fn(async () => []),
+        getSessionBaseConfig: vi.fn(async () => ({})),
+        patchSessionOverrides: vi.fn(async () => {}),
+      });
+
+      const controller = new SessionSettingsController({ backend, cacheKey: 'c1', sessionId: 's1' });
+      await controller.load();
+
+      // Value is passed through unchanged when element has no type
+      await controller.patchOverride('custom', '42');
+
+      expect(controller.getSnapshot().overrides.custom).toBe('42');
+      expect(typeof controller.getSnapshot().overrides.custom).toBe('string');
+      expect(backend.patchSessionOverrides).toHaveBeenCalledWith('s1', { custom: '42' });
+
+      controller.dispose();
+    });
+
+    it('coerces numeric string for web_fetch_timeout_seconds example', async () => {
+      const backend = createBackend({
+        getSessionUiSchema: vi.fn(async () => [
+          {
+            key: 'web_fetch_timeout_seconds',
+            ui_type: 'config',
+            type: 'number',
+            label: 'URL fetch timeout',
+            description: 'Seconds to wait for URL response',
+          },
+        ]),
+        getSessionOverrides: vi.fn(async () => ({ web_fetch_timeout_seconds: 10 })),
+        getSessionConfigSchema: vi.fn(async () => []),
+        getSessionBaseConfig: vi.fn(async () => ({})),
+        patchSessionOverrides: vi.fn(async () => {}),
+      });
+
+      const controller = new SessionSettingsController({ backend, cacheKey: 'c1', sessionId: 's1' });
+      await controller.load();
+
+      // Simulate user entering "30" in a text input
+      await controller.patchOverride('web_fetch_timeout_seconds', '30');
+
+      expect(controller.getSnapshot().overrides.web_fetch_timeout_seconds).toBe(30);
+      expect(typeof controller.getSnapshot().overrides.web_fetch_timeout_seconds).toBe('number');
+      expect(backend.patchSessionOverrides).toHaveBeenCalledWith('s1', { web_fetch_timeout_seconds: 30 });
+
+      controller.dispose();
+    });
+  });
 });

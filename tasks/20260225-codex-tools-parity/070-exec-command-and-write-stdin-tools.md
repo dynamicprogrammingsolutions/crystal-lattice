@@ -1,5 +1,7 @@
 # 070 — Add `exec_command` and `write_stdin` tools (alternative shell interface)
 
+**STATUS: PENDING**
+
 ## Problem
 
 On macOS/Linux, Codex CLI commonly exposes `exec_command` + `write_stdin` (PTY-backed unified exec), not `shell` / `shell_command`.

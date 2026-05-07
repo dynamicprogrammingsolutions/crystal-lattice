@@ -23,6 +23,9 @@ class _Resp:
     def json(self) -> Any:
         return self._payload
 
+    def close(self) -> None:
+        return None
+
 
 def test_usage_extension_normalizes_common_usage_fields():
     ext = OpenAICompatibleUsageExtension()
@@ -193,6 +196,28 @@ def test_usage_extension_normalizes_cached_and_cost_fields_with_turn_totals():
     assert final_metadata["usage_turn_reasoning_tokens_cumulative_formatted"] == "10"  # 3 + 7
 
 
+def test_usage_extension_finalize_stamps_turn_metadata() -> None:
+    ext = OpenAICompatibleUsageExtension()
+    final_messages = [
+        {
+            "role": "assistant",
+            "content": "done",
+            "_metadata": {
+                "usage": {
+                    "prompt_tokens": 12,
+                    "completion_tokens": 7,
+                    "total_tokens": 19,
+                }
+            },
+        }
+    ]
+    native_messages = [{"role": "user", "content": "hi"}, *final_messages]
+
+    new_finals, _new_native, _state = ext.finalize(final_messages, native_messages, {"config": {}})
+    metadata = new_finals[0].get("_metadata") or {}
+    assert metadata.get("turn") == {"id": 1, "has_tool_calls": False, "is_terminal": True}
+
+
 def test_usage_extension_captures_streaming_usage_into_partial_state():
     ext = OpenAICompatibleUsageExtension()
     partial_messages = [{"role": "assistant", "content": "hi"}]
@@ -263,7 +288,7 @@ def test_provider_call_api_preserves_non_streaming_usage_for_extensions(monkeypa
             },
         )
 
-    monkeypatch.setattr("requests.post", fake_post)
+    monkeypatch.setattr("requests.sessions.Session.post", lambda self, url, headers, json, timeout, stream: fake_post(url, headers, json, timeout))
 
     provider = OpenAICompatibleProvider()
     native_messages, state = provider.initialize_request(

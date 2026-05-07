@@ -1,5 +1,5 @@
 import 'react-native-url-polyfill/auto';
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
   ScrollView,
@@ -17,7 +17,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
 import {
   BridgeTransport,
+  CloudTransport,
   FetchTransport,
+  parseCloudConnectionLink,
   type KeyValueStore,
   loadConnections,
   RestAgentBackend,
@@ -25,19 +27,26 @@ import {
   type AgentBackend,
   type BridgeServer,
   type BridgeConnectionRecord,
+  type CloudConnectionRecord,
   type ConnectionRecord,
   type DiscoveryConnectionRecord,
   type ManualConnectionRecord,
   type Transport,
+  type TransportTimeoutRule,
 } from '@crystal-lattice/frontend-sdk';
 import ConnectedRoot from './src/ConnectedRoot';
 import { getConnectionAdditionalInfo } from './src/connectionInfo';
 import type { SessionSummary, IndexedMessage } from './src/api';
 import type { ChatScrollAnchor } from './src/chatScroll';
+import {
+  appendDebugTimelineEntry,
+  createDebugTimelineEntry,
+  type DebugTimelineEntry,
+} from './src/debugTimeline';
 import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
 import { PinnedActionsProvider } from './src/PinnedActionsContext';
 
-type ConnectionMethod = 'manual' | 'discovery' | 'bridge';
+type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
 interface Service {
   name: string;
@@ -87,6 +96,92 @@ function generateId(): string {
   });
 }
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const LONG_RUNNING_REQUEST_TIMEOUT_MS = 120_000;
+const EVENTS_TIMEOUT_MS = 10_000;
+const BRIDGE_CONNECT_TIMEOUT_MS = 10_000;
+const BRIDGE_HEARTBEAT_INTERVAL_MS = 15_000;
+const BRIDGE_HEARTBEAT_TIMEOUT_MS = 5_000;
+
+const TRANSPORT_TIMEOUT_RULES: TransportTimeoutRule[] = [
+  { method: 'GET', pathPrefix: '/events', timeoutMs: EVENTS_TIMEOUT_MS },
+  {
+    method: 'POST',
+    pathRegex: /^\/sessions\/[^/]+\/messages(?:\?|$)/,
+    timeoutMs: LONG_RUNNING_REQUEST_TIMEOUT_MS,
+  },
+  {
+    method: 'POST',
+    pathRegex: /^\/sessions\/[^/]+\/send_message(?:\?|$)/,
+    timeoutMs: LONG_RUNNING_REQUEST_TIMEOUT_MS,
+  },
+  { method: 'POST', pathPrefix: '/actions', timeoutMs: LONG_RUNNING_REQUEST_TIMEOUT_MS },
+];
+
+function createHttpTransport(baseUrl: string): FetchTransport {
+  return new FetchTransport({
+    baseUrl,
+    defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+    timeoutRules: TRANSPORT_TIMEOUT_RULES,
+  });
+}
+
+function createBridgeTransport(options: {
+  bridgeUrl: string;
+  serverId?: string | null;
+  pairingToken?: string | null;
+  debug?: boolean;
+}): BridgeTransport {
+  return new BridgeTransport({
+    bridgeUrl: options.bridgeUrl,
+    serverId: options.serverId,
+    pairingToken: options.pairingToken,
+    debug: options.debug ?? true,
+    defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+    connectTimeoutMs: BRIDGE_CONNECT_TIMEOUT_MS,
+    heartbeatIntervalMs: BRIDGE_HEARTBEAT_INTERVAL_MS,
+    heartbeatTimeoutMs: BRIDGE_HEARTBEAT_TIMEOUT_MS,
+    timeoutRules: TRANSPORT_TIMEOUT_RULES,
+  });
+}
+
+function createCloudTransport(record: Pick<CloudConnectionRecord, 'orchestratorUrl' | 'connectionId' | 'instanceId' | 'token'>): CloudTransport {
+  return new CloudTransport({
+    orchestratorUrl: record.orchestratorUrl,
+    connectionId: record.connectionId,
+    instanceId: record.instanceId,
+    token: record.token,
+    defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+    timeoutRules: TRANSPORT_TIMEOUT_RULES,
+  });
+}
+
+function getBridgeReconnectErrorCode(error: unknown): 'invalid_pairing_token' | 'server_not_found' | 'server_mismatch' | null {
+  const message =
+    error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  if (message.includes('invalid_pairing_token')) {
+    return 'invalid_pairing_token';
+  }
+  if (message.includes('server_not_found')) {
+    return 'server_not_found';
+  }
+  if (message.includes('server_mismatch')) {
+    return 'server_mismatch';
+  }
+  return null;
+}
+
+function disconnectIfPossible(candidate: unknown): void {
+  if (
+    candidate &&
+    typeof candidate === 'object' &&
+    'disconnect' in candidate &&
+    typeof (candidate as any).disconnect === 'function'
+  ) {
+    (candidate as any).disconnect();
+  }
+}
+
 function App(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const theme = colorScheme === 'dark' ? darkTheme : lightTheme;
@@ -100,6 +195,7 @@ function App(): React.JSX.Element {
   const [connectionsLoading, setConnectionsLoading] = useState(false);
   const [sessionsCache, setSessionsCache] = useState<SessionsCache>({});
   const [messagesCache, setMessagesCache] = useState<MessagesCache>({});
+  const [debugTimeline, setDebugTimeline] = useState<DebugTimelineEntry[]>([]);
   
   const [isSearching, setIsSearching] = useState(false);
   const [discoveredServices, setDiscoveredServices] = useState<Service[]>([]);
@@ -113,10 +209,40 @@ function App(): React.JSX.Element {
   const [selectedBridgeServer, setSelectedBridgeServer] = useState<BridgeServer | null>(null);
   const [pairingCode, setPairingCode] = useState('');
   const [connectingBridgeTransport, setConnectingBridgeTransport] = useState<BridgeTransport | null>(null);
+  const [cloudConnectionLink, setCloudConnectionLink] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
 
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const appStateRef = useRef(AppState.currentState);
+  const foregroundRecoveryInFlightRef = useRef(false);
+  const activeConnection = useMemo(
+    () =>
+      selectedConnectionId != null
+        ? connections.find((connection) => connection.id === selectedConnectionId) ?? null
+        : null,
+    [connections, selectedConnectionId],
+  );
+
+  const appendDebugNote = useCallback(
+    (entry: Omit<DebugTimelineEntry, 'id' | 'timestampMs'> & {
+      detail?: string | null;
+      meta?: Record<string, any> | null;
+    }) => {
+      setDebugTimeline((prev) =>
+        appendDebugTimelineEntry(
+          prev,
+          createDebugTimelineEntry({
+            scope: entry.scope,
+            title: entry.title,
+            detail: entry.detail,
+            meta: entry.meta,
+          }),
+        ),
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     const loadSavedConnections = async () => {
@@ -133,30 +259,6 @@ function App(): React.JSX.Element {
 
     loadSavedConnections();
   }, []);
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active') {
-        return;
-      }
-
-      if (transport && 'disconnect' in transport && typeof (transport as any).disconnect === 'function') {
-        (transport as any).disconnect();
-      }
-
-      if (
-        connectingBridgeTransport &&
-        'disconnect' in connectingBridgeTransport &&
-        typeof (connectingBridgeTransport as any).disconnect === 'function'
-      ) {
-        (connectingBridgeTransport as any).disconnect();
-      }
-    });
-
-    return () => {
-      sub.remove();
-    };
-  }, [connectingBridgeTransport, transport]);
 
   useEffect(() => {
     const loadSessionsCache = async () => {
@@ -303,7 +405,7 @@ function App(): React.JSX.Element {
     });
   };
 
-  const upsertConnection = (record: ConnectionRecord) => {
+  const upsertConnection = useCallback((record: ConnectionRecord) => {
     setConnections((prev) => {
       const idx = prev.findIndex((r) => r.id === record.id);
       if (idx === -1) {
@@ -313,7 +415,7 @@ function App(): React.JSX.Element {
       next[idx] = record;
       return next;
     });
-  };
+  }, []);
 
   const saveMessagesComposeText = (
     connectionId: string,
@@ -380,6 +482,177 @@ function App(): React.JSX.Element {
     });
   };
 
+  const openBridgeRepairFlow = useCallback(
+    async (
+      bridgeRecord: BridgeConnectionRecord,
+      reasonCode: 'invalid_pairing_token' | 'server_not_found' | 'server_mismatch' | null,
+    ) => {
+      appendDebugNote({
+        scope: 'app',
+        title: 'Bridge repair flow opened',
+        detail: reasonCode ?? 'manual_repair',
+        meta: {
+          connectionId: bridgeRecord.id,
+          serverId: bridgeRecord.serverId,
+        },
+      });
+
+      const bridge = createBridgeTransport({
+        bridgeUrl: bridgeRecord.bridgeUrl,
+        debug: true,
+      });
+      await bridge.connect();
+      const servers = await bridge.listServers();
+      const preferredServer =
+        servers.find((server) => server.server_id === bridgeRecord.serverId) ?? null;
+
+      setTransport(null);
+      setBackend(null);
+      setSelectedConnectionId(null);
+      setBridgeUrl(bridgeRecord.bridgeUrl);
+      setBridgeServers(servers);
+      setConnectingBridgeTransport(bridge);
+      setPairingCode('');
+      setShowConnectionWizard(true);
+      setConnectionMethod('bridge');
+
+      if (preferredServer) {
+        await bridge.requestPairing(preferredServer.server_id);
+        setSelectedBridgeServer(preferredServer);
+        Alert.alert(
+          'Bridge Re-pair Required',
+          reasonCode === 'server_not_found'
+            ? 'The saved bridge server is reachable again, but the previous session could not be resumed. Enter a fresh pairing code to continue.'
+            : 'The saved bridge pairing could not be resumed. Enter a fresh pairing code to continue.',
+        );
+        return;
+      }
+
+      setSelectedBridgeServer(null);
+      Alert.alert(
+        'Bridge Reconnect Needed',
+        'The saved bridge session could not be resumed. Select an available server and pair again.',
+      );
+    },
+    [appendDebugNote],
+  );
+
+  const handleAppForeground = useCallback(async () => {
+    if (foregroundRecoveryInFlightRef.current) {
+      return;
+    }
+    foregroundRecoveryInFlightRef.current = true;
+
+    appendDebugNote({
+      scope: 'app',
+      title: 'App foregrounded',
+      detail: activeConnection?.kind ?? 'no_active_connection',
+      meta: {
+        connectionId: activeConnection?.id ?? null,
+      },
+    });
+
+    try {
+      if (!(transport instanceof BridgeTransport) || activeConnection?.kind !== 'bridge') {
+        return;
+      }
+
+      transport.prepareForResume();
+
+      appendDebugNote({
+        scope: 'app',
+        title: 'Bridge reconnect started',
+        detail: activeConnection.name,
+        meta: {
+          serverId: activeConnection.serverId,
+        },
+      });
+
+      try {
+        await transport.connect();
+        appendDebugNote({
+          scope: 'app',
+          title: 'Bridge reconnect succeeded',
+          detail: activeConnection.name,
+          meta: {
+            serverId: transport.getServerId(),
+          },
+        });
+
+        const pairingToken = transport.getPairingToken();
+        if (
+          pairingToken &&
+          pairingToken !== activeConnection.pairingToken
+        ) {
+          upsertConnection({
+            ...activeConnection,
+            pairingToken,
+            lastUsedAt: Date.now(),
+          });
+        }
+      } catch (error) {
+        const reasonCode = getBridgeReconnectErrorCode(error);
+        appendDebugNote({
+          scope: 'app',
+          title: 'Bridge reconnect failed',
+          detail: error instanceof Error ? error.message : String(error),
+          meta: {
+            reasonCode,
+            serverId: activeConnection.serverId,
+          },
+        });
+        if (reasonCode) {
+          if (reasonCode === 'invalid_pairing_token' || reasonCode === 'server_mismatch') {
+            upsertConnection({
+              ...activeConnection,
+              pairingToken: null,
+              lastUsedAt: Date.now(),
+            });
+          }
+          await openBridgeRepairFlow(activeConnection, reasonCode);
+          return;
+        }
+      }
+    } finally {
+      foregroundRecoveryInFlightRef.current = false;
+    }
+  }, [activeConnection, appendDebugNote, openBridgeRepairFlow, transport, upsertConnection]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      const previousState = appStateRef.current;
+      appStateRef.current = nextState;
+
+      if (nextState === 'active') {
+        if (previousState !== 'active') {
+          void handleAppForeground();
+        }
+        return;
+      }
+
+      appendDebugNote({
+        scope: 'app',
+        title: 'App backgrounded',
+        detail: nextState,
+        meta: {
+          activeConnectionId: activeConnection?.id ?? null,
+        },
+      });
+      disconnectIfPossible(transport);
+      disconnectIfPossible(connectingBridgeTransport);
+    });
+
+    return () => {
+      sub.remove();
+    };
+  }, [
+    activeConnection?.id,
+    appendDebugNote,
+    connectingBridgeTransport,
+    handleAppForeground,
+    transport,
+  ]);
+
   useEffect(() => {
     zeroconf.on('resolved', (service: any) => {
       console.log('🔍 Service resolved:', service);
@@ -425,6 +698,7 @@ function App(): React.JSX.Element {
     setBridgeServers([]);
     setSelectedBridgeServer(null);
     setPairingCode('');
+    setCloudConnectionLink('');
   };
 
   const startDiscovery = () => {
@@ -448,9 +722,14 @@ function App(): React.JSX.Element {
 
     setIsLoading(true);
     try {
+      appendDebugNote({
+        scope: 'app',
+        title: 'Manual connection started',
+        detail: `${manualHost}:${manualPort}`,
+      });
       const port = parseInt(manualPort, 10);
       const baseUrl = `http://${manualHost}:${port}`;
-      const nextTransport = new FetchTransport({ baseUrl });
+      const nextTransport = createHttpTransport(baseUrl);
       await nextTransport.request({ method: 'GET', path: '/api/data' });
       setTransport(nextTransport);
       setBackend(new RestAgentBackend({ transport: nextTransport }));
@@ -467,7 +746,17 @@ function App(): React.JSX.Element {
       setSelectedConnectionId(id);
       setShowConnectionWizard(false);
       setConnectionMethod(null);
+      appendDebugNote({
+        scope: 'app',
+        title: 'Manual connection succeeded',
+        detail: `${manualHost}:${manualPort}`,
+      });
     } catch (error: any) {
+      appendDebugNote({
+        scope: 'app',
+        title: 'Manual connection failed',
+        detail: error?.message || 'connection_error',
+      });
       Alert.alert('Connection Error', error.message);
     } finally {
       setIsLoading(false);
@@ -477,8 +766,13 @@ function App(): React.JSX.Element {
   const connectToService = async (service: Service) => {
     setIsLoading(true);
     try {
+      appendDebugNote({
+        scope: 'app',
+        title: 'Discovery connection started',
+        detail: `${service.host}:${service.port}`,
+      });
       const baseUrl = `http://${service.host}:${service.port}`;
-      const nextTransport = new FetchTransport({ baseUrl });
+      const nextTransport = createHttpTransport(baseUrl);
       await nextTransport.request({ method: 'GET', path: '/api/data' });
       setTransport(nextTransport);
       setBackend(new RestAgentBackend({ transport: nextTransport }));
@@ -497,7 +791,17 @@ function App(): React.JSX.Element {
       setSelectedConnectionId(id);
       setShowConnectionWizard(false);
       setConnectionMethod(null);
+      appendDebugNote({
+        scope: 'app',
+        title: 'Discovery connection succeeded',
+        detail: service.name,
+      });
     } catch (error: any) {
+      appendDebugNote({
+        scope: 'app',
+        title: 'Discovery connection failed',
+        detail: error?.message || 'connection_error',
+      });
       Alert.alert('Connection Error', error.message);
     } finally {
       setIsLoading(false);
@@ -518,11 +822,15 @@ function App(): React.JSX.Element {
     setIsLoading(true);
     try {
       console.log('🚀 Starting bridge connection...');
+      appendDebugNote({
+        scope: 'app',
+        title: 'Bridge connection started',
+        detail: bridgeUrl,
+      });
       
-      const bridge = new BridgeTransport({
+      const bridge = createBridgeTransport({
         bridgeUrl,
         debug: true,
-        timeoutMsByPathPrefix: [{ pathPrefix: '/events', timeoutMs: 10_000 }],
       });
       await bridge.connect();
       console.log('✅ Bridge connected, fetching servers...');
@@ -536,8 +844,18 @@ function App(): React.JSX.Element {
       if (servers.length === 0) {
         Alert.alert('No Servers', 'No servers available on bridge. Make sure servers are started with --bridge flag.');
       }
+      appendDebugNote({
+        scope: 'app',
+        title: 'Bridge connection ready',
+        detail: `${servers.length} server(s) discovered`,
+      });
     } catch (error: any) {
       console.log('❌ Bridge connection failed:', error);
+      appendDebugNote({
+        scope: 'app',
+        title: 'Bridge connection failed',
+        detail: error?.message || 'bridge_error',
+      });
       Alert.alert(
         'Bridge Connection Error',
         error.message,
@@ -607,17 +925,60 @@ function App(): React.JSX.Element {
     }
   };
 
+  const connectCloud = async () => {
+    if (!cloudConnectionLink.trim()) {
+      Alert.alert('Error', 'Please paste a cloud connection link');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const parsed = parseCloudConnectionLink(cloudConnectionLink.trim());
+      const nextTransport = new CloudTransport({
+        orchestratorUrl: parsed.orchestratorUrl,
+        connectionId: parsed.connectionId,
+        instanceId: parsed.instanceId,
+        token: parsed.token,
+        defaultRequestTimeoutMs: DEFAULT_REQUEST_TIMEOUT_MS,
+        timeoutRules: TRANSPORT_TIMEOUT_RULES,
+      });
+      await nextTransport.request({ method: 'GET', path: '/api/data' });
+      setTransport(nextTransport);
+      setBackend(new RestAgentBackend({ transport: nextTransport }));
+
+      const id = generateId();
+      const record: CloudConnectionRecord = {
+        id,
+        kind: 'cloud',
+        name: `Cloud ${parsed.sessionId || parsed.connectionId || parsed.instanceId}`,
+        orchestratorUrl: parsed.orchestratorUrl,
+        connectionId: parsed.connectionId,
+        instanceId: parsed.instanceId,
+        initialSessionId: parsed.sessionId,
+        sessionId: parsed.sessionId,
+        token: parsed.token,
+        lastUsedAt: Date.now(),
+      };
+      upsertConnection(record);
+      setSelectedConnectionId(id);
+      setShowConnectionWizard(false);
+      setConnectionMethod(null);
+      setCloudConnectionLink('');
+    } catch (error: any) {
+      Alert.alert('Cloud Connection Error', error?.message || 'Could not connect to cloud agent');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDisconnect = () => {
-    if (transport && 'disconnect' in transport && typeof (transport as any).disconnect === 'function') {
-      (transport as any).disconnect();
-    }
-    if (
-      connectingBridgeTransport &&
-      'disconnect' in connectingBridgeTransport &&
-      typeof (connectingBridgeTransport as any).disconnect === 'function'
-    ) {
-      (connectingBridgeTransport as any).disconnect();
-    }
+    appendDebugNote({
+      scope: 'app',
+      title: 'Disconnected active connection',
+      detail: selectedConnectionId ?? 'manual_disconnect',
+    });
+    disconnectIfPossible(transport);
+    disconnectIfPossible(connectingBridgeTransport);
     setTransport(null);
     setBackend(null);
     setConnectingBridgeTransport(null);
@@ -646,9 +1007,7 @@ function App(): React.JSX.Element {
     });
 
     if (selectedConnectionId === record.id) {
-      if (transport && 'disconnect' in transport && typeof (transport as any).disconnect === 'function') {
-        (transport as any).disconnect();
-      }
+      disconnectIfPossible(transport);
       setTransport(null);
       setBackend(null);
       setSelectedConnectionId(null);
@@ -678,6 +1037,13 @@ function App(): React.JSX.Element {
         onPress={() => selectMethod('bridge')}>
         <Text style={styles.buttonText}>Bridge Service</Text>
         <Text style={styles.methodDescription}>Connect via bridge server</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.methodButton]}
+        onPress={() => selectMethod('cloud')}>
+        <Text style={styles.buttonText}>Cloud Agent Link</Text>
+        <Text style={styles.methodDescription}>Paste a cloud session connection link</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -916,37 +1282,100 @@ function App(): React.JSX.Element {
     </View>
   );
 
+  const renderCloudConnection = () => (
+    <View style={styles.container}>
+      <Text style={styles.title}>Cloud Agent Link</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="crystal-lattice-cloud://connect?..."
+        value={cloudConnectionLink}
+        onChangeText={setCloudConnectionLink}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+
+      <TouchableOpacity
+        style={[styles.button, styles.primaryButton]}
+        onPress={connectCloud}
+        disabled={isLoading}>
+        <Text style={styles.buttonText}>
+          {isLoading ? 'Connecting...' : 'Connect to Cloud Agent'}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, styles.secondaryButton]}
+        onPress={cancelConnectionWizard}>
+        <Text style={styles.buttonTextSecondary}>Back</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
   const renderConnectingScreen = () => {
     if (connectionMethod === 'manual') return renderManualConnection();
     if (connectionMethod === 'discovery') return renderDiscoveryConnection();
     if (connectionMethod === 'bridge') return renderBridgeConnection();
+    if (connectionMethod === 'cloud') return renderCloudConnection();
     return null;
   };
 
   const handleSelectSavedConnection = async (record: ConnectionRecord) => {
     setIsLoading(true);
     try {
-      if (transport && 'disconnect' in transport && typeof (transport as any).disconnect === 'function') {
-        (transport as any).disconnect();
-      }
+      disconnectIfPossible(transport);
+
+      appendDebugNote({
+        scope: 'app',
+        title: 'Connection selected',
+        detail: record.kind,
+        meta: {
+          connectionId: record.id,
+          name: record.name,
+        },
+      });
 
       let nextTransport: Transport | null = null;
 
       if (record.kind === 'manual' || record.kind === 'discovery') {
         const baseUrl = `http://${record.host}:${record.port}`;
-        const httpTransport = new FetchTransport({ baseUrl });
+        const httpTransport = createHttpTransport(baseUrl);
         await httpTransport.request({ method: 'GET', path: '/api/data' });
         nextTransport = httpTransport;
       } else if (record.kind === 'bridge') {
-        const bridge = new BridgeTransport({
+        if (!record.pairingToken) {
+          await openBridgeRepairFlow(record, null);
+          return;
+        }
+
+        const bridge = createBridgeTransport({
           bridgeUrl: record.bridgeUrl,
           serverId: record.serverId,
           pairingToken: record.pairingToken,
           debug: true,
-          timeoutMsByPathPrefix: [{ pathPrefix: '/events', timeoutMs: 10_000 }],
         });
-        await bridge.connect();
+        try {
+          await bridge.connect();
+        } catch (error) {
+          const reasonCode = getBridgeReconnectErrorCode(error);
+          if (reasonCode) {
+            if (reasonCode === 'invalid_pairing_token' || reasonCode === 'server_mismatch') {
+              upsertConnection({
+                ...record,
+                pairingToken: null,
+                lastUsedAt: Date.now(),
+              });
+            }
+            await openBridgeRepairFlow(record, reasonCode);
+            return;
+          }
+          throw error;
+        }
         nextTransport = bridge;
+      } else if (record.kind === 'cloud') {
+        const cloud = createCloudTransport(record);
+        await cloud.request({ method: 'GET', path: '/api/data' });
+        nextTransport = cloud;
       }
 
       if (nextTransport) {
@@ -954,6 +1383,14 @@ function App(): React.JSX.Element {
         setBackend(new RestAgentBackend({ transport: nextTransport }));
         setSelectedConnectionId(record.id);
         upsertConnection({ ...record, lastUsedAt: Date.now() });
+        appendDebugNote({
+          scope: 'app',
+          title: 'Connection activated',
+          detail: record.kind,
+          meta: {
+            connectionId: record.id,
+          },
+        });
       }
     } catch (error: any) {
       console.log('Failed to reconnect to saved connection', error);
@@ -972,10 +1409,6 @@ function App(): React.JSX.Element {
           {/** Determine active connection info for display components */}
           {/** This is derived once here and passed down rather than recomputed in children. */}
           {(() => {
-          const activeConnection =
-            selectedConnectionId != null
-              ? connections.find((c) => c.id === selectedConnectionId) || null
-              : null;
           const activeConnectionAdditionalInfo =
             activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
           const activeConnectionName = activeConnection != null ? activeConnection.name : null;
@@ -1014,6 +1447,8 @@ function App(): React.JSX.Element {
               onUpdateMessagesCache={updateMessagesCache}
               onSaveMessagesComposeText={saveMessagesComposeText}
               onSaveMessagesScrollAnchor={saveMessagesScrollAnchor}
+              debugTimeline={debugTimeline}
+              onAppendDebugTimelineEntry={appendDebugNote}
             />
           );
           })()}

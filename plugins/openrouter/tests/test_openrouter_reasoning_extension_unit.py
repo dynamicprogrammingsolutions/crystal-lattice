@@ -70,8 +70,9 @@ def test_initialize_request_when_disabled():
     ext = OpenRouterReasoningExtension()
     state = {"request": {"payload": {"model": "test"}}}
 
-    new_state = ext.initialize_request([], state)
+    native_messages, new_state = ext.initialize_request([], state)
 
+    assert native_messages == []
     assert new_state == state
 
 
@@ -87,8 +88,9 @@ def test_initialize_request_adds_reasoning_parameters():
 
     state = ext.init(config, state)
 
-    state = ext.initialize_request([], state)
+    native_messages, state = ext.initialize_request([], state)
 
+    assert native_messages == []
     request_options = state["config"]["request_options"]
     assert request_options["reasoning"]["effort"] == "high"
     assert request_options["reasoning"]["enabled"] is True
@@ -104,8 +106,9 @@ def test_initialize_request_without_effort():
 
     state = ext.init(config, state)
 
-    state = ext.initialize_request([], state)
+    native_messages, state = ext.initialize_request([], state)
 
+    assert native_messages == []
     request_options = state["config"]["request_options"]
     assert "effort" not in request_options["reasoning"]
     assert request_options["reasoning"]["enabled"] is True
@@ -537,12 +540,15 @@ class _DummyResponse:
     def json(self):
         return self._obj
 
+    def close(self):
+        return None
+
 
 def test_reasoning_details_round_trip_non_streaming(monkeypatch):
     """End-to-end: reasoning_details from first turn appear in next payload."""
     calls = []
 
-    def fake_post(url, json=None, headers=None, timeout=None, stream=False):
+    def fake_post(self, url, json=None, headers=None, timeout=None, stream=False):
         call_index = len(calls)
         calls.append(json)
         if call_index == 0:
@@ -572,7 +578,10 @@ def test_reasoning_details_round_trip_non_streaming(monkeypatch):
             }
         return _DummyResponse(response_obj)
 
-    monkeypatch.setattr("openrouter_plugins.openrouter_provider.requests.post", fake_post)
+    monkeypatch.setattr(
+        "openrouter_plugins.openrouter_provider.requests.sessions.Session.post",
+        fake_post,
+    )
 
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])

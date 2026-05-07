@@ -1,0 +1,109 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CodeBuild builder for Crystal Lattice cloud orchestrator images.
+
+Parameters:
+  StackName:
+    Type: String
+  SourceBucket:
+    Type: String
+  SourceBundleKey:
+    Type: String
+  OrchestratorRepository:
+    Type: String
+  RuntimeRepository:
+    Type: String
+  TransferSshRepository:
+    Type: String
+  ImageTag:
+    Type: String
+  DockerPlatform:
+    Type: String
+    Default: linux/amd64
+
+Resources:
+  BuildLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/codebuild/${StackName}-cloud-orchestrator-builder
+      RetentionInDays: 7
+
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: codebuild.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: BuildImages
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub arn:${AWS::Partition}:s3:::${SourceBucket}/${SourceBundleKey}
+              - Effect: Allow
+                Action: ecr:GetAuthorizationToken
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:BatchCheckLayerAvailability
+                  - ecr:CompleteLayerUpload
+                  - ecr:InitiateLayerUpload
+                  - ecr:PutImage
+                  - ecr:UploadLayerPart
+                Resource:
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${OrchestratorRepository}
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${RuntimeRepository}
+                  - !Sub arn:${AWS::Partition}:ecr:${AWS::Region}:${AWS::AccountId}:repository/${TransferSshRepository}
+
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: !Sub ${StackName}-cloud-orchestrator-builder
+      ServiceRole: !GetAtt BuildRole.Arn
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: !Sub |
+          version: 0.2
+          phases:
+            pre_build:
+              commands:
+                - set -eux
+                - aws s3 cp s3://${SourceBucket}/${SourceBundleKey} /tmp/cloud-orchestrator-source.tar.gz --region ${AWS::Region}
+                - mkdir -p /workspace
+                - tar -xzf /tmp/cloud-orchestrator-source.tar.gz -C /workspace
+                - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+            build:
+              commands:
+                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RuntimeRepository}:${ImageTag} -f /workspace/cloud-orchestrator/runtime/python/Dockerfile /workspace
+                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${TransferSshRepository}:${ImageTag} /workspace/cloud-orchestrator/transfer/managed-ssh
+                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${OrchestratorRepository}:${ImageTag} /workspace/cloud-orchestrator
+            post_build:
+              commands:
+                - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RuntimeRepository}:${ImageTag}
+                - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${TransferSshRepository}:${ImageTag}
+                - docker push ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${OrchestratorRepository}:${ImageTag}
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/standard:7.0
+        PrivilegedMode: true
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+          GroupName: !Ref BuildLogs
+
+Outputs:
+  BuildProjectName:
+    Value: !Ref BuildProject

@@ -11,6 +11,19 @@ function hasOwn(obj: unknown, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(obj, key);
 }
 
+function looseEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return a === b;
+  if (typeof a === 'object' && typeof b === 'object') {
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
 function resolveDottedPath(obj: unknown, path: string): { found: boolean; value: unknown } {
   if (!obj || typeof obj !== 'object' || typeof path !== 'string' || !path) {
     return { found: false, value: undefined };
@@ -117,6 +130,11 @@ function resolveValue(params: {
   }
 
   if (baseHasValue) {
+    const matchesSchemaDefault = schemaHasDefault && looseEqual(baseValue, schemaDefaultValue);
+    const matchesUiDefault = uiHasDefault && looseEqual(baseValue, uiDefaultValue);
+    const tagLabel: SessionSettingTagLabel =
+      matchesSchemaDefault || matchesUiDefault ? 'default' : 'config';
+
     return {
       hasOverride,
       overrideValue,
@@ -124,12 +142,17 @@ function resolveValue(params: {
       baseValue,
       schemaDefaultValue,
       source: 'config',
-      tagLabel: 'config',
+      tagLabel,
       effectiveValue: baseValue,
     };
   }
 
   if (nestedBase.found) {
+    const matchesSchemaDefault = schemaHasDefault && looseEqual(nestedBase.value, schemaDefaultValue);
+    const matchesUiDefault = uiHasDefault && looseEqual(nestedBase.value, uiDefaultValue);
+    const tagLabel: SessionSettingTagLabel =
+      matchesSchemaDefault || matchesUiDefault ? 'default' : 'config';
+
     return {
       hasOverride,
       overrideValue,
@@ -137,7 +160,7 @@ function resolveValue(params: {
       baseValue: nestedBase.value,
       schemaDefaultValue,
       source: 'config',
-      tagLabel: 'config',
+      tagLabel,
       effectiveValue: nestedBase.value,
     };
   }
@@ -210,6 +233,7 @@ export function buildSessionSettingItems(params: {
           : key;
       const description =
         typeof (element as any).description === 'string' ? ((element as any).description as string) : '';
+      const disabled = Boolean((element as any).disabled);
 
       const resolved = resolveValue({ element, key, overrides, baseConfig, schemaByKey });
       return {
@@ -218,6 +242,7 @@ export function buildSessionSettingItems(params: {
         element,
         label,
         description,
+        disabled,
         hasOverride: resolved.hasOverride,
         effectiveValue: resolved.effectiveValue,
         source: resolved.source,

@@ -39,7 +39,9 @@ def test_init_when_set_adds_state():
 def test_initialize_request_is_noop_when_missing_config():
     ext = OpenRouterVerbosityExtension()
     state = {"request": {"payload": {"model": "openai/gpt-5"}}}
-    assert ext.initialize_request([], state) == state
+    native_messages, new_state = ext.initialize_request([], state)
+    assert native_messages == []
+    assert new_state == state
 
 
 def test_initialize_request_injects_verbosity_for_gpt5():
@@ -50,7 +52,8 @@ def test_initialize_request_injects_verbosity_for_gpt5():
         "request": {"payload": {"model": "openai/gpt-5"}},
     }
     state = ext.init(config, state)
-    new_state = ext.initialize_request([], state)
+    native_messages, new_state = ext.initialize_request([], state)
+    assert native_messages == []
     assert new_state["config"]["request_options"]["verbosity"] == "low"
 
 
@@ -62,5 +65,6 @@ def test_initialize_request_stages_verbosity_in_request_options():
         "request": {"payload": {"model": "openai/gpt-4o"}},
     }
     state = ext.init(config, state)
-    new_state = ext.initialize_request([], state)
+    native_messages, new_state = ext.initialize_request([], state)
+    assert native_messages == []
     assert "verbosity" in new_state["config"]["request_options"]

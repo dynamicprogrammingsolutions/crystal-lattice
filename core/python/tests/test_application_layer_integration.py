@@ -44,6 +44,7 @@ from agent_core.utils import get_logger
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+pytestmark = pytest.mark.integration
 
 logger = get_logger("test")
 
@@ -57,7 +58,9 @@ _SYSTEM_MESSAGE = (
 
 
 def _user_message(file_path: str) -> str:
-    return f"Use the tool to read this file and tell me its content exactly: {file_path}"
+    return (
+        f"Use the tool to read this file and tell me its content exactly: {file_path}"
+    )
 
 
 def _which(cmd: str) -> Optional[str]:
@@ -65,7 +68,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: List[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -144,7 +149,9 @@ def _collect_events(
 
     logger.info("start send_request", extra={"stream": stream})
 
-    for ev in app.send_request(core, session, base_config, overrides or {}, stream=stream):
+    for ev in app.send_request(
+        core, session, base_config, overrides or {}, stream=stream
+    ):
         events.append(ev)
         if print_stream:
             if ev["type"] == "partial":
@@ -209,7 +216,9 @@ def test_application_layer_ollama_file_reader_non_streaming(
         print("  - system:", _SYSTEM_MESSAGE)
         print(f"  - user: {_user_message(file_path)}")
 
-        events = _collect_events(app, session_id, stream=False, overrides=None, print_stream=True)
+        events = _collect_events(
+            app, session_id, stream=False, overrides=None, print_stream=True
+        )
 
         # First assistant response should contain a single read_file tool call.
         final_events = [ev for ev in events if ev["type"] == "final"]
@@ -222,7 +231,9 @@ def test_application_layer_ollama_file_reader_non_streaming(
         md1 = assistant1.get("metadata") or {}
         tool_calls = md1.get("tool_calls") or []
         print("\n<== Assistant proposed tool call (non-streaming via app):")
-        assert len(tool_calls) == 1, f"expected a single tool call, got {len(tool_calls)}"
+        assert (
+            len(tool_calls) == 1
+        ), f"expected a single tool call, got {len(tool_calls)}"
         tc = tool_calls[0]
         fn_info = tc.get("function") or {}
         print(f"  [0] {fn_info.get('name')} args={fn_info.get('arguments')}")
@@ -302,7 +313,9 @@ def test_application_layer_ollama_file_reader_non_streaming_checkpoints(
         session = core.add_message(session, "user", _user_message(file_path))
         app.save_session(session)
 
-        events = _collect_events(app, session_id, stream=False, overrides=None, print_stream=False)
+        events = _collect_events(
+            app, session_id, stream=False, overrides=None, print_stream=False
+        )
 
         checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
         # One checkpoint after the first LLM phase, one after the tool
@@ -353,11 +366,19 @@ def test_application_layer_ollama_file_reader_streaming(
         print("  - system:", _SYSTEM_MESSAGE)
         print(f"  - user: {_user_message(file_path)}")
 
-        events = _collect_events(app, session_id, stream=True, overrides=None, print_stream=True)
+        events = _collect_events(
+            app, session_id, stream=True, overrides=None, print_stream=True
+        )
 
-        assert any(ev["type"] == "partial" for ev in events), "expected partial events in streaming mode"  # noqa: E501
-        assert any(ev["type"] == "final" for ev in events), "expected final events in streaming mode"  # noqa: E501
-        assert any(ev["type"] == "request_completed" for ev in events), "expected request_completed event"  # noqa: E501
+        assert any(
+            ev["type"] == "partial" for ev in events
+        ), "expected partial events in streaming mode"  # noqa: E501
+        assert any(
+            ev["type"] == "final" for ev in events
+        ), "expected final events in streaming mode"  # noqa: E501
+        assert any(
+            ev["type"] == "request_completed" for ev in events
+        ), "expected request_completed event"  # noqa: E501
 
         # First assistant response (first final event) should contain a single
         # read_file tool call, matching the non-streaming behaviour.
@@ -371,7 +392,9 @@ def test_application_layer_ollama_file_reader_streaming(
         md1 = assistant1.get("metadata") or {}
         tool_calls = md1.get("tool_calls") or []
         print("\n<== Assistant proposed tool call (streaming via app):")
-        assert len(tool_calls) == 1, f"expected a single tool call, got {len(tool_calls)}"
+        assert (
+            len(tool_calls) == 1
+        ), f"expected a single tool call, got {len(tool_calls)}"
         tc = tool_calls[0]
         fn_info = tc.get("function") or {}
         print(f"  [0] {fn_info.get('name')} args={fn_info.get('arguments')}")
@@ -452,7 +475,9 @@ def test_application_layer_ollama_file_reader_streaming_checkpoints(
         session = core.add_message(session, "user", _user_message(file_path))
         app.save_session(session)
 
-        events = _collect_events(app, session_id, stream=True, overrides=None, print_stream=False)
+        events = _collect_events(
+            app, session_id, stream=True, overrides=None, print_stream=False
+        )
 
         checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
         # Same tool loop structure as non-streaming: two LLM phases plus

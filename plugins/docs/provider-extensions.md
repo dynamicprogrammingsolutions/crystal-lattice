@@ -17,6 +17,10 @@ Reference implementations:
 - Tools: `core/python/plugins/openai_tools_extension.py`
 - Reasoning/thinking: `core/python/plugins/ollama_thinking_extension.py`
 
+See also:
+
+- [Tool interop flow](tool-interop.md)
+
 ---
 
 ## What extensions are for
@@ -85,7 +89,8 @@ Apps and the application-layer tool loop rely on these keys on **core messages**
 
 Assistant messages:
 
-- `metadata["tool_calls"]`: list of tool calls (OpenAI-style is recommended)
+- `metadata["tool_calls"]`: list of tool calls in any format supported by the
+  active tool interop accessors
 - `metadata["reasoning"]`: reasoning/thinking text (optional)
 - `metadata["reasoning_details"]`: provider-native detail blocks (optional; may be large)
 
@@ -97,7 +102,18 @@ Tool messages:
 
 ### Tool call shape
 
-The tool loop accepts multiple shapes, but OpenAI-style tool calls are the best-supported across UIs:
+The generic tool loop no longer assumes a single canonical tool-call shape.
+Core inspects tool calls via the active tool interop registry and extracts a
+semantic view consisting of:
+
+- tool name, when available
+- tool call id, when available
+- final payload value
+- payload kind (for example `object` or `text`)
+- optional payload format and metadata
+
+OpenAI-style chat-completions function calls remain a common and well-supported
+shape:
 
 ```python
 tool_calls = [
@@ -109,11 +125,116 @@ tool_calls = [
 ]
 ```
 
-`AgentCore.execute_tool_calls(...)` also accepts the simplified form:
+Responses-native custom/freeform calls are also valid when the active accessors
+support them:
 
 ```python
-tool_calls = [{"id": "call_1", "name": "read_file", "arguments": {"file_path": "README.md"}}]
+tool_calls = [
+    {
+        "type": "custom_tool_call",
+        "call_id": "call_patch_1",
+        "name": "apply_patch",
+        "input": "*** Begin Patch\n*** End Patch",
+    }
+]
 ```
+
+Provider/extension authors should preserve whichever tool-call shape they
+actually receive or emit rather than forcing everything into OpenAI chat format
+unless a concrete target API requires that conversion.
+
+### Tool call sanitization
+
+When LLMs return corrupted JSON in tool call `arguments` fields, the corrupted
+data can be stored in history and cause subsequent API calls to fail. The tool
+interop system provides sanitization to prevent this.
+
+#### `ToolCallAccessor.sanitize_call(call)`
+
+Each accessor implements `sanitize_call(call: JsonObject) -> JsonObject` that
+returns a sanitized copy of the tool call with valid arguments:
+
+```python
+class OpenAIChatToolCallAccessor:
+    def sanitize_call(self, call: JsonObject) -> JsonObject:
+        """Return a sanitized copy with valid JSON arguments.
+        
+        If arguments contain invalid JSON, returns a copy with
+        arguments set to "{}". Otherwise returns the call unchanged.
+        """
+        fn = call.get("function")
+        if not isinstance(fn, dict):
+            return call
+        arguments = fn.get("arguments")
+        if isinstance(arguments, str):
+            try:
+                json.loads(arguments)
+            except (json.JSONDecodeError, Exception):
+                return {
+                    **call,
+                    "function": {**fn, "arguments": "{}"},
+                }
+        return call
+```
+
+For custom tool calls with text payloads (not JSON), `sanitize_call` returns
+the call unchanged:
+
+```python
+class OpenAIResponsesCustomToolCallAccessor:
+    def sanitize_call(self, call: JsonObject) -> JsonObject:
+        # Text payload, no JSON sanitization needed
+        return call
+```
+
+#### `ToolInteropRegistry.sanitize_tool_call(call)`
+
+The registry provides a convenience method that delegates to the appropriate
+accessor:
+
+```python
+sanitized_call = registry.sanitize_tool_call(corrupted_call)
+```
+
+If the call format is not recognized, the call is returned unchanged.
+
+#### When to sanitize
+
+Provider extensions should sanitize tool calls in their `finalize` method
+before they are stored in history:
+
+```python
+from agent_core.tool_interop import get_registry_from_context
+
+
+class OpenAICompatibleToolsExtension(ProviderExtensionPlugin):
+    # ... other methods ...
+
+    def finalize(
+        self,
+        final_messages: list[dict[str, Any]],
+        native_messages: list[dict[str, Any]],
+        state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+        """Sanitize tool_calls before storing in history."""
+        partial = state.get("partial")
+        if isinstance(partial, dict):
+            tool_calls = partial.get("tool_calls")
+            if isinstance(tool_calls, list):
+                registry = get_registry_from_context(context)
+                sanitized_calls = [
+                    registry.sanitize_tool_call(tc)
+                    for tc in tool_calls
+                    if isinstance(tc, dict)
+                ]
+                partial["tool_calls"] = sanitized_calls
+        return final_messages, native_messages, state
+```
+
+This ensures that corrupted JSON arguments are replaced with valid empty JSON
+objects (`"{}"`) before being stored in native history and sent back to the API.
 
 ---
 
@@ -369,6 +490,18 @@ class OpenAICompatibleToolsExtension(AccumulatorExtensionMixin, ProviderExtensio
             out.append({**msg, "metadata": md})
         return out
 ```
+
+For providers that accept multiple tool schema formats, prefer using the active
+tool interop runtime context plus the provider / extension
+`accepted_tool_schema_formats(...)` hooks rather than hardcoding one source
+schema format. In `initialize_request(...)`, use
+`context["tool_interop"]["registry"]` and
+`context["tool_interop"]["schema_target_formats"]` so core-owned, request-specific
+interop contributions are respected. That allows:
+
+- already-native schemas to pass through unchanged
+- explicit adapters to be additive rather than exclusive
+- custom/freeform tool schemas to coexist with legacy function schemas
 
 ---
 

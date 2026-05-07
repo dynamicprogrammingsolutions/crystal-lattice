@@ -6,6 +6,7 @@ belong in the transport-focused provider implementation.
 
 from __future__ import annotations
 
+import base64
 from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
@@ -24,6 +25,7 @@ _SESSION_ASSETS_METADATA_KEY = "session_assets"
 _UPLOAD_BEFORE_SEND_MODE = "upload_before_send"
 _STORE_ATTACHMENT_ACTION_ID = "store_attachment"
 _DELETE_ATTACHMENT_ACTION_ID = "delete_attachment"
+_DOWNLOAD_ATTACHMENT_ACTION_ID = "download_attachment"
 
 
 class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
@@ -105,16 +107,22 @@ class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
         self,
         messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
+        state: Optional[Dict[str, Any]] = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        _ = messages
+        _ = messages, state, context
         return list(native_messages)
 
     def from_native_messages(
         self,
         native_messages: List[Dict[str, Any]],
         messages: List[Dict[str, Any]],
+        state: Optional[Dict[str, Any]] = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        _ = native_messages
+        _ = native_messages, state, context
         return list(messages)
 
     def initialize_request(
@@ -161,6 +169,14 @@ class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
                     "asset_id": {"type": "string", "required": True},
                 },
             },
+            {
+                "id": _DOWNLOAD_ATTACHMENT_ACTION_ID,
+                "label": "Download attachment",
+                "description": "Download a stored session-owned attachment asset.",
+                "inputs": {
+                    "asset_id": {"type": "string", "required": True},
+                },
+            },
         ]
 
     def execute_action(
@@ -177,6 +193,8 @@ class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
             return self._store_attachment_action(session, native_messages, params, context)
         if action_id == _DELETE_ATTACHMENT_ACTION_ID:
             return self._delete_attachment_action(session, native_messages, params, context)
+        if action_id == _DOWNLOAD_ATTACHMENT_ACTION_ID:
+            return self._download_attachment_action(session, native_messages, params, context)
         raise ValueError(f"Unknown action_id {action_id!r}")
 
     def _attachment_asset_store(self, context: Optional[Dict[str, Any]]) -> Any:
@@ -278,4 +296,25 @@ class OpenAIResponsesAttachmentsExtension(ProviderExtensionPlugin):
             "session_metadata": {_SESSION_ASSETS_METADATA_KEY: asset_index},
             "deleted_attachment_asset": deleted_record.public_descriptor(),
             "message": f"Deleted attachment {asset_id}",
+        }
+
+    def _download_attachment_action(
+        self,
+        session: Any,
+        native_messages: List[Dict[str, Any]],
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        asset_store = self._attachment_asset_store(context)
+        asset_id = params.get("asset_id")
+        if not isinstance(asset_id, str) or not asset_id:
+            raise ValueError("asset_id must be a non-empty string")
+
+        record = asset_store.load(session.session_id, asset_id)
+        payload = asset_store.load_bytes(session.session_id, asset_id)
+        return {
+            "native_messages": list(native_messages),
+            "attachment_asset": record.public_descriptor(),
+            "data_base64": base64.b64encode(payload).decode("ascii"),
+            "message": f"Downloaded attachment {asset_id}",
         }

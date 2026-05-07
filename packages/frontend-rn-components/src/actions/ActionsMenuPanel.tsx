@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import {
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -41,64 +42,108 @@ export function ActionsMenuPanel<TDef extends ActionDefinition>(
   props: ActionsMenuPanelProps<TDef>,
 ): React.JSX.Element {
   const theme = useTheme();
-  const borderStyle = useMemo(() => ({ borderBottomColor: theme.border }), [theme.border]);
+  const themedStyles = useMemo(
+    () => ({
+      root: {
+        backgroundColor: theme.surface,
+      },
+      headerRow: {
+        borderBottomColor: theme.border,
+      },
+      titleText: {
+        color: theme.text,
+        fontSize: theme.typography.fontSize.title,
+      },
+      closeButtonText: {
+        color: theme.primary,
+        fontSize: theme.typography.fontSize.normal,
+      },
+    }),
+    [
+      theme.border,
+      theme.primary,
+      theme.surface,
+      theme.text,
+      theme.typography.fontSize.normal,
+      theme.typography.fontSize.title,
+    ],
+  );
 
   return (
-    <View style={props.style}>
-      <View style={[styles.header, borderStyle]}>
-        <Text style={[styles.headerText, { color: theme.text }]}>{props.title}</Text>
+    <View style={[styles.root, themedStyles.root, props.style]}>
+      <View style={[styles.headerRow, themedStyles.headerRow]}>
+        <Text style={[styles.titleText, themedStyles.titleText]}>{props.title}</Text>
         {props.onRequestClose ? (
           <TouchableOpacity style={styles.closeButton} onPress={props.onRequestClose}>
             {props.renderCloseIcon ? (
               props.renderCloseIcon({
                 size: 16,
-                color: theme.textSecondary,
+                color: theme.primary,
                 renderIcon: props.renderIcon,
               })
             ) : (
-              <Text style={[styles.closeText, { color: theme.textSecondary }]}>×</Text>
+              <Text style={[styles.closeButtonText, themedStyles.closeButtonText]}>Close</Text>
             )}
           </TouchableOpacity>
         ) : null}
       </View>
-      <ActionsMenuContent
-        actions={props.actions}
-        pinnedKeys={props.pinnedKeys}
-        onAction={props.onAction}
-        onTogglePinned={props.onTogglePinned}
-        isActionDisabled={props.isActionDisabled}
-        getIconName={props.getIconName}
-        renderIcon={props.renderIcon}
-        renderPinIcon={props.renderPinIcon}
-        iconSize={props.iconSize}
-        pinIconSize={props.pinIconSize}
-        renderItem={props.renderItem}
-      />
+      <View style={styles.body}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          <ActionsMenuContent
+            actions={props.actions}
+            pinnedKeys={props.pinnedKeys}
+            onAction={props.onAction}
+            onTogglePinned={props.onTogglePinned}
+            isActionDisabled={props.isActionDisabled}
+            getIconName={props.getIconName}
+            renderIcon={props.renderIcon}
+            renderPinIcon={props.renderPinIcon}
+            iconSize={props.iconSize}
+            pinIconSize={props.pinIconSize}
+            renderItem={props.renderItem}
+          />
+        </ScrollView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: {
+  root: {
+    width: '100%',
+    borderRadius: 12,
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    marginBottom: 4,
   },
-  headerText: {
-    fontSize: 14,
+  titleText: {
     fontWeight: '600',
   },
-  closeButton: {
-    paddingHorizontal: 4,
-    paddingVertical: 4,
+  body: {
+    flexGrow: 0,
+    flexShrink: 1,
   },
-  closeText: {
-    fontSize: 18,
-    fontWeight: '800',
-    marginTop: -2,
+  scroll: {
+    flexGrow: 0,
+    flexShrink: 1,
+  },
+  scrollContent: {
+    paddingVertical: 8,
+  },
+  closeButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  closeButtonText: {
+    fontWeight: '600',
   },
 });

@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -23,10 +24,13 @@ import {
   type ActionKey,
 } from '@crystal-lattice/frontend-rn-components';
 import type {
+  ActionDisplayFollowupAction,
   ActionUiElement,
+  ActionDisplayPayload,
   AgentBackend,
   ApiMessage,
   IndexedMessage,
+  RunActionContext,
   SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
 import {
@@ -37,6 +41,7 @@ import {
   groupSessionListFields,
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
+  normalizeActionDisplayForSurface,
   runApplicationAction,
   selectSessionAssetId,
   selectDisplayContent,
@@ -53,6 +58,7 @@ import {
   useSessionUiSchemaController,
   useSessionApplicationUiSchemaController,
 } from '@crystal-lattice/frontend-sdk-react';
+import { MacTextView, type MacTextViewHandle } from '@crystal-lattice/react-native-mac-text-view';
 
 import type { MessagesCacheEntry } from '../cache/types';
 import type { TabStripStyle } from '../tabs/tabStripStyle';
@@ -62,13 +68,14 @@ import { truncateByChars } from '../utils/text';
 import { DependencyFlatList } from '../ui/DependencyFlatList';
 import { DependencyVirtualizedScroll } from '../ui/DependencyVirtualizedScroll';
 import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
+import { ActionResultModal } from '../ui/ActionResultModal';
+import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { closeDesktopPopover, openDesktopPopover } from '../windows/desktopPopoverCoordinator';
 import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverContent';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
 import { setActiveSessionPluginsWindow } from '../windows/sessionPluginsCoordinator';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
-import { MacTextView, type MacTextViewHandle } from '../native/MacTextView';
 import { pickMacAttachment } from '../native/MacAttachmentPicker';
 import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
 import {
@@ -124,6 +131,7 @@ type ComposerAttachmentUiElement = {
   plugin?: string;
   attachment_type?: string;
   supported_file_types?: string[];
+  supports_upload?: boolean;
   supports_url?: boolean;
   display_placement?: 'above' | 'below' | string;
   label?: string;
@@ -153,6 +161,36 @@ type AttachmentBackgroundOperation =
 type PluginActionContext =
   | { kind: 'session'; sessionSummary: SessionSummary | null }
   | { kind: 'message'; index: number; message: ApiMessage; sessionSummary: SessionSummary | null };
+
+type ActionDisplayEntry = {
+  key: string;
+  display: ActionDisplayPayload;
+  context: RunActionContext;
+};
+
+function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
+  const key =
+    typeof display.display_id === 'string' && display.display_id
+      ? display.display_id
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return { key, display, context };
+}
+
+function upsertInlineDisplay(
+  current: ActionDisplayEntry[],
+  nextEntry: ActionDisplayEntry,
+): ActionDisplayEntry[] {
+  const displayId = nextEntry.display.display_id;
+  if (typeof displayId === 'string' && displayId) {
+    const existingIndex = current.findIndex((entry) => entry.display.display_id === displayId);
+    if (existingIndex >= 0) {
+      const updated = current.slice();
+      updated[existingIndex] = nextEntry;
+      return updated;
+    }
+  }
+  return [...current, nextEntry];
+}
 
 const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
   { key: 'reload', label: 'Reload', iconName: 'refresh-ccw' },
@@ -241,6 +279,9 @@ export const ChatPane = React.memo(function ChatPane({
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
+  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
+  const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
+  const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
   const [attachmentBackgroundOperation, setAttachmentBackgroundOperation] =
     useState<AttachmentBackgroundOperation>(null);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
@@ -488,11 +529,14 @@ export const ChatPane = React.memo(function ChatPane({
           ? String((el as any).icon)
           : 'paperclip';
 
-      rows.push({
-        id: `${baseKey}:file`,
-        label: `Select ${label}…`,
-        iconName,
-      });
+      const supportsUpload = Boolean((el as any).supports_upload ?? true);
+      if (supportsUpload) {
+        rows.push({
+          id: `${baseKey}:file`,
+          label: `Select ${label}…`,
+          iconName,
+        });
+      }
 
       const supportsUrl = Boolean((el as any).supports_url ?? true);
       if (supportsUrl) {
@@ -864,7 +908,12 @@ export const ChatPane = React.memo(function ChatPane({
   }, []);
 
   const deleteStoredAttachmentAsset = useCallback(
-    async (assetId: string, filename?: string, suppressAlert = false) => {
+    async (
+      assetId: string,
+      filename?: string,
+      suppressAlert = false,
+      pluginId?: string | null,
+    ) => {
       if (!backend) {
         return false;
       }
@@ -877,6 +926,7 @@ export const ChatPane = React.memo(function ChatPane({
           backend,
           sessionId,
           assetId,
+          pluginId: typeof pluginId === 'string' && pluginId.trim() ? pluginId.trim() : undefined,
         });
       } catch (err: any) {
         if (!suppressAlert) {
@@ -1067,6 +1117,9 @@ export const ChatPane = React.memo(function ChatPane({
                 params.pendingAssetId,
                 (params.content as any)?.filename,
                 false,
+                typeof (params.element as any).plugin === 'string'
+                  ? String((params.element as any).plugin)
+                  : undefined,
               )
                 .then((deleted) => {
                   if (deleted && params.draftId) {
@@ -1178,6 +1231,11 @@ export const ChatPane = React.memo(function ChatPane({
           filename: params.filename,
           mimeType: params.mimeType,
           dataBase64: params.dataBase64,
+          pluginId:
+            typeof (params.element as any).plugin === 'string' &&
+            String((params.element as any).plugin).trim()
+              ? String((params.element as any).plugin).trim()
+              : undefined,
         });
 
         beginAddDraftAttachment({
@@ -1654,7 +1712,12 @@ export const ChatPane = React.memo(function ChatPane({
         status: 'deleting',
         errorMessage: null,
       }));
-      const deleted = await deleteStoredAttachmentAsset(assetId, draft?.content?.filename, false);
+      const deleted = await deleteStoredAttachmentAsset(
+        assetId,
+        draft?.content?.filename,
+        false,
+        draft?.plugin,
+      );
       if (deleted) {
         if (placement === 'above') {
           setAttachmentsAbove(update);
@@ -1718,6 +1781,126 @@ export const ChatPane = React.memo(function ChatPane({
       setReloadInFlight(false);
     }
   }, [canRunHeaderActions, chatController, rangeEndText, rangeStartText, reloadInFlight]);
+
+  const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
+    const nextEntry = createDisplayEntry(display, context);
+    const presentation = display.presentation ?? 'modal';
+    if (presentation === 'inline' || presentation === 'banner') {
+      setActionResultDisplay(null);
+      setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
+      return;
+    }
+    setActionResultDisplay(nextEntry);
+  }, []);
+
+  const executePluginAction = useCallback(
+    async (element: ActionUiElement, context: RunActionContext) => {
+      if (!backend) {
+        Alert.alert('Offline', 'Connect to a server to run actions.');
+        return;
+      }
+
+      setPluginActionRunning(true);
+      try {
+        const { ok, effects, display, errorMessage } = await runApplicationAction({
+          backend,
+          element,
+          actionsById,
+          context,
+          effects: {
+            currentSessionId: sessionId,
+            navigateOnCreatedSession: true,
+            reloadSessionsListOnMutations: true,
+          },
+        });
+
+        if (!ok) {
+          Alert.alert('Action error', errorMessage || 'Failed to execute action');
+          return;
+        }
+
+        if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
+          desktopEventBus.publish('sessionsReloadRequested', {
+            connectionId,
+            reason: `action:${element.id}`,
+          });
+        }
+
+        if (effects.some((effect) => effect.type === 'reloadSession')) {
+          await handleReload();
+        }
+
+        const navigateEffect = effects.find((effect) => effect.type === 'navigateToSession');
+        if (navigateEffect && onOpenSessionTab) {
+          onOpenSessionTab({
+            connectionId,
+            sessionId: navigateEffect.sessionId,
+            title: navigateEffect.sessionId,
+          });
+        }
+        const normalizedDisplay = normalizeActionDisplayForSurface({
+          display,
+          surface: 'session_action',
+          host: 'desktop',
+        });
+        if (normalizedDisplay) {
+          presentActionDisplay(normalizedDisplay, context);
+        }
+      } finally {
+        setPluginActionRunning(false);
+      }
+    },
+    [
+      actionsById,
+      backend,
+      connectionId,
+      handleReload,
+      onOpenSessionTab,
+      presentActionDisplay,
+      sessionId,
+    ],
+  );
+
+  const handleDisplayFollowupAction = useCallback(
+    async (entry: ActionDisplayEntry, action: ActionDisplayFollowupAction) => {
+      if (action.kind === 'open_url') {
+        try {
+          await Linking.openURL(action.url);
+        } catch (err: any) {
+          Alert.alert('Open link failed', err?.message || 'Unable to open the link.');
+        }
+        return;
+      }
+      if (action.kind === 'copy_text') {
+        Clipboard.setString(action.text);
+        Alert.alert('Copied', 'Copied to clipboard.');
+        return;
+      }
+      if (action.kind === 'run_action') {
+        if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
+          setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
+        }
+        setActiveDisplayActionId(action.id);
+        try {
+          await executePluginAction(
+            {
+              ui_type: 'action_result_followup',
+              plugin: action.plugin,
+              id: action.id,
+              label: action.label,
+              action_id: action.action_id,
+              action_owner: action.action_owner,
+              fixed_params: action.fixed_params as Record<string, any> | undefined,
+            },
+            entry.context,
+          );
+        } finally {
+          setActiveDisplayActionId(null);
+        }
+      }
+    },
+    [executePluginAction],
+  );
 
   const applyMessageLimitAndReload = useCallback(
     async (params: { startText: string; endText: string }) => {
@@ -1830,62 +2013,17 @@ export const ChatPane = React.memo(function ChatPane({
         context: PluginActionContext,
         dialogValues: Record<string, any> | undefined,
       ) => {
-        if (!backend) {
-          Alert.alert('Offline', 'Connect to a server to run actions.');
-          return;
-        }
-
-        setPluginActionRunning(true);
-        try {
-          const isMessage = context.kind === 'message';
-          const { ok, effects, errorMessage } = await runApplicationAction({
-            backend,
-            element,
-            actionsById,
-            context: {
-              sessionId,
-              sessionSummary: context.sessionSummary ?? undefined,
-              messageContext: isMessage
-                ? { index: context.index, message: context.message }
-                : undefined,
-              dialogValues,
-            },
-            effects: {
-              currentSessionId: sessionId,
-              navigateOnCreatedSession: true,
-              reloadSessionsListOnMutations: true,
-            },
-          });
-
-          if (!ok) {
-            Alert.alert('Action error', errorMessage || 'Failed to execute action');
-            return;
-          }
-
-          if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
-            desktopEventBus.publish('sessionsReloadRequested', {
-              connectionId,
-              reason: `action:${element.id}`,
-            });
-          }
-
-          if (effects.some((effect) => effect.type === 'reloadSession')) {
-            await handleReload();
-          }
-
-          const navigateEffect = effects.find((effect) => effect.type === 'navigateToSession');
-          if (navigateEffect && onOpenSessionTab) {
-            onOpenSessionTab({
-              connectionId,
-              sessionId: navigateEffect.sessionId,
-              title: navigateEffect.sessionId,
-            });
-          }
-        } finally {
-          setPluginActionRunning(false);
-        }
+        const isMessage = context.kind === 'message';
+        await executePluginAction(element, {
+          sessionId,
+          sessionSummary: context.sessionSummary ?? undefined,
+          messageContext: isMessage
+            ? { index: context.index, message: context.message }
+            : undefined,
+          dialogValues,
+        });
       },
-      [actionsById, backend, connectionId, handleReload, onOpenSessionTab, sessionId],
+      [executePluginAction, sessionId],
     ),
   );
 
@@ -2129,28 +2267,47 @@ export const ChatPane = React.memo(function ChatPane({
   );
 
   const streamingFooter = useMemo(() => {
-    if (!streamingRow || (!streamingRow.content && !streamingRow.reasoning)) {
+    const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
+    const hasInlineDisplays = inlineActionDisplays.length > 0;
+    if (!hasStreaming && !hasInlineDisplays) {
       return null;
     }
 
-    const streamingIndex = messages.length > 0 ? messages[messages.length - 1].index + 1 : 0;
     return (
-      <DesktopMessageBubble
-        index={streamingIndex}
-        message={{
-          role: 'assistant',
-          content: streamingRow.content,
-          metadata: {
-            ...(streamingRow.metadata || {}),
-            reasoning: streamingRow.reasoning,
-          },
-        }}
-        renderMode="markdown"
-        footerElements={footerElements}
-      />
+      <View>
+        {hasStreaming ? (
+          <DesktopMessageBubble
+            index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
+            message={{
+              role: 'assistant',
+              content: streamingRow?.content,
+              metadata: {
+                ...(streamingRow?.metadata || {}),
+                reasoning: streamingRow?.reasoning,
+              },
+            }}
+            renderMode="markdown"
+            footerElements={footerElements}
+          />
+        ) : null}
+        {inlineActionDisplays.map((entry) => (
+          <ActionResultInlineCard
+            key={entry.key}
+            display={entry.display}
+            activeActionId={activeDisplayActionId}
+            onDismiss={() =>
+              setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
+            }
+            onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
+          />
+        ))}
+      </View>
     );
   }, [
+    activeDisplayActionId,
     footerElements,
+    handleDisplayFollowupAction,
+    inlineActionDisplays,
     messages,
     streamingRow,
   ]);
@@ -2198,6 +2355,16 @@ export const ChatPane = React.memo(function ChatPane({
 
   return (
 	  <View style={styles.root}>
+      <ActionResultModal
+        visible={!!actionResultDisplay}
+        display={actionResultDisplay?.display ?? null}
+        activeActionId={activeDisplayActionId}
+        onRequestClose={() => setActionResultDisplay(null)}
+        onFollowupAction={(action) => {
+          if (!actionResultDisplay) return;
+          handleDisplayFollowupAction(actionResultDisplay, action);
+        }}
+      />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title} numberOfLines={2}>

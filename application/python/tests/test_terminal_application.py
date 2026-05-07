@@ -36,7 +36,9 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(echo_config), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(echo_config), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(echo_config),
         session_root=str(session_root),
@@ -48,7 +50,9 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
 
     # 1) Create a new active session and add a system message.
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content=system_message, metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content=system_message, metadata=None
+    )
     session_id = session.session_id
 
     # 2) Add a user message to the active session.
@@ -79,6 +83,46 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "session_created" in kinds
     assert "message_appended" in kinds
     assert "request_started" in kinds or "final" in kinds
+
+
+def test_terminal_started_request_clears_active_request_id_for_http_snapshots(
+    tmp_path: Path,
+) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import server as server_mod
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    echo_config = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(
+        str(echo_config), str(session_root), event_store=events
+    )
+    term_app = term_mod.TerminalApplication(
+        config_path=str(echo_config),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    term_app.add_message(
+        session.session_id,
+        role="system",
+        content="You are a helpful echo assistant.",
+        metadata=None,
+    )
+    term_app.append_user_message("hello from a terminal-started request")
+
+    term_app.send_request(stream=True)
+
+    snapshot = server_mod.list_session_messages(
+        session.session_id, app_instance=agent_app
+    )
+    assert snapshot["cursor_event_id"] is not None
+    assert snapshot["active_request_id"] is None
 
 
 def _collect_completion_texts(completer, text: str) -> set[str]:
@@ -216,7 +260,9 @@ def test_switch_session_agent_application_logic(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -245,7 +291,9 @@ def test_switch_session_agent_application_logic(tmp_path: Path) -> None:
     assert persisted_session.metadata.get("agent_id") == target
 
 
-def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_set_overrides_and_send_request_uses_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
     from agent_terminal_app import terminal as term_mod
@@ -255,7 +303,9 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -272,7 +322,17 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
     # Patch AgentApplication.send_request to capture overrides passed in.
     captured: dict = {}
 
-    def _fake_send_request(self, core, session_obj, base_cfg, overrides_arg, *, stream=False, request_id=None):  # type: ignore[override]
+    def _fake_send_request(
+        self,
+        core,
+        session_obj,
+        base_cfg,
+        overrides_arg,
+        *,
+        stream=False,
+        request_id=None,
+        baseline_file_state=None,
+    ):  # type: ignore[override]
         captured["overrides"] = overrides_arg
         # Emit a session_checkpoint carrying a live Session (internal event)
         # plus a public final event without embedding a serialized session.
@@ -290,7 +350,9 @@ def test_set_overrides_and_send_request_uses_them(tmp_path: Path, monkeypatch: p
             "messages": [],
         }
 
-    monkeypatch.setattr(AgentApplication, "send_request", _fake_send_request, raising=True)
+    monkeypatch.setattr(
+        AgentApplication, "send_request", _fake_send_request, raising=True
+    )
 
     # Invoke TerminalApplication.send_request; it should
     # pull overrides from session.metadata["overrides"].
@@ -312,7 +374,9 @@ def test_delete_messages_by_index_and_range(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -321,7 +385,9 @@ def test_delete_messages_by_index_and_range(tmp_path: Path) -> None:
 
     # Create a session with a system message and three user messages.
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
     term_app.append_user_message("one")
     term_app.append_user_message("two")
     term_app.append_user_message("three")
@@ -358,7 +424,9 @@ def test_terminal_application_user_errors_for_switching(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -373,7 +441,7 @@ def test_terminal_application_user_errors_for_switching(tmp_path: Path) -> None:
         term_app.switch_session("nonexistent-session-id")
 
     # Agent switching: unknown agent id should be a user error.
-    term_app.start_new_session(agent_id="codex")
+    term_app.start_new_session(agent_id="default")
     with pytest.raises(TerminalUserError):
         term_app.switch_agent("nonexistent-agent")
 
@@ -388,7 +456,9 @@ def test_switch_session_uses_cursor_for_polling(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -428,7 +498,9 @@ def test_poll_new_events_compacts_partials(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -476,6 +548,49 @@ def test_poll_new_events_compacts_partials(tmp_path: Path) -> None:
     assert "partial" not in types
 
 
+def test_poll_new_events_surfaces_cursor_expiry(tmp_path: Path) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app.terminal_app import TerminalApplication
+
+    base_dir = Path(__file__).resolve().parent.parent / "agent_terminal_app"
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore(max_events_global=1)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
+    term_app = TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    session = term_app.start_new_session(agent_id="default")
+    session_id = session.session_id
+
+    first = agent_app.publish_event(
+        {
+            "type": "message_appended",
+            "session_id": session_id,
+            "index": 0,
+        }
+    )
+    second = agent_app.publish_event(
+        {
+            "type": "checkpoint",
+            "session_id": session_id,
+        }
+    )
+
+    term_app._last_event_id = first.get("event_id")
+    events_list = term_app.poll_new_events(limit=10)
+
+    assert [ev.get("type") for ev in events_list] == ["events_cursor_expired"]
+    assert term_app._last_event_id == second.get("event_id")
+
+
 @pytest.mark.asyncio
 async def test_delete_slash_command_negative_range(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication
@@ -487,7 +602,9 @@ async def test_delete_slash_command_negative_range(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -496,7 +613,9 @@ async def test_delete_slash_command_negative_range(tmp_path: Path) -> None:
 
     # Session with a system message and three user messages.
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
 
     session_id = session.session_id
 
@@ -526,7 +645,9 @@ async def test_slash_command_user_error_formatting(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -535,14 +656,16 @@ async def test_slash_command_user_error_formatting(tmp_path: Path) -> None:
 
     # Ensure there is an active session so that /agent operates
     # normally and any error is purely input-driven.
-    term_app.start_new_session(agent_id="codex")
+    term_app.start_new_session(agent_id="default")
 
     outputs: list[str] = []
     ui_state: dict = {}
 
     # Unknown agent should produce a user error formatted as
     # "[agent] ..." without a stack trace.
-    await term_mod._handle_slash_command(term_app, "/agent nonexistent", outputs.append, ui_state)
+    await term_mod._handle_slash_command(
+        term_app, "/agent nonexistent", outputs.append, ui_state
+    )
 
     joined = "\n".join(outputs)
     assert "[agent] unknown agent" in joined
@@ -560,7 +683,9 @@ async def test_delete_slash_command_single_index_python_style(tmp_path: Path) ->
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -568,7 +693,9 @@ async def test_delete_slash_command_single_index_python_style(tmp_path: Path) ->
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
     term_app.append_user_message("one")
     term_app.append_user_message("two")
 
@@ -598,7 +725,9 @@ async def test_list_slash_command_shows_thinking_and_tools(tmp_path: Path) -> No
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -606,7 +735,9 @@ async def test_list_slash_command_shows_thinking_and_tools(tmp_path: Path) -> No
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
     session_id = session.session_id
 
     term_app.append_user_message("one")
@@ -664,7 +795,9 @@ async def test_list_slash_command_index_and_all(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -672,7 +805,9 @@ async def test_list_slash_command_index_and_all(tmp_path: Path) -> None:
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
     term_app.append_user_message("one")
     term_app.append_user_message("two")
     term_app.append_user_message("three")
@@ -717,7 +852,9 @@ async def test_slash_command_application_error_formatting(tmp_path: Path) -> Non
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -748,7 +885,9 @@ async def test_fork_slash_command_creates_new_session(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -756,7 +895,9 @@ async def test_fork_slash_command_creates_new_session(tmp_path: Path) -> None:
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
     term_app.append_user_message("one")
     term_app.append_user_message("two")
 
@@ -779,7 +920,9 @@ async def test_fork_slash_command_creates_new_session(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_fork_slash_command_without_index_copies_full_session(tmp_path: Path) -> None:
+async def test_fork_slash_command_without_index_copies_full_session(
+    tmp_path: Path,
+) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
     from agent_terminal_app import terminal as term_mod
@@ -789,7 +932,9 @@ async def test_fork_slash_command_without_index_copies_full_session(tmp_path: Pa
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -797,7 +942,9 @@ async def test_fork_slash_command_without_index_copies_full_session(tmp_path: Pa
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
     term_app.append_user_message("one")
     term_app.append_user_message("two")
 
@@ -819,6 +966,7 @@ async def test_fork_slash_command_without_index_copies_full_session(tmp_path: Pa
     assert original_session_id in joined
     assert new_session.session_id in joined
 
+
 def test_list_sessions_metadata_and_session_completion(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -829,7 +977,9 @@ def test_list_sessions_metadata_and_session_completion(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -883,6 +1033,7 @@ def test_list_sessions_metadata_and_session_completion(tmp_path: Path) -> None:
     assert "second session message" in completions[0].display_meta_text
 
 
+@pytest.mark.integration
 def test_at_file_completion_uses_core(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -901,7 +1052,9 @@ def test_at_file_completion_uses_core(tmp_path: Path) -> None:
     target_file.write_text("console.log('hello');\n", encoding="utf-8")
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -929,6 +1082,7 @@ def test_at_file_completion_uses_core(tmp_path: Path) -> None:
     assert completions
     assert any("foo/bar.js" in c.display_text for c in completions)
 
+
 def test_modify_message_application_emits_event(tmp_path: Path) -> None:
     from agent_app.application_future import AgentApplication
     from agent_app.events import InMemoryEventStore
@@ -939,7 +1093,9 @@ def test_modify_message_application_emits_event(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -947,7 +1103,9 @@ def test_modify_message_application_emits_event(tmp_path: Path) -> None:
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
     term_app.append_user_message("one")
     term_app.append_user_message("two")
 
@@ -959,7 +1117,10 @@ def test_modify_message_application_emits_event(tmp_path: Path) -> None:
     kinds = {ev.get("type") for ev in events_list}
     assert "message_modified" in kinds
     modified_events = [ev for ev in events_list if ev.get("type") == "message_modified"]
-    assert any(ev.get("index") == 1 and ev.get("content") == "one-edited" for ev in modified_events)
+    assert any(
+        ev.get("index") == 1 and ev.get("content") == "one-edited"
+        for ev in modified_events
+    )
     assert all("session" not in ev for ev in modified_events)
     assert any(isinstance(ev.get("message"), dict) for ev in modified_events)
 
@@ -974,7 +1135,9 @@ def test_show_message_supports_negative_indices(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -982,7 +1145,9 @@ def test_show_message_supports_negative_indices(tmp_path: Path) -> None:
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
     term_app.append_user_message("one")
     term_app.append_user_message("two")
 
@@ -1003,7 +1168,9 @@ async def test_append_slash_command_appends_with_roles(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -1011,7 +1178,9 @@ async def test_append_slash_command_appends_with_roles(tmp_path: Path) -> None:
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
 
     outputs: list[str] = []
     ui_state: dict = {}
@@ -1044,7 +1213,9 @@ async def test_append_shortcut_appends_user_message(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -1052,7 +1223,9 @@ async def test_append_shortcut_appends_user_message(tmp_path: Path) -> None:
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
 
     outputs: list[str] = []
     ui_state: dict = {}
@@ -1082,7 +1255,9 @@ async def test_modify_slash_command_supports_negative_index(tmp_path: Path) -> N
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -1090,7 +1265,9 @@ async def test_modify_slash_command_supports_negative_index(tmp_path: Path) -> N
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
     term_app.append_user_message("one")
     term_app.append_user_message("two")
 
@@ -1119,7 +1296,9 @@ async def test_send_slash_command_resends_with_current_history(tmp_path: Path) -
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -1127,7 +1306,9 @@ async def test_send_slash_command_resends_with_current_history(tmp_path: Path) -
     )
 
     session = term_app.start_new_session(agent_id="default")
-    term_app.add_message(session.session_id, role="system", content="system", metadata=None)
+    term_app.add_message(
+        session.session_id, role="system", content="system", metadata=None
+    )
     term_app.append_user_message("hello")
 
     outputs: list[str] = []
@@ -1156,7 +1337,9 @@ def test_list_plugins_for_session_implicit_defaults(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -1202,7 +1385,9 @@ def test_set_session_plugins_persists_and_reloads_core(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -1260,7 +1445,9 @@ def test_clear_session_plugins_reverts_to_implicit_defaults(tmp_path: Path) -> N
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -1303,6 +1490,7 @@ def test_clear_session_plugins_reverts_to_implicit_defaults(tmp_path: Path) -> N
     assert {entry["source"] for entry in entries} == {"implicit"}
 
 
+@pytest.mark.integration
 def test_session_ui_elements_no_duplicate_keys_default_config(tmp_path: Path) -> None:
     """session_ui_elements should not contain duplicate keys.
 
@@ -1322,7 +1510,9 @@ def test_session_ui_elements_no_duplicate_keys_default_config(tmp_path: Path) ->
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -1353,7 +1543,9 @@ async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     term_app = term_mod.TerminalApplication(
         config_path=str(config_path),
         session_root=str(session_root),
@@ -1423,7 +1615,9 @@ async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
         "echo_provider_metadata_preserver",
     ]
 
-    core_after_off, _base_config_after_off, active_session_after_off = term_app.require_session()
+    core_after_off, _base_config_after_off, active_session_after_off = (
+        term_app.require_session()
+    )
     assert active_session_after_off.session_id == session_id
     providers_after_off = getattr(core_after_off, "_providers")
     assert len(providers_after_off) == 1

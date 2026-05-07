@@ -1,6 +1,10 @@
 # Plugin development docs
 
 - [Provider plugins](provider-plugins.md)
+- [Tool plugins](tool-plugins.md)
+- [Tool interop flow](tool-interop.md)
+- [Node tool plugins](node-tool-plugins.md)
+- [Bash tool plugins](bash-tool-plugins.md)
 - [Plugin actions](actions.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Packaging & loading plugins](plugin-packaging-and-loading.md)

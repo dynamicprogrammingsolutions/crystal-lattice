@@ -97,6 +97,7 @@ def _enabled_config(verification_pass: bool = False) -> Dict[str, Any]:
         },
         "plugins": [
             "path:${env:BUILTIN_PLUGINS}/openrouter",
+            "plugins.tool_gating_feature.ToolGatingFeature",
             "path:${env:BUILTIN_PLUGINS}/gemini-compaction-feature",
         ],
     }
@@ -130,6 +131,7 @@ def _disabled_config(reason: str = "wrong_type") -> Dict[str, Any]:
         },
         "plugins": [
             "path:${env:BUILTIN_PLUGINS}/openrouter",
+            "plugins.tool_gating_feature.ToolGatingFeature",
             "path:${env:BUILTIN_PLUGINS}/gemini-compaction-feature",
         ],
     }

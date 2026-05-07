@@ -1,7 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,8 +12,20 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import Clipboard from '@react-native-clipboard/clipboard';
-import { selectAttachmentPreviewUrl } from '@crystal-lattice/frontend-sdk';
+import RNFS from 'react-native-fs';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
+import {
+  downloadSessionAttachment,
+  selectAttachmentPreviewUrl,
+  selectSessionAssetId,
+} from '@crystal-lattice/frontend-sdk';
+import ImageModal from 'react-native-image-modal';
+import Share from 'react-native-share';
+import { saveDocuments } from '@react-native-documents/picker';
+import {
+  CameraRoll,
+  iosRequestAddOnlyGalleryPermission,
+} from '@react-native-camera-roll/camera-roll';
 import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
@@ -20,6 +34,16 @@ import MarkdownMessageContent from './MarkdownMessageContent';
 import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
 import { useTheme, type Theme } from '../theme';
 import { extractByPath, renderTemplate, formatValueForElement, evaluateCondition } from '../uiSchemaUtils';
+
+const CHEVRON_ICON_SIZE = 16;
+const CHEVRON_HIT_SLOP = { top: 4, bottom: 4, left: 4, right: 4 };
+
+function toSingleLinePreview(text: string, maxLen = 160): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  if (normalized.length <= maxLen) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLen - 1))}...`;
+}
 
 type MultipartPart = {
   type?: string;
@@ -47,15 +71,64 @@ function selectMultipartParts(message: ApiMessage): MultipartPart[] {
   return Array.isArray(parts) ? (parts as MultipartPart[]) : [];
 }
 
-const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = ({
+function extensionFromMimeType(mimeType: string): string {
+  switch (mimeType) {
+    case 'image/png':
+      return 'png';
+    case 'image/jpeg':
+      return 'jpg';
+    case 'image/webp':
+      return 'webp';
+    case 'image/gif':
+      return 'gif';
+    default:
+      return 'bin';
+  }
+}
+
+function attachmentFilename(attachment: AttachmentLike): string {
+  const content = attachment.content;
+  if (content && typeof content === 'object' && typeof content.filename === 'string' && content.filename) {
+    return content.filename;
+  }
+  const mimeType = attachmentMimeType(attachment);
+  return `attachment-${attachment.id}.${extensionFromMimeType(mimeType)}`;
+}
+
+function attachmentMimeType(attachment: AttachmentLike): string {
+  const content = attachment.content;
+  if (content && typeof content === 'object' && typeof content.mime_type === 'string' && content.mime_type) {
+    return content.mime_type;
+  }
+  return attachment.type === 'image' ? 'image/png' : 'application/octet-stream';
+}
+
+function parseDataUrl(url: string): { mimeType: string; dataBase64: string } | null {
+  const match = url.match(/^data:([^;]+);base64,(.+)$/i);
+  if (!match) return null;
+  return {
+    mimeType: match[1] || 'application/octet-stream',
+    dataBase64: match[2] || '',
+  };
+}
+
+const MessageAttachments: React.FC<{
+  message: ApiMessage;
+  onBlue?: boolean;
+  backend?: AgentBackend | null;
+  sessionId?: string;
+}> = ({
   message,
   onBlue,
+  backend,
+  sessionId,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const parts = selectMultipartParts(message);
-
-  if (parts.length === 0) return null;
+  const [fullResolutionUriById, setFullResolutionUriById] = useState<Record<string, string>>({});
+  const [loadingFullResolutionById, setLoadingFullResolutionById] = useState<Record<string, boolean>>({});
+  const localFilePromisesRef = useRef<Partial<Record<string, Promise<string>>>>({});
 
   const attachments: AttachmentLike[] = parts.map((part, idx) => {
     const type = typeof part?.type === 'string' ? part.type : 'attachment';
@@ -67,6 +140,149 @@ const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = 
     };
   });
 
+  const ensureAttachmentLocalFile = useCallback(
+    async (attachment: AttachmentLike, options?: { preferOriginal?: boolean }): Promise<string> => {
+      const preferOriginal = !!options?.preferOriginal;
+      if (preferOriginal && fullResolutionUriById[attachment.id]) {
+        return fullResolutionUriById[attachment.id];
+      }
+      const existingPromise = localFilePromisesRef.current[attachment.id];
+      if (existingPromise) {
+        return existingPromise;
+      }
+
+      const promise = (async () => {
+        const filename = attachmentFilename(attachment);
+        const mimeType = attachmentMimeType(attachment);
+        const assetId = selectSessionAssetId(attachment.content);
+        const pluginId = resolveAttachmentDownloadPluginId(attachment);
+        const cacheDir = `${RNFS.CachesDirectoryPath}/attachment-previews`;
+        await RNFS.mkdir(cacheDir);
+        const targetPath = `${cacheDir}/${attachment.id}-${filename}`;
+
+        if (
+          preferOriginal &&
+          backend &&
+          sessionId &&
+          assetId &&
+          pluginId
+        ) {
+          const downloaded = await downloadSessionAttachment({
+            backend,
+            sessionId,
+            assetId,
+            pluginId,
+          });
+          await RNFS.writeFile(targetPath, downloaded.data_base64, 'base64');
+          return `file://${targetPath}`;
+        }
+
+        const previewUrl = selectAttachmentPreviewUrl(attachment.content, attachment.previewUrl);
+        if (typeof previewUrl !== 'string' || !previewUrl) {
+          throw new Error('No image source available for this attachment.');
+        }
+
+        const dataUrl = parseDataUrl(previewUrl);
+        if (dataUrl) {
+          await RNFS.writeFile(targetPath, dataUrl.dataBase64, 'base64');
+          return `file://${targetPath}`;
+        }
+
+        const normalized = previewUrl.startsWith('file://') ? previewUrl : previewUrl;
+        if (normalized.startsWith('http://') || normalized.startsWith('https://')) {
+          const result = RNFS.downloadFile({ fromUrl: normalized, toFile: targetPath });
+          const downloaded = await result.promise;
+          if (downloaded.statusCode && downloaded.statusCode >= 400) {
+            throw new Error(`Failed to download image (${downloaded.statusCode}).`);
+          }
+          return `file://${targetPath}`;
+        }
+
+        if (normalized.startsWith('file://')) {
+          return normalized;
+        }
+
+        throw new Error('Unsupported image source.');
+      })();
+
+      localFilePromisesRef.current[attachment.id] = promise;
+      if (preferOriginal) {
+        setLoadingFullResolutionById((prev) => ({ ...prev, [attachment.id]: true }));
+      }
+
+      try {
+        const localUri = await promise;
+        if (preferOriginal) {
+          setFullResolutionUriById((prev) => ({ ...prev, [attachment.id]: localUri }));
+        }
+        return localUri;
+      } finally {
+        delete localFilePromisesRef.current[attachment.id];
+        if (preferOriginal) {
+          setLoadingFullResolutionById((prev) => ({ ...prev, [attachment.id]: false }));
+        }
+      }
+    },
+    [backend, fullResolutionUriById, sessionId],
+  );
+
+  const handleSaveToFile = useCallback(
+    async (attachment: AttachmentLike) => {
+      const localUri = await ensureAttachmentLocalFile(attachment, { preferOriginal: true });
+      const result = await saveDocuments({
+        sourceUris: [localUri],
+        mimeType: attachmentMimeType(attachment),
+        fileName: attachmentFilename(attachment),
+        copy: true,
+      });
+      const saved = result[0];
+      if (saved?.error) {
+        throw new Error(saved.error);
+      }
+      return saved?.name || attachmentFilename(attachment);
+    },
+    [ensureAttachmentLocalFile],
+  );
+
+  const handleSaveToPhotos = useCallback(
+    async (attachment: AttachmentLike) => {
+      const localUri = await ensureAttachmentLocalFile(attachment, { preferOriginal: true });
+      if (Platform.OS === 'ios') {
+        const status = await iosRequestAddOnlyGalleryPermission();
+        if (!['granted', 'limited'].includes(status)) {
+          throw new Error('Photo Library permission was not granted.');
+        }
+      }
+      await CameraRoll.saveAsset(localUri, { type: 'photo' });
+    },
+    [ensureAttachmentLocalFile],
+  );
+
+  const handleShareAttachment = useCallback(
+    async (attachment: AttachmentLike) => {
+      const localUri = await ensureAttachmentLocalFile(attachment, { preferOriginal: true });
+      await Share.open({
+        url: localUri,
+        type: attachmentMimeType(attachment),
+        filename: attachmentFilename(attachment),
+        failOnCancel: false,
+      });
+    },
+    [ensureAttachmentLocalFile],
+  );
+
+  const handleZoomStart = useCallback(
+    (attachment: AttachmentLike, scale: number) => {
+      if (scale <= 1.01 || fullResolutionUriById[attachment.id] || loadingFullResolutionById[attachment.id]) {
+        return;
+      }
+      void ensureAttachmentLocalFile(attachment, { preferOriginal: true });
+    },
+    [ensureAttachmentLocalFile, fullResolutionUriById, loadingFullResolutionById],
+  );
+
+  if (parts.length === 0) return null;
+
   return (
     <View style={[styles.attachmentsWrapper, onBlue && styles.attachmentsWrapperOnBlue]}>
       <AttachmentThumbnailStrip
@@ -74,6 +290,7 @@ const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = 
         onPress={async (attachment) => {
           const url = selectAttachmentPreviewUrl(attachment.content);
           const isPdf = attachment.type === 'pdf' && url;
+          const isImage = attachment.type === 'image' && url;
           if (typeof url !== 'string' || !url) {
             return;
           }
@@ -85,8 +302,71 @@ const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = 
               console.log('Failed to open attachment url', err);
             }
           }
-          Clipboard.setString(url);
-          Alert.alert('Copied', 'Attachment URL copied to clipboard.');
+          if (!isImage) {
+            Alert.alert('Unavailable', 'This attachment cannot be previewed here.');
+          }
+        }}
+        renderTile={({ attachment, tile }) => {
+          const previewUrl = selectAttachmentPreviewUrl(attachment.content, attachment.previewUrl);
+          if (attachment.type !== 'image' || typeof previewUrl !== 'string' || !previewUrl) {
+            return tile;
+          }
+          const displayUri = fullResolutionUriById[attachment.id] || previewUrl;
+          return (
+            <ImageModal
+              source={{ uri: displayUri }}
+              style={styles.imageModalTile}
+              resizeMode="cover"
+              modalImageResizeMode="contain"
+              overlayBackgroundColor="rgba(10, 16, 24, 0.92)"
+              swipeToDismiss
+              renderFooter={(close) => (
+                <View style={styles.previewFooter}>
+                  {loadingFullResolutionById[attachment.id] && !fullResolutionUriById[attachment.id] ? (
+                    <View style={styles.previewLoadingRow}>
+                      <ActivityIndicator size="small" color={theme.surface} />
+                      <Text style={styles.previewLoadingText}>Loading full resolution...</Text>
+                    </View>
+                  ) : null}
+                  <View style={styles.previewFooterActions}>
+                    <TouchableOpacity
+                      style={[styles.previewFooterButton, styles.previewFooterButtonSecondary]}
+                      onPress={() => void handleSaveToFile(attachment).then(
+                        (savedName) => Alert.alert('Saved', `Saved ${savedName}`),
+                        (err: any) => Alert.alert('Save failed', err?.message || 'Unable to save file.'),
+                      )}
+                    >
+                      <Text style={styles.previewFooterButtonSecondaryText}>Save to File</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.previewFooterButton, styles.previewFooterButtonSecondary]}
+                      onPress={() => void handleSaveToPhotos(attachment).then(
+                        () => Alert.alert('Saved', 'Image saved to Photos.'),
+                        (err: any) => Alert.alert('Save failed', err?.message || 'Unable to save to Photos.'),
+                      )}
+                    >
+                      <Text style={styles.previewFooterButtonSecondaryText}>Save to Photos</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.previewFooterButton, styles.previewFooterButtonPrimary]}
+                      onPress={() => void handleShareAttachment(attachment).catch((err: any) => {
+                        Alert.alert('Share failed', err?.message || 'Unable to share image.');
+                      })}
+                    >
+                      <Text style={styles.previewFooterButtonPrimaryText}>Share</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.previewFooterButton, styles.previewFooterButtonSecondary]}
+                      onPress={close}
+                    >
+                      <Text style={styles.previewFooterButtonSecondaryText}>Close</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              onMove={(position) => handleZoomStart(attachment, position.scale)}
+            />
+          );
         }}
       />
     </View>
@@ -96,6 +376,8 @@ const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = 
 export interface MessageBubbleProps {
   index: number;
   message: ApiMessage;
+  backend?: AgentBackend | null;
+  sessionId?: string;
   isActive?: boolean;
   pinnedActions?: MessageActionKey[];
   onAction?: (action: MessageActionKey, index: number, message: ApiMessage) => void;
@@ -111,9 +393,25 @@ export interface MessageBubbleProps {
   pluginActionDefs?: MessageActionDefinition[];
 }
 
+function resolveAttachmentDownloadPluginId(attachment: AttachmentLike): string | null {
+  const metadata = attachment.metadata;
+  if (
+    metadata &&
+    typeof metadata === 'object' &&
+    typeof (metadata as any).download_plugin_id === 'string' &&
+    (metadata as any).download_plugin_id
+  ) {
+    return String((metadata as any).download_plugin_id);
+  }
+  return null;
+}
+
+
 const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  backend,
+  sessionId,
   isActive,
   pinnedActions,
   onAction,
@@ -138,7 +436,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -152,7 +450,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     return (
       <View style={styles.row}>
         <View style={[styles.bubble, styles.userBubble]}>
-          <Text style={styles.headerText}>{`[${index}] User`}</Text>
+          <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] User`}</Text>
           <TextInput
             style={[styles.editInput, styles.editInputOnBlue]}
             value={editingText ?? ''}
@@ -181,10 +479,12 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   return (
     <View style={styles.row}>
       <View style={[styles.bubble, styles.userBubble]}>
-        <Text style={styles.headerText}>{`[${index}] User`}</Text>
+        <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] User`}</Text>
         <MessageAttachments
           message={message}
           onBlue
+          backend={backend}
+          sessionId={sessionId}
         />
         {content ? (
           <Text
@@ -217,6 +517,8 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
 const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  backend,
+  sessionId,
   isActive,
   pinnedActions,
   onAction,
@@ -245,7 +547,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -259,7 +561,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     return (
       <View style={styles.row}>
         <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
-          <Text style={styles.headerText}>{`[${index}] System`}</Text>
+          <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] System`}</Text>
           <TextInput
             style={styles.editInput}
             value={editingText ?? ''}
@@ -294,19 +596,20 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
             {compiledContent && (
               <TouchableOpacity
                 style={styles.collapseIconButton}
+                hitSlop={CHEVRON_HIT_SLOP}
                 onPress={() => setCompiledExpanded((prev) => !prev)}
                 testID="system-compiled-toggle"
               >
                 <Icon
                   name={compiledExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={14}
+                  size={CHEVRON_ICON_SIZE}
                   color={theme.textSecondary}
                 />
               </TouchableOpacity>
             )}
           </View>
         </View>
-        <MessageAttachments message={message} />
+        <MessageAttachments message={message} backend={backend} sessionId={sessionId} />
         {content ? (
           <Text
             style={styles.systemText}
@@ -362,6 +665,8 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
 const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  backend,
+  sessionId,
   isActive,
   pinnedActions,
   onAction,
@@ -388,7 +693,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -409,18 +714,19 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
           {hasContent && (
             <TouchableOpacity
               style={styles.collapseIconButton}
+              hitSlop={CHEVRON_HIT_SLOP}
               onPress={() => setExpanded((prev) => !prev)}
             >
               <Icon
                 name={expanded ? 'chevron-up' : 'chevron-down'}
-                size={14}
+                size={CHEVRON_ICON_SIZE}
                 color={theme.textSecondary}
               />
             </TouchableOpacity>
           )}
         </View>
 
-        <MessageAttachments message={message} />
+        <MessageAttachments message={message} backend={backend} sessionId={sessionId} />
 
         {hasContent && expanded && (
           <View style={styles.collapsibleContainerTool}>
@@ -478,6 +784,8 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
 const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  backend,
+  sessionId,
   isActive,
   pinnedActions,
   onAction,
@@ -498,9 +806,14 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const [webSourcesExpanded, setWebSourcesExpanded] = useState(false);
   const content = selectDisplayContent(message);
+  const hasContent = !!content;
   const reasoning = typeof (message.metadata as any)?.reasoning === 'string'
     ? (message.metadata as any).reasoning
     : undefined;
+  const reasoningSingleLine = useMemo(() => {
+    if (!reasoning) return '';
+    return toSingleLinePreview(reasoning);
+  }, [reasoning]);
   const citations = useMemo(
     () => selectWebLinkEntries((message.metadata as any)?.url_citations),
     [message.metadata],
@@ -538,7 +851,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -595,26 +908,28 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
           <View style={styles.headerIconsRow}>
-            {toolCallNames.length > 0 && (
-              <TouchableOpacity
-                style={styles.collapseIconButton}
-                onPress={() => setToolCallsExpanded((prev) => !prev)}
-              >
-                <Icon
-                  name={toolCallsExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={14}
-                  color={theme.textSecondary}
-                />
-              </TouchableOpacity>
-            )}
             {reasoning && (
               <TouchableOpacity
                 style={styles.collapseIconButton}
+                hitSlop={CHEVRON_HIT_SLOP}
                 onPress={() => setReasoningExpanded((prev) => !prev)}
               >
                 <Icon
                   name={reasoningExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={14}
+                  size={CHEVRON_ICON_SIZE}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
+            {!reasoning && !hasContent && toolCallNames.length > 0 && (
+              <TouchableOpacity
+                style={styles.collapseIconButton}
+                hitSlop={CHEVRON_HIT_SLOP}
+                onPress={() => setToolCallsExpanded((prev) => !prev)}
+              >
+                <Icon
+                  name={toolCallsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={CHEVRON_ICON_SIZE}
                   color={theme.textSecondary}
                 />
               </TouchableOpacity>
@@ -622,7 +937,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
           </View>
         </View>
 
-        <MessageAttachments message={message} />
+        <MessageAttachments message={message} backend={backend} sessionId={sessionId} />
 
         {reasoning && reasoningExpanded && (
           <View style={styles.collapsibleContainerReasoning}>
@@ -644,8 +959,9 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
           <Text
             style={styles.collapsedHintText}
             selectable
+            numberOfLines={1}
           >
-            Reasoning hidden (tap chevron to expand).
+            {reasoningSingleLine ? `Reasoning: ${reasoningSingleLine}` : 'Reasoning'}
           </Text>
         )}
 
@@ -688,17 +1004,22 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
 
         {webSearchSources.length > 0 && (
           <View style={styles.linkSection}>
-            <TouchableOpacity
+            <View
               style={styles.linkSectionToggle}
-              onPress={() => setWebSourcesExpanded((prev) => !prev)}
             >
               <Text style={styles.linkSectionLabel}>{`Sources (${webSearchSources.length})`}</Text>
-              <Icon
-                name={webSourcesExpanded ? 'chevron-up' : 'chevron-down'}
-                size={14}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.collapseIconButton}
+                hitSlop={CHEVRON_HIT_SLOP}
+                onPress={() => setWebSourcesExpanded((prev) => !prev)}
+              >
+                <Icon
+                  name={webSourcesExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={CHEVRON_ICON_SIZE}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
 
             {webSourcesExpanded ? (
               webSearchSources.map((entry, idx) => {
@@ -720,6 +1041,29 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             ) : (
               <Text style={styles.collapsedHintText}>Consulted sources hidden (tap chevron to expand).</Text>
             )}
+          </View>
+        )}
+
+        {toolCallNames.length > 0 && (reasoning || hasContent) && (
+          <View style={styles.disclosureRow}>
+            <Text
+              style={[styles.collapsedHintText, styles.disclosureText]}
+              selectable
+              numberOfLines={1}
+            >
+              {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {distinctToolCallNames.join(', ')}
+            </Text>
+            <TouchableOpacity
+              style={[styles.collapseIconButton, styles.disclosureChevronButton]}
+              hitSlop={CHEVRON_HIT_SLOP}
+              onPress={() => setToolCallsExpanded((prev) => !prev)}
+            >
+              <Icon
+                name={toolCallsExpanded ? 'chevron-up' : 'chevron-down'}
+                size={CHEVRON_ICON_SIZE}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -779,8 +1123,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             </ScrollView>
           </View>
         )}
-
-        {toolCallNames.length > 0 && !toolCallsExpanded && (
+        {toolCallNames.length > 0 && !toolCallsExpanded && !reasoning && !hasContent && (
           <Text style={styles.collapsedHintText}>
             {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {distinctToolCallNames.join(', ')}
           </Text>
@@ -808,6 +1151,8 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  backend,
+  sessionId,
   isActive,
   pinnedActions,
   onAction,
@@ -833,6 +1178,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <UserMessageBubble
         index={index}
         message={message}
+        backend={backend}
+        sessionId={sessionId}
         isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
@@ -853,6 +1200,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <SystemMessageBubble
         index={index}
         message={message}
+        backend={backend}
+        sessionId={sessionId}
         isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
@@ -874,6 +1223,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <ToolMessageBubble
         index={index}
         message={message}
+        backend={backend}
+        sessionId={sessionId}
         isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
@@ -890,6 +1241,8 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <AssistantMessageBubble
         index={index}
         message={message}
+        backend={backend}
+        sessionId={sessionId}
         isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
@@ -967,17 +1320,20 @@ const createStyles = (theme: Theme) =>
       alignItems: 'center',
     },
     headerText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
       color: theme.textSecondary,
     },
+    standaloneHeaderText: {
+      marginBottom: 4,
+    },
     systemText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
       color: theme.text,
       fontFamily: 'Courier',
       fontStyle: 'italic',
     },
     reasoningText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
       color: theme.textSecondary,
       fontStyle: 'italic',
       fontFamily: 'Courier',
@@ -986,20 +1342,20 @@ const createStyles = (theme: Theme) =>
       marginBottom: 8,
     },
     toolCallName: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
       color: theme.text,
       fontWeight: '600',
       marginBottom: 2,
       fontFamily: 'Courier',
     },
     toolCallArgs: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
       fontFamily: 'Courier',
       marginLeft: 8,
     },
     contentText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.message,
       color: theme.text,
       fontFamily: 'Courier',
     },
@@ -1009,8 +1365,8 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
     },
     collapseIconButton: {
-      paddingHorizontal: 4,
-      paddingVertical: 2,
+      paddingHorizontal: 6,
+      paddingVertical: 4,
     },
     collapsibleContainerTool: {
       marginTop: 4,
@@ -1032,7 +1388,7 @@ const createStyles = (theme: Theme) =>
     },
     collapsedHintText: {
       marginTop: 2,
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
       fontStyle: 'italic',
     },
@@ -1040,7 +1396,7 @@ const createStyles = (theme: Theme) =>
       marginTop: 4,
     },
     footerText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
       fontFamily: 'Courier',
     },
@@ -1054,9 +1410,23 @@ const createStyles = (theme: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      paddingHorizontal: 2,
+      paddingVertical: 2,
+    },
+    disclosureRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 2,
+    },
+    disclosureText: {
+      flexShrink: 1,
+      marginRight: 8,
+    },
+    disclosureChevronButton: {
+      marginLeft: 'auto',
     },
     linkSectionLabel: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
       fontWeight: '600',
       textTransform: 'uppercase',
@@ -1070,19 +1440,19 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.bubbleToolBg,
     },
     linkItemTitle: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
       color: theme.text,
       fontWeight: '600',
     },
     linkItemUrl: {
       marginTop: 2,
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.primary,
       textDecorationLine: 'underline',
     },
     linkItemSnippet: {
       marginTop: 4,
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
     },
     editInput: {
@@ -1094,7 +1464,7 @@ const createStyles = (theme: Theme) =>
       borderRadius: 6,
       paddingHorizontal: 8,
       paddingVertical: 6,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.message,
       fontFamily: 'Courier',
       backgroundColor: theme.surface,
       color: theme.text,
@@ -1121,12 +1491,12 @@ const createStyles = (theme: Theme) =>
     },
     editButtonTextPrimary: {
       color: theme.textOnPrimary,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
       fontWeight: '600',
     },
     editButtonTextSecondary: {
       color: theme.text,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
       fontWeight: '600',
     },
     attachmentsWrapper: {
@@ -1135,6 +1505,62 @@ const createStyles = (theme: Theme) =>
     },
     attachmentsWrapperOnBlue: {
       marginTop: 8,
+    },
+    imageModalTile: {
+      width: 54,
+      height: 54,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+      overflow: 'hidden',
+    },
+    previewFooter: {
+      paddingHorizontal: 16,
+      paddingBottom: 18,
+      paddingTop: 10,
+      backgroundColor: 'rgba(10, 16, 24, 0.68)',
+    },
+    previewLoadingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 10,
+      gap: 8,
+    },
+    previewLoadingText: {
+      color: theme.surface,
+      fontSize: theme.typography.fontSize.small,
+      fontWeight: '600',
+    },
+    previewFooterActions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    previewFooterButton: {
+      minWidth: 110,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    previewFooterButtonPrimary: {
+      backgroundColor: theme.primary,
+    },
+    previewFooterButtonSecondary: {
+      backgroundColor: theme.surface,
+    },
+    previewFooterButtonPrimaryText: {
+      color: theme.textOnPrimary,
+      fontSize: theme.typography.fontSize.secondary,
+      fontWeight: '700',
+    },
+    previewFooterButtonSecondaryText: {
+      color: theme.text,
+      fontSize: theme.typography.fontSize.secondary,
+      fontWeight: '700',
     },
     rawReadonlyInput: {
       marginTop: 2,

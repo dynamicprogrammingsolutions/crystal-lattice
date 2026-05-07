@@ -108,4 +108,6 @@ def test_plugin_manager_loads_all_qwen_tools(tmp_path: Path) -> None:
         "QwenGlobTool",
         "QwenWriteFileTool",
         "QwenEditTool",
+        "QwenShellTool",
+        "QwenWebFetchTool",
     ]

@@ -6,14 +6,17 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tool-compat-shared"
 version = "0.1.0"
-description = "Shared helpers for vendor-style filesystem tool bundles"
+description = "Shared helpers for vendor-style filesystem and web search tool bundles"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "aiohttp>=3.8.0",
+]
 
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0.0"]
+dev = ["pytest>=7.0.0", "pytest-asyncio>=0.21.0"]
+gemini = ["google-genai>=0.3.0"]
 
 
 [tool.setuptools]
@@ -28,3 +31,7 @@ include = ["tool_compat_shared*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+asyncio_mode = "auto"
+markers = [
+    "integration: integration tests that may hit real services",
+]

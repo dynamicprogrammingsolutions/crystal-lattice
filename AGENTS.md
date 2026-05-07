@@ -70,6 +70,11 @@ See `mobile/crystal-lattice-control-rn/AGENTS.md` for React Native–specific gu
 
 See `bridge-elixir/AGENTS.md` for directory-specific guidelines and deployment notes.
 
+**Cloud orchestrator – `cloud-orchestrator`**
+- Elixir/Phoenix service plus runtime/deploy assets for remote cloud agents.
+
+See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules and related test references.
+
 **Plugins**
 - Built-in plugins: `core/python/plugins` (Python package `plugins.*`)
   - Providers: e.g. `openai_provider.py`, `echo_openai_like_provider.py`.
@@ -190,6 +195,11 @@ See `bridge-elixir/AGENTS.md` for directory-specific guidelines and deployment n
 - Prefer **unit tests** first (pure functions, protocol implementations, small helpers).
 - Use **integration tests** for multi-layer flows or real providers; mark them (`integration`, `openrouter`, `ollama`).
 - Use **example / end-to-end tests** for high-level flows (`core/python/examples/tests`, `application/python/tests`).
+
+**Test realism**
+- Integration/e2e tests must exercise realistic public user/deployment flows. Do not make a test pass by adding test-only shortcuts, direct internal endpoints, special overrides, or alternate paths that hide an important product defect.
+- If a realistic test exposes a real issue, keep the test realistic and fix the product code. If the fix is out of scope, report the failing test and exposed issue clearly instead of weakening the test.
+- When a requested or required test is gated by markers, flags, or environment variables, run it with the appropriate marker/flag/env enabled instead of accepting a skipped result as success. If the test needs credentials, check the repo's documented dotenv/config loading path before concluding credentials are unavailable; many suites load `.env` values automatically or can be run from a command that sources the relevant dotenv file. Report a skipped gated test as "not run" unless you explicitly enabled the gate and verified the skip is intentional for the current task.
 
 **Design/testing style**
 - Keep code functional/immutable; avoid in-place mutation of shared data.

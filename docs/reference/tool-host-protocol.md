@@ -60,6 +60,12 @@ The Python core maps `event.type == "part"` into partial chunks yielded as:
 - `get_tool_schemas({"state": <object>}) -> [schema]`
 - `execute_tool({"tool_name": "...", "arguments": <object>, "state": <object>}) -> result`
 
+Note: the in-process Python tool API is now payload-first and can execute raw
+text / freeform tool calls. The v1 host protocol remains object-arguments-based
+for compatibility with existing Node-hosted tools. If host-side freeform/custom
+tool execution is added later, this page should be updated as part of that
+protocol change.
+
 The `execute_tool` result is expected to be the same shape as a Python tool result:
 
 ```json
@@ -73,7 +79,14 @@ The `execute_tool` result is expected to be the same shape as a Python tool resu
 - `get_ui_elements() -> [object]`
 - `get_tags({"config": <object>, "models": [object]}) -> [string]`
 - `required_tags() -> [string]`
-- `format_tool_result({"result": <object>, "state": <object>}) -> string`
+- `format_tool_result({"result": <object>, "state": <object>}) -> string | provider-native envelope`
+
+`format_tool_result` should normally return a string. A tool host may opt into
+structured provider-native tool output by returning an explicit JSON object with
+`type: "provider_native_tool_result"` and a supported `format`, such as
+`openai.chat_completions` or `openai.responses`. The Python host preserves only
+that explicit envelope shape as structured model-facing content; ordinary
+objects are compatibility text.
 - `format_tool_call_preview({"tool_name": "...", "arguments": <object>, "state": <object>}) -> string`
 - `to_display_format({"text": "...", "result": <object>, "state": <object>}) -> object`
 

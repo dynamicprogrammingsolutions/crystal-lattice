@@ -2,14 +2,75 @@
 
 from __future__ import annotations
 
-import platform
+import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
 
 from agent_core.plugin import ToolWrapper
 from codex_tools.shell_tool import ShellArrayTool
+
+
+class _TestCancellation:
+    def __init__(self) -> None:
+        self._callbacks: dict[int, object] = {}
+        self._next = 0
+
+    def add_callback(self, callback):
+        token = self._next
+        self._next += 1
+        self._callbacks[token] = callback
+        return token
+
+    def remove_callback(self, token: int) -> None:
+        self._callbacks.pop(token, None)
+
+    def cancel(self) -> None:
+        for callback in list(self._callbacks.values()):
+            callback()
+
+
+def _pid_is_live(pid: int) -> bool:
+    proc = subprocess.run(
+        ["ps", "-o", "stat=", "-p", str(pid)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    status = proc.stdout.strip()
+    return bool(status) and not status.startswith("Z")
+
+
+def _assert_pid_exits(pid: int, *, timeout: float = 3.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not _pid_is_live(pid):
+            return
+        time.sleep(0.05)
+    raise AssertionError(f"process {pid} remained alive past timeout")
+
+
+def _write_sleepy_parent_script(path: Path, pid_file: Path) -> None:
+    path.write_text(
+        "\n".join(
+            [
+                "import subprocess",
+                "import sys",
+                "import time",
+                "",
+                f"pid_file = {str(pid_file)!r}",
+                "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])",
+                "with open(pid_file, 'w', encoding='utf-8') as handle:",
+                "    handle.write(str(child.pid))",
+                "time.sleep(60)",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
 
 
 class TestShellArrayToolSchemas:
@@ -92,6 +153,28 @@ class TestShellArrayToolExecute:
         assert result["success"] is True
         assert result["exit_code"] == 0
         assert "hello" in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_execute_stdin_reader_receives_eof(self, tmp_path: Path) -> None:
+        """Non-streaming direct exec should not inherit interactive stdin."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {
+                "command": [
+                    sys.executable,
+                    "-c",
+                    "import sys; data = sys.stdin.read(); print('stdin-bytes', len(data))",
+                ]
+            },
+            state,
+        )
+
+        assert result["success"] is True
+        assert result["exit_code"] == 0
+        assert "stdin-bytes 0" in result["output"]
 
     @pytest.mark.asyncio
     async def test_bash_lc_wrapper(self, tmp_path: Path) -> None:
@@ -235,6 +318,40 @@ class TestShellArrayToolExecute:
         assert result["workdir"] == str(subdir)
 
     @pytest.mark.asyncio
+    async def test_intercepts_apply_patch_command_when_enabled(self, tmp_path: Path) -> None:
+        """Shell array tool can route apply_patch heredocs to the internal patch runtime."""
+        target = tmp_path / "hello.txt"
+        target.write_text("before\n", encoding="utf-8")
+
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init(
+            {
+                "working_directory": str(tmp_path),
+                "allowed_paths": [str(tmp_path)],
+                "intercept_apply_patch": True,
+            }
+        )
+
+        patch_script = """apply_patch <<'PATCH'
+*** Begin Patch
+*** Update File: hello.txt
+@@
+-before
++after
+*** End Patch
+PATCH"""
+
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["bash", "-lc", patch_script], "workdir": str(tmp_path)},
+            state,
+        )
+
+        assert result["success"] is True
+        assert result.get("intercepted_tool") == "apply_patch"
+        assert target.read_text(encoding="utf-8") == "after\n"
+
+    @pytest.mark.asyncio
     async def test_timeout(self, tmp_path: Path) -> None:
         """Timeout should kill long-running command."""
         wrapper = ToolWrapper(ShellArrayTool)
@@ -251,6 +368,29 @@ class TestShellArrayToolExecute:
         assert result["exit_code"] is None
         # Should complete much faster than 60 seconds
         assert result["duration_seconds"] < 5.0
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(sys.platform == "win32", reason="uses POSIX ps semantics")
+    async def test_timeout_kills_spawned_child_process(self, tmp_path: Path) -> None:
+        """Array-command timeout should terminate descendants of the launched process."""
+        script_path = tmp_path / "spawn_child.py"
+        pid_file = tmp_path / "child.pid"
+        _write_sleepy_parent_script(script_path, pid_file)
+
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": [sys.executable, str(script_path)], "timeout_ms": 300},
+            state,
+        )
+
+        assert result["success"] is False
+        assert result["timed_out"] is True
+        assert result["exit_code"] is None
+        assert pid_file.exists()
+        _assert_pid_exits(int(pid_file.read_text(encoding="utf-8")))
 
     @pytest.mark.asyncio
     async def test_empty_array_error(self, tmp_path: Path) -> None:
@@ -442,6 +582,32 @@ class TestShellArrayToolStreaming:
         assert final["success"] is True
         assert "exit_code" in final
 
+    def test_stream_stdin_reader_receives_eof(self, tmp_path: Path) -> None:
+        """Streaming direct exec should not inherit interactive stdin."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+
+        chunks = list(
+            wrapper.stream_tool(
+                "shell",
+                {
+                    "command": [
+                        sys.executable,
+                        "-c",
+                        "import sys; data = sys.stdin.read(); print('stdin-bytes', len(data))",
+                    ]
+                },
+                state,
+            )
+        )
+
+        final_results = [c for c in chunks if isinstance(c, dict) and "success" in c]
+        assert final_results
+        final = final_results[-1]
+        assert final["success"] is True
+        assert final["exit_code"] == 0
+        assert "stdin-bytes 0" in final["output"]
+
     def test_streams_exit_code(self, tmp_path: Path) -> None:
         """Streaming should include exit code in final result."""
         wrapper = ToolWrapper(ShellArrayTool)
@@ -459,6 +625,68 @@ class TestShellArrayToolStreaming:
         final = final_results[-1]
         assert final["success"] is False
         assert final["exit_code"] == 1
+
+    def test_stream_cancel_stops_silent_process(self, tmp_path: Path) -> None:
+        """Explicit cancellation should stop a running direct-exec command promptly."""
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+        cancellation = _TestCancellation()
+
+        chunks: list[dict] = []
+
+        def _consume() -> None:
+            chunks.extend(
+                wrapper.stream_tool(
+                    "shell",
+                    {"command": [sys.executable, "-c", "import time; time.sleep(60)"]},
+                    state,
+                    cancellation=cancellation,
+                )
+            )
+
+        worker = threading.Thread(target=_consume)
+        worker.start()
+        time.sleep(0.2)
+        cancellation.cancel()
+        worker.join(timeout=5)
+        assert not worker.is_alive()
+
+        final_results = [c for c in chunks if isinstance(c, dict) and "success" in c]
+        assert final_results
+        final = final_results[-1]
+        assert final["success"] is False
+        assert final["cancelled"] is True
+        assert final["timed_out"] is False
+        assert final["exit_code"] is None
+        assert final["duration_seconds"] < 5.0
+
+    @pytest.mark.skipif(sys.platform == "win32", reason="uses POSIX ps semantics")
+    def test_stream_timeout_kills_spawned_child_process(self, tmp_path: Path) -> None:
+        """Streaming array timeout should terminate descendants of the launched process."""
+        script_path = tmp_path / "spawn_child.py"
+        pid_file = tmp_path / "child.pid"
+        _write_sleepy_parent_script(script_path, pid_file)
+
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+
+        chunks = list(
+            wrapper.stream_tool(
+                "shell",
+                {"command": [sys.executable, str(script_path)], "timeout_ms": 300},
+                state,
+            )
+        )
+
+        final_results = [c for c in chunks if isinstance(c, dict) and "success" in c]
+        assert final_results
+
+        final = final_results[-1]
+        assert final["success"] is False
+        assert final["timed_out"] is True
+        assert final["exit_code"] is None
+        assert pid_file.exists()
+        _assert_pid_exits(int(pid_file.read_text(encoding="utf-8")))
 
 
 class TestShellArrayToolPreview:

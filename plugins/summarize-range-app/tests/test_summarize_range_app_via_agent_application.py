@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict
 
+import json
 import pytest
 
 from agent_app.application_future import AgentApplication
@@ -12,14 +13,18 @@ from agent_app.events import InMemoryEventStore
 def _make_config(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
         "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"},
+            "controlled": {
+                "provider": "controllable_openai_test_provider",
+                "model": "test-model",
+                "response_text": "Range summary",
+            },
         },
         "plugins": [
-            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "plugins.controllable_openai_test_provider.ControllableOpenAITestProvider",
             "summarize_range_app.SummarizeRangeAppPlugin",
         ],
         "agents": {
-            "default": {"provider": "echo"},
+            "default": {"provider": "controlled"},
         },
         "application": {
             "summarize_range_agent_id": "default",
@@ -28,7 +33,7 @@ def _make_config(tmp_path: Path) -> Path:
     }
 
     path = tmp_path / "config_summarize_range_app.json"
-    path.write_text(__import__("json").dumps(cfg), encoding="utf-8")
+    path.write_text(json.dumps(cfg), encoding="utf-8")
     return path
 
 
@@ -67,7 +72,41 @@ def test_summarize_range_modifies_session_messages(tmp_path: Path) -> None:
     assert updated.messages[2].role == "user"
     assert updated.messages[2].content == "m3"
     assert updated.messages[1].role == "assistant"
-    assert isinstance(updated.messages[1].content, str) and updated.messages[1].content
+    assert updated.messages[1].content == "Range summary"
+
+
+def test_message_action_style_request_includes_selected_message(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+
+    core, base_config, session = app.create_session("default")
+    session_id = session.session_id
+
+    for text in ["m0", "m1", "m2", "m3"]:
+        session = core.add_message(session, "user", text, metadata=None, config=base_config)
+
+    app.save_session(session)
+
+    result = app.execute_application_action(
+        "summarize_range",
+        "summarize_range",
+        {
+            "session_id": session_id,
+            "start": 0,
+            "end": 2,
+            "end_inclusive": True,
+        },
+    )
+
+    mutations = result.get("mutations") or {}
+    assert mutations.get("updated_session_ids") == [session_id]
+
+    updated = app.load_session_record(session_id)
+    assert updated is not None
+    assert [message.content for message in updated.messages] == [
+        "Range summary",
+        "m3",
+    ]
+    assert updated.messages[0].role == "assistant"
 
 
 def test_summarize_range_validation_error_bubbles(tmp_path: Path) -> None:

@@ -1,17 +1,18 @@
 """Codex tools package.
 
 Provides tools matching Codex CLI schemas:
-- ShellArrayTool: Array-based shell command (for non-Codex-variant models) - tool name: "shell"
-- ShellCommandTool: String-based shell command (for Codex-variant models) - tool name: "shell_command"
+- ShellArrayTool: Array-based shell command (for gpt-5 / gpt-5-mini style models) - tool name: "shell"
+- ShellCommandTool: String-based shell command (for shell-command-family models) - tool name: "shell_command"
 - ShellTool: Legacy shell tool (tool name: "shell_legacy", disabled by default)
 - ApplyPatchTool: Apply unified diff patches
+- ViewImageTool: Load local images for model-visible vision inputs
 
 Features:
-- CodexVariantFeature: Emits "codex-variant" tag for models ending with "-codex"
+- CodexVariantFeature: Emits "codex-variant" tag for shell-command-family models
 
 Shell tool selection is controlled by:
 - shell_tool_mode config: "auto" (default) | "shell" | "shell_command"
-- codex-variant tag: Added by CodexVariantFeature for Codex models
+- codex-variant tag: Added by CodexVariantFeature for shell-command-family models
 - enabled_plugins config: To enable the legacy tool
 """
 
@@ -20,6 +21,7 @@ from .shell_command_tool import ShellCommandTool
 from .shell_tool import ShellArrayTool
 from .shell_tool_legacy import ShellTool
 from .apply_patch_tool import ApplyPatchTool
+from .view_image_tool import ViewImageTool
 from .codex_variant_feature import CodexVariantFeature
 
 __all__ = [
@@ -29,5 +31,6 @@ __all__ = [
     "ShellArrayTool",
     "ShellTool",
     "ApplyPatchTool",
+    "ViewImageTool",
     "CodexVariantFeature",
 ]

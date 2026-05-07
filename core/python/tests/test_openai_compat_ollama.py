@@ -13,16 +13,21 @@ This test skips gracefully if Ollama is unavailable or the model cannot be pulle
 import os
 import shutil
 import subprocess
+import threading
+import time
 from typing import Optional
 
 import pytest
 
 from agent_core import AgentCore
+from agent_core.types import ProviderRequestCancelled
+from plugins.openai_provider import OpenAICompatibleProvider
 
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL = os.getenv("OLLAMA_MODEL", "qwen3:0.6b")  # reasoning model for stable behavior
+pytestmark = pytest.mark.integration
 
 
 def _which(cmd: str) -> Optional[str]:
@@ -30,7 +35,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -118,3 +125,112 @@ def test_request_options_feature_with_ollama(ensure_model):
     final_message = responses[-1]
     assert isinstance(final_message, dict)
     assert final_message.get("role") == "assistant"
+
+
+@pytest.mark.ollama
+def test_openai_compat_stream_cancel_soon_after_send_with_ollama(ensure_model):
+    provider = OpenAICompatibleProvider()
+    config = {
+        "model": MODEL,
+        "base_url": OPENAI_BASE_URL,
+        "timeout": 60,
+    }
+    state = provider.init(config)
+    native_messages = provider.to_native_messages(
+        [
+            {
+                "role": "user",
+                "content": "Write a long detailed essay about distributed systems.",
+            }
+        ],
+        state,
+    )
+    native_messages, state = provider.initialize_request(
+        native_messages,
+        state,
+        request_id="openai_compat_cancel_soon",
+    )
+
+    outcome: dict[str, object] = {"chunks": []}
+
+    def _consume() -> None:
+        try:
+            for chunk in provider.stream_api(
+                native_messages,
+                state,
+                request_id="openai_compat_cancel_soon",
+            ):
+                outcome["chunks"].append(chunk)
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    deadline = time.time() + 10.0
+    while time.time() < deadline:
+        if provider.cancel_request("openai_compat_cancel_soon"):
+            break
+        time.sleep(0.02)
+    else:
+        raise AssertionError("OpenAI-compatible request was never registered as active")
+
+    worker.join(timeout=20.0)
+    assert not worker.is_alive()
+    assert not outcome["chunks"]
+    assert outcome.get("error") is None or isinstance(
+        outcome.get("error"), ProviderRequestCancelled
+    )
+
+
+@pytest.mark.ollama
+def test_openai_compat_stream_cancel_after_first_partial_with_ollama(ensure_model):
+    provider = OpenAICompatibleProvider()
+    config = {
+        "model": MODEL,
+        "base_url": OPENAI_BASE_URL,
+        "timeout": 60,
+    }
+    state = provider.init(config)
+    native_messages = provider.to_native_messages(
+        [{"role": "user", "content": "Write a long detailed essay about concurrency."}],
+        state,
+    )
+    native_messages, state = provider.initialize_request(
+        native_messages,
+        state,
+        request_id="openai_compat_cancel_after_partial",
+    )
+
+    outcome: dict[str, object] = {"chunks": []}
+
+    def _consume() -> None:
+        try:
+            for chunk in provider.stream_api(
+                native_messages,
+                state,
+                request_id="openai_compat_cancel_after_partial",
+            ):
+                outcome["chunks"].append(chunk)
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    deadline = time.time() + 30.0
+    while time.time() < deadline:
+        if outcome["chunks"]:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError(
+            "OpenAI-compatible stream did not emit a partial before cancellation"
+        )
+
+    assert provider.cancel_request("openai_compat_cancel_after_partial") is True
+
+    worker.join(timeout=20.0)
+    assert not worker.is_alive()
+    assert outcome["chunks"]
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)

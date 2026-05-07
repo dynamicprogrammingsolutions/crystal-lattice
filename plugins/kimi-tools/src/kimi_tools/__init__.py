@@ -4,12 +4,18 @@ from .kimi_str_replace_file_tool import KimiStrReplaceFileTool
 from .kimi_glob_tool import KimiGlobTool
 from .kimi_grep_tool import KimiGrepTool
 from .kimi_shell_tool import KimiShellTool
+from .kimi_fetch_url_tool import KimiFetchURLTool
+from .kimi_read_media_file_tool import KimiReadMediaFileTool
+from .kimi_web_search_tool import KimiWebSearchTool
 
 __all__ = [
     "KimiReadFileTool",
+    "KimiReadMediaFileTool",
     "KimiWriteFileTool",
     "KimiStrReplaceFileTool",
     "KimiGlobTool",
     "KimiGrepTool",
     "KimiShellTool",
+    "KimiFetchURLTool",
+    "KimiWebSearchTool",
 ]

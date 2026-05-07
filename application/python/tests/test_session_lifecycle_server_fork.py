@@ -45,6 +45,9 @@ def _make_config(tmp_path: Path) -> Path:
 def test_server_fork_uses_application_lifecycle_path(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
+    previous = getattr(server_mod, "_agent_app", None)
+    if previous is not None:
+        previous.close()
     config_path = _make_config(tmp_path)
     app = AgentApplication(
         str(config_path),

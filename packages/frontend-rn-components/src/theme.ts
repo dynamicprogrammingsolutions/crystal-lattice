@@ -1,6 +1,20 @@
 import React from 'react';
 
 export interface Theme {
+  typography: {
+    fontSize: {
+      tiny: number;
+      small: number;
+      secondary: number;
+      normal: number;
+      message: number;
+      large: number;
+      title: number;
+      screenTitle: number;
+      display: number;
+      code: number;
+    };
+  };
   background: string;
   backgroundAlt: string;
   surface: string;
@@ -28,6 +42,20 @@ export interface Theme {
 }
 
 const defaultLightTheme: Theme = {
+  typography: {
+    fontSize: {
+      tiny: 11,
+      small: 12,
+      secondary: 13,
+      normal: 14,
+      message: 15,
+      large: 16,
+      title: 18,
+      screenTitle: 24,
+      display: 28,
+      code: 14,
+    },
+  },
   background: '#F2F2F7',
   backgroundAlt: '#FFFFFF',
   surface: '#FFFFFF',

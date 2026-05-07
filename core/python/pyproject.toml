@@ -26,6 +26,7 @@ dependencies = [
     "jsonpath-ng>=1.6.0",
     "trafilatura>=1.8.0",
     "GitPython>=3.1.0",
+    "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]

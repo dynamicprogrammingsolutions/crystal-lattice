@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 """Application-level plugin for pinning/unpinning sessions.
 
 This plugin toggles a boolean flag in session metadata (for example,
 ``metadata["pinned"]``) and exposes a lightweight UI element that can be
 used by frontends to render a star-style pinned toggle per session row.
 """
+
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
@@ -132,7 +132,7 @@ class SessionPinnedAppPlugin:
                 messages=session.messages,
                 metadata=new_metadata,
             )
-            app.save_session(new_session)
+            new_session = app.save_session(new_session)
 
             stored = app.publish_event(
                 {

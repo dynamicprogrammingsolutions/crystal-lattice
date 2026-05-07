@@ -53,8 +53,9 @@ def test_reasoning_extension_from_native_aliases_reasoning_content_to_reasoning(
         [{"role": "assistant", "content": "done", "metadata": {}}],
     )
 
+    # Only canonical "reasoning" field in metadata
     assert rebuilt[0]["metadata"]["reasoning"] == "alpha beta"
-    assert rebuilt[0]["metadata"]["reasoning_content"] == "alpha beta"
+    assert "reasoning_content" not in rebuilt[0]["metadata"]
 
 
 def test_reasoning_extension_prioritizes_reasoning_for_patch_when_both_fields_exist():
@@ -72,34 +73,35 @@ def test_reasoning_extension_prioritizes_reasoning_for_patch_when_both_fields_ex
 
 def test_reasoning_extension_round_trips_native_reasoning_fields():
     ext = OpenAICompatibleReasoningExtension()
+    # Core messages store reasoning in canonical "reasoning" metadata field
     messages = [
         {
             "role": "assistant",
             "content": "done",
             "metadata": {
                 "reasoning": "chain",
-                "reasoning_content": "raw chain",
             },
         }
     ]
     native_messages = [{"role": "assistant", "content": "done"}]
 
+    # to_native_messages reads from canonical "reasoning" and writes to all native fields
     native_out = ext.to_native_messages(messages, native_messages)
     assert native_out == [
         {
             "role": "assistant",
             "content": "done",
             "reasoning": "chain",
-            "reasoning_content": "raw chain",
+            "reasoning_content": "chain",
         }
     ]
 
+    # from_native_messages reads from native fields and writes to canonical "reasoning"
     rebuilt = ext.from_native_messages(
         native_out, [{"role": "assistant", "content": "done"}]
     )
     assert rebuilt[0]["metadata"] == {
         "reasoning": "chain",
-        "reasoning_content": "raw chain",
     }
 
 
@@ -149,14 +151,13 @@ def test_reasoning_extension_to_native_messages_uses_configured_field():
     ext = OpenAICompatibleReasoningExtension()
     state = ext.init({"reasoning_field": "custom_reasoning"}, {})
 
+    # Core messages have canonical "reasoning" in metadata
     messages = [
         {
             "role": "assistant",
             "content": "done",
             "metadata": {
-                "reasoning": "should be ignored",
-                "reasoning_content": "should be ignored",
-                "custom_reasoning": "only this",
+                "reasoning": "my reasoning",
             },
         }
     ]
@@ -164,12 +165,12 @@ def test_reasoning_extension_to_native_messages_uses_configured_field():
 
     native_out = ext.to_native_messages(messages, native_messages, state)
 
-    # Only custom_reasoning should be included
+    # Reads from canonical "reasoning" and writes to configured native field
     assert native_out == [
         {
             "role": "assistant",
             "content": "done",
-            "custom_reasoning": "only this",
+            "custom_reasoning": "my reasoning",
         }
     ]
 
@@ -178,13 +179,13 @@ def test_reasoning_extension_to_native_messages_uses_all_fields_when_not_configu
     ext = OpenAICompatibleReasoningExtension()
     state = ext.init({}, {})
 
+    # Core messages have canonical "reasoning" in metadata
     messages = [
         {
             "role": "assistant",
             "content": "done",
             "metadata": {
                 "reasoning": "chain",
-                "reasoning_content": "raw chain",
             },
         }
     ]
@@ -192,13 +193,13 @@ def test_reasoning_extension_to_native_messages_uses_all_fields_when_not_configu
 
     native_out = ext.to_native_messages(messages, native_messages, state)
 
-    # Both fields should be included
+    # Reads from canonical "reasoning" and writes to all native fields
     assert native_out == [
         {
             "role": "assistant",
             "content": "done",
             "reasoning": "chain",
-            "reasoning_content": "raw chain",
+            "reasoning_content": "chain",
         }
     ]
 
@@ -219,9 +220,9 @@ def test_reasoning_extension_from_native_messages_uses_configured_field():
 
     rebuilt = ext.from_native_messages(native_messages, messages, state)
 
-    # Only custom_reasoning should be extracted, and it should be aliased to "reasoning"
+    # Only custom_reasoning should be extracted, stored in canonical "reasoning"
     assert rebuilt[0]["metadata"]["reasoning"] == "only this"
-    assert rebuilt[0]["metadata"]["custom_reasoning"] == "only this"
+    assert "custom_reasoning" not in rebuilt[0]["metadata"]
     assert "reasoning_content" not in rebuilt[0]["metadata"]
 
 
@@ -275,17 +276,17 @@ def test_reasoning_extension_round_trip_with_configured_field():
         {"role": "assistant", "content": "done", "thinking": "my thought process"}
     ]
 
-    # Convert to core messages
+    # Convert to core messages - stores in canonical "reasoning"
     core_messages = [{"role": "assistant", "content": "done", "metadata": {}}]
     rebuilt = ext.from_native_messages(native_messages, core_messages, state)
 
     assert rebuilt[0]["metadata"]["reasoning"] == "my thought process"
-    assert rebuilt[0]["metadata"]["thinking"] == "my thought process"
+    assert "thinking" not in rebuilt[0]["metadata"]
 
-    # Convert back to native
+    # Convert back to native - reads from canonical "reasoning", writes to "thinking"
     native_out = ext.to_native_messages(rebuilt, [{"role": "assistant", "content": "done"}], state)
 
-    # Only thinking field should be present
+    # Only thinking field should be present in native
     assert native_out == [
         {
             "role": "assistant",

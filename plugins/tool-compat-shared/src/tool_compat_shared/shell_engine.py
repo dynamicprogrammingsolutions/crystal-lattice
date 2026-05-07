@@ -18,6 +18,8 @@ import asyncio
 import os
 import platform
 import shutil
+import signal
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -36,6 +38,9 @@ BACKGROUND_MAX_LINES = 100
 
 BACKGROUND_READ_TIMEOUT = 0.01
 """Per-line read timeout in seconds for background process initial output capture."""
+
+TERMINATE_GRACE_SECONDS = 0.2
+"""Grace period between soft terminate and hard kill for foreground processes."""
 
 
 @dataclass(frozen=True)
@@ -102,6 +107,116 @@ def build_shell_args(command: str, shell: ShellInfo | None = None) -> list[str]:
     if shell is None:
         shell = detect_shell()
     return [shell.path, *shell.args, command]
+
+
+def _launch_process_kwargs() -> dict[str, Any]:
+    """Return subprocess kwargs that isolate the child into its own killable group."""
+    if os.name == "nt":
+        return {}
+    return {"start_new_session": True}
+
+
+def build_async_subprocess_kwargs() -> dict[str, Any]:
+    """Return standard async subprocess kwargs for noninteractive shell execution."""
+    launch_kwargs = dict(_launch_process_kwargs())
+    launch_kwargs["stdin"] = asyncio.subprocess.DEVNULL
+    return launch_kwargs
+
+
+def build_sync_subprocess_kwargs() -> dict[str, Any]:
+    """Return standard sync subprocess kwargs for noninteractive shell execution."""
+    launch_kwargs = dict(_launch_process_kwargs())
+    launch_kwargs["stdin"] = subprocess.DEVNULL
+    return launch_kwargs
+
+
+def _get_process_group_id(pid: int | None) -> int | None:
+    if pid is None or os.name == "nt":
+        return None
+    try:
+        return os.getpgid(pid)
+    except ProcessLookupError:
+        return None
+
+
+async def terminate_async_process_tree(
+    process: asyncio.subprocess.Process,
+    *,
+    grace_seconds: float = TERMINATE_GRACE_SECONDS,
+) -> None:
+    """Terminate the entire process tree for an asyncio subprocess."""
+    if process.returncode is not None:
+        return
+
+    pgid = _get_process_group_id(process.pid)
+    if pgid is not None:
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+
+        try:
+            await asyncio.wait_for(process.wait(), timeout=grace_seconds)
+            return
+        except asyncio.TimeoutError:
+            pgid = _get_process_group_id(process.pid)
+            if pgid is not None:
+                try:
+                    os.killpg(pgid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            await process.wait()
+            return
+
+    process.terminate()
+    try:
+        await asyncio.wait_for(process.wait(), timeout=grace_seconds)
+    except asyncio.TimeoutError:
+        process.kill()
+        await process.wait()
+
+
+def terminate_process_tree(
+    process: subprocess.Popen[Any],
+    *,
+    grace_seconds: float = TERMINATE_GRACE_SECONDS,
+) -> None:
+    """Terminate the entire process tree for a synchronous subprocess."""
+    if process.poll() is not None:
+        return
+
+    pgid = _get_process_group_id(process.pid)
+    if pgid is not None:
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except ProcessLookupError:
+            return
+
+        try:
+            process.wait(timeout=grace_seconds)
+            return
+        except subprocess.TimeoutExpired:
+            pgid = _get_process_group_id(process.pid)
+            if pgid is not None:
+                try:
+                    os.killpg(pgid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            try:
+                process.wait(timeout=grace_seconds)
+            except subprocess.TimeoutExpired:
+                pass
+            return
+
+    process.terminate()
+    try:
+        process.wait(timeout=grace_seconds)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        try:
+            process.wait(timeout=grace_seconds)
+        except subprocess.TimeoutExpired:
+            pass
 
 
 async def _capture_initial_output(
@@ -260,6 +375,7 @@ async def run_shell_command(
         env=env if env is not None else os.environ,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
+        **build_async_subprocess_kwargs(),
     )
 
     pid = process.pid
@@ -326,8 +442,7 @@ async def run_shell_command(
         timed_out = False
 
     except asyncio.TimeoutError:
-        process.kill()
-        await process.wait()
+        await terminate_async_process_tree(process)
         exit_code = None
         timed_out = True
 

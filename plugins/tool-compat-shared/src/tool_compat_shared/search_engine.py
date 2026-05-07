@@ -10,7 +10,7 @@ import time
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from .reader_engine import is_binary_file, is_path_ignored, read_file_with_encoding
+from .reader_engine import DEFAULT_GEMINI_LINE_CHAR_LIMIT, is_binary_file, is_path_ignored, read_file_with_encoding
 
 
 RECENT_FILE_THRESHOLD_MS = 24 * 60 * 60 * 1000
@@ -636,15 +636,23 @@ def format_gemini_grep_result(
     for item in results:
         grouped.setdefault(item["path"], []).append(item)
     blocks: list[str] = []
+    shortened = False
     for path_value, matches in grouped.items():
         lines = [f"File: {path_value}"]
         for match in matches:
-            lines.append(f"L{match['line_number']}: {match['line'].rstrip()}")
+            raw_line = match["line"].rstrip()
+            if len(raw_line) > DEFAULT_GEMINI_LINE_CHAR_LIMIT:
+                raw_line = raw_line[:DEFAULT_GEMINI_LINE_CHAR_LIMIT] + "... [truncated]"
+                shortened = True
+            lines.append(f"L{match['line_number']}: {raw_line}")
         blocks.append("\n".join(lines))
     match_count = len(results)
     noun = "match" if match_count == 1 else "matches"
     message = f'Found {match_count} {noun} for pattern "{pattern}" {search_description}:\n' + "\n---\n".join(blocks)
-    return {"success": True, "result": message, "kind": "text", "return_display": f"Found {match_count} {noun}"}
+    display = f"Found {match_count} {noun}"
+    if shortened:
+        display += " (some lines were shortened)"
+    return {"success": True, "result": message, "kind": "text", "return_display": display}
 
 
 def format_qwen_grep_result(

@@ -158,6 +158,32 @@ describe('buildSessionSettingItems', () => {
     expect(items[0].schemaDefaultValue).toBe('disabled');
   });
 
+  it('labels base config values that match defaults as default', () => {
+    const elements = [
+      { key: 'enable_reasoning', type: 'checkbox', label: 'Enable reasoning', default: true },
+      { key: 'reasoning_effort', type: 'select', label: 'Reasoning effort', default: 'medium' },
+    ] as UiSchemaElement[];
+
+    const schemaByKey = buildConfigSchemaByKey([
+      { key: 'enable_reasoning', default: true },
+      { key: 'reasoning_effort', default: 'medium' },
+    ] as ConfigSchemaEntry[]);
+
+    const items = buildSessionSettingItems({
+      elements,
+      overrides: {},
+      baseConfig: { enable_reasoning: true, reasoning_effort: 'medium' },
+      schemaByKey,
+    });
+
+    expect(items[0].source).toBe('config');
+    expect(items[0].tagLabel).toBe('default');
+    expect(items[0].effectiveValue).toBe(true);
+    expect(items[1].source).toBe('config');
+    expect(items[1].tagLabel).toBe('default');
+    expect(items[1].effectiveValue).toBe('medium');
+  });
+
   it('still prefers flat overrides over nested base config paths', () => {
     const elements = [
       {
@@ -184,5 +210,20 @@ describe('buildSessionSettingItems', () => {
     expect(items[0].source).toBe('override');
     expect(items[0].tagLabel).toBeNull();
     expect(items[0].effectiveValue).toBe('disabled');
+  });
+
+  it('propagates disabled UI schema state to setting items', () => {
+    const items = buildSessionSettingItems({
+      elements: [
+        { key: 'enabled_control', type: 'checkbox' },
+        { key: 'disabled_control', type: 'checkbox', disabled: true },
+      ] as UiSchemaElement[],
+      overrides: {},
+      baseConfig: {},
+      schemaByKey: {},
+    });
+
+    expect(items[0].disabled).toBe(false);
+    expect(items[1].disabled).toBe(true);
   });
 });

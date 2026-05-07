@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import platform
+import shlex
+import sys
 from pathlib import Path
 
 import pytest
@@ -238,6 +240,21 @@ class TestRunShellCommand:
         # Check for newlines
         assert "\n" in result["output"] or "\r" in result["output"]
 
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(platform.system() == "Windows", reason="shell quoting is Unix-specific")
+    async def test_string_command_receives_eof_on_stdin(self) -> None:
+        """Shell-wrapped commands should receive EOF instead of inherited stdin."""
+        command = (
+            f"{shlex.quote(sys.executable)} -c "
+            "\"import sys; data = sys.stdin.read(); print('stdin-bytes', len(data))\""
+        )
+
+        result = await run_shell_command(command)
+
+        assert result["ok"] is True
+        assert result["exit_code"] == 0
+        assert "stdin-bytes 0" in result["output"]
+
 
 class TestRunShellCommandArray:
     """Tests for array-based command execution."""
@@ -371,6 +388,21 @@ class TestRunShellCommandArray:
         # This will raise a TypeError because create_subprocess_exec requires at least one arg
         with pytest.raises(TypeError, match="required positional argument"):
             await run_shell_command([])
+
+    @pytest.mark.asyncio
+    async def test_array_command_receives_eof_on_stdin(self) -> None:
+        """Direct-exec commands should receive EOF instead of inherited stdin."""
+        result = await run_shell_command(
+            [
+                sys.executable,
+                "-c",
+                "import sys; data = sys.stdin.read(); print('stdin-bytes', len(data))",
+            ]
+        )
+
+        assert result["ok"] is True
+        assert result["exit_code"] == 0
+        assert "stdin-bytes 0" in result["output"]
 
 
 class TestApproxTokenCount:

@@ -206,7 +206,9 @@ def test_runtime_system_message_templates_exist() -> None:
         assert (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).is_file(), relative_path
 
 
-def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_placeholders() -> None:
+def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_placeholders() -> (
+    None
+):
     runtime_templates = {
         "gemini/template.md": {
             "{{AVAILABLE_SUBAGENTS_SECTION}}",
@@ -268,8 +270,8 @@ def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_p
     }
 
     for agent_id, removed_keys in removed_variable_keys.items():
-        provider_id = portable_config["agents"][agent_id]["provider"]
-        variables = portable_config["providers"][provider_id]["system_message"]["variables"]
+        mixin_ref = portable_config["agents"][agent_id]["mixin_refs"][0]
+        variables = portable_config["mixins"][mixin_ref]["system_message"]["variables"]
         for key in removed_keys:
             assert key not in variables, (agent_id, key)
 
@@ -281,7 +283,19 @@ def test_portable_default_config_is_self_contained() -> None:
     assert (DEFAULT_CONFIG_ROOT / "codex").is_dir()
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    codex_rows = config["providers"]["openrouter_codex_tools"]["codex_developer_messages"]
+    cloud_agent = config["application"]["cloud_agent"]
+    for old_key in (
+        "local_transfer_script",
+        "cloud_setup_script",
+        "cloud_export_script",
+        "local_apply_script",
+    ):
+        assert old_key not in cloud_agent
+    assert cloud_agent["project_config_path"] == (
+        "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json"
+    )
+
+    codex_rows = config["mixins"]["codex_developer_message"]["codex_developer_messages"]
 
     for row in codex_rows:
         text = row["text"]
@@ -314,6 +328,11 @@ def test_portable_default_config_is_self_contained() -> None:
         "system_messages/kimi/general-guidelines-for-coding.md",
         "system_messages/kimi/general-guidelines-for-research-and-data-processing.md",
         "system_messages/kimi/ultimate-reminders.md",
+        "cloud-agent/profiles/working-tree-current-state/transfer-up",
+        "cloud-agent/profiles/repo-install/install",
+        "cloud-agent/profiles/working-tree-patch/export",
+        "cloud-agent/profiles/working-tree-patch/mark-synced",
+        "cloud-agent/profiles/working-tree-patch/apply-down",
     ]
 
     for relative_path in helper_paths:

@@ -66,14 +66,11 @@ class GeminiReplaceTool(ToolPlugin):
         if tool_name != "replace":
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
         file_path = arguments.get("file_path")
-        instruction = arguments.get("instruction")
         old_string = arguments.get("old_string")
         new_string = arguments.get("new_string")
         allow_multiple = bool(arguments.get("allow_multiple", False))
         if not isinstance(file_path, str) or not file_path.strip():
             return {"success": False, "error": "The 'file_path' parameter must be non-empty."}
-        if not isinstance(instruction, str) or not instruction.strip():
-            return {"success": False, "error": "The 'instruction' parameter must be non-empty."}
         if not isinstance(old_string, str) or not isinstance(new_string, str):
             return {"success": False, "error": "The 'old_string' and 'new_string' parameters must be strings."}
 

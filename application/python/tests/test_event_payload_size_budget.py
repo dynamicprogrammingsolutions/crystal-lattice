@@ -121,7 +121,7 @@ def test_event_payload_size_budget_message_modified(tmp_path: Path, surface: str
             term_app.append_user_message(_padding_message(idx), metadata=None)
         term_app.modify_message(0, "modified")
 
-    events = app.get_event_store().list(session_id=session_id, limit=20000)
+    events = (app.get_event_store().list(session_id=session_id, limit=20000).get("events") or [])
     assert any(ev.get("type") == "message_modified" for ev in events)
     _assert_events_within_size_budget(events=events, app=app)
 
@@ -166,7 +166,7 @@ def test_event_payload_size_budget_messages_deleted(tmp_path: Path, surface: str
             term_app.append_user_message(_padding_message(idx), metadata=None)
         term_app.delete_messages([1])
 
-    events = app.get_event_store().list(session_id=session_id, limit=20000)
+    events = (app.get_event_store().list(session_id=session_id, limit=20000).get("events") or [])
     assert any(ev.get("type") == "messages_deleted" for ev in events)
     _assert_events_within_size_budget(events=events, app=app)
 
@@ -209,7 +209,7 @@ def test_event_payload_size_budget_session_fork(tmp_path: Path, surface: str) ->
         forked = term_app.fork_session(-1)
         fork_session_id = forked.session_id
 
-    all_events = app.get_event_store().list(limit=20000)
+    all_events = (app.get_event_store().list(limit=20000).get("events") or [])
     assert any(
         ev.get("type") == "session_created" and ev.get("session_id") == fork_session_id
         for ev in all_events

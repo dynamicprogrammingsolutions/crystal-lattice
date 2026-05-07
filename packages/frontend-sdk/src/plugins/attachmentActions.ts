@@ -5,6 +5,7 @@ export const DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID = 'openai_responses_attachments
 export const DEFAULT_ATTACHMENT_ACTION_OWNER = 'provider_extension';
 export const STORE_ATTACHMENT_ACTION_ID = 'store_attachment';
 export const DELETE_ATTACHMENT_ACTION_ID = 'delete_attachment';
+export const DOWNLOAD_ATTACHMENT_ACTION_ID = 'download_attachment';
 
 export interface SessionAssetRef {
   kind: 'session_asset';
@@ -25,6 +26,11 @@ export interface StoredAttachmentAssetDescriptor {
   metadata?: Record<string, any>;
   client_attachment_id?: string;
   [k: string]: any;
+}
+
+export interface DownloadedAttachmentPayload {
+  attachment_asset: StoredAttachmentAssetDescriptor;
+  data_base64: string;
 }
 
 function actionErrorMessage(response: ExecuteActionResponse): string {
@@ -175,4 +181,52 @@ export async function deleteSessionAttachment(options: {
   }
 
   return ensureStoredAttachmentDescriptor((response as any).result?.deleted_attachment_asset);
+}
+
+export async function downloadSessionAttachment(options: {
+  backend: AgentBackend;
+  sessionId: string;
+  assetId: string;
+  pluginId?: string;
+  idempotencyKey?: string;
+}): Promise<DownloadedAttachmentPayload> {
+  const pluginId =
+    typeof options.pluginId === 'string' && options.pluginId.trim()
+      ? options.pluginId.trim()
+      : DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID;
+  const sessionId = typeof options.sessionId === 'string' ? options.sessionId.trim() : '';
+  const assetId = typeof options.assetId === 'string' ? options.assetId.trim() : '';
+  if (!sessionId) {
+    throw new Error('sessionId is required to download an attachment.');
+  }
+  if (!assetId) {
+    throw new Error('assetId is required to download an attachment.');
+  }
+
+  const response = await options.backend.executeAction({
+    pluginId,
+    actionId: DOWNLOAD_ATTACHMENT_ACTION_ID,
+    actionOwner: DEFAULT_ATTACHMENT_ACTION_OWNER,
+    idempotencyKey: options.idempotencyKey,
+    inputs: {
+      session_id: sessionId,
+      asset_id: assetId,
+    },
+  });
+
+  if (!response || response.status !== 'ok') {
+    throw new Error(actionErrorMessage(response));
+  }
+
+  const result = (response as any).result;
+  const attachmentAsset = ensureStoredAttachmentDescriptor(result?.attachment_asset);
+  const dataBase64 = typeof result?.data_base64 === 'string' ? result.data_base64 : '';
+  if (!dataBase64) {
+    throw new Error('Attachment action returned an invalid data_base64 payload.');
+  }
+
+  return {
+    attachment_asset: attachmentAsset,
+    data_base64: dataBase64,
+  };
 }

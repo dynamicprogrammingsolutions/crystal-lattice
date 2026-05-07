@@ -10,12 +10,12 @@ description = "Application plugin defining bucketed session list ordering"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "agent-core>=0.3.0"
 ]
 
 
 [project.optional-dependencies]
 dev = [
+  "agent-core>=0.3.0",
   "pytest>=7.0.0",
 ]
 

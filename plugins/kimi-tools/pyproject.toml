@@ -9,7 +9,7 @@ version = "0.1.0"
 description = "Kimi CLI-compatible tool plugin bundle"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["tool-compat-shared>=0.1.0"]
+dynamic = ["dependencies"]
 
 
 [project.optional-dependencies]

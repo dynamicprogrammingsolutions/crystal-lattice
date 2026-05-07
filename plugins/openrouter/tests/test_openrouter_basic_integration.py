@@ -9,6 +9,8 @@ Run with: pytest tests/test_openrouter_basic_integration.py -v
 from __future__ import annotations
 
 import os
+import threading
+import time
 import pytest
 
 # Load .env file if it exists
@@ -20,6 +22,7 @@ except ImportError:
     pass
 
 from agent_core import AgentCore
+from agent_core.types import ProviderRequestCancelled
 from openrouter_plugins.openrouter_provider import OpenRouterProvider
 
 
@@ -157,3 +160,106 @@ def test_openrouter_with_optional_headers(ensure_api_key):
     assert len(responses) > 0
     assert responses[-1]["role"] == "assistant"
     print(f"\nWith headers: {responses[-1]['content']}")
+
+
+@pytest.mark.integration
+@pytest.mark.openrouter
+def test_openrouter_stream_cancel_soon_after_send_real_api(ensure_api_key):
+    provider = OpenRouterProvider()
+    config = {
+        "model": "openai/gpt-5-mini",
+        "api_key": OPENROUTER_API_KEY,
+        "base_url": BASE_URL,
+        "timeout": 60,
+    }
+    state = provider.init(config)
+    native_messages = provider.to_native_messages(
+        [{"role": "user", "content": "Write a long detailed essay about distributed systems."}],
+        state,
+    )
+    native_messages, state = provider.initialize_request(
+        native_messages,
+        state,
+        request_id="openrouter_cancel_soon",
+    )
+
+    outcome: dict[str, object] = {"chunks": []}
+
+    def _consume() -> None:
+        try:
+            for chunk in provider.stream_api(
+                native_messages,
+                state,
+                request_id="openrouter_cancel_soon",
+            ):
+                outcome["chunks"].append(chunk)
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    deadline = time.time() + 10.0
+    while time.time() < deadline:
+        if provider.cancel_request("openrouter_cancel_soon"):
+            break
+        time.sleep(0.02)
+    else:
+        raise AssertionError("OpenRouter request was never registered as active")
+
+    worker.join(timeout=20)
+    assert not worker.is_alive()
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)
+
+
+@pytest.mark.integration
+@pytest.mark.openrouter
+def test_openrouter_stream_cancel_after_first_partial_real_api(ensure_api_key):
+    provider = OpenRouterProvider()
+    config = {
+        "model": "openai/gpt-5-mini",
+        "api_key": OPENROUTER_API_KEY,
+        "base_url": BASE_URL,
+        "timeout": 60,
+    }
+    state = provider.init(config)
+    native_messages = provider.to_native_messages(
+        [{"role": "user", "content": "Write a long detailed essay about concurrency."}],
+        state,
+    )
+    native_messages, state = provider.initialize_request(
+        native_messages,
+        state,
+        request_id="openrouter_cancel_after_partial",
+    )
+
+    outcome: dict[str, object] = {"chunks": []}
+
+    def _consume() -> None:
+        try:
+            for chunk in provider.stream_api(
+                native_messages,
+                state,
+                request_id="openrouter_cancel_after_partial",
+            ):
+                outcome["chunks"].append(chunk)
+        except Exception as exc:  # noqa: BLE001
+            outcome["error"] = exc
+
+    worker = threading.Thread(target=_consume)
+    worker.start()
+
+    deadline = time.time() + 30.0
+    while time.time() < deadline:
+        if outcome["chunks"]:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("OpenRouter stream did not emit a partial before cancellation")
+
+    assert provider.cancel_request("openrouter_cancel_after_partial") is True
+
+    worker.join(timeout=20)
+    assert not worker.is_alive()
+    assert outcome["chunks"]
+    assert isinstance(outcome.get("error"), ProviderRequestCancelled)

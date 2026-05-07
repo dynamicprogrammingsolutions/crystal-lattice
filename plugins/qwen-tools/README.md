@@ -22,6 +22,7 @@ Current public tools in this package:
 - `write_file`
 - `edit`
 - `bash`
+- `web_fetch`
 
 Write/edit surface summary:
 
@@ -38,6 +39,7 @@ The plugin repo exposes these classes through `agent_plugin.json`:
 - `qwen_tools.qwen_write_file_tool.QwenWriteFileTool`
 - `qwen_tools.qwen_edit_tool.QwenEditTool`
 - `qwen_tools.qwen_shell_tool.QwenShellTool`
+- `qwen_tools.qwen_web_fetch_tool.QwenWebFetchTool`
 
 ## Quickstart
 
@@ -318,6 +320,69 @@ Build output line 2...
 
 [500 lines truncated]
 ```
+
+## Web Fetch behavior notes
+
+The Qwen-compatible web fetch entrypoint is `web_fetch`.
+
+- `url` is the URL to fetch content from (required).
+- `prompt` is the prompt to run on the fetched content (required).
+- Content is fetched directly using HTTP GET.
+- HTML content is converted to plain text using trafilatura.
+- Content is truncated to `web_fetch_max_content_chars` characters.
+- The configured provider is used to summarize content based on the prompt.
+- Supports both public and private/localhost URLs.
+- Rate limited per-host (default: 10 requests per 60 seconds).
+
+Representative `web_fetch` call shape:
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "web_fetch",
+    "arguments": {
+      "url": "https://example.com/article",
+      "prompt": "Summarize the main points of this article"
+    }
+  }
+}
+```
+
+Representative outcomes:
+
+Success:
+```text
+[LLM-summarized content based on the prompt]
+```
+
+Error:
+```text
+Error: Error during fetch for https://example.com: HTTP 404
+```
+
+Rate limited:
+```text
+Error: Rate limit exceeded. Please wait 30 seconds.
+```
+
+### Configuration
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `web_fetch_enabled` | `true` | Enable the web_fetch tool |
+| `web_fetch_timeout_seconds` | `10` | Fetch timeout in seconds |
+| `web_fetch_max_content_chars` | `100000` | Max content length in characters |
+| `web_fetch_rate_limit_requests` | `10` | Max requests per window per host |
+| `web_fetch_rate_limit_window` | `60` | Rate limit window in seconds |
+| `web_fetch_summarization_agent_id` | `null` | Optional dedicated agent for summarization |
+| `web_fetch_summarization_model` | `null` | Optional model override for summarization |
+
+### Known Limitations
+
+- No browser rendering for JavaScript-heavy pages
+- Requires a configured provider for summarization
+- No special handling for private IPs (fetches all URLs directly)
 
 ## Compatibility contract
 

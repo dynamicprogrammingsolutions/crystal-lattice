@@ -47,8 +47,23 @@ def test_normalize_string_system_message() -> None:
     cfg = SystemMessageFeature._extract_plugin_config(config)
 
     assert cfg["enabled"] is True
+    assert cfg["as_instructions"] is False
     assert cfg["template"] == "Hello {{NAME}}"
     assert cfg["variables"] == {}
+
+
+def test_normalize_system_message_as_instructions_flag() -> None:
+    config = {
+        "system_message_enabled": True,
+        "system_message_as_instructions": True,
+        "system_message": "Hello {{NAME}}",
+    }
+
+    cfg = SystemMessageFeature._extract_plugin_config(config)
+
+    assert cfg["enabled"] is True
+    assert cfg["as_instructions"] is True
+    assert cfg["template"] == "Hello {{NAME}}"
 
 
 def test_normalize_object_system_message_with_text_variable() -> None:
@@ -162,6 +177,31 @@ def test_system_message_permanent_template_injected_when_missing() -> None:
     request = new_state.get("request") or {}
     override = request.get("messages") or []
     assert override and override[0]["role"] == "system"
+
+
+def test_system_message_can_compile_into_request_instructions() -> None:
+    feature = SystemMessageFeature()
+
+    config = {
+        "system_message_enabled": True,
+        "system_message_as_instructions": True,
+        "system_message": {
+            "template": "You are a helper for {{PROJECT}}.",
+            "variables": {"PROJECT": "AI Agent Platform"},
+        },
+    }
+
+    state: Dict[str, Any] = {"request": {"payload": {"model": "gpt-5"}}}
+    state = feature.init(config, state)
+
+    native = _simple_native([{"role": "user", "content": "Hi"}])
+
+    new_native, new_state = feature.initialize_request(native, state)
+
+    assert new_native == native
+    request = new_state.get("request") or {}
+    assert request.get("instructions") == "You are a helper for AI Agent Platform."
+    assert "messages" not in request
 
 
 def test_no_permanent_system_message_when_user_system_present() -> None:
