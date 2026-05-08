@@ -16,6 +16,7 @@ from .openai_responses_runtime import (
 )
 
 _USE_CHATGPT_AUTH_FOR_COMPACTION_KEY = "use_chatgpt_auth_for_compaction"
+_COMPACTION_MODEL_KEY = "compaction_model"
 _USE_PLACEHOLDER_TRANSCRIPT_KEY = "use_compaction_placeholder_transcript"
 _COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
 _COMPACTION_METADATA_KEY = "openai_responses_compaction"
@@ -52,6 +53,15 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                     "the compacted native output directly."
                 ),
             },
+            _COMPACTION_MODEL_KEY: {
+                "type": "string",
+                "required": False,
+                "default": "",
+                "description": (
+                    "Optional model used for native compaction. Leave empty to use "
+                    "the normal request model."
+                ),
+            },
         }
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
@@ -84,6 +94,13 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 "key": _USE_PLACEHOLDER_TRANSCRIPT_KEY,
                 "label": "Show compacted history as placeholder transcript",
                 "default": False,
+            },
+            {
+                "ui_type": "config",
+                "type": "text",
+                "key": _COMPACTION_MODEL_KEY,
+                "label": "Compaction model",
+                "placeholder": "Use current model",
             },
             {
                 "ui_type": "session_action",
@@ -187,6 +204,12 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         if not isinstance(model, str) or not model.strip():
             raise ValueError("[openai_responses_native_compaction] model is required")
         return model.strip()
+
+    def _resolve_compaction_model(self, config: Dict[str, Any]) -> str:
+        compaction_model = config.get(_COMPACTION_MODEL_KEY)
+        if isinstance(compaction_model, str) and compaction_model.strip():
+            return compaction_model.strip()
+        return self._resolve_model(config)
 
     def _use_chatgpt_auth_for_compaction(self, config: Dict[str, Any]) -> bool:
         raw = config.get(_USE_CHATGPT_AUTH_FOR_COMPACTION_KEY, True)
@@ -833,7 +856,7 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             else {}
         )
         compaction_config = self._compaction_config(config)
-        model = self._resolve_model(compaction_config)
+        model = self._resolve_compaction_model(compaction_config)
         timeout = self._coerce_timeout(
             compaction_config.get("timeout", DEFAULT_TIMEOUT)
         )

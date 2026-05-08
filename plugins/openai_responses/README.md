@@ -414,6 +414,7 @@ Configuration is a flat dict shared across the provider and enabled extensions.
 - `chatgpt_account_id`: optional explicit ChatGPT account id override
 - `chatgpt_client_version`: optional, used for ChatGPT `/models` discovery
 - `strip_leading_system_or_developer_message`: optional compatibility flag for migrated sessions
+- `compaction_model`: optional model id for native compaction; leave empty or omit it to use `model`
 - `use_chatgpt_auth_for_compaction`: optional, defaults to `true`; set to `false` to force native compaction onto the API endpoint
 - `use_compaction_placeholder_transcript`: optional, defaults to `false`; set to `true` to show compacted native ranges as a single visible placeholder message instead of rebuilding the compacted native output directly
 - `timeout`: optional request timeout in seconds, defaults to `60`
@@ -558,6 +559,23 @@ not support native compaction, the action fails with a clear endpoint-specific
 error. Set `use_chatgpt_auth_for_compaction: false` to force compaction onto
 the normal API endpoint instead.
 
+By default, compaction uses the same `model` as normal requests. Set
+`compaction_model` to use a different model for the compaction API call, for
+example:
+
+```json
+{
+  "model": "gpt-5.5",
+  "compaction_model": "gpt-5.4-mini"
+}
+```
+
+The compacted native output shape is model-dependent. Some models return
+visible compacted assistant messages alongside opaque compaction artifacts;
+others return only the retained visible user messages plus opaque compaction
+state. Both shapes are valid as long as future requests continue from the
+compacted native history.
+
 The action no longer accepts a freeform `instructions` field. When the backend
 requires top-level instructions, native compaction now uses the same
 config-driven system-message pipeline as normal requests:
@@ -614,8 +632,10 @@ transcript summarization.
 
 - It can compact the full native history or a visible prefix.
 - It uses the OpenAI Python SDK rather than application-layer summary logic.
+- It uses `compaction_model` when configured, otherwise it uses the normal
+  request `model`.
 - It rebuilds visible messages after compaction directly from the compacted
-  native output.
+  native output, whose visible assistant/user shape may vary by model.
 - If `use_compaction_placeholder_transcript: true` is enabled, it instead
   shows the compacted region as a single placeholder message in the visible
   transcript while still preserving the underlying retained native compaction

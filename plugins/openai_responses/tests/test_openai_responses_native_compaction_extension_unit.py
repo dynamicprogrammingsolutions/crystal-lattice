@@ -189,6 +189,64 @@ def test_compaction_action_uses_sdk_and_sanitizes_input(
     ]
 
 
+@pytest.mark.parametrize(
+    ("compaction_model", "expected_model"),
+    [
+        ("gpt-5.4-mini", "gpt-5.4-mini"),
+        ("", "gpt-5.5"),
+        ("   ", "gpt-5.5"),
+    ],
+)
+def test_compaction_model_overrides_request_model_when_configured(
+    monkeypatch: pytest.MonkeyPatch,
+    compaction_model: str,
+    expected_model: str,
+) -> None:
+    _ScriptedCompactionProvider.scripted_client = _ScriptedClient(
+        create_payloads=[],
+        compact_payload={
+            "id": "cmp_model",
+            "output": [{"type": "compaction", "encrypted_content": "opaque"}],
+        },
+    )
+    _patch_extension_client(monkeypatch)
+
+    extension = OpenAIResponsesNativeCompactionExtension()
+    session = Session(
+        session_id="session-model",
+        messages=[
+            Message(role="assistant", content="hello", metadata={"native_indices": [0]})
+        ],
+    )
+    native_messages = [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "hello"}],
+        }
+    ]
+    state = {
+        "config": {
+            **_config(),
+            "model": "gpt-5.5",
+            "compaction_model": compaction_model,
+        },
+    }
+
+    extension.execute_action(
+        "compact_native_history",
+        session=session,
+        native_messages=native_messages,
+        params={},
+        context=None,
+        state=state,
+    )
+
+    calls = _ScriptedCompactionProvider.scripted_client.responses.compact_calls
+    assert len(calls) == 1
+    assert calls[0]["model"] == expected_model
+
+
 def test_compaction_sanitizes_output_before_storing_native_history(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
