@@ -68,7 +68,9 @@ class OpenRouterProvider(ProviderPlugin):
                 self._inflight_requests[request_id] = runtime
         return runtime
 
-    def _clear_inflight(self, request_id: str | None, runtime: _InflightRequest) -> None:
+    def _clear_inflight(
+        self, request_id: str | None, runtime: _InflightRequest
+    ) -> None:
         runtime.done.set()
         if isinstance(request_id, str) and request_id:
             with self._inflight_lock:
@@ -168,7 +170,29 @@ class OpenRouterProvider(ProviderPlugin):
 
             parts.append(dict(part))
         return parts
-    
+
+    def _expanded_request_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        context = state.get("_request_context")
+        context = context if isinstance(context, dict) else None
+        return [
+            (
+                {
+                    **msg,
+                    "content": self._expanded_tool_content(
+                        msg.get("content"),
+                        context,
+                    ),
+                }
+                if msg.get("role") == "tool"
+                else msg
+            )
+            for msg in messages
+        ]
+
     # ---------- Schemas ----------
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -205,7 +229,12 @@ class OpenRouterProvider(ProviderPlugin):
                     mid = m.get("id")
                     name = m.get("name")
                     if mid is not None:
-                        model_options.append({"label": name if name is not None else str(mid), "value": str(mid)})
+                        model_options.append(
+                            {
+                                "label": name if name is not None else str(mid),
+                                "value": str(mid),
+                            }
+                        )
         use_dropdown = len(model_options) > 0
         return [
             {
@@ -231,53 +260,53 @@ class OpenRouterProvider(ProviderPlugin):
                 "supported_file_types": ["png", "jpg", "jpeg", "webp", "gif"],
                 "display_placement": "below",
                 "label": "Image",
-                "icon": "image"
-            }
+                "icon": "image",
+            },
         ]
 
     # ---------- Models / capabilities ----------
     def _fetch_models_from_api(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Fetch model data from OpenRouter /models API.
-        
+
         Returns list of model descriptors with id, name, and supported_parameters.
         Returns empty list on error (logs warning).
         """
-        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip("/")
+        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip(
+            "/"
+        )
         models_url = f"{base_url}/models"
-        
+
         try:
             response = requests.get(models_url, timeout=10)
             response.raise_for_status()
             data = response.json()
-            
+
             # Extract models array from response
             models = data.get("data", [])
             if not isinstance(models, list):
                 get_logger("openrouter_provider").warning(
-                    "Invalid models response format",
-                    response=data
+                    "Invalid models response format", response=data
                 )
                 return []
-            
+
             return models
-            
+
         except requests.RequestException as e:
             get_logger("openrouter_provider").warning(
                 "Failed to fetch models from OpenRouter API",
                 error=str(e),
-                url=models_url
+                url=models_url,
             )
             return []
         except Exception as e:
             get_logger("openrouter_provider").warning(
-                "Unexpected error fetching models",
-                error=str(e)
+                "Unexpected error fetching models", error=str(e)
             )
             return []
-    
+
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return model descriptors from OpenRouter API.
-        
+
         Fetches all models and filters by config.
         Core framework caches results per config.
         """
@@ -292,20 +321,25 @@ class OpenRouterProvider(ProviderPlugin):
         models: List[Dict[str, Any]],
     ) -> List[str]:
         """Return capability tags based on model's supported_parameters.
-        
+
         Checks the model's supported_parameters array from the OpenRouter API:
         - 'reasoning' → 'supports_reasoning'
         - 'verbosity' → 'supports_verbosity'
         - 'tools' → 'supports_tools'
-        
+
         Always includes: provider:openrouter, openrouter, supports_streaming
         Falls back to hardcoded tags if model data unavailable.
         """
         tags: List[str] = ["provider:openrouter", "openrouter"]
         tags.append("supports_streaming")  # All OpenRouter models support streaming
-        
+
         selected_id = config.get("model")
-        if isinstance(selected_id, str) and selected_id and models and isinstance(models, list):
+        if (
+            isinstance(selected_id, str)
+            and selected_id
+            and models
+            and isinstance(models, list)
+        ):
             for m in models:
                 if isinstance(m, dict) and m.get("id") == selected_id:
                     supported_params = m.get("supported_parameters", [])
@@ -339,7 +373,9 @@ class OpenRouterProvider(ProviderPlugin):
 
         config = state["config"]
 
-        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip("/")
+        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip(
+            "/"
+        )
         api_key = config.get("api_key")
         model = config.get("model")
         timeout = float(config.get("timeout", 60))
@@ -367,26 +403,12 @@ class OpenRouterProvider(ProviderPlugin):
             "request": {
                 "url": url,
                 "payload": payload,
-                "messages": [
-                    (
-                        {
-                            **msg,
-                            "content": self._expanded_tool_content(
-                                msg.get("content"),
-                                context,
-                            ),
-                        }
-                        if isinstance(msg, dict) and msg.get("role") == "tool"
-                        else msg
-                    )
-                    for msg in native_messages
-                ],
+                "messages": list(native_messages),
                 "headers": headers,
                 "timeout": timeout,
             },
             "partial": None,
         }
-
 
     # ---------- Message conversion ----------
     def to_native_messages(
@@ -416,9 +438,7 @@ class OpenRouterProvider(ProviderPlugin):
             native_message: Dict[str, Any] = {
                 "role": role,
                 "content": (
-                    native_tool_content
-                    if native_tool_content is not None
-                    else content
+                    native_tool_content if native_tool_content is not None else content
                 ),
             }
 
@@ -535,7 +555,9 @@ class OpenRouterProvider(ProviderPlugin):
                     tool_result = {
                         "type": "provider_native_tool_result",
                         "format": "openai.chat_completions",
-                        "content": [dict(part) for part in content if isinstance(part, dict)],
+                        "content": [
+                            dict(part) for part in content if isinstance(part, dict)
+                        ],
                         "text": msg["content"],
                     }
                     msg[TOOL_RESULT_FIELD] = tool_result
@@ -586,13 +608,19 @@ class OpenRouterProvider(ProviderPlugin):
         state: Dict[str, Any],
         *,
         request_id: str | None = None,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         request = state["request"]
         payload: Dict[str, Any] = {}
         logger = get_logger("openrouter_provider")
         self._validate_message_list(native_messages)
         override = request.get("messages")
         messages = override if isinstance(override, list) else native_messages
+        messages = self._expanded_request_messages(
+            [m for m in messages if isinstance(m, dict)],
+            state,
+        )
         messages_to_send = [
             {k: v for k, v in m.items() if k != "_metadata"}
             for m in messages
@@ -601,7 +629,9 @@ class OpenRouterProvider(ProviderPlugin):
         payload = {**request["payload"], "messages": messages_to_send, "stream": False}
         logger.info(
             "sending request",
-            payload=str({**payload, "messages": "***REDACTED***", "tools": "***REDACTED***"}),
+            payload=str(
+                {**payload, "messages": "***REDACTED***", "tools": "***REDACTED***"}
+            ),
         )
         # logger.debug("full payload for non-streaming request", payload=payload)
 
@@ -647,7 +677,9 @@ class OpenRouterProvider(ProviderPlugin):
                     if runtime.cancelled.is_set():
                         raise ProviderRequestCancelled(request_id)
                     if runtime.done.is_set() and results.empty():
-                        raise RuntimeError("OpenRouter API call failed: request ended without result")
+                        raise RuntimeError(
+                            "OpenRouter API call failed: request ended without result"
+                        )
                     continue
                 if kind == "result":
                     obj = value
@@ -660,16 +692,23 @@ class OpenRouterProvider(ProviderPlugin):
                 if isinstance(exc, requests.RequestException):
                     try:  # pragma: no cover - debug aid
                         debug_payload = json.dumps(payload, ensure_ascii=False)[:2000]
-                        print("[openrouter_provider] call_api error payload:", debug_payload)
+                        print(
+                            "[openrouter_provider] call_api error payload:",
+                            debug_payload,
+                        )
                     except Exception:
-                        print("[openrouter_provider] call_api error payload: <unserializable>")
+                        print(
+                            "[openrouter_provider] call_api error payload: <unserializable>"
+                        )
                     resp = getattr(exc, "response", None)
                     if resp is not None:
                         try:
                             err_detail = resp.json()
                         except Exception:
                             err_detail = resp.text
-                        print("[openrouter_provider] call_api error response:", err_detail)
+                        print(
+                            "[openrouter_provider] call_api error response:", err_detail
+                        )
                     raise RuntimeError(f"OpenRouter API call failed: {exc}") from exc
                 raise RuntimeError(f"OpenRouter API call failed: {exc}") from exc
         finally:
@@ -700,7 +739,6 @@ class OpenRouterProvider(ProviderPlugin):
 
         return [], [message], [*native_messages, message], state
 
-
     def stream_api(
         self,
         native_messages: List[Dict[str, Any]],
@@ -714,13 +752,20 @@ class OpenRouterProvider(ProviderPlugin):
         self._validate_message_list(native_messages)
         override = request.get("messages")
         messages = override if isinstance(override, list) else native_messages
+        messages = self._expanded_request_messages(
+            [m for m in messages if isinstance(m, dict)],
+            state,
+        )
         messages_to_send = [
             {k: v for k, v in m.items() if k != "_metadata"}
             for m in messages
             if isinstance(m, dict)
         ]
         payload = {**request["payload"], "messages": messages_to_send, "stream": True}
-        logger.info("sending request", payload=str({**payload, "messages": "stripped", "tools": "stripped"}))
+        logger.info(
+            "sending request",
+            payload=str({**payload, "messages": "stripped", "tools": "stripped"}),
+        )
         logger.debug("full payload for streaming request", payload=payload)
 
         runtime = self._register_inflight(request_id)
@@ -809,7 +854,6 @@ class OpenRouterProvider(ProviderPlugin):
             self._clear_inflight(request_id, runtime)
             worker.join(timeout=1.0)
 
-
     # ---------- Helpers (default/general implementations) ----------
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -821,7 +865,9 @@ class OpenRouterProvider(ProviderPlugin):
 
         return {}
 
-    def process_delta(self, delta: Dict[str, Any], accumulated) -> Tuple[Dict[str, Any],Dict[str, Any]]:
+    def process_delta(
+        self, delta: Dict[str, Any], accumulated
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Reduce a delta dict into a new partial accumulator, and optionally a final.
         Returns (partial_message_or_none, final_message_or_none, new_accumulated).
@@ -841,7 +887,10 @@ class OpenRouterProvider(ProviderPlugin):
         return {
             **current,
             **{key: delta.get(key, current.get(key, "")) for key in override},
-            **{key: ((current.get(key) or "") + (delta.get(key) or "")) for key in accumulate},
+            **{
+                key: ((current.get(key) or "") + (delta.get(key) or ""))
+                for key in accumulate
+            },
         }
 
     def process_chunk(
@@ -849,14 +898,16 @@ class OpenRouterProvider(ProviderPlugin):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        #print("chunk:", native_chunk)
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        # print("chunk:", native_chunk)
         partial, accumulated = self.process_delta(
             delta=self.extract_delta(native_chunk), accumulated=state.get("partial", {})
         )
         new_state = {**state, "partial": accumulated}
         return_values = [partial] if partial else [], [], native_messages, new_state
-        return  return_values
+        return return_values
 
     def finalize(
         self,
@@ -865,8 +916,12 @@ class OpenRouterProvider(ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         current_partial = state.get("partial", None)
         finals = [current_partial] if current_partial else []
-        full_history = [*native_messages, current_partial] if current_partial else native_messages
+        full_history = (
+            [*native_messages, current_partial] if current_partial else native_messages
+        )
         return finals, full_history, state
 
-    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def to_display_format(
+        self, message: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         return message

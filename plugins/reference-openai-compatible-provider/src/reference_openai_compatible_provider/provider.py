@@ -167,17 +167,17 @@ def _rate_limit_policy_from_config(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _wait_for_request_slot(
-        *,
-        scope_key: str,
-        min_request_interval_seconds: float,
-        delay_seconds: float,
+    *,
+    scope_key: str,
+    min_request_interval_seconds: float,
+    delay_seconds: float,
 ) -> None:
     now = time.monotonic()
     with _request_pacing_lock:
         next_allowed = _next_request_time_by_scope.get(scope_key, 0.0)
         target = max(next_allowed, now + max(delay_seconds, 0.0))
-        _next_request_time_by_scope[scope_key] = (
-                target + max(min_request_interval_seconds, 0.0)
+        _next_request_time_by_scope[scope_key] = target + max(
+            min_request_interval_seconds, 0.0
         )
 
     wait_seconds = target - now
@@ -186,11 +186,11 @@ def _wait_for_request_slot(
 
 
 def _retry_delay_for_429(
-        response: Any,
-        *,
-        retry_delays_seconds: tuple[float, ...],
-        attempt_index: int,
-        respect_retry_after_header: bool,
+    response: Any,
+    *,
+    retry_delays_seconds: tuple[float, ...],
+    attempt_index: int,
+    respect_retry_after_header: bool,
 ) -> float | None:
     if attempt_index >= len(retry_delays_seconds):
         return None
@@ -208,9 +208,9 @@ def _retry_delay_for_429(
 
 
 def _retry_delay_for_status(
-        status_code: int,
-        attempt_index: int,
-        retry_on_status: dict[int, tuple[float, ...]],
+    status_code: int,
+    attempt_index: int,
+    retry_on_status: dict[int, tuple[float, ...]],
 ) -> float | None:
     delays = retry_on_status.get(status_code)
     if delays is None or attempt_index >= len(delays):
@@ -219,10 +219,10 @@ def _retry_delay_for_status(
 
 
 def _request_with_rate_limit_retry(
-        *,
-        request_fn,
-        rate_limit_policy: dict[str, Any],
-        action: str,
+    *,
+    request_fn,
+    rate_limit_policy: dict[str, Any],
+    action: str,
 ):
     retry_delay_seconds = 0.0
     attempt_index = 0
@@ -290,7 +290,9 @@ def _request_with_rate_limit_retry(
         )
         if isinstance(status_code, int) and status_code in retry_on_status:
             retry_delay_seconds = _retry_delay_for_status(
-                status_code, attempt_index, retry_on_status,
+                status_code,
+                attempt_index,
+                retry_on_status,
             )
             if retry_delay_seconds is not None:
                 log.warning(
@@ -327,22 +329,22 @@ class AccumulatorStreamingMixin:
     """
 
     def extract_delta(
-            self, chunk: dict[str, Any]
+        self, chunk: dict[str, Any]
     ) -> dict[str, Any]:  # pragma: no cover
         raise NotImplementedError
 
     def process_delta(
-            self,
-            delta: dict[str, Any],
-            accumulated: dict[str, Any] | None,
+        self,
+        delta: dict[str, Any],
+        accumulated: dict[str, Any] | None,
     ) -> tuple[dict[str, Any] | None, dict[str, Any]]:  # pragma: no cover
         raise NotImplementedError
 
     def process_chunk(
-            self,
-            native_chunk: dict[str, Any],
-            native_messages: list[dict[str, Any]],
-            state: dict[str, Any],
+        self,
+        native_chunk: dict[str, Any],
+        native_messages: list[dict[str, Any]],
+        state: dict[str, Any],
     ):
         delta = self.extract_delta(native_chunk or {})
         accumulated = (
@@ -383,7 +385,9 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                 self._inflight_requests[request_id] = runtime
         return runtime
 
-    def _clear_inflight(self, request_id: str | None, runtime: _InflightRequest) -> None:
+    def _clear_inflight(
+        self, request_id: str | None, runtime: _InflightRequest
+    ) -> None:
         runtime.done.set()
         if isinstance(request_id, str) and request_id:
             with self._inflight_lock:
@@ -429,7 +433,9 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         state: dict[str, Any],
         context: dict[str, Any] | None = None,
     ) -> Any:
-        resolved_context = context if isinstance(context, dict) else self._request_context(state)
+        resolved_context = (
+            context if isinstance(context, dict) else self._request_context(state)
+        )
         store = (
             resolved_context.get("session_asset_store")
             if isinstance(resolved_context, dict)
@@ -499,6 +505,28 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
         return parts
 
+    def _expanded_request_messages(
+        self,
+        messages: list[dict[str, Any]],
+        state: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        context = self._request_context(state)
+        return [
+            (
+                {
+                    **msg,
+                    "content": self._expanded_tool_content(
+                        msg.get("content"),
+                        state,
+                        context,
+                    ),
+                }
+                if msg.get("role") == "tool"
+                else msg
+            )
+            for msg in messages
+        ]
+
     def to_native_messages(
         self,
         messages: list[dict[str, Any]],
@@ -530,9 +558,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             native_message: dict[str, Any] = {
                 "role": role,
                 "content": (
-                    native_tool_content
-                    if native_tool_content is not None
-                    else content
+                    native_tool_content if native_tool_content is not None else content
                 ),
             }
 
@@ -638,7 +664,9 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                     tool_result = {
                         "type": "provider_native_tool_result",
                         "format": "openai.chat_completions",
-                        "content": [dict(part) for part in content if isinstance(part, dict)],
+                        "content": [
+                            dict(part) for part in content if isinstance(part, dict)
+                        ],
                         "text": msg["content"],
                     }
                     msg[TOOL_RESULT_FIELD] = tool_result
@@ -783,10 +811,10 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         return out
 
     def get_ui_elements(
-            self,
-            config: dict[str, Any],
-            tags: list[str],
-            models: list[dict[str, Any]],
+        self,
+        config: dict[str, Any],
+        tags: list[str],
+        models: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
         elements: list[dict[str, Any]] = []
 
@@ -832,12 +860,12 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         ]
 
     def initialize_request(
-            self,
-            native_messages: list[dict[str, Any]],
-            state: dict[str, Any],
-            *,
-            context: dict[str, Any] | None = None,
-            request_id: str | None = None,
+        self,
+        native_messages: list[dict[str, Any]],
+        state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
+        request_id: str | None = None,
     ):
         _ = request_id
         cfg = state.get("config") or {}
@@ -855,21 +883,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             "headers": headers,
             "timeout": float(cfg.get("timeout", 60)),
         }
-        request["messages"] = [
-            (
-                {
-                    **msg,
-                    "content": self._expanded_tool_content(
-                        msg.get("content"),
-                        state,
-                        context,
-                    ),
-                }
-                if isinstance(msg, dict) and msg.get("role") == "tool"
-                else msg
-            )
-            for msg in native_messages
-        ]
+        request["messages"] = list(native_messages)
         return list(native_messages), {
             **state,
             "request": request,
@@ -879,17 +893,21 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         }
 
     def call_api(
-            self,
-            native_messages: list[dict[str, Any]],
-            state: dict[str, Any],
-            *,
-            request_id: str | None = None,
+        self,
+        native_messages: list[dict[str, Any]],
+        state: dict[str, Any],
+        *,
+        request_id: str | None = None,
     ):
         request = state.get("request") or {}
         rate_limit_policy = state.get("rate_limit_policy") or {}
         payload = dict(request.get("payload") or {})
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
+        base_history = self._expanded_request_messages(
+            [m for m in base_history if isinstance(m, dict)],
+            state,
+        )
         messages_to_send = [
             {k: v for k, v in m.items() if k != "_metadata"}
             for m in base_history
@@ -977,17 +995,22 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         return [], [msg], [*native_messages, msg], state
 
     def stream_api(
-            self, native_messages: list[dict[str, Any]], state: dict[str, Any]
-            , *, request_id: str | None = None
+        self,
+        native_messages: list[dict[str, Any]],
+        state: dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Iterator[dict[str, Any]]:
         request = state.get("request") or {}
         rate_limit_policy = state.get("rate_limit_policy") or {}
-        stream_recovery: dict[str, Any] = (
-            rate_limit_policy.get("stream_recovery") or {}
-        )
+        stream_recovery: dict[str, Any] = rate_limit_policy.get("stream_recovery") or {}
         payload = dict(request.get("payload") or {})
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
+        base_history = self._expanded_request_messages(
+            [m for m in base_history if isinstance(m, dict)],
+            state,
+        )
         messages_to_send = [
             {k: v for k, v in m.items() if k != "_metadata"}
             for m in base_history
@@ -997,7 +1020,11 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
         get_logger("openai-compatible-provider").debug(
             "sendig openai request",
-            payload={**payload, "messages": "<redacted>" if payload.get("messages") else None,  "tools": "<redacted>" if payload.get("tools") else None},
+            payload={
+                **payload,
+                "messages": "<redacted>" if payload.get("messages") else None,
+                "tools": "<redacted>" if payload.get("tools") else None,
+            },
         )
 
         recovery_mode = stream_recovery.get("mode", "disabled")
@@ -1045,7 +1072,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                             line = raw_line.strip()
                             data = line
                             if data.startswith("data:"):
-                                data = data[len("data:"):].strip()
+                                data = data[len("data:") :].strip()
 
                             if data == "[DONE]":
                                 saw_done = True
@@ -1063,8 +1090,8 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                                 log.info("chunk", chunk=str(chunk)[:2000])
                             results.put(("chunk", chunk))
                     except (
-                            requests.exceptions.ConnectionError,
-                            requests.exceptions.ChunkedEncodingError,
+                        requests.exceptions.ConnectionError,
+                        requests.exceptions.ChunkedEncodingError,
                     ) as exc:
                         stream_error = exc
                     finally:
@@ -1075,9 +1102,9 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                         return
 
                     should_recover = (
-                            recovery_mode != "disabled"
-                            and recovery_attempts < recovery_max_retries
-                            and (recovery_mode == "aggressive" or not emitted_content)
+                        recovery_mode != "disabled"
+                        and recovery_attempts < recovery_max_retries
+                        and (recovery_mode == "aggressive" or not emitted_content)
                     )
                     if should_recover:
                         recovery_attempts += 1
@@ -1126,7 +1153,9 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                 if isinstance(exc, ProviderRequestCancelled):
                     raise exc
                 if isinstance(exc, requests.RequestException):
-                    raise RuntimeError(f"OpenAI-compatible stream failed: {exc}") from exc
+                    raise RuntimeError(
+                        f"OpenAI-compatible stream failed: {exc}"
+                    ) from exc
                 raise RuntimeError(f"OpenAI-compatible stream failed: {exc}") from exc
         finally:
             self._clear_inflight(request_id, runtime)
