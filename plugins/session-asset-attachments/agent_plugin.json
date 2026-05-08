@@ -1,0 +1,10 @@
+{
+  "module": "session_asset_attachments",
+  "subdirectory": ".",
+  "entries": [
+    "session_asset_attachments.SessionAssetAttachmentsAppPlugin"
+  ],
+  "kinds": {
+    "session_asset_attachments.SessionAssetAttachmentsAppPlugin": "application"
+  }
+}

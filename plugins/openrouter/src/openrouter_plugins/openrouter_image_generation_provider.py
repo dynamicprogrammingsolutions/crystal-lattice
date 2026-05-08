@@ -457,6 +457,8 @@ class OpenRouterImageGenerationProvider(ProviderPlugin):
         asset_index[record.asset_id] = asset_descriptor
         return {
             "asset_descriptor": asset_descriptor,
+            "preview_data_base64": data_base64,
+            "preview_mime_type": mime_type,
             "session_metadata_patch": {_SESSION_ASSETS_METADATA_KEY: asset_index},
         }
 
@@ -546,6 +548,8 @@ class OpenRouterImageGenerationProvider(ProviderPlugin):
                         "asset_ref": descriptor["asset_ref"],
                         "filename": descriptor["filename"],
                         "mime_type": descriptor["mime_type"],
+                        "preview_data_base64": stored["preview_data_base64"],
+                        "preview_mime_type": stored["preview_mime_type"],
                     },
                     "metadata": {
                         "download_plugin_id": "openrouter_image_generation_attachments",
@@ -565,6 +569,8 @@ class OpenRouterImageGenerationProvider(ProviderPlugin):
                     "asset_ref": part["content"]["asset_ref"],
                     "filename": part["content"].get("filename"),
                     "mime_type": part["content"].get("mime_type"),
+                    "preview_data_base64": part["content"].get("preview_data_base64"),
+                    "preview_mime_type": part["content"].get("preview_mime_type"),
                 }
             )
 
@@ -643,19 +649,12 @@ class OpenRouterImageGenerationProvider(ProviderPlugin):
                         asset_ref = part.get("asset_ref")
                         if isinstance(asset_ref, dict):
                             preview_fields: Dict[str, Any] = {}
-                            try:
-                                store = self._session_asset_store(state, context)
-                                session_id = asset_ref.get("session_id")
-                                asset_id = asset_ref.get("asset_id")
-                                if isinstance(session_id, str) and isinstance(asset_id, str):
-                                    record = store.load(session_id, asset_id)
-                                    payload_bytes = store.load_bytes(session_id, asset_id)
-                                    preview_fields = {
-                                        "preview_data_base64": base64.b64encode(payload_bytes).decode("ascii"),
-                                        "preview_mime_type": record.mime_type,
-                                    }
-                            except Exception:
-                                preview_fields = {}
+                            preview_data_base64 = part.get("preview_data_base64")
+                            preview_mime_type = part.get("preview_mime_type")
+                            if isinstance(preview_data_base64, str) and preview_data_base64:
+                                preview_fields["preview_data_base64"] = preview_data_base64
+                            if isinstance(preview_mime_type, str) and preview_mime_type:
+                                preview_fields["preview_mime_type"] = preview_mime_type
                             multipart_out.append(
                                 {
                                     "type": "image",

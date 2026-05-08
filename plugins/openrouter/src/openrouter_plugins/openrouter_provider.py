@@ -9,13 +9,18 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Iterator, List, Tuple, Optional
 from dataclasses import dataclass, field
+import base64
 import json
 import queue
 import threading
 
 import requests
 
-from agent_core.tool_result_payloads import openai_chat_tool_result_content
+from agent_core.tool_result_payloads import (
+    TOOL_RESULT_FIELD,
+    openai_chat_tool_result_content,
+    provider_native_tool_result_display,
+)
 from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
 
@@ -88,6 +93,7 @@ class OpenRouterProvider(ProviderPlugin):
         out.pop("native_indices", None)
         out.pop("tool_calls", None)
         out.pop("tool_call_id", None)
+        out.pop("display", None)
         return out
 
     def _core_metadata_from_native_internal(self, internal: Any) -> Dict[str, Any]:
@@ -99,6 +105,69 @@ class OpenRouterProvider(ProviderPlugin):
             if key not in {"native_indices", "tool_calls", "tool_call_id"}
         }
         return out
+
+    def _session_asset_store(self, context: Optional[Dict[str, Any]]) -> Any:
+        if isinstance(context, dict):
+            store = context.get("session_asset_store")
+            if store is not None:
+                return store
+        raise RuntimeError(
+            "[openrouter_provider] session asset attachment requires session_asset_store in context"
+        )
+
+    def _resolve_session_asset(
+        self,
+        context: Optional[Dict[str, Any]],
+        asset_ref: Dict[str, Any],
+        expected_attachment_type: str,
+    ) -> Tuple[str, str, bytes]:
+        store = self._session_asset_store(context)
+        session_id = asset_ref.get("session_id")
+        asset_id = asset_ref.get("asset_id")
+        if not isinstance(session_id, str) or not isinstance(asset_id, str):
+            raise ValueError("[openrouter_provider] invalid session asset reference")
+        record = store.load(session_id, asset_id)
+        if record.attachment_type != expected_attachment_type:
+            raise ValueError(
+                f"[openrouter_provider] session asset {asset_id!r} is not a {expected_attachment_type} attachment"
+            )
+        return record.filename, record.mime_type, store.load_bytes(session_id, asset_id)
+
+    def _expanded_tool_content(
+        self,
+        content: Any,
+        context: Optional[Dict[str, Any]],
+    ) -> Any:
+        if not isinstance(content, list):
+            return content
+
+        parts: List[Dict[str, Any]] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") != "image_url":
+                parts.append(dict(part))
+                continue
+
+            image_url = part.get("image_url")
+            if isinstance(image_url, dict) and image_url.get("asset_ref"):
+                _, mime_type, payload_bytes = self._resolve_session_asset(
+                    context,
+                    image_url["asset_ref"],
+                    "image",
+                )
+                parts.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{base64.b64encode(payload_bytes).decode('ascii')}"
+                        },
+                    }
+                )
+                continue
+
+            parts.append(dict(part))
+        return parts
     
     # ---------- Schemas ----------
     def get_config_schema(self) -> Dict[str, Any]:
@@ -263,6 +332,7 @@ class OpenRouterProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
         *,
+        context: Optional[Dict[str, Any]] = None,
         request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         _ = request_id
@@ -297,6 +367,20 @@ class OpenRouterProvider(ProviderPlugin):
             "request": {
                 "url": url,
                 "payload": payload,
+                "messages": [
+                    (
+                        {
+                            **msg,
+                            "content": self._expanded_tool_content(
+                                msg.get("content"),
+                                context,
+                            ),
+                        }
+                        if isinstance(msg, dict) and msg.get("role") == "tool"
+                        else msg
+                    )
+                    for msg in native_messages
+                ],
                 "headers": headers,
                 "timeout": timeout,
             },
@@ -316,10 +400,12 @@ class OpenRouterProvider(ProviderPlugin):
 
             role = msg.get("role", "user")
             raw_content = msg.get("content", "")
+            tool_result = msg.get(TOOL_RESULT_FIELD)
             raw_metadata = msg.get("metadata")
             metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
             native_tool_content = (
-                openai_chat_tool_result_content(raw_content)
+                openai_chat_tool_result_content(tool_result)
+                or openai_chat_tool_result_content(raw_content)
                 if role == "tool"
                 else None
             )
@@ -445,7 +531,22 @@ class OpenRouterProvider(ProviderPlugin):
                         continue
 
                 msg["content"] = "\n".join(text_parts)
-                if multipart_out:
+                if role == "tool":
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.chat_completions",
+                        "content": [dict(part) for part in content if isinstance(part, dict)],
+                        "text": msg["content"],
+                    }
+                    msg[TOOL_RESULT_FIELD] = tool_result
+                    tool_name = metadata.get("tool_name")
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=tool_name if isinstance(tool_name, str) else None,
+                    )
+                    if isinstance(display, dict):
+                        metadata["display"] = display
+                elif multipart_out:
                     msg["multipartContent"] = multipart_out
 
             else:

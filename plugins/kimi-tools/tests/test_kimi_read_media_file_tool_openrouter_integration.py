@@ -78,6 +78,7 @@ def _run_tool_loop(
                 metadata=tool_message.get("metadata"),
                 config=config,
                 multipart_content=tool_message.get("multipartContent"),
+                tool_result=tool_message.get("toolResult"),
             )
 
     pytest.fail(f"tool loop did not settle within {max_iterations} iterations")

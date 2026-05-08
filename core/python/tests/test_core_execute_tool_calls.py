@@ -3,6 +3,7 @@
 from agent_core import AgentCore
 from agent_core.tool_result_payloads import (
     FORMAT_OPENAI_CHAT_COMPLETIONS,
+    TOOL_RESULT_FIELD,
     make_provider_native_tool_result,
 )
 from .dummy_tool import DummyCalculator
@@ -164,10 +165,15 @@ def test_execute_tool_calls_preserves_provider_native_result_payload():
 
     assert len(results) == 1
     content = results[0].get("content")
-    assert content["type"] == "provider_native_tool_result"
-    assert content["format"] == FORMAT_OPENAI_CHAT_COMPLETIONS
-    assert content["content"][1]["image_url"]["url"].startswith("data:image/png")
-    display = (results[0].get("metadata") or {}).get("display") or {}
+    assert isinstance(content, str)
+    assert "<image>" in content
+    metadata = results[0].get("metadata") or {}
+    assert "provider_native_tool_result" not in metadata
+    provider_native = results[0].get(TOOL_RESULT_FIELD)
+    assert provider_native["type"] == "provider_native_tool_result"
+    assert provider_native["format"] == FORMAT_OPENAI_CHAT_COMPLETIONS
+    assert provider_native["content"][1]["image_url"]["url"].startswith("data:image/png")
+    display = metadata.get("display") or {}
     assert display.get("type") == "text"
     assert display.get("content") == ""
 

@@ -15,7 +15,20 @@ export type MessageAttachmentSnapshot = AttachmentLike & {
 
 export function selectMultipartParts(message: ApiMessage): MultipartPart[] {
   const parts = (message as any)?.multipartContent;
-  return Array.isArray(parts) ? (parts as MultipartPart[]) : [];
+  const baseParts = Array.isArray(parts) ? (parts as MultipartPart[]) : [];
+  const metadata = (message as any)?.metadata;
+  const display = metadata && typeof metadata === 'object' ? (metadata as any).display : null;
+  if (display && typeof display === 'object' && display.type === 'image') {
+    return [
+      ...baseParts,
+      {
+        type: 'image',
+        content: (display as any).content,
+        metadata: (display as any).metadata,
+      },
+    ];
+  }
+  return baseParts;
 }
 
 export function selectMultipartAttachments(

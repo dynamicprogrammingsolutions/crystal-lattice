@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 from agent_core.tool_result_payloads import (
     FORMAT_OPENAI_CHAT_COMPLETIONS,
     FORMAT_OPENAI_RESPONSES,
+    TOOL_RESULT_FIELD,
     make_provider_native_tool_result,
 )
 from openrouter_responses_plugins.openrouter_responses_provider import (
@@ -68,7 +69,8 @@ def test_openrouter_responses_provider_uses_openai_responses_tool_result_envelop
         [
             {
                 "role": "tool",
-                "content": payload,
+                "content": "opened image",
+                TOOL_RESULT_FIELD: payload,
                 "metadata": {"tool_call_id": "call_1"},
             }
         ],
@@ -105,7 +107,8 @@ def test_openrouter_responses_provider_converts_openai_chat_tool_result_envelope
         [
             {
                 "role": "tool",
-                "content": payload,
+                "content": "opened image",
+                TOOL_RESULT_FIELD: payload,
                 "metadata": {"tool_call_id": "call_1"},
             }
         ],

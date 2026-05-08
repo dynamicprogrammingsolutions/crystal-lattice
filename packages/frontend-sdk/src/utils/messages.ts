@@ -3,10 +3,22 @@ import type { ApiMessage } from '../types/messages';
 export function selectDisplayContent(message: ApiMessage): string {
   const metadata = message.metadata || {};
   const display = (metadata as any).display;
-  if (display && typeof display === 'object' && display.type === 'text') {
-    const content = (display as any).content;
-    if (typeof content === 'string' && content.trim()) {
-      return content;
+  if (display && typeof display === 'object') {
+    if (display.type === 'text') {
+      const content = (display as any).content;
+      if (typeof content === 'string' && content.trim()) {
+        return content;
+      }
+    }
+
+    const contentText = (display as any).content_text;
+    if (typeof contentText === 'string' && contentText.trim()) {
+      return contentText;
+    }
+
+    const textFallback = (display as any).text_fallback;
+    if (typeof textFallback === 'string' && textFallback.trim()) {
+      return textFallback;
     }
   }
 

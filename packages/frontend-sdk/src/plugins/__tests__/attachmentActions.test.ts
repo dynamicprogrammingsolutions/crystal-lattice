@@ -6,6 +6,7 @@ import {
   downloadSessionAttachment,
   deleteSessionAttachment,
   DOWNLOAD_ATTACHMENT_ACTION_ID,
+  SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
   selectSessionAssetId,
   storeSessionAttachment,
 } from '../attachmentActions';
@@ -147,6 +148,46 @@ describe('attachmentActions', () => {
       inputs: {
         session_id: 's1',
         asset_id: 'asset_9',
+      },
+    });
+  });
+
+  it('downloads a generic session asset using the application action contract', async () => {
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
+      status: 'ok',
+      plugin: SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
+      action_id: 'download_attachment',
+      result: {
+        attachment_asset: {
+          asset_ref: {
+            kind: 'session_asset',
+            session_id: 's1',
+            asset_id: 'asset_10',
+            attachment_type: 'image',
+          },
+          filename: 'opened.png',
+          mime_type: 'image/png',
+        },
+        data_base64: 'QUJDRA==',
+      },
+    }));
+
+    const downloaded = await downloadSessionAttachment({
+      backend: buildBackend(executeAction),
+      sessionId: 's1',
+      assetId: 'asset_10',
+      pluginId: SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
+    });
+
+    expect(downloaded.attachment_asset.filename).toBe('opened.png');
+    expect(executeAction).toHaveBeenCalledWith({
+      pluginId: SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
+      actionId: DOWNLOAD_ATTACHMENT_ACTION_ID,
+      actionOwner: 'application',
+      idempotencyKey: undefined,
+      inputs: {
+        session_id: 's1',
+        asset_id: 'asset_10',
       },
     });
   });

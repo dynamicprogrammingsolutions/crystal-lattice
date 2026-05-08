@@ -479,7 +479,7 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
     expect((last as any).multipartContent).toEqual(multipart);
   }, 30000);
 
-  it('F2: uploaded attachment previews are present in frontend-visible user messages', async () => {
+  it('F2: stored attachment previews are available in frontend-visible user messages', async () => {
     const started = await startBackendServer({
       config: {
         providers: {
@@ -526,6 +526,8 @@ describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
               asset_ref: asset.asset_ref,
               filename: asset.filename,
               mime_type: asset.mime_type,
+              preview_data_base64: 'QUJDRA==',
+              preview_mime_type: 'image/png',
             },
             metadata: {},
           },

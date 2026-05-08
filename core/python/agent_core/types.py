@@ -1670,6 +1670,7 @@ class Message:
     content: Any
     metadata: Optional[Dict[str, Any]] = None
     multipart_content: Optional[List[Dict[str, Any]]] = None
+    tool_result: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert message to dictionary format.
@@ -1682,6 +1683,8 @@ class Message:
             result["metadata"] = deepcopy(self.metadata)
         if self.multipart_content:
             result["multipartContent"] = deepcopy(self.multipart_content)
+        if self.tool_result:
+            result["toolResult"] = deepcopy(self.tool_result)
         return result
 
     @classmethod
@@ -1697,12 +1700,16 @@ class Message:
         multipart_content = data.get("multipartContent")
         if multipart_content is not None and not isinstance(multipart_content, list):
             raise TypeError("multipartContent must be a list or null")
+        tool_result = data.get("toolResult")
+        if tool_result is not None and not isinstance(tool_result, dict):
+            raise TypeError("toolResult must be an object or null")
 
         return cls(
             role=data["role"],
             content=data["content"],
             metadata=deepcopy(data.get("metadata")),
             multipart_content=deepcopy(multipart_content),
+            tool_result=deepcopy(tool_result),
         )
 
 

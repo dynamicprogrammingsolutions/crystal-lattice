@@ -4,6 +4,7 @@ from typing import Any, Dict, List
 
 from agent_core.tool_result_payloads import (
     FORMAT_OPENAI_CHAT_COMPLETIONS,
+    TOOL_RESULT_FIELD,
     make_provider_native_tool_result,
 )
 from openrouter_plugins.openrouter_provider import OpenRouterProvider
@@ -71,7 +72,8 @@ def test_openrouter_provider_preserves_provider_native_tool_result_content() -> 
         [
             {
                 "role": "tool",
-                "content": payload,
+                "content": "opened image",
+                TOOL_RESULT_FIELD: payload,
                 "metadata": {"tool_call_id": "call_1"},
             }
         ],

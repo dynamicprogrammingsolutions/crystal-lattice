@@ -2549,6 +2549,7 @@ class AgentApplication:
             "app": self,
             "application": self,
             "base_config": self._config,
+            "session_id": session.session_id,
             "session": session.to_dict(),
             "request_id": request_id,
             "session_asset_store": self._session_asset_store,

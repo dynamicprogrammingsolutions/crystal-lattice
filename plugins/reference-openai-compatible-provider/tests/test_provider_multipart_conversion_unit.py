@@ -8,6 +8,7 @@ import pytest
 from agent_app.session_assets import FilesystemSessionAssetStore
 from agent_core.tool_result_payloads import (
     FORMAT_OPENAI_CHAT_COMPLETIONS,
+    TOOL_RESULT_FIELD,
     make_provider_native_tool_result,
 )
 
@@ -80,7 +81,8 @@ def test_provider_preserves_provider_native_tool_result_content() -> None:
         [
             {
                 "role": "tool",
-                "content": payload,
+                "content": "opened image",
+                TOOL_RESULT_FIELD: payload,
                 "metadata": {"tool_call_id": "call_1"},
             }
         ],

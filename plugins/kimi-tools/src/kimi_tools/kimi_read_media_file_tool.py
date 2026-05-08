@@ -30,6 +30,68 @@ PATH_DESCRIPTION = (
     "The path to the file to read. Absolute paths are required when reading files "
     "outside the working directory."
 )
+SESSION_ASSET_DOWNLOAD_PLUGIN_ID = "session_asset_attachments"
+
+
+def _session_id_from_context(context: Any) -> str | None:
+    if not isinstance(context, dict):
+        return None
+    session_id = context.get("session_id")
+    if isinstance(session_id, str) and session_id:
+        return session_id
+    session = context.get("session")
+    if isinstance(session, dict):
+        value = session.get("session_id")
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _asset_backed_image_part(
+    *,
+    data: bytes,
+    data_base64: str,
+    filename: str,
+    mime_type: str,
+    path: str,
+    context: Any,
+) -> Dict[str, Any] | None:
+    if not isinstance(context, dict):
+        return None
+    store = context.get("session_asset_store")
+    session_id = _session_id_from_context(context)
+    if store is None or not session_id:
+        return None
+
+    try:
+        record = store.store_base64(
+            session_id=session_id,
+            attachment_type="image",
+            filename=filename,
+            mime_type=mime_type,
+            data_base64=data_base64,
+            metadata={"source_tool": "ReadMediaFile", "path": path},
+        )
+    except Exception:
+        return None
+
+    return {
+        "type": "image",
+        "content": {
+            "asset_ref": record.asset_ref(),
+            "filename": record.filename,
+            "mime_type": record.mime_type,
+            "preview_data_base64": data_base64,
+            "preview_mime_type": mime_type,
+        },
+        "metadata": {
+            "download_plugin_id": SESSION_ASSET_DOWNLOAD_PLUGIN_ID,
+            "source_tool": "ReadMediaFile",
+            "path": path,
+            "mime_type": mime_type,
+            "bytes": len(data),
+        },
+    }
 
 
 def _normalize_capabilities(raw: Any) -> set[str]:
@@ -147,6 +209,7 @@ class KimiReadMediaFileTool(ToolPlugin):
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         if tool_name != "ReadMediaFile":
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
@@ -282,7 +345,8 @@ class KimiReadMediaFileTool(ToolPlugin):
                 "brief": "Failed to read file",
             }
 
-        data_url = media_data_url(file_type.mime_type, data)
+        data_base64 = media_data_url(file_type.mime_type, data).split(",", 1)[1]
+        data_url = f"data:{file_type.mime_type};base64,{data_base64}"
         image_size = extract_image_size(data)
         size_hint = (
             f", original size {image_size[0]}x{image_size[1]}px" if image_size else ""
@@ -291,29 +355,47 @@ class KimiReadMediaFileTool(ToolPlugin):
             f"Loaded image file `{target}` ({file_type.mime_type}, {len(data)} bytes{size_hint}). "
             f"{READ_BACK_NOTE}"
         )
+        path = str(target)
+        asset_part = _asset_backed_image_part(
+            data=data,
+            data_base64=data_base64,
+            filename=target.name,
+            mime_type=file_type.mime_type,
+            path=path,
+            context=kwargs.get("context"),
+        )
+        display_content = (
+            asset_part.get("content")
+            if isinstance(asset_part, dict)
+            else {
+                "url": data_url,
+                "filename": target.name,
+                "mime_type": file_type.mime_type,
+            }
+        )
+        tool_result_image_payload: Any = (
+            {
+                "asset_ref": display_content.get("asset_ref"),
+                "filename": display_content.get("filename"),
+                "mime_type": display_content.get("mime_type"),
+            }
+            if isinstance(display_content, dict)
+            and isinstance(display_content.get("asset_ref"), dict)
+            else {"url": data_url}
+        )
         return {
             "success": True,
             "kind": "image",
-            "path": str(target),
+            "path": path,
             "mime_type": file_type.mime_type,
             "bytes": len(data),
             "image_url": data_url,
             "width": image_size[0] if image_size else None,
             "height": image_size[1] if image_size else None,
             "message": message,
-            "tool_output_content": [
-                {
-                    "type": "input_image",
-                    "image_url": data_url,
-                }
-            ],
-            "multipartContent": [
-                {
-                    "type": "image",
-                    "content": {"url": data_url},
-                    "metadata": {"path": str(target), "mime_type": file_type.mime_type},
-                }
-            ],
+            "filename": target.name,
+            "display_content": display_content,
+            "tool_result_image_payload": tool_result_image_payload,
         }
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
@@ -321,6 +403,9 @@ class KimiReadMediaFileTool(ToolPlugin):
             return f"Error: {result.get('error')}"
 
         path = str(result.get("path") or "")
+        image_payload = result.get("tool_result_image_payload")
+        if image_payload is None:
+            image_payload = {"url": result.get("image_url") or ""}
         content = [
             {
                 "type": "text",
@@ -331,13 +416,14 @@ class KimiReadMediaFileTool(ToolPlugin):
             },
             {
                 "type": "image_url",
-                "image_url": {"url": result.get("image_url") or ""},
+                "image_url": image_payload,
             },
             {"type": "text", "text": "</image>"},
         ]
         return make_provider_native_tool_result(
             format=FORMAT_OPENAI_CHAT_COMPLETIONS,
             content=content,
+            text=str(result.get("message") or ""),
         )
 
     def to_display_format(
@@ -351,11 +437,15 @@ class KimiReadMediaFileTool(ToolPlugin):
         path = str(result.get("path") or "")
         return {
             "type": "image",
-            "content": result.get("image_url") or "",
+            "content": result.get("display_content") or {"url": result.get("image_url") or ""},
             "mime_type": result.get("mime_type"),
             "path": path,
             "single_line": f"ReadMediaFile: {Path(path).name if path else 'image'}",
+            "content_text": str(result.get("message") or text),
             "text_fallback": text or str(result.get("message") or ""),
+            "metadata": {
+                "download_plugin_id": SESSION_ASSET_DOWNLOAD_PLUGIN_ID,
+            },
         }
 
 

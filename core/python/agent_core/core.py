@@ -57,7 +57,11 @@ from .plugin import (
     FeatureWrapper,
     ToolWrapper,
 )
-from .utils import pipeline, get_logger
+from .utils import get_logger
+from .tool_result_payloads import (
+    TOOL_RESULT_FIELD,
+    normalize_tool_result_payload,
+)
 import uuid
 import json
 import re
@@ -169,7 +173,15 @@ class AgentCore:
                 md["native_indices"] = global_indices
             else:
                 md.pop("native_indices", None)
-            return {**msg, "metadata": md}
+            restored = {**msg}
+            roundtrip_multipart = md.pop("_core_multipartContent", None)
+            if (
+                "multipartContent" not in restored
+                and isinstance(roundtrip_multipart, list)
+            ):
+                restored["multipartContent"] = roundtrip_multipart
+            restored["metadata"] = md
+            return restored
 
         if len(final_core) == local_count:
             return [
@@ -198,6 +210,7 @@ class AgentCore:
         role = role_value
         content = message_dict.get("content", "")
         multipart_content = message_dict.get("multipartContent")
+        tool_result = message_dict.get(TOOL_RESULT_FIELD)
         raw_md = message_dict.get("metadata") or {}
         md = dict(raw_md) if isinstance(raw_md, dict) else {}
 
@@ -224,6 +237,7 @@ class AgentCore:
                 content=content,
                 metadata=cleaned or None,
                 multipart_content=multipart_content,
+                tool_result=tool_result if isinstance(tool_result, dict) else None,
             )
             new_messages = [*session.messages, new_message]
             new_session_metadata = dict(base_metadata)
@@ -267,6 +281,8 @@ class AgentCore:
             retained_native = []
 
         try:
+            if multipart_content:
+                md["_core_multipartContent"] = multipart_content
             core_suffix = [
                 {
                     "role": role,
@@ -276,6 +292,8 @@ class AgentCore:
             ]
             if multipart_content:
                 core_suffix[0]["multipartContent"] = multipart_content
+            if isinstance(tool_result, dict):
+                core_suffix[0][TOOL_RESULT_FIELD] = tool_result
             suffix_native = self._core_messages_to_native_for_config(
                 core_suffix, config or {}, context=context
             )
@@ -646,6 +664,7 @@ class AgentCore:
         multipart_content: Optional[List[Dict[str, Any]]] = None,
         after_index: Optional[int] = None,
         context: Optional[Dict[str, Any]] = None,
+        tool_result: Optional[Dict[str, Any]] = None,
     ) -> Session:
         """Add a message to the session (pure function).
 
@@ -666,6 +685,10 @@ class AgentCore:
                 provider/feature/extension pipelines using the ``_metadata``
                 key on provider-native messages.
             config: Optional configuration used to resolve provider and plugins.
+            tool_result: Optional structured tool result payload for this
+                message. This is the canonical structured representation for
+                tool messages and may be consumed by providers when appending
+                to provider-native history.
             after_index: Optional index after which to insert the message.
                 When ``None`` (default), the message is appended at the end.
                 ``after_index == -1`` inserts at the beginning. Negative
@@ -683,6 +706,8 @@ class AgentCore:
         }
         if multipart_content:
             message_dict["multipartContent"] = multipart_content
+        if tool_result is not None:
+            message_dict[TOOL_RESULT_FIELD] = tool_result
         # Compute insertion point. When after_index is None, append at end.
         message_count = len(session.messages)
         if after_index is None:
@@ -4395,19 +4420,15 @@ class AgentCore:
                 metadata["tool_output_content"] = [
                     item for item in tool_output_content if isinstance(item, dict)
                 ]
+            normalized_tool_result = normalize_tool_result_payload(formatted_content)
 
             tool_message = {
                 "role": "tool",
-                "content": formatted_content if formatted_content is not None else "",
+                "content": normalized_tool_result.public_text,
                 "metadata": metadata,
             }
-            multipart_content = last_result.get("multipartContent")
-            if isinstance(multipart_content, list):
-                filtered_multipart = [
-                    item for item in multipart_content if isinstance(item, dict)
-                ]
-                if filtered_multipart:
-                    tool_message["multipartContent"] = filtered_multipart
+            if normalized_tool_result.tool_result is not None:
+                tool_message[TOOL_RESULT_FIELD] = normalized_tool_result.tool_result
 
             yield tool_message
 

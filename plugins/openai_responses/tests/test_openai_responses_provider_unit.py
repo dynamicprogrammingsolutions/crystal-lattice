@@ -14,6 +14,7 @@ from agent_core import AgentCore
 from agent_core.tool_result_payloads import (
     FORMAT_OPENAI_CHAT_COMPLETIONS,
     FORMAT_OPENAI_RESPONSES,
+    TOOL_RESULT_FIELD,
     make_provider_native_tool_result,
 )
 from agent_core.types import ProviderRequestCancelled
@@ -1430,7 +1431,8 @@ def test_to_native_messages_uses_openai_responses_tool_result_envelope() -> None
         [
             {
                 "role": "tool",
-                "content": payload,
+                "content": "opened image",
+                TOOL_RESULT_FIELD: payload,
                 "metadata": {"tool_call_id": "call_view_1"},
             }
         ],
@@ -1464,7 +1466,8 @@ def test_to_native_messages_converts_openai_chat_tool_result_envelope() -> None:
         [
             {
                 "role": "tool",
-                "content": payload,
+                "content": "opened image",
+                TOOL_RESULT_FIELD: payload,
                 "metadata": {"tool_call_id": "call_view_1"},
             }
         ],

@@ -2337,10 +2337,13 @@ export const ChatPane = React.memo(function ChatPane({
           renderMode={renderMode}
           footerElements={footerElements}
           pluginActionDefs={pluginMessageActionDefs}
+          backend={backend}
+          sessionId={sessionId}
         />
       );
     },
     [
+      backend,
       editingIndex,
       editingInitialText,
       editingText,
@@ -2350,6 +2353,7 @@ export const ChatPane = React.memo(function ChatPane({
       handleSubmitEditMessage,
       messageViewModeByIndex,
       pluginMessageActionDefs,
+      sessionId,
     ],
   );
 

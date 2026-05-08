@@ -9,7 +9,11 @@ from dataclasses import dataclass, field
 
 import requests
 
-from agent_core.tool_result_payloads import openai_chat_tool_result_content
+from agent_core.tool_result_payloads import (
+    TOOL_RESULT_FIELD,
+    openai_chat_tool_result_content,
+    provider_native_tool_result_display,
+)
 from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
 from reference_openai_compatible_provider.attachment_parts import (
@@ -404,6 +408,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
         out.pop("native_indices", None)
         out.pop("tool_calls", None)
         out.pop("tool_call_id", None)
+        out.pop("display", None)
         return out
 
     def _core_metadata_from_native_internal(self, internal: Any) -> dict[str, Any]:
@@ -457,6 +462,43 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             )
         return record.filename, record.mime_type, store.load_bytes(session_id, asset_id)
 
+    def _expanded_tool_content(
+        self,
+        content: Any,
+        state: dict[str, Any],
+        context: dict[str, Any] | None,
+    ) -> Any:
+        if not isinstance(content, list):
+            return content
+
+        parts: list[dict[str, Any]] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") != "image_url":
+                parts.append(dict(part))
+                continue
+
+            image_url = part.get("image_url")
+            if isinstance(image_url, dict) and image_url.get("asset_ref"):
+                expanded = image_content_to_image_url_part(
+                    image_url,
+                    resolve_session_asset=lambda asset_ref, expected_attachment_type: self._resolve_session_asset(
+                        state,
+                        context,
+                        asset_ref,
+                        expected_attachment_type,
+                    ),
+                    allow_base64=allow_image_attachment_base64(state),
+                    allow_url=allow_image_attachment_url(state),
+                )
+                parts.append(expanded)
+                continue
+
+            parts.append(dict(part))
+
+        return parts
+
     def to_native_messages(
         self,
         messages: list[dict[str, Any]],
@@ -472,10 +514,12 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
             role = msg.get("role", "user")
             raw_content = msg.get("content", "")
+            tool_result = msg.get(TOOL_RESULT_FIELD)
             raw_metadata = msg.get("metadata")
             metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
             native_tool_content = (
-                openai_chat_tool_result_content(raw_content)
+                openai_chat_tool_result_content(tool_result)
+                or openai_chat_tool_result_content(raw_content)
                 if role == "tool"
                 else None
             )
@@ -590,7 +634,22 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                         continue
 
                 msg["content"] = "\n".join(text_parts)
-                if multipart_out:
+                if role == "tool":
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.chat_completions",
+                        "content": [dict(part) for part in content if isinstance(part, dict)],
+                        "text": msg["content"],
+                    }
+                    msg[TOOL_RESULT_FIELD] = tool_result
+                    tool_name = metadata.get("tool_name")
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=tool_name if isinstance(tool_name, str) else None,
+                    )
+                    if isinstance(display, dict):
+                        metadata["display"] = display
+                elif multipart_out:
                     msg["multipartContent"] = multipart_out
             else:
                 msg["content"] = content if isinstance(content, str) else ""
@@ -777,6 +836,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             native_messages: list[dict[str, Any]],
             state: dict[str, Any],
             *,
+            context: dict[str, Any] | None = None,
             request_id: str | None = None,
     ):
         _ = request_id
@@ -795,6 +855,21 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             "headers": headers,
             "timeout": float(cfg.get("timeout", 60)),
         }
+        request["messages"] = [
+            (
+                {
+                    **msg,
+                    "content": self._expanded_tool_content(
+                        msg.get("content"),
+                        state,
+                        context,
+                    ),
+                }
+                if isinstance(msg, dict) and msg.get("role") == "tool"
+                else msg
+            )
+            for msg in native_messages
+        ]
         return list(native_messages), {
             **state,
             "request": request,

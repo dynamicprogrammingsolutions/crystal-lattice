@@ -3,6 +3,7 @@ import type { ExecuteActionResponse } from '../types/plugins';
 
 export const DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID = 'openai_responses_attachments';
 export const DEFAULT_ATTACHMENT_ACTION_OWNER = 'provider_extension';
+export const SESSION_ASSET_ATTACHMENTS_PLUGIN_ID = 'session_asset_attachments';
 export const STORE_ATTACHMENT_ACTION_ID = 'store_attachment';
 export const DELETE_ATTACHMENT_ACTION_ID = 'delete_attachment';
 export const DOWNLOAD_ATTACHMENT_ACTION_ID = 'download_attachment';
@@ -83,6 +84,10 @@ function ensureStoredAttachmentDescriptor(value: any): StoredAttachmentAssetDesc
   return value as StoredAttachmentAssetDescriptor;
 }
 
+function attachmentActionOwner(pluginId: string): string {
+  return pluginId === SESSION_ASSET_ATTACHMENTS_PLUGIN_ID ? 'application' : DEFAULT_ATTACHMENT_ACTION_OWNER;
+}
+
 export function selectSessionAssetId(content: any): string | null {
   const assetRef = content?.asset_ref;
   if (
@@ -121,7 +126,7 @@ export async function storeSessionAttachment(options: {
   const response = await options.backend.executeAction({
     pluginId,
     actionId: STORE_ATTACHMENT_ACTION_ID,
-    actionOwner: DEFAULT_ATTACHMENT_ACTION_OWNER,
+      actionOwner: attachmentActionOwner(pluginId),
     idempotencyKey: options.idempotencyKey,
     inputs: {
       session_id: sessionId,
@@ -168,7 +173,7 @@ export async function deleteSessionAttachment(options: {
   const response = await options.backend.executeAction({
     pluginId,
     actionId: DELETE_ATTACHMENT_ACTION_ID,
-    actionOwner: DEFAULT_ATTACHMENT_ACTION_OWNER,
+      actionOwner: attachmentActionOwner(pluginId),
     idempotencyKey: options.idempotencyKey,
     inputs: {
       session_id: sessionId,
@@ -206,7 +211,7 @@ export async function downloadSessionAttachment(options: {
   const response = await options.backend.executeAction({
     pluginId,
     actionId: DOWNLOAD_ATTACHMENT_ACTION_ID,
-    actionOwner: DEFAULT_ATTACHMENT_ACTION_OWNER,
+      actionOwner: attachmentActionOwner(pluginId),
     idempotencyKey: options.idempotencyKey,
     inputs: {
       session_id: sessionId,

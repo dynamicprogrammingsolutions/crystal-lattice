@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import base64
-import json
 import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from agent_core.tool_result_payloads import (
+    FORMAT_OPENAI_RESPONSES,
+    make_provider_native_tool_result,
+)
 from agent_core.types import ToolPlugin
 
 from .workdir import resolve_turn_cwd
@@ -27,7 +30,7 @@ DETAIL_DESCRIPTION = (
     "especially for CUA agents."
 )
 DEFAULT_IMAGE_DETAIL = "high"
-TOOL_OUTPUT_CONTENT_METADATA_KEY = "tool_output_content"
+SESSION_ASSET_DOWNLOAD_PLUGIN_ID = "session_asset_attachments"
 
 
 def _detect_image_mime(data: bytes) -> Optional[str]:
@@ -111,15 +114,66 @@ def _output_schema() -> Dict[str, Any]:
     }
 
 
-def _fallback_payload(result: Dict[str, Any]) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {
-        "image_url": result.get("image_url"),
-        "detail": result.get("detail"),
-        "path": result.get("path"),
-        "mime_type": result.get("mime_type"),
-        "bytes": result.get("bytes"),
+def _session_id_from_context(context: Any) -> Optional[str]:
+    if not isinstance(context, dict):
+        return None
+    session_id = context.get("session_id")
+    if isinstance(session_id, str) and session_id:
+        return session_id
+    session = context.get("session")
+    if isinstance(session, dict):
+        value = session.get("session_id")
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _asset_backed_image_part(
+    *,
+    data: bytes,
+    data_base64: str,
+    filename: str,
+    mime_type: str,
+    path: str,
+    detail: str,
+    context: Any,
+) -> Optional[Dict[str, Any]]:
+    if not isinstance(context, dict):
+        return None
+    store = context.get("session_asset_store")
+    session_id = _session_id_from_context(context)
+    if store is None or not session_id:
+        return None
+
+    try:
+        record = store.store_base64(
+            session_id=session_id,
+            attachment_type="image",
+            filename=filename,
+            mime_type=mime_type,
+            data_base64=data_base64,
+            metadata={"source_tool": "view_image", "path": path},
+        )
+    except Exception:
+        return None
+
+    return {
+        "type": "image",
+        "content": {
+            "asset_ref": record.asset_ref(),
+            "filename": record.filename,
+            "mime_type": record.mime_type,
+            "preview_data_base64": data_base64,
+            "preview_mime_type": mime_type,
+        },
+        "metadata": {
+            "download_plugin_id": SESSION_ASSET_DOWNLOAD_PLUGIN_ID,
+            "source_tool": "view_image",
+            "detail": detail,
+            "path": path,
+            "bytes": len(data),
+        },
     }
-    return {k: v for k, v in payload.items() if v is not None}
 
 
 class ViewImageTool(ToolPlugin):
@@ -185,7 +239,7 @@ class ViewImageTool(ToolPlugin):
         tool_name: Optional[str],
         payload: Any,
         state: Dict[str, Any],
-        **_: Any,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         if tool_name != "view_image":
             return {"success": False, "error": f"Unknown tool: {tool_name}"}
@@ -262,34 +316,70 @@ class ViewImageTool(ToolPlugin):
                 "error": f"unable to process image at `{image_path}`: unsupported image format",
             }
 
-        image_url = f"data:{mime_type};base64,{base64.b64encode(data).decode('ascii')}"
+        data_base64 = base64.b64encode(data).decode("ascii")
+        image_url = f"data:{mime_type};base64,{data_base64}"
         detail = "original" if raw_detail == "original" else DEFAULT_IMAGE_DETAIL
-        output_item = {
-            "type": "input_image",
-            "image_url": image_url,
-            "detail": detail,
-        }
+        path = str(image_path)
+        asset_part = _asset_backed_image_part(
+            data=data,
+            data_base64=data_base64,
+            filename=image_path.name,
+            mime_type=mime_type,
+            path=path,
+            detail=detail,
+            context=kwargs.get("context"),
+        )
+        display_content = (
+            asset_part.get("content")
+            if isinstance(asset_part, dict)
+            else {
+                "url": image_url,
+                "filename": image_path.name,
+                "mime_type": mime_type,
+            }
+        )
+        tool_result_image_payload: Any = (
+            {
+                "asset_ref": display_content.get("asset_ref"),
+                "filename": display_content.get("filename"),
+                "mime_type": display_content.get("mime_type"),
+            }
+            if isinstance(display_content, dict)
+            and isinstance(display_content.get("asset_ref"), dict)
+            else image_url
+        )
         return {
             "success": True,
+            "message": f"Loaded image file `{path}` ({mime_type}, {len(data)} bytes).",
             "image_url": image_url,
             "detail": detail,
-            "path": str(image_path),
+            "path": path,
             "mime_type": mime_type,
+            "filename": image_path.name,
             "bytes": len(data),
-            "tool_output_content": [output_item],
-            "multipartContent": [
-                {
-                    "type": "image",
-                    "content": {"url": image_url},
-                    "metadata": {"detail": detail, "path": str(image_path)},
-                }
-            ],
+            "display_content": display_content,
+            "tool_result_image_payload": tool_result_image_payload,
         }
 
-    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:
+    def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
         if not result.get("success"):
             return f"Error: {result.get('error')}"
-        return json.dumps(_fallback_payload(result), ensure_ascii=False)
+        message = str(result.get("message") or "")
+        image_payload = result.get("tool_result_image_payload")
+        if image_payload is None:
+            image_payload = result.get("image_url") or ""
+        return make_provider_native_tool_result(
+            format=FORMAT_OPENAI_RESPONSES,
+            output=[
+                {"type": "input_text", "text": message},
+                {
+                    "type": "input_image",
+                    "image_url": image_payload,
+                    "detail": result.get("detail"),
+                },
+            ],
+            text=message,
+        )
 
     def to_display_format(
         self,
@@ -302,11 +392,16 @@ class ViewImageTool(ToolPlugin):
         path = str(result.get("path") or "")
         return {
             "type": "image",
-            "content": result.get("image_url") or "",
+            "content": result.get("display_content") or {"url": result.get("image_url") or ""},
             "mime_type": result.get("mime_type"),
             "path": path,
             "single_line": f"view_image: {Path(path).name if path else 'image'}",
-            "text_fallback": text,
+            "content_text": str(result.get("message") or text),
+            "text_fallback": text or str(result.get("message") or ""),
+            "metadata": {
+                "download_plugin_id": SESSION_ASSET_DOWNLOAD_PLUGIN_ID,
+                "detail": result.get("detail"),
+            },
         }
 
 
