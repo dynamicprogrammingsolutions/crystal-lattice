@@ -30,6 +30,7 @@ from agent_core.tool_interop import (
 )
 from agent_core.tool_result_payloads import (
     TOOL_RESULT_FIELD,
+    make_text_tool_result,
     openai_responses_tool_result_output,
     provider_native_tool_result_display,
 )
@@ -646,18 +647,13 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 if output_val is None:
                     output_val = msg.get("content", "")
                 structured_output = openai_responses_tool_result_output(output_val)
-                if structured_output is None and isinstance(md, dict):
-                    tool_output_content = md.get("tool_output_content")
-                    if (
-                        isinstance(tool_output_content, list)
-                        and all(isinstance(item, dict) for item in tool_output_content)
-                    ):
-                        structured_output = tool_output_content
-                output: Any = (
-                    structured_output
-                    if structured_output is not None
-                    else output_val if isinstance(output_val, str) else ""
-                )
+                output: Any
+                if structured_output is not None:
+                    output = structured_output
+                elif isinstance(output_val, dict):
+                    output = msg.get("content", "")
+                else:
+                    output = output_val if isinstance(output_val, str) else ""
 
                 internal_md = self._native_internal_from_core_metadata_excluding(
                     md,
@@ -710,7 +706,38 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 core_md = dict(internal_md)
                 core_md.setdefault("tool_call_id", call_id)
                 core_md["native_indices"] = [native_index]
-                _append_normalized({"role": "tool", "content": output, "metadata": core_md})
+                raw_output = item.get("output")
+                if isinstance(raw_output, list):
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.responses",
+                        "output": [
+                            dict(part)
+                            for part in raw_output
+                            if isinstance(part, dict)
+                        ],
+                        "text": output,
+                    }
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=(
+                            core_md.get("tool_name")
+                            if isinstance(core_md.get("tool_name"), str)
+                            else None
+                        ),
+                    )
+                    if isinstance(display, dict):
+                        core_md["display"] = display
+                else:
+                    tool_result = make_text_tool_result(text=output)
+                _append_normalized(
+                    {
+                        "role": "tool",
+                        "content": output,
+                        "metadata": core_md,
+                        TOOL_RESULT_FIELD: tool_result,
+                    }
+                )
 
             current_segment = []
             current_response_id = None
@@ -774,26 +801,30 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 core_md = dict(internal_md)
                 core_md.setdefault("tool_call_id", call_id)
                 core_md.setdefault("native_indices", [native_index])
-                tool_result = {
-                    "type": "provider_native_tool_result",
-                    "format": "openai.responses",
-                    "output": [
-                        dict(part)
-                        for part in m.get("output", [])
-                        if isinstance(part, dict)
-                    ],
-                    "text": output,
-                }
-                display = provider_native_tool_result_display(
-                    tool_result,
-                    tool_name=(
-                        core_md.get("tool_name")
-                        if isinstance(core_md.get("tool_name"), str)
-                        else None
-                    ),
-                )
-                if isinstance(display, dict):
-                    core_md["display"] = display
+                raw_output = m.get("output")
+                if isinstance(raw_output, list):
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.responses",
+                        "output": [
+                            dict(part)
+                            for part in raw_output
+                            if isinstance(part, dict)
+                        ],
+                        "text": output,
+                    }
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=(
+                            core_md.get("tool_name")
+                            if isinstance(core_md.get("tool_name"), str)
+                            else None
+                        ),
+                    )
+                    if isinstance(display, dict):
+                        core_md["display"] = display
+                else:
+                    tool_result = make_text_tool_result(text=output)
                 normalized.append(
                     {
                         "role": "tool",

@@ -28,6 +28,7 @@ from openai import OpenAI
 
 from agent_core.tool_result_payloads import (
     TOOL_RESULT_FIELD,
+    make_text_tool_result,
     openai_responses_tool_result_output,
     provider_native_tool_result_display,
 )
@@ -1842,17 +1843,6 @@ class OpenAIResponsesProvider(ProviderPlugin):
                     provider_native_tool_result
                 )
                 if output is None:
-                    output = openai_responses_tool_result_output(msg.get("content"))
-                if isinstance(metadata, dict):
-                    structured_output = metadata.get("tool_output_content")
-                    if (
-                        output is None
-                        and isinstance(structured_output, list)
-                        and all(isinstance(item, dict) for item in structured_output)
-                    ):
-                        output = structured_output
-
-                if output is None:
                     output = msg.get("content", "")
                     if not isinstance(output, str):
                         try:
@@ -1946,8 +1936,37 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 tool_md = dict(internal_md)
                 tool_md.setdefault("tool_call_id", call_id)
                 tool_md["native_indices"] = [native_index]
+                raw_output = item.get("output")
+                if isinstance(raw_output, list):
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.responses",
+                        "output": [
+                            dict(part)
+                            for part in raw_output
+                            if isinstance(part, dict)
+                        ],
+                        "text": output,
+                    }
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=(
+                            tool_md.get("tool_name")
+                            if isinstance(tool_md.get("tool_name"), str)
+                            else None
+                        ),
+                    )
+                    if isinstance(display, dict):
+                        tool_md["display"] = display
+                else:
+                    tool_result = make_text_tool_result(text=output)
                 _append_core_message(
-                    {"role": "tool", "content": output, "metadata": tool_md},
+                    {
+                        "role": "tool",
+                        "content": output,
+                        "metadata": tool_md,
+                        TOOL_RESULT_FIELD: tool_result,
+                    },
                     owned_indices=[native_index],
                 )
 
@@ -2045,26 +2064,30 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 md = dict(internal_md)
                 md.setdefault("tool_call_id", call_id)
                 md["native_indices"] = [native_index]
-                tool_result = {
-                    "type": "provider_native_tool_result",
-                    "format": "openai.responses",
-                    "output": [
-                        dict(part)
-                        for part in item.get("output", [])
-                        if isinstance(part, dict)
-                    ],
-                    "text": output,
-                }
-                display = provider_native_tool_result_display(
-                    tool_result,
-                    tool_name=(
-                        md.get("tool_name")
-                        if isinstance(md.get("tool_name"), str)
-                        else None
-                    ),
-                )
-                if isinstance(display, dict):
-                    md["display"] = display
+                raw_output = item.get("output")
+                if isinstance(raw_output, list):
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.responses",
+                        "output": [
+                            dict(part)
+                            for part in raw_output
+                            if isinstance(part, dict)
+                        ],
+                        "text": output,
+                    }
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=(
+                            md.get("tool_name")
+                            if isinstance(md.get("tool_name"), str)
+                            else None
+                        ),
+                    )
+                    if isinstance(display, dict):
+                        md["display"] = display
+                else:
+                    tool_result = make_text_tool_result(text=output)
 
                 _append_core_message(
                     {

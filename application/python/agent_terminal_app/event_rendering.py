@@ -588,9 +588,16 @@ class ToolRenderer(BaseMessageRenderer):
             if isinstance(single_line, str) and single_line.strip():
                 return single_line
         
-        # Otherwise, use the standard display.content or fall back to message.content
-        if isinstance(display, dict) and display.get("type") == "text":
-            content = display.get("content")
+        # Otherwise, prefer display content/fallbacks before raw message content.
+        if isinstance(display, dict):
+            if display.get("type") == "text":
+                content = display.get("content")
+            else:
+                content = (
+                    display.get("content_text")
+                    or display.get("text_fallback")
+                    or msg.get("content")
+                )
         else:
             content = msg.get("content")
 

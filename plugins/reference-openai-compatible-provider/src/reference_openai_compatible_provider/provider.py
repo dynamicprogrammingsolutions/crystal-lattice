@@ -11,6 +11,7 @@ import requests
 
 from agent_core.tool_result_payloads import (
     TOOL_RESULT_FIELD,
+    make_text_tool_result,
     openai_chat_tool_result_content,
     provider_native_tool_result_display,
 )
@@ -547,7 +548,6 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
             native_tool_content = (
                 openai_chat_tool_result_content(tool_result)
-                or openai_chat_tool_result_content(raw_content)
                 if role == "tool"
                 else None
             )
@@ -681,6 +681,11 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
                     msg["multipartContent"] = multipart_out
             else:
                 msg["content"] = content if isinstance(content, str) else ""
+
+            if role == "tool" and TOOL_RESULT_FIELD not in msg:
+                msg[TOOL_RESULT_FIELD] = make_text_tool_result(
+                    text=msg["content"] if isinstance(msg.get("content"), str) else ""
+                )
 
             tool_calls = native_message.get("tool_calls")
             if isinstance(tool_calls, list) and tool_calls:

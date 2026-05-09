@@ -58,9 +58,9 @@ from .plugin import (
     ToolWrapper,
 )
 from .utils import get_logger
+from .tool_interop import CORE_TEXT_TOOL_RESULT_FORMAT_ID, ToolInteropTarget
 from .tool_result_payloads import (
     TOOL_RESULT_FIELD,
-    normalize_tool_result_payload,
 )
 import uuid
 import json
@@ -4389,9 +4389,8 @@ class AgentCore:
             except Exception as exc:
                 formatted_content = f"Tool formatting error: {exc}"
 
-            display_text = (
-                formatted_content if isinstance(formatted_content, str) else ""
-            )
+            inspected_result = registry.inspect_result(formatted_content)
+            display_text = inspected_result.text
             display_payload: Dict[str, Any] | None = None
             try:
                 display_candidate = tool.to_display_format(
@@ -4404,6 +4403,39 @@ class AgentCore:
             except Exception:
                 display_payload = None
 
+            if (
+                isinstance(display_payload, dict)
+                and display_payload.get("type") == "text"
+                and display_payload.get("content") == display_text
+                and "single_line" not in display_payload
+                and isinstance(inspected_result.display, dict)
+            ):
+                display_payload = inspected_result.display
+
+            tool_result_value: Dict[str, Any]
+            if isinstance(formatted_content, dict) and (
+                inspected_result.format_id != CORE_TEXT_TOOL_RESULT_FORMAT_ID
+            ):
+                tool_result_value = formatted_content
+            else:
+                converted_result = registry.convert_tool_result(
+                    formatted_content,
+                    target=ToolInteropTarget("core.tool_result"),
+                    target_formats=[CORE_TEXT_TOOL_RESULT_FORMAT_ID],
+                )
+                if isinstance(converted_result, dict):
+                    tool_result_value = converted_result
+                else:
+                    tool_result_value = {
+                        "type": "tool_result",
+                        "text": inspected_result.text,
+                    }
+
+            if display_payload is None:
+                canonical_result = registry.inspect_result(tool_result_value)
+                if isinstance(canonical_result.display, dict):
+                    display_payload = canonical_result.display
+
             metadata = {
                 "tool_call_id": call_id,
                 "tool_name": name,
@@ -4415,20 +4447,13 @@ class AgentCore:
                 metadata["tool_plugin"] = plugin_name
             if display_payload is not None:
                 metadata["display"] = display_payload
-            tool_output_content = last_result.get("tool_output_content")
-            if isinstance(tool_output_content, list):
-                metadata["tool_output_content"] = [
-                    item for item in tool_output_content if isinstance(item, dict)
-                ]
-            normalized_tool_result = normalize_tool_result_payload(formatted_content)
 
             tool_message = {
                 "role": "tool",
-                "content": normalized_tool_result.public_text,
+                "content": registry.inspect_result(tool_result_value).text,
                 "metadata": metadata,
+                TOOL_RESULT_FIELD: tool_result_value,
             }
-            if normalized_tool_result.tool_result is not None:
-                tool_message[TOOL_RESULT_FIELD] = normalized_tool_result.tool_result
 
             yield tool_message
 

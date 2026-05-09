@@ -4,6 +4,7 @@ from agent_core import AgentCore
 from agent_core.tool_result_payloads import (
     FORMAT_OPENAI_CHAT_COMPLETIONS,
     TOOL_RESULT_FIELD,
+    is_core_tool_result,
     make_provider_native_tool_result,
 )
 from .dummy_tool import DummyCalculator
@@ -146,6 +147,8 @@ def test_execute_tool_calls_with_dummy_tool():
     assert display.get("type") == "text"
     assert "Result: 5" in str(display.get("content", ""))
     assert "Result: 5" in msg.get("content", "")
+    assert is_core_tool_result(msg.get(TOOL_RESULT_FIELD))
+    assert msg[TOOL_RESULT_FIELD]["text"] == "Result: 5"
 
 
 def test_execute_tool_calls_preserves_provider_native_result_payload():
@@ -174,8 +177,8 @@ def test_execute_tool_calls_preserves_provider_native_result_payload():
     assert provider_native["format"] == FORMAT_OPENAI_CHAT_COMPLETIONS
     assert provider_native["content"][1]["image_url"]["url"].startswith("data:image/png")
     display = metadata.get("display") or {}
-    assert display.get("type") == "text"
-    assert display.get("content") == ""
+    assert display.get("type") == "image"
+    assert display.get("content", {}).get("url", "").startswith("data:image/png")
 
 
 def test_iter_tool_messages_non_streaming_file_reader(tmp_path):

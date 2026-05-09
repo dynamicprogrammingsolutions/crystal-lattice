@@ -1379,22 +1379,27 @@ def test_to_native_messages_supports_image_url_and_data_url() -> None:
     ]
 
 
-def test_to_native_messages_preserves_structured_tool_output_content() -> None:
+def test_to_native_messages_uses_tool_result_without_metadata_duplication() -> None:
     provider = OpenAIResponsesProvider()
     image_item = {
         "type": "input_image",
         "image_url": "data:image/png;base64,AAA",
         "detail": "high",
     }
+    payload = make_provider_native_tool_result(
+        format=FORMAT_OPENAI_RESPONSES,
+        output=[image_item],
+        text='{"image_url":"data:image/png;base64,AAA"}',
+    )
 
     native = provider.to_native_messages(
         [
             {
                 "role": "tool",
                 "content": '{"image_url":"data:image/png;base64,AAA"}',
+                TOOL_RESULT_FIELD: payload,
                 "metadata": {
                     "tool_call_id": "call_view_1",
-                    "tool_output_content": [image_item],
                     "trace_id": "t1",
                 },
             }
@@ -1408,7 +1413,6 @@ def test_to_native_messages_preserves_structured_tool_output_content() -> None:
             "call_id": "call_view_1",
             "output": [image_item],
             "_metadata": {
-                "tool_output_content": [image_item],
                 "trace_id": "t1",
             },
         }

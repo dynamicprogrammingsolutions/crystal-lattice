@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
+from .tool_interop import (
+    ANTHROPIC_MESSAGES_TOOL_RESULT_FORMAT,
+    CORE_TOOL_RESULT_TYPE,
+    DEFAULT_TOOL_INTEROP_REGISTRY,
+    OPENAI_CHAT_TOOL_RESULT_FORMAT,
+    OPENAI_CHAT_TOOL_RESULT_FORMAT_ID,
+    OPENAI_RESPONSES_TOOL_RESULT_FORMAT,
+    OPENAI_RESPONSES_TOOL_RESULT_FORMAT_ID,
+    PROVIDER_NATIVE_TOOL_RESULT_TYPE,
+    SESSION_ASSET_DOWNLOAD_PLUGIN_ID,
+    ToolInteropError,
+    ToolInteropTarget,
+)
 
-PROVIDER_NATIVE_TOOL_RESULT_TYPE = "provider_native_tool_result"
-FORMAT_OPENAI_CHAT_COMPLETIONS = "openai.chat_completions"
-FORMAT_OPENAI_RESPONSES = "openai.responses"
+FORMAT_OPENAI_CHAT_COMPLETIONS = OPENAI_CHAT_TOOL_RESULT_FORMAT
+FORMAT_OPENAI_RESPONSES = OPENAI_RESPONSES_TOOL_RESULT_FORMAT
+FORMAT_ANTHROPIC_MESSAGES = ANTHROPIC_MESSAGES_TOOL_RESULT_FORMAT
 TOOL_RESULT_FIELD = "toolResult"
-SESSION_ASSET_DOWNLOAD_PLUGIN_ID = "session_asset_attachments"
-
-
-@dataclass(frozen=True)
-class NormalizedToolResultPayload:
-    public_text: str
-    tool_result: Optional[Dict[str, Any]] = None
 
 
 def is_provider_native_tool_result(value: Any) -> bool:
@@ -34,37 +39,47 @@ def provider_native_tool_result_format(value: Any) -> Optional[str]:
     return fmt if isinstance(fmt, str) else None
 
 
+def is_core_tool_result(value: Any) -> bool:
+    return (
+        isinstance(value, dict)
+        and value.get("type") == CORE_TOOL_RESULT_TYPE
+        and isinstance(value.get("text"), str)
+    )
+
+
+def make_text_tool_result(*, text: str) -> Dict[str, Any]:
+    return {"type": CORE_TOOL_RESULT_TYPE, "text": text}
+
+
 def openai_chat_tool_result_content(value: Any) -> Optional[List[Dict[str, Any]]]:
-    fmt = provider_native_tool_result_format(value)
-    if fmt == FORMAT_OPENAI_CHAT_COMPLETIONS:
-        content = value.get("content") if isinstance(value, dict) else None
-        if isinstance(content, list) and all(isinstance(item, dict) for item in content):
-            return content
+    try:
+        converted = DEFAULT_TOOL_INTEROP_REGISTRY.convert_tool_result(
+            value,
+            target=ToolInteropTarget("openai.chat_completions"),
+            target_formats=[OPENAI_CHAT_TOOL_RESULT_FORMAT_ID],
+        )
+        inspected = DEFAULT_TOOL_INTEROP_REGISTRY.inspect_result(converted)
+    except ToolInteropError:
         return None
-
-    if fmt == FORMAT_OPENAI_RESPONSES:
-        output = value.get("output") if isinstance(value, dict) else None
-        if not (isinstance(output, list) and all(isinstance(item, dict) for item in output)):
-            return None
-        return openai_responses_output_to_chat_content(output)
-
+    payload = inspected.payload
+    if isinstance(payload, list) and all(isinstance(item, dict) for item in payload):
+        return payload
     return None
 
 
 def openai_responses_tool_result_output(value: Any) -> Optional[List[Dict[str, Any]]]:
-    fmt = provider_native_tool_result_format(value)
-    if fmt == FORMAT_OPENAI_RESPONSES:
-        output = value.get("output") if isinstance(value, dict) else None
-        if isinstance(output, list) and all(isinstance(item, dict) for item in output):
-            return output
+    try:
+        converted = DEFAULT_TOOL_INTEROP_REGISTRY.convert_tool_result(
+            value,
+            target=ToolInteropTarget("openai.responses"),
+            target_formats=[OPENAI_RESPONSES_TOOL_RESULT_FORMAT_ID],
+        )
+        inspected = DEFAULT_TOOL_INTEROP_REGISTRY.inspect_result(converted)
+    except ToolInteropError:
         return None
-
-    if fmt == FORMAT_OPENAI_CHAT_COMPLETIONS:
-        content = openai_chat_tool_result_content(value)
-        if content is None:
-            return None
-        return openai_chat_content_to_responses_output(content)
-
+    payload = inspected.payload
+    if isinstance(payload, list) and all(isinstance(item, dict) for item in payload):
+        return payload
     return None
 
 
@@ -155,6 +170,81 @@ def _text_from_openai_responses_output(output: Any) -> str:
     return "\n".join(text_parts)
 
 
+def _anthropic_image_block_to_openai_chat_content(
+    part: Dict[str, Any],
+) -> Optional[Dict[str, Any]]:
+    source = part.get("source")
+    if not isinstance(source, dict):
+        return None
+    media_type = source.get("media_type")
+    data = source.get("data")
+    if not isinstance(media_type, str) or not media_type:
+        return None
+    if not isinstance(data, str) or not data:
+        return None
+    return {
+        "type": "image_url",
+        "image_url": {"url": f"data:{media_type};base64,{data}"},
+    }
+
+
+def _anthropic_content_parts_to_openai_chat_content(
+    content: Any,
+) -> List[Dict[str, Any]]:
+    parts: List[Dict[str, Any]] = []
+    if isinstance(content, str):
+        if content:
+            parts.append({"type": "text", "text": content})
+        return parts
+    if not isinstance(content, list):
+        return parts
+    for part in content:
+        if not isinstance(part, dict):
+            continue
+        part_type = part.get("type")
+        if part_type == "text":
+            text = part.get("text")
+            if isinstance(text, str) and text:
+                parts.append({"type": "text", "text": text})
+            continue
+        if part_type == "image":
+            converted = _anthropic_image_block_to_openai_chat_content(part)
+            if converted is not None:
+                parts.append(converted)
+            continue
+        if part_type == "tool_result":
+            parts.extend(
+                _anthropic_content_parts_to_openai_chat_content(part.get("content"))
+            )
+    return parts
+
+
+def anthropic_messages_content_to_openai_chat_content(
+    content: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    payload = make_provider_native_tool_result(
+        format=FORMAT_ANTHROPIC_MESSAGES,
+        content=content,
+    )
+    return openai_chat_tool_result_content(payload) or []
+
+
+def _text_from_anthropic_messages_content(content: Any) -> str:
+    converted = (
+        anthropic_messages_content_to_openai_chat_content(content)
+        if isinstance(content, list)
+        else []
+    )
+    text_parts: List[str] = []
+    for part in converted:
+        if not isinstance(part, dict) or part.get("type") != "text":
+            continue
+        text = part.get("text")
+        if isinstance(text, str) and text:
+            text_parts.append(text)
+    return "\n".join(text_parts)
+
+
 def _provider_native_tool_result_text(value: Dict[str, Any]) -> str:
     explicit_text = value.get("text")
     if isinstance(explicit_text, str):
@@ -163,6 +253,8 @@ def _provider_native_tool_result_text(value: Dict[str, Any]) -> str:
     fmt = provider_native_tool_result_format(value)
     if fmt == FORMAT_OPENAI_CHAT_COMPLETIONS:
         return _text_from_openai_chat_content(value.get("content"))
+    if fmt == FORMAT_ANTHROPIC_MESSAGES:
+        return _text_from_anthropic_messages_content(value.get("content"))
     if fmt == FORMAT_OPENAI_RESPONSES:
         return _text_from_openai_responses_output(value.get("output"))
     return ""
@@ -171,7 +263,10 @@ def _provider_native_tool_result_text(value: Dict[str, Any]) -> str:
 def provider_native_tool_result_text(value: Any) -> str:
     if not is_provider_native_tool_result(value):
         return ""
-    return _provider_native_tool_result_text(value)
+    try:
+        return DEFAULT_TOOL_INTEROP_REGISTRY.inspect_result(value).text
+    except ToolInteropError:
+        return ""
 
 
 def provider_native_tool_result_image_content(value: Any) -> Optional[Dict[str, Any]]:
@@ -222,27 +317,6 @@ def provider_native_tool_result_display(
     if isinstance(single_line, str) and single_line:
         display["single_line"] = single_line
     return display
-
-
-def normalize_tool_result_payload(value: Any) -> NormalizedToolResultPayload:
-    """Normalize formatted tool output into public text plus structured tool result.
-
-    TODO(tool-result-interop): replace this helper with result accessors/adapters
-    in ``tool_interop.py``. It is a short-term bridge so AgentCore can keep a
-    textual public ``content`` fallback while storing the canonical structured
-    tool result separately in the top-level ``toolResult`` field.
-    """
-
-    if is_provider_native_tool_result(value):
-        return NormalizedToolResultPayload(
-            public_text=_provider_native_tool_result_text(value),
-            tool_result=value,
-        )
-    if isinstance(value, str):
-        return NormalizedToolResultPayload(public_text=value)
-    if value is None:
-        return NormalizedToolResultPayload(public_text="")
-    return NormalizedToolResultPayload(public_text=str(value))
 
 
 def make_provider_native_tool_result(

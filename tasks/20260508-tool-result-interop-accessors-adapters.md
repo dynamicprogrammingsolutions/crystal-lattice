@@ -4,21 +4,30 @@ Add first-class tool-result inspection and conversion to `core/python/agent_core
 
 ## Requirements checklist
 
-- [ ] Introduce a first-class top-level `toolResult` field for core/public `tool` messages.
-- [ ] Keep `content` as a string fallback populated from `toolResult.text` so staged frontends and simple clients remain compatible.
-- [ ] Define `metadata.display` as the primary user-facing rendering contract for rich tool results, including non-text variants such as image and diff/file-style views.
-- [ ] Avoid `multipartContent` as the long-term rich rendering path for tool messages; reserve it for generic attachment-bearing non-tool messages unless there is a clear compatibility need.
-- [ ] Add result-accessor support to `ToolInteropContribution`, `ToolInteropRegistry`, and surrounding types in `core/python/agent_core/tool_interop.py`.
-- [ ] Add result-adapter support to convert `toolResult` payloads between provider-native formats, especially OpenAI chat-completions and OpenAI Responses.
-- [ ] Provide default result accessors for string fallback, OpenAI chat-completions result envelopes, OpenAI Responses result envelopes, and the existing `provider_native_tool_result` envelope shape.
-- [ ] Support compact provider-native tool-result envelopes that may contain attachment references such as `asset_ref`, `filename`, and `mime_type`.
-- [ ] Treat `native_messages` as provider-native durable history, not necessarily raw API-wire payloads.
-- [ ] Make `to_native_messages()` produce durable provider-native history and keep compact attachment refs where the provider can understand them.
-- [ ] Make `initialize_request()` perform final request-time expansion of tool-result attachment refs into API-compatible payloads.
-- [ ] Ensure `from_native_messages()` preserves or reconstructs `toolResult`, `content` fallback, and display-capable attachment references without expanding them into full inline data.
-- [ ] Prevent duplication of structured tool-result data into native `_metadata` when that result is already represented directly in native message content/output.
-- [ ] Remove legacy parallel paths such as `tool_output_content` as the primary structured result channel once migration is complete.
-- [ ] Remove temporary compatibility bridges and helper-only result inspection once first-class result interop is in place.
+- [x] Introduce a first-class top-level `toolResult` field for core/public `tool` messages.
+- [x] Keep `content` as a string fallback populated from `toolResult.text` so staged frontends and simple clients remain compatible.
+- [x] Define `metadata.display` as the primary user-facing rendering contract for rich tool results, including non-text variants such as image and diff/file-style views.
+- [x] Avoid `multipartContent` as the long-term rich rendering path for tool messages; reserve it for generic attachment-bearing non-tool messages unless there is a clear compatibility need.
+- [x] Add result-accessor support to `ToolInteropContribution`, `ToolInteropRegistry`, and surrounding types in `core/python/agent_core/tool_interop.py`.
+- [x] Add result-adapter support to convert `toolResult` payloads between provider-native formats, especially OpenAI chat-completions and OpenAI Responses.
+- [x] Provide default result accessors for string fallback, OpenAI chat-completions result envelopes, OpenAI Responses result envelopes, and the existing `provider_native_tool_result` envelope shape.
+- [x] Support compact provider-native tool-result envelopes that may contain attachment references such as `asset_ref`, `filename`, and `mime_type`.
+- [x] Treat `native_messages` as provider-native durable history, not necessarily raw API-wire payloads.
+- [x] Make `to_native_messages()` produce durable provider-native history and keep compact attachment refs where the provider can understand them.
+- [x] Make `initialize_request()` perform final request-time expansion of tool-result attachment refs into API-compatible payloads.
+- [x] Ensure `from_native_messages()` preserves or reconstructs `toolResult`, `content` fallback, and display-capable attachment references without expanding them into full inline data.
+- [x] Prevent duplication of structured tool-result data into native `_metadata` when that result is already represented directly in native message content/output.
+- [x] Remove legacy parallel paths such as `tool_output_content` as the primary structured result channel once migration is complete.
+- [x] Remove temporary compatibility bridges and helper-only result inspection once first-class result interop is in place.
+
+## Execution plan
+
+Added during completion on 2026-05-09.
+
+1. Verify the task requirements against the current working changes and identify any remaining compatibility bridges or incomplete migrations.
+2. Remove the leftover helper-only bridge code so `toolResult` interop is driven by the first-class result accessor/adapter path.
+3. Re-run the focused core, provider, and application tests that cover tool-result inspection, durable native history, request-time attachment expansion, and display rendering.
+4. Update this task file to reflect completion and record the final verification notes.
 
 ## Current state and context
 
@@ -78,3 +87,12 @@ The desired direction is:
   - a rich image tool result roundtrips through core/native/core without losing `asset_ref`
   - a chat-style provider consumes a Responses-style structured tool result through result interop
   - frontend clients can render rich tool results from `metadata.display` while older clients still show string `content`
+
+## Completion Notes
+
+Added during completion on 2026-05-09.
+
+- Verified the implementation now writes first-class `toolResult` payloads, derives string `content` fallbacks from inspected result text, and prefers `metadata.display` for rich rendering.
+- Confirmed provider conversions now consume `toolResult` directly, preserve compact provider-native payloads in durable history, and expand attachment references at request time where needed.
+- Removed the unused `NormalizedToolResultPayload` / `normalize_tool_result_payload()` compatibility bridge from `core/python/agent_core/tool_result_payloads.py`; no remaining runtime references to that helper remain.
+- Re-ran focused regression suites covering core interop, structured tool output, OpenAI Responses, OpenRouter chat/responses providers, reference OpenAI-compatible provider, asset-ref request expansion, and terminal tool rendering.

@@ -30,6 +30,7 @@ from .plugin import (
     ToolWrapper,
 )
 from .tool_result_payloads import (
+    FORMAT_ANTHROPIC_MESSAGES,
     FORMAT_OPENAI_CHAT_COMPLETIONS,
     FORMAT_OPENAI_RESPONSES,
     PROVIDER_NATIVE_TOOL_RESULT_TYPE,
@@ -57,6 +58,7 @@ __all__ = [
     "FeatureWrapper",
     "ToolWrapper",
     "PROVIDER_NATIVE_TOOL_RESULT_TYPE",
+    "FORMAT_ANTHROPIC_MESSAGES",
     "FORMAT_OPENAI_CHAT_COMPLETIONS",
     "FORMAT_OPENAI_RESPONSES",
     "make_provider_native_tool_result",
