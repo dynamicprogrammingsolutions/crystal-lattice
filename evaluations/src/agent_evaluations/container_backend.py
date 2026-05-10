@@ -262,6 +262,35 @@ def run_repoqa_task_in_container(
     model_override: str | None,
     max_task_restarts: int,
 ) -> Dict[str, Any]:
+    return run_benchmark_task_in_container(
+        runtime,
+        benchmark_id="repoqa",
+        host_config_dir=host_config_dir,
+        host_workspace_root=host_workspace_root,
+        host_results_root=host_results_root,
+        host_task_payload_path=host_task_payload_path,
+        host_output_path=host_output_path,
+        release=release,
+        agent_id=agent_id,
+        model_override=model_override,
+        max_task_restarts=max_task_restarts,
+    )
+
+
+def run_benchmark_task_in_container(
+    runtime: DockerRuntimeConfig,
+    *,
+    benchmark_id: str,
+    host_config_dir: Path,
+    host_workspace_root: Path,
+    host_results_root: Path,
+    host_task_payload_path: Path,
+    host_output_path: Path,
+    release: str,
+    agent_id: str,
+    model_override: str | None,
+    max_task_restarts: int,
+) -> Dict[str, Any]:
     task_payload_path = container_path_for_host_path(
         host_task_payload_path,
         host_mount_root=host_results_root,
@@ -297,7 +326,7 @@ def run_repoqa_task_in_container(
             "agent_evaluations",
             "internal",
             "run-single",
-            "repoqa",
+            benchmark_id,
             "--config-dir",
             runtime.config_mount_path,
             "--task-payload-path",
@@ -307,7 +336,7 @@ def run_repoqa_task_in_container(
             "--agent-id",
             agent_id,
             "--workspace-root",
-            runtime.task_workdir,
+            runtime.task_mount_path,
             "--output-path",
             output_path,
             "--max-task-restarts",

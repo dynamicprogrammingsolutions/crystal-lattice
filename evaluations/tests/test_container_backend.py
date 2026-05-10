@@ -137,8 +137,68 @@ def test_run_repoqa_task_in_container_constructs_expected_command(monkeypatch, t
     assert "agent-evals:test" in command
     assert "/results/task-inputs/task.json" in command
     assert "/results/task-results/task.json" in command
+    assert "/workspace" in command
     assert result["state"] == "completed"
     assert result["_docker"]["image_tag"] == "agent-evals:test"
+
+
+def test_run_benchmark_task_in_container_uses_mount_path_for_workspace_root(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from agent_evaluations.container_backend import run_benchmark_task_in_container
+
+    config_dir = tmp_path / "config"
+    workspace_root = tmp_path / "workspace"
+    results_root = tmp_path / "results" / "repoqa-prompted" / "run-1"
+    task_input = results_root / "task-inputs" / "task.json"
+    task_output = results_root / "task-results" / "task.json"
+    task_input.parent.mkdir(parents=True, exist_ok=True)
+    task_output.parent.mkdir(parents=True, exist_ok=True)
+    config_dir.mkdir(exist_ok=True)
+    workspace_root.mkdir()
+    task_output.write_text(json.dumps({"state": "completed", "score": {"score": 1.0}}), encoding="utf-8")
+
+    seen: dict[str, object] = {}
+
+    def _fake_run(command, check, text, capture_output):
+        seen["command"] = command
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr("subprocess.run", _fake_run)
+    runtime = DockerRuntimeConfig(
+        enabled=True,
+        image_tag="agent-evals:test",
+        dockerfile=tmp_path / "Dockerfile",
+        build_context=tmp_path / "context",
+        source_bundle_path=tmp_path / "bundle" / "repo-source.tar.gz",
+        evaluations_wheel_dir=tmp_path / "wheels",
+        config_mount_path="/config",
+        task_mount_path="/workspace",
+        results_mount_path="/results",
+        task_workdir="/runner",
+    )
+
+    run_benchmark_task_in_container(
+        runtime,
+        benchmark_id="repoqa-prompted",
+        host_config_dir=config_dir,
+        host_workspace_root=workspace_root,
+        host_results_root=results_root,
+        host_task_payload_path=task_input,
+        host_output_path=task_output,
+        release="2024-06-23",
+        agent_id="fixture-agent",
+        model_override=None,
+        max_task_restarts=1,
+    )
+
+    command = seen["command"]
+    assert isinstance(command, list)
+    workdir_index = command.index("-w")
+    assert command[workdir_index + 1] == "/runner"
+    workspace_arg_index = command.index("--workspace-root")
+    assert command[workspace_arg_index + 1] == "/workspace"
 
 
 def test_create_git_tracked_source_bundle_includes_only_tracked_files(tmp_path: Path) -> None:
