@@ -11,6 +11,7 @@ Create a root-level `evaluations/` package that runs agentic benchmark tasks thr
 - [x] `tasks/20260508-agentic-evaluations-codex/019-repoqa-prompted-context-eligibility.md`
 - [ ] `tasks/20260508-agentic-evaluations-codex/020-livecodebench-agentic-eval.md`
 - [x] `tasks/20260508-agentic-evaluations-codex/021-shared-parser-backed-code-comparison.md`
+- [x] `tasks/20260508-agentic-evaluations-codex/022-repeat-count-and-task-aggregation.md`
 
 ## Shared requirements
 

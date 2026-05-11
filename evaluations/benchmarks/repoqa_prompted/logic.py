@@ -18,6 +18,12 @@ from agent_evaluations.container_backend import (
     run_benchmark_task_in_container,
     warm_container_plugin_cache,
 )
+from agent_evaluations.repeated_runs import (
+    aggregate_results_by_task_id,
+    expand_task_payloads_with_repeats,
+    normalize_repeat_count,
+    task_instance_id,
+)
 from agent_evaluations.scheduler import plan_task_starts, policy_from_config, sleep_until
 from agent_evaluations.utils import append_jsonl, isoformat_utc, utc_now, write_json, write_json_atomic
 
@@ -133,8 +139,8 @@ def _select_repoqa_tasks(
     return merged[:limit] if isinstance(limit, int) and limit > 0 else merged
 
 
-def _workspace_root_for_run(env: EvaluationEnvironment, run_id: str, task_id: str) -> Path:
-    return env.paths.workspace_root / REPOQA_PROMPTED_BENCHMARK_ID / run_id / task_id
+def _workspace_root_for_run(env: EvaluationEnvironment, run_id: str, runtime_task_id: str) -> Path:
+    return env.paths.workspace_root / REPOQA_PROMPTED_BENCHMARK_ID / run_id / runtime_task_id
 
 
 def _task_from_payload(task_payload: Dict[str, Any]) -> RepoQATask:
@@ -271,8 +277,10 @@ def materialize_repoqa_prompted_workspace(
     run_id: str,
     task: RepoQATask,
     release: str,
+    runtime_task_id: str | None = None,
 ) -> Tuple[Path, Dict[str, Any]]:
-    workspace_root = _workspace_root_for_run(env, run_id, task.task_id)
+    resolved_runtime_task_id = runtime_task_id or task.task_id
+    workspace_root = _workspace_root_for_run(env, run_id, resolved_runtime_task_id)
     if workspace_root.exists():
         import shutil
 
@@ -283,6 +291,7 @@ def materialize_repoqa_prompted_workspace(
     metadata = {
         **prompt_meta,
         "workspace_root": str(workspace_root),
+        "runtime_task_id": resolved_runtime_task_id,
         "created_at": isoformat_utc(),
     }
     write_json(workspace_root / "meta.json", metadata)
@@ -424,9 +433,15 @@ def _excluded_missing_target_context_result(
     *,
     workspace_root: Path,
     metadata: Dict[str, Any],
+    runtime_task_id: str,
+    repeat_index: int,
+    repeat_count: int,
 ) -> Dict[str, Any]:
     return {
         "task": task.to_manifest_dict(),
+        "task_instance_id": runtime_task_id,
+        "repeat_index": repeat_index,
+        "repeat_count": repeat_count,
         "workspace_root": str(workspace_root),
         "attempts": [],
         "state": "skipped_missing_target_context",
@@ -469,12 +484,19 @@ def run_repoqa_prompted_task_with_restarts_in_workspace(
     agent_id: str,
     model_override: str | None,
     max_task_restarts: int,
+    runtime_task_id: str | None = None,
+    repeat_index: int = 0,
+    repeat_count: int = 1,
 ) -> Dict[str, Any]:
+    resolved_runtime_task_id = runtime_task_id or task.task_id
     if not _target_in_prompt_context(task, metadata):
         return _excluded_missing_target_context_result(
             task,
             workspace_root=workspace_root,
             metadata=metadata,
+            runtime_task_id=resolved_runtime_task_id,
+            repeat_index=repeat_index,
+            repeat_count=repeat_count,
         )
 
     user_prompt = (workspace_root / "PROMPT.txt").read_text(encoding="utf-8")
@@ -506,6 +528,9 @@ def run_repoqa_prompted_task_with_restarts_in_workspace(
             if attempt_index >= max_task_restarts:
                 return {
                     "task": task.to_manifest_dict(),
+                    "task_instance_id": resolved_runtime_task_id,
+                    "repeat_index": repeat_index,
+                    "repeat_count": repeat_count,
                     "workspace_root": str(workspace_root),
                     "attempts": attempts,
                     "state": "failed_before_turn_completed",
@@ -552,6 +577,9 @@ def run_repoqa_prompted_task_with_restarts_in_workspace(
         )
         return {
             "task": task.to_manifest_dict(),
+            "task_instance_id": resolved_runtime_task_id,
+            "repeat_index": repeat_index,
+            "repeat_count": repeat_count,
             "workspace_root": str(workspace_root),
             "attempts": attempts,
             "state": "completed",
@@ -598,11 +626,15 @@ def run_repoqa_prompted_task_with_restarts(
     max_task_restarts: int,
 ) -> Dict[str, Any]:
     task = _task_from_payload(task_payload)
+    runtime_task_id = task_instance_id(task_payload)
+    repeat_index = int(task_payload.get("repeat_index") or 0)
+    repeat_count = normalize_repeat_count(task_payload.get("repeat_count") or 1)
     workspace_root, metadata = materialize_repoqa_prompted_workspace(
         env,
         run_id=run_id,
         task=task,
         release=release,
+        runtime_task_id=runtime_task_id,
     )
     return run_repoqa_prompted_task_with_restarts_in_workspace(
         env,
@@ -614,6 +646,9 @@ def run_repoqa_prompted_task_with_restarts(
         agent_id=agent_id,
         model_override=model_override,
         max_task_restarts=max_task_restarts,
+        runtime_task_id=runtime_task_id,
+        repeat_index=repeat_index,
+        repeat_count=repeat_count,
     )
 
 
@@ -635,6 +670,7 @@ def create_repoqa_prompted_run_manifest(
     schedule_overrides: Dict[str, Any],
     model_override: str | None,
     max_task_restarts: int,
+    repeat_count: int,
     runtime_backend: str,
     docker_runtime: DockerRuntimeConfig | None,
 ) -> Dict[str, Any]:
@@ -642,8 +678,12 @@ def create_repoqa_prompted_run_manifest(
     schedule_config = _normalize_run_schedule(settings, profile_payload, schedule_overrides)
     policy = policy_from_config(schedule_config, default_seed=int(benchmark_manifest.get("seed") or 0))
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    expanded_tasks = expand_task_payloads_with_repeats(
+        benchmark_manifest.get("tasks") or [],
+        repeat_count=repeat_count,
+    )
     planned_starts = plan_task_starts(
-        task_count=len(benchmark_manifest.get("tasks") or []),
+        task_count=len(expanded_tasks),
         anchor=utc_now(),
         policy=policy,
     )
@@ -659,6 +699,7 @@ def create_repoqa_prompted_run_manifest(
         "profile": profile_payload,
         "model_override": model_override,
         "max_task_restarts": max_task_restarts,
+        "repeat_count": repeat_count,
         "runtime_backend": runtime_backend,
         "docker_runtime": (
             {
@@ -701,7 +742,7 @@ def create_repoqa_prompted_run_manifest(
                 **task,
                 "planned_start_at": isoformat_utc(start),
             }
-            for task, start in zip(benchmark_manifest.get("tasks") or [], planned_starts)
+            for task, start in zip(expanded_tasks, planned_starts)
         ],
     }
 
@@ -716,6 +757,7 @@ def run_repoqa_prompted_benchmark(
     schedule_overrides: Dict[str, Any],
     model_override: str | None,
     max_task_restarts: int,
+    repeat_count: int = 1,
     runtime_backend: str = "host",
     docker_runtime: DockerRuntimeConfig | None = None,
     resume_run_manifest_path: Path | None = None,
@@ -733,6 +775,7 @@ def run_repoqa_prompted_benchmark(
             schedule_overrides=schedule_overrides,
             model_override=model_override,
             max_task_restarts=max_task_restarts,
+            repeat_count=repeat_count,
             runtime_backend=runtime_backend,
             docker_runtime=docker_runtime,
         )
@@ -743,6 +786,7 @@ def run_repoqa_prompted_benchmark(
 
     run_root = run_manifest_path.parent
     results_jsonl = run_root / "results.jsonl"
+    task_aggregate_jsonl = run_root / "task-aggregate.jsonl"
     summary_json = run_root / "summary.json"
 
     if runtime_backend == "docker":
@@ -816,13 +860,15 @@ def run_repoqa_prompted_benchmark(
                         run_id=str(run_manifest["run_id"]),
                         task=task,
                         release=str(run_manifest["release"]),
+                        runtime_task_id=task_instance_id(task_payload),
                     )
                     task_input_dir = run_root / "task-inputs"
                     task_result_dir = run_root / "task-results"
                     task_input_dir.mkdir(parents=True, exist_ok=True)
                     task_result_dir.mkdir(parents=True, exist_ok=True)
-                    task_input_path = task_input_dir / f"{task.task_id}.json"
-                    task_output_path = task_result_dir / f"{task.task_id}.json"
+                    runtime_task_id = task_instance_id(task_payload)
+                    task_input_path = task_input_dir / f"{runtime_task_id}.json"
+                    task_output_path = task_result_dir / f"{runtime_task_id}.json"
                     write_json_atomic(task_input_path, task_payload)
                     future = executor.submit(
                         run_benchmark_task_in_container,
@@ -859,6 +905,9 @@ def run_repoqa_prompted_benchmark(
                     )
                 active_tasks[future] = {
                     "task_id": task_payload.get("task_id"),
+                    "task_instance_id": task_payload.get("task_instance_id"),
+                    "repeat_index": task_payload.get("repeat_index"),
+                    "repeat_count": task_payload.get("repeat_count"),
                     "planned_start_at": planned_start_at,
                     "actual_start_at": isoformat_utc(),
                 }
@@ -901,6 +950,14 @@ def run_repoqa_prompted_benchmark(
     matched_eligible_count = sum(
         1 for item in eligible_results if ((item.get("score") or {}).get("matched") is True)
     )
+    task_aggregates = aggregate_results_by_task_id(completed)
+    for aggregate in task_aggregates:
+        append_jsonl(task_aggregate_jsonl, aggregate)
+    success_rates = [
+        float(item["success_rate"])
+        for item in task_aggregates
+        if isinstance(item.get("success_rate"), (int, float))
+    ]
     summary = {
         "run_id": run_manifest["run_id"],
         "benchmark": REPOQA_PROMPTED_BENCHMARK_ID,
@@ -908,7 +965,10 @@ def run_repoqa_prompted_benchmark(
         "language": run_manifest["language"],
         "languages": run_manifest.get("languages"),
         "agent_id": run_manifest["agent_id"],
-        "manifest_task_count": len(tasks),
+        "repeat_count": int(run_manifest.get("repeat_count") or 1),
+        "manifest_task_count": len({str(item.get("task_id")) for item in tasks if isinstance(item, dict)}),
+        "task_instance_count": len(tasks),
+        "logical_task_count": len(task_aggregates),
         "completed_task_count": len(completed),
         "model_request_task_count": sum(
             1 for item in completed if item.get("outcome") != "skipped_missing_target_context"
@@ -918,6 +978,19 @@ def run_repoqa_prompted_benchmark(
             1 for item in completed if item.get("outcome") == "skipped_missing_target_context"
         ),
         "matched_task_count": matched_eligible_count,
+        "logical_tasks_with_all_successes": sum(
+            1
+            for item in task_aggregates
+            if item.get("eligible_instance_count")
+            and item.get("matched_instance_count") == item.get("eligible_instance_count")
+            and item.get("excluded_missing_target_context_count") == 0
+        ),
+        "logical_tasks_with_any_success": sum(
+            1 for item in task_aggregates if int(item.get("matched_instance_count") or 0) > 0
+        ),
+        "logical_task_average_success_rate": (
+            sum(success_rates) / len(success_rates) if success_rates else 0.0
+        ),
         "accuracy": (
             sum(float((item.get("score") or {}).get("score") or 0.0) for item in eligible_results) / len(eligible_results)
             if eligible_results
@@ -929,6 +1002,7 @@ def run_repoqa_prompted_benchmark(
             else 0.0
         ),
         "results_jsonl": str(results_jsonl),
+        "task_aggregate_jsonl": str(task_aggregate_jsonl),
         "run_manifest_path": str(run_manifest_path),
         "completed_at": isoformat_utc(),
         "benchmark_mode": "repoqa-prompted-custom",
@@ -957,6 +1031,9 @@ def run_repoqa_prompted_single_task_from_payload(
     max_task_restarts: int,
 ) -> Dict[str, Any]:
     task = _task_from_payload(task_payload)
+    runtime_task_id = task_instance_id(task_payload)
+    repeat_index = int(task_payload.get("repeat_index") or 0)
+    repeat_count = normalize_repeat_count(task_payload.get("repeat_count") or 1)
     meta_path = workspace_root / "meta.json"
     metadata: Dict[str, Any]
     if meta_path.is_file():
@@ -967,6 +1044,7 @@ def run_repoqa_prompted_single_task_from_payload(
         metadata = {
             **prompt_meta,
             "workspace_root": str(workspace_root),
+            "runtime_task_id": runtime_task_id,
             "created_at": isoformat_utc(),
         }
         write_json(workspace_root / "meta.json", metadata)
@@ -981,4 +1059,7 @@ def run_repoqa_prompted_single_task_from_payload(
         agent_id=agent_id,
         model_override=model_override,
         max_task_restarts=max_task_restarts,
+        runtime_task_id=runtime_task_id,
+        repeat_index=repeat_index,
+        repeat_count=repeat_count,
     )

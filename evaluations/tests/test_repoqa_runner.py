@@ -497,3 +497,144 @@ def test_repoqa_runner_uses_docker_backend_when_selected(monkeypatch, tmp_path: 
     assert len(calls) == 1
     assert calls[0]["host_workspace_root"].is_dir()
     assert calls[0]["host_results_root"] == run_manifest_path.parent
+
+
+def test_repoqa_run_manifest_expands_repeats(tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    _write_fixture_config(config_dir, response_text="{}")
+    env = load_evaluation_environment(config_dir)
+    _write_repoqa_fixture_release(env, task_count=2)
+    manifest = build_repoqa_manifest(
+        env,
+        release=DEFAULT_REPOQA_RELEASE,
+        language="python",
+        limit=2,
+        seed=1,
+    )
+
+    run_manifest = _agentic._logic.create_repoqa_run_manifest(
+        env,
+        benchmark_manifest=manifest,
+        agent_id="fixture-agent",
+        profile_name=None,
+        profile_payload={},
+        schedule_overrides={"tasks_per_window": 100, "window_minutes": 1, "max_parallel_tasks": 1},
+        model_override=None,
+        max_task_restarts=1,
+        repeat_count=3,
+        runtime_backend="host",
+        docker_runtime=None,
+    )
+
+    assert run_manifest["repeat_count"] == 3
+    assert len(run_manifest["tasks"]) == 6
+    first_task_id = run_manifest["tasks"][0]["task_id"]
+    assert [task["task_instance_id"] for task in run_manifest["tasks"][:3]] == [
+        f"{first_task_id}#r1",
+        f"{first_task_id}#r2",
+        f"{first_task_id}#r3",
+    ]
+
+
+def test_repoqa_repeated_run_writes_task_aggregate_jsonl(monkeypatch, tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    _write_fixture_config(config_dir, response_text="{}")
+    env = load_evaluation_environment(config_dir)
+    _write_repoqa_fixture_release(env, task_count=1)
+    manifest = build_repoqa_manifest(
+        env,
+        release=DEFAULT_REPOQA_RELEASE,
+        language="python",
+        limit=1,
+        seed=1,
+    )
+
+    task_payload = manifest["tasks"][0]
+    results = iter(
+        [
+            {
+                "task": task_payload,
+                "task_instance_id": f'{task_payload["task_id"]}#r1',
+                "repeat_index": 0,
+                "repeat_count": 3,
+                "workspace_root": str(tmp_path / "workspace-1"),
+                "attempts": [{"attempt_index": 0, "state": "completed"}],
+                "state": "completed",
+                "outcome": "matched",
+                "eligible_for_accuracy": True,
+                "failure_category": None,
+                "error": None,
+                "score": {"matched": True, "score": 1.0},
+                "parsed_answer": {"path": "x", "symbol": "y", "code": "z"},
+                "final_assistant_text": "{}",
+                "tool_call_count": 0,
+                "provider_call_count": None,
+            },
+            {
+                "task": task_payload,
+                "task_instance_id": f'{task_payload["task_id"]}#r2',
+                "repeat_index": 1,
+                "repeat_count": 3,
+                "workspace_root": str(tmp_path / "workspace-2"),
+                "attempts": [{"attempt_index": 0, "state": "completed"}],
+                "state": "completed",
+                "outcome": "matched",
+                "eligible_for_accuracy": True,
+                "failure_category": None,
+                "error": None,
+                "score": {"matched": True, "score": 1.0},
+                "parsed_answer": {"path": "x", "symbol": "y", "code": "z"},
+                "final_assistant_text": "{}",
+                "tool_call_count": 0,
+                "provider_call_count": None,
+            },
+            {
+                "task": task_payload,
+                "task_instance_id": f'{task_payload["task_id"]}#r3',
+                "repeat_index": 2,
+                "repeat_count": 3,
+                "workspace_root": str(tmp_path / "workspace-3"),
+                "attempts": [{"attempt_index": 0, "state": "completed"}],
+                "state": "completed",
+                "outcome": "mismatched",
+                "eligible_for_accuracy": True,
+                "failure_category": None,
+                "error": None,
+                "score": {"matched": False, "score": 0.0},
+                "parsed_answer": {"path": "x", "symbol": "y", "code": "z"},
+                "final_assistant_text": "{}",
+                "tool_call_count": 0,
+                "provider_call_count": None,
+            },
+        ]
+    )
+
+    monkeypatch.setattr(_agentic._logic, "run_repoqa_task_with_restarts", lambda *args, **kwargs: next(results))
+
+    run_manifest_path = run_repoqa_benchmark(
+        env,
+        benchmark_manifest=manifest,
+        agent_id="fixture-agent",
+        profile_name=None,
+        profile_payload={},
+        schedule_overrides={"tasks_per_window": 100, "window_minutes": 1, "max_parallel_tasks": 1},
+        model_override=None,
+        max_task_restarts=1,
+        repeat_count=3,
+        resume_run_manifest_path=None,
+    )
+
+    summary = json.loads((run_manifest_path.parent / "summary.json").read_text(encoding="utf-8"))
+    aggregates = [
+        json.loads(line)
+        for line in (run_manifest_path.parent / "task-aggregate.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert summary["repeat_count"] == 3
+    assert summary["task_instance_count"] == 3
+    assert summary["logical_task_count"] == 1
+    assert summary["logical_tasks_with_all_successes"] == 0
+    assert abs(summary["logical_task_average_success_rate"] - (2 / 3)) < 1e-9
+    assert aggregates[0]["matched_instance_count"] == 2
+    assert abs(aggregates[0]["success_rate"] - (2 / 3)) < 1e-9

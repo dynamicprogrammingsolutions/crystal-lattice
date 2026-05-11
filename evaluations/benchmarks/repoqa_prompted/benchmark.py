@@ -185,6 +185,7 @@ def _run_repoqa_prompted(args: argparse.Namespace) -> int:
         profile_payload=profile_payload,
         schedule_overrides=schedule_overrides_from_args(args),
         model_override=resolve_run_value(args.model, profile_payload, "model"),
+        repeat_count=int(resolve_run_value(args.repeat_count, profile_payload, "repeat_count", default=1)),
         max_task_restarts=int(
             resolve_run_value(args.max_task_restarts, profile_payload, "max_task_restarts", default=2)
         ),

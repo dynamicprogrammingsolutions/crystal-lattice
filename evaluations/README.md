@@ -70,6 +70,7 @@ Use a benchmark run profile for the evaluation plan, for example:
 
 - benchmark id
 - manifest path or manifest-generation inputs
+- repeat count
 - release
 - language or languages
 - limit
@@ -146,9 +147,19 @@ Each run produces:
 
 - `run-manifest.json`
 - `results.jsonl`
+- `task-aggregate.jsonl`
 - `summary.json`
 
 For reproducible experiments, treat the manifest plus the config dir plus the selected profile as the benchmark definition.
+
+When `repeat_count > 1`:
+
+- `results.jsonl` contains one row per repeated task instance
+- `task-aggregate.jsonl` contains one row per logical task with aggregated repeat outcomes
+- `summary.json` reports both instance-level and logical-task-level repeated-run metrics
+
+Do not duplicate the same logical task manually inside a benchmark manifest in order to repeat it. Use
+`repeat_count` so the runner can assign distinct task-instance ids and isolate workspace/input/output paths safely.
 
 ## See Also
 

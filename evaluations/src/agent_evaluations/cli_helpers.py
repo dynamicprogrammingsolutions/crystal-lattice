@@ -66,6 +66,7 @@ def add_common_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--run-manifest")
     parser.add_argument("--manifest-path")
     parser.add_argument("--model")
+    parser.add_argument("--repeat-count", type=int)
     parser.add_argument("--max-task-restarts", type=int)
     parser.add_argument("--window-minutes", type=int)
     parser.add_argument("--tasks-per-window", type=int)

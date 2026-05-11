@@ -491,6 +491,82 @@ def test_repoqa_prompted_summary_excludes_missing_target_context_from_accuracy(m
     assert summary["raw_accuracy_over_manifest"] == 0.5
 
 
+def test_repoqa_prompted_docker_repeat_instances_use_unique_paths(monkeypatch, tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    _write_fixture_config(config_dir, response_text="def target_0(value):\n    return helper(value) + 0\n")
+    env = load_evaluation_environment(config_dir)
+    _write_repoqa_fixture_release(env, task_count=1)
+    manifest = build_repoqa_prompted_manifest(
+        env,
+        release=DEFAULT_REPOQA_RELEASE,
+        language="python",
+        limit=1,
+        seed=1,
+    )
+    docker_runtime = resolve_docker_runtime_config(
+        env,
+        profile_payload={
+            "docker": {
+                "enabled": True,
+                "image_tag": "agent-evaluations:test",
+            }
+        },
+    )
+
+    seen_inputs: list[str] = []
+    seen_workspaces: list[str] = []
+
+    def _fake_run_in_container(*args, **kwargs):
+        seen_inputs.append(str(kwargs["host_task_payload_path"].name))
+        seen_workspaces.append(str(kwargs["host_workspace_root"]))
+        task_payload = json.loads(kwargs["host_task_payload_path"].read_text(encoding="utf-8"))
+        return {
+            "task": task_payload,
+            "task_instance_id": task_payload["task_instance_id"],
+            "repeat_index": task_payload["repeat_index"],
+            "repeat_count": task_payload["repeat_count"],
+            "workspace_root": str(kwargs["host_workspace_root"]),
+            "attempts": [{"attempt_index": 0, "state": "completed"}],
+            "state": "completed",
+            "outcome": "matched",
+            "eligible_for_accuracy": True,
+            "failure_category": None,
+            "error": None,
+            "score": {"matched": True, "score": 1.0},
+            "parsed_answer": {"path": "src/example/module.py", "symbol": "target_0", "code": "def x():\n    pass\n"},
+            "final_assistant_text": "def target_0(value):\n    return helper(value) + 0\n",
+            "tool_call_count": 0,
+            "effective_tool_schema_count": 0,
+            "provider_call_count": None,
+            "meta": {},
+        }
+
+    monkeypatch.setattr(
+        _prompted._logic,
+        "warm_container_plugin_cache",
+        lambda runtime, *, host_config_dir, agent_id=None: {"state": "warmed"},
+    )
+    monkeypatch.setattr(_prompted._logic, "run_benchmark_task_in_container", _fake_run_in_container)
+
+    run_repoqa_prompted_benchmark(
+        env,
+        benchmark_manifest=manifest,
+        agent_id="fixture-agent",
+        profile_name=None,
+        profile_payload={},
+        schedule_overrides={"tasks_per_window": 100, "window_minutes": 1, "max_parallel_tasks": 1},
+        model_override=None,
+        repeat_count=2,
+        max_task_restarts=1,
+        runtime_backend="docker",
+        docker_runtime=docker_runtime,
+        resume_run_manifest_path=None,
+    )
+
+    assert seen_inputs == [f'{manifest["tasks"][0]["task_id"]}#r1.json', f'{manifest["tasks"][0]["task_id"]}#r2.json']
+    assert seen_workspaces[0] != seen_workspaces[1]
+
+
 def test_repoqa_prompted_internal_single_task_runner_uses_existing_workspace(tmp_path: Path) -> None:
     config_dir = tmp_path / "config"
     _write_fixture_config(config_dir, response_text="def target_0(value):\n    return helper(value) + 0\n")

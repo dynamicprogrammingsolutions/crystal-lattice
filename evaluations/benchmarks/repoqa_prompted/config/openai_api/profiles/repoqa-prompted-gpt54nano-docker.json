@@ -1,8 +1,9 @@
 {
   "benchmark": "repoqa-prompted",
   "agent_id": "repoqa-prompted-openai-api",
-  "model": "gpt-5.4-mini",
+  "model": "gpt-5.4-nano",
   "runtime_backend": "docker",
+  "repeat_count": 3,
   "max_task_restarts": 1,
   "manifest": {
     "release": "2024-06-23",
