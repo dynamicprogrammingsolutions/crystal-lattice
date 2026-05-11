@@ -57,7 +57,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
                 "description": "Enable reasoning/thinking for models that support it",
             },
             "reasoning_max_tokens": {
-                "type": "boolean",
+                "type": "number",
                 "required": False,
                 "description": "Specific token limit (Anthropic-style)",
             }
@@ -104,12 +104,13 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
         selected_model = config.get("model")
         _options, default = get_reasoning_effort_options_and_default(selected_model)
+        has_reasoning_max_tokens = "reasoning_max_tokens" in config
 
         if "enable_reasoning" in config:
             reasoning_config["reasoning"]["enabled"] = config["enable_reasoning"]
-        if "reasoning_effort" in config or default:
+        if not has_reasoning_max_tokens and ("reasoning_effort" in config or default):
             reasoning_config["reasoning"]["effort"] = config.get("reasoning_effort", default)
-        if "reasoning_max_tokens" in config:
+        if has_reasoning_max_tokens:
             reasoning_config["reasoning"]["max_tokens"] = config["reasoning_max_tokens"]
 
         if not reasoning_config["reasoning"]:
@@ -201,9 +202,10 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         """Accumulate reasoning_details arrays across streaming chunks.
 
         Handles all provider formats uniformly:
-        - Metadata fields (type, format, index, id): use latest value
-        - Content fields (text, data, summary, signature): accumulate by
-          concatenation, with a special case for Gemini encrypted blobs.
+        - Accumulated fields (text, data, summary): concatenate incremental chunks.
+        - Replaced fields (type, format, index, id, signature): use the latest
+          value because they are opaque identifiers or metadata, not incremental
+          user-visible content.
 
         This ensures that any content field that arrives incrementally across
         multiple chunks is properly accumulated, not overridden.
@@ -216,9 +218,10 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
         accumulated = list(current_details)
 
-        # Define which fields should be accumulated vs overridden
-        CONTENT_FIELDS = {"text", "data", "summary", "signature"}
-        METADATA_FIELDS = {"type", "format", "index", "id"}
+        # Distinguish truly incremental content from opaque identity/metadata
+        # fields that should simply take the latest provider value.
+        ACCUMULATED_FIELDS = {"text", "data", "summary"}
+        REPLACED_FIELDS = {"type", "format", "index", "id", "signature"}
 
         for delta_detail in delta_details:
             detail_type = delta_detail.get("type")
@@ -265,17 +268,21 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
                 # Update existing detail
                 acc_detail = dict(accumulated[matching_idx])
 
-                # Accumulate content fields, override metadata fields
+                # Accumulate incremental content fields; replace opaque fields.
                 for key, value in delta_detail.items():
-                    if key in CONTENT_FIELDS:
+                    if key in ACCUMULATED_FIELDS:
                         # Accumulate content fields
                         if isinstance(value, str):
                             acc_detail[key] = (acc_detail.get(key, "") or "") + value
                         else:
                             acc_detail[key] = value
-                    elif key in METADATA_FIELDS:
-                        # Override metadata fields with latest value
-                        acc_detail[key] = value
+                    elif key in REPLACED_FIELDS:
+                        # Override opaque provider fields with the latest value.
+                        # This is especially important for Anthropic/Bedrock
+                        # `signature`, which is an integrity token rather than
+                        # incremental text content.
+                        if key != "signature" or value:
+                            acc_detail[key] = value
                     else:
                         # Unknown field - accumulate to be safe
                         if isinstance(value, str):

@@ -1,0 +1,10 @@
+{
+  "module": "claude_tools",
+  "subdirectory": ".",
+  "entries": [
+    "claude_tools.claude_read_tool.ClaudeReadTool"
+  ],
+  "kinds": {
+    "claude_tools.claude_read_tool.ClaudeReadTool": "tools"
+  }
+}

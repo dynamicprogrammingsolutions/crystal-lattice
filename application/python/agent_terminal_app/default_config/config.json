@@ -301,11 +301,41 @@
     "claude_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{CLAUDE_CODE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
-        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py",
         "variables": {
-          "CLAUDE_CODE": {
-            "text": "${file:${env:CONFIG_DIR}/CLAUDE_CODE_DEFAULT.md}"
+          "INTRODUCTION": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/introduction.md"
+            ]
+          },
+          "WORKFLOW": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/workflow.md"
+            ]
+          },
+          "TOOL_USAGE": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/tool-usage.md"
+            ]
+          },
+          "TONE_AND_STYLE": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/tone-and-style.md"
+            ]
+          },
+          "MEMORY": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/memory.md"
+            ]
+          },
+          "ENVIRONMENT_SECTION": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_claude_environment_section.py"
+          },
+          "CONTEXT_MANAGEMENT": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/context-management.md"
+            ]
           },
           "TASKS": {
             "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
@@ -609,9 +639,19 @@
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
       "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/codex-tools"
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
       ],
-      "disabled_plugins": ["apply_patch"]
+      "reasoning_max_tokens": 16000,
+      "request_options": {
+        "provider": {
+          "order": ["anthropic"],
+          "allow_fallbacks": false
+        }
+      },
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api"
     },
     "glm": {
       "mixin_refs": ["gemini_system_message"],
