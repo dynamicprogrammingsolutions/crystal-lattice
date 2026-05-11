@@ -11,8 +11,8 @@ Make cloud transfer endpoints real deployment configuration instead of harness-o
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
-Depends On: `tasks/20260429-cloud-agent-orchestrator/062-clean-up-e2e-test-realism.md`
-Depends On: `tasks/20260429-cloud-agent-orchestrator/060-connection-scoped-cloud-routing.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0111-clean-up-e2e-test-realism.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0110-connection-scoped-cloud-routing.md`
 
 ## Context
 
@@ -22,7 +22,7 @@ A normal local app configured with only the CloudFront orchestrator URL still do
 
 ## Execution plan
 
-Added during completion after investigating the current managed SSH transfer flow, AWS EC2 deployment scripts, local app plugin config, and current task status for `tasks/20260429-cloud-agent-orchestrator/065-cloud-runtime-working-directory.md` and `tasks/20260429-cloud-agent-orchestrator/066-connection-created-session-routing.md`.
+Added during completion after investigating the current managed SSH transfer flow, AWS EC2 deployment scripts, local app plugin config, and current task status for `tasks/20260429-cloud-agent-orchestrator/0112-cloud-runtime-working-directory.md` and `tasks/20260429-cloud-agent-orchestrator/0113-connection-created-session-routing.md`.
 
 1. Add first-class orchestrator deployment configuration for the managed SSH transfer public host.
 
@@ -47,14 +47,14 @@ Added during completion after investigating the current managed SSH transfer flo
    - Add focused Elixir coverage for configured transfer host fallback and request override precedence.
    - Add/update Python plugin coverage proving transfer creation does not require `transfer_public_host` in app config.
    - Update frontend SDK AWS deploy-output parsing only to expose/document the transfer host, not inject it into cloud app config.
-   - Check tasks 065 and 066 before gated e2e. Defer broader e2e failures when they depend on their remaining/open issues rather than weakening this task's tests.
+   - Check tasks 0112 and 0113 before gated e2e. Defer broader e2e failures when they depend on their remaining/open issues rather than weakening this task's tests.
 
 5. Verification target.
 
    - `cd cloud-orchestrator && mix test`
    - `PYTHONPATH=plugins/cloud-agent-app/src pytest plugins/cloud-agent-app/tests/test_cloud_agent_app_plugin.py -q`
    - `cd packages/frontend-sdk && npm test -- cloud-orchestrator.e2e.integration.test.ts`
-   - Run AWS-gated e2e only if the environment is available and failures are not attributable to still-open/deferred work from tasks 065/066.
+   - Run AWS-gated e2e only if the environment is available and failures are not attributable to still-open/deferred work from tasks 0112/0113.
 
 ## Completion Notes
 
@@ -67,7 +67,7 @@ Added during completion after implementation and verification.
 - Updated the cloud app plugin to omit `public_host` from transfer-create payloads unless `application.cloud_agent.transfer_public_host` is explicitly set as an advanced/manual override.
 - Updated docs to describe the normal flow: local apps configure only the orchestrator HTTP URL/token and use the transfer endpoint returned by the orchestrator.
 - Updated frontend SDK deploy-output parsing to expose `transferPublicHost` for visibility, without injecting it into cloud app config.
-- Checked dependent task status before gated e2e: `tasks/20260429-cloud-agent-orchestrator/065-cloud-runtime-working-directory.md` is complete; `tasks/20260429-cloud-agent-orchestrator/066-connection-created-session-routing.md` still has its gated-e2e dependency check open. AWS-gated e2e was deferred for this task.
+- Checked dependent task status before gated e2e: `tasks/20260429-cloud-agent-orchestrator/0112-cloud-runtime-working-directory.md` is complete; `tasks/20260429-cloud-agent-orchestrator/0113-connection-created-session-routing.md` still has its gated-e2e dependency check open. AWS-gated e2e was deferred for this task.
 
 Verification:
 

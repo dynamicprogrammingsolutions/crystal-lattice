@@ -15,17 +15,17 @@ Make cloud instance startup asynchronous, split container health from AgentAppli
   - include actionable error details in local `cloud.start_session_agent` action results
 - [x] Update `cloud.start_session_agent` to handle asynchronous startup by polling readiness or returning a structured "starting" result with enough data for clients to poll.
 - [x] Update tests so default-config cloud runtime startup no longer depends on one long synchronous `/instances` request.
-- [x] Preserve the managed-SSH transfer and explicit four-script contract from `tasks/20260429-cloud-agent-orchestrator/018-explicit-transfer-script-contract.md`.
+- [x] Preserve the managed-SSH transfer and explicit four-script contract from `tasks/20260429-cloud-agent-orchestrator/0102-explicit-transfer-script-contract.md`.
 
 Parent Task: tasks/20260429-cloud-agent-orchestrator/000-main.md
 
 Depends On:
 
-- tasks/20260429-cloud-agent-orchestrator/018-explicit-transfer-script-contract.md
+- tasks/20260429-cloud-agent-orchestrator/0102-explicit-transfer-script-contract.md
 
 ## Background
 
-While adding a default-config Codex cloud E2E after completing `018`, the test exposed a real architecture issue rather than a simple timeout problem.
+While adding a default-config Codex cloud E2E after completing `0102`, the test exposed a real architecture issue rather than a simple timeout problem.
 
 Current startup chain:
 
@@ -103,7 +103,7 @@ This is a contract/design problem: cloud instance creation is currently synchron
 - Add Docker runner tests for non-blocking `start_instance/2` and readiness polling/update behavior.
 - Add runtime tests for fast `/health` and separate readiness endpoint before/after AgentApplication initialization.
 - Update or re-run the default-config Codex E2E in `packages/frontend-sdk/src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts`.
-- Keep existing checks from `018` green:
+- Keep existing checks from `0102` green:
   - plugin tests under `plugins/cloud-agent-app/tests`
   - `application/python/tests/test_cloud_agent_runtime.py`
   - `mix test` in `cloud-orchestrator`

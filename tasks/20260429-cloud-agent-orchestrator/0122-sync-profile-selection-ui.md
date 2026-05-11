@@ -13,7 +13,7 @@ Add user-facing selection for compatible sync-down profiles when syncing cloud c
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
-Depends On: `tasks/20260429-cloud-agent-orchestrator/080-default-cloud-profile-scripts.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0121-default-cloud-profile-scripts.md`
 
 ## Behavior
 

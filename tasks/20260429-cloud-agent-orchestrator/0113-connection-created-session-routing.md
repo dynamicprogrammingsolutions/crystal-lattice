@@ -10,8 +10,8 @@ Register sessions created through a connection-scoped cloud transport so they ro
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
-Depends On: `tasks/20260429-cloud-agent-orchestrator/062-clean-up-e2e-test-realism.md`
-Depends On: `tasks/20260429-cloud-agent-orchestrator/060-connection-scoped-cloud-routing.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0111-clean-up-e2e-test-realism.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0110-connection-scoped-cloud-routing.md`
 
 ## Context
 
@@ -104,7 +104,7 @@ Use a focused routing fix: make session creation through a connection-scoped pro
    cd packages/frontend-sdk && RUN_CLOUD_ORCHESTRATOR_E2E=1 RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E=1 npm test -- cloud-orchestrator.e2e.integration.test.ts -t "runs local and cloud OpenRouter tool calls"
    ```
 
-   If broader gated tests are requested, run them with the documented gates and dotenv-sourced credentials. Treat failures from known follow-up tasks such as `065` and `067` as real exposed issues, not reasons to weaken this test.
+   If broader gated tests are requested, run them with the documented gates and dotenv-sourced credentials. Treat failures from known follow-up tasks such as `0112` and `0114` as real exposed issues, not reasons to weaken this test.
 
 ## Revised execution plan
 
@@ -116,7 +116,7 @@ Added during completion after code investigation and approved by the user.
 - [x] Keep existing default-instance fallback behavior for this task; do not harden unknown session-specific routes here.
 - [x] Add focused Elixir coverage for route registration, connection-created session proxy routing, and connection session aggregation.
 - [x] Update or confirm frontend SDK e2e expectations so cloud-created sessions are listed after `cloudBackend.createSession()`.
-- [x] Before running gated integration/e2e tests, check whether they depend on follow-up tasks `065` and `067`; defer if they require unfinished follow-up work.
+- [x] Before running gated integration/e2e tests, check whether they depend on follow-up tasks `0112` and `0114`; defer if they require unfinished follow-up work.
 
 ## Completion Notes
 
@@ -134,9 +134,9 @@ Added during completion.
   - `RUN_CLOUD_ORCHESTRATOR_E2E=1 npm test -- src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts -t "opens a cloud session through CloudTransport and syncs workspace files back down"` from `packages/frontend-sdk`
   - `env -u OPENROUTER_API_KEY RUN_CLOUD_ORCHESTRATOR_E2E=1 RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E=1 npm test -- src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts -t "runs local and cloud OpenRouter tool calls"` from `packages/frontend-sdk`
 - E2E dependency check:
-  - Task `065` is complete.
-  - Local-mode cloud e2e does not require task `067`; it was run and passed.
-  - AWS CloudFront/external transfer e2e still depends on task `067` because managed SSH transfer public host configuration is not yet productized.
+  - Task `0112` is complete.
+- Local-mode cloud e2e does not require task `0114`; it was run and passed.
+- AWS CloudFront/external transfer e2e still depends on task `0114` because managed SSH transfer public host configuration is not yet productized.
   - The TypeScript cloud orchestrator e2e gates are flag-only; provider credentials are resolved by the backend application dotenv path. The OpenRouter test was verified with `OPENROUTER_API_KEY` unset in the Node process and root `.env` discovered from the current directory/parents.
 
 Additional verification after dependent follow-up tasks were reported complete:

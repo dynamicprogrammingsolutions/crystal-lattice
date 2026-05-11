@@ -10,8 +10,8 @@ Verify sync-back using files created by normal cloud tool execution rather than 
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
-Depends On: `tasks/20260429-cloud-agent-orchestrator/062-clean-up-e2e-test-realism.md`
-Depends On: `tasks/20260429-cloud-agent-orchestrator/065-cloud-runtime-working-directory.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0111-clean-up-e2e-test-realism.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0112-cloud-runtime-working-directory.md`
 
 ## Context
 

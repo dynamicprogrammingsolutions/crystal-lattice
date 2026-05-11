@@ -372,7 +372,7 @@ Integration/smoke tests:
 
 Added during completion.
 
-Task 010 is complete. The MVP now includes:
+Task 0100 is complete. The MVP now includes:
 
 - an independent Elixir/Phoenix cloud orchestrator
 - Docker runner and minimal Python cloud runtime

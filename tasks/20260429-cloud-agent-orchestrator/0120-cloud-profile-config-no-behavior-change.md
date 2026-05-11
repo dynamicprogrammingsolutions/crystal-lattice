@@ -25,7 +25,7 @@ Introduce a structured cloud profile configuration model while keeping the curre
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
-Depends On: `tasks/20260429-cloud-agent-orchestrator/068-real-tool-sync-back-e2e.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0115-real-tool-sync-back-e2e.md`
 
 ## Background
 

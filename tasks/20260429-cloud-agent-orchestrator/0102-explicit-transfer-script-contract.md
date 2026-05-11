@@ -1,5 +1,5 @@
 # Transfer And Orchestration Contract Cleanup
-Clean up cloud-agent transfer/orchestration handling so workspace sync, setup, export, close, and deploy verification match the intended MVP contract from `010` and the real `AgentApplication` runtime from `015`.
+Clean up cloud-agent transfer/orchestration handling so workspace sync, setup, export, close, and deploy verification match the intended MVP contract from `0100` and the real `AgentApplication` runtime from `0101`.
 
 ## Requirements checklist
 
@@ -12,7 +12,7 @@ Clean up cloud-agent transfer/orchestration handling so workspace sync, setup, e
   - Sync-down local apply script: applies downloaded changes into `LOCAL_WORKSPACE_DIR`.
 - [x] Keep the actual byte transfer between scripts owned by the software/orchestrator/runner, not by project scripts.
 - [x] Make transfer slots truly opaque at the orchestrator API boundary; remove or supersede public assumptions such as `bundle.tar.gz`, tar/gzip-only upload/download endpoints, or fixed archive names.
-- [x] Implement the managed SSH transfer-slot backend described in `010`:
+- [x] Implement the managed SSH transfer-slot backend described in `0100`:
   - start a restricted short-lived transfer service/container when the selected transfer method requires it
   - restrict it to the transfer slot directory
   - deny shell, TTY, agent forwarding, port forwarding, and arbitrary filesystem access
@@ -21,22 +21,22 @@ Clean up cloud-agent transfer/orchestration handling so workspace sync, setup, e
 - [x] Make cloud setup and cloud export scripts first-class configuration/contract concepts, not hardcoded incidental file names.
 - [x] Reduce public instance-start payloads to the intended minimal shape where possible, centered on `transfer_ref`; remove now-redundant `cloud_workspace_dir` from runner/runtime control flow.
 - [x] Define and implement close-time behavior: either `cloud.close_session` performs final cloud export + local apply before stopping, or docs/API explicitly separate "sync then close" as required user flow.
-- [x] Revalidate remote Docker and AWS EC2/CloudFront deployment after the `015` runtime image build-context change.
+- [x] Revalidate remote Docker and AWS EC2/CloudFront deployment after the `0101` runtime image build-context change.
 - [x] Update docs to recommend script templates/patterns rather than unsafe defaults.
 - [x] Update E2E tests to use explicit scripts. For the test transfer script, prefer git-based packaging that behaves like a checkout while including staged and unstaged modifications and excluding git-ignored files.
-- [x] Preserve portable config/session/env/config-asset transfer behavior from `tasks/20260429-cloud-agent-orchestrator/015-agentapplication-cloud-runtime.md`.
+- [x] Preserve portable config/session/env/config-asset transfer behavior from `tasks/20260429-cloud-agent-orchestrator/0101-agentapplication-cloud-runtime.md`.
 - [x] Keep scoped stateless instance tokens with expiration as-is for now; revocation/token-store work is out of scope for this cleanup.
 
 Parent Task: tasks/20260429-cloud-agent-orchestrator/000-main.md
 
 Depends On:
 
-- tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md
-- tasks/20260429-cloud-agent-orchestrator/015-agentapplication-cloud-runtime.md
+- tasks/20260429-cloud-agent-orchestrator/0100-remote-docker-orchestrator-mvp.md
+- tasks/20260429-cloud-agent-orchestrator/0101-agentapplication-cloud-runtime.md
 
 ## Background
 
-The intended script contract was already written in `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md` under `### Transfer and script contract`:
+The intended script contract was already written in `tasks/20260429-cloud-agent-orchestrator/0100-remote-docker-orchestrator-mvp.md` under `### Transfer and script contract`:
 
 ```md
 Keep transfers as opaque slots. The orchestrator must not assume tar/gzip, archive names, one file vs many files, rsync vs SFTP, git metadata, or a workspace layout.
@@ -58,7 +58,7 @@ Return/sync-down flow:
 - Local apply script receives `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, and `TRANSFER_DIR`.
 ```
 
-The current implementation partially violates or muddies this contract. A later review of `010` against the `015` implementation found additional drift beyond the script names.
+The current implementation partially violates or muddies this contract. A later review of `0100` against the `0101` implementation found additional drift beyond the script names.
 
 Current mismatches to clean up:
 
@@ -67,15 +67,15 @@ Current mismatches to clean up:
 - Sync-down currently defaults to copying downloaded transfer contents directly into the local workspace when `apply_script` is absent.
 - The Docker runner export path currently tars the cloud workspace directly, instead of invoking a cloud export script that decides what should be transferred back.
 - The runtime has a `setup-cloud` hook shape, but the user-facing config/docs need to define this clearly as the cloud setup script in the four-script model.
-- `cloud-orchestrator/lib/cloud_orchestrator/transfer_registry.ex` still assumes `bundle.tar.gz` for upload/download. That contradicts the "opaque transfer slot" wording from `010`.
+- `cloud-orchestrator/lib/cloud_orchestrator/transfer_registry.ex` still assumes `bundle.tar.gz` for upload/download. That contradicts the "opaque transfer slot" wording from `0100`.
 - The orchestrator currently returns a `managed_ssh` endpoint shape, but there is no actual restricted managed SSH/SFTP transfer service/container implementing the documented security model.
-- `cloud.start_session_agent` still sends `cloud_workspace_dir` in the instance-start payload. After `015`, the runner/runtime use canonical `/cloud-agent/instance/...` paths, so this value should be script-contract/user-facing only if retained at all.
+- `cloud.start_session_agent` still sends `cloud_workspace_dir` in the instance-start payload. After `0101`, the runner/runtime use canonical `/cloud-agent/instance/...` paths, so this value should be script-contract/user-facing only if retained at all.
 - `cloud.close_session` currently retrieves final session state but does not perform final workspace export/apply. If the intended UX is "close brings everything home", close should run the same explicit export/apply flow or be documented as requiring a prior `cloud.sync_down`.
-- `015` changed the runtime image build context to the repository root so it can include `core/python`, `application/python`, and repo-root plugins. Local Docker E2E passed, but remote Docker and AWS EC2/CloudFront paths should be revalidated after this deployment-sensitive change.
+- `0101` changed the runtime image build context to the repository root so it can include `core/python`, `application/python`, and repo-root plugins. Local Docker E2E passed, but remote Docker and AWS EC2/CloudFront paths should be revalidated after this deployment-sensitive change.
 
 Token note:
 
-- `010` said tokens should preferably be short-lived or revocable. Current tokens are stateless, scoped by instance/session claims, and expire. That is acceptable for now. Do not add token revocation or a token store in this task unless the scope is explicitly reopened.
+- `0100` said tokens should preferably be short-lived or revocable. Current tokens are stateless, scoped by instance/session claims, and expire. That is acceptable for now. Do not add token revocation or a token store in this task unless the scope is explicitly reopened.
 
 ## Desired Model
 
@@ -110,7 +110,7 @@ Transfer adapters:
 - A transfer adapter owned by the local app/orchestrator/runner moves bytes between transfer slots.
 - The orchestrator API should speak in terms of transfer slots and transfer refs, not a specific archive filename.
 - A retained HTTP adapter may use tar/gzip internally, but that detail should stay behind the adapter boundary.
-- The remote Docker path should implement the managed SSH/SFTP slot described in `010`, or clearly mark it as deferred and keep docs honest.
+- The remote Docker path should implement the managed SSH/SFTP slot described in `0100`, or clearly mark it as deferred and keep docs honest.
 
 Instance startup:
 
@@ -165,12 +165,12 @@ The E2E should assert at least:
 Deployment revalidation:
 
 - Run local Docker E2E after the contract cleanup.
-- Run or document the result of generic remote Docker deploy/E2E after the runtime build-context change from `015`.
-- Run or document the result of AWS EC2/CloudFront E2E after the runtime build-context change from `015`.
+- Run or document the result of generic remote Docker deploy/E2E after the runtime build-context change from `0101`.
+- Run or document the result of AWS EC2/CloudFront E2E after the runtime build-context change from `0101`.
 
 ## Current References
 
-- Intended contract: `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md`, section `### Transfer and script contract`.
+- Intended contract: `tasks/20260429-cloud-agent-orchestrator/0100-remote-docker-orchestrator-mvp.md`, section `### Transfer and script contract`.
 - Current sync-up default copy and `transfer_script` hook: `core/python/plugins/cloud_agent_app_plugin.py`.
 - Current extra `upload_script`/`download_script` hooks: `core/python/plugins/cloud_agent_app_plugin.py`.
 - Current sync-down default apply behavior: `core/python/plugins/cloud_agent_app_plugin.py`.
@@ -178,14 +178,14 @@ Deployment revalidation:
 - Current transfer contract docs: `cloud-orchestrator/README.md`.
 - Current tar/gzip transfer-slot assumption: `cloud-orchestrator/lib/cloud_orchestrator/transfer_registry.ex`.
 - Current token implementation, intentionally out of scope except for preserving scoped expiration: `cloud-orchestrator/lib/cloud_orchestrator/token.ex`.
-- Current runtime build-context changes from `015`: `cloud-orchestrator/runtime/python/Dockerfile`, `cloud-orchestrator/deploy/remote-docker/deploy.sh`, `cloud-orchestrator/deploy/aws-ec2/builder.yaml`, and `packages/frontend-sdk/src/integration/harness.ts`.
+- Current runtime build-context changes from `0101`: `cloud-orchestrator/runtime/python/Dockerfile`, `cloud-orchestrator/deploy/remote-docker/deploy.sh`, `cloud-orchestrator/deploy/aws-ec2/builder.yaml`, and `packages/frontend-sdk/src/integration/harness.ts`.
 
 ## Execution plan
 
 Added during completion after user approval.
 
 1. Move the cloud application plugin out of `core/python/plugins` into repo-root `plugins/`, and update configs/tests to load it via a `path:` plugin reference.
-   - Preserve portable config/session/env/config-asset transfer behavior from `015`.
+   - Preserve portable config/session/env/config-asset transfer behavior from `0101`.
    - Keep the implementation importable in tests and runtime packaging after the move.
 
 2. Split project content scripts from platform byte-transfer scripts.

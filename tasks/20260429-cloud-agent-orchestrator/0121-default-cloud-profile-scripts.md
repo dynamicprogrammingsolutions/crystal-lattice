@@ -13,7 +13,7 @@ Add explicit default cloud profile scripts for common transfer and sync methods,
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
-Depends On: `tasks/20260429-cloud-agent-orchestrator/070-cloud-profile-config-no-behavior-change.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0120-cloud-profile-config-no-behavior-change.md`
 
 ## Background
 

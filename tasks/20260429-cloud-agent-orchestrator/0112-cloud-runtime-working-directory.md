@@ -10,8 +10,8 @@ Fix cloud runtime tool execution so relative paths resolve inside the transferre
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
-Depends On: `tasks/20260429-cloud-agent-orchestrator/060-connection-scoped-cloud-routing.md`
-Depends On: `tasks/20260429-cloud-agent-orchestrator/062-clean-up-e2e-test-realism.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0110-connection-scoped-cloud-routing.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0111-clean-up-e2e-test-realism.md`
 
 ## Issue
 
@@ -119,4 +119,4 @@ Added during completion.
 - Additional gated e2e attempt after provider credentials were loaded from `.env`:
   - `RUN_CLOUD_ORCHESTRATOR_E2E=1 RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E=1 npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e -t "runs local-cloud-local bash and apply_patch chain with codex-openrouter"`
   - Result: failed after the cloud turn timed out waiting for `/cloud-agent/workspace/files/chain.txt` to contain `local1=alpha\ncloud2=alpha-bravo`.
-  - Broader cloud e2e runs are deferred until tasks `tasks/20260429-cloud-agent-orchestrator/066-connection-created-session-routing.md` and `tasks/20260429-cloud-agent-orchestrator/067-cloud-transfer-endpoint-configuration.md` are complete or explicitly cleared for testing.
+  - Broader cloud e2e runs are deferred until tasks `tasks/20260429-cloud-agent-orchestrator/0113-connection-created-session-routing.md` and `tasks/20260429-cloud-agent-orchestrator/0114-cloud-transfer-endpoint-configuration.md` are complete or explicitly cleared for testing.

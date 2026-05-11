@@ -11,7 +11,7 @@ Add metadata-driven linking between a local readonly session and its cloud count
 - [ ] Keep plugin-provided badges/tags possible, while native UI owns the metadata-driven link behavior.
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
-Depends On: `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0100-remote-docker-orchestrator-mvp.md`
 
 ## Metadata Direction
 

@@ -7,13 +7,13 @@ Capture later optimization ideas for making heavyweight cloud runtimes start fas
 - [x] Do not hard-code provider or plugin names into the reduction policy.
 - [x] Move cloud runtime plugin cache to a persistent shared cache mounted by the orchestrator runner.
 - [x] Extend the shared runtime cache to pip downloads/wheels via `PIP_CACHE_DIR`.
-- [x] Preserve explicit transfer scripts and managed-SSH behavior from `tasks/20260429-cloud-agent-orchestrator/018-explicit-transfer-script-contract.md`.
+- [x] Preserve explicit transfer scripts and managed-SSH behavior from `tasks/20260429-cloud-agent-orchestrator/0102-explicit-transfer-script-contract.md`.
 
 Parent Task: tasks/20260429-cloud-agent-orchestrator/000-main.md
 
 Depends On:
 
-- tasks/20260429-cloud-agent-orchestrator/019-async-runtime-readiness-observability.md
+- tasks/20260429-cloud-agent-orchestrator/0103-async-runtime-readiness-observability.md
 
 ## Execution plan
 
@@ -29,13 +29,13 @@ Added during completion after user approval.
 
 ## Background
 
-The default-config Codex cloud E2E exposed that runtime startup can be heavyweight because path plugins are resolved/installed and the cloud runtime builds a full `AgentApplication` during startup. `tasks/20260429-cloud-agent-orchestrator/019-async-runtime-readiness-observability.md` should fix the contract problem first: startup should be asynchronous, readiness should be explicit, and diagnostics should be clear.
+The default-config Codex cloud E2E exposed that runtime startup can be heavyweight because path plugins are resolved/installed and the cloud runtime builds a full `AgentApplication` during startup. `tasks/20260429-cloud-agent-orchestrator/0103-async-runtime-readiness-observability.md` should fix the contract problem first: startup should be asynchronous, readiness should be explicit, and diagnostics should be clear.
 
 After that, these optimizations can reduce actual startup time.
 
 ## Follow-up Test Evidence
 
-After `tasks/20260429-cloud-agent-orchestrator/019-async-runtime-readiness-observability.md` was completed, the full default-config Codex cloud E2E was re-run with:
+After `tasks/20260429-cloud-agent-orchestrator/0103-async-runtime-readiness-observability.md` was completed, the full default-config Codex cloud E2E was re-run with:
 
 ```bash
 RUN_CLOUD_ORCHESTRATOR_E2E=1 \
@@ -121,7 +121,7 @@ Watch areas:
 
 ## Suggested Order
 
-1. Complete `tasks/20260429-cloud-agent-orchestrator/019-async-runtime-readiness-observability.md`.
+1. Complete `tasks/20260429-cloud-agent-orchestrator/0103-async-runtime-readiness-observability.md`.
 2. Re-run the default-config Codex cloud E2E to identify remaining startup cost.
 3. Choose between plugin prewarm and config slicing based on measured bottlenecks.
 4. Consider the generic action/job model if UX still suffers from long action execution.

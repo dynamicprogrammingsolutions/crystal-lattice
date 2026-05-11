@@ -18,7 +18,7 @@ Generalize the orchestrator and cloud-agent backend model beyond Docker, and har
 - [x] Add a combined bridge + cloud orchestrator EC2 deployment that runs both services on one cheap Docker host.
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
-Depends On: `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0100-remote-docker-orchestrator-mvp.md`
 
 ## Backend Direction
 

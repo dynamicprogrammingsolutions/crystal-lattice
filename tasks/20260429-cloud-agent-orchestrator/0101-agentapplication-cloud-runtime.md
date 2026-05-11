@@ -12,11 +12,11 @@ Correct the MVP cloud runtime so a cloud connection runs a real `AgentApplicatio
 
 Parent Task: tasks/20260429-cloud-agent-orchestrator/000-main.md
 
-Depends On: tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md
+Depends On: tasks/20260429-cloud-agent-orchestrator/0100-remote-docker-orchestrator-mvp.md
 
 ## Background
 
-The MVP in `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md` proved orchestration, transfer, proxying, cloud transport, workspace sync, and session export/import. However, the current cloud runtime is not a real cloud-side agent server.
+The MVP in `tasks/20260429-cloud-agent-orchestrator/0100-remote-docker-orchestrator-mvp.md` proved orchestration, transfer, proxying, cloud transport, workspace sync, and session export/import. However, the current cloud runtime is not a real cloud-side agent server.
 
 Current runtime:
 

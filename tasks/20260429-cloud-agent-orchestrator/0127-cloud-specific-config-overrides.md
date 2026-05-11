@@ -11,7 +11,7 @@ Add deterministic cloud runtime config overrides for path policy and other setti
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
-Depends On: `tasks/20260429-cloud-agent-orchestrator/070-cloud-profile-config-no-behavior-change.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0120-cloud-profile-config-no-behavior-change.md`
 
 ## Background
 

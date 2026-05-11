@@ -11,7 +11,7 @@ Create comprehensive user-facing documentation for cloud agent profile configura
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
-Depends On: `tasks/20260429-cloud-agent-orchestrator/090-sync-profile-selection-ui.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0122-sync-profile-selection-ui.md`
 
 ## Documentation Location
 

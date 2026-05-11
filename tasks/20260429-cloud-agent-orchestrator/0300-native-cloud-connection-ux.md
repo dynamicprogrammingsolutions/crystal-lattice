@@ -11,8 +11,8 @@ Polish cloud connection handling so action-backed cloud workflows feel native: l
 - [ ] Preserve the manual copy-link fallback from the MVP.
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
-Depends On: `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md`
-Depends On: `tasks/20260429-cloud-agent-orchestrator/020-linked-readonly-session-ux.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0100-remote-docker-orchestrator-mvp.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0200-linked-readonly-session-ux.md`
 
 ## Scope
 

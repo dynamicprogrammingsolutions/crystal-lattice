@@ -11,14 +11,14 @@ Remove integration/e2e test logic that hides real cloud orchestrator defects, ev
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
 
-Depends On: `tasks/20260429-cloud-agent-orchestrator/060-connection-scoped-cloud-routing.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0110-connection-scoped-cloud-routing.md`
 
 ## Context
 
 Review found several places where cloud orchestrator e2e coverage avoids real product behavior:
 
 - `packages/frontend-sdk/src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts:412-425` defines absolute `localOverrides` and `cloudOverrides`.
-- `packages/frontend-sdk/src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts:474-493` sends the cloud default-config turn with `configOverrides: cloudOverrides`, masking the runtime cwd bug in `tasks/20260429-cloud-agent-orchestrator/065-cloud-runtime-working-directory.md`.
+- `packages/frontend-sdk/src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts:474-493` sends the cloud default-config turn with `configOverrides: cloudOverrides`, masking the runtime cwd bug in `tasks/20260429-cloud-agent-orchestrator/0112-cloud-runtime-working-directory.md`.
 - `packages/frontend-sdk/src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts:1009-1017` creates a new session through the cloud connection but does not assert that the session appears in `cloudBackend.listSessions()`.
 - `packages/frontend-sdk/src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts:708-716` writes `from-cloud.txt` through `/cloud-agent/workspace/files`, bypassing normal tool execution.
 
@@ -46,4 +46,4 @@ Added during completion after implementation.
   - `cd packages/frontend-sdk && npm test -- cloud-orchestrator.e2e.integration.test.ts` passed with all e2e tests skipped, confirming the file compiles.
   - `cd packages/frontend-sdk && RUN_CLOUD_ORCHESTRATOR_E2E=1 npm test -- cloud-orchestrator.e2e.integration.test.ts` failed as intended on the new cloud-created-session assertion: `cloudBackend.listSessions()` does not include the session created through the cloud connection. The preceding tool-created file sync-back path completed before this assertion.
 
-The exposed failure should be fixed by `tasks/20260429-cloud-agent-orchestrator/066-connection-created-session-routing.md`.
+The exposed failure should be fixed by `tasks/20260429-cloud-agent-orchestrator/0113-connection-created-session-routing.md`.

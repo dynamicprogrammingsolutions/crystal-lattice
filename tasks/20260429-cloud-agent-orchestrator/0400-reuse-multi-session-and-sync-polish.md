@@ -12,7 +12,7 @@ Expand the cloud workflow beyond one-session startup: reuse existing cloud insta
 - [ ] Make close-remote-session behavior explicit and idempotent.
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
-Depends On: `tasks/20260429-cloud-agent-orchestrator/010-remote-docker-orchestrator-mvp.md`
+Depends On: `tasks/20260429-cloud-agent-orchestrator/0100-remote-docker-orchestrator-mvp.md`
 
 ## Scope
 
