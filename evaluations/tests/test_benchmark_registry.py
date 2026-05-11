@@ -18,6 +18,7 @@ def test_load_benchmarks_discovers_repoqa_agentic() -> None:
     benchmarks = load_benchmarks()
 
     assert "repoqa" in benchmarks
+    assert "repoqa-prompted" in benchmarks
     assert isinstance(benchmarks["repoqa"], BenchmarkDefinition)
 
 
@@ -61,8 +62,10 @@ def test_internal_run_single_repoqa_dispatches_via_registered_benchmark(
     task_payload_path.write_text(json.dumps({"task_id": "task-1"}), encoding="utf-8")
     seen: dict[str, object] = {}
 
+    load_benchmarks()
+
     monkeypatch.setattr(
-        "agent_evaluations.benchmarks.repoqa_agentic.load_evaluation_environment",
+        "agent_evaluations_external_benchmark_repoqa_agentic.load_evaluation_environment",
         lambda _config_dir: _FakeEnv(),
     )
 
@@ -88,7 +91,7 @@ def test_internal_run_single_repoqa_dispatches_via_registered_benchmark(
         return {"state": "completed", "score": {"score": 1.0}}
 
     monkeypatch.setattr(
-        "agent_evaluations.benchmarks.repoqa_agentic.run_repoqa_single_task_from_payload",
+        "agent_evaluations_external_benchmark_repoqa_agentic.run_repoqa_single_task_from_payload",
         _fake_run_single,
     )
 
@@ -132,3 +135,113 @@ def test_load_benchmarks_rejects_duplicate_ids(monkeypatch) -> None:
 
     with pytest.raises(ValueError, match="Duplicate benchmark id registered"):
         load_benchmarks()
+
+
+def test_manifest_repoqa_prompted_uses_profile_manifest_settings(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    profiles_dir = config_dir / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "config.json").write_text("{}\n", encoding="utf-8")
+    (profiles_dir / "slice.json").write_text(
+        json.dumps(
+            {
+                "manifest": {
+                    "release": "2024-06-23",
+                    "language": "all",
+                    "limit": 10,
+                    "seed": 7,
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "manifest.json"
+    seen: dict[str, object] = {}
+
+    load_benchmarks()
+
+    def _fake_download(env, *, release, force):
+        seen["download_release"] = release
+        seen["download_force"] = force
+        return tmp_path / "cache.json.gz"
+
+    def _fake_build(env, *, release, language, limit, seed):
+        seen["release"] = release
+        seen["language"] = language
+        seen["limit"] = limit
+        seen["seed"] = seed
+        return {"task_count": 0, "tasks": []}
+
+    monkeypatch.setattr(
+        "agent_evaluations_external_benchmark_repoqa_prompted.download_repoqa_release",
+        _fake_download,
+    )
+    monkeypatch.setattr(
+        "agent_evaluations_external_benchmark_repoqa_prompted.build_repoqa_prompted_manifest",
+        _fake_build,
+    )
+
+    exit_code = cli.main(
+        [
+            "manifest",
+            "repoqa-prompted",
+            "--config-dir",
+            str(config_dir),
+            "--profile",
+            "slice",
+            "--output-path",
+            str(output_path),
+        ]
+    )
+
+    assert exit_code == 0
+    assert seen["download_release"] == "2024-06-23"
+    assert seen["release"] == "2024-06-23"
+    assert seen["language"] == "all"
+    assert seen["limit"] == 10
+    assert seen["seed"] == 7
+
+
+def test_download_repoqa_prompted_uses_profile_release(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    profiles_dir = config_dir / "profiles"
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    (config_dir / "config.json").write_text("{}\n", encoding="utf-8")
+    (profiles_dir / "slice.json").write_text(
+        json.dumps({"manifest": {"release": "2024-06-23"}}),
+        encoding="utf-8",
+    )
+    seen: dict[str, object] = {}
+
+    load_benchmarks()
+
+    def _fake_download(env, *, release, force):
+        seen["release"] = release
+        seen["force"] = force
+        return tmp_path / "cache.json.gz"
+
+    monkeypatch.setattr(
+        "agent_evaluations_external_benchmark_repoqa_prompted.download_repoqa_release",
+        _fake_download,
+    )
+
+    exit_code = cli.main(
+        [
+            "download",
+            "repoqa-prompted",
+            "--config-dir",
+            str(config_dir),
+            "--profile",
+            "slice",
+        ]
+    )
+
+    assert exit_code == 0
+    assert seen["release"] == "2024-06-23"
+    assert seen["force"] is False

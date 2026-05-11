@@ -13,8 +13,18 @@ authors = [
     {name = "AI Agent Platform Team"}
 ]
 dependencies = [
+    "agent-core>=0.3.0",
     "python-dotenv>=1.0.0",
+    "tree-sitter>=0.25.0",
+    "tree-sitter-cpp>=0.23.0",
+    "tree-sitter-java>=0.23.0",
+    "tree-sitter-go>=0.23.0",
+    "tree-sitter-rust>=0.23.0",
+    "tree-sitter-typescript>=0.23.0",
 ]
+
+[project.scripts]
+agent-evaluations = "agent_evaluations.cli:main"
 
 [project.optional-dependencies]
 dev = [

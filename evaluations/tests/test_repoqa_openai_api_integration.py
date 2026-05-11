@@ -4,14 +4,17 @@ import json
 import os
 from pathlib import Path
 import shutil
+import sys
 
+from agent_evaluations.benchmark_registry import load_benchmarks
 from agent_evaluations.config_dir import load_evaluation_environment
-from agent_evaluations.repoqa import (
-    DEFAULT_REPOQA_RELEASE,
-    build_repoqa_manifest,
-    download_repoqa_release,
-    run_repoqa_benchmark,
-)
+load_benchmarks()
+_shared = sys.modules["agent_evaluations_external_benchmark_repoqa_shared_common"]
+_agentic = sys.modules["agent_evaluations_external_benchmark_repoqa_agentic"]
+DEFAULT_REPOQA_RELEASE = _shared.DEFAULT_REPOQA_RELEASE
+build_repoqa_manifest = _agentic.build_repoqa_manifest
+download_repoqa_release = _agentic.download_repoqa_release
+run_repoqa_benchmark = _agentic.run_repoqa_benchmark
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONFIG_DIR = (

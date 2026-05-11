@@ -4,22 +4,26 @@ from datetime import datetime, timedelta, timezone
 import gzip
 import json
 from pathlib import Path
+import sys
 import threading
 import time
 
+from agent_evaluations.benchmark_registry import load_benchmarks
 from agent_evaluations.config_dir import load_evaluation_environment
 from agent_evaluations.container_backend import resolve_docker_runtime_config
-from agent_evaluations.repoqa import (
-    DEFAULT_REPOQA_RELEASE,
-    RepoQATask,
-    build_repoqa_manifest,
-    materialize_repoqa_workspace,
-    repoqa_cache_path,
-    run_repoqa_benchmark,
-    run_repoqa_single_task_from_payload,
-    score_repoqa_answer,
-)
 from agent_evaluations.utils import write_json
+
+
+load_benchmarks()
+_agentic = sys.modules["agent_evaluations_external_benchmark_repoqa_agentic"]
+DEFAULT_REPOQA_RELEASE = _agentic.DEFAULT_REPOQA_RELEASE
+RepoQATask = _agentic.RepoQATask
+build_repoqa_manifest = _agentic.build_repoqa_manifest
+materialize_repoqa_workspace = _agentic.materialize_repoqa_workspace
+repoqa_cache_path = _agentic.repoqa_cache_path
+run_repoqa_benchmark = _agentic.run_repoqa_benchmark
+run_repoqa_single_task_from_payload = _agentic.run_repoqa_single_task_from_payload
+score_repoqa_answer = _agentic.score_repoqa_answer
 
 
 def _write_fixture_config(config_dir: Path, *, response_text: str) -> None:
@@ -200,7 +204,7 @@ def test_repoqa_runner_respects_max_parallel_tasks(monkeypatch, tmp_path: Path) 
             "provider_call_count": None,
         }
 
-    monkeypatch.setattr("agent_evaluations.repoqa.run_repoqa_task_with_restarts", _fake_task_runner)
+    monkeypatch.setattr(_agentic._logic, "run_repoqa_task_with_restarts", _fake_task_runner)
 
     run_repoqa_benchmark(
         env,
@@ -251,11 +255,9 @@ def test_repoqa_task_retries_on_pre_completion_failure(monkeypatch, tmp_path: Pa
             "provider_call_count": None,
         }
 
-    monkeypatch.setattr("agent_evaluations.repoqa._run_repoqa_attempt", _flaky_attempt)
+    monkeypatch.setattr(_agentic._logic, "_run_repoqa_attempt", _flaky_attempt)
 
-    from agent_evaluations.repoqa import run_repoqa_task_with_restarts
-
-    result = run_repoqa_task_with_restarts(
+    result = _agentic.run_repoqa_task_with_restarts(
         env,
         run_id="retry-run",
         release=DEFAULT_REPOQA_RELEASE,
@@ -467,7 +469,12 @@ def test_repoqa_runner_uses_docker_backend_when_selected(monkeypatch, tmp_path: 
             "provider_call_count": None,
         }
 
-    monkeypatch.setattr("agent_evaluations.repoqa.run_repoqa_task_in_container", _fake_run_in_container)
+    monkeypatch.setattr(
+        _agentic._logic,
+        "warm_container_plugin_cache",
+        lambda runtime, *, host_config_dir, agent_id=None: {"state": "warmed"},
+    )
+    monkeypatch.setattr(_agentic._logic, "run_benchmark_task_in_container", _fake_run_in_container)
 
     run_manifest_path = run_repoqa_benchmark(
         env,

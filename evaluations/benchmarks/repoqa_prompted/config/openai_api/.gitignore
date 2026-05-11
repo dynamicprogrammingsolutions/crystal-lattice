@@ -1,0 +1,6 @@
+.env
+auth/
+cache/
+results/
+workspaces/
+_sessions/

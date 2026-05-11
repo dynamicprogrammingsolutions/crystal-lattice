@@ -23,5 +23,6 @@ RUN pip install -e /opt/ai-agent-platform/core/python \
     && rm /tmp/agent_evaluations-*.whl
 
 ENV BUILTIN_PLUGINS=/opt/ai-agent-platform/plugins
+ENV AGENT_EVALUATIONS_BENCHMARKS_DIR=/opt/ai-agent-platform/evaluations/benchmarks
 
 CMD ["python", "-m", "agent_evaluations", "--help"]

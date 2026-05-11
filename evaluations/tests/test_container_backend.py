@@ -11,7 +11,8 @@ from agent_evaluations.container_backend import (
     DockerRuntimeConfig,
     build_docker_image,
     build_evaluations_wheel,
-    run_repoqa_task_in_container,
+    run_benchmark_task_in_container,
+    warm_container_plugin_cache,
 )
 from agent_evaluations.bundled_assets import create_git_tracked_source_bundle
 
@@ -84,7 +85,7 @@ def test_build_docker_image_constructs_expected_command(monkeypatch, tmp_path: P
     assert result["evaluations_wheel_path"] == str(fake_wheel)
 
 
-def test_run_repoqa_task_in_container_constructs_expected_command(monkeypatch, tmp_path: Path) -> None:
+def test_run_benchmark_task_in_container_constructs_expected_command(monkeypatch, tmp_path: Path) -> None:
     config_dir = tmp_path / "config"
     workspace_root = tmp_path / "workspace"
     results_root = tmp_path / "results" / "repoqa" / "run-1"
@@ -118,8 +119,9 @@ def test_run_repoqa_task_in_container_constructs_expected_command(monkeypatch, t
         container_env={"BUILTIN_PLUGINS": "/opt/ai-agent-platform/plugins"},
     )
 
-    result = run_repoqa_task_in_container(
+    result = run_benchmark_task_in_container(
         runtime,
+        benchmark_id="repoqa",
         host_config_dir=config_dir,
         host_workspace_root=workspace_root,
         host_results_root=results_root,
@@ -199,6 +201,48 @@ def test_run_benchmark_task_in_container_uses_mount_path_for_workspace_root(
     assert command[workdir_index + 1] == "/runner"
     workspace_arg_index = command.index("--workspace-root")
     assert command[workspace_arg_index + 1] == "/workspace"
+
+
+def test_warm_container_plugin_cache_constructs_expected_command(monkeypatch, tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    seen: dict[str, object] = {}
+
+    def _fake_run(command, check, text, capture_output):
+        seen["command"] = command
+        return subprocess.CompletedProcess(command, 0, stdout="warmed", stderr="")
+
+    monkeypatch.setattr("subprocess.run", _fake_run)
+    runtime = DockerRuntimeConfig(
+        enabled=True,
+        image_tag="agent-evals:test",
+        dockerfile=tmp_path / "Dockerfile",
+        build_context=tmp_path / "context",
+        source_bundle_path=tmp_path / "bundle" / "repo-source.tar.gz",
+        evaluations_wheel_dir=tmp_path / "wheels",
+        config_mount_path="/config",
+        task_mount_path="/workspace",
+        results_mount_path="/results",
+        task_workdir="/workspace",
+        container_env={"BUILTIN_PLUGINS": "/opt/ai-agent-platform/plugins"},
+        extra_run_args=("--pull=never",),
+    )
+
+    result = warm_container_plugin_cache(
+        runtime,
+        host_config_dir=config_dir,
+        agent_id="fixture-agent",
+    )
+
+    command = seen["command"]
+    assert isinstance(command, list)
+    assert command[:2] == ["docker", "run"]
+    assert f"{config_dir.resolve()}:/config" in command
+    assert "agent-evals:test" in command
+    assert "warm-cache" in command
+    assert "/config" in command
+    assert "fixture-agent" in command
+    assert result["state"] == "warmed"
 
 
 def test_create_git_tracked_source_bundle_includes_only_tracked_files(tmp_path: Path) -> None:

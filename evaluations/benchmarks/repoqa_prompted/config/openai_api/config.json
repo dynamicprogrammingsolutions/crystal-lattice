@@ -1,0 +1,31 @@
+{
+  "plugins": [
+    "plugins.tool_gating_feature.ToolGatingFeature",
+    "path:${env:BUILTIN_PLUGINS}/openai_responses"
+  ],
+  "providers": {
+    "openai": {
+      "provider": "openai_responses",
+      "api_key": "${env:OPENAI_API_KEY}",
+      "base_url": "https://api.openai.com/v1",
+      "auth_mode": "api",
+      "enable_flex_processing": true,
+      "flex_timeout_seconds": 900,
+      "enable_flex_retries": true,
+      "flex_max_retries": 8,
+      "flex_stream_recovery_mode": "aggressive",
+      "flex_stream_recovery_retries": 10,
+      "enable_fast_mode": false,
+      "reasoning_summary": "detailed",
+      "show_estimated_cached_tokens": true,
+      "show_openai_auth_mode": true
+    }
+  },
+  "agents": {
+    "repoqa-prompted-openai-api": {
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "auth_mode": "api"
+    }
+  }
+}

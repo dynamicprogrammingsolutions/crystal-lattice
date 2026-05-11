@@ -7,7 +7,10 @@ Create a root-level `evaluations/` package that runs agentic benchmark tasks thr
 - [x] `tasks/20260508-agentic-evaluations-codex/010-repoqa-agentic-eval.md`
 - [ ] `tasks/20260508-agentic-evaluations-codex/015-benchmark-registry-refactor.md`
 - [ ] `tasks/20260508-agentic-evaluations-codex/017-repoqa-prompted-eval.md`
+- [ ] `tasks/20260508-agentic-evaluations-codex/018-benchmark-owned-layout-and-run-profiles.md`
+- [x] `tasks/20260508-agentic-evaluations-codex/019-repoqa-prompted-context-eligibility.md`
 - [ ] `tasks/20260508-agentic-evaluations-codex/020-livecodebench-agentic-eval.md`
+- [x] `tasks/20260508-agentic-evaluations-codex/021-shared-parser-backed-code-comparison.md`
 
 ## Shared requirements
 
@@ -21,7 +24,7 @@ Create a root-level `evaluations/` package that runs agentic benchmark tasks thr
   - `manifest ...`
   - `run repoqa ...`
   - `run livecodebench ...`
-- Use one config-dir convention per evaluation environment, for example `evaluations/config/<env-name>/`, containing at minimum:
+- Use one config-dir convention per evaluation environment, preferably benchmark-owned under `evaluations/benchmarks/<benchmark>/config/<env-name>/`, containing at minimum:
   - `.env`
   - `config.json`
   - `AGENTS.md`
@@ -50,7 +53,7 @@ Create a root-level `evaluations/` package that runs agentic benchmark tasks thr
 
 ## Recommended config shape
 
-Use `evaluations/config/<env-name>/config.json` with a dedicated subtree such as:
+Historically the shared runner used `evaluations/config/<env-name>/config.json`. The preferred layout is now benchmark-owned, for example `evaluations/benchmarks/<benchmark>/config/<env-name>/config.json`, with a dedicated subtree such as:
 
 ```json
 {

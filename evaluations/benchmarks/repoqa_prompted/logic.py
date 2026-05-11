@@ -1,35 +1,56 @@
 from __future__ import annotations
 
 import json
+import importlib.util
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+import sys
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+import random
 
 from agent_app.config import resolve_request_config
 from agent_core import Session
 
-from .config_dir import EvaluationEnvironment, benchmark_settings, merge_dicts
-from .container_backend import (
+from agent_evaluations.config_dir import EvaluationEnvironment, benchmark_settings, merge_dicts
+from agent_evaluations.container_backend import (
     DockerRuntimeConfig,
     run_benchmark_task_in_container,
+    warm_container_plugin_cache,
 )
-from .repoqa import (
-    DEFAULT_REPOQA_RELEASE,
-    REPOQA_RELEASE_URL_TEMPLATE,
-    RepoQATask,
-    _count_tool_calls,
-    _extract_final_assistant_text,
-    download_repoqa_release,
-    iter_repoqa_tasks,
-    load_repoqa_dataset,
-    score_repoqa_answer,
-)
-from .scheduler import plan_task_starts, policy_from_config, sleep_until
-from .utils import append_jsonl, isoformat_utc, utc_now, write_json, write_json_atomic
+from agent_evaluations.scheduler import plan_task_starts, policy_from_config, sleep_until
+from agent_evaluations.utils import append_jsonl, isoformat_utc, utc_now, write_json, write_json_atomic
+
+
+def _load_repoqa_shared_module() -> Any:
+    module_name = "agent_evaluations_external_benchmark_repoqa_shared_common"
+    cached = sys.modules.get(module_name)
+    if cached is not None:
+        return cached
+    module_path = Path(__file__).resolve().parents[1] / "repoqa_shared" / "common.py"
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load RepoQA shared helpers from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_shared = _load_repoqa_shared_module()
+DEFAULT_REPOQA_RELEASE = _shared.DEFAULT_REPOQA_RELEASE
+RepoQATask = _shared.RepoQATask
+count_tool_calls = _shared.count_tool_calls
+download_repoqa_release = _shared.download_repoqa_release
+extract_final_assistant_text = _shared.extract_final_assistant_text
+iter_repoqa_tasks = _shared.iter_repoqa_tasks
+load_repoqa_dataset = _shared.load_repoqa_dataset
+repoqa_cache_path = _shared.repoqa_cache_path
+score_repoqa_answer = _shared.score_repoqa_answer
 
 
 REPOQA_PROMPTED_BENCHMARK_ID = "repoqa-prompted"
+REPOQA_LANGUAGE_ORDER = ["python", "cpp", "java", "typescript", "rust", "go"]
 
 
 def default_repoqa_prompted_manifest_path(
@@ -57,25 +78,59 @@ def build_repoqa_prompted_manifest(
     seed: int,
 ) -> Dict[str, Any]:
     dataset = load_repoqa_dataset(env, release=release)
-    tasks = list(iter_repoqa_tasks(dataset, language=language))
-    if seed:
-        import random
-
-        rng = random.Random(seed)
-        rng.shuffle(tasks)
-    if isinstance(limit, int) and limit > 0:
-        tasks = tasks[:limit]
+    languages = _resolve_languages(dataset, language)
+    tasks = _select_repoqa_tasks(dataset, languages=languages, seed=seed, limit=limit)
 
     return {
         "benchmark": REPOQA_PROMPTED_BENCHMARK_ID,
         "release": release,
         "language": language,
+        "languages": languages,
         "seed": seed,
         "limit": limit,
         "created_at": isoformat_utc(),
         "task_count": len(tasks),
         "tasks": [task.to_manifest_dict() for task in tasks],
     }
+
+
+def _resolve_languages(dataset: Dict[str, Any], language: str) -> List[str]:
+    if language == "all":
+        available = [item for item in REPOQA_LANGUAGE_ORDER if isinstance(dataset.get(item), list)]
+        if available:
+            return available
+        discovered = sorted(key for key, value in dataset.items() if isinstance(value, list))
+        if discovered:
+            return discovered
+        raise KeyError("RepoQA dataset does not contain any language task lists")
+    if not isinstance(dataset.get(language), list):
+        raise KeyError(f"RepoQA dataset does not contain language {language!r}")
+    return [language]
+
+
+def _select_repoqa_tasks(
+    dataset: Dict[str, Any],
+    *,
+    languages: Sequence[str],
+    seed: int,
+    limit: int | None,
+) -> List[RepoQATask]:
+    per_language: List[List[RepoQATask]] = []
+    for language in languages:
+        tasks = list(iter_repoqa_tasks(dataset, language=language))
+        rng = random.Random(f"{seed}:{language}")
+        rng.shuffle(tasks)
+        per_language.append(tasks)
+
+    merged: List[RepoQATask] = []
+    max_length = max((len(tasks) for tasks in per_language), default=0)
+    for index in range(max_length):
+        for tasks in per_language:
+            if index < len(tasks):
+                merged.append(tasks[index])
+                if isinstance(limit, int) and limit > 0 and len(merged) >= limit:
+                    return merged
+    return merged[:limit] if isinstance(limit, int) and limit > 0 else merged
 
 
 def _workspace_root_for_run(env: EvaluationEnvironment, run_id: str, task_id: str) -> Path:
@@ -155,7 +210,7 @@ def build_repoqa_prompted_prompt(
         raise ValueError("RepoQA repo entry missing content map")
 
     settings = _repoqa_prompted_settings(env)
-    context_budget_chars = int(settings.get("context_budget_chars") or 120000)
+    context_budget_chars = int(settings.get("context_budget_chars") or 1000000)
     max_files_raw = settings.get("max_files")
     max_files = int(max_files_raw) if isinstance(max_files_raw, int) and max_files_raw > 0 else None
 
@@ -201,6 +256,8 @@ def build_repoqa_prompted_prompt(
         "task": task.to_manifest_dict(),
         "included_paths": included_paths,
         "included_file_count": len(included_paths),
+        "target_path": task.path,
+        "target_in_context": task.path in included_paths,
         "context_budget_chars": context_budget_chars,
         "context_chars_used": used_chars,
         "truncated": truncated,
@@ -240,19 +297,23 @@ def parse_repoqa_prompted_answer(task: RepoQATask, raw_text: str) -> Tuple[Optio
     fenced_blocks = re.findall(r"```[^\n`]*\n(.*?)```", text, flags=re.DOTALL)
     candidate = max(fenced_blocks, key=len).strip() if fenced_blocks else text
 
-    if task.symbol in candidate:
-        symbol_index = candidate.find(task.symbol)
-        line_start = candidate.rfind("\n", 0, symbol_index)
-        candidate = candidate[line_start + 1 :].strip() if line_start >= 0 else candidate.strip()
-
     symbol = task.symbol
     python_match = re.search(r"^\s*(?:async\s+def|def)\s+([A-Za-z_][A-Za-z0-9_]*)", candidate, flags=re.MULTILINE)
     if python_match:
         symbol = python_match.group(1)
     else:
-        generic_match = re.search(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(", candidate)
-        if generic_match:
-            symbol = generic_match.group(1)
+        language_patterns = [
+            r"^\s*(?:export\s+default\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)",
+            r"^\s*(?:pub\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)",
+            r"^\s*(?:template\s*<[^>]+>\s*)?(?:inline\s+)?(?:auto|[A-Za-z_][A-Za-z0-9_:<>\[\]\s*&]+)\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+            r"^\s*(?:public|private|protected|static|final|synchronized|abstract|\s)+[A-Za-z0-9_<>,\[\]\s?@]+\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+            r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(",
+        ]
+        for pattern in language_patterns:
+            generic_match = re.search(pattern, candidate, flags=re.MULTILINE)
+            if generic_match:
+                symbol = generic_match.group(1)
+                break
 
     if not candidate.strip():
         return None, "empty_normalized_code"
@@ -318,10 +379,82 @@ def _run_repoqa_prompted_attempt(
     return {
         "events": events,
         "final_session": final_session,
-        "final_assistant_text": _extract_final_assistant_text(events),
-        "tool_call_count": _count_tool_calls(final_session),
+        "final_assistant_text": extract_final_assistant_text(events),
+        "tool_call_count": count_tool_calls(final_session),
         "effective_tool_schema_count": len(effective_tool_schemas),
+        "usage_metadata": _extract_final_assistant_usage_metadata(final_session),
         "provider_call_count": None,
+    }
+
+
+def _extract_final_assistant_usage_metadata(final_session: Session) -> Optional[Dict[str, Any]]:
+    for message in reversed(final_session.messages):
+        if getattr(message, "role", None) != "assistant":
+            continue
+        metadata = message.metadata if isinstance(message.metadata, dict) else {}
+        usage_fields = {
+            key: value
+            for key, value in metadata.items()
+            if key == "usage" or key.startswith("usage_")
+        }
+        if usage_fields:
+            return usage_fields
+    return None
+
+
+def _task_cost_from_usage(usage_metadata: Optional[Dict[str, Any]]) -> Optional[float]:
+    if not isinstance(usage_metadata, dict):
+        return None
+    for key in ("usage_turn_cost_cumulative", "usage_total_cost"):
+        value = usage_metadata.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return None
+
+
+def _target_in_prompt_context(task: RepoQATask, metadata: Dict[str, Any]) -> bool:
+    included_paths = metadata.get("included_paths")
+    if isinstance(included_paths, list):
+        return task.path in [item for item in included_paths if isinstance(item, str)]
+    return bool(metadata.get("target_in_context"))
+
+
+def _excluded_missing_target_context_result(
+    task: RepoQATask,
+    *,
+    workspace_root: Path,
+    metadata: Dict[str, Any],
+) -> Dict[str, Any]:
+    return {
+        "task": task.to_manifest_dict(),
+        "workspace_root": str(workspace_root),
+        "attempts": [],
+        "state": "skipped_missing_target_context",
+        "outcome": "skipped_missing_target_context",
+        "eligible_for_accuracy": False,
+        "failure_category": "context_budget_excluded_target",
+        "error": None,
+        "score": {
+            "matched": False,
+            "path_match": False,
+            "symbol_match": False,
+            "code_match": False,
+            "comparison_method": None,
+            "code_comparison": None,
+            "score": 0.0,
+        },
+        "parsed_answer": None,
+        "parse_error": None,
+        "final_assistant_text": "",
+        "tool_call_count": 0,
+        "effective_tool_schema_count": 0,
+        "usage": None,
+        "cost": None,
+        "cost_formatted": None,
+        "provider_call_count": 0,
+        "target_in_context": False,
+        "context_truncated": bool(metadata.get("truncated")),
+        "meta": metadata,
     }
 
 
@@ -337,6 +470,13 @@ def run_repoqa_prompted_task_with_restarts_in_workspace(
     model_override: str | None,
     max_task_restarts: int,
 ) -> Dict[str, Any]:
+    if not _target_in_prompt_context(task, metadata):
+        return _excluded_missing_target_context_result(
+            task,
+            workspace_root=workspace_root,
+            metadata=metadata,
+        )
+
     user_prompt = (workspace_root / "PROMPT.txt").read_text(encoding="utf-8")
     session_root = env.paths.results_root / REPOQA_PROMPTED_BENCHMARK_ID / run_id / "sessions"
     attempts: List[Dict[str, Any]] = []
@@ -369,12 +509,17 @@ def run_repoqa_prompted_task_with_restarts_in_workspace(
                     "workspace_root": str(workspace_root),
                     "attempts": attempts,
                     "state": "failed_before_turn_completed",
+                    "outcome": "failed_before_turn_completed",
+                    "eligible_for_accuracy": True,
+                    "failure_category": "request_failure",
                     "error": last_error,
                     "score": {
                         "matched": False,
                         "path_match": False,
                         "symbol_match": False,
                         "code_match": False,
+                        "comparison_method": None,
+                        "code_comparison": None,
                         "score": 0.0,
                     },
                     "parsed_answer": None,
@@ -382,7 +527,12 @@ def run_repoqa_prompted_task_with_restarts_in_workspace(
                     "final_assistant_text": "",
                     "tool_call_count": 0,
                     "effective_tool_schema_count": None,
+                    "usage": None,
+                    "cost": None,
+                    "cost_formatted": None,
                     "provider_call_count": None,
+                    "target_in_context": _target_in_prompt_context(task, metadata),
+                    "context_truncated": bool(metadata.get("truncated")),
                     "meta": metadata,
                 }
             continue
@@ -405,6 +555,9 @@ def run_repoqa_prompted_task_with_restarts_in_workspace(
             "workspace_root": str(workspace_root),
             "attempts": attempts,
             "state": "completed",
+            "outcome": "matched" if score.get("matched") is True else "mismatched",
+            "eligible_for_accuracy": True,
+            "failure_category": None,
             "error": None,
             "score": score,
             "parsed_answer": parsed_answer,
@@ -412,7 +565,22 @@ def run_repoqa_prompted_task_with_restarts_in_workspace(
             "final_assistant_text": attempt_result["final_assistant_text"],
             "tool_call_count": attempt_result["tool_call_count"],
             "effective_tool_schema_count": attempt_result["effective_tool_schema_count"],
+            "usage": attempt_result["usage_metadata"],
+            "cost": _task_cost_from_usage(attempt_result["usage_metadata"]),
+            "cost_formatted": (
+                attempt_result["usage_metadata"].get("usage_turn_cost_cumulative_formatted")
+                if isinstance(attempt_result["usage_metadata"], dict)
+                and isinstance(attempt_result["usage_metadata"].get("usage_turn_cost_cumulative_formatted"), str)
+                else (
+                    attempt_result["usage_metadata"].get("usage_total_cost_formatted")
+                    if isinstance(attempt_result["usage_metadata"], dict)
+                    and isinstance(attempt_result["usage_metadata"].get("usage_total_cost_formatted"), str)
+                    else None
+                )
+            ),
             "provider_call_count": attempt_result["provider_call_count"],
+            "target_in_context": _target_in_prompt_context(task, metadata),
+            "context_truncated": bool(metadata.get("truncated")),
             "meta": metadata,
         }
 
@@ -485,6 +653,7 @@ def create_repoqa_prompted_run_manifest(
         "benchmark": REPOQA_PROMPTED_BENCHMARK_ID,
         "release": benchmark_manifest["release"],
         "language": benchmark_manifest["language"],
+        "languages": list(benchmark_manifest.get("languages") or [benchmark_manifest["language"]]),
         "agent_id": agent_id,
         "profile_name": profile_name,
         "profile": profile_payload,
@@ -575,6 +744,16 @@ def run_repoqa_prompted_benchmark(
     run_root = run_manifest_path.parent
     results_jsonl = run_root / "results.jsonl"
     summary_json = run_root / "summary.json"
+
+    if runtime_backend == "docker":
+        if docker_runtime is None:
+            raise ValueError("docker_runtime must be provided when runtime_backend='docker'")
+        warm_container_plugin_cache(
+            docker_runtime,
+            host_config_dir=env.paths.config_dir,
+            agent_id=agent_id,
+        )
+
     active_tasks: Dict[Any, Dict[str, Any]] = {}
     completed: List[Dict[str, Any]] = []
 
@@ -718,17 +897,35 @@ def run_repoqa_prompted_benchmark(
                 append_jsonl(results_jsonl, payload)
                 completed.append(payload)
 
+    eligible_results = [item for item in completed if item.get("eligible_for_accuracy", True)]
+    matched_eligible_count = sum(
+        1 for item in eligible_results if ((item.get("score") or {}).get("matched") is True)
+    )
     summary = {
         "run_id": run_manifest["run_id"],
         "benchmark": REPOQA_PROMPTED_BENCHMARK_ID,
         "release": run_manifest["release"],
         "language": run_manifest["language"],
+        "languages": run_manifest.get("languages"),
         "agent_id": run_manifest["agent_id"],
+        "manifest_task_count": len(tasks),
         "completed_task_count": len(completed),
-        "matched_task_count": sum(1 for item in completed if ((item.get("score") or {}).get("matched") is True)),
+        "model_request_task_count": sum(
+            1 for item in completed if item.get("outcome") != "skipped_missing_target_context"
+        ),
+        "eligible_task_count": len(eligible_results),
+        "excluded_missing_target_context_count": sum(
+            1 for item in completed if item.get("outcome") == "skipped_missing_target_context"
+        ),
+        "matched_task_count": matched_eligible_count,
         "accuracy": (
-            sum(float((item.get("score") or {}).get("score") or 0.0) for item in completed) / len(completed)
-            if completed
+            sum(float((item.get("score") or {}).get("score") or 0.0) for item in eligible_results) / len(eligible_results)
+            if eligible_results
+            else 0.0
+        ),
+        "raw_accuracy_over_manifest": (
+            sum(float((item.get("score") or {}).get("score") or 0.0) for item in completed) / len(tasks)
+            if tasks
             else 0.0
         ),
         "results_jsonl": str(results_jsonl),
@@ -736,6 +933,14 @@ def run_repoqa_prompted_benchmark(
         "completed_at": isoformat_utc(),
         "benchmark_mode": "repoqa-prompted-custom",
     }
+    costs = [float(item["cost"]) for item in completed if isinstance(item.get("cost"), (int, float))]
+    if costs:
+        total_cost = sum(costs)
+        summary["costed_task_count"] = len(costs)
+        summary["total_cost"] = total_cost
+        summary["total_cost_formatted"] = f"${total_cost:.6f}"
+        summary["average_cost_per_costed_task"] = total_cost / len(costs)
+        summary["average_cost_per_costed_task_formatted"] = f"${(total_cost / len(costs)):.6f}"
     write_json_atomic(summary_json, summary)
     return run_manifest_path
 

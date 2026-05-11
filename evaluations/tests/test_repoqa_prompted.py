@@ -4,22 +4,28 @@ from datetime import datetime, timedelta, timezone
 import gzip
 import json
 from pathlib import Path
+import sys
 
 from agent_app.config import resolve_request_config
+from agent_evaluations.benchmark_registry import load_benchmarks
 from agent_evaluations.config_dir import load_evaluation_environment
 from agent_evaluations.container_backend import resolve_docker_runtime_config
-from agent_evaluations.repoqa import DEFAULT_REPOQA_RELEASE, repoqa_cache_path
-from agent_evaluations.repoqa_prompted import (
-    RepoQATask,
-    build_repoqa_prompted_manifest,
-    build_repoqa_prompted_prompt,
-    materialize_repoqa_prompted_workspace,
-    parse_repoqa_prompted_answer,
-    run_repoqa_prompted_benchmark,
-    run_repoqa_prompted_single_task_from_payload,
-    run_repoqa_prompted_task_with_restarts,
-)
 from agent_evaluations.utils import write_json
+
+
+load_benchmarks()
+_prompted = sys.modules["agent_evaluations_external_benchmark_repoqa_prompted"]
+_shared = sys.modules["agent_evaluations_external_benchmark_repoqa_shared_common"]
+DEFAULT_REPOQA_RELEASE = _shared.DEFAULT_REPOQA_RELEASE
+repoqa_cache_path = _shared.repoqa_cache_path
+RepoQATask = _prompted.RepoQATask
+build_repoqa_prompted_manifest = _prompted.build_repoqa_prompted_manifest
+build_repoqa_prompted_prompt = _prompted.build_repoqa_prompted_prompt
+materialize_repoqa_prompted_workspace = _prompted.materialize_repoqa_prompted_workspace
+parse_repoqa_prompted_answer = _prompted.parse_repoqa_prompted_answer
+run_repoqa_prompted_benchmark = _prompted.run_repoqa_prompted_benchmark
+run_repoqa_prompted_single_task_from_payload = _prompted.run_repoqa_prompted_single_task_from_payload
+run_repoqa_prompted_task_with_restarts = _prompted.run_repoqa_prompted_task_with_restarts
 
 
 def _write_fixture_config(
@@ -137,6 +143,98 @@ def _write_repoqa_fixture_release(env, *, task_count: int = 1) -> None:
     cache_path.write_bytes(gzip.compress(json.dumps(payload).encode("utf-8")))
 
 
+def _write_repoqa_multilanguage_fixture_release(env) -> None:
+    payload = {
+        "python": [
+            {
+                "repo": "py-repo",
+                "commit_sha": "py-commit",
+                "entrypoint_path": "src/py",
+                "topic": "fixture",
+                "content": {"src/py/mod.py": "def py_target(value):\n    return value + 1\n"},
+                "dependency": {"src/py/mod.py": []},
+                "functions": {
+                    "src/py/mod.py": [
+                        {
+                            "name": "py_target",
+                            "start_line": 1,
+                            "end_line": 2,
+                            "global_start_line": 1,
+                            "global_end_line": 2,
+                            "start_byte": 0,
+                            "end_byte": 40,
+                            "global_start_byte": 0,
+                            "global_end_byte": 40,
+                            "code_ratio": 1.0,
+                        }
+                    ]
+                },
+                "needles": [
+                    {
+                        "name": "py_target",
+                        "start_line": 1,
+                        "end_line": 2,
+                        "start_byte": 0,
+                        "end_byte": 40,
+                        "global_start_line": 1,
+                        "global_end_line": 2,
+                        "global_start_byte": 0,
+                        "global_end_byte": 40,
+                        "code_ratio": 1.0,
+                        "path": "src/py/mod.py",
+                        "description": "Find py_target.",
+                    }
+                ],
+            }
+        ],
+        "java": [
+            {
+                "repo": "java-repo",
+                "commit_sha": "java-commit",
+                "entrypoint_path": "src/java",
+                "topic": "fixture",
+                "content": {"src/java/Thing.java": "int javaTarget(int value) {\n  return value + 2;\n}\n"},
+                "dependency": {"src/java/Thing.java": []},
+                "functions": {
+                    "src/java/Thing.java": [
+                        {
+                            "name": "javaTarget",
+                            "start_line": 1,
+                            "end_line": 3,
+                            "global_start_line": 1,
+                            "global_end_line": 3,
+                            "start_byte": 0,
+                            "end_byte": 52,
+                            "global_start_byte": 0,
+                            "global_end_byte": 52,
+                            "code_ratio": 1.0,
+                        }
+                    ]
+                },
+                "needles": [
+                    {
+                        "name": "javaTarget",
+                        "start_line": 1,
+                        "end_line": 3,
+                        "start_byte": 0,
+                        "end_byte": 52,
+                        "global_start_line": 1,
+                        "global_end_line": 3,
+                        "global_start_byte": 0,
+                        "global_end_byte": 52,
+                        "code_ratio": 1.0,
+                        "path": "src/java/Thing.java",
+                        "description": "Find javaTarget.",
+                    }
+                ],
+            }
+        ],
+    }
+    cache_path = repoqa_cache_path(env, DEFAULT_REPOQA_RELEASE)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_bytes(gzip.compress(json.dumps(payload).encode("utf-8")))
+
+
 def test_repoqa_prompted_prompt_is_deterministic_and_uses_context_budget(tmp_path: Path) -> None:
     config_dir = tmp_path / "config"
     _write_fixture_config(
@@ -163,6 +261,34 @@ def test_repoqa_prompted_prompt_is_deterministic_and_uses_context_budget(tmp_pat
     assert meta1["truncated"] is True
     assert meta1["included_file_count"] >= 1
     assert "Return only the function source code" in prompt1
+
+
+def test_repoqa_prompted_all_language_manifest_is_deterministic_and_balanced(tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    _write_fixture_config(config_dir, response_text="def py_target(value):\n    return value + 1\n")
+    env = load_evaluation_environment(config_dir)
+    _write_repoqa_multilanguage_fixture_release(env)
+
+    manifest1 = build_repoqa_prompted_manifest(
+        env,
+        release=DEFAULT_REPOQA_RELEASE,
+        language="all",
+        limit=2,
+        seed=7,
+    )
+    manifest2 = build_repoqa_prompted_manifest(
+        env,
+        release=DEFAULT_REPOQA_RELEASE,
+        language="all",
+        limit=2,
+        seed=7,
+    )
+
+    stable1 = {key: value for key, value in manifest1.items() if key != "created_at"}
+    stable2 = {key: value for key, value in manifest2.items() if key != "created_at"}
+    assert stable1 == stable2
+    assert manifest1["languages"] == ["python", "java"]
+    assert [task["language"] for task in manifest1["tasks"]] == ["python", "java"]
 
 
 def test_repoqa_prompted_parser_accepts_plain_and_fenced_code() -> None:
@@ -229,10 +355,140 @@ def test_repoqa_prompted_fixture_run_scores_completed_plain_code_answer(tmp_path
     result = json.loads((run_manifest_path.parent / "results.jsonl").read_text(encoding="utf-8").strip())
 
     assert summary["completed_task_count"] == 1
+    assert summary["eligible_task_count"] == 1
+    assert summary["excluded_missing_target_context_count"] == 0
     assert summary["accuracy"] == 1.0
     assert result["score"]["matched"] is True
     assert result["tool_call_count"] == 0
     assert result["effective_tool_schema_count"] == 0
+
+
+def test_repoqa_prompted_omitted_target_skips_request_and_is_excluded(tmp_path: Path, monkeypatch) -> None:
+    config_dir = tmp_path / "config"
+    _write_fixture_config(
+        config_dir,
+        response_text="def target_0(value):\n    return helper(value) + 0\n",
+        prompted_settings={"context_budget_chars": 70},
+    )
+    env = load_evaluation_environment(config_dir)
+    _write_repoqa_fixture_release(env, task_count=1)
+    manifest = build_repoqa_prompted_manifest(
+        env,
+        release=DEFAULT_REPOQA_RELEASE,
+        language="python",
+        limit=1,
+        seed=1,
+    )
+    task_payload = manifest["tasks"][0]
+
+    def _unexpected_attempt(*_args, **_kwargs):
+        raise AssertionError("request should not be sent when target is omitted from context")
+
+    monkeypatch.setattr(_prompted._logic, "_run_repoqa_prompted_attempt", _unexpected_attempt)
+
+    result = run_repoqa_prompted_task_with_restarts(
+        env,
+        run_id="omitted-target",
+        release=DEFAULT_REPOQA_RELEASE,
+        task_payload=task_payload,
+        agent_id="fixture-agent",
+        model_override=None,
+        max_task_restarts=0,
+    )
+
+    assert result["state"] == "skipped_missing_target_context"
+    assert result["outcome"] == "skipped_missing_target_context"
+    assert result["eligible_for_accuracy"] is False
+    assert result["target_in_context"] is False
+    assert result["provider_call_count"] == 0
+
+
+def test_repoqa_prompted_summary_excludes_missing_target_context_from_accuracy(monkeypatch, tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    _write_fixture_config(config_dir, response_text="def target_0(value):\n    return helper(value) + 0\n")
+    env = load_evaluation_environment(config_dir)
+    _write_repoqa_fixture_release(env, task_count=2)
+    manifest = build_repoqa_prompted_manifest(
+        env,
+        release=DEFAULT_REPOQA_RELEASE,
+        language="python",
+        limit=2,
+        seed=1,
+    )
+
+    responses = iter(
+        [
+            {
+                "task": manifest["tasks"][0],
+                "workspace_root": str(tmp_path / "workspace-1"),
+                "attempts": [],
+                "state": "skipped_missing_target_context",
+                "outcome": "skipped_missing_target_context",
+                "eligible_for_accuracy": False,
+                "failure_category": "context_budget_excluded_target",
+                "error": None,
+                "score": {"matched": False, "score": 0.0},
+                "parsed_answer": None,
+                "parse_error": None,
+                "final_assistant_text": "",
+                "tool_call_count": 0,
+                "effective_tool_schema_count": 0,
+                "usage": None,
+                "cost": None,
+                "cost_formatted": None,
+                "provider_call_count": 0,
+                "meta": {},
+            },
+            {
+                "task": manifest["tasks"][1],
+                "workspace_root": str(tmp_path / "workspace-2"),
+                "attempts": [{"attempt_index": 0, "state": "completed"}],
+                "state": "completed",
+                "outcome": "matched",
+                "eligible_for_accuracy": True,
+                "failure_category": None,
+                "error": None,
+                "score": {"matched": True, "score": 1.0},
+                "parsed_answer": {
+                    "path": manifest["tasks"][1]["path"],
+                    "symbol": manifest["tasks"][1]["symbol"],
+                    "code": manifest["tasks"][1]["ground_truth_code"],
+                },
+                "parse_error": None,
+                "final_assistant_text": manifest["tasks"][1]["ground_truth_code"],
+                "tool_call_count": 0,
+                "effective_tool_schema_count": 0,
+                "usage": None,
+                "cost": None,
+                "cost_formatted": None,
+                "provider_call_count": None,
+                "meta": {},
+            },
+        ]
+    )
+
+    monkeypatch.setattr(_prompted._logic, "run_repoqa_prompted_task_with_restarts", lambda *args, **kwargs: next(responses))
+
+    run_manifest_path = run_repoqa_prompted_benchmark(
+        env,
+        benchmark_manifest=manifest,
+        agent_id="fixture-agent",
+        profile_name=None,
+        profile_payload={},
+        schedule_overrides={"tasks_per_window": 10, "window_minutes": 60, "max_parallel_tasks": 1},
+        model_override=None,
+        max_task_restarts=1,
+        resume_run_manifest_path=None,
+    )
+
+    summary = json.loads((run_manifest_path.parent / "summary.json").read_text(encoding="utf-8"))
+    assert summary["manifest_task_count"] == 2
+    assert summary["eligible_task_count"] == 1
+    assert summary["excluded_missing_target_context_count"] == 1
+    assert summary["model_request_task_count"] == 1
+    assert summary["matched_task_count"] == 1
+    assert summary["accuracy"] == 1.0
+    assert summary["raw_accuracy_over_manifest"] == 0.5
 
 
 def test_repoqa_prompted_internal_single_task_runner_uses_existing_workspace(tmp_path: Path) -> None:
@@ -362,7 +618,12 @@ def test_repoqa_prompted_runner_uses_docker_backend_when_selected(monkeypatch, t
             "provider_call_count": None,
         }
 
-    monkeypatch.setattr("agent_evaluations.repoqa_prompted.run_benchmark_task_in_container", _fake_run_in_container)
+    monkeypatch.setattr(
+        _prompted._logic,
+        "warm_container_plugin_cache",
+        lambda runtime, *, host_config_dir, agent_id=None: {"state": "warmed"},
+    )
+    monkeypatch.setattr(_prompted._logic, "run_benchmark_task_in_container", _fake_run_in_container)
 
     run_manifest_path = run_repoqa_prompted_benchmark(
         env,
@@ -380,3 +641,60 @@ def test_repoqa_prompted_runner_uses_docker_backend_when_selected(monkeypatch, t
 
     assert run_manifest_path.is_file()
     assert seen["kwargs"]["benchmark_id"] == "repoqa-prompted"
+
+
+def test_repoqa_prompted_summary_aggregates_costs(monkeypatch, tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    _write_fixture_config(config_dir, response_text="def target_0(value):\n    return helper(value) + 0\n")
+    env = load_evaluation_environment(config_dir)
+    _write_repoqa_fixture_release(env, task_count=2)
+    manifest = build_repoqa_prompted_manifest(
+        env,
+        release=DEFAULT_REPOQA_RELEASE,
+        language="python",
+        limit=2,
+        seed=1,
+    )
+
+    costs = iter([0.0015, 0.0025])
+
+    def _fake_task_runner(*_args, **kwargs):
+        cost = next(costs)
+        task_payload = kwargs["task_payload"]
+        return {
+            "task": task_payload,
+            "workspace_root": str(tmp_path / "workspace"),
+            "attempts": [{"attempt_index": 0, "state": "completed"}],
+            "state": "completed",
+            "error": None,
+            "score": {"matched": True, "score": 1.0},
+            "parsed_answer": {"path": task_payload["path"], "symbol": task_payload["symbol"], "code": task_payload["ground_truth_code"]},
+            "parse_error": None,
+            "final_assistant_text": task_payload["ground_truth_code"],
+            "tool_call_count": 0,
+            "effective_tool_schema_count": 0,
+            "usage": {"usage_total_cost": cost, "usage_total_cost_formatted": f"${cost:.6f}"},
+            "cost": cost,
+            "cost_formatted": f"${cost:.6f}",
+            "provider_call_count": None,
+            "meta": {},
+        }
+
+    monkeypatch.setattr(_prompted._logic, "run_repoqa_prompted_task_with_restarts", _fake_task_runner)
+
+    run_manifest_path = run_repoqa_prompted_benchmark(
+        env,
+        benchmark_manifest=manifest,
+        agent_id="fixture-agent",
+        profile_name=None,
+        profile_payload={},
+        schedule_overrides={"tasks_per_window": 10, "window_minutes": 60, "max_parallel_tasks": 1},
+        model_override=None,
+        max_task_restarts=1,
+        resume_run_manifest_path=None,
+    )
+
+    summary = json.loads((run_manifest_path.parent / "summary.json").read_text(encoding="utf-8"))
+    assert summary["costed_task_count"] == 2
+    assert summary["total_cost"] == 0.004
+    assert summary["total_cost_formatted"] == "$0.004000"

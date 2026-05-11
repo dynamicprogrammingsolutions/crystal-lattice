@@ -1,0 +1,22 @@
+{
+  "benchmark": "repoqa-prompted",
+  "agent_id": "repoqa-prompted-openai-api",
+  "model": "gpt-5.4-mini",
+  "runtime_backend": "docker",
+  "max_task_restarts": 1,
+  "manifest": {
+    "release": "2024-06-23",
+    "language": "all",
+    "limit": 10,
+    "seed": 1
+  },
+  "schedule": {
+    "window_minutes": 1,
+    "tasks_per_window": 1000,
+    "max_parallel_tasks": 4
+  },
+  "docker": {
+    "enabled": true,
+    "image_tag": "agent-evaluations:repoqa"
+  }
+}

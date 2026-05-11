@@ -125,10 +125,16 @@ This keeps the benchmark closer to how coding agents are actually used and avoid
 Keep the interface parallel to RepoQA:
 
 ```text
-python -m agent_evaluations download livecodebench --config-dir evaluations/config/main --release v6
-python -m agent_evaluations manifest livecodebench --config-dir evaluations/config/main --limit 20 --seed 1
-python -m agent_evaluations run livecodebench --config-dir evaluations/config/main --agent-id codex-openai
-python -m agent_evaluations run livecodebench --config-dir evaluations/config/main --agent-id codex-openai-api
+agent-evaluations download livecodebench --config-dir evaluations/benchmarks/livecodebench/config/<env> --profile <profile>
+agent-evaluations manifest livecodebench --config-dir evaluations/benchmarks/livecodebench/config/<env> --profile <profile>
+agent-evaluations run livecodebench --config-dir evaluations/benchmarks/livecodebench/config/<env> --profile <profile>
+```
+
+For local development, prefer editable installs:
+
+```text
+pip install -e core/python
+pip install -e evaluations
 ```
 
 ## Notes for completion

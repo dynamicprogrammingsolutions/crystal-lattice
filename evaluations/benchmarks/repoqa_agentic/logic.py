@@ -1,234 +1,56 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-import ast
 from datetime import datetime, timezone
-import gzip
-import hashlib
+import importlib.util
 import json
-import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path
+import sys
 import shutil
-import textwrap
 from typing import Any, Dict, Iterable, List, Optional, Tuple
-from urllib.request import urlopen
 
 from agent_core import Session
 from agent_core.tool_interop import DEFAULT_TOOL_INTEROP_REGISTRY
 
-from .container_backend import (
+from agent_evaluations.container_backend import (
     DockerRuntimeConfig,
     resolve_docker_runtime_config,
-    run_repoqa_task_in_container,
+    run_benchmark_task_in_container,
+    warm_container_plugin_cache,
 )
-from .config_dir import EvaluationEnvironment, benchmark_settings, merge_dicts
-from .profiles import load_run_profile
-from .scheduler import TaskStartPolicy, plan_task_starts, policy_from_config, sleep_until
-from .utils import append_jsonl, isoformat_utc, utc_now, write_json, write_json_atomic
+from agent_evaluations.config_dir import EvaluationEnvironment, benchmark_settings, merge_dicts
+from agent_evaluations.profiles import load_run_profile
+from agent_evaluations.scheduler import TaskStartPolicy, plan_task_starts, policy_from_config, sleep_until
+from agent_evaluations.utils import append_jsonl, isoformat_utc, utc_now, write_json, write_json_atomic
+
+
+def _load_repoqa_shared_module() -> Any:
+    module_name = "agent_evaluations_external_benchmark_repoqa_shared_common"
+    cached = sys.modules.get(module_name)
+    if cached is not None:
+        return cached
+    module_path = Path(__file__).resolve().parents[1] / "repoqa_shared" / "common.py"
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load RepoQA shared helpers from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_shared = _load_repoqa_shared_module()
+DEFAULT_REPOQA_RELEASE = _shared.DEFAULT_REPOQA_RELEASE
+RepoQATask = _shared.RepoQATask
+count_tool_calls = _shared.count_tool_calls
+download_repoqa_release = _shared.download_repoqa_release
+extract_final_assistant_text = _shared.extract_final_assistant_text
+iter_repoqa_tasks = _shared.iter_repoqa_tasks
+load_repoqa_dataset = _shared.load_repoqa_dataset
+repoqa_cache_path = _shared.repoqa_cache_path
+score_repoqa_answer = _shared.score_repoqa_answer
 
 
 REPOQA_BENCHMARK_ID = "repoqa"
-DEFAULT_REPOQA_RELEASE = "2024-06-23"
-REPOQA_RELEASE_URL_TEMPLATE = (
-    "https://github.com/evalplus/repoqa_release/releases/download/{release}/"
-    "repoqa-{release}.json.gz"
-)
-
-
-@dataclass(frozen=True)
-class RepoQATask:
-    task_id: str
-    language: str
-    repo_index: int
-    needle_index: int
-    repo_name: str
-    commit_sha: str
-    path: str
-    symbol: str
-    description: str
-    start_line: int
-    end_line: int
-    ground_truth_code: str
-
-    def to_manifest_dict(self) -> Dict[str, Any]:
-        return {
-            "task_id": self.task_id,
-            "language": self.language,
-            "repo_index": self.repo_index,
-            "needle_index": self.needle_index,
-            "repo_name": self.repo_name,
-            "commit_sha": self.commit_sha,
-            "path": self.path,
-            "symbol": self.symbol,
-            "description": self.description,
-            "start_line": self.start_line,
-            "end_line": self.end_line,
-            "ground_truth_code": self.ground_truth_code,
-        }
-
-
-def repoqa_release_url(release: str) -> str:
-    return REPOQA_RELEASE_URL_TEMPLATE.format(release=release)
-
-
-def repoqa_cache_path(env: EvaluationEnvironment, release: str) -> Path:
-    return env.paths.cache_root / "repoqa" / "releases" / f"repoqa-{release}.json.gz"
-
-
-def download_repoqa_release(
-    env: EvaluationEnvironment,
-    *,
-    release: str,
-    force: bool = False,
-) -> Path:
-    destination = repoqa_cache_path(env, release)
-    if destination.exists() and not force:
-        return destination
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    with urlopen(repoqa_release_url(release), timeout=60) as response:
-        payload = response.read()
-    destination.write_bytes(payload)
-    return destination
-
-
-def load_repoqa_dataset(env: EvaluationEnvironment, *, release: str) -> Dict[str, Any]:
-    path = repoqa_cache_path(env, release)
-    raw = gzip.decompress(path.read_bytes())
-    payload = json.loads(raw)
-    if not isinstance(payload, dict):
-        raise ValueError("RepoQA dataset payload must be a JSON object")
-    return payload
-
-
-def _normalize_code(text: str) -> str:
-    lines = [line.rstrip() for line in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
-    return "\n".join(lines).strip()
-
-
-def _normalize_repoqa_path(text: str) -> str:
-    normalized = text.strip().replace("\\", "/")
-    while normalized.startswith("./"):
-        normalized = normalized[2:]
-    if normalized.startswith("/"):
-        normalized = normalized[1:]
-    if normalized.startswith("repo/"):
-        normalized = normalized[len("repo/") :]
-    try:
-        return str(PurePosixPath(normalized))
-    except Exception:
-        return normalized
-
-
-def _strip_docstrings(node: ast.AST) -> ast.AST:
-    for child in ast.walk(node):
-        body = getattr(child, "body", None)
-        if not isinstance(body, list) or not body:
-            continue
-        first = body[0]
-        if not isinstance(first, ast.Expr):
-            continue
-        value = getattr(first, "value", None)
-        if isinstance(value, ast.Constant) and isinstance(value.value, str):
-            body.pop(0)
-    return node
-
-
-def _python_semantic_signature(text: str) -> Optional[str]:
-    normalized = textwrap.dedent(text).strip()
-    if not normalized:
-        return None
-    try:
-        tree = ast.parse(normalized)
-    except SyntaxError:
-        return None
-    stripped = _strip_docstrings(tree)
-    return ast.dump(stripped, annotate_fields=True, include_attributes=False)
-
-
-def _semantically_equal_code(language: str, left: str, right: str) -> bool:
-    if language == "python":
-        left_sig = _python_semantic_signature(left)
-        right_sig = _python_semantic_signature(right)
-        if left_sig is not None and right_sig is not None:
-            return left_sig == right_sig
-    return _normalize_code(left) == _normalize_code(right)
-
-
-def _extract_ground_truth_code(repo_entry: Dict[str, Any], needle: Dict[str, Any]) -> str:
-    path = needle.get("path")
-    start_line = needle.get("start_line")
-    end_line = needle.get("end_line")
-    content_map = repo_entry.get("content")
-    if (
-        not isinstance(path, str)
-        or not isinstance(start_line, int)
-        or not isinstance(end_line, int)
-        or not isinstance(content_map, dict)
-    ):
-        raise ValueError("RepoQA entry missing code extraction fields")
-    file_text = content_map.get(path)
-    if not isinstance(file_text, str):
-        raise ValueError(f"RepoQA content missing file {path!r}")
-    lines = file_text.splitlines()
-    snippet = "\n".join(lines[start_line - 1 : end_line])
-    return snippet.strip("\n") + "\n"
-
-
-def iter_repoqa_tasks(
-    dataset: Dict[str, Any],
-    *,
-    language: str,
-) -> Iterable[RepoQATask]:
-    repos = dataset.get(language)
-    if not isinstance(repos, list):
-        raise KeyError(f"RepoQA dataset does not contain language {language!r}")
-
-    for repo_index, repo_entry in enumerate(repos):
-        if not isinstance(repo_entry, dict):
-            continue
-        needles = repo_entry.get("needles")
-        if not isinstance(needles, list):
-            continue
-        for needle_index, needle in enumerate(needles):
-            if not isinstance(needle, dict):
-                continue
-            path = needle.get("path")
-            symbol = needle.get("name")
-            start_line = needle.get("start_line")
-            end_line = needle.get("end_line")
-            description = needle.get("description")
-            repo_name = repo_entry.get("repo")
-            commit_sha = repo_entry.get("commit_sha")
-            if not all(
-                [
-                    isinstance(path, str),
-                    isinstance(symbol, str),
-                    isinstance(start_line, int),
-                    isinstance(end_line, int),
-                    isinstance(description, str),
-                    isinstance(repo_name, str),
-                    isinstance(commit_sha, str),
-                ]
-            ):
-                continue
-            task_id_source = f"{language}|{repo_name}|{path}|{symbol}|{start_line}|{end_line}"
-            task_id = hashlib.sha1(task_id_source.encode("utf-8")).hexdigest()[:16]
-            yield RepoQATask(
-                task_id=task_id,
-                language=language,
-                repo_index=repo_index,
-                needle_index=needle_index,
-                repo_name=repo_name,
-                commit_sha=commit_sha,
-                path=path,
-                symbol=symbol,
-                description=description.strip(),
-                start_line=start_line,
-                end_line=end_line,
-                ground_truth_code=_extract_ground_truth_code(repo_entry, needle),
-            )
-
 
 def build_repoqa_manifest(
     env: EvaluationEnvironment,
@@ -339,34 +161,6 @@ def materialize_repoqa_workspace(
     return workspace_root, metadata
 
 
-def _count_tool_calls(session: Session) -> int:
-    total = 0
-    for message in session.messages:
-        metadata = message.metadata if isinstance(message.metadata, dict) else {}
-        tool_calls = metadata.get("tool_calls")
-        if isinstance(tool_calls, list):
-            total += len(tool_calls)
-    return total
-
-
-def _extract_final_assistant_text(events: List[Dict[str, Any]]) -> str:
-    for event in reversed(events):
-        if event.get("type") != "final":
-            continue
-        messages = event.get("messages")
-        if not isinstance(messages, list):
-            continue
-        for message in reversed(messages):
-            if not isinstance(message, dict):
-                continue
-            if message.get("role") != "assistant":
-                continue
-            content = message.get("content")
-            if isinstance(content, str):
-                return content
-    return ""
-
-
 def parse_repoqa_answer(raw_text: str) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
     text = raw_text.strip()
     if not text:
@@ -401,34 +195,6 @@ def parse_repoqa_answer(raw_text: str) -> Tuple[Optional[Dict[str, str]], Option
         "symbol": symbol.strip(),
         "code": code,
     }, None
-
-
-def score_repoqa_answer(task: RepoQATask, answer: Optional[Dict[str, str]]) -> Dict[str, Any]:
-    if answer is None:
-        return {
-            "matched": False,
-            "path_match": False,
-            "symbol_match": False,
-            "code_match": False,
-            "score": 0.0,
-        }
-
-    path_match = _normalize_repoqa_path(answer.get("path", "")) == _normalize_repoqa_path(task.path)
-    symbol_match = answer.get("symbol") == task.symbol
-    code_match = _semantically_equal_code(
-        task.language,
-        answer.get("code", ""),
-        task.ground_truth_code,
-    )
-    matched = path_match and symbol_match and code_match
-    return {
-        "matched": matched,
-        "path_match": path_match,
-        "symbol_match": symbol_match,
-        "code_match": code_match,
-        "score": 1.0 if matched else 0.0,
-    }
-
 
 def _run_repoqa_attempt(
     env: EvaluationEnvironment,
@@ -480,8 +246,8 @@ def _run_repoqa_attempt(
     return {
         "events": events,
         "final_session": final_session,
-        "final_assistant_text": _extract_final_assistant_text(events),
-        "tool_call_count": _count_tool_calls(final_session),
+        "final_assistant_text": extract_final_assistant_text(events),
+        "tool_call_count": count_tool_calls(final_session),
         "provider_call_count": None,
     }
 
@@ -766,6 +532,16 @@ def run_repoqa_benchmark(
     run_root = run_manifest_path.parent
     results_jsonl = run_root / "results.jsonl"
     summary_json = run_root / "summary.json"
+
+    if runtime_backend == "docker":
+        if docker_runtime is None:
+            raise ValueError("docker_runtime must be provided when runtime_backend='docker'")
+        warm_container_plugin_cache(
+            docker_runtime,
+            host_config_dir=env.paths.config_dir,
+            agent_id=agent_id,
+        )
+
     active_tasks: Dict[Any, Dict[str, Any]] = {}
     completed: List[Dict[str, Any]] = []
 
@@ -837,8 +613,9 @@ def run_repoqa_benchmark(
                     task_output_path = task_result_dir / f"{task.task_id}.json"
                     write_json_atomic(task_input_path, task_payload)
                     future = executor.submit(
-                        run_repoqa_task_in_container,
+                        run_benchmark_task_in_container,
                         runtime,
+                        benchmark_id=REPOQA_BENCHMARK_ID,
                         host_config_dir=env.paths.config_dir,
                         host_workspace_root=workspace_root,
                         host_results_root=run_root,

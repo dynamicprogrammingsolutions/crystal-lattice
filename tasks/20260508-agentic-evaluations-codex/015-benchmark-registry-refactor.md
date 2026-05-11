@@ -47,10 +47,10 @@ Do **not** over-engineer this into:
 After this refactor, the current RepoQA benchmark should still expose commands equivalent to:
 
 ```text
-python -m agent_evaluations download repoqa --config-dir ...
-python -m agent_evaluations manifest repoqa --config-dir ...
-python -m agent_evaluations run repoqa --config-dir ...
-python -m agent_evaluations internal run-single repoqa --config-dir ...
+agent-evaluations download repoqa --config-dir ... [--profile ...]
+agent-evaluations manifest repoqa --config-dir ... [--profile ...]
+agent-evaluations run repoqa --config-dir ... [--profile ...]
+agent-evaluations internal run-single repoqa --config-dir ...
 ```
 
 But those commands should be registered through a benchmark definition/discovery path rather than hardcoded directly in `cli.py`.
@@ -69,13 +69,17 @@ It should define:
 - benchmark discovery/loading
 - lookup by benchmark id
 
-### 2. Add a benchmarks package
+### 2. Add benchmark discovery locations
 
-Create a package such as:
+Preferred benchmark-owned location:
+
+- `evaluations/benchmarks/<benchmark>/benchmark.py`
+
+Compatibility fallback location:
 
 - `evaluations/src/agent_evaluations/benchmarks/`
 
-Each benchmark module in that package should export one benchmark definition symbol, for example:
+Each benchmark module should export one benchmark definition symbol, for example:
 
 - `BENCHMARK`
 
@@ -89,7 +93,9 @@ Keep the existing RepoQA logic module:
 
 Add a benchmark registration/adapter module, for example:
 
-- `evaluations/src/agent_evaluations/benchmarks/repoqa_agentic.py`
+- `evaluations/benchmarks/repoqa_agentic/benchmark.py`
+
+The package-relative module may remain temporarily as a compatibility fallback during migration.
 
 This module should:
 

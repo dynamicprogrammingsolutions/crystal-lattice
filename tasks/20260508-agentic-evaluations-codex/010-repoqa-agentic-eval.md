@@ -138,12 +138,18 @@ These upstream references should be treated as the benchmark-side source of trut
 Keep this benchmark on the same CLI that LiveCodeBench will later reuse. Example shape:
 
 ```text
-python -m agent_evaluations auth login-chatgpt --config-dir evaluations/config/main
-python -m agent_evaluations auth status --config-dir evaluations/config/main
-python -m agent_evaluations download repoqa --config-dir evaluations/config/main --release 2024-06-23
-python -m agent_evaluations manifest repoqa --config-dir evaluations/config/main --limit 25 --seed 1
-python -m agent_evaluations run repoqa --config-dir evaluations/config/main --agent-id codex-openai
-python -m agent_evaluations run repoqa --config-dir evaluations/config/main --agent-id codex-openai-api
+agent-evaluations auth login-chatgpt --config-dir evaluations/benchmarks/repoqa_agentic/config/<env>
+agent-evaluations auth status --config-dir evaluations/benchmarks/repoqa_agentic/config/<env>
+agent-evaluations download repoqa --config-dir evaluations/benchmarks/repoqa_agentic/config/<env> --profile <profile>
+agent-evaluations manifest repoqa --config-dir evaluations/benchmarks/repoqa_agentic/config/<env> --profile <profile>
+agent-evaluations run repoqa --config-dir evaluations/benchmarks/repoqa_agentic/config/<env> --profile <profile>
+```
+
+For local development, prefer editable installs:
+
+```text
+pip install -e core/python
+pip install -e evaluations
 ```
 
 ## Notes for completion

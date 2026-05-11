@@ -44,12 +44,14 @@ Core framework:
 
 Benchmark registration:
 
-- `evaluations/src/agent_evaluations/benchmarks/`
+- preferred: `evaluations/benchmarks/<benchmark>/benchmark.py`
+- compatibility fallback: `evaluations/src/agent_evaluations/benchmarks/`
 
 Current benchmark logic:
 
-- `evaluations/src/agent_evaluations/repoqa.py`
-- `evaluations/src/agent_evaluations/repoqa_prompted.py`
+- `evaluations/benchmarks/repoqa_agentic/logic.py`
+- `evaluations/benchmarks/repoqa_prompted/logic.py`
+- `evaluations/benchmarks/repoqa_shared/common.py`
 
 Tests:
 
@@ -82,9 +84,9 @@ New benchmarks should plug into the shared framework through the registry, not b
 
 ## Benchmark registration model
 
-Benchmarks are discovered from:
+Benchmarks are discovered from benchmark-owned directories under:
 
-- `evaluations/src/agent_evaluations/benchmarks/`
+- `evaluations/benchmarks/`
 
 Each benchmark module exports:
 
@@ -112,14 +114,13 @@ The `internal run-single` path is the container/worker entrypoint for executing 
 Benchmark runs are driven by a config directory. Expected files:
 
 - `config.json`
-- `AGENTS.md`
 - optional `.env`
+- optional `AGENTS.md`
 - optional `auth/`
 - optional `profiles/`
 
-Runner settings live under:
-
-- `agentic_evaluations`
+`AGENTS.md` is only needed when the selected benchmark/config actually uses it.
+For example, `repoqa-prompted` does not require a config-dir `AGENTS.md`.
 
 Important roots:
 
@@ -131,17 +132,25 @@ Important roots:
 
 These roots may be siblings. Do not assume results live under config.
 
+Preferred boundary:
+
+- `config.json` for provider/agent/plugin runtime setup
+- profile for the evaluation plan, including schedule and Docker
+
+The shared loader still supports config-level path overrides when needed, but benchmark-specific execution settings should prefer profiles.
+
 ## How to add a benchmark
 
-1. Add a benchmark logic module under `evaluations/src/agent_evaluations/`
-2. Add a benchmark registration module under `evaluations/src/agent_evaluations/benchmarks/`
-3. Export `BENCHMARK`
-4. Implement benchmark-owned handlers for:
+1. Add benchmark-owned files under `evaluations/benchmarks/<benchmark>/`
+2. Add a benchmark registration module there as `benchmark.py`
+3. Keep shared or reusable logic under `evaluations/src/agent_evaluations/` as needed
+4. Export `BENCHMARK`
+5. Implement benchmark-owned handlers for:
    - download
    - manifest
    - run
    - internal run-single
-5. Add tests under `evaluations/tests/`
+6. Add tests under `evaluations/tests/`
 
 Recommended tests:
 
@@ -161,7 +170,8 @@ Host mode:
 Docker mode:
 
 - host creates task payloads and result paths
-- container runs `python -m agent_evaluations internal run-single <benchmark> ...`
+- host-side human usage should prefer the installed `agent-evaluations ...` console script
+- container execution currently uses `python -m agent_evaluations internal run-single <benchmark> ...` as an implementation detail
 - results are written back into the mounted results directory
 
 Separate mounts are used for:
@@ -246,6 +256,8 @@ Per-task results should preserve enough information to debug failures, such as:
 - disables tools through `ToolGatingFeature`
 - expects plain function code output
 - normalizes the result into the same scorer input shape used by `repoqa`
+- supports deterministic `language="all"` selection via balanced round-robin interleaving across languages
+- can surface usage/cost metadata in task results and summaries when provided by the OpenAI Responses stack
 
 ## Testing commands
 

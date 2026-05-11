@@ -65,7 +65,12 @@ def build_evaluations_wheel(
     source_root: Path | None = None,
 ) -> Path:
     package_root = (source_root or (repo_root() / "evaluations")).resolve()
+    build_dir = package_root / "build"
+    if build_dir.exists():
+        shutil.rmtree(build_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    for existing in output_dir.glob("agent_evaluations-*.whl"):
+        existing.unlink()
     env = dict(os.environ)
     command = [
         sys.executable,
@@ -139,7 +144,7 @@ def resolve_docker_runtime_config(
     default_evaluations_wheel_dir = root / "build" / "agent-evaluations" / "wheels"
 
     enabled = bool(merged.get("enabled", False))
-    image_tag = str(merged.get("image_tag") or "agent-evaluations:repoqa")
+    image_tag = str(merged.get("image_tag") or "agent-evaluations:runner")
     dockerfile = _resolve_path(
         merged.get("dockerfile"),
         base=env.paths.config_dir,
@@ -249,33 +254,50 @@ def build_docker_image(runtime: DockerRuntimeConfig) -> Dict[str, Any]:
     }
 
 
-def run_repoqa_task_in_container(
+def warm_container_plugin_cache(
     runtime: DockerRuntimeConfig,
     *,
     host_config_dir: Path,
-    host_workspace_root: Path,
-    host_results_root: Path,
-    host_task_payload_path: Path,
-    host_output_path: Path,
-    release: str,
-    agent_id: str,
-    model_override: str | None,
-    max_task_restarts: int,
+    agent_id: str | None = None,
 ) -> Dict[str, Any]:
-    return run_benchmark_task_in_container(
-        runtime,
-        benchmark_id="repoqa",
-        host_config_dir=host_config_dir,
-        host_workspace_root=host_workspace_root,
-        host_results_root=host_results_root,
-        host_task_payload_path=host_task_payload_path,
-        host_output_path=host_output_path,
-        release=release,
-        agent_id=agent_id,
-        model_override=model_override,
-        max_task_restarts=max_task_restarts,
+    command = [
+        "docker",
+        "run",
+        "--rm",
+        "-v",
+        f"{host_config_dir.resolve()}:{runtime.config_mount_path}",
+    ]
+    for key, value in runtime.container_env.items():
+        command.extend(["-e", f"{key}={value}"])
+    command.extend(runtime.extra_run_args)
+    command.extend(
+        [
+            runtime.image_tag,
+            "python",
+            "-m",
+            "agent_evaluations",
+            "internal",
+            "warm-cache",
+            "--config-dir",
+            runtime.config_mount_path,
+        ]
     )
+    if isinstance(agent_id, str) and agent_id.strip():
+        command.extend(["--agent-id", agent_id.strip()])
 
+    completed = subprocess.run(
+        command,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    return {
+        "state": "warmed",
+        "command": command,
+        "stdout": completed.stdout,
+        "stderr": completed.stderr,
+        "image_tag": runtime.image_tag,
+    }
 
 def run_benchmark_task_in_container(
     runtime: DockerRuntimeConfig,

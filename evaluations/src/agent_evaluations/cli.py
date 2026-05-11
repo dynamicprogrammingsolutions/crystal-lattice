@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
+import tempfile
 from typing import Any, Dict
 
 from .benchmark_registry import load_benchmarks
-from .cli_helpers import print_json
-from .container_backend import build_docker_image, resolve_docker_runtime_config
+from .cli_helpers import print_json, resolve_run_value
+from .container_backend import (
+    build_docker_image,
+    resolve_docker_runtime_config,
+    warm_container_plugin_cache,
+)
 from .config_dir import load_evaluation_environment
 from .profiles import load_run_profile
 
@@ -69,6 +75,37 @@ def _container_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def _container_warm_cache(args: argparse.Namespace) -> int:
+    env = load_evaluation_environment(args.config_dir)
+    profile_payload = load_run_profile(env.paths.profiles_root, args.profile)
+    runtime = resolve_docker_runtime_config(env, profile_payload=profile_payload)
+    agent_id = resolve_run_value(args.agent_id, profile_payload, "agent_id")
+    result = warm_container_plugin_cache(
+        runtime,
+        host_config_dir=env.paths.config_dir,
+        agent_id=agent_id if isinstance(agent_id, str) and agent_id else None,
+    )
+    print_json(result)
+    return 0
+
+
+def _internal_warm_cache(args: argparse.Namespace) -> int:
+    env = load_evaluation_environment(args.config_dir)
+    with tempfile.TemporaryDirectory(prefix="agent-evaluations-warm-cache-") as temp_root:
+        app = env.build_application(session_root=Path(temp_root) / "sessions")
+        if isinstance(args.agent_id, str) and args.agent_id:
+            _core, _base_config, session = app.create_session_ephemeral(args.agent_id)
+            _ = session
+    print_json(
+        {
+            "state": "warmed",
+            "config_dir": str(env.paths.config_dir),
+            "agent_id": args.agent_id,
+        }
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agentic evaluation CLI")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -101,12 +138,24 @@ def build_parser() -> argparse.ArgumentParser:
     container_build.add_argument("--config-dir", required=True)
     container_build.add_argument("--profile")
     container_build.set_defaults(func=_container_build)
+    container_warm_cache = container_sub.add_parser(
+        "warm-cache",
+        help="Warm plugin cache in the benchmark runner container",
+    )
+    container_warm_cache.add_argument("--config-dir", required=True)
+    container_warm_cache.add_argument("--profile")
+    container_warm_cache.add_argument("--agent-id")
+    container_warm_cache.set_defaults(func=_container_warm_cache)
 
     run = subparsers.add_parser("run", help="Run benchmark tasks")
     run_sub = run.add_subparsers(dest="run_command", required=True)
 
     internal = subparsers.add_parser("internal", help=argparse.SUPPRESS)
     internal_sub = internal.add_subparsers(dest="internal_command", required=True)
+    internal_warm_cache = internal_sub.add_parser("warm-cache", help=argparse.SUPPRESS)
+    internal_warm_cache.add_argument("--config-dir", required=True)
+    internal_warm_cache.add_argument("--agent-id")
+    internal_warm_cache.set_defaults(func=_internal_warm_cache)
     internal_run_single = internal_sub.add_parser("run-single", help=argparse.SUPPRESS)
     internal_run_single_sub = internal_run_single.add_subparsers(dest="internal_benchmark", required=True)
 

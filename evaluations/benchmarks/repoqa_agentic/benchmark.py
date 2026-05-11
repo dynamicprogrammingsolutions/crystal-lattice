@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import argparse
-import json
+import importlib.util
 from pathlib import Path
+import sys
 from typing import Any, Dict
 
 from agent_evaluations.benchmark_registry import BenchmarkDefinition
@@ -16,41 +17,105 @@ from agent_evaluations.cli_helpers import (
     schedule_overrides_from_args,
 )
 from agent_evaluations.config_dir import load_evaluation_environment
-from agent_evaluations.container_backend import (
-    resolve_docker_runtime_config,
-)
+from agent_evaluations.container_backend import resolve_docker_runtime_config
 from agent_evaluations.profiles import load_run_profile
-from agent_evaluations.repoqa import (
-    DEFAULT_REPOQA_RELEASE,
-    build_repoqa_manifest,
-    default_repoqa_manifest_path,
-    download_repoqa_release,
-    run_repoqa_benchmark,
-    run_repoqa_single_task_from_payload,
-)
 from agent_evaluations.utils import write_json_atomic
 
 
-def _load_manifest_for_run(env: Any, args: argparse.Namespace) -> Dict[str, Any]:
-    if isinstance(args.manifest_path, str) and args.manifest_path:
-        return json_file(args.manifest_path)
-    download_repoqa_release(env, release=args.release, force=False)
+def _load_logic_module() -> Any:
+    module_name = "agent_evaluations_external_benchmark_repoqa_agentic_logic"
+    cached = sys.modules.get(module_name)
+    if cached is not None:
+        return cached
+    module_path = Path(__file__).with_name("logic.py")
+    spec = importlib.util.spec_from_file_location(module_name, module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load RepoQA agentic logic from {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_logic = _load_logic_module()
+DEFAULT_REPOQA_RELEASE = _logic.DEFAULT_REPOQA_RELEASE
+build_repoqa_manifest = _logic.build_repoqa_manifest
+default_repoqa_manifest_path = _logic.default_repoqa_manifest_path
+download_repoqa_release = _logic.download_repoqa_release
+RepoQATask = _logic.RepoQATask
+materialize_repoqa_workspace = _logic.materialize_repoqa_workspace
+repoqa_cache_path = _logic.repoqa_cache_path
+run_repoqa_benchmark = _logic.run_repoqa_benchmark
+run_repoqa_task_with_restarts = _logic.run_repoqa_task_with_restarts
+run_repoqa_single_task_from_payload = _logic.run_repoqa_single_task_from_payload
+score_repoqa_answer = _logic.score_repoqa_answer
+warm_container_plugin_cache = _logic.warm_container_plugin_cache
+run_benchmark_task_in_container = _logic.run_benchmark_task_in_container
+
+
+def _manifest_profile(profile_payload: Dict[str, Any]) -> Dict[str, Any]:
+    raw = profile_payload.get("manifest")
+    if isinstance(raw, dict):
+        return dict(raw)
+    return {}
+
+
+def _resolve_manifest_value(
+    cli_value: Any,
+    profile_payload: Dict[str, Any],
+    key: str,
+    *,
+    default: Any = None,
+) -> Any:
+    if cli_value is not None:
+        return cli_value
+    manifest = _manifest_profile(profile_payload)
+    if key in manifest:
+        return manifest[key]
+    if key in profile_payload:
+        return profile_payload[key]
+    return default
+
+
+def _resolve_manifest_path(cli_value: Any, profile_payload: Dict[str, Any]) -> str | None:
+    if isinstance(cli_value, str) and cli_value:
+        return cli_value
+    manifest = _manifest_profile(profile_payload)
+    raw = manifest.get("manifest_path")
+    return raw if isinstance(raw, str) and raw else None
+
+
+def _load_manifest_for_run(
+    env: Any,
+    args: argparse.Namespace,
+    profile_payload: Dict[str, Any],
+) -> Dict[str, Any]:
+    manifest_path = _resolve_manifest_path(args.manifest_path, profile_payload)
+    if isinstance(manifest_path, str) and manifest_path:
+        return json_file(manifest_path)
+    release = str(_resolve_manifest_value(args.release, profile_payload, "release", default=DEFAULT_REPOQA_RELEASE))
+    language = str(_resolve_manifest_value(args.language, profile_payload, "language", default="python"))
+    limit = _resolve_manifest_value(args.limit, profile_payload, "limit")
+    seed = int(_resolve_manifest_value(args.seed, profile_payload, "seed", default=1))
+    download_repoqa_release(env, release=release, force=False)
     return build_repoqa_manifest(
         env,
-        release=args.release,
-        language=args.language,
-        limit=args.limit,
-        seed=args.seed,
+        release=release,
+        language=language,
+        limit=limit,
+        seed=seed,
     )
 
 
 def _download_repoqa(args: argparse.Namespace) -> int:
     env = load_evaluation_environment(args.config_dir)
-    path = download_repoqa_release(env, release=args.release, force=bool(args.force))
+    profile_payload = load_run_profile(env.paths.profiles_root, args.profile)
+    release = str(_resolve_manifest_value(args.release, profile_payload, "release", default=DEFAULT_REPOQA_RELEASE))
+    path = download_repoqa_release(env, release=release, force=bool(args.force))
     print_json(
         {
             "benchmark": "repoqa",
-            "release": args.release,
+            "release": release,
             "download_path": str(path),
         }
     )
@@ -59,23 +124,33 @@ def _download_repoqa(args: argparse.Namespace) -> int:
 
 def _manifest_repoqa(args: argparse.Namespace) -> int:
     env = load_evaluation_environment(args.config_dir)
-    download_repoqa_release(env, release=args.release, force=False)
+    profile_payload = load_run_profile(env.paths.profiles_root, args.profile)
+    release = str(_resolve_manifest_value(args.release, profile_payload, "release", default=DEFAULT_REPOQA_RELEASE))
+    language = str(_resolve_manifest_value(args.language, profile_payload, "language", default="python"))
+    limit = _resolve_manifest_value(args.limit, profile_payload, "limit")
+    seed = int(_resolve_manifest_value(args.seed, profile_payload, "seed", default=1))
+    download_repoqa_release(env, release=release, force=False)
     manifest = build_repoqa_manifest(
         env,
-        release=args.release,
-        language=args.language,
-        limit=args.limit,
-        seed=args.seed,
+        release=release,
+        language=language,
+        limit=limit,
+        seed=seed,
     )
+    profile_output_path = _resolve_manifest_value(None, profile_payload, "output_path")
     output_path = (
         Path(args.output_path).expanduser()
         if isinstance(args.output_path, str) and args.output_path
-        else default_repoqa_manifest_path(
-            env,
-            release=args.release,
-            language=args.language,
-            seed=args.seed,
-            limit=args.limit,
+        else (
+            Path(profile_output_path).expanduser()
+            if isinstance(profile_output_path, str) and profile_output_path
+            else default_repoqa_manifest_path(
+                env,
+                release=release,
+                language=language,
+                seed=seed,
+                limit=limit,
+            )
         )
     )
     write_json_atomic(output_path, manifest)
@@ -95,7 +170,7 @@ def _run_repoqa(args: argparse.Namespace) -> int:
         if runtime_backend == "docker"
         else None
     )
-    manifest = _load_manifest_for_run(env, args)
+    manifest = _load_manifest_for_run(env, args, profile_payload)
     resume_path = (
         Path(args.run_manifest).expanduser()
         if isinstance(args.run_manifest, str) and args.run_manifest
@@ -144,7 +219,8 @@ def _internal_run_single_repoqa(args: argparse.Namespace) -> int:
 def register_download(subparsers: Any) -> None:
     parser = subparsers.add_parser("repoqa", help="Download RepoQA release")
     parser.add_argument("--config-dir", required=True)
-    parser.add_argument("--release", default=DEFAULT_REPOQA_RELEASE)
+    parser.add_argument("--profile")
+    parser.add_argument("--release")
     parser.add_argument("--force", action="store_true")
     parser.set_defaults(func=_download_repoqa)
 
@@ -152,10 +228,11 @@ def register_download(subparsers: Any) -> None:
 def register_manifest(subparsers: Any) -> None:
     parser = subparsers.add_parser("repoqa", help="Generate RepoQA manifest")
     parser.add_argument("--config-dir", required=True)
-    parser.add_argument("--release", default=DEFAULT_REPOQA_RELEASE)
-    parser.add_argument("--language", default="python")
+    parser.add_argument("--profile")
+    parser.add_argument("--release")
+    parser.add_argument("--language")
     parser.add_argument("--limit", type=int)
-    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--seed", type=int)
     parser.add_argument("--output-path")
     parser.set_defaults(func=_manifest_repoqa)
 
@@ -163,10 +240,10 @@ def register_manifest(subparsers: Any) -> None:
 def register_run(subparsers: Any) -> None:
     parser = subparsers.add_parser("repoqa", help="Run RepoQA benchmark")
     add_common_run_arguments(parser)
-    parser.add_argument("--release", default=DEFAULT_REPOQA_RELEASE)
-    parser.add_argument("--language", default="python")
+    parser.add_argument("--release")
+    parser.add_argument("--language")
     parser.add_argument("--limit", type=int)
-    parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--seed", type=int)
     parser.set_defaults(func=_run_repoqa)
 
 
