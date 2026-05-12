@@ -3,7 +3,10 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
+
+from .config_dir import apply_artifact_root, apply_profile_path_overrides, load_evaluation_environment
+from .profiles import load_run_profile
 
 
 def print_json(payload: Dict[str, Any]) -> None:
@@ -59,12 +62,26 @@ def json_file(path: str | Path) -> Dict[str, Any]:
     return loaded
 
 
+def load_run_environment(
+    config_dir: str | Path,
+    profile: str | None,
+    *,
+    artifact_root: str | Path | None = None,
+) -> Tuple[Any, Dict[str, Any]]:
+    env = load_evaluation_environment(config_dir)
+    profile_payload = load_run_profile(env.paths.profiles_root, profile)
+    env = apply_profile_path_overrides(env, profile_payload)
+    env = apply_artifact_root(env, artifact_root)
+    return env, profile_payload
+
+
 def add_common_run_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--config-dir", required=True)
     parser.add_argument("--agent-id")
     parser.add_argument("--profile")
     parser.add_argument("--run-manifest")
     parser.add_argument("--manifest-path")
+    parser.add_argument("--artifact-root")
     parser.add_argument("--model")
     parser.add_argument("--repeat-count", type=int)
     parser.add_argument("--max-task-restarts", type=int)

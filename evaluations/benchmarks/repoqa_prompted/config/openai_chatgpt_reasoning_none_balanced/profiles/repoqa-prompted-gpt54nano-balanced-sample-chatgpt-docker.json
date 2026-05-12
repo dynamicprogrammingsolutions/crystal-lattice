@@ -1,0 +1,23 @@
+{
+  "benchmark": "repoqa-prompted",
+  "agent_id": "repoqa-prompted-openai-chatgpt-reasoning-none",
+  "model": "gpt-5.4-nano",
+  "runtime_backend": "docker",
+  "repeat_count": 3,
+  "max_task_restarts": 1,
+  "schedule": {
+    "window_minutes": 15,
+    "tasks_per_window": 30,
+    "max_parallel_tasks": 2,
+    "randomize_task_starts": true,
+    "random_seed": 1
+  },
+  "paths": {
+    "results_root": "results/nano-sample-chatgpt",
+    "workspace_root": "workspaces/nano-sample-chatgpt"
+  },
+  "docker": {
+    "enabled": true,
+    "image_tag": "agent-evaluations:repoqa"
+  }
+}

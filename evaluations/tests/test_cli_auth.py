@@ -28,6 +28,32 @@ class _FakeApp:
         self.deleted.append(session_id)
 
 
+class _FakePollingApp(_FakeApp):
+    def __init__(self) -> None:
+        super().__init__()
+        self._check_count = 0
+
+    def execute_application_action(self, plugin: str, action: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        self.calls.append((plugin, action, dict(params)))
+        if action == "login_start":
+            return {
+                "display": {"body": "Open login", "format": "markdown"},
+                "auth_status": {"state": "pending", "login_id": "login-1"},
+            }
+        if action == "check_status":
+            self._check_count += 1
+            if self._check_count == 1:
+                return {
+                    "display": {"body": "Still waiting", "format": "markdown"},
+                    "auth_status": {"state": "pending", "login_id": "login-1"},
+                }
+            return {
+                "display": {"body": "Authenticated", "format": "markdown"},
+                "auth_status": {"state": "authenticated", "login_id": "login-1"},
+            }
+        return super().execute_application_action(plugin, action, params)
+
+
 class _FakeEnv:
     def __init__(self, app: _FakeApp) -> None:
         self._app = app
@@ -59,3 +85,18 @@ def test_auth_logout_wires_to_logout_action(monkeypatch, capsys) -> None:
     assert exit_code == 0
     assert app.calls == [("chatgpt_auth", "logout", {})]
     assert "logout" in capsys.readouterr().out
+
+
+def test_auth_login_polls_until_terminal_status(monkeypatch, capsys) -> None:
+    app = _FakePollingApp()
+    monkeypatch.setattr(cli, "load_evaluation_environment", lambda _config_dir: _FakeEnv(app))
+    monkeypatch.setattr(cli.time, "sleep", lambda _seconds: None)
+
+    exit_code = cli.main(["auth", "login-chatgpt", "--config-dir", "/tmp/config"])
+
+    assert exit_code == 0
+    assert [call[1] for call in app.calls] == ["login_start", "check_status", "check_status"]
+    out = capsys.readouterr().out
+    assert "Open login" in out
+    assert "Authenticated" in out
+    assert "\"state\": \"authenticated\"" in out

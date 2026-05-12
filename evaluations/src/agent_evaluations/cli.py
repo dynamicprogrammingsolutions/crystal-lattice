@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 import tempfile
+import time
 from typing import Any, Dict
 
 from .benchmark_registry import load_benchmarks
@@ -24,17 +25,43 @@ def _status_for_agent(app: Any, agent_id: str) -> Dict[str, Any]:
         app.delete_session(session.session_id)
 
 
+def _auth_state(payload: Any) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    auth_status = payload.get("auth_status")
+    if not isinstance(auth_status, dict):
+        return None
+    state = auth_status.get("state")
+    return state if isinstance(state, str) and state else None
+
+
+def _print_display_body(payload: Any) -> None:
+    if not isinstance(payload, dict):
+        return
+    display = payload.get("display")
+    if not isinstance(display, dict):
+        return
+    body = display.get("body")
+    if isinstance(body, str) and body.strip():
+        print(body)
+
+
 def _auth_login(args: argparse.Namespace) -> int:
     env = load_evaluation_environment(args.config_dir)
     app = env.build_application()
     result = app.execute_application_action("chatgpt_auth", "login_start", {})
-    display = result.get("display") if isinstance(result, dict) else None
-    if isinstance(display, dict):
-        body = display.get("body")
-        if isinstance(body, str) and body.strip():
-            print(body)
-    auth_status = result.get("auth_status") if isinstance(result, dict) else None
-    print_json({"auth_status": auth_status})
+    _print_display_body(result)
+    state = _auth_state(result)
+    last_state = state
+    while state == "pending":
+        time.sleep(1.0)
+        result = app.execute_application_action("chatgpt_auth", "check_status", {})
+        next_state = _auth_state(result)
+        if next_state != last_state:
+            _print_display_body(result)
+            last_state = next_state
+        state = next_state
+    print_json(result if isinstance(result, dict) else {"result": result})
     return 0
 
 

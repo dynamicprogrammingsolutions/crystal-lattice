@@ -11,12 +11,13 @@ from agent_evaluations.cli_helpers import (
     add_common_internal_run_single_arguments,
     add_common_run_arguments,
     json_file,
+    load_run_environment,
     print_json,
     resolve_run_value,
     resolve_runtime_backend,
     schedule_overrides_from_args,
 )
-from agent_evaluations.config_dir import load_evaluation_environment
+from agent_evaluations.config_dir import apply_profile_path_overrides, load_evaluation_environment
 from agent_evaluations.container_backend import resolve_docker_runtime_config
 from agent_evaluations.profiles import load_run_profile
 from agent_evaluations.utils import write_json_atomic
@@ -111,6 +112,7 @@ def _load_manifest_for_run(
 def _download_repoqa_prompted(args: argparse.Namespace) -> int:
     env = load_evaluation_environment(args.config_dir)
     profile_payload = load_run_profile(env.paths.profiles_root, args.profile)
+    env = apply_profile_path_overrides(env, profile_payload)
     release = str(_resolve_manifest_value(args.release, profile_payload, "release", default=DEFAULT_REPOQA_RELEASE))
     path = download_repoqa_release(env, release=release, force=bool(args.force))
     print_json(
@@ -126,6 +128,7 @@ def _download_repoqa_prompted(args: argparse.Namespace) -> int:
 def _manifest_repoqa_prompted(args: argparse.Namespace) -> int:
     env = load_evaluation_environment(args.config_dir)
     profile_payload = load_run_profile(env.paths.profiles_root, args.profile)
+    env = apply_profile_path_overrides(env, profile_payload)
     release = str(_resolve_manifest_value(args.release, profile_payload, "release", default=DEFAULT_REPOQA_RELEASE))
     language = str(_resolve_manifest_value(args.language, profile_payload, "language", default="python"))
     limit = _resolve_manifest_value(args.limit, profile_payload, "limit")
@@ -160,8 +163,11 @@ def _manifest_repoqa_prompted(args: argparse.Namespace) -> int:
 
 
 def _run_repoqa_prompted(args: argparse.Namespace) -> int:
-    env = load_evaluation_environment(args.config_dir)
-    profile_payload = load_run_profile(env.paths.profiles_root, args.profile)
+    env, profile_payload = load_run_environment(
+        args.config_dir,
+        args.profile,
+        artifact_root=args.artifact_root,
+    )
     agent_id = resolve_run_value(args.agent_id, profile_payload, "agent_id")
     if not isinstance(agent_id, str) or not agent_id:
         raise ValueError("agent_id must be provided via --agent-id or the run profile")

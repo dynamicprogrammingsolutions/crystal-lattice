@@ -161,6 +161,44 @@ When `repeat_count > 1`:
 Do not duplicate the same logical task manually inside a benchmark manifest in order to repeat it. Use
 `repeat_count` so the runner can assign distinct task-instance ids and isolate workspace/input/output paths safely.
 
+## Resume And Seeded Continuation
+
+Repeated task instances are keyed by stable `task_instance_id` values such as `task-a#r1`, `task-a#r2`, and `task-a#r3`.
+
+This now enables two related workflows:
+
+- resume a partially completed run from an existing `run-manifest.json`
+- seed a new run with overlapping prior `results.jsonl` rows, then continue from there
+
+In the current implementation:
+
+- the runner loads existing `results.jsonl` rows when resuming a run
+- each row is validated against the target run manifest by `task_instance_id`, `repeat_index`, and logical task payload
+- already completed task instances are skipped
+- `task-aggregate.jsonl` and `summary.json` are rebuilt from the merged old + new result set
+
+This makes it practical to:
+
+- continue an interrupted run without rerunning completed instances
+- expand a manifest from something like `20 x 3` to `25 x 3`
+- later increase repeats, for example `20 x 3` to `100 x 5`, while reusing matching `#r1..#r3` task instances
+
+The first workflow helper for this lives at:
+
+- `evaluations/benchmarks/repoqa_prompted/chained_workflow.py`
+
+Its `seed-run` command prepares a fresh run directory by copying overlapping prior instance rows into the new run's `results.jsonl`, after which a normal benchmark run can resume from that seeded state.
+
+To keep two independent chains separate without new profiles, use `--artifact-root` on `run`-style commands.
+This remaps only:
+
+- `results_root`
+- `workspace_root`
+
+For the RepoQA chained workflow, the same flag also relocates workflow reports under:
+
+- `<artifact-root>/reports/...`
+
 ## See Also
 
 - shared framework guidance: `evaluations/AGENTS.md`

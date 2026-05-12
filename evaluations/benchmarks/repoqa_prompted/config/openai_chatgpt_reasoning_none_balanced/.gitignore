@@ -1,0 +1,8 @@
+.env
+auth/
+cache/
+results/
+workspaces/
+_sessions/
+artifacts/
+launcher-logs/

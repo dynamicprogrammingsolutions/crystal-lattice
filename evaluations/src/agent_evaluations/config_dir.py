@@ -173,3 +173,120 @@ def benchmark_settings(env: EvaluationEnvironment) -> Dict[str, Any]:
     if isinstance(subtree, dict):
         return dict(subtree)
     return {}
+
+
+def _resolve_profile_path_override(config_dir: Path, raw_value: Any) -> Path | None:
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        return None
+    candidate = Path(raw_value).expanduser()
+    if candidate.is_absolute():
+        return candidate
+    return (config_dir / candidate).resolve()
+
+
+def _resolve_artifact_root(raw_value: Any) -> Path | None:
+    if not isinstance(raw_value, str) or not raw_value.strip():
+        return None
+    return Path(raw_value).expanduser().resolve()
+
+
+def _artifact_scoped_path(
+    *,
+    config_dir: Path,
+    current_root: Path,
+    category: str,
+    artifact_root: Path,
+) -> Path:
+    base_category_root = (config_dir / category).resolve()
+    try:
+        suffix = current_root.resolve().relative_to(base_category_root)
+    except ValueError:
+        parts = list(current_root.parts)
+        if category in parts:
+            suffix = Path(*parts[parts.index(category) + 1 :])
+        else:
+            suffix = Path(current_root.name)
+    if str(suffix) == ".":
+        return artifact_root / category
+    return artifact_root / category / suffix
+
+
+def apply_profile_path_overrides(
+    env: EvaluationEnvironment,
+    profile_payload: Mapping[str, Any],
+) -> EvaluationEnvironment:
+    raw_paths = profile_payload.get("paths")
+    if not isinstance(raw_paths, Mapping):
+        return env
+
+    paths = env.paths
+    cache_root = _resolve_profile_path_override(paths.config_dir, raw_paths.get("cache_root")) or paths.cache_root
+    results_root = _resolve_profile_path_override(paths.config_dir, raw_paths.get("results_root")) or paths.results_root
+    manifests_root = (
+        _resolve_profile_path_override(paths.config_dir, raw_paths.get("manifests_root")) or paths.manifests_root
+    )
+    workspace_root = (
+        _resolve_profile_path_override(paths.config_dir, raw_paths.get("workspace_root")) or paths.workspace_root
+    )
+
+    return EvaluationEnvironment(
+        paths=EvaluationPaths(
+            config_dir=paths.config_dir,
+            config_path=paths.config_path,
+            agents_path=paths.agents_path,
+            env_path=paths.env_path,
+            auth_dir=paths.auth_dir,
+            cache_root=cache_root,
+            results_root=results_root,
+            manifests_root=manifests_root,
+            workspace_root=workspace_root,
+            profiles_root=paths.profiles_root,
+        ),
+        config_env=env.config_env,
+        env_overrides=env.env_overrides,
+        raw_config=env.raw_config,
+        resolved_config=env.resolved_config,
+        config_errors=env.config_errors,
+    )
+
+
+def apply_artifact_root(
+    env: EvaluationEnvironment,
+    artifact_root: str | Path | None,
+) -> EvaluationEnvironment:
+    resolved_artifact_root = _resolve_artifact_root(str(artifact_root) if artifact_root is not None else None)
+    if resolved_artifact_root is None:
+        return env
+
+    paths = env.paths
+    results_root = _artifact_scoped_path(
+        config_dir=paths.config_dir,
+        current_root=paths.results_root,
+        category="results",
+        artifact_root=resolved_artifact_root,
+    )
+    workspace_root = _artifact_scoped_path(
+        config_dir=paths.config_dir,
+        current_root=paths.workspace_root,
+        category="workspaces",
+        artifact_root=resolved_artifact_root,
+    )
+    return EvaluationEnvironment(
+        paths=EvaluationPaths(
+            config_dir=paths.config_dir,
+            config_path=paths.config_path,
+            agents_path=paths.agents_path,
+            env_path=paths.env_path,
+            auth_dir=paths.auth_dir,
+            cache_root=paths.cache_root,
+            results_root=results_root,
+            manifests_root=paths.manifests_root,
+            workspace_root=workspace_root,
+            profiles_root=paths.profiles_root,
+        ),
+        config_env=env.config_env,
+        env_overrides=env.env_overrides,
+        raw_config=env.raw_config,
+        resolved_config=env.resolved_config,
+        config_errors=env.config_errors,
+    )

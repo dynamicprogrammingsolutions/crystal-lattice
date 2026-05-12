@@ -11,6 +11,7 @@ from agent_evaluations.cli_helpers import (
     add_common_internal_run_single_arguments,
     add_common_run_arguments,
     json_file,
+    load_run_environment,
     print_json,
     resolve_run_value,
     resolve_runtime_backend,
@@ -159,8 +160,11 @@ def _manifest_repoqa(args: argparse.Namespace) -> int:
 
 
 def _run_repoqa(args: argparse.Namespace) -> int:
-    env = load_evaluation_environment(args.config_dir)
-    profile_payload = load_run_profile(env.paths.profiles_root, args.profile)
+    env, profile_payload = load_run_environment(
+        args.config_dir,
+        args.profile,
+        artifact_root=args.artifact_root,
+    )
     agent_id = resolve_run_value(args.agent_id, profile_payload, "agent_id")
     if not isinstance(agent_id, str) or not agent_id:
         raise ValueError("agent_id must be provided via --agent-id or the run profile")

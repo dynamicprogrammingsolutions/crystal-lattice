@@ -21,11 +21,19 @@ from agent_evaluations.container_backend import (
 from agent_evaluations.repeated_runs import (
     aggregate_results_by_task_id,
     expand_task_payloads_with_repeats,
+    load_existing_results_for_manifest,
     normalize_repeat_count,
     task_instance_id,
 )
 from agent_evaluations.scheduler import plan_task_starts, policy_from_config, sleep_until
-from agent_evaluations.utils import append_jsonl, isoformat_utc, utc_now, write_json, write_json_atomic
+from agent_evaluations.utils import (
+    append_jsonl,
+    isoformat_utc,
+    utc_now,
+    write_json,
+    write_json_atomic,
+    write_jsonl_atomic,
+)
 
 
 def _load_repoqa_shared_module() -> Any:
@@ -421,6 +429,215 @@ def _task_cost_from_usage(usage_metadata: Optional[Dict[str, Any]]) -> Optional[
     return None
 
 
+def _parse_iso8601_utc(raw: Any) -> Optional[datetime]:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    return datetime.fromisoformat(raw.replace("Z", "+00:00")).astimezone(timezone.utc)
+
+
+def _duration_seconds(result_row: Dict[str, Any]) -> Optional[float]:
+    started_at = _parse_iso8601_utc(result_row.get("actual_start_at"))
+    finished_at = _parse_iso8601_utc(result_row.get("finished_at"))
+    if started_at is None or finished_at is None:
+        return None
+    duration = (finished_at - started_at).total_seconds()
+    return duration if duration > 0 else None
+
+
+def _usage_payload(result_row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    usage_metadata = result_row.get("usage")
+    if not isinstance(usage_metadata, dict):
+        return None
+    usage = usage_metadata.get("usage")
+    return usage if isinstance(usage, dict) else None
+
+
+def _usage_input_tokens(result_row: Dict[str, Any]) -> Optional[int]:
+    usage = _usage_payload(result_row)
+    value = usage.get("input_tokens") if isinstance(usage, dict) else None
+    return int(value) if isinstance(value, (int, float)) else None
+
+
+def _usage_output_tokens(result_row: Dict[str, Any]) -> Optional[int]:
+    usage = _usage_payload(result_row)
+    value = usage.get("output_tokens") if isinstance(usage, dict) else None
+    return int(value) if isinstance(value, (int, float)) else None
+
+
+def _usage_reasoning_tokens(result_row: Dict[str, Any]) -> Optional[int]:
+    usage = _usage_payload(result_row)
+    if not isinstance(usage, dict):
+        return None
+    details = usage.get("output_tokens_details") or usage.get("completion_tokens_details")
+    if not isinstance(details, dict):
+        return 0
+    value = details.get("reasoning_tokens")
+    return int(value) if isinstance(value, (int, float)) else 0
+
+
+def _average(values: Sequence[float]) -> Optional[float]:
+    if not values:
+        return None
+    return sum(values) / len(values)
+
+
+def _build_repoqa_prompted_summary(
+    *,
+    run_manifest: Dict[str, Any],
+    run_manifest_path: Path,
+    results_jsonl: Path,
+    task_aggregate_jsonl: Path,
+    completed: Sequence[Dict[str, Any]],
+    tasks: Sequence[Dict[str, Any]],
+    preexisting_result_count: int,
+) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+    eligible_results = [item for item in completed if item.get("eligible_for_accuracy", True)]
+    matched_eligible_count = sum(
+        1 for item in eligible_results if ((item.get("score") or {}).get("matched") is True)
+    )
+    task_aggregates = aggregate_results_by_task_id(completed)
+    success_rates = [
+        float(item["success_rate"])
+        for item in task_aggregates
+        if isinstance(item.get("success_rate"), (int, float))
+    ]
+
+    executed_results = [item for item in completed if item.get("imported_result") is not True]
+    executed_request_results = [
+        item for item in executed_results if item.get("outcome") != "skipped_missing_target_context"
+    ]
+    successful_request_results = [
+        item for item in executed_request_results if item.get("state") == "completed"
+    ]
+    error_request_results = [
+        item for item in executed_request_results if item.get("state") != "completed"
+    ]
+
+    token_rows = [
+        item
+        for item in successful_request_results
+        if _usage_input_tokens(item) is not None
+        and _usage_output_tokens(item) is not None
+        and _usage_reasoning_tokens(item) is not None
+    ]
+    duration_rows = [item for item in successful_request_results if _duration_seconds(item) is not None]
+    tps_values = [
+        float(_usage_output_tokens(item) or 0) / float(_duration_seconds(item) or 1.0)
+        for item in successful_request_results
+        if _usage_output_tokens(item) is not None
+        and _duration_seconds(item) is not None
+        and float(_duration_seconds(item) or 0.0) > 0.0
+    ]
+
+    summary = {
+        "run_id": run_manifest["run_id"],
+        "benchmark": REPOQA_PROMPTED_BENCHMARK_ID,
+        "release": run_manifest["release"],
+        "language": run_manifest["language"],
+        "languages": run_manifest.get("languages"),
+        "agent_id": run_manifest["agent_id"],
+        "repeat_count": int(run_manifest.get("repeat_count") or 1),
+        "manifest_task_count": len({str(item.get("task_id")) for item in tasks if isinstance(item, dict)}),
+        "task_instance_count": len(tasks),
+        "logical_task_count": len(task_aggregates),
+        "completed_task_count": len(completed),
+        "preexisting_result_count": preexisting_result_count,
+        "new_result_count": len(completed) - preexisting_result_count,
+        "imported_result_count": sum(1 for item in completed if item.get("imported_result") is True),
+        "executed_result_count": sum(1 for item in completed if item.get("imported_result") is not True),
+        "model_request_task_count": sum(
+            1 for item in completed if item.get("outcome") != "skipped_missing_target_context"
+        ),
+        "eligible_task_count": len(eligible_results),
+        "excluded_missing_target_context_count": sum(
+            1 for item in completed if item.get("outcome") == "skipped_missing_target_context"
+        ),
+        "matched_task_count": matched_eligible_count,
+        "logical_tasks_with_all_successes": sum(
+            1
+            for item in task_aggregates
+            if item.get("eligible_instance_count")
+            and item.get("matched_instance_count") == item.get("eligible_instance_count")
+            and item.get("excluded_missing_target_context_count") == 0
+        ),
+        "logical_tasks_with_any_success": sum(
+            1 for item in task_aggregates if int(item.get("matched_instance_count") or 0) > 0
+        ),
+        "logical_task_average_success_rate": (
+            sum(success_rates) / len(success_rates) if success_rates else 0.0
+        ),
+        "accuracy": (
+            sum(float((item.get("score") or {}).get("score") or 0.0) for item in eligible_results) / len(eligible_results)
+            if eligible_results
+            else 0.0
+        ),
+        "raw_accuracy_over_manifest": (
+            sum(float((item.get("score") or {}).get("score") or 0.0) for item in completed) / len(tasks)
+            if tasks
+            else 0.0
+        ),
+        "successful_request_instance_count": len(successful_request_results),
+        "error_request_instance_count": len(error_request_results),
+        "has_error_request_instances": len(error_request_results) > 0,
+        "token_measured_request_instance_count": len(token_rows),
+        "duration_measured_request_instance_count": len(duration_rows),
+        "tps_measured_request_instance_count": len(tps_values),
+        "average_input_tokens": _average([float(_usage_input_tokens(item) or 0) for item in token_rows]),
+        "average_output_tokens": _average([float(_usage_output_tokens(item) or 0) for item in token_rows]),
+        "average_reasoning_tokens": _average([float(_usage_reasoning_tokens(item) or 0) for item in token_rows]),
+        "average_duration_seconds": _average([float(_duration_seconds(item) or 0.0) for item in duration_rows]),
+        "average_output_tokens_per_second": _average(tps_values),
+        "results_jsonl": str(results_jsonl),
+        "task_aggregate_jsonl": str(task_aggregate_jsonl),
+        "run_manifest_path": str(run_manifest_path),
+        "completed_at": isoformat_utc(),
+        "benchmark_mode": "repoqa-prompted-custom",
+    }
+    costs = [float(item["cost"]) for item in completed if isinstance(item.get("cost"), (int, float))]
+    if costs:
+        total_cost = sum(costs)
+        summary["costed_task_count"] = len(costs)
+        summary["total_cost"] = total_cost
+        summary["total_cost_formatted"] = f"${total_cost:.6f}"
+        summary["average_cost_per_costed_task"] = total_cost / len(costs)
+        summary["average_cost_per_costed_task_formatted"] = f"${(total_cost / len(costs)):.6f}"
+    return task_aggregates, summary
+
+
+def rebuild_repoqa_prompted_artifacts(run_manifest_path: Path) -> Dict[str, Any]:
+    run_manifest = json.loads(run_manifest_path.read_text(encoding="utf-8"))
+    run_root = run_manifest_path.parent
+    results_jsonl = run_root / "results.jsonl"
+    task_aggregate_jsonl = run_root / "task-aggregate.jsonl"
+    summary_json = run_root / "summary.json"
+    tasks = run_manifest.get("tasks") or []
+    if not isinstance(tasks, list):
+        raise ValueError("run manifest tasks must be a list")
+    completed, _completed_instance_ids = load_existing_results_for_manifest(results_jsonl, tasks)
+    prior_summary: Dict[str, Any] = {}
+    if summary_json.is_file():
+        loaded = json.loads(summary_json.read_text(encoding="utf-8"))
+        if isinstance(loaded, dict):
+            prior_summary = loaded
+    preexisting_result_count_raw = prior_summary.get("preexisting_result_count")
+    if isinstance(preexisting_result_count_raw, int):
+        preexisting_result_count = preexisting_result_count_raw
+    else:
+        preexisting_result_count = sum(1 for item in completed if item.get("imported_result") is True)
+    task_aggregates, summary = _build_repoqa_prompted_summary(
+        run_manifest=run_manifest,
+        run_manifest_path=run_manifest_path,
+        results_jsonl=results_jsonl,
+        task_aggregate_jsonl=task_aggregate_jsonl,
+        completed=completed,
+        tasks=tasks,
+        preexisting_result_count=preexisting_result_count,
+    )
+    write_jsonl_atomic(task_aggregate_jsonl, task_aggregates)
+    write_json_atomic(summary_json, summary)
+    return summary
+
+
 def _target_in_prompt_context(task: RepoQATask, metadata: Dict[str, Any]) -> bool:
     included_paths = metadata.get("included_paths")
     if isinstance(included_paths, list):
@@ -799,13 +1016,14 @@ def run_repoqa_prompted_benchmark(
         )
 
     active_tasks: Dict[Any, Dict[str, Any]] = {}
-    completed: List[Dict[str, Any]] = []
 
     from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
     tasks = run_manifest.get("tasks") or []
     if not isinstance(tasks, list):
         raise ValueError("run manifest tasks must be a list")
+    completed, completed_instance_ids = load_existing_results_for_manifest(results_jsonl, tasks)
+    preexisting_result_count = len(completed)
 
     schedule_policy = run_manifest.get("schedule_policy") or {}
     policy = policy_from_config(
@@ -826,6 +1044,9 @@ def run_repoqa_prompted_benchmark(
             while next_index < len(tasks) and len(active_tasks) < policy.max_parallel_tasks:
                 task_payload = tasks[next_index]
                 if not isinstance(task_payload, dict):
+                    next_index += 1
+                    continue
+                if task_instance_id(task_payload) in completed_instance_ids:
                     next_index += 1
                     continue
                 planned_start_at = task_payload.get("planned_start_at")
@@ -945,76 +1166,18 @@ def run_repoqa_prompted_benchmark(
                 }
                 append_jsonl(results_jsonl, payload)
                 completed.append(payload)
+                completed_instance_ids.add(str(payload["task_instance_id"]))
 
-    eligible_results = [item for item in completed if item.get("eligible_for_accuracy", True)]
-    matched_eligible_count = sum(
-        1 for item in eligible_results if ((item.get("score") or {}).get("matched") is True)
+    task_aggregates, summary = _build_repoqa_prompted_summary(
+        run_manifest=run_manifest,
+        run_manifest_path=run_manifest_path,
+        results_jsonl=results_jsonl,
+        task_aggregate_jsonl=task_aggregate_jsonl,
+        completed=completed,
+        tasks=tasks,
+        preexisting_result_count=preexisting_result_count,
     )
-    task_aggregates = aggregate_results_by_task_id(completed)
-    for aggregate in task_aggregates:
-        append_jsonl(task_aggregate_jsonl, aggregate)
-    success_rates = [
-        float(item["success_rate"])
-        for item in task_aggregates
-        if isinstance(item.get("success_rate"), (int, float))
-    ]
-    summary = {
-        "run_id": run_manifest["run_id"],
-        "benchmark": REPOQA_PROMPTED_BENCHMARK_ID,
-        "release": run_manifest["release"],
-        "language": run_manifest["language"],
-        "languages": run_manifest.get("languages"),
-        "agent_id": run_manifest["agent_id"],
-        "repeat_count": int(run_manifest.get("repeat_count") or 1),
-        "manifest_task_count": len({str(item.get("task_id")) for item in tasks if isinstance(item, dict)}),
-        "task_instance_count": len(tasks),
-        "logical_task_count": len(task_aggregates),
-        "completed_task_count": len(completed),
-        "model_request_task_count": sum(
-            1 for item in completed if item.get("outcome") != "skipped_missing_target_context"
-        ),
-        "eligible_task_count": len(eligible_results),
-        "excluded_missing_target_context_count": sum(
-            1 for item in completed if item.get("outcome") == "skipped_missing_target_context"
-        ),
-        "matched_task_count": matched_eligible_count,
-        "logical_tasks_with_all_successes": sum(
-            1
-            for item in task_aggregates
-            if item.get("eligible_instance_count")
-            and item.get("matched_instance_count") == item.get("eligible_instance_count")
-            and item.get("excluded_missing_target_context_count") == 0
-        ),
-        "logical_tasks_with_any_success": sum(
-            1 for item in task_aggregates if int(item.get("matched_instance_count") or 0) > 0
-        ),
-        "logical_task_average_success_rate": (
-            sum(success_rates) / len(success_rates) if success_rates else 0.0
-        ),
-        "accuracy": (
-            sum(float((item.get("score") or {}).get("score") or 0.0) for item in eligible_results) / len(eligible_results)
-            if eligible_results
-            else 0.0
-        ),
-        "raw_accuracy_over_manifest": (
-            sum(float((item.get("score") or {}).get("score") or 0.0) for item in completed) / len(tasks)
-            if tasks
-            else 0.0
-        ),
-        "results_jsonl": str(results_jsonl),
-        "task_aggregate_jsonl": str(task_aggregate_jsonl),
-        "run_manifest_path": str(run_manifest_path),
-        "completed_at": isoformat_utc(),
-        "benchmark_mode": "repoqa-prompted-custom",
-    }
-    costs = [float(item["cost"]) for item in completed if isinstance(item.get("cost"), (int, float))]
-    if costs:
-        total_cost = sum(costs)
-        summary["costed_task_count"] = len(costs)
-        summary["total_cost"] = total_cost
-        summary["total_cost_formatted"] = f"${total_cost:.6f}"
-        summary["average_cost_per_costed_task"] = total_cost / len(costs)
-        summary["average_cost_per_costed_task_formatted"] = f"${(total_cost / len(costs)):.6f}"
+    write_jsonl_atomic(task_aggregate_jsonl, task_aggregates)
     write_json_atomic(summary_json, summary)
     return run_manifest_path
 

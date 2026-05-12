@@ -23,6 +23,13 @@ Intended run preset:
 - runtime: Docker
 - repeats: `3`
 
+Separate balanced reasoning-none config:
+
+- config dir: `evaluations/benchmarks/repoqa_prompted/config/openai_api_reasoning_none_balanced/`
+- uses `reasoning_effort: "none"` via config
+- keeps task-slice choices in standalone manifest files
+- includes nano/mini sample and full Docker profiles
+
 ## Installation
 
 Install the shared runtime in editable mode:
@@ -103,3 +110,17 @@ Look at:
 The prompted runner records cost/usage metadata when the OpenAI Responses usage extension surfaces it.
 With `repeat_count > 1`, `results.jsonl` is per task instance while `task-aggregate.jsonl` is per logical task and
 is the best input for custom filtering scripts.
+
+## Resume And Seeded Continuation
+
+The runner can now resume from an existing `run-manifest.json` plus `results.jsonl`.
+
+On resume it will:
+
+- load prior result rows from `results.jsonl`
+- validate them against the current run manifest by `task_instance_id`
+- skip already completed task instances
+- rebuild `task-aggregate.jsonl` and `summary.json` from the merged old + new rows
+
+The workflow helper can also seed a new run with overlapping prior results before resuming it.
+This is useful when expanding a manifest, for example from `20 x 3` to `25 x 3` or later to `100 x 5`.
