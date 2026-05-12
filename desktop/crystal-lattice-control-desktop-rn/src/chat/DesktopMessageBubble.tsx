@@ -1,8 +1,5 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Image,
-  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -13,15 +10,12 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 
-import type { AgentBackend, ApiMessage, UiSchemaElement } from '@crystal-lattice/frontend-sdk';
+import type { ApiMessage, UiSchemaElement } from '@crystal-lattice/frontend-sdk';
 import {
-  downloadSessionAttachment,
   extractByPath,
   formatValueForElement,
   renderTemplate,
-  selectAttachmentPreviewUrl,
   selectDisplayContent,
-  selectSessionAssetId,
   selectSingleLineContent,
 } from '@crystal-lattice/frontend-sdk';
 import { MacTextView } from '@crystal-lattice/react-native-mac-text-view';
@@ -47,9 +41,6 @@ export interface DesktopMessageBubbleProps {
   renderMode?: 'markdown' | 'raw';
   footerElements?: UiSchemaElement[];
   pluginActionDefs?: MessageActionDefinition[];
-  backend?: AgentBackend | null;
-  sessionId?: string;
-  onOpenAttachment?: (attachment: AttachmentLike) => void;
 }
 
 function toSingleLinePreview(text: string, maxLen = 160): string {
@@ -99,27 +90,6 @@ function buildMessageAttachments(message: ApiMessage, prefix: string): Attachmen
     .filter((v): v is AttachmentLike => v != null);
 }
 
-function attachmentMimeType(attachment: AttachmentLike): string {
-  const content = attachment.content;
-  if (content && typeof content === 'object' && typeof content.mime_type === 'string' && content.mime_type) {
-    return content.mime_type;
-  }
-  return attachment.type === 'image' ? 'image/png' : 'application/octet-stream';
-}
-
-function resolveAttachmentDownloadPluginId(attachment: AttachmentLike): string | undefined {
-  const metadata = attachment.metadata;
-  if (
-    metadata &&
-    typeof metadata === 'object' &&
-    typeof (metadata as any).download_plugin_id === 'string' &&
-    (metadata as any).download_plugin_id
-  ) {
-    return String((metadata as any).download_plugin_id);
-  }
-  return undefined;
-}
-
 const MessageAttachmentsStrip: React.FC<{
   message: ApiMessage;
   idPrefix: string;
@@ -154,7 +124,6 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   onCancelEdit,
   footerElements,
   pluginActionDefs,
-  onOpenAttachment,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -225,7 +194,6 @@ const UserMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         <MessageAttachmentsStrip
           message={message}
           idPrefix={`user:${index}`}
-          onPress={onOpenAttachment}
         />
         {content ? (
           <Text style={[styles.contentText, styles.userContentText]} selectable>
@@ -255,7 +223,6 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   onCancelEdit,
   footerElements,
   pluginActionDefs,
-  onOpenAttachment,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -328,7 +295,6 @@ const SystemMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         <MessageAttachmentsStrip
           message={message}
           idPrefix={`system:${index}`}
-          onPress={onOpenAttachment}
         />
         {content ? (
           <Text style={styles.systemText} selectable>
@@ -352,7 +318,6 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   allowedActions,
   footerElements,
   pluginActionDefs,
-  onOpenAttachment,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -402,7 +367,6 @@ const ToolMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         <MessageAttachmentsStrip
           message={message}
           idPrefix={`tool:${index}`}
-          onPress={onOpenAttachment}
         />
 
         {hasContent && (
@@ -469,7 +433,6 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   renderMode,
   footerElements,
   pluginActionDefs,
-  onOpenAttachment,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -576,7 +539,6 @@ const AssistantMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
         <MessageAttachmentsStrip
           message={message}
           idPrefix={`assistant:${index}`}
-          onPress={onOpenAttachment}
         />
 
         {reasoning && (
@@ -717,171 +679,79 @@ export const DesktopMessageBubble: React.FC<DesktopMessageBubbleProps> = ({
   renderMode,
   footerElements,
   pluginActionDefs,
-  backend,
-  sessionId,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
   const role = message.role || 'unknown';
-  const [viewer, setViewer] = useState<{
-    title: string;
-    uri: string | null;
-    loading: boolean;
-    error: string | null;
-  } | null>(null);
-
-  const handleOpenAttachment = useCallback(
-    (attachment: AttachmentLike) => {
-      const previewUrl = selectAttachmentPreviewUrl(attachment.content, attachment.previewUrl);
-      if (attachment.type !== 'image' || !previewUrl) {
-        return;
-      }
-      setViewer({
-        title: attachment.id,
-        uri: previewUrl,
-        loading: false,
-        error: null,
-      });
-
-      const assetId = selectSessionAssetId(attachment.content);
-      const pluginId = resolveAttachmentDownloadPluginId(attachment);
-      if (!backend || !sessionId || !assetId || !pluginId) {
-        return;
-      }
-
-      setViewer({
-        title: attachment.id,
-        uri: previewUrl,
-        loading: true,
-        error: null,
-      });
-      downloadSessionAttachment({
-        backend,
-        sessionId,
-        assetId,
-        pluginId,
-      })
-        .then((downloaded) => {
-          setViewer({
-            title: attachment.id,
-            uri: `data:${attachmentMimeType(attachment)};base64,${downloaded.data_base64}`,
-            loading: false,
-            error: null,
-          });
-        })
-        .catch((error) => {
-          setViewer({
-            title: attachment.id,
-            uri: previewUrl,
-            loading: false,
-            error: error instanceof Error ? error.message : 'Unable to load full-size image.',
-          });
-        });
-    },
-    [backend, sessionId],
-  );
-
-  const viewerModal = (
-    <Modal visible={viewer !== null} transparent animationType="fade" onRequestClose={() => setViewer(null)}>
-      <TouchableOpacity style={styles.viewerBackdrop} activeOpacity={1} onPress={() => setViewer(null)}>
-        <View style={styles.viewerPanel}>
-          {viewer?.uri ? <Image source={{ uri: viewer.uri }} style={styles.viewerImage} resizeMode="contain" /> : null}
-          {viewer?.loading ? (
-            <View style={styles.viewerStatusRow}>
-              <ActivityIndicator size="small" color={theme.textSecondary} />
-              <Text style={styles.viewerStatusText}>Loading full-size image</Text>
-            </View>
-          ) : null}
-          {viewer?.error ? <Text style={styles.viewerErrorText}>{viewer.error}</Text> : null}
-        </View>
-      </TouchableOpacity>
-    </Modal>
-  );
 
   if (role === 'user') {
     return (
-      <>
-        {viewerModal}
-        <UserMessageBubble
-          index={index}
-          message={message}
-          allowedActions={allowedActions}
-          onAction={onAction}
-          isEditing={isEditing}
-          editingInitialText={editingInitialText}
-          editingText={editingText}
-          onChangeEditingText={onChangeEditingText}
-          onSubmitEdit={onSubmitEdit}
-          onCancelEdit={onCancelEdit}
-          renderMode={renderMode}
-          footerElements={footerElements}
-          pluginActionDefs={pluginActionDefs}
-          onOpenAttachment={handleOpenAttachment}
-        />
-      </>
+      <UserMessageBubble
+        index={index}
+        message={message}
+        allowedActions={allowedActions}
+        onAction={onAction}
+        isEditing={isEditing}
+        editingInitialText={editingInitialText}
+        editingText={editingText}
+        onChangeEditingText={onChangeEditingText}
+        onSubmitEdit={onSubmitEdit}
+        onCancelEdit={onCancelEdit}
+        renderMode={renderMode}
+        footerElements={footerElements}
+        pluginActionDefs={pluginActionDefs}
+      />
     );
   }
   if (role === 'system') {
     return (
-      <>
-        {viewerModal}
-        <SystemMessageBubble
-          index={index}
-          message={message}
-          allowedActions={allowedActions}
-          onAction={onAction}
-          isEditing={isEditing}
-          editingInitialText={editingInitialText}
-          editingText={editingText}
-          onChangeEditingText={onChangeEditingText}
-          onSubmitEdit={onSubmitEdit}
-          onCancelEdit={onCancelEdit}
-          renderMode={renderMode}
-          footerElements={footerElements}
-          pluginActionDefs={pluginActionDefs}
-          onOpenAttachment={handleOpenAttachment}
-        />
-      </>
+      <SystemMessageBubble
+        index={index}
+        message={message}
+        allowedActions={allowedActions}
+        onAction={onAction}
+        isEditing={isEditing}
+        editingInitialText={editingInitialText}
+        editingText={editingText}
+        onChangeEditingText={onChangeEditingText}
+        onSubmitEdit={onSubmitEdit}
+        onCancelEdit={onCancelEdit}
+        renderMode={renderMode}
+        footerElements={footerElements}
+        pluginActionDefs={pluginActionDefs}
+      />
     );
   }
   if (role === 'tool') {
     return (
-      <>
-        {viewerModal}
-        <ToolMessageBubble
-          index={index}
-          message={message}
-          allowedActions={allowedActions}
-          onAction={onAction}
-          renderMode={renderMode}
-          footerElements={footerElements}
-          pluginActionDefs={pluginActionDefs}
-          onOpenAttachment={handleOpenAttachment}
-        />
-      </>
+      <ToolMessageBubble
+        index={index}
+        message={message}
+        allowedActions={allowedActions}
+        onAction={onAction}
+        renderMode={renderMode}
+        footerElements={footerElements}
+        pluginActionDefs={pluginActionDefs}
+      />
     );
   }
   if (role === 'assistant') {
     return (
-      <>
-        {viewerModal}
-        <AssistantMessageBubble
-          index={index}
-          message={message}
-          allowedActions={allowedActions}
-          onAction={onAction}
-          isEditing={isEditing}
-          editingInitialText={editingInitialText}
-          editingText={editingText}
-          onChangeEditingText={onChangeEditingText}
-          onSubmitEdit={onSubmitEdit}
-          onCancelEdit={onCancelEdit}
-          renderMode={renderMode}
-          footerElements={footerElements}
-          pluginActionDefs={pluginActionDefs}
-          onOpenAttachment={handleOpenAttachment}
-        />
-      </>
+      <AssistantMessageBubble
+        index={index}
+        message={message}
+        allowedActions={allowedActions}
+        onAction={onAction}
+        isEditing={isEditing}
+        editingInitialText={editingInitialText}
+        editingText={editingText}
+        onChangeEditingText={onChangeEditingText}
+        onSubmitEdit={onSubmitEdit}
+        onCancelEdit={onCancelEdit}
+        renderMode={renderMode}
+        footerElements={footerElements}
+        pluginActionDefs={pluginActionDefs}
+      />
     );
   }
   const content = selectDisplayContent(message);
@@ -1066,50 +936,6 @@ const createStyles = (theme: Theme) =>
       marginTop: 2,
       padding: 0,
       color: theme.text,
-    },
-    viewerBackdrop: {
-      flex: 1,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: 'rgba(0, 0, 0, 0.72)',
-      padding: 24,
-    },
-    viewerPanel: {
-      width: '100%',
-      height: '100%',
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    viewerImage: {
-      width: '100%',
-      height: '100%',
-    },
-    viewerStatusRow: {
-      position: 'absolute',
-      bottom: 24,
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 8,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 6,
-      backgroundColor: theme.surface,
-    },
-    viewerStatusText: {
-      color: theme.textSecondary,
-      fontSize: 12,
-    },
-    viewerErrorText: {
-      position: 'absolute',
-      bottom: 24,
-      maxWidth: 520,
-      paddingHorizontal: 12,
-      paddingVertical: 8,
-      borderRadius: 6,
-      backgroundColor: theme.surface,
-      color: theme.danger,
-      fontSize: 12,
-      textAlign: 'center',
     },
   });
 
