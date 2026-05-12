@@ -1,6 +1,6 @@
 {
   "benchmark": "repoqa-prompted",
-  "config_dir": "config/openai_chatgpt_reasoning_none_balanced",
+  "config_dir": "config/openai_chatgpt_reasoning_none_codex_balanced",
   "base_manifest": "config/openai_api_reasoning_none_codex_balanced/manifests/repoqa-prompted-balanced-all-limit200-seed1-medium.json",
   "stages": {
     "full": {
@@ -10,6 +10,6 @@
     }
   },
   "report": {
-    "output_json": "config/openai_chatgpt_reasoning_none_balanced/reports/medium-limit200-repeat3-chatgpt-full-summary.json"
+    "output_json": "config/openai_chatgpt_reasoning_none_codex_balanced/reports/medium-limit200-repeat3-chatgpt-full-summary.json"
   }
 }

@@ -13,7 +13,7 @@ Check status:
 
 ```bash
 agent-evaluations auth status \
-  --config-dir evaluations/benchmarks/repoqa_prompted/config/openai_chatgpt_reasoning_none_balanced \
+  --config-dir evaluations/benchmarks/repoqa_prompted/config/openai_chatgpt_reasoning_none_codex_balanced \
   --agent-id repoqa-prompted-openai-chatgpt-reasoning-none
 ```
 
@@ -21,7 +21,7 @@ Start ChatGPT login:
 
 ```bash
 agent-evaluations auth login-chatgpt \
-  --config-dir evaluations/benchmarks/repoqa_prompted/config/openai_chatgpt_reasoning_none_balanced
+  --config-dir evaluations/benchmarks/repoqa_prompted/config/openai_chatgpt_reasoning_none_codex_balanced
 ```
 
 Credentials are stored under:

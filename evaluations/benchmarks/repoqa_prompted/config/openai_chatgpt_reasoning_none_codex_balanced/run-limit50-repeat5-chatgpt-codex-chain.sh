@@ -15,12 +15,12 @@ import sys
 print(Path(sys.argv[1]).expanduser().resolve())
 PY
 )"
-WORKFLOW_CONFIG="$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/chained_limit50_repeat5_chatgpt_mini_full_workflow.json"
+WORKFLOW_CONFIG="$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/comparable_limit50_repeat5_chatgpt_codex_workflow.json"
 LOG_DIR="$ARTIFACT_ROOT/logs"
 STATE_DIR="$ARTIFACT_ROOT/state"
 MINI_RUN_MANIFEST_FILE="$STATE_DIR/mini-run-manifest.txt"
 FULL_RUN_MANIFEST_FILE="$STATE_DIR/full-run-manifest.txt"
-MINI_SEED_SOURCE="$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/config/openai_chatgpt_reasoning_none_balanced/artifacts/sample-rerun2/results/mini-sample-chatgpt/repoqa-prompted/20260512T044127Z"
+MINI_SEED_SOURCE="$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/config/openai_chatgpt_reasoning_none_codex_balanced/artifacts/sample-rerun2/results/mini-sample-chatgpt/repoqa-prompted/20260512T044127Z"
 
 mkdir -p "$LOG_DIR" "$STATE_DIR"
 

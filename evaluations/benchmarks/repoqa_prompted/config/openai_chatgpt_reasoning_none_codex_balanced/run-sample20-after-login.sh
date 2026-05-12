@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="/Users/ferenci84/Dev/Mine/ai-agent-platform"
-CONFIG_DIR="$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/config/openai_chatgpt_reasoning_none_balanced"
+CONFIG_DIR="$REPO_ROOT/evaluations/benchmarks/repoqa_prompted/config/openai_chatgpt_reasoning_none_codex_balanced"
 PROFILE="repoqa-prompted-gpt54mini-balanced-sample-chatgpt-docker"
 MANIFEST_PATH="$CONFIG_DIR/manifests/repoqa-prompted-balanced-all-limit20-seed1.json"
 LOG_DIR="$CONFIG_DIR/launcher-logs"
