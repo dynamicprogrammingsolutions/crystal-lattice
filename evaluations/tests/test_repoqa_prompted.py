@@ -491,6 +491,71 @@ def test_repoqa_prompted_summary_excludes_missing_target_context_from_accuracy(m
     assert summary["raw_accuracy_over_manifest"] == 0.5
 
 
+def test_repoqa_prompted_summary_excludes_failed_requests_and_uses_none_for_zero_denominator(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    _write_fixture_config(config_dir, response_text="def target_0(value):\n    return helper(value) + 0\n")
+    env = load_evaluation_environment(config_dir)
+    _write_repoqa_fixture_release(env, task_count=1)
+    manifest = build_repoqa_prompted_manifest(
+        env,
+        release=DEFAULT_REPOQA_RELEASE,
+        language="python",
+        limit=1,
+        seed=1,
+    )
+
+    responses = iter(
+        [
+            {
+                "task": manifest["tasks"][0],
+                "workspace_root": str(tmp_path / "workspace-1"),
+                "attempts": [{"attempt_index": 0, "state": "retryable_failure"}],
+                "state": "failed_before_turn_completed",
+                "outcome": "failed_before_turn_completed",
+                "eligible_for_accuracy": False,
+                "failure_category": "request_failure",
+                "error": "RuntimeError: quota",
+                "score": {"matched": False, "score": 0.0},
+                "parsed_answer": None,
+                "parse_error": None,
+                "final_assistant_text": "",
+                "tool_call_count": 0,
+                "effective_tool_schema_count": 0,
+                "usage": None,
+                "cost": None,
+                "cost_formatted": None,
+                "provider_call_count": None,
+                "meta": {},
+            }
+        ]
+    )
+
+    monkeypatch.setattr(_prompted._logic, "run_repoqa_prompted_task_with_restarts", lambda *args, **kwargs: next(responses))
+
+    run_manifest_path = run_repoqa_prompted_benchmark(
+        env,
+        benchmark_manifest=manifest,
+        agent_id="fixture-agent",
+        profile_name=None,
+        profile_payload={},
+        schedule_overrides={"tasks_per_window": 10, "window_minutes": 60, "max_parallel_tasks": 1},
+        model_override=None,
+        max_task_restarts=1,
+        resume_run_manifest_path=None,
+    )
+
+    summary = json.loads((run_manifest_path.parent / "summary.json").read_text(encoding="utf-8"))
+    assert summary["eligible_task_count"] == 0
+    assert summary["successful_request_instance_count"] == 0
+    assert summary["error_request_instance_count"] == 1
+    assert summary["has_error_request_instances"] is True
+    assert summary["accuracy"] is None
+    assert summary["logical_task_average_success_rate"] is None
+
+
 def test_repoqa_prompted_docker_repeat_instances_use_unique_paths(monkeypatch, tmp_path: Path) -> None:
     config_dir = tmp_path / "config"
     _write_fixture_config(config_dir, response_text="def target_0(value):\n    return helper(value) + 0\n")
@@ -650,6 +715,7 @@ def test_repoqa_prompted_fails_clearly_when_tool_gating_feature_is_missing(tmp_p
     )
 
     assert result["state"] == "failed_before_turn_completed"
+    assert result["eligible_for_accuracy"] is False
     assert "ToolGatingFeature" in str(result["error"])
 
 

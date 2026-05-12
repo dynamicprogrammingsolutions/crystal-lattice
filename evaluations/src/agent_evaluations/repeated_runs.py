@@ -68,7 +68,13 @@ def aggregate_results_by_task_id(results: Iterable[Dict[str, Any]]) -> List[Dict
         )
         task_payload = instances[0].get("task")
         repeat_count = max(int(item.get("repeat_count", 1) or 1) for item in instances)
-        eligible_instances = [item for item in instances if item.get("eligible_for_accuracy", True)]
+        eligible_instances = [
+            item
+            for item in instances
+            if item.get("eligible_for_accuracy", True)
+            and item.get("state") == "completed"
+            and item.get("outcome") != "skipped_missing_target_context"
+        ]
         matched_instances = [
             item for item in eligible_instances if ((item.get("score") or {}).get("matched") is True)
         ]

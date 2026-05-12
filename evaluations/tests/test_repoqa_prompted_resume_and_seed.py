@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import pytest
 
 from agent_evaluations.repeated_runs import (
+    aggregate_results_by_task_id,
     expand_task_payloads_with_repeats,
     load_existing_results_for_manifest,
     select_result_rows_for_manifest,
@@ -167,6 +168,24 @@ def test_load_existing_results_rejects_task_payload_mismatch(tmp_path: Path) -> 
 
     with pytest.raises(ValueError, match="task payload mismatch"):
         load_existing_results_for_manifest(results_path, tasks)
+
+
+def test_aggregate_results_excludes_failed_requests_from_success_rate() -> None:
+    tasks = expand_task_payloads_with_repeats([_logical_task("task-a")], repeat_count=2)
+    successful = _result_row(tasks[0], matched=True)
+    failed = _result_row(tasks[1], matched=False)
+    failed["state"] = "failed_before_turn_completed"
+    failed["outcome"] = "failed_before_turn_completed"
+    failed["eligible_for_accuracy"] = False
+    failed["failure_category"] = "request_failure"
+    failed["error"] = "RuntimeError: quota"
+
+    aggregate = aggregate_results_by_task_id([successful, failed])[0]
+
+    assert aggregate["completed_instance_count"] == 2
+    assert aggregate["eligible_instance_count"] == 1
+    assert aggregate["matched_instance_count"] == 1
+    assert aggregate["success_rate"] == 1.0
 
 
 def test_run_repoqa_prompted_benchmark_skips_preexisting_instances(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

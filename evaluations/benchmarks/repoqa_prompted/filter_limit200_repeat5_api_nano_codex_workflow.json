@@ -1,0 +1,21 @@
+{
+  "benchmark": "repoqa-prompted",
+  "config_dir": "config/openai_api_reasoning_none_codex_balanced",
+  "base_manifest": "config/openai_api_reasoning_none_codex_balanced/manifests/repoqa-prompted-balanced-all-limit200-seed1.json",
+  "base_manifest_generation": {
+    "language": "all",
+    "limit": 200,
+    "seed": 1,
+    "output_manifest": "config/openai_api_reasoning_none_codex_balanced/manifests/repoqa-prompted-balanced-all-limit200-seed1.json"
+  },
+  "stages": {
+    "nano": {
+      "profile": "repoqa-prompted-gpt54nano-codex-balanced-200-docker",
+      "model": "gpt-5.4-nano",
+      "input_manifest": "config/openai_api_reasoning_none_codex_balanced/manifests/repoqa-prompted-balanced-all-limit200-seed1.json"
+    }
+  },
+  "report": {
+    "output_json": "config/openai_api_reasoning_none_codex_balanced/reports/filter-limit200-repeat5-api-nano-summary.json"
+  }
+}

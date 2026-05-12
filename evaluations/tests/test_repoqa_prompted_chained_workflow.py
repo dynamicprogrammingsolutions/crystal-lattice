@@ -22,6 +22,7 @@ command_report = MODULE.command_report
 command_status = MODULE.command_status
 latest_stage_run_dir = MODULE.latest_stage_run_dir
 load_workflow = MODULE.load_workflow
+stage_actual_score = MODULE._stage_actual_score
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -264,7 +265,7 @@ def test_build_hierarchical_report_assigns_tiers_with_inheritance(tmp_path: Path
     assert stage_rows["nano"]["run_task_count"] == 4
     assert stage_rows["nano"]["inherited_task_count"] == 0
     assert stage_rows["nano"]["skipped_due_to_context_task_count"] == 1
-    assert abs(stage_rows["nano"]["average_run_task_score"] - (1 / 3)) < 1e-9
+    assert abs(stage_rows["nano"]["average_run_task_score"] - (4 / 9)) < 1e-9
     assert stage_rows["nano"]["partially_successful_run_task_count"] == 1
     assert abs(stage_rows["nano"]["average_partially_successful_run_task_score"] - (1 / 3)) < 1e-9
     assert abs(stage_rows["nano"]["effective_accuracy"] - (1 / 3)) < 1e-9
@@ -309,6 +310,10 @@ def test_build_hierarchical_report_assigns_tiers_with_inheritance(tmp_path: Path
     assert stage_rows["full"]["average_output_tokens_per_second"] == 10.0
     assert stage_rows["full"]["fully_solved_task_count"] == 3
     assert stage_rows["full"]["fully_successful_run_task_count"] == 1
+
+
+def test_stage_actual_score_is_none_when_no_error_free_instances() -> None:
+    assert stage_actual_score({"eligible_instance_count": 0, "matched_instance_count": 0}) is None
 
 
 def test_command_status_reports_manifest_and_latest_run_presence(tmp_path: Path) -> None:

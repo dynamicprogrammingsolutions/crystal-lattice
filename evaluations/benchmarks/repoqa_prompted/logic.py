@@ -393,10 +393,13 @@ def _run_repoqa_prompted_attempt(
     request_completed = any(event.get("type") == "request_completed" for event in events)
     if not request_completed:
         raise RuntimeError("RepoQA prompted run did not complete the request turn")
+    final_assistant_text = extract_final_assistant_text(events)
+    if any(event.get("type") == "error" for event in events) and not final_assistant_text.strip():
+        raise RuntimeError("RepoQA prompted run completed with request error and no assistant response")
     return {
         "events": events,
         "final_session": final_session,
-        "final_assistant_text": extract_final_assistant_text(events),
+        "final_assistant_text": final_assistant_text,
         "tool_call_count": count_tool_calls(final_session),
         "effective_tool_schema_count": len(effective_tool_schemas),
         "usage_metadata": _extract_final_assistant_usage_metadata(final_session),
@@ -491,7 +494,13 @@ def _build_repoqa_prompted_summary(
     tasks: Sequence[Dict[str, Any]],
     preexisting_result_count: int,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    eligible_results = [item for item in completed if item.get("eligible_for_accuracy", True)]
+    eligible_results = [
+        item
+        for item in completed
+        if item.get("eligible_for_accuracy", True)
+        and item.get("state") == "completed"
+        and item.get("outcome") != "skipped_missing_target_context"
+    ]
     matched_eligible_count = sum(
         1 for item in eligible_results if ((item.get("score") or {}).get("matched") is True)
     )
@@ -564,12 +573,12 @@ def _build_repoqa_prompted_summary(
             1 for item in task_aggregates if int(item.get("matched_instance_count") or 0) > 0
         ),
         "logical_task_average_success_rate": (
-            sum(success_rates) / len(success_rates) if success_rates else 0.0
+            sum(success_rates) / len(success_rates) if success_rates else None
         ),
         "accuracy": (
             sum(float((item.get("score") or {}).get("score") or 0.0) for item in eligible_results) / len(eligible_results)
             if eligible_results
-            else 0.0
+            else None
         ),
         "raw_accuracy_over_manifest": (
             sum(float((item.get("score") or {}).get("score") or 0.0) for item in completed) / len(tasks)
@@ -752,7 +761,7 @@ def run_repoqa_prompted_task_with_restarts_in_workspace(
                     "attempts": attempts,
                     "state": "failed_before_turn_completed",
                     "outcome": "failed_before_turn_completed",
-                    "eligible_for_accuracy": True,
+                    "eligible_for_accuracy": False,
                     "failure_category": "request_failure",
                     "error": last_error,
                     "score": {

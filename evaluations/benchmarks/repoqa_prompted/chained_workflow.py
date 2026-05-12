@@ -280,7 +280,7 @@ def _stage_actual_score(aggregate: Optional[Mapping[str, Any]]) -> Optional[floa
     eligible = int(aggregate.get("eligible_instance_count") or 0)
     matched = int(aggregate.get("matched_instance_count") or 0)
     if eligible <= 0:
-        return 0.0
+        return None
     return matched / eligible
 
 
