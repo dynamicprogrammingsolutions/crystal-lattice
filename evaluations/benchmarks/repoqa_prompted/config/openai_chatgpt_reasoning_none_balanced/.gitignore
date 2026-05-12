@@ -5,4 +5,10 @@ results/
 workspaces/
 _sessions/
 artifacts/
+!artifacts/
+artifacts/*
+!artifacts/*/
+artifacts/*/*
+!artifacts/*/reports/
+!artifacts/*/reports/**
 launcher-logs/
