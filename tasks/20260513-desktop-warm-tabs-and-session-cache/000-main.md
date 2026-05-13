@@ -4,7 +4,7 @@ Break the desktop tab/cache work into focused subtasks so implementation can pre
 
 ## Task checklist
 
-- [ ] `tasks/20260513-desktop-warm-tabs-and-session-cache/010-render-only-warm-tabs.md`
+- [x] `tasks/20260513-desktop-warm-tabs-and-session-cache/010-render-only-warm-tabs.md`
 - [ ] `tasks/20260513-desktop-warm-tabs-and-session-cache/020-session-scoped-message-cache-persistence.md`
 - [ ] `tasks/20260513-desktop-warm-tabs-and-session-cache/030-desktop-file-backed-cache-storage.md`
 - [ ] `tasks/20260513-desktop-warm-tabs-and-session-cache/040-dirty-close-save-suppression.md`
