@@ -10,4 +10,9 @@ def _shared_dependency() -> str:
     return f"tool-compat-shared @ file://{sibling}"
 
 
-setup(install_requires=[_shared_dependency()])
+def _mcp_shared_dependency() -> str:
+    sibling = (Path(__file__).resolve().parents[1] / "mcp-shared").resolve()
+    return f"mcp-shared @ file://{sibling}"
+
+
+setup(install_requires=[_shared_dependency(), _mcp_shared_dependency()])

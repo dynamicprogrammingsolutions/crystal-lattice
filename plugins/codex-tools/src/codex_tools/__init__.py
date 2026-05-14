@@ -21,6 +21,7 @@ from .shell_command_tool import ShellCommandTool
 from .shell_tool import ShellArrayTool
 from .shell_tool_legacy import ShellTool
 from .apply_patch_tool import ApplyPatchTool
+from .mcp_tool import CodexMCPTool
 from .view_image_tool import ViewImageTool
 from .codex_variant_feature import CodexVariantFeature
 
@@ -31,6 +32,7 @@ __all__ = [
     "ShellArrayTool",
     "ShellTool",
     "ApplyPatchTool",
+    "CodexMCPTool",
     "ViewImageTool",
     "CodexVariantFeature",
 ]

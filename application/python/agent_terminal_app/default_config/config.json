@@ -10,6 +10,26 @@
       "enable_reasoning": true,
       "reasoning_effort": "medium"
     },
+    "codex_mcp_defaults": {
+      "mcp_enabled": false,
+      "mcp_reuse_runtime": true,
+      "mcp_fail_on_startup_error": false,
+      "mcp_servers": {
+        "filesystem": {
+          "enabled": false,
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@modelcontextprotocol/server-filesystem",
+            "${env:WORKING_DIR}"
+          ],
+          "cwd": "${env:WORKING_DIR}",
+          "startup_timeout_seconds": 30,
+          "tool_timeout_seconds": 30
+        }
+      }
+    },
     "codex_developer_message": {
       "codex_personality": "default",
       "system_message_enabled": true,
@@ -433,6 +453,7 @@
     "path:${env:BUILTIN_PLUGINS}/session-pinned-app",
     "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
     "path:${env:BUILTIN_PLUGINS}/rebuild-native-app",
+    "path:${env:BUILTIN_PLUGINS}/mcp-runtime-app",
     "path:${env:BUILTIN_PLUGINS}/session-ordering-buckets-app",
     "path:${env:BUILTIN_PLUGINS}/session-asset-attachments",
     "path:${env:BUILTIN_PLUGINS}/reference-openai-compatible-provider",
@@ -534,7 +555,7 @@
   },
   "agents": {
     "codex-openrouter": {
-      "mixin_refs": ["codex_developer_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openrouter",
       "model": "openai/gpt-5.4-mini",
       "plugins": [
@@ -543,7 +564,7 @@
       "shell_tool_mode": "auto"
     },
     "codex-openai": {
-      "mixin_refs": ["codex_developer_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5.4-mini",
       "plugins": [
@@ -552,7 +573,7 @@
       "shell_tool_mode": "auto"
     },
     "codex-openai-api": {
-      "mixin_refs": ["codex_developer_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5.4",
       "plugins": [
@@ -564,7 +585,7 @@
       "strip_leading_system_or_developer_message": false
     },
     "gpt-5-openrouter": {
-      "mixin_refs": ["codex_developer_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openrouter",
       "model": "openai/gpt-5",
       "plugins": [
@@ -575,7 +596,7 @@
       "disabled_plugins": ["apply_patch"]
     },
     "gpt-5-openai": {
-      "mixin_refs": ["codex_developer_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5",
       "plugins": [

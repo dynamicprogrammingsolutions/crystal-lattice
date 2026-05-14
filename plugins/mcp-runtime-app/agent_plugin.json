@@ -1,0 +1,10 @@
+{
+  "module": "mcp_runtime_app",
+  "subdirectory": ".",
+  "entries": [
+    "mcp_runtime_app.MCPRuntimeAppPlugin"
+  ],
+  "kinds": {
+    "mcp_runtime_app.MCPRuntimeAppPlugin": "application"
+  }
+}

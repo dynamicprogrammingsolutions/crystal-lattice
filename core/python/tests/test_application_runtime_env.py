@@ -166,3 +166,46 @@ def test_runtime_env_overlay_gc_cleanup_during_install_does_not_deadlock(
             os.environ.pop(key, None)
         else:
             os.environ[key] = previous
+
+
+def test_tool_runtime_store_closes_managed_values_on_app_close(tmp_path: Path) -> None:
+    class _Closable:
+        def __init__(self) -> None:
+            self.closed = False
+
+        def close(self) -> None:
+            self.closed = True
+
+    config_path = _write_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    closable = _Closable()
+    app.get_runtime_store().set("closable", closable)
+    app.close()
+    assert closable.closed is True
+
+
+def test_runtime_store_get_or_create_reuses_existing_value(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+
+    created = []
+
+    def _factory():
+        value = object()
+        created.append(value)
+        return value
+
+    first = app.get_runtime_store().get_or_create("shared", _factory)
+    second = app.get_runtime_store().get_or_create("shared", _factory)
+
+    assert first is second
+    assert created == [first]
+    app.close()
