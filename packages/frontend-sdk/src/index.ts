@@ -75,6 +75,13 @@ export type {
 } from './transport/transport';
 
 export type { KeyValueStore } from './storage/keyValueStore';
+export type {
+  SessionScopedMessagesCacheEntry,
+  SessionScopedMessagesBySession,
+  SessionScopedMessagesCache,
+  SessionScopedMessagesCacheIndexEntry,
+  SessionScopedMessagesCacheHydrationResult,
+} from './storage/sessionScopedMessagesCache';
 
 export { FetchTransport } from './transport/fetchTransport';
 export { BridgeTransport } from './transport/bridgeTransport';
@@ -182,3 +189,13 @@ export type {
 } from './connections/types';
 
 export { CONNECTIONS_STORAGE_KEY, loadConnections, saveConnections } from './connections/store';
+export {
+  SESSION_SCOPED_MESSAGES_CACHE_INDEX_KEY,
+  SESSION_SCOPED_MESSAGES_CACHE_ENTRY_KEY_PREFIX,
+  getSessionScopedMessagesCacheEntryKey,
+  loadSessionScopedMessagesCache,
+  persistSessionScopedMessagesCacheEntry,
+  deleteSessionScopedMessagesCacheEntry,
+  deleteConnectionSessionScopedMessagesCacheEntries,
+  clearSessionScopedMessagesCache,
+} from './storage/sessionScopedMessagesCache';

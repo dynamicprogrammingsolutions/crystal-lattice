@@ -2,12 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
-import type {
-  SessionsCache,
-  MessagesCache,
-} from '../App';
 import type { AgentBackend, ConnectionRecord, Transport } from '@crystal-lattice/frontend-sdk';
+import type { SessionsCache } from '../App';
 import type { DebugTimelineEntry } from './debugTimeline';
+import type { MessagesCache } from './cache/types';
 import ConnectionScreen from './ConnectionScreen';
 import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
