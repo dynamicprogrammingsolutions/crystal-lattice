@@ -109,3 +109,47 @@ def test_shared_event_store_shares_locks_between_applications(tmp_path: Path) ->
         xi = order.index(exit)
         assert xi == ei + 1
 
+
+def test_in_memory_event_store_replays_when_since_id_is_from_another_instance() -> None:
+    """Composite event ids reset safely across fresh store instances."""
+
+    first = InMemoryEventStore()
+    old_event = first.publish({"type": "debug_marker", "session_id": "s1"})
+    old_event_id = old_event.get("event_id")
+
+    second = InMemoryEventStore()
+    current = second.publish({"type": "message_appended", "session_id": "s1", "index": 0})
+
+    replayed = second.list(session_id="s1", since_id=old_event_id, limit=10)
+    returned_ids = [ev.get("event_id") for ev in replayed["events"]]
+
+    assert current.get("event_id") in returned_ids
+    assert replayed["cursor_expired"] is False
+
+
+def test_in_memory_event_store_marks_same_instance_pruned_cursor_as_expired() -> None:
+    store = InMemoryEventStore(max_events_global=2)
+
+    first = store.publish({"type": "message_appended", "session_id": "s1", "index": 0})
+    store.publish({"type": "request_started", "session_id": "s1", "request_id": "r1"})
+    third = store.publish({"type": "checkpoint", "session_id": "s1"})
+
+    listed = store.list(session_id="s1", since_id=first.get("event_id"), limit=10)
+
+    assert listed["cursor_expired"] is True
+    returned_ids = [ev.get("event_id") for ev in listed["events"]]
+    assert third.get("event_id") in returned_ids
+
+
+def test_in_memory_event_store_age_pruning_marks_cursor_expired() -> None:
+    store = InMemoryEventStore(max_event_age_seconds=0)
+
+    first = store.publish({"type": "message_appended", "session_id": "s1", "index": 0})
+    second = store.publish({"type": "checkpoint", "session_id": "s1"})
+
+    listed = store.list(session_id="s1", since_id=first.get("event_id"), limit=10)
+
+    assert listed["cursor_expired"] is True
+    assert listed["events"] == []
+    assert listed["latest_event_id"] is None or listed["latest_event_id"] == second.get("event_id")
+

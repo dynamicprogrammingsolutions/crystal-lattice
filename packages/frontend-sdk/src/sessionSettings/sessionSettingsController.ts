@@ -1,6 +1,7 @@
 import type { AgentBackend } from '../backend/backend';
 import type { ConfigSchemaEntry, UiSchemaElement } from '../types/uiSchema';
 import { SimpleSubscribable } from '../util/subscribable';
+import { coerceValueForElement } from '../utils/uiSchema';
 
 export type SessionSettingsStatusTone = 'idle' | 'busy' | 'success' | 'error';
 
@@ -106,6 +107,14 @@ function filterConfigUiSchemaElements(elements: UiSchemaElement[]): UiSchemaElem
 
     return uiType === undefined || uiType === null || uiType === '';
   }) as UiSchemaElement[];
+}
+
+/**
+ * Find a UI schema element by key.
+ * Returns undefined if not found.
+ */
+function findElementByKey(elements: UiSchemaElement[], key: string): UiSchemaElement | undefined {
+  return (elements || []).find((el) => el && typeof el === 'object' && (el as any).key === key);
 }
 
 function addSavingKey(keys: string[], key: string): string[] {
@@ -249,11 +258,15 @@ export class SessionSettingsController extends SimpleSubscribable<SessionSetting
     const hadPrevious = hasOwn(current.overrides, key);
     const previousValue = hadPrevious ? current.overrides[key] : undefined;
 
+    // Coerce value based on element type
+    const element = findElementByKey(current.elements, key);
+    const coercedValue = element ? coerceValueForElement(element, value) : value;
+
     const optimistic: BaseState = {
       ...current,
       overrides: {
         ...current.overrides,
-        [key]: value,
+        [key]: coercedValue,
       },
       savingKeys: addSavingKey(current.savingKeys, key),
       error: null,
@@ -263,7 +276,7 @@ export class SessionSettingsController extends SimpleSubscribable<SessionSetting
     this.commit(optimistic);
 
     try {
-      await this.backend.patchSessionOverrides(this.sessionId, { [key]: value });
+      await this.backend.patchSessionOverrides(this.sessionId, { [key]: coercedValue });
       this.markMutationSaved(key);
       this.load().catch(() => {
       });

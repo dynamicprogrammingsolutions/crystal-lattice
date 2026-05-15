@@ -1,0 +1,27 @@
+version: "2"
+
+services:
+  orchestrator:
+    build: .
+    container_name: cloud-orchestrator-single
+    environment:
+      - MIX_ENV=prod
+      - PORT=4100
+      - CLOUD_ORCHESTRATOR_PUBLIC_URL=${CLOUD_ORCHESTRATOR_PUBLIC_URL}
+      - CLOUD_ORCHESTRATOR_TOKEN_SECRET=${CLOUD_ORCHESTRATOR_TOKEN_SECRET}
+      - CLOUD_ORCHESTRATOR_CONTROL_TOKEN=${CLOUD_ORCHESTRATOR_CONTROL_TOKEN}
+      - CLOUD_ORCHESTRATOR_RUNNER=${CLOUD_ORCHESTRATOR_RUNNER}
+      - CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=${CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST}
+      - CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=${CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST}
+      - CLOUD_ORCHESTRATOR_DATA_DIR=/var/lib/cloud-orchestrator
+      - CLOUD_ORCHESTRATOR_HOST_DATA_DIR=${CLOUD_ORCHESTRATOR_HOST_DATA_DIR}
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE}
+      - TRANSFER_PORT_START=${TRANSFER_PORT_START}
+      - TRANSFER_PORT_END=${TRANSFER_PORT_END}
+    ports:
+      - "${CLOUD_ORCHESTRATOR_PORT}:4100"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${CLOUD_ORCHESTRATOR_HOST_DATA_DIR}:/var/lib/cloud-orchestrator
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

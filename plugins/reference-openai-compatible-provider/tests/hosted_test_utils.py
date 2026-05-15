@@ -7,6 +7,9 @@ from typing import Any
 from agent_core.core import AgentCore
 from plugins.request_options_feature import RequestOptionsFeature
 
+from reference_openai_compatible_provider.attachments_extension import (
+    OpenAICompatibleAttachmentsExtension,
+)
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
 from reference_openai_compatible_provider.reasoning_extension import (
     OpenAICompatibleReasoningExtension,
@@ -46,6 +49,7 @@ def build_reference_core(*tool_plugins: Any) -> AgentCore:
     core.register_provider(
         OpenAICompatibleProvider,
         extensions=[
+            OpenAICompatibleAttachmentsExtension,
             OpenAICompatibleToolsExtension,
             OpenAICompatibleReasoningExtension,
             OpenAICompatibleUsageExtension,

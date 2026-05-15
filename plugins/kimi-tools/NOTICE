@@ -1,0 +1,16 @@
+kimi-tools
+
+This package includes portions derived from or adapted from:
+
+Kimi Code CLI
+Copyright 2025 Moonshot AI
+https://github.com/MoonshotAI/kimi-cli
+
+The upstream Kimi Code CLI NOTICE also attributes reused portions to:
+
+OpenAI Codex
+Copyright 2025 OpenAI
+https://github.com/openai/codex
+
+The derived portions are used to provide Kimi-compatible tool schemas,
+behavior, output formatting, and prompt/tool interaction semantics.

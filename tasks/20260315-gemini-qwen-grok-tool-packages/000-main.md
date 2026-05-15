@@ -172,15 +172,27 @@ Key observations:
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/103-shell-engine-background.md` — Background process support
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/104-codex-v2-tool.md` — Codex V2 tool
   - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/105-vendor-tools.md` — Vendor wrappers
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools
-  - SPLIT INTO `tasks/20260315-gemini-qwen-grok-tool-packages/111-tool-plugin-context.md`
-  - SPLIT INTO `tasks/20260315-gemini-qwen-grok-tool-packages/112-web-fetch-shared.md`
-  - SPLIT INTO `tasks/20260315-gemini-qwen-grok-tool-packages/113-gemini-web-fetch.md`
-  - SPLIT INTO `tasks/20260315-gemini-qwen-grok-tool-packages/114-qwen-web-fetch.md`
-  - SPLIT INTO `tasks/20260315-gemini-qwen-grok-tool-packages/115-kimi-fetch-url.md`
-- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/110-web-fetch-tools.md` — Web fetch tools
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/111-tool-plugin-context.md`
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/112-web-fetch-shared.md`
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/113-gemini-web-fetch.md`
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/114-qwen-web-fetch.md`
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/115-kimi-fetch-url.md`
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/120-web-search-tools.md` — Web search tools (SPLIT)
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/121-web-search-shared.md` — Shared search infrastructure
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/122-gemini-web-search.md` — Gemini google_web_search tool
+  - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/123-qwen-web-search.md` — Qwen web_search tool
+  - [x] `tasks/20260315-gemini-qwen-grok-tool-packages/124-kimi-web-search.md` — Kimi SearchWeb tool
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/126-kimi-read-media-file-tool.md` — Kimi ReadMediaFile tool for filesystem images/media
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/127-provider-native-tool-result-payloads.md` — Provider-native structured tool result payloads for Kimi media parity
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/130-todo-tools.md` — Todo tools (all four vendors)
 - [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/135-background-process-management.md` — Background process management (application layer, Tier 2)
+
+### Phase 2.6: MCP tool support
+
+- [x] `tasks/20260315-gemini-qwen-grok-tool-packages/140-async-tool-initialization.md` — Async tool initialization protocol extension
+- [ ] `tasks/20260315-gemini-qwen-grok-tool-packages/150-mcp-tools.md` — MCP tool plugins with shared helper and vendor-specific implementations
+  - DEPENDS ON `tasks/20260315-gemini-qwen-grok-tool-packages/140-async-tool-initialization.md`
 
 ### Phase 2.5: Context compaction
 
@@ -196,6 +208,7 @@ Key observations:
 
 - `plugins/tool-compat-shared/` — shared filesystem, search, shell, and todo internals (stdlib-only deps)
 - `plugins/web-fetch-shared/` — shared HTTP fetch and trafilatura extraction (heavy deps: `trafilatura`, `aiohttp`); LLM summarization handled via tool context access to core/app
+- `plugins/mcp-shared/` — shared MCP client management, schema sanitization, content conversion (depends on `mcp` package)
 
 ## Roadmap: Deferred tools
 
@@ -203,7 +216,7 @@ The following tools are deferred to future subtasks. Each has prerequisites from
 
 ### High priority
 
-#### 140 — Ask User Question (all vendors)
+#### 160 — Ask User Question (all vendors)
 
 Structured question/response tool allowing the LLM to present options to the user and receive structured answers.
 
@@ -225,7 +238,7 @@ Structured question/response tool allowing the LLM to present options to the use
 - Kimi: `../kimi-cli/src/kimi_cli/tools/ask_user/__init__.py`, `../kimi-cli/src/kimi_cli/tools/ask_user/description.md`
 - Gemini: `../gemini-cli/packages/core/src/tools/ask-user.ts`, `../gemini-cli/packages/core/src/tools/definitions/model-family-sets/default-legacy.ts` (ask_user schema)
 
-#### 150 — Task / Subagent Delegation (all vendors)
+#### 170 — Task / Subagent Delegation (all vendors)
 
 Tool for delegating work to specialized subagents from within a tool call.
 
@@ -250,7 +263,7 @@ Tool for delegating work to specialized subagents from within a tool call.
 - Qwen: `../qwen-code/packages/core/src/tools/task.ts`
 - Kimi: `../kimi-cli/src/kimi_cli/tools/multiagent/task.py`, `../kimi-cli/src/kimi_cli/tools/multiagent/create.py`, `../kimi-cli/src/kimi_cli/soul/agent.py` (LaborMarket, Agent)
 
-#### 160 — Memory / Save Memory (Gemini, Qwen, Kimi)
+#### 165 — Memory / Save Memory (Gemini, Qwen, Kimi)
 
 Persistent memory tool for saving and retrieving cross-session user context, preferences, and facts.
 
@@ -274,7 +287,7 @@ Persistent memory tool for saving and retrieving cross-session user context, pre
 
 ### Medium priority
 
-#### 170 — Read Media File (Gemini, Kimi)
+#### 180 — Read Media File (Gemini, Kimi)
 
 Tool for reading image and video files and returning them as inline media payloads for multimodal models.
 
@@ -296,7 +309,7 @@ Tool for reading image and video files and returning them as inline media payloa
 - Gemini: `../gemini-cli/packages/core/src/tools/read-file.ts` (media handling within reader)
 - Kimi: `../kimi-cli/src/kimi_cli/tools/file/read_media.py`, `../kimi-cli/src/kimi_cli/tools/file/utils.py` (media type detection)
 
-#### 180 — Plan Mode (Gemini, Kimi)
+#### 190 — Plan Mode (Gemini, Kimi)
 
 Tools for entering and exiting plan mode, where the agent can explore and design an approach before executing.
 
@@ -311,7 +324,7 @@ Tools for entering and exiting plan mode, where the agent can explore and design
 **Prerequisites**:
 - Core: plan mode state management (per-session flag, toolset restriction).
 - Core: plan file lifecycle (create, read, write, approve/reject workflow).
-- 140 (ask user question) — for the Approve/Reject/Revise dialog in `ExitPlanMode`.
+- 160 (ask user question) — for the Approve/Reject/Revise dialog in `ExitPlanMode`.
 - 090 (Kimi core file tools) — for plan file writing via `WriteFile`.
 
 **Source references**:
@@ -320,7 +333,7 @@ Tools for entering and exiting plan mode, where the agent can explore and design
 
 ### Low priority
 
-#### 190 — Think / Scratchpad (Kimi)
+#### 200 — Think / Scratchpad (Kimi)
 
 Tool for explicit reasoning scratchpad where the model can write out step-by-step thinking.
 
@@ -336,7 +349,7 @@ Tool for explicit reasoning scratchpad where the model can write out step-by-ste
 **Source references**:
 - Kimi: `../kimi-cli/src/kimi_cli/tools/think/__init__.py`, `../kimi-cli/src/kimi_cli/tools/think/think.md`
 
-#### 200 — Create Subagent (Kimi)
+#### 210 — Create Subagent (Kimi)
 
 Tool for dynamically creating new subagent configurations at runtime with custom system prompts.
 
@@ -348,13 +361,13 @@ Tool for dynamically creating new subagent configurations at runtime with custom
 **Why deferred**: Depends on 150 (Task / Subagent Delegation) for the subagent infrastructure. Only useful once subagent isolation and management exist.
 
 **Prerequisites**:
-- 150 (Task / Subagent Delegation) — subagent infrastructure must exist first.
+- 170 (Task / Subagent Delegation) — subagent infrastructure must exist first.
 - 040 (agent/provider plugin config) — for per-agent subagent specs.
 
 **Source references**:
 - Kimi: `../kimi-cli/src/kimi_cli/tools/multiagent/create.py`
 
-#### 210 — Grok Unified Search (Grok)
+#### 220 — Grok Unified Search (Grok)
 
 Grok's unified `search` tool combining text search, file name search, and pattern matching in one interface.
 

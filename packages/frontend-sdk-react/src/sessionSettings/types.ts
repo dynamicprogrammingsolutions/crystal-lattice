@@ -15,6 +15,7 @@ export interface SessionSettingItem {
 
   label: string;
   description: string;
+  disabled: boolean;
 
   hasOverride: boolean;
   effectiveValue: unknown;

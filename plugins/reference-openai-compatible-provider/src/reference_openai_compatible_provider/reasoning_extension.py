@@ -34,21 +34,16 @@ def _get_reasoning_fields(state: dict[str, Any]) -> tuple[str, ...]:
 def _reasoning_metadata_from_native(
     native_message: dict[str, Any], state: dict[str, Any]
 ) -> dict[str, Any]:
-    """Extract reasoning metadata from native message based on configured fields."""
-    metadata: dict[str, Any] = {}
-    generic_reasoning: str | None = None
+    """Extract reasoning from native message to canonical metadata field.
+
+    Reads from configured field(s) and stores in canonical 'reasoning' metadata.
+    """
     fields = _get_reasoning_fields(state)
     for key in fields:
         value = native_message.get(key)
         if isinstance(value, str) and value:
-            metadata[key] = value
-            if generic_reasoning is None:
-                generic_reasoning = value
-
-    if isinstance(generic_reasoning, str) and generic_reasoning:
-        metadata["reasoning"] = generic_reasoning
-
-    return metadata
+            return {"reasoning": value}
+    return {}
 
 
 class OpenAICompatibleReasoningExtension(
@@ -156,10 +151,12 @@ class OpenAICompatibleReasoningExtension(
             enhanced_native = dict(native_msg)
             metadata = msg.get("metadata") or {}
             if msg.get("role") == "assistant" and isinstance(metadata, dict):
-                for key in fields:
-                    value = metadata.get(key)
-                    if _has_reasoning_payload(value):
-                        enhanced_native[key] = value
+                # Read from canonical metadata field
+                reasoning_value = metadata.get("reasoning")
+                if isinstance(reasoning_value, str) and reasoning_value:
+                    # Write to all configured native fields
+                    for key in fields:
+                        enhanced_native[key] = reasoning_value
             out.append(enhanced_native)
         return out
 

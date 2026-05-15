@@ -2,6 +2,8 @@
 
 Short description: Lower-priority Codex parity follow-up to make shell-surfaced `apply_patch` behavior safer and more Codex-like when the model emits patch edits through shell tools instead of the dedicated `apply_patch` tool.
 
+**STATUS: PENDING**
+
 ## Requirements checklist
 
 - [ ] Decide whether shell `apply_patch` should be broadened for safe interception or explicitly rejected when the dedicated `apply_patch` tool is enabled.

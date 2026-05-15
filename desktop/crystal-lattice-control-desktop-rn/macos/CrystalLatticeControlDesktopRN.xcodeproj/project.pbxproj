@@ -17,10 +17,9 @@
 		8511A5CB7F0EEA26F5AEBDF8 /* libPods-CrystalLatticeControlDesktopRN-macOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F75F6C0EDC82A9FC4070C341 /* libPods-CrystalLatticeControlDesktopRN-macOS.a */; };
 		9A6C6A4F88C14999A6E50C11 /* DesktopWindowManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */; };
 		B1C2D3E4F5A60718293A4B6C /* MacCheckboxManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5C /* MacCheckboxManager.mm */; };
-		B1C2D3E4F5A60718293A4B70 /* MacAttachmentPicker.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B60 /* MacAttachmentPicker.mm */; };
 		B1C2D3E4F5A60718293A4B6D /* MacSelectManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5D /* MacSelectManager.mm */; };
-		B1C2D3E4F5A60718293A4B6E /* MacTextViewManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5E /* MacTextViewManager.mm */; };
 		B1C2D3E4F5A60718293A4B6F /* MacScrollViewMetrics.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5F /* MacScrollViewMetrics.mm */; };
+		B1C2D3E4F5A60718293A4B70 /* MacAttachmentPicker.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B60 /* MacAttachmentPicker.mm */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,11 +36,10 @@
 		9A6C6A4D88C14999A6E50C11 /* DesktopWindowManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DesktopWindowManager.h; sourceTree = "<group>"; };
 		9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DesktopWindowManager.mm; sourceTree = "<group>"; };
 		AB85723B3B404E1E97A72B48 /* Fonts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Fonts; sourceTree = "<group>"; };
-		B1C2D3E4F5A60718293A4B60 /* MacAttachmentPicker.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MacAttachmentPicker.mm; sourceTree = "<group>"; };
 		B1C2D3E4F5A60718293A4B5C /* MacCheckboxManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MacCheckboxManager.mm; sourceTree = "<group>"; };
 		B1C2D3E4F5A60718293A4B5D /* MacSelectManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MacSelectManager.mm; sourceTree = "<group>"; };
-		B1C2D3E4F5A60718293A4B5E /* MacTextViewManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MacTextViewManager.mm; sourceTree = "<group>"; };
 		B1C2D3E4F5A60718293A4B5F /* MacScrollViewMetrics.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MacScrollViewMetrics.mm; sourceTree = "<group>"; };
+		B1C2D3E4F5A60718293A4B60 /* MacAttachmentPicker.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MacAttachmentPicker.mm; sourceTree = "<group>"; };
 		CF2605BE4E46109D99D5130A /* Pods-CrystalLatticeControlDesktopRN-macOS.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CrystalLatticeControlDesktopRN-macOS.debug.xcconfig"; path = "Target Support Files/Pods-CrystalLatticeControlDesktopRN-macOS/Pods-CrystalLatticeControlDesktopRN-macOS.debug.xcconfig"; sourceTree = "<group>"; };
 		D5FB0A66A30E78953CED74FC /* Pods-CrystalLatticeControlDesktopRN-macOS.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-CrystalLatticeControlDesktopRN-macOS.release.xcconfig"; path = "Target Support Files/Pods-CrystalLatticeControlDesktopRN-macOS/Pods-CrystalLatticeControlDesktopRN-macOS.release.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
@@ -86,8 +84,7 @@
 				B1C2D3E4F5A60718293A4B60 /* MacAttachmentPicker.mm */,
 				B1C2D3E4F5A60718293A4B5C /* MacCheckboxManager.mm */,
 				B1C2D3E4F5A60718293A4B5D /* MacSelectManager.mm */,
-				B1C2D3E4F5A60718293A4B5E /* MacTextViewManager.mm */,
-					B1C2D3E4F5A60718293A4B5F /* MacScrollViewMetrics.mm */,
+				B1C2D3E4F5A60718293A4B5F /* MacScrollViewMetrics.mm */,
 				AB85723B3B404E1E97A72B48 /* Fonts */,
 				514201512437B4B40078DB4F /* Assets.xcassets */,
 				514201532437B4B40078DB4F /* Main.storyboard */,
@@ -193,7 +190,7 @@
 					};
 					514201482437B4B30078DB4F = {
 						CreatedOnToolsVersion = 11.4;
-						DevelopmentTeam = PQYLP4RSG8;
+						DevelopmentTeam = 73Q43R2PD4;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -360,7 +357,6 @@
 				B1C2D3E4F5A60718293A4B6C /* MacCheckboxManager.mm in Sources */,
 				B1C2D3E4F5A60718293A4B70 /* MacAttachmentPicker.mm in Sources */,
 				B1C2D3E4F5A60718293A4B6D /* MacSelectManager.mm in Sources */,
-				B1C2D3E4F5A60718293A4B6E /* MacTextViewManager.mm in Sources */,
 				B1C2D3E4F5A60718293A4B6F /* MacScrollViewMetrics.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -386,6 +382,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_BITCODE = NO;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "CrystalLatticeControlDesktopRN-iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				OTHER_LDFLAGS = (
@@ -407,6 +404,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "CrystalLatticeControlDesktopRN-iOS/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				OTHER_LDFLAGS = (
@@ -428,9 +426,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = NO;
-				DEVELOPMENT_TEAM = PQYLP4RSG8;
+				DEVELOPMENT_TEAM = 73Q43R2PD4;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "CrystalLatticeControlDesktopRN-macos/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 12.4;
@@ -454,8 +454,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_IDENTITY = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = PQYLP4RSG8;
+				DEVELOPMENT_TEAM = 73Q43R2PD4;
+				ENABLE_HARDENED_RUNTIME = YES;
 				INFOPLIST_FILE = "CrystalLatticeControlDesktopRN-macos/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 12.4;

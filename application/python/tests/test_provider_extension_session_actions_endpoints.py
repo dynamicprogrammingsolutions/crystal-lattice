@@ -20,6 +20,7 @@ if str(CORE_PY) not in sys.path:
 
 from agent_app.application_future import AgentApplication  # noqa: E402
 from agent_app.events import InMemoryEventStore  # noqa: E402
+from agent_core import AgentCore, Message, Session  # noqa: E402
 from tests.dummy_provider_extension_session_action import (  # noqa: E402
     DummySessionActionExtension,
 )
@@ -47,6 +48,9 @@ def _make_config(tmp_path: Path) -> Path:
 def _build_app(tmp_path: Path) -> AgentApplication:
     from agent_terminal_app import server as server_mod
 
+    previous = getattr(server_mod, "_agent_app", None)
+    if previous is not None:
+        previous.close()
     config_path = _make_config(tmp_path)
     session_root = tmp_path / "sessions"
     app = AgentApplication(str(config_path), str(session_root), event_store=InMemoryEventStore())
@@ -54,6 +58,13 @@ def _build_app(tmp_path: Path) -> AgentApplication:
     app._plugins_by_kind_and_id.setdefault("extensions", {})[
         DummySessionActionExtension.name
     ] = DummySessionActionExtension
+    runtime = app._agent_plugin_runtimes["default"]
+    runtime.plugin_classes.setdefault("extensions", []).append(DummySessionActionExtension)
+    runtime.plugins_by_kind_and_id.setdefault("extensions", {})[
+        DummySessionActionExtension.name
+    ] = DummySessionActionExtension
+    if runtime.default_enabled_ids is not None:
+        runtime.default_enabled_ids.append(DummySessionActionExtension.name)
     server_mod._agent_app = app
     return app
 
@@ -109,3 +120,75 @@ def test_actions_endpoint_executes_provider_extension_session_action(tmp_path: P
     native_history = (loaded.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
     assert native_history[-1] == {"role": "assistant", "content": "MARKER=server-path"}
+
+
+def test_actions_endpoint_surfaces_conflict_for_provider_extension_session_action(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_app(tmp_path)
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "hello from app", config=base_config)
+    app.save_session(session)
+
+    def _conflicting_execute_session_action(
+        self,
+        session_obj,
+        config,
+        plugin_id,
+        action_id,
+        params,
+        context=None,
+    ):
+        _ = self, config, plugin_id, action_id, params, context
+        stored = app.load_session_record(session_obj.session_id)
+        assert stored is not None
+        external = Session(
+            session_id=stored.session_id,
+            messages=[
+                *stored.messages,
+                Message(role="user", content="external edit", metadata={}),
+            ],
+            metadata=stored.metadata,
+        )
+        app.save_session(external)
+
+        new_session = Session(
+            session_id=session_obj.session_id,
+            messages=[
+                *session_obj.messages,
+                Message(role="assistant", content="MARKER=late", metadata={}),
+            ],
+            metadata=session_obj.metadata,
+        )
+        return new_session, {"message": "should conflict"}
+
+    monkeypatch.setattr(
+        AgentCore,
+        "execute_session_action",
+        _conflicting_execute_session_action,
+        raising=True,
+    )
+
+    resp = server_mod.execute_action(
+        {
+            "plugin": "dummy_session_action",
+            "action_id": "append_native_marker",
+            "action_owner": "provider_extension",
+            "inputs": {
+                "session_id": session.session_id,
+                "marker": "server-path",
+            },
+        },
+        app_instance=app,
+    )
+
+    assert resp["status"] == "error"
+    assert resp["error_type"] == "conflict"
+    assert "Concurrent session modification detected while executing action" in resp["message"]
+
+    loaded = app.load_session_record(session.session_id)
+    assert loaded is not None
+    assert loaded.messages[-1].content == "external edit"

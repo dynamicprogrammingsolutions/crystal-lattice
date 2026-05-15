@@ -1,4 +1,5 @@
 import React from 'react';
+import type { StyleProp, ViewStyle } from 'react-native';
 
 import type {
   SessionActionDefinition,
@@ -20,6 +21,7 @@ export interface SessionActionsBarProps {
 
   title?: string;
   variant?: 'modal' | 'dropdown';
+  modalContentStyle?: StyleProp<ViewStyle>;
   renderIcon?: MenuIconRenderer;
   renderPinIcon?: (params: { pinned: boolean; size: number; color: string }) => React.ReactNode;
   renderCloseIcon?: (params: {
@@ -39,6 +41,7 @@ export function SessionActionsBar({
   isActive,
   title,
   variant,
+  modalContentStyle,
   renderIcon,
   renderPinIcon,
   renderCloseIcon,
@@ -50,6 +53,7 @@ export function SessionActionsBar({
       renderIcon={renderIcon}
       renderPinIcon={renderPinIcon}
       renderCloseIcon={renderCloseIcon}
+      modalContentStyle={modalContentStyle}
       baseActions={ALL_SESSION_ACTIONS}
       extraActions={extraActions}
       availableActions={availableActions}

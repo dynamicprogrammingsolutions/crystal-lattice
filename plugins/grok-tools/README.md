@@ -294,3 +294,7 @@ That means schema parity and tool behavior parity are the goal here. CLI confirm
 
 The current package scope includes writer/editor tools in addition to the first
 reader subtask because later subtasks extended the same compatibility bundle.
+
+## License
+
+This directory is available under the [Apache License 2.0](LICENSE).

@@ -38,10 +38,13 @@
             - Any other dict is wrapped as `{"part": chunk}` for backwards compatibility.
         - If no RESULT dict was ever seen, core synthesizes an error `tool` message like `Error: no tool handled 'name'`.
 
-- **`ToolPlugin.format_tool_result` (LLM‑visible text)**
-    - Signature: `format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str`.
+- **`ToolPlugin.format_tool_result` (LLM-visible content)**
+    - Signature: `format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str | provider-native envelope`.
     - Called once per tool call **after** streaming completes, with `last_result`.
     - Default adapter behavior: if not overridden, formats as `"Result: ..." / "Error: ..."` from `result`.
+    - Most tools return strings. Provider-specific multimodal tools may return
+      an explicit envelope with `type == "provider_native_tool_result"`.
+      Ordinary non-string formatter values are stringified for compatibility.
     - In `ApplyPatchTool.format_tool_result`:
         - On success:
             - Returns a multi‑line summary string:
@@ -54,7 +57,9 @@
 
 - **`ToolPlugin.to_display_format` (UI‑only display payload)**
     - Signature: `to_display_format(self, text: str, result: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]`.
-        - `text` is exactly the string from `format_tool_result`.
+        - `text` is the string from `format_tool_result`. If
+          `format_tool_result` returned a provider-native envelope, core passes
+          an empty string here.
         - `result` is the full RESULT dict from `execute_tool` / `stream_tool`.
     - Default implementations:
         - In `ToolPlugin` (protocol): returns `{"type": "text", "content": text}`.

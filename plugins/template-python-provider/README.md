@@ -68,3 +68,7 @@ Then add provider-specific API I/O logic in your provider class and expand tests
    - implement: `process_chunk` and `finalize` yourself
    - use this when the provider stream format is unusual or you need
      specialized finalization behavior
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

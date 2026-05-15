@@ -138,3 +138,34 @@ def test_extension_accumulator_merges_patch_into_existing_current_chunk_partial(
         "content": "Hello",
         "reasoning": "step",
     }
+
+
+def test_merge_tool_calls_keeps_separate_tool_calls_with_same_index():
+    """Regression: providers like Ollama/GLM-5 send multiple complete tool calls
+    in a single chunk, all with index=0.  They must be kept as separate entries,
+    not merged into one mangled tool call."""
+    deltas = [
+        {
+            "id": "call_d1ce08ec0efa4640956c173b",
+            "index": 0,
+            "type": "function",
+            "function": {"name": "glob", "arguments": '{"pattern":"**/grep.ts"}'},
+        },
+        {
+            "id": "call_35faa7d7ad3040db8eb6f7d6",
+            "index": 0,
+            "type": "function",
+            "function": {
+                "name": "grep_search",
+                "arguments": '{"dir_path":"src","pattern":"LIMIT"}',
+            },
+        },
+    ]
+    merged = _merge_tool_calls(existing=[], deltas=deltas)
+    assert len(merged) == 2, f"expected 2 tool calls, got {len(merged)}: {merged!r}"
+    assert merged[0]["id"] == "call_d1ce08ec0efa4640956c173b"
+    assert merged[0]["function"]["name"] == "glob"
+    assert merged[0]["function"]["arguments"] == '{"pattern":"**/grep.ts"}'
+    assert merged[1]["id"] == "call_35faa7d7ad3040db8eb6f7d6"
+    assert merged[1]["function"]["name"] == "grep_search"
+    assert merged[1]["function"]["arguments"] == '{"dir_path":"src","pattern":"LIMIT"}'

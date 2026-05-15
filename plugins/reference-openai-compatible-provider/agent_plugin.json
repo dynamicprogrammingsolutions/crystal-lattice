@@ -1,6 +1,7 @@
 {
   "entries": [
     "reference_openai_compatible_provider.provider.OpenAICompatibleProvider",
+    "reference_openai_compatible_provider.attachments_extension.OpenAICompatibleAttachmentsExtension",
     "reference_openai_compatible_provider.tools_extension.OpenAICompatibleToolsExtension",
     "reference_openai_compatible_provider.reasoning_extension.OpenAICompatibleReasoningExtension",
     "reference_openai_compatible_provider.usage_extension.OpenAICompatibleUsageExtension"

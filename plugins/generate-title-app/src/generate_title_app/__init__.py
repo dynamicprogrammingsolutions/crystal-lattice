@@ -40,6 +40,25 @@ _DEFAULT_PROMPT = (
 )
 
 
+def _collect_final_messages_from_stream(
+    core: Any,
+    session: Session,
+    config: Dict[str, Any],
+    *,
+    request_id: str | None = None,
+) -> List[Dict[str, Any]]:
+    """Run an internal request via the streaming path and return final messages."""
+
+    final_messages: List[Dict[str, Any]] = []
+    for event in core.send_request_stream(session, config, request_id=request_id):
+        if event.get("type") != "final":
+            continue
+        raw_messages = event.get("messages")
+        if isinstance(raw_messages, list):
+            final_messages = raw_messages
+    return final_messages
+
+
 class GenerateTitleAppPlugin:
     """Application-level plugin for generating session titles."""
 
@@ -402,6 +421,10 @@ class GenerateTitleAppPlugin:
         )
 
         combined_overrides: Dict[str, Any] = {**md_overrides2, **cfg_overrides}
+        request_overrides: Dict[str, Any] = {
+            "disable_all_tools": True,
+            **combined_overrides,
+        }
         config_for_add = resolve_request_config(base_config_title, combined_overrides)
 
         # Optionally replace any existing system messages in the
@@ -479,23 +502,23 @@ class GenerateTitleAppPlugin:
             )
             app.save_session(debug_session)
 
-        # Run the title-generation request using AgentApplication.send_request.
+        # Run the title-generation request without persisting the temporary
+        # title-generation session. We only need the model output here.
         try:
-            events = app.send_request(
+            core_title, _base_title, session_with_prompt, request_config, rid = (
+                app.prepare_tools_for_session(
+                    core_title,
+                    session_with_prompt,
+                    base_config_title,
+                    request_overrides,
+                )
+            )
+            last_final_messages = _collect_final_messages_from_stream(
                 core_title,
                 session_with_prompt,
-                base_config_title,
-                combined_overrides,
-                stream=False,
+                request_config,
+                request_id=rid,
             )
-            last_final_messages: Optional[List[Dict[str, Any]]] = None
-            for ev in events:
-                if not isinstance(ev, dict):
-                    continue
-                if ev.get("type") == "final":
-                    msgs = ev.get("messages") or []
-                    if isinstance(msgs, list):
-                        last_final_messages = msgs
         except Exception as exc:  # pragma: no cover - defensive
             return {
                 "status": "error",

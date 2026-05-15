@@ -35,9 +35,9 @@ const EMPTY_RESULT: PluginsResult = {
   sessionListPinnedToggles: [],
 };
 
-const CACHE: Map<string, CacheEntry | null | undefined> = new Map();
+const CACHE: Map<string, CacheEntry | undefined> = new Map();
 
-function buildResultFromEntry(entry: CacheEntry | null | undefined): PluginsResult {
+function buildResultFromEntry(entry: CacheEntry | undefined): PluginsResult {
   if (!entry) {
     return EMPTY_RESULT;
   }
@@ -72,6 +72,17 @@ function buildResultFromEntry(entry: CacheEntry | null | undefined): PluginsResu
   };
 }
 
+function buildResultFromState(state: PluginsRegistryState): PluginsResult {
+  return {
+    actionsById: state.actionsById || {},
+    sessionActions: state.sessionActions || [],
+    messageActions: state.messageActions || [],
+    sessionListActions: state.sessionListActions || [],
+    sessionListFields: state.sessionListFields || [],
+    sessionListPinnedToggles: state.sessionListPinnedToggles || [],
+  };
+}
+
 export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
   private backend: AgentBackend | null;
   private cacheKey: string;
@@ -101,12 +112,36 @@ export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
       return;
     }
 
-    this.setSnapshot({ ...this.getSnapshot(), loading: true, error: null });
+    await this.fetch({ preserveExisting: true });
+  }
+
+  async refresh(): Promise<void> {
+    if (!this.backend) {
+      this.setSnapshot({ ...EMPTY_RESULT, loading: false, error: null });
+      return;
+    }
+
+    await this.fetch({ preserveExisting: true });
+  }
+
+  invalidate(): void {
+    CACHE.delete(this.cacheKey);
+  }
+
+  private async fetch(options: { preserveExisting: boolean }): Promise<void> {
+    const current = this.getSnapshot();
+    const currentResult = buildResultFromState(current);
+
+    this.setSnapshot({
+      ...(options.preserveExisting ? currentResult : EMPTY_RESULT),
+      loading: true,
+      error: null,
+    });
 
     try {
       const [actions, elements] = await Promise.all([
-        this.backend.listApplicationActions(),
-        this.backend.listApplicationUiSchema(),
+        this.backend!.listApplicationActions(),
+        this.backend!.listApplicationUiSchema(),
       ]);
 
       const entry: CacheEntry = {
@@ -117,8 +152,11 @@ export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
       const next = buildResultFromEntry(entry);
       this.setSnapshot({ ...next, loading: false, error: null });
     } catch (err: any) {
-      CACHE.set(this.cacheKey, null);
-      this.setSnapshot({ ...EMPTY_RESULT, loading: false, error: err?.message || 'Failed to load' });
+      this.setSnapshot({
+        ...currentResult,
+        loading: false,
+        error: err?.message || 'Failed to load',
+      });
     }
   }
 }

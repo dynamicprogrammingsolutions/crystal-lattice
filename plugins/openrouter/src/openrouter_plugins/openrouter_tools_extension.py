@@ -5,6 +5,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from agent_core.tool_interop import (
     OpenAIChatToolCallAccessor,
     OpenAIChatToolSchemaAccessor,
+    ToolInteropTarget,
+    get_registry_from_context,
+    get_schema_target_formats_from_context,
 )
 from agent_core.types import ProviderExtensionPlugin
 
@@ -107,7 +110,9 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
                     extra["display"] = display
                 if extra:
                     base_meta = nm.get("_metadata") or {}
-                    merged = {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    merged = (
+                        {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    )
                     nm["_metadata"] = merged
             elif role == "assistant":
                 tcs = md.get("tool_calls")
@@ -146,15 +151,30 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
 
     # ---- Request init ----
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         request = state.get("request") or {}
         payload = dict(request.get("payload", {}))
         tools: List[Dict[str, Any]] = state.get("_openrouter_tools") or []
-        if tools:
+        if tools and "tools" not in payload:
+            registry = get_registry_from_context(context)
+            target_formats = get_schema_target_formats_from_context(context)
+            if not target_formats:
+                target_formats = self.accepted_tool_schema_formats(
+                    state.get("config") or {},
+                    state,
+                )
             payload = {
                 **payload,
-                "tools": tools,
+                "tools": registry.convert_schemas(
+                    [tool for tool in tools if isinstance(tool, dict)],
+                    target=ToolInteropTarget("openai.chat_completions"),
+                    target_formats=target_formats,
+                ),
                 **({"tool_choice": payload.get("tool_choice", "auto")}),
             }
         return {**state, "request": {**request, "payload": payload}}
@@ -204,7 +224,8 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
                     if "arguments" in func_delta:
                         # Accumulate arguments (they're sent as string fragments)
                         existing["function"]["arguments"] = (
-                            existing["function"].get("arguments", "") + func_delta["arguments"]
+                            existing["function"].get("arguments", "")
+                            + func_delta["arguments"]
                         )
                 acc_tc[index] = existing
 
@@ -214,7 +235,6 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
 
         return current_partial, accumulated
 
-
     def process_chunk(
         self,
         native_chunk: Optional[Dict[str, Any]],
@@ -222,14 +242,18 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         delta = self.extract_delta(native_chunk or {})
 
         new_partial_messages = partial_messages
         accumulated = state.get("partial", {})
 
         new_partial_message, accumulated = self.process_delta(
-            delta=delta, current_partial=partial_messages[-1] if len(partial_messages) > 0 else None, accumulated=accumulated
+            delta=delta,
+            current_partial=partial_messages[-1] if len(partial_messages) > 0 else None,
+            accumulated=accumulated,
         )
 
         return (
@@ -244,5 +268,24 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """Sanitize tool_calls in the accumulated partial before history storage.
+
+        This ensures that corrupted JSON arguments don't get stored in history
+        and cause subsequent API calls to fail.
+        """
+        partial = state.get("partial")
+        if isinstance(partial, dict):
+            tool_calls = partial.get("tool_calls")
+            if isinstance(tool_calls, list):
+                registry = get_registry_from_context(context)
+                # Sanitize each tool call to ensure valid JSON arguments
+                sanitized_calls = [
+                    registry.sanitize_tool_call(tc)
+                    for tc in tool_calls
+                    if isinstance(tc, dict)
+                ]
+                partial["tool_calls"] = sanitized_calls
         return final_messages, native_messages, state

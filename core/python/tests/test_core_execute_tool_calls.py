@@ -1,6 +1,12 @@
 """Unit test for AgentCore.execute_tool_calls using DummyCalculator tool."""
 
 from agent_core import AgentCore
+from agent_core.tool_result_payloads import (
+    FORMAT_OPENAI_CHAT_COMPLETIONS,
+    TOOL_RESULT_FIELD,
+    is_core_tool_result,
+    make_provider_native_tool_result,
+)
 from .dummy_tool import DummyCalculator
 from plugins.file_reader_tool import FileReaderTool
 
@@ -80,6 +86,41 @@ class RawEchoTool:
         return {"success": True, "result": str(payload).upper()}
 
 
+class StructuredResultTool:
+    name = "structured_result_tool"
+    version = "1.0.0"
+
+    def init(self, config):
+        return {}
+
+    def get_tool_schemas(self, state):
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": "structured",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            }
+        ]
+
+    def execute_tool(self, tool_name, arguments, state):
+        return {"success": True}
+
+    def format_tool_result(self, result, state):
+        return make_provider_native_tool_result(
+            format=FORMAT_OPENAI_CHAT_COMPLETIONS,
+            content=[
+                {"type": "text", "text": "<image>"},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": "data:image/png;base64,QUJDRA=="},
+                },
+                {"type": "text", "text": "</image>"},
+            ],
+        )
+
+
 def test_execute_tool_calls_with_dummy_tool():
     core = AgentCore()
     core.register_tool(DummyCalculator)
@@ -106,6 +147,38 @@ def test_execute_tool_calls_with_dummy_tool():
     assert display.get("type") == "text"
     assert "Result: 5" in str(display.get("content", ""))
     assert "Result: 5" in msg.get("content", "")
+    assert is_core_tool_result(msg.get(TOOL_RESULT_FIELD))
+    assert msg[TOOL_RESULT_FIELD]["text"] == "Result: 5"
+
+
+def test_execute_tool_calls_preserves_provider_native_result_payload():
+    core = AgentCore()
+    core.register_tool(StructuredResultTool)
+
+    results = core.execute_tool_calls(
+        [
+            {
+                "id": "call_structured",
+                "type": "function",
+                "function": {"name": "structured", "arguments": {}},
+            }
+        ],
+        config={},
+    )
+
+    assert len(results) == 1
+    content = results[0].get("content")
+    assert isinstance(content, str)
+    assert "<image>" in content
+    metadata = results[0].get("metadata") or {}
+    assert "provider_native_tool_result" not in metadata
+    provider_native = results[0].get(TOOL_RESULT_FIELD)
+    assert provider_native["type"] == "provider_native_tool_result"
+    assert provider_native["format"] == FORMAT_OPENAI_CHAT_COMPLETIONS
+    assert provider_native["content"][1]["image_url"]["url"].startswith("data:image/png")
+    display = metadata.get("display") or {}
+    assert display.get("type") == "image"
+    assert display.get("content", {}).get("url", "").startswith("data:image/png")
 
 
 def test_iter_tool_messages_non_streaming_file_reader(tmp_path):

@@ -14,12 +14,24 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from agent_app.utils.ui_condition import evaluate_condition
-from .event_rendering import TerminalRenderContext, _render_terminal_exception, _extract_by_path
-from .terminal_app import TerminalApplication, TerminalUserError, TerminalApplicationError
+from .event_rendering import (
+    TerminalRenderContext,
+    _render_terminal_exception,
+    _extract_by_path,
+)
+from .runtime_layout import load_runtime_layout
+from .terminal_app import (
+    TerminalApplication,
+    TerminalUserError,
+    TerminalApplicationError,
+)
 from agent_app.config import resolve_request_config
 
-_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "config_openrouter_app_layer.json"
-_DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
+_DEFAULT_RUNTIME_LAYOUT = load_runtime_layout()
+_DEFAULT_CONFIG_PATH = (
+    _DEFAULT_RUNTIME_LAYOUT.config_examples / "config_openrouter_app_layer.json"
+)
+_DEFAULT_SESSION_ROOT = _DEFAULT_RUNTIME_LAYOUT.user_path("default_sessions_dir")
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +39,10 @@ _DEFAULT_SESSION_ROOT = Path(__file__).resolve().parent / "sessions"
 # ---------------------------------------------------------------------------
 
 
-CommandFn = Callable[[TerminalApplication, str, Callable[[str], None], Dict[str, Any]], Awaitable[None] | None]
+CommandFn = Callable[
+    [TerminalApplication, str, Callable[[str], None], Dict[str, Any]],
+    Awaitable[None] | None,
+]
 SlashCompletionFn = Callable[[TerminalApplication, str], List[Completion]]
 
 
@@ -180,13 +195,13 @@ class SlashCommandCompleter(Completer):
 
 def _render_status_bar_template(template: str, data: Any) -> str:
     """Render a status bar template string with the given data.
-    
+
     Similar to _render_footer_template but for status bar usage.
     Simple {{data}} replacement.
     """
     if not isinstance(template, str):
         return ""
-    
+
     # Simple string replacement (same logic as footer templates)
     text = template.replace("{{data}}", str(data))
     return text
@@ -194,7 +209,7 @@ def _render_status_bar_template(template: str, data: Any) -> str:
 
 def _status_bar_text(app: TerminalApplication) -> str:
     """Build status bar text with agent, session, and plugin-contributed fields."""
-    
+
     # Base status info
     try:
         session_id = app.session_id
@@ -209,18 +224,20 @@ def _status_bar_text(app: TerminalApplication) -> str:
     if isinstance(agent, str) and agent:
         parts.append(f"Agent: {agent}")
     parts.append(f"Session: {session_id}")
-    
+
     # Add plugin-contributed status_bar elements from last assistant message
     try:
         elements = app.status_bar_elements()
         last_msg = app.get_last_assistant_message()
-        
+
         if last_msg and elements:
             for el in elements:
                 if not isinstance(el, dict):
                     continue
                 condition = el.get("condition")
-                if condition is not None and not evaluate_condition(condition, last_msg):
+                if condition is not None and not evaluate_condition(
+                    condition, last_msg
+                ):
                     continue
                 data_path = el.get("data")
                 template = el.get("template") or "{{data}}"
@@ -232,7 +249,7 @@ def _status_bar_text(app: TerminalApplication) -> str:
                 value = _extract_by_path(last_msg, data_path)
                 if value is None or value == "":
                     continue
-                
+
                 # Render the template
                 text = _render_status_bar_template(template, value)
                 if text:
@@ -240,7 +257,7 @@ def _status_bar_text(app: TerminalApplication) -> str:
     except Exception:
         # Silently ignore errors to keep the status bar functional
         pass
-    
+
     return "  ".join(parts)
 
 
@@ -349,8 +366,6 @@ def _resolve_setting_current_value(
         return True, schema_entry.get("default")
 
     return False, None
-
-
 
 
 async def _poll_events(
@@ -509,7 +524,9 @@ def _plugins_completion(app: TerminalApplication, text: str) -> List[Completion]
     return completions
 
 
-@slash_command("agent", "Switch the active agent for this session", completer=_agent_completion)
+@slash_command(
+    "agent", "Switch the active agent for this session", completer=_agent_completion
+)
 async def _cmd_agent(
     app: TerminalApplication,
     arg: str,
@@ -553,7 +570,9 @@ async def _cmd_agent(
     write("[agent] Enter agent name or number (empty to cancel):")
 
 
-@slash_command("session", "Switch to an existing session", completer=_session_completion)
+@slash_command(
+    "session", "Switch to an existing session", completer=_session_completion
+)
 async def _cmd_session(
     app: TerminalApplication,
     arg: str,
@@ -587,7 +606,9 @@ async def _cmd_session(
 
     # No argument: show a simple text-based selection.
     ui_state["pending_session_choices"] = [
-        entry.get("session_id") for entry in sessions if isinstance(entry.get("session_id"), str) and entry.get("session_id")
+        entry.get("session_id")
+        for entry in sessions
+        if isinstance(entry.get("session_id"), str) and entry.get("session_id")
     ]
 
     try:
@@ -632,7 +653,6 @@ def _help_completion(app: TerminalApplication, text: str) -> List[Completion]:
 
 @slash_command("help", "Show commands and shortcuts", completer=_help_completion)
 async def _cmd_help(
-
     app: TerminalApplication,
     arg: str,
     write: Callable[[str], None],
@@ -692,7 +712,11 @@ async def _cmd_help(
 
                 status = plugin_status.get(plugin_name)
                 is_off_or_inactive = bool(
-                    status and (not status.get("enabled", True) or not status.get("active", True))
+                    status
+                    and (
+                        not status.get("enabled", True)
+                        or not status.get("active", True)
+                    )
                 )
                 is_inactive_only = bool(status and not status.get("active", True))
 
@@ -731,7 +755,9 @@ async def _cmd_help(
 
                 if description:
                     desc_str = f"\x1b[90m{description}\x1b[0m"
-                    write(f"  {key_str} ({type_str}) {plugin_str} {values_str} - {desc_str}")
+                    write(
+                        f"  {key_str} ({type_str}) {plugin_str} {values_str} - {desc_str}"
+                    )
                 else:
                     write(f"  {key_str} ({type_str}) {plugin_str} {values_str}")
 
@@ -812,7 +838,10 @@ async def _cmd_help(
                     for entry in schema_entries:
                         if not isinstance(entry, dict):
                             continue
-                        if entry.get("key") == key_val and entry.get("plugin") == plugin_name:
+                        if (
+                            entry.get("key") == key_val
+                            and entry.get("plugin") == plugin_name
+                        ):
                             schema_entry = entry
                             break
                 type_name = (
@@ -844,7 +873,11 @@ async def _cmd_help(
 
                 status = plugin_status.get(plugin_name)
                 is_off_or_inactive = bool(
-                    status and (not status.get("enabled", True) or not status.get("active", True))
+                    status
+                    and (
+                        not status.get("enabled", True)
+                        or not status.get("active", True)
+                    )
                 )
                 is_inactive_only = bool(status and not status.get("active", True))
 
@@ -885,7 +918,9 @@ async def _cmd_help(
                 else:
                     write(f"  {key_str} ({type_str}) {plugin_str} {values_str}")
         else:
-            write("\n[help] No configurable settings available via /set for this session")
+            write(
+                "\n[help] No configurable settings available via /set for this session"
+            )
 
         # Finally, show application-level config options from the
         # top-level "application" section (used by the terminal app
@@ -896,7 +931,7 @@ async def _cmd_help(
         app_cfg = app.agent_app.get_application_config()
 
         if app_cfg_schema:
-            write("\n[help] Application-level config options (config[\"application\"]):")
+            write('\n[help] Application-level config options (config["application"]):')
             for key in sorted(app_cfg_schema.keys()):
                 meta = app_cfg_schema.get(key) or {}
                 type_name = meta.get("type", "?")
@@ -913,18 +948,21 @@ async def _cmd_help(
                 else:
                     key_str = f"\x1b[33m{key}\x1b[0m"
                 type_str = f"\x1b[34m{type_name}\x1b[0m"
-                values_str = f"\x1b[90mdefault={default_val!r}, current={current_val!r}\x1b[0m"
+                values_str = (
+                    f"\x1b[90mdefault={default_val!r}, current={current_val!r}\x1b[0m"
+                )
                 if desc:
                     desc_str = f"\x1b[90m{desc}\x1b[0m"
                     write(f"  {key_str} ({type_str}) {values_str} - {desc_str}")
                 else:
                     write(f"  {key_str} ({type_str}) {values_str}")
         else:
-            write("\n[help] No application-level config options defined (schema is empty)")
+            write(
+                "\n[help] No application-level config options defined (schema is empty)"
+            )
 
         write("")
         return
-
 
     write("\nCommands:")
     for cmd in iter_slash_commands():
@@ -1112,7 +1150,9 @@ def _set_completion(app: TerminalApplication, text: str) -> List[Completion]:
     return completions
 
 
-@slash_command("set", "Set a configuration override for this session", completer=_set_completion)
+@slash_command(
+    "set", "Set a configuration override for this session", completer=_set_completion
+)
 async def _cmd_set(
     app: TerminalApplication,
     arg: str,
@@ -1136,11 +1176,12 @@ async def _cmd_set(
         for key in sorted(by_key.keys()):
             options = by_key[key].get("options") or []
             normalized = _normalize_setting_options(options)
+            disabled_suffix = " [disabled]" if by_key[key].get("disabled") else ""
             if normalized:
                 display_opts = [opt_display for _, opt_display in normalized]
-                write(f"  {key} (options: {', '.join(display_opts)})")
+                write(f"  {key} (options: {', '.join(display_opts)}){disabled_suffix}")
             else:
-                write(f"  {key}")
+                write(f"  {key}{disabled_suffix}")
         return
 
     name_and_val = text.split(" ", 1)
@@ -1150,6 +1191,11 @@ async def _cmd_set(
     el = by_key.get(key)
     if el is None:
         raise TerminalUserError(f"unknown key: {key!r}")
+
+    if el.get("disabled"):
+        desc = el.get("description")
+        reason = f": {desc}" if isinstance(desc, str) and desc else ""
+        raise TerminalUserError(f"setting {key!r} is disabled{reason}")
 
     if not value:
         raise TerminalUserError(f"missing value for {key!r}")
@@ -1190,6 +1236,15 @@ async def _cmd_set(
             coerced = False
         else:
             raise TerminalUserError(f"invalid boolean for {key!r}: {value!r}")
+    elif el_type == "number":
+        # Try int first, then float
+        try:
+            if "." in value or "e" in value.lower():
+                coerced = float(value)
+            else:
+                coerced = int(value)
+        except ValueError:
+            raise TerminalUserError(f"invalid number for {key!r}: {value!r}")
 
     try:
         app.update_override(key, coerced)
@@ -1201,7 +1256,9 @@ async def _cmd_set(
     write(f"[set] {key}={coerced!r} saved for this session")
 
 
-@slash_command("plugins", "List or toggle plugins for this session", completer=_plugins_completion)
+@slash_command(
+    "plugins", "List or toggle plugins for this session", completer=_plugins_completion
+)
 async def _cmd_plugins(
     app: TerminalApplication,
     arg: str,
@@ -1234,9 +1291,7 @@ async def _cmd_plugins(
             pid = entry.get("id") if isinstance(entry.get("id"), str) else ""
             active = bool(entry.get("active", True))
             inactive_suffix = " (inactive)" if not active else ""
-            write(
-                f"  {index}. [{status:3s}] {display_kind:<9s} {pid}{inactive_suffix}"
-            )
+            write(f"  {index}. [{status:3s}] {display_kind:<9s} {pid}{inactive_suffix}")
         return
 
     # Subcommands: on, off, reset
@@ -1246,7 +1301,9 @@ async def _cmd_plugins(
 
     if sub == "reset":
         app.clear_session_plugins()
-        write("[plugins] cleared session-specific plugin overrides; using defaults again")
+        write(
+            "[plugins] cleared session-specific plugin overrides; using defaults again"
+        )
         try:
             ui_state["plugins_last_list"] = app.list_plugins_for_session()
         except Exception:
@@ -1330,7 +1387,9 @@ async def _cmd_plugins(
     provider_ids = [
         entry.get("id")
         for entry in entries
-        if entry.get("kind") == "providers" and isinstance(entry.get("id"), str) and entry.get("id")
+        if entry.get("kind") == "providers"
+        and isinstance(entry.get("id"), str)
+        and entry.get("id")
     ]
     if sub == "off" and not any(pid in enabled_ids for pid in provider_ids):
         write("[plugins] warning: no providers will remain enabled after this change")
@@ -1475,7 +1534,10 @@ async def _cmd_delete(
         deleted = [raw_index]
 
     if deleted:
-        write("[delete] deleted messages at indices: " + ", ".join(str(i) for i in deleted))
+        write(
+            "[delete] deleted messages at indices: "
+            + ", ".join(str(i) for i in deleted)
+        )
     else:
         write("[delete] no messages deleted")
 
@@ -1607,7 +1669,6 @@ async def _cmd_fork(
 
 
 async def _handle_slash_command(
-
     app: TerminalApplication,
     raw: str,
     write: Callable[[str], None],
@@ -1767,7 +1828,9 @@ def _build_key_bindings(
             )
             config = resolve_request_config(base_config, overrides)
             buffer_text = buf.text
-            snippet = core.apply_feature_completion(config, buffer_text, completion_dict)
+            snippet = core.apply_feature_completion(
+                config, buffer_text, completion_dict
+            )
         except Exception as exc:
             # Display a user-friendly error message while allowing
             # structlog-based logging inside the core/plugins to capture
@@ -1865,6 +1928,7 @@ def _build_key_bindings(
 
     return kb
 
+
 def _set_terminal_title(title: str) -> None:
     """Best-effort update of the terminal window title.
 
@@ -1882,11 +1946,12 @@ def _set_terminal_title(title: str) -> None:
 
             os.system(f"title {title}")
         else:
-            sys.stdout.write(f"\x1B]0;{title}\x07")
+            sys.stdout.write(f"\x1b]0;{title}\x07")
             sys.stdout.flush()
     except Exception:
         # Never let title handling break startup.
         pass
+
 
 async def _run_terminal(
     app: TerminalApplication,
@@ -1959,7 +2024,9 @@ async def _run_terminal(
                 _handle_session_selection(app, text, write, ui_state)
                 continue
 
-            if ui_state.get("pending_modify_index") is not None and not text.startswith("/"):
+            if ui_state.get("pending_modify_index") is not None and not text.startswith(
+                "/"
+            ):
                 await _handle_modify_message(app, text, write, ui_state)
                 continue
 
@@ -1980,7 +2047,6 @@ def run_terminal(
     logger: Optional[Logger] = None,
     app_instance: Optional[TerminalApplication] = None,
 ) -> None:  # pragma: no cover - manual usage
-
     """Entry point for running the terminal client.
 
     If ``app_instance`` is provided, it is used; otherwise a default
@@ -1991,6 +2057,7 @@ def run_terminal(
     app = app_instance or TerminalApplication(
         config_path=_DEFAULT_CONFIG_PATH,
         session_root=_DEFAULT_SESSION_ROOT,
+        env_overrides=_DEFAULT_RUNTIME_LAYOUT.env_overrides(),
     )
 
     asyncio.run(_run_terminal(app, logger=logger))

@@ -111,12 +111,12 @@ For now we will:
 - [x] `tasks/20260225-codex-tools-parity/011-shell-selection-parity.md`
 - [x] `tasks/20260225-codex-tools-parity/012-core-freeform-tool-prerequisite.md`
 - [x] `tasks/20260225-codex-tools-parity/013-apply-patch-true-parity.md`
-- [ ] `tasks/20260225-codex-tools-parity/020-bash-tool-round-1-schema.md`
-- [ ] `tasks/20260225-codex-tools-parity/030-bash-tool-round-2-output-and-limits.md`
-- [ ] `tasks/20260225-codex-tools-parity/035-gpt-5-4-tool-selection-workdir-and-developer-message.md`
+- [x] `tasks/20260225-codex-tools-parity/020-bash-tool-round-1-schema.md`
+- [x] `tasks/20260225-codex-tools-parity/030-bash-tool-round-2-output-and-limits.md`
+- [x] `tasks/20260225-codex-tools-parity/035-gpt-5-4-tool-selection-workdir-and-developer-message.md`
 - [ ] `tasks/20260225-codex-tools-parity/040-bash-tool-round-3-sandboxing.md`
 - [ ] `tasks/20260225-codex-tools-parity/050-update-plan-tool.md`
-- [ ] `tasks/20260225-codex-tools-parity/060-view-image-tool.md`
+- [x] `tasks/20260225-codex-tools-parity/060-view-image-tool.md`
 - [ ] `tasks/20260225-codex-tools-parity/070-exec-command-and-write-stdin-tools.md`
 - [ ] `tasks/20260225-codex-tools-parity/080-shell-apply-patch-interception-hardening.md`
 

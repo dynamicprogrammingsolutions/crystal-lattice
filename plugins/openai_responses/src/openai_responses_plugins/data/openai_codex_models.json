@@ -1,0 +1,37 @@
+{
+  "fetched_at": "2026-04-24T10:02:27+00:00",
+  "models": {
+    "codex-auto-review": {
+      "description": "Automatic approval review model for Codex.",
+      "id": "codex-auto-review",
+      "name": "Codex Auto Review"
+    },
+    "gpt-5.2": {
+      "description": "Optimized for professional work and long-running agents.",
+      "id": "gpt-5.2",
+      "name": "gpt-5.2"
+    },
+    "gpt-5.3-codex": {
+      "description": "Coding-optimized model.",
+      "id": "gpt-5.3-codex",
+      "name": "gpt-5.3-codex"
+    },
+    "gpt-5.4": {
+      "description": "Strong model for everyday coding.",
+      "id": "gpt-5.4",
+      "name": "gpt-5.4"
+    },
+    "gpt-5.4-mini": {
+      "description": "Small, fast, and cost-efficient model for simpler coding tasks.",
+      "id": "gpt-5.4-mini",
+      "name": "GPT-5.4-Mini"
+    },
+    "gpt-5.5": {
+      "description": "Frontier model for complex coding, research, and real-world work.",
+      "id": "gpt-5.5",
+      "name": "GPT-5.5"
+    }
+  },
+  "source_base_url": "https://raw.githubusercontent.com/openai/codex",
+  "version": 1
+}

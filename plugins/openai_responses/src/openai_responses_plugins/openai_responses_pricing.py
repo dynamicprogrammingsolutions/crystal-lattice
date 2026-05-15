@@ -82,13 +82,14 @@ def resolve_pricing_entry(
     model: str,
     snapshot: Dict[str, Any] | None = None,
     snapshot_path: str | None = None,
+    manual_entries: Dict[str, Any] | None = None,
 ) -> Optional[Dict[str, Any]]:
     if not isinstance(model, str) or not model.strip():
         return None
     data = snapshot or load_pricing_snapshot(snapshot_path)
     models = data.get("models")
     if not isinstance(models, dict):
-        return None
+        models = {}
 
     direct = models.get(model)
     if isinstance(direct, dict):
@@ -98,6 +99,14 @@ def resolve_pricing_entry(
     resolved = models.get(normalized)
     if isinstance(resolved, dict):
         return resolved
+
+    if isinstance(manual_entries, dict):
+        direct_manual = manual_entries.get(model)
+        if isinstance(direct_manual, dict):
+            return direct_manual
+        normalized_manual = manual_entries.get(normalized)
+        if isinstance(normalized_manual, dict):
+            return normalized_manual
 
     return None
 
@@ -174,11 +183,17 @@ def estimate_usage_cost(
     service_tier: str | None = None,
     snapshot: Dict[str, Any] | None = None,
     snapshot_path: str | None = None,
+    manual_entries: Dict[str, Any] | None = None,
 ) -> Optional[float]:
     if not isinstance(usage, dict) or not usage:
         return None
 
-    entry = resolve_pricing_entry(model, snapshot=snapshot, snapshot_path=snapshot_path)
+    entry = resolve_pricing_entry(
+        model,
+        snapshot=snapshot,
+        snapshot_path=snapshot_path,
+        manual_entries=manual_entries,
+    )
     if not isinstance(entry, dict):
         return None
 

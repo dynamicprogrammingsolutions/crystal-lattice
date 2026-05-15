@@ -23,6 +23,7 @@ Reference implementations:
 
 See also:
 
+- [Tool interop flow](tool-interop.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Node tool plugins](node-tool-plugins.md)
 - [Bash tool plugins](bash-tool-plugins.md)
@@ -45,18 +46,20 @@ Tool plugins are the right place for model-invoked operations such as:
 
 Unlike providers, provider extensions, and features, tools do **not** share the
 provider state dict. Each tool manages its own independent `state: dict` between
-`init(...)`, `get_tool_schemas(...)`, `execute_tool(...)`, and related hooks.
+`init(...)`, optional `prepare(...)` / `prepare_async(...)`,
+`get_tool_schemas(...)`, `execute_tool(...)`, and related hooks.
 
 Minimal core message flow:
 
 1. Tool runs `init(config)`.
-2. Tool returns one or more schemas from `get_tool_schemas(state)`.
-3. Provider/provider extensions expose those schemas to the model.
-4. Model emits tool-call objects.
-5. Core inspects each tool call through the active interop registry.
-6. Core routes the call to a tool.
-7. Tool executes and returns a result dict.
-8. Core formats the result into a `role="tool"` message.
+2. Optionally, a caller runs `prepare(config, state)` or `prepare_async(...)`.
+3. Tool returns one or more schemas from `get_tool_schemas(state, prepared=...)`.
+4. Provider/provider extensions expose those schemas to the model.
+5. Model emits tool-call objects.
+6. Core inspects each tool call through the active interop registry.
+7. Core routes the call to a tool.
+8. Tool executes and returns a result dict.
+9. Core formats the result into a `role="tool"` message.
 
 Example final tool message shape:
 
@@ -272,7 +275,28 @@ tool hooks are:
 class ToolPlugin(BasePlugin, Protocol):
     def init(self, config: dict[str, Any]) -> dict[str, Any]: ...
 
-    def get_tool_schemas(self, state: dict[str, Any]) -> list[dict[str, Any]]: ...
+    def prepare(
+        self,
+        config: dict[str, Any],
+        state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]: ...
+
+    async def prepare_async(
+        self,
+        config: dict[str, Any],
+        state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
+    ) -> dict[str, Any]: ...
+
+    def get_tool_schemas(
+        self,
+        state: dict[str, Any],
+        *,
+        prepared: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]: ...
 
     def get_tool_interop_contribution(
         self,
@@ -290,6 +314,7 @@ class ToolPlugin(BasePlugin, Protocol):
         payload_metadata: dict[str, Any] | None = None,
         tool_call: dict[str, Any] | None = None,
         tool_schema: dict[str, Any] | None = None,
+        prepared: dict[str, Any] | None = None,
     ) -> bool | None: ...
 
     def execute_tool(
@@ -302,9 +327,12 @@ class ToolPlugin(BasePlugin, Protocol):
         payload_format: str | None = None,
         payload_metadata: dict[str, Any] | None = None,
         tool_call: dict[str, Any] | None = None,
+        prepared: dict[str, Any] | None = None,
     ) -> dict[str, Any]: ...
 
-    def format_tool_result(self, result: dict[str, Any], state: dict[str, Any]) -> str: ...
+    async def execute_tool_async(...) -> dict[str, Any]: ...
+
+    def format_tool_result(self, result: dict[str, Any], state: dict[str, Any]) -> Any: ...
 
     def format_tool_call_preview(
         self,
@@ -316,6 +344,7 @@ class ToolPlugin(BasePlugin, Protocol):
         payload_format: str | None = None,
         payload_metadata: dict[str, Any] | None = None,
         tool_call: dict[str, Any] | None = None,
+        prepared: dict[str, Any] | None = None,
     ) -> str: ...
 
     def stream_tool(
@@ -328,7 +357,10 @@ class ToolPlugin(BasePlugin, Protocol):
         payload_format: str | None = None,
         payload_metadata: dict[str, Any] | None = None,
         tool_call: dict[str, Any] | None = None,
+        prepared: dict[str, Any] | None = None,
     ) -> Iterator[dict[str, Any]]: ...
+
+    async def stream_tool_async(...) -> AsyncIterator[dict[str, Any]]: ...
 
     def to_display_format(
         self,
@@ -351,7 +383,8 @@ Additional common hooks:
 - `get_tool_schemas(...)` describes what the model can call
 - `can_handle_tool_call(...)` optionally claims responsibility for a call
 - `execute_tool(...)` performs the work and returns a result dict
-- `format_tool_result(...)` produces the string the model sees
+- `format_tool_result(...)` produces the string or explicit provider-native
+  envelope the model sees
 - `to_display_format(...)` produces richer UI-only output for humans
 
 ---
@@ -581,8 +614,11 @@ rewrite.
 
 ### `format_tool_result(...)` is what the model sees
 
-The final string returned by `format_tool_result(...)` becomes the tool
-message `content` sent back into the conversation.
+The value returned by `format_tool_result(...)` becomes the tool message
+`content` sent back into the conversation.
+
+Most tools should return a plain string. This is the stable compatibility path
+for text tools:
 
 Example:
 
@@ -593,10 +629,42 @@ def format_tool_result(self, result: dict[str, Any], state: dict[str, Any]) -> s
     return f"Error: {result.get('error')}"
 ```
 
+Provider-specific multimodal tools may instead return an explicit
+provider-native tool result envelope. Do this only when the provider adapter is
+known to support the envelope format:
+
+```python
+from agent_core.tool_result_payloads import (
+    FORMAT_OPENAI_CHAT_COMPLETIONS,
+    make_provider_native_tool_result,
+)
+
+
+def format_tool_result(self, result: dict[str, Any], state: dict[str, Any]) -> Any:
+    return make_provider_native_tool_result(
+        format=FORMAT_OPENAI_CHAT_COMPLETIONS,
+        content=[
+            {"type": "text", "text": "<image path=\"/tmp/image.png\">"},
+            {
+                "type": "image_url",
+                "image_url": {"url": result["image_url"]},
+            },
+            {"type": "text", "text": "</image>"},
+        ],
+    )
+```
+
+Only explicit envelopes with `type == "provider_native_tool_result"` are
+preserved as structured model-facing content by the default adapter. Ordinary
+non-string values are stringified for compatibility, so accidental dictionaries
+do not silently become provider-native payloads.
+
 ### `to_display_format(...)` is for richer UI output
 
 `to_display_format(...)` lets tools attach a richer display payload under
-`metadata["display"]` without changing what the model sees.
+`metadata["display"]` without changing what the model sees. When
+`format_tool_result(...)` returns a provider-native envelope, core passes an
+empty string as the `text` argument; use the raw `result` dict for display data.
 
 Example:
 
@@ -703,6 +771,57 @@ Guidelines:
 - put derived config into state if it simplifies execution hooks
 - avoid relying on long-lived instance attributes
 
+### Preparation and prepared data
+
+Use `prepare(...)` or `prepare_async(...)` for long-running setup that should
+not be hidden inside cheap hooks such as `get_tool_schemas(...)`.
+
+Recommended split:
+
+- `init(config)` stays cheap and synchronous
+- `prepare(...)` / `prepare_async(...)` may do network I/O, subprocess startup,
+  discovery, auth handshakes, or cache hydration
+- `prepare*()` returns JSON-like **prepared data**
+- cheap hooks consume that prepared data through an optional `prepared=...`
+  keyword argument
+
+Example:
+
+```python
+def init(self, config: dict[str, Any]) -> dict[str, Any]:
+    return {"config": config}
+
+
+def prepare(
+    self,
+    config: dict[str, Any],
+    state: dict[str, Any],
+    *,
+    context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    remote_schema = self._discover_remote_schema(config)
+    return {
+        "schemas": [remote_schema],
+        "runtime_key": "remote:primary",
+    }
+
+
+def get_tool_schemas(
+    self,
+    state: dict[str, Any],
+    *,
+    prepared: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    return list((prepared or {}).get("schemas") or [])
+```
+
+Important rules:
+
+- prepared data should stay JSON-like / serializable
+- do not put live runtime handles into `prepared`
+- if a tool needs long-lived managers or clients, keep those in application
+  context such as `context["tool_runtime"]`
+
 ### Tags and enablement
 
 Tools can participate in tag-based enablement just like other plugin kinds.
@@ -764,6 +883,7 @@ context = {
     "application": AgentApplication,  # Alias for backward compatibility
     "base_config": Dict[str, Any], # Full base configuration (all agents)
     "session_asset_store": SessionAssetStore,  # For file attachments
+    "tool_runtime": Any,          # Optional app-owned live runtime store
     "trigger_source": "application",
 }
 ```
@@ -857,6 +977,12 @@ class ModernTool:
 
 The adapter layer uses inspection to determine whether the underlying tool
 implementation accepts the `context` parameter.
+
+Long-running hooks and execution hooks may use `context["tool_runtime"]` for
+live managers or clients that should outlive a single `AgentCore` instance.
+Cheap hooks such as `get_tool_schemas(...)` and `format_tool_call_preview(...)`
+should instead consume only the JSON-like `prepared` data returned by
+`prepare(...)` / `prepare_async(...)`.
 
 ---
 

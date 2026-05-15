@@ -266,6 +266,12 @@ The v1 host expects these methods:
 - `getToolSchemas(state) -> schema[]`
 - `executeTool(toolName, args, state, emit) -> result`
 
+The current v1 host does **not** expose Python-side `prepare(...)` /
+`prepareAsync(...)` hooks yet. Node-hosted tools should therefore keep schema
+discovery inside `init(...)` / `getToolSchemas(...)` for now, or wait for a
+future host-protocol extension if they need an explicit long-running
+preparation phase.
+
 The host protocol method names are snake_case on the wire, but the JS tool
 surface uses camelCase in practice.
 
@@ -450,6 +456,10 @@ failure path too.
 - Do not print logs to `stdout`; use `stderr`.
 - Keep returned state JSON-serializable.
 - Keep tool results JSON-serializable.
+- `format_tool_result` should usually return a string. It may return an
+  explicit provider-native envelope with
+  `type: "provider_native_tool_result"` when the target provider supports that
+  format. Arbitrary objects are not treated as structured model-facing content.
 - Prefer small, copyable schemas and result objects.
 - Remember that host protocol methods are still object-arguments-based.
 - If you need raw-text/freeform payloads today, prefer a Python tool.

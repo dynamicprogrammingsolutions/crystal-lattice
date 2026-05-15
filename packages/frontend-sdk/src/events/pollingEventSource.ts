@@ -1,7 +1,7 @@
 import type { AgentBackend } from '../backend/backend';
 import type { Event } from '../types/events';
 
-export type PollingStatus = 'idle' | 'running' | 'error';
+export type PollingStatus = 'idle' | 'running' | 'error' | 'expired';
 
 export interface PollingEventSourceOptions {
   intervalMs?: number;
@@ -31,6 +31,7 @@ export class PollingEventSource {
     sessionId: string | null;
     initialSinceId: string | null;
     onEvents: (events: Event[]) => void;
+    onCursorExpired?: () => void;
   }): void {
     this.stop();
     this.generation += 1;
@@ -40,7 +41,12 @@ export class PollingEventSource {
     this.lastEventId = options.initialSinceId;
     this.stopped = false;
     this.status = 'running';
-    this.schedulePoll(0);
+    const onCursorExpired = options.onCursorExpired;
+    if (options.initialSinceId == null) {
+      void this.bootstrapCursorAndSchedulePoll(this.generation, onCursorExpired);
+    } else {
+      this.schedulePoll(0, onCursorExpired);
+    }
   }
 
   stop(): void {
@@ -61,19 +67,41 @@ export class PollingEventSource {
     return this.status;
   }
 
-  private schedulePoll(delayMs: number): void {
+  private schedulePoll(delayMs: number, onCursorExpired?: () => void): void {
     if (this.stopped) return;
     if (this.timer) {
       clearTimeout(this.timer);
     }
     this.timer = setTimeout(() => {
-      this.pollOnce().catch(() => {
+      this.pollOnce(onCursorExpired).catch(() => {
         // Errors are handled inside pollOnce.
       });
     }, delayMs);
   }
 
-  private async pollOnce(): Promise<void> {
+  private async bootstrapCursorAndSchedulePoll(
+    generation: number,
+    onCursorExpired?: () => void,
+  ): Promise<void> {
+    let latestEventId: string | null = null;
+    try {
+      latestEventId = await this.backend.getLatestEventId();
+    } catch {
+      latestEventId = null;
+    }
+
+    if (this.stopped || generation !== this.generation) {
+      return;
+    }
+
+    const stabilizedSinceId =
+      (typeof latestEventId === 'string' && latestEventId) ? latestEventId : '0';
+    this.sinceId = stabilizedSinceId;
+    this.lastEventId = stabilizedSinceId;
+    this.schedulePoll(0, onCursorExpired);
+  }
+
+  private async pollOnce(onCursorExpired?: () => void): Promise<void> {
     if (this.stopped) return;
     const generation = this.generation;
     if (!this.sessionId || !this.onEvents) {
@@ -82,41 +110,54 @@ export class PollingEventSource {
     }
 
     try {
-      const events = await this.backend.listEvents({
+      const result = await this.backend.listEvents({
         sessionId: this.sessionId,
         sinceId: this.sinceId ?? undefined,
       });
+      const events = result.events;
+      const latestEventId = result.latestEventId;
+      const cursorExpired = result.cursorExpired;
 
       if (this.stopped || generation !== this.generation) {
         return;
       }
 
-      if (events.length > 0) {
-        let maxId: string | null = this.sinceId;
-        for (const ev of events) {
-          const raw = (ev as any).event_id;
-          if (typeof raw !== 'string') continue;
-          if (maxId == null) {
-            maxId = raw;
-          } else {
-            const current = parseInt(maxId, 10);
-            const next = parseInt(raw, 10);
-            if (!Number.isNaN(next) && (Number.isNaN(current) || next > current)) {
-              maxId = raw;
-            }
+      if (cursorExpired) {
+        this.status = 'expired';
+        this.stopped = true;
+        if (this.timer) {
+          clearTimeout(this.timer);
+          this.timer = null;
+        }
+        if (typeof onCursorExpired === 'function') {
+          try {
+            onCursorExpired();
+          } catch {
+            // Cursor-expiry recovery is coordinated by higher layers.
           }
         }
+        return;
+      }
 
+      if (events.length > 0) {
+        const lastEvent = events[events.length - 1];
+        const maxId =
+          lastEvent && typeof (lastEvent as any).event_id === 'string'
+            ? (lastEvent as any).event_id
+            : this.sinceId;
         this.lastEventId = maxId;
         this.sinceId = maxId;
         this.onEvents(events);
+      } else if (typeof latestEventId === 'string' && latestEventId) {
+        this.lastEventId = latestEventId;
+        this.sinceId = latestEventId;
       }
 
       this.status = 'running';
-      this.schedulePoll(this.intervalMs);
+      this.schedulePoll(this.intervalMs, onCursorExpired);
     } catch {
       this.status = 'error';
-      this.schedulePoll(this.backoffMs);
+      this.schedulePoll(this.backoffMs, onCursorExpired);
     }
   }
 }

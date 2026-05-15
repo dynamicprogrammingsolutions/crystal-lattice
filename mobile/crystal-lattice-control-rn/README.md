@@ -218,6 +218,7 @@ The app is already configured with required iOS permissions in `ios/BonjourExamp
 ```xml
 <key>NSBonjourServices</key>
 <array>
+
     <string>_http._tcp</string>
 </array>
 <key>NSLocalNetworkUsageDescription</key>
@@ -438,4 +439,4 @@ react-native-app/
 
 ## License
 
-This is an example project for demonstration purposes.
+This directory is available under the [Apache License 2.0](../../LICENSE).

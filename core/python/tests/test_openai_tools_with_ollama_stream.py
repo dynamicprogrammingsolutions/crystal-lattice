@@ -26,6 +26,7 @@ from agent_core import AgentCore
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+pytestmark = pytest.mark.integration
 
 
 REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
@@ -37,7 +38,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -107,7 +110,9 @@ def test_tools_flow_with_ollama_stream(ensure_model):
             if ev["type"] == "partial":
                 msg = ev["message"]
                 print((msg.get("content", "")), end="", flush=True)
-                print((msg.get("metadata", {}).get("reasoning", "")), end="", flush=True)
+                print(
+                    (msg.get("metadata", {}).get("reasoning", "")), end="", flush=True
+                )
                 tool_calls = msg.get("metadata", {}).get("tool_calls", None)
                 if tool_calls:
                     print("(partial) tool call:", tool_calls, end="", flush=True)
@@ -141,7 +146,11 @@ def test_tools_flow_with_ollama_stream(ensure_model):
                     args0 = args0
             sig = (
                 fn0.get("name"),
-                _json.dumps(args0, sort_keys=True) if isinstance(args0, dict) else str(args0),
+                (
+                    _json.dumps(args0, sort_keys=True)
+                    if isinstance(args0, dict)
+                    else str(args0)
+                ),
             )
             _uniq[sig] = tc
         uniq_tool_calls = list(_uniq.values())
@@ -185,8 +194,12 @@ def test_tools_flow_with_ollama_stream(ensure_model):
             if ev["type"] == "partial":
                 msg = ev["message"]
                 print((msg.get("content", "")), end="", flush=True)
-                print((msg.get("metadata", {}).get("reasoning", "")), end="", flush=True)
-                print((msg.get("metadata", {}).get("tool_calls", "")), end="", flush=True)
+                print(
+                    (msg.get("metadata", {}).get("reasoning", "")), end="", flush=True
+                )
+                print(
+                    (msg.get("metadata", {}).get("tool_calls", "")), end="", flush=True
+                )
             if ev["type"] != "final":
                 continue
             session = ev["session"]

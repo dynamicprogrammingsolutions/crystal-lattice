@@ -73,3 +73,7 @@ For safety/hardening, you can disable Node installs/builds globally via `plugin_
   "node_tool_stream_parts": true
 }
 ```
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

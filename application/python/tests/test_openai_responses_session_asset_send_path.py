@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -23,7 +25,11 @@ if str(OPENAI_RESPONSES_SRC) not in sys.path:
 from agent_app.application_future import AgentApplication  # noqa: E402
 from agent_app.events import InMemoryEventStore  # noqa: E402
 import openai_responses_plugins.openai_responses_provider as provider_module  # noqa: E402
-from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider  # noqa: E402
+from openai_responses_plugins.openai_responses_provider import (
+    OpenAIResponsesProvider,
+)  # noqa: E402
+
+pytestmark = [pytest.mark.integration, pytest.mark.openai]
 
 
 class _FakeUploadFileObject:
@@ -103,7 +109,9 @@ def _write_config(tmp_path: Path) -> Path:
     return path
 
 
-def _build_app(tmp_path: Path, monkeypatch: Any) -> tuple[AgentApplication, _FakeClient]:
+def _build_app(
+    tmp_path: Path, monkeypatch: Any
+) -> tuple[AgentApplication, _FakeClient]:
     fake_client = _FakeClient()
     monkeypatch.setattr(provider_module, "OpenAI", lambda **kwargs: fake_client)
     monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda self, config: [])
@@ -116,7 +124,9 @@ def _build_app(tmp_path: Path, monkeypatch: Any) -> tuple[AgentApplication, _Fak
     return app, fake_client
 
 
-def test_application_send_request_uses_stored_session_asset_refs(tmp_path: Path, monkeypatch: Any) -> None:
+def test_application_send_request_uses_stored_session_asset_refs(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     app, fake_client = _build_app(tmp_path, monkeypatch)
     core, base_config, session = app.create_session("default")
 
@@ -168,7 +178,9 @@ def test_application_send_request_uses_stored_session_asset_refs(tmp_path: Path,
         {"type": "input_image", "file_id": "file_1"},
     ]
 
-    stored_record = app.get_session_asset_store().load(session.session_id, asset["asset_ref"]["asset_id"])
+    stored_record = app.get_session_asset_store().load(
+        session.session_id, asset["asset_ref"]["asset_id"]
+    )
     assert stored_record.provider_refs["openai_responses"]["file_id"] == "file_1"
 
     final_session = core.add_message(
@@ -189,8 +201,12 @@ def test_application_send_request_uses_stored_session_asset_refs(tmp_path: Path,
         ],
     )
 
-    second_events = list(app.send_request(core, final_session, base_config, stream=False))
-    second_checkpoints = [ev for ev in second_events if ev.get("type") == "session_checkpoint"]
+    second_events = list(
+        app.send_request(core, final_session, base_config, stream=False)
+    )
+    second_checkpoints = [
+        ev for ev in second_events if ev.get("type") == "session_checkpoint"
+    ]
     assert second_checkpoints
 
     assert len(fake_client.files.calls) == 1

@@ -3,7 +3,10 @@ from __future__ import annotations
 import pytest
 
 from agent_core.tool_interop import (
+    CORE_TEXT_TOOL_RESULT_FORMAT_ID,
     DEFAULT_TOOL_INTEROP_REGISTRY,
+    OPENAI_CHAT_TOOL_RESULT_FORMAT_ID,
+    OPENAI_RESPONSES_TOOL_RESULT_FORMAT_ID,
     OpenAIChatToolCallAccessor,
     OpenAIChatToolSchemaAccessor,
     OpenAIChatToolSchemaToOpenAIResponsesToolSchema,
@@ -13,6 +16,12 @@ from agent_core.tool_interop import (
     ToolInteropRegistry,
     ToolInteropError,
     ToolInteropTarget,
+)
+from agent_core.tool_result_payloads import (
+    FORMAT_ANTHROPIC_MESSAGES,
+    FORMAT_OPENAI_CHAT_COMPLETIONS,
+    FORMAT_OPENAI_RESPONSES,
+    make_provider_native_tool_result,
 )
 
 
@@ -49,7 +58,7 @@ def test_openai_chat_tool_call_accessor_strict() -> None:
     assert accessor.get_call_id(call) == "call_1"
     assert accessor.get_tool_type(call) == "function"
     assert accessor.get_tool_name(call) == "add"
-    assert accessor.get_arguments(call) == {"a": 2, "b": 3}
+    assert accessor.get_payload(call) == {"a": 2, "b": 3}
 
     assert not accessor.can_handle({"id": "call_1", "name": "add"})
     with pytest.raises(ToolInteropError):
@@ -85,11 +94,13 @@ def test_openai_responses_call_to_openai_chat_tool_call_adapter() -> None:
     }
     assert adapter.can_handle(responses_call)
     out = adapter.convert(responses_call, target=ToolInteropTarget(name="openai.chat_completions"))
-    assert out == {
-        "id": "call_1",
-        "type": "function",
-        "function": {"name": "add", "arguments": "{\"a\":2,\"b\":3}"},
-    }
+    # Arguments are parsed and re-serialized, so whitespace may differ
+    assert out["id"] == "call_1"
+    assert out["type"] == "function"
+    assert out["function"]["name"] == "add"
+    # Parse to compare semantically
+    import json
+    assert json.loads(out["function"]["arguments"]) == {"a": 2, "b": 3}
 
     event_wrapper = {"type": "response.output_item.added", "item": responses_call}
     assert adapter.can_handle(event_wrapper)
@@ -194,3 +205,68 @@ def test_schema_conversion_can_use_multihop_adapter_chain() -> None:
     )
 
     assert converted == [{"type": "c", "name": "demo", "target": "multihop"}]
+
+
+def test_plain_text_tool_result_is_inspected_and_wrapped() -> None:
+    inspected = DEFAULT_TOOL_INTEROP_REGISTRY.inspect_result("hello")
+    assert inspected.text == "hello"
+    assert inspected.payload == "hello"
+    wrapped = DEFAULT_TOOL_INTEROP_REGISTRY.convert_tool_result(
+        "hello",
+        target=ToolInteropTarget(name="core.tool_result"),
+        target_formats=[CORE_TEXT_TOOL_RESULT_FORMAT_ID],
+    )
+    assert wrapped == {"type": "tool_result", "text": "hello"}
+
+
+def test_openai_chat_tool_result_converts_to_responses_tool_result() -> None:
+    payload = make_provider_native_tool_result(
+        format=FORMAT_OPENAI_CHAT_COMPLETIONS,
+        content=[
+            {"type": "text", "text": "<image>"},
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAA"}},
+            {"type": "text", "text": "</image>"},
+        ],
+    )
+
+    converted = DEFAULT_TOOL_INTEROP_REGISTRY.convert_tool_result(
+        payload,
+        target=ToolInteropTarget(name="openai.responses"),
+        target_formats=[OPENAI_RESPONSES_TOOL_RESULT_FORMAT_ID],
+    )
+    assert converted["format"] == FORMAT_OPENAI_RESPONSES
+    assert converted["output"] == [
+        {"type": "input_text", "text": "<image>"},
+        {"type": "input_image", "image_url": "data:image/png;base64,AAA"},
+        {"type": "input_text", "text": "</image>"},
+    ]
+
+
+def test_anthropic_tool_result_converts_to_openai_chat_tool_result() -> None:
+    payload = make_provider_native_tool_result(
+        format=FORMAT_ANTHROPIC_MESSAGES,
+        content=[
+            {
+                "type": "tool_result",
+                "content": [
+                    {"type": "text", "text": "opened image"},
+                    {
+                        "type": "image",
+                        "source": {
+                            "media_type": "image/png",
+                            "data": "QUJDRA==",
+                        },
+                    },
+                ],
+            }
+        ],
+    )
+
+    converted = DEFAULT_TOOL_INTEROP_REGISTRY.convert_tool_result(
+        payload,
+        target=ToolInteropTarget(name="openai.chat_completions"),
+        target_formats=[OPENAI_CHAT_TOOL_RESULT_FORMAT_ID],
+    )
+    assert converted["format"] == FORMAT_OPENAI_CHAT_COMPLETIONS
+    assert converted["content"][0] == {"type": "text", "text": "opened image"}
+    assert converted["content"][1]["image_url"]["url"] == "data:image/png;base64,QUJDRA=="

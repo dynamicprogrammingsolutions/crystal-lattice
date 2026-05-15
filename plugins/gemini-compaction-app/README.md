@@ -236,4 +236,4 @@ pytest tests/test_gemini_compaction_app_openrouter_integration.py -v -m openrout
 
 ## License
 
-Apache 2.0
+This directory is available under the [Apache License 2.0](../../LICENSE).

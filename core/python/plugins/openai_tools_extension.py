@@ -5,6 +5,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from agent_core.tool_interop import (
     OpenAIChatToolCallAccessor,
     OpenAIChatToolSchemaAccessor,
+    ToolInteropTarget,
+    get_registry_from_context,
+    get_schema_target_formats_from_context,
 )
 
 
@@ -100,7 +103,9 @@ class OpenAIToolsExtension:
                     extra["display"] = display
                 if extra:
                     base_meta = nm.get("_metadata") or {}
-                    merged = {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    merged = (
+                        {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    )
                     nm["_metadata"] = merged
             elif role == "assistant":
                 tcs = md.get("tool_calls")
@@ -140,15 +145,30 @@ class OpenAIToolsExtension:
 
     # ---- Request init ----
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         request = state.get("request") or {}
         payload = dict(request.get("payload", {}))
         tools: List[Dict[str, Any]] = state.get("_openai_tools") or []
-        if tools:
+        if tools and "tools" not in payload:
+            registry = get_registry_from_context(context)
+            target_formats = get_schema_target_formats_from_context(context)
+            if not target_formats:
+                target_formats = self.accepted_tool_schema_formats(
+                    state.get("config") or {},
+                    state,
+                )
             payload = {
                 **payload,
-                "tools": tools,
+                "tools": registry.convert_schemas(
+                    [tool for tool in tools if isinstance(tool, dict)],
+                    target=ToolInteropTarget("openai.chat_completions"),
+                    target_formats=target_formats,
+                ),
                 **({"tool_choice": payload.get("tool_choice", "auto")}),
             }
         return {**state, "request": {**request, "payload": payload}}
@@ -216,7 +236,9 @@ class OpenAIToolsExtension:
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """Update the accumulator with tool_calls for each streaming chunk.
 
         This extension does not emit its own finals or mutate history; it only
@@ -248,5 +270,24 @@ class OpenAIToolsExtension:
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+        """Sanitize tool_calls in the accumulated partial before history storage.
+
+        This ensures that corrupted JSON arguments don't get stored in history
+        and cause subsequent API calls to fail.
+        """
+        partial = state.get("partial")
+        if isinstance(partial, dict):
+            tool_calls = partial.get("tool_calls")
+            if isinstance(tool_calls, list):
+                registry = get_registry_from_context(context)
+                # Sanitize each tool call to ensure valid JSON arguments
+                sanitized_calls = [
+                    registry.sanitize_tool_call(tc)
+                    for tc in tool_calls
+                    if isinstance(tc, dict)
+                ]
+                partial["tool_calls"] = sanitized_calls
         return final_messages, native_messages, state

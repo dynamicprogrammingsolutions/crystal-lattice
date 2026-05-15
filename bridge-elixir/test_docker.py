@@ -10,12 +10,13 @@ Tests:
 
 import asyncio
 import json
+import os
 import uuid
 import websockets
 import sys
 from datetime import datetime
 
-BRIDGE_URL = "ws://localhost:4000/ws/websocket"
+BRIDGE_URL = os.environ.get("BRIDGE_URL", "ws://localhost:4000/ws/websocket")
 TIMEOUT = 10
 
 ref_counter = 0
@@ -260,8 +261,22 @@ async def test_pairing_flow():
             app_data = json.loads(app_response)
             
             if app_data['event'] == 'phx_reply' and app_data['payload']['status'] == 'ok':
-                session_id = app_data['payload']['response']['session_id']
+                response_payload = app_data['payload']['response']
+                session_id = response_payload['session_id']
+                pairing_token = response_payload.get('pairing_token')
                 log(f"  ✓ App received session_id: {session_id[:8]}...", Colors.GREEN)
+
+                if not pairing_token:
+                    log(f"  ⚠ No pairing_token in app response: {app_data}", Colors.YELLOW)
+                    await server_ws.close()
+                    await app_ws.close()
+                    return False
+                if "." not in pairing_token:
+                    log(f"  ⚠ pairing_token is not signed: {pairing_token}", Colors.YELLOW)
+                    await server_ws.close()
+                    await app_ws.close()
+                    return False
+                log(f"  ✓ App received pairing_token", Colors.GREEN)
                 
                 # Server should receive paired notification
                 server_response = await asyncio.wait_for(server_ws.recv(), timeout=TIMEOUT)
@@ -269,10 +284,63 @@ async def test_pairing_flow():
                 
                 if server_data['event'] == 'paired':
                     log(f"  ✓ Server received paired notification", Colors.GREEN)
+
+                    # Reconnect as an app and resume with the pairing token.
+                    # The resumed bridge session id should be fresh; the token
+                    # is the durable logical pairing identity.
+                    await app_ws.close()
+                    resumed_client_id = str(uuid.uuid4())
+                    resume_ws = await websockets.connect(f"{BRIDGE_URL}?type=app")
+
+                    join_msg = phoenix_message(f"app:{resumed_client_id}", "phx_join", {})
+                    await resume_ws.send(join_msg)
+                    await asyncio.wait_for(resume_ws.recv(), timeout=TIMEOUT)
+
+                    resume_msg = phoenix_message(
+                        f"app:{resumed_client_id}",
+                        "resume_session",
+                        {
+                            "server_id": server_id,
+                            "pairing_token": pairing_token
+                        }
+                    )
+                    await resume_ws.send(resume_msg)
+                    log(f"  → Sent resume_session", Colors.YELLOW)
+
+                    resume_response = await asyncio.wait_for(resume_ws.recv(), timeout=TIMEOUT)
+                    resume_data = json.loads(resume_response)
+
+                    if resume_data['event'] != 'phx_reply' or resume_data['payload']['status'] != 'ok':
+                        log(f"  ⚠ Resume failed: {resume_data}", Colors.YELLOW)
+                        await server_ws.close()
+                        await resume_ws.close()
+                        return False
+
+                    resumed_session_id = resume_data['payload']['response']['session_id']
+                    if resumed_session_id == session_id:
+                        log(f"  ⚠ Resume reused session_id: {resumed_session_id}; response={resume_data}", Colors.YELLOW)
+                        await server_ws.close()
+                        await resume_ws.close()
+                        return False
+
+                    log(
+                        f"  ✓ Resume returned fresh session_id: {resumed_session_id[:8]}...",
+                        Colors.GREEN
+                    )
+
+                    server_response = await asyncio.wait_for(server_ws.recv(), timeout=TIMEOUT)
+                    server_data = json.loads(server_response)
+                    if server_data['event'] != 'paired':
+                        log(f"  ⚠ Server did not receive resumed paired event: {server_data}", Colors.YELLOW)
+                        await server_ws.close()
+                        await resume_ws.close()
+                        return False
+
+                    log(f"  ✓ Server received resumed paired notification", Colors.GREEN)
                     log(f"✅ Pairing flow successful\n", Colors.GREEN)
                     
                     await server_ws.close()
-                    await app_ws.close()
+                    await resume_ws.close()
                     return True
             else:
                 log(f"  ⚠ No session_id in app response: {app_data}", Colors.YELLOW)

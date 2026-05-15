@@ -30,6 +30,7 @@ import pytest
 
 # Reduce noisy structlog output during tests unless explicitly overridden.
 os.environ.setdefault("LOG_LEVEL", "WARNING")
+pytestmark = pytest.mark.integration
 
 
 def _json_size_bytes(value: Any) -> int:
@@ -127,6 +128,7 @@ def _assert_events_within_single_message_budget(
 
     assert not failures, "\n".join(failures[:10])
 
+
 ROOT = Path(__file__).resolve().parents[3]
 REPO_TMP_DIR = ROOT / "tmp"
 REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -146,7 +148,9 @@ import importlib.util
 
 # AgentApplication
 _app_path = Path(CORE_PY) / "agent_app" / "application_future.py"
-_app_spec = importlib.util.spec_from_file_location("agent_app.application_future", str(_app_path))
+_app_spec = importlib.util.spec_from_file_location(
+    "agent_app.application_future", str(_app_path)
+)
 if _app_spec is None or _app_spec.loader is None:  # pragma: no cover - defensive
     raise ImportError("cannot load AgentApplication module")
 _app_mod = importlib.util.module_from_spec(_app_spec)
@@ -155,8 +159,12 @@ AgentApplication = getattr(_app_mod, "AgentApplication")
 
 # TerminalApplication
 _term_app_path = Path(APP_PY) / "agent_terminal_app" / "terminal_app.py"
-_term_app_spec = importlib.util.spec_from_file_location("agent_terminal_app.terminal_app", str(_term_app_path))
-if _term_app_spec is None or _term_app_spec.loader is None:  # pragma: no cover - defensive
+_term_app_spec = importlib.util.spec_from_file_location(
+    "agent_terminal_app.terminal_app", str(_term_app_path)
+)
+if (
+    _term_app_spec is None or _term_app_spec.loader is None
+):  # pragma: no cover - defensive
     raise ImportError("cannot load TerminalApplication module")
 _term_app_mod = importlib.util.module_from_spec(_term_app_spec)
 _term_app_spec.loader.exec_module(_term_app_mod)
@@ -164,7 +172,9 @@ TerminalApplication = getattr(_term_app_mod, "TerminalApplication")
 
 # TerminalRenderContext
 _event_render_path = Path(APP_PY) / "agent_terminal_app" / "event_rendering.py"
-_event_spec = importlib.util.spec_from_file_location("agent_terminal_app.event_rendering", str(_event_render_path))
+_event_spec = importlib.util.spec_from_file_location(
+    "agent_terminal_app.event_rendering", str(_event_render_path)
+)
 if _event_spec is None or _event_spec.loader is None:  # pragma: no cover - defensive
     raise ImportError("cannot load event_rendering module")
 _event_mod = importlib.util.module_from_spec(_event_spec)
@@ -182,7 +192,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: List[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -243,7 +255,9 @@ def _make_terminal_app_config(tmp_path: Path) -> Path:
 
 
 @pytest.mark.ollama
-def test_terminal_rendering_with_ollama_tools_and_timestamp(tmp_path: Path, ensure_model: None) -> None:
+def test_terminal_rendering_with_ollama_tools_and_timestamp(
+    tmp_path: Path, ensure_model: None
+) -> None:
     """End-to-end smoke test for TerminalRenderContext with Ollama tools.
 
     Ensures that:
@@ -258,7 +272,9 @@ def test_terminal_rendering_with_ollama_tools_and_timestamp(tmp_path: Path, ensu
     session_root = tmp_path / "sessions"
 
     app = AgentApplication(str(config_path), str(session_root))
-    term_app = TerminalApplication(config_path=str(config_path), session_root=str(session_root), agent_app=app)
+    term_app = TerminalApplication(
+        config_path=str(config_path), session_root=str(session_root), agent_app=app
+    )
 
     # Create a temporary file to exercise FileReaderTool via tools extension.
     # Use a repository-local temporary directory (under ROOT / "tmp") so that
@@ -267,7 +283,9 @@ def test_terminal_rendering_with_ollama_tools_and_timestamp(tmp_path: Path, ensu
 
     file_path = None
     try:
-        with tempfile.NamedTemporaryFile("w+", delete=False, dir=str(REPO_TMP_DIR)) as tf:
+        with tempfile.NamedTemporaryFile(
+            "w+", delete=False, dir=str(REPO_TMP_DIR)
+        ) as tf:
             tf.write("hello from tools via terminal test")
             tf.flush()
             file_path = tf.name
@@ -345,11 +363,15 @@ def test_terminal_rendering_with_ollama_tools_and_timestamp(tmp_path: Path, ensu
     except Exception:  # pragma: no cover - defensive
         formatted = None
 
-    assert (ts_value in rendered) or (isinstance(formatted, str) and formatted in rendered)
+    assert (ts_value in rendered) or (
+        isinstance(formatted, str) and formatted in rendered
+    )
 
 
 @pytest.mark.ollama
-def test_events_are_lean_in_tool_loop_session(tmp_path: Path, ensure_model: None) -> None:
+def test_events_are_lean_in_tool_loop_session(
+    tmp_path: Path, ensure_model: None
+) -> None:
     """Guard against embedding full sessions in published events.
 
     The tool loop itself already yields incremental events. This test
@@ -375,12 +397,16 @@ def test_events_are_lean_in_tool_loop_session(tmp_path: Path, ensure_model: None
     try:
         big_payload = "A" * 4096
 
-        with tempfile.NamedTemporaryFile("w+", delete=False, dir=str(REPO_TMP_DIR)) as tf_a:
+        with tempfile.NamedTemporaryFile(
+            "w+", delete=False, dir=str(REPO_TMP_DIR)
+        ) as tf_a:
             tf_a.write("file A\n" + big_payload)
             tf_a.flush()
             file_a = tf_a.name
 
-        with tempfile.NamedTemporaryFile("w+", delete=False, dir=str(REPO_TMP_DIR)) as tf_out:
+        with tempfile.NamedTemporaryFile(
+            "w+", delete=False, dir=str(REPO_TMP_DIR)
+        ) as tf_out:
             tf_out.write("placeholder")
             tf_out.flush()
             file_out = tf_out.name

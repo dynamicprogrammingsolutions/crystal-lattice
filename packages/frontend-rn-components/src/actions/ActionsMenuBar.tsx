@@ -30,6 +30,8 @@ import {
   updateActiveActionsPopoverMenuData,
 } from './actionsPopoverCoordinator';
 
+const ICON_BUTTON_HIT_SLOP = { top: 10, bottom: 10, left: 10, right: 10 };
+
 export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefinition> {
   title: string;
   baseActions: readonly TDef[];
@@ -113,6 +115,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
           <TouchableOpacity
             key={action.key}
             style={styles.iconButton}
+            hitSlop={ICON_BUTTON_HIT_SLOP}
             onPress={() => {
               if (Platform.OS === 'macos' && menuAnchorRef.current) {
                 try {
@@ -129,7 +132,14 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             {iconName && props.renderIcon ? (
               props.renderIcon({ name: iconName, size: 16, color: iconColor })
             ) : (
-              <Text style={[styles.fallbackIcon, { color: iconColor }]}>{fallbackLabel}</Text>
+              <Text
+                style={[
+                  styles.fallbackIcon,
+                  { color: iconColor, fontSize: theme.typography.fontSize.normal },
+                ]}
+              >
+                {fallbackLabel}
+              </Text>
             )}
           </TouchableOpacity>
         );
@@ -183,8 +193,8 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
       renderIcon={props.renderIcon}
       renderPinIcon={props.renderPinIcon}
       renderCloseIcon={props.renderCloseIcon}
-      iconSize={16}
-      pinIconSize={14}
+      iconSize={18}
+      pinIconSize={16}
       onRequestClose={() => setMenuVisible(false)}
     />
   );
@@ -196,6 +206,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
         <View ref={menuAnchorRef} collapsable={false}>
           <TouchableOpacity
             style={styles.iconButton}
+            hitSlop={ICON_BUTTON_HIT_SLOP}
             onPress={() => {
               if (isMacOSPopoverMenu) {
                 const anchorTag = menuAnchorRef.current
@@ -275,7 +286,14 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
             {props.renderIcon ? (
               props.renderIcon({ name: 'more-horizontal', size: 18, color: theme.primary })
             ) : (
-              <Text style={[styles.moreText, { color: theme.primary }]}>⋯</Text>
+              <Text
+                style={[
+                  styles.moreText,
+                  { color: theme.primary, fontSize: theme.typography.fontSize.title },
+                ]}
+              >
+                ⋯
+              </Text>
             )}
           </TouchableOpacity>
         </View>
@@ -314,17 +332,15 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   iconButton: {
-    paddingHorizontal: 6,
+    paddingHorizontal: 8,
     paddingVertical: 2,
     marginLeft: 4,
   },
   moreText: {
-    fontSize: 18,
     fontWeight: '800',
     marginTop: -3,
   },
   fallbackIcon: {
-    fontSize: 14,
     fontWeight: '800',
   },
 });

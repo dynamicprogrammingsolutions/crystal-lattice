@@ -1,0 +1,87 @@
+{
+  "plugin_cache_dir": "${env:CONFIG_DIR}/.plugin_cache/plugins",
+  "mixins": {
+    "codex_developer_message": {
+      "codex_personality": "default",
+      "system_message_enabled": true,
+      "system_message": {
+        "template": "${file:${env:CONFIG_DIR}/system_messages/codex/template.md}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
+        "variables": {
+          "CODEX_DEVELOPER_MESSAGE": {
+            "inline_code": "select_codex_developer_message()"
+          },
+          "CODEX_PROJECT_INSTRUCTIONS": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+          },
+          "CODEX_ENVIRONMENT_CONTEXT": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+          },
+          "TASKS": {
+            "text": ""
+          }
+        }
+      },
+      "codex_developer_messages": [
+        {
+          "model_regex": "^(openai/)?gpt-5\\.4(?:-(?:mini|nano))?$",
+          "personality": "default",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_default.md}"
+        },
+        {
+          "model_regex": ".*",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5/instructions_default.md}"
+        }
+      ]
+    }
+  },
+  "plugins": [
+    "plugins.tool_gating_feature.ToolGatingFeature",
+    "plugins.request_options_feature.RequestOptionsFeature",
+    "path:${env:BUILTIN_PLUGINS}/feature-system-message",
+    "path:${env:BUILTIN_PLUGINS}/chatgpt-auth-app",
+    "path:${env:BUILTIN_PLUGINS}/openai_responses"
+  ],
+  "providers": {
+    "openai_chatgpt": {
+      "provider": "openai_responses",
+      "auth_mode": "chatgpt",
+      "system_message_as_instructions": true,
+      "strip_leading_system_or_developer_message": true,
+      "enable_flex_processing": true,
+      "flex_timeout_seconds": 900,
+      "enable_flex_retries": true,
+      "flex_max_retries": 8,
+      "flex_stream_recovery_mode": "aggressive",
+      "flex_stream_recovery_retries": 10,
+      "enable_fast_mode": false,
+      "reasoning_effort": "none",
+      "reasoning_summary": "detailed",
+      "show_estimated_cached_tokens": true,
+      "show_openai_auth_mode": true
+    }
+  },
+  "agents": {
+    "repoqa-prompted-openai-chatgpt-reasoning-none": {
+      "mixin_refs": ["codex_developer_message"],
+      "provider": "openai_chatgpt",
+      "model": "gpt-5.4-nano",
+      "auth_mode": "chatgpt"
+    }
+  },
+  "application": {
+    "chatgpt_auth": {
+      "credentials_path": "${env:CONFIG_DIR}/auth/chatgpt-auth.json",
+      "rate_limits_path": "${env:CONFIG_DIR}/auth/chatgpt-rate-limits.json"
+    }
+  },
+  "agentic_evaluations": {
+    "cache_root": "${env:CONFIG_DIR}/cache",
+    "results_root": "${env:CONFIG_DIR}/results",
+    "manifests_root": "${env:CONFIG_DIR}/manifests",
+    "workspace_root": "${env:CONFIG_DIR}/workspaces",
+    "profiles_root": "${env:CONFIG_DIR}/profiles"
+  }
+}

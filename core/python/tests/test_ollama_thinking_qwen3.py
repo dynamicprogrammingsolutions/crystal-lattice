@@ -21,6 +21,7 @@ from agent_core import AgentCore
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_QWEN3 = os.getenv("OLLAMA_MODEL_QWEN3", "qwen3:0.6b")
+pytestmark = pytest.mark.integration
 
 
 def _which(cmd: str) -> Optional[str]:
@@ -28,7 +29,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -73,7 +76,8 @@ def test_ollama_thinking_non_streaming_with_qwen3(ensure_model):
     session = core.add_message(
         session,
         "user",
-        "Calculate a color code from the given words. " "WORDS: Mountain Sky River Forest Cloud.",
+        "Calculate a color code from the given words. "
+        "WORDS: Mountain Sky River Forest Cloud.",
     )
 
     new_session, responses = core.send_request(session, config)

@@ -1,0 +1,10 @@
+Codex Default Config Assets
+
+This directory includes portions derived from or adapted from:
+
+OpenAI Codex
+Copyright 2025 OpenAI
+https://github.com/openai/codex
+
+These files package Codex-compatible instruction texts and related rendering
+artifacts for use in this project.

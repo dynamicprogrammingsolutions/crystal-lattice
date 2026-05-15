@@ -1,0 +1,170 @@
+{
+  "assistant_tool_uses": [],
+  "case": "read-tool",
+  "claude_returncode": 0,
+  "final_result": "CLAUDE_SYSTEM_READ_TOOL",
+  "first_user_texts": [
+    "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is 2026-05-08.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>\n\n",
+    "Answer exactly: CLAUDE_SYSTEM_READ_TOOL"
+  ],
+  "model": "qwen3-coder-next:cloud",
+  "primary_request_index": 1,
+  "raw_artifact_dir": "<RAW_DIR>",
+  "request_count": 2,
+  "request_urls": [
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true"
+  ],
+  "stdout_init": {
+    "agents": [
+      "Explore",
+      "general-purpose",
+      "Plan",
+      "statusline-setup"
+    ],
+    "analytics_disabled": true,
+    "apiKeySource": "ANTHROPIC_API_KEY",
+    "claude_code_version": "2.1.126",
+    "cwd": "<WORKSPACE>",
+    "fast_mode_state": "off",
+    "mcp_servers": [],
+    "memory_paths": {
+      "auto": "/Users/ferenci84/.claude/projects/-Users-ferenci84-Dev-Mine-ai-agent-platform/memory/"
+    },
+    "model": "qwen3-coder-next:cloud",
+    "output_style": "default",
+    "permissionMode": "bypassPermissions",
+    "plugins": [],
+    "session_id": "<UUID>",
+    "skills": [
+      "update-config",
+      "debug",
+      "simplify",
+      "batch",
+      "fewer-permission-prompts",
+      "loop",
+      "claude-api"
+    ],
+    "slash_commands": [
+      "update-config",
+      "debug",
+      "simplify",
+      "batch",
+      "fewer-permission-prompts",
+      "loop",
+      "claude-api",
+      "clear",
+      "compact",
+      "context",
+      "heapdump",
+      "init",
+      "review",
+      "security-review",
+      "usage",
+      "insights",
+      "team-onboarding"
+    ],
+    "subtype": "init",
+    "tools": [
+      "Read"
+    ],
+    "type": "system",
+    "uuid": "<UUID>"
+  },
+  "system_block_count": 3,
+  "system_block_summaries": [
+    {
+      "environment_section": null,
+      "first_line": "x-anthropic-billing-header: cc_version=2.1.126.b29; cc_entrypoint=sdk-cli; cch=8475f;",
+      "headings": [],
+      "index": 0,
+      "length": 85,
+      "path_related_lines": [],
+      "sha256": "c6e3c325254d134f936a30a37abf9a73eac1ea98d397bf443c48a917d5fd6152"
+    },
+    {
+      "environment_section": null,
+      "first_line": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+      "headings": [],
+      "index": 1,
+      "length": 62,
+      "path_related_lines": [],
+      "sha256": "0d7062851dd7bd7e66d4be4f12ac4951e3d2f587ec408295333a49963bd3f6b7"
+    },
+    {
+      "environment_section": "# Environment\nYou have been invoked in the following environment: \n - Primary working directory: <WORKSPACE>\n - Is a git repository: true\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.3.0\n - You are powered by the model qwen3-coder-next:cloud.\n - The most recent Claude model family is Claude 4.X. Model IDs \u2014 Opus 4.7: 'claude-opus-4-7', Sonnet 4.6: 'claude-sonnet-4-6', Haiku 4.5: 'claude-haiku-4-5-20251001'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code uses Claude Opus 4.6 with faster output (it does not downgrade to a smaller model). It can be toggled with /fast and is only available on Opus 4.6.",
+      "first_line": "You are an interactive agent that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.",
+      "headings": [
+        "# System",
+        "# Doing tasks",
+        "# Executing actions with care",
+        "# Using your tools",
+        "# Tone and style",
+        "# Text output (does not apply to tool calls)",
+        "# auto memory",
+        "## Types of memory",
+        "## What NOT to save in memory",
+        "## How to save memories",
+        "## When to access memories",
+        "## Before recommending from memory",
+        "## Memory and other forms of persistence",
+        "# Environment",
+        "# Context management"
+      ],
+      "index": 2,
+      "length": 25659,
+      "path_related_lines": [
+        "- The user will primarily request you to perform software engineering tasks. These may include solving bugs, adding new functionality, refactoring code, explaining code, and more. When given an unclear or generic instruction, consider it in the context of these software engineering tasks and the current working directory. For example, if the user asks you to change \"methodName\" to snake case, do not reply with just \"method_name\", instead find the method in the code and modify the code.",
+        "- When referencing specific functions or pieces of code include the pattern file_path:line_number to allow the user to easily navigate to the source code location.",
+        "<description>Information that you learn about ongoing work, goals, initiatives, bugs, or incidents within the project that is not otherwise derivable from the code or git history. Project memories help you understand the broader context and motivation behind the work the user is doing within this working directory.</description>",
+        "- Primary working directory: <WORKSPACE>"
+      ],
+      "sha256": "844eaf273d93b654590742c9f339e335403bbeb1da1026fe6f22ffdc42eb9957"
+    }
+  ],
+  "tool_names": [
+    "Read"
+  ],
+  "tool_path_guidance": {
+    "Read": [
+      "- The file_path parameter must be an absolute path, not a relative path",
+      "file_path: The absolute path to the file to read"
+    ]
+  },
+  "tool_schemas": [
+    {
+      "description": "Reads a file from the local filesystem. You can access any file directly by using this tool.\nAssume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.\n\nUsage:\n- The file_path parameter must be an absolute path, not a relative path\n- By default, it reads up to 2000 lines starting from the beginning of the file\n- You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters\n- Results are returned using cat -n format, with line numbers starting at 1\n- This tool allows Claude Code to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually as Claude Code is a multimodal LLM.\n- This tool can read PDF files (.pdf). For large PDFs (more than 10 pages), you MUST provide the pages parameter to read specific page ranges (e.g., pages: \"1-5\"). Reading a large PDF without the pages parameter will fail. Maximum 20 pages per request.\n- This tool can read Jupyter notebooks (.ipynb files) and returns all cells with their outputs, combining code, text, and visualizations.\n- This tool can only read files, not directories. To list files in a directory, use the registered shell tool.\n- You will regularly be asked to read screenshots. If the user provides a path to a screenshot, ALWAYS use this tool to view the file at the path. This tool will work with all temporary file paths.\n- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.",
+      "input_schema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "description": "The absolute path to the file to read",
+            "type": "string"
+          },
+          "limit": {
+            "description": "The number of lines to read. Only provide if the file is too large to read at once.",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer"
+          },
+          "offset": {
+            "description": "The line number to start reading from. Only provide if the file is too large to read at once",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pages": {
+            "description": "Page range for PDF files (e.g., \"1-5\", \"3\", \"10-20\"). Only applicable to PDF files. Maximum 20 pages per request.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "type": "object"
+      },
+      "name": "Read"
+    }
+  ]
+}

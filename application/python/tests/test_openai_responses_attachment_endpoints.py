@@ -32,7 +32,11 @@ from agent_app.events import InMemoryEventStore  # noqa: E402
 from agent_terminal_app.server import app as fastapi_app  # noqa: E402
 from agent_terminal_app.server import get_agent_app  # noqa: E402
 import openai_responses_plugins.openai_responses_provider as provider_module  # noqa: E402
-from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider  # noqa: E402
+from openai_responses_plugins.openai_responses_provider import (
+    OpenAIResponsesProvider,
+)  # noqa: E402
+
+pytestmark = [pytest.mark.integration, pytest.mark.openai]
 
 
 class _FakeUploadFileObject:
@@ -152,14 +156,18 @@ def _generate_text_pdf(tmp_path: Path, marker_text: str) -> Path:
     except FileNotFoundError:
         pytest.skip("magick not available; skipping PDF endpoint test")
     except subprocess.CalledProcessError as exc:
-        pytest.fail(f"failed to generate test PDF with ImageMagick: {exc.stderr.strip()}")
+        pytest.fail(
+            f"failed to generate test PDF with ImageMagick: {exc.stderr.strip()}"
+        )
 
     if not pdf_path.exists():
         pytest.fail("ImageMagick did not create the expected PDF")
     return pdf_path
 
 
-def _wait_for_final_event(client: TestClient, session_id: str, timeout_seconds: float = 120.0) -> List[Dict[str, Any]]:
+def _wait_for_final_event(
+    client: TestClient, session_id: str, timeout_seconds: float = 120.0
+) -> List[Dict[str, Any]]:
     deadline = time.time() + timeout_seconds
     last_event_id: Optional[str] = None
     all_events: List[Dict[str, Any]] = []
@@ -210,6 +218,7 @@ def test_send_message_applies_request_overrides_before_pdf_append(
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         captured["overrides"] = overrides_arg
         yield {
@@ -334,6 +343,8 @@ def test_add_message_returns_400_for_pdf_without_upload_mode(
         fastapi_app.dependency_overrides.clear()
 
 
+@pytest.mark.integration
+@pytest.mark.openai
 def test_openai_responses_send_message_uploaded_pdf_endpoint_real_api(
     ensure_openai_api_key: str,
     tmp_path: Path,
@@ -401,6 +412,8 @@ def test_openai_responses_send_message_uploaded_pdf_endpoint_real_api(
         fastapi_app.dependency_overrides.clear()
 
 
+@pytest.mark.integration
+@pytest.mark.openai
 def test_openai_responses_add_message_then_send_uploaded_pdf_endpoint_real_api(
     ensure_openai_api_key: str,
     tmp_path: Path,
@@ -447,7 +460,9 @@ def test_openai_responses_add_message_then_send_uploaded_pdf_endpoint_real_api(
         )
         assert add_response.status_code == 200
 
-        send_response = client.post(f"/sessions/{session_id}/send", json={"config_overrides": {}})
+        send_response = client.post(
+            f"/sessions/{session_id}/send", json={"config_overrides": {}}
+        )
         assert send_response.status_code == 200
         assert send_response.json()["status"] == "started"
 

@@ -31,6 +31,8 @@ def test_extension_name_tags_schema_and_required_tags() -> None:
         "flex_timeout_seconds",
         "enable_flex_retries",
         "flex_max_retries",
+        "flex_stream_recovery_mode",
+        "flex_stream_recovery_retries",
     }
     assert schema["enable_flex_processing"]["default"] is False
     assert schema["flex_timeout_seconds"]["default"] == 300.0
@@ -52,6 +54,8 @@ def test_get_ui_elements_exposes_all_flex_controls() -> None:
         "flex_timeout_seconds",
         "enable_flex_retries",
         "flex_max_retries",
+        "flex_stream_recovery_mode",
+        "flex_stream_recovery_retries",
     ]
 
 
@@ -84,6 +88,8 @@ def test_init_normalizes_invalid_timeout_and_retry_values_to_defaults() -> None:
     assert new_state["openai_responses_flex_processing"] == {
         "timeout": 300.0,
         "max_retries": 2,
+        "stream_recovery_mode": "early_only",
+        "stream_recovery_retries": 3,
     }
 
 
@@ -132,6 +138,41 @@ def test_initialize_request_omits_retry_override_when_flex_retries_disabled() ->
 
     assert new_state["request"]["payload"]["service_tier"] == "flex"
     assert new_state["request"]["timeout"] == 240.0
+    assert "max_retries" not in new_state["request"]
+
+
+def test_initialize_request_is_noop_when_chatgpt_endpoint_is_selected() -> None:
+    ext = OpenAIResponsesFlexProcessingExtension()
+    state = ext.init(
+        _config(
+            auth_mode="auto",
+            _openai_responses_effective_auth_mode="chatgpt",
+            enable_flex_processing=True,
+            flex_timeout_seconds=450,
+            enable_flex_retries=True,
+            flex_max_retries=4,
+        ),
+        {
+            "config": _config(
+                auth_mode="auto",
+                _openai_responses_effective_auth_mode="chatgpt",
+                enable_flex_processing=True,
+                flex_timeout_seconds=450,
+                enable_flex_retries=True,
+                flex_max_retries=4,
+            ),
+            "request": {"payload": {"model": "gpt-5-mini"}, "headers": {}},
+        },
+    )
+
+    returned_native, new_state = ext.initialize_request(
+        [{"type": "message", "role": "user"}],
+        state,
+    )
+
+    assert returned_native == [{"type": "message", "role": "user"}]
+    assert new_state is state
+    assert "service_tier" not in new_state["request"]["payload"]
     assert "max_retries" not in new_state["request"]
 
 def test_from_native_messages_surfaces_service_tier_metadata() -> None:

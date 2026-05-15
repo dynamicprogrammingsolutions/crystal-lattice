@@ -239,3 +239,7 @@ For nested keys, the merge is deep. For example, overriding only `request_option
 - **Provider agnostic** - Works with any OpenAI-compatible provider
 - **Clean state** - Flat keys are removed from config after merging
 - **Auto-generated labels** - Clean UI labels from your config keys and nested paths
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

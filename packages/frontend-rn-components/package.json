@@ -2,6 +2,7 @@
   "name": "@crystal-lattice/frontend-rn-components",
   "version": "0.0.0",
   "private": true,
+  "license": "Apache-2.0",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest"

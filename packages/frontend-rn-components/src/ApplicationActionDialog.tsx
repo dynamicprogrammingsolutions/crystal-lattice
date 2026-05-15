@@ -538,13 +538,13 @@ const createStyles = (theme: Theme, density: ApplicationActionDialogDensity) => 
       opacity: 0,
     },
     modalTitle: {
-      fontSize: titleSize,
+      fontSize: theme.typography.fontSize.title,
       fontWeight: '600',
       marginBottom: titleMb,
       color: theme.text,
     },
     modalSubtitle: {
-      fontSize: subtitleSize,
+      fontSize: theme.typography.fontSize.small,
       color: theme.textSecondary,
       marginBottom: subtitleMb,
     },
@@ -552,13 +552,13 @@ const createStyles = (theme: Theme, density: ApplicationActionDialogDensity) => 
       marginBottom: 12,
     },
     inputLabel: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
       fontWeight: '600',
       marginBottom: 4,
       color: theme.text,
     },
     inputDescription: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
       marginBottom: 6,
     },
@@ -582,7 +582,7 @@ const createStyles = (theme: Theme, density: ApplicationActionDialogDensity) => 
       minHeight: 90,
     },
     errorText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
       color: theme.danger,
       marginBottom: 8,
     },
@@ -619,12 +619,12 @@ const createStyles = (theme: Theme, density: ApplicationActionDialogDensity) => 
     },
     buttonTextSecondary: {
       color: theme.text,
-      fontSize: btnTextSize,
+      fontSize: theme.typography.fontSize.normal,
       fontWeight: '600',
     },
     buttonText: {
       color: theme.textOnPrimary,
-      fontSize: btnTextSize,
+      fontSize: theme.typography.fontSize.normal,
       fontWeight: '700',
     },
   });

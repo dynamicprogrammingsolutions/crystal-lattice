@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import threading
+from typing import Any, Callable, Dict, Iterator, List
 import traceback  # Add this import at the beginning of your file
-from typing import Any, Dict, Iterator, List, Optional
 
 from agent_core import AgentCore, Message, MessageRole, Session
+from agent_core.tool_result_payloads import TOOL_RESULT_FIELD
 from agent_core.types import ProviderRequestCancelled
 
 
@@ -50,6 +51,14 @@ class RequestCancellation:
             self._callbacks.pop(token, None)
 
 
+class ToolLoopCheckpointError(RuntimeError):
+    """Raised when a checkpoint cannot be safely persisted."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(detail)
+        self.detail = detail
+
+
 class ToolLoopRunner:
     """Run the application-layer tool loop for a single request.
 
@@ -69,6 +78,9 @@ class ToolLoopRunner:
         cancel_callback: Any | None = None,
         cancellation: RequestCancellation | None = None,
         context: Dict[str, Any] | None = None,
+        on_session_checkpoint: Callable[[Session], Session | None] | None = None,
+        session_for_phase: Callable[[Session], Session | None] | None = None,
+        config_for_session: Callable[[Session], Dict[str, Any] | None] | None = None,
     ) -> None:
         self._core = core
         self._config = config
@@ -77,6 +89,9 @@ class ToolLoopRunner:
         self._cancel_callback = cancel_callback
         self._cancellation = cancellation
         self._context = context
+        self._on_session_checkpoint = on_session_checkpoint
+        self._session_for_phase = session_for_phase
+        self._config_for_session = config_for_session
         self._suspended = False
         self._stop_after_tools = False
 
@@ -132,6 +147,33 @@ class ToolLoopRunner:
         except Exception:
             return False
 
+    def _refresh_runtime(self, session: Session) -> Session:
+        session_for_phase = getattr(self, "_session_for_phase", None)
+        if session_for_phase is not None:
+            updated_session = session_for_phase(session)
+            if isinstance(updated_session, Session):
+                session = updated_session
+
+        config_for_session = getattr(self, "_config_for_session", None)
+        if config_for_session is not None:
+            updated = config_for_session(session)
+            if isinstance(updated, dict):
+                self._config = updated
+
+        if isinstance(self._context, dict):
+            self._context = {
+                **self._context,
+                "session": session.to_dict(),
+            }
+        return session
+
+    def _checkpoint_session(self, session: Session) -> Session:
+        handler = getattr(self, "_on_session_checkpoint", None)
+        if handler is None:
+            return session
+        checkpointed = handler(session)
+        return checkpointed if isinstance(checkpointed, Session) else session
+
     def _set_message_metadata(
         self,
         session: Session,
@@ -147,6 +189,7 @@ class ToolLoopRunner:
             content=msg.content,
             metadata=metadata or None,
             multipart_content=msg.multipart_content,
+            tool_result=msg.tool_result,
         )
         return Session(
             session_id=session.session_id,
@@ -157,8 +200,8 @@ class ToolLoopRunner:
     def _find_assistant_message_index_for_tool_call(
         self,
         session: Session,
-        tool_call_id: Optional[str],
-    ) -> Optional[int]:
+        tool_call_id: str | None,
+    ) -> int | None:
         if not isinstance(tool_call_id, str) or not tool_call_id:
             return None
         for idx in range(len(session.messages) - 1, -1, -1):
@@ -172,8 +215,8 @@ class ToolLoopRunner:
             for call in calls:
                 if not isinstance(call, dict):
                     continue
-                cid = call.get("id")
-                if isinstance(cid, str) and cid == tool_call_id:
+                call_id = call.get("id") or call.get("call_id")
+                if isinstance(call_id, str) and call_id == tool_call_id:
                     return idx
         return None
 
@@ -231,6 +274,7 @@ class ToolLoopRunner:
         """
 
         core = self._core
+        session = self._refresh_runtime(session)
         config = self._config
         rid = self._request_id
         start_index = len(session.messages)
@@ -250,6 +294,7 @@ class ToolLoopRunner:
                     config,
                     request_id=rid,
                     cancellation=self._cancellation,
+                    context=self._context,
                 )
             except ProviderRequestCancelled:
                 yield {
@@ -273,13 +318,14 @@ class ToolLoopRunner:
             # Internal checkpoint is emitted *after* the final event so
             # that session persistence and checkpoint cursors align with
             # the visible assistant messages.
+            checkpoint_session = self._checkpoint_session(next_session)
             yield {
                 "type": "session_checkpoint",
-                "session_id": next_session.session_id,
+                "session_id": checkpoint_session.session_id,
                 "request_id": rid,
-                "session": next_session,
+                "session": checkpoint_session,
             }
-            return next_session, final_messages
+            return checkpoint_session, final_messages
 
         # Streaming: yield partial and final events directly from
         # send_request_stream so that callers see true streaming
@@ -295,6 +341,7 @@ class ToolLoopRunner:
                 config,
                 request_id=rid,
                 cancellation=self._cancellation,
+                context=self._context,
             ):
                 if self._is_cancelled():
                     yield {
@@ -362,11 +409,12 @@ class ToolLoopRunner:
                     # Internal checkpoint is emitted *after* the final
                     # event so that persistence and checkpoint cursors align
                     # with the visible assistant messages.
+                    checkpoint_session = self._checkpoint_session(final_session)
                     yield {
                         "type": "session_checkpoint",
-                        "session_id": final_session.session_id,
+                        "session_id": checkpoint_session.session_id,
                         "request_id": rid,
-                        "session": final_session,
+                        "session": checkpoint_session,
                     }
         except ProviderRequestCancelled:
             yield {
@@ -376,7 +424,7 @@ class ToolLoopRunner:
             }
             return current_session, []
 
-        return final_session, final_messages
+        return checkpoint_session if 'checkpoint_session' in locals() else final_session, final_messages
 
     def _apply_tool_calls(
         self,
@@ -394,6 +442,7 @@ class ToolLoopRunner:
         """
 
         core = self._core
+        session = self._refresh_runtime(session)
         config = self._config
         rid = self._request_id
         start_index = len(session.messages)
@@ -418,7 +467,7 @@ class ToolLoopRunner:
 
         raw_interceptors: List[tuple[int, Any, Dict[str, Any]]] = []
         reg_order = 0
-        for tool_plugin, tool_state in tool_states:
+        for tool_plugin, tool_state, _prepared in tool_states:
             raw_interceptors.append((reg_order, tool_plugin, tool_state))
             reg_order += 1
         for ext in extensions:
@@ -473,7 +522,7 @@ class ToolLoopRunner:
                 name = inspected_call.tool_name
                 effective_call = inspected_call.raw
                 effective_payload = inspected_call.payload
-                tool, state, matched_schema = core._resolve_tool_handler_for_call(
+                tool, state, prepared, matched_schema = core._resolve_tool_handler_for_call(
                     inspected_call,
                     tool_states,
                     registry,
@@ -642,7 +691,12 @@ class ToolLoopRunner:
                     if isinstance(transformed_call, dict):
                         try:
                             new_inspected = registry.inspect_call(transformed_call)
-                            new_tool, new_state, new_matched_schema = core._resolve_tool_handler_for_call(
+                            (
+                                new_tool,
+                                new_state,
+                                new_prepared,
+                                new_matched_schema,
+                            ) = core._resolve_tool_handler_for_call(
                                 new_inspected,
                                 tool_states,
                                 registry,
@@ -657,6 +711,7 @@ class ToolLoopRunner:
                             call_id = new_inspected.call_id
                             tool = new_tool
                             state = new_state
+                            prepared = new_prepared
                             matched_schema = new_matched_schema
                             if assistant_idx is not None:
                                 msg = current_session.messages[assistant_idx]
@@ -754,6 +809,7 @@ class ToolLoopRunner:
                                 tool_call=effective_call if isinstance(effective_call, dict) else None,
                                 cancellation=self._cancellation,
                                 context=tool_context,
+                                prepared=prepared,
                             )
                             iterator = iter(iterator)
                         except Exception as exc:
@@ -880,6 +936,7 @@ class ToolLoopRunner:
                             "role": "tool",
                             "content": formatted_content or "",
                             "metadata": metadata,
+                            TOOL_RESULT_FIELD: final_result if isinstance(final_result, dict) else None,
                         }
 
             if last_final is None and self._is_cancelled():
@@ -921,12 +978,15 @@ class ToolLoopRunner:
                 role = "tool"  # type: ignore[assignment]
             content = last_final.get("content", "")
             metadata = last_final.get("metadata") or {}
+            tool_result = last_final.get(TOOL_RESULT_FIELD)
             current_session = core.add_message(
                 current_session,
                 role,
                 content,
                 metadata,
                 config=config,
+                context=self._context,
+                tool_result=tool_result if isinstance(tool_result, dict) else None,
             )
 
             if self._is_cancelled():
@@ -936,13 +996,14 @@ class ToolLoopRunner:
 
         # Summarise final tool messages appended to the session.
         if self._suspended:
+            checkpoint_session = self._checkpoint_session(current_session)
             yield {
                 "type": "session_checkpoint",
-                "session_id": current_session.session_id,
+                "session_id": checkpoint_session.session_id,
                 "request_id": rid,
-                "session": current_session,
+                "session": checkpoint_session,
             }
-            return current_session
+            return checkpoint_session
         self._stop_after_tools = stop_loop
 
         if not tool_messages and self._is_cancelled():
@@ -959,14 +1020,15 @@ class ToolLoopRunner:
         # Emit a single checkpoint *after* tool_results so that
         # external consumers can align snapshots with the final tool
         # messages for this phase.
+        checkpoint_session = self._checkpoint_session(current_session)
         yield {
             "type": "session_checkpoint",
-            "session_id": current_session.session_id,
+            "session_id": checkpoint_session.session_id,
             "request_id": rid,
-            "session": current_session,
+            "session": checkpoint_session,
         }
 
-        return current_session
+        return checkpoint_session
 
     # ------------------------------------------------------------------
     # Public API
@@ -1082,6 +1144,15 @@ class ToolLoopRunner:
                     yield ev
                 if self._suspended or self._stop_after_tools:
                     break
+        except ToolLoopCheckpointError as exc:
+            yield {
+                "type": "error",
+                "session_id": current_session.session_id,
+                "request_id": self._request_id,
+                "detail": exc.detail,
+            }
+        except NotImplementedError:
+            raise
         except Exception as exc:
             print(f"Error in ToolLoopRunner: {exc}")
             traceback.print_exc()  # Print the stack trace

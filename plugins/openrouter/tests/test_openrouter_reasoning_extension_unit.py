@@ -70,8 +70,9 @@ def test_initialize_request_when_disabled():
     ext = OpenRouterReasoningExtension()
     state = {"request": {"payload": {"model": "test"}}}
 
-    new_state = ext.initialize_request([], state)
+    native_messages, new_state = ext.initialize_request([], state)
 
+    assert native_messages == []
     assert new_state == state
 
 
@@ -87,8 +88,9 @@ def test_initialize_request_adds_reasoning_parameters():
 
     state = ext.init(config, state)
 
-    state = ext.initialize_request([], state)
+    native_messages, state = ext.initialize_request([], state)
 
+    assert native_messages == []
     request_options = state["config"]["request_options"]
     assert request_options["reasoning"]["effort"] == "high"
     assert request_options["reasoning"]["enabled"] is True
@@ -104,11 +106,32 @@ def test_initialize_request_without_effort():
 
     state = ext.init(config, state)
 
-    state = ext.initialize_request([], state)
+    native_messages, state = ext.initialize_request([], state)
 
+    assert native_messages == []
     request_options = state["config"]["request_options"]
     assert "effort" not in request_options["reasoning"]
     assert request_options["reasoning"]["enabled"] is True
+
+
+def test_initialize_request_with_max_tokens_omits_effort() -> None:
+    """Anthropic-style max token config should suppress reasoning effort."""
+    ext = OpenRouterReasoningExtension()
+    config = {
+        "model": "anthropic/claude-haiku-4.5",
+        "enable_reasoning": True,
+        "reasoning_effort": "medium",
+        "reasoning_max_tokens": 16000,
+    }
+    state = {"config": config}
+
+    state = ext.init(config, state)
+    _native_messages, state = ext.initialize_request([], state)
+
+    request_options = state["config"]["request_options"]
+    assert request_options["reasoning"]["enabled"] is True
+    assert request_options["reasoning"]["max_tokens"] == 16000
+    assert "effort" not in request_options["reasoning"]
 
 
 def test_to_native_messages_is_identity():
@@ -239,7 +262,7 @@ def test_accumulate_reasoning_details_text_multiple_chunks():
 
 
 def test_accumulate_reasoning_details_signature_multiple_chunks():
-    """Accumulate signature field across multiple chunks (Anthropic)."""
+    """Signature field should use the latest value, not concatenation."""
     ext = OpenRouterReasoningExtension()
 
     current_details = [
@@ -264,8 +287,37 @@ def test_accumulate_reasoning_details_signature_multiple_chunks():
     result = ext._accumulate_reasoning_details(current_details, delta_details)
 
     assert len(result) == 1
-    assert result[0]["signature"] == "abc123def456"  # Accumulated, not overridden!
+    assert result[0]["signature"] == "def456"
     assert result[0]["text"] == "Complete text"
+
+
+def test_accumulate_reasoning_details_signature_duplicate_chunk_keeps_valid_value():
+    """Repeated full signature chunks should not duplicate the signature."""
+    ext = OpenRouterReasoningExtension()
+
+    current_details = [
+        {
+            "type": "reasoning.text",
+            "text": "Complete text",
+            "signature": "full-signature",
+            "format": "anthropic-claude-v1",
+            "index": 0,
+        }
+    ]
+
+    delta_details = [
+        {
+            "type": "reasoning.text",
+            "signature": "full-signature",
+            "format": "anthropic-claude-v1",
+            "index": 0,
+        }
+    ]
+
+    result = ext._accumulate_reasoning_details(current_details, delta_details)
+
+    assert len(result) == 1
+    assert result[0]["signature"] == "full-signature"
 
 
 def test_accumulate_reasoning_details_data_multiple_chunks():
@@ -537,12 +589,15 @@ class _DummyResponse:
     def json(self):
         return self._obj
 
+    def close(self):
+        return None
+
 
 def test_reasoning_details_round_trip_non_streaming(monkeypatch):
     """End-to-end: reasoning_details from first turn appear in next payload."""
     calls = []
 
-    def fake_post(url, json=None, headers=None, timeout=None, stream=False):
+    def fake_post(self, url, json=None, headers=None, timeout=None, stream=False):
         call_index = len(calls)
         calls.append(json)
         if call_index == 0:
@@ -572,7 +627,10 @@ def test_reasoning_details_round_trip_non_streaming(monkeypatch):
             }
         return _DummyResponse(response_obj)
 
-    monkeypatch.setattr("openrouter_plugins.openrouter_provider.requests.post", fake_post)
+    monkeypatch.setattr(
+        "openrouter_plugins.openrouter_provider.requests.sessions.Session.post",
+        fake_post,
+    )
 
     core = AgentCore()
     core.register_provider(OpenRouterProvider, extensions=[OpenRouterReasoningExtension])

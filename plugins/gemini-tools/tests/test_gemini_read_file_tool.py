@@ -126,4 +126,7 @@ def test_plugin_manager_loads_package_with_sibling_dependency(tmp_path: Path) ->
         "GeminiGlobTool",
         "GeminiWriteFileTool",
         "GeminiReplaceTool",
+        "GeminiShellTool",
+        "GeminiWebFetchTool",
+        "GeminiWebSearchTool",
     ]

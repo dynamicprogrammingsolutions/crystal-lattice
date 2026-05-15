@@ -34,10 +34,9 @@ class FeatureWrapper(FeaturePlugin):
     def get_ui_elements(
         self,
         config: Dict[str, Any],
-        tags: List[str],
-        models: List[Dict[str, Any]],
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        return self.plugin.get_ui_elements(config, tags, models)
+        return self.plugin.get_ui_elements(config, context)
 
     def get_models(
         self,
@@ -79,28 +78,72 @@ class FeatureWrapper(FeaturePlugin):
 
     # Stateless transforms
     def to_native_messages(
-        self, messages: List[Dict[str, Any]], native_messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        return self.plugin.to_native_messages(messages, native_messages, state)
+        return self.plugin.to_native_messages(
+            messages,
+            native_messages,
+            state,
+            context=context,
+        )
 
     def from_native_messages(
-        self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]], state: Dict[str, Any] | None = None
+        self,
+        native_messages: List[Dict[str, Any]],
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any] | None = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        return self.plugin.from_native_messages(native_messages, messages, state)
+        return self.plugin.from_native_messages(
+            native_messages,
+            messages,
+            state,
+            context=context,
+        )
 
     def initialize_request(
-        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self,
+        native_messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        return self.plugin.initialize_request(native_messages, state)
+        return self.plugin.initialize_request(
+            native_messages,
+            state,
+            context=context,
+        )
+
+    def prepare_tools(
+        self,
+        config: Dict[str, Any],
+        tools: List[Any],
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Any]:
+        """Allow the feature to filter or transform available tools."""
+        return self.plugin.prepare_tools(config, tools, context)
 
     def finalize(
         self,
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Run feature finalize; return (final_messages, native_messages, new_state)."""
-        return self.plugin.finalize(final_messages, native_messages, state)
+        return self.plugin.finalize(
+            final_messages,
+            native_messages,
+            state,
+            context=context,
+        )
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return session-scoped action definitions from the feature."""
@@ -116,7 +159,9 @@ class FeatureWrapper(FeaturePlugin):
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         """Execute a session-scoped action from the feature."""
-        return self.plugin.execute_action(action_id, session, native_messages, params, context, state)
+        return self.plugin.execute_action(
+            action_id, session, native_messages, params, context, state
+        )
 
     def materialize_interception_prompt(
         self,
@@ -132,6 +177,22 @@ class FeatureWrapper(FeaturePlugin):
             schema_params=schema_params,
             tool_call_id=tool_call_id,
         )
+
+    def intercept_tool_call(
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        return self.plugin.intercept_tool_call(payload, context, state)
+
+    def intercept_tool_result(
+        self,
+        payload: Dict[str, Any],
+        context: Dict[str, Any],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        return self.plugin.intercept_tool_result(payload, context, state)
 
     def get_completions(
         self,

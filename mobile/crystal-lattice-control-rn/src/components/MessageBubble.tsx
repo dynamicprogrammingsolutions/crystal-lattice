@@ -11,23 +11,29 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
-import Clipboard from '@react-native-clipboard/clipboard';
-import { selectAttachmentPreviewUrl } from '@crystal-lattice/frontend-sdk';
 import { ApplicationActionDialogLayout } from '@crystal-lattice/frontend-rn-components';
 import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
 import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
 import MarkdownMessageContent from './MarkdownMessageContent';
-import { AttachmentThumbnailStrip, type AttachmentLike } from './AttachmentThumbnailStrip';
+import { AttachmentThumbnailStrip } from './AttachmentThumbnailStrip';
+import {
+  selectMultipartAttachments,
+  type MessageAttachmentSnapshot,
+} from '../messageAttachments';
 import { useTheme, type Theme } from '../theme';
 import { extractByPath, renderTemplate, formatValueForElement, evaluateCondition } from '../uiSchemaUtils';
 
-type MultipartPart = {
-  type?: string;
-  content?: any;
-  metadata?: any;
-};
+const CHEVRON_ICON_SIZE = 16;
+const CHEVRON_HIT_SLOP = { top: 4, bottom: 4, left: 4, right: 4 };
+
+function toSingleLinePreview(text: string, maxLen = 160): string {
+  const normalized = text.replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  if (normalized.length <= maxLen) return normalized;
+  return `${normalized.slice(0, Math.max(0, maxLen - 1))}...`;
+}
 
 type WebLinkEntry = {
   url?: string;
@@ -59,52 +65,33 @@ function resolveInterceptorPromptButtonLabel(
   return buttonId;
 }
 
-function selectMultipartParts(message: ApiMessage): MultipartPart[] {
-  const parts = (message as any)?.multipartContent;
-  return Array.isArray(parts) ? (parts as MultipartPart[]) : [];
-}
-
-const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = ({
+const MessageAttachmentsPreview: React.FC<{
+  message: ApiMessage;
+  messageIndex: number;
+  onBlue?: boolean;
+  onOpenAttachment?: (attachment: MessageAttachmentSnapshot) => void;
+}> = ({
   message,
+  messageIndex,
   onBlue,
+  onOpenAttachment,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
-  const parts = selectMultipartParts(message);
+  const attachments = useMemo(
+    () => selectMultipartAttachments(message, messageIndex),
+    [message, messageIndex],
+  );
 
-  if (parts.length === 0) return null;
-
-  const attachments: AttachmentLike[] = parts.map((part, idx) => {
-    const type = typeof part?.type === 'string' ? part.type : 'attachment';
-    return {
-      id: `${idx}`,
-      type,
-      content: part?.content,
-      metadata: part?.metadata,
-    };
-  });
+  if (attachments.length === 0) return null;
 
   return (
     <View style={[styles.attachmentsWrapper, onBlue && styles.attachmentsWrapperOnBlue]}>
       <AttachmentThumbnailStrip
         attachments={attachments}
-        onPress={async (attachment) => {
-          const url = selectAttachmentPreviewUrl(attachment.content);
-          const isPdf = attachment.type === 'pdf' && url;
-          if (typeof url !== 'string' || !url) {
-            return;
-          }
-          if (isPdf && (url.startsWith('http://') || url.startsWith('https://'))) {
-            try {
-              await Linking.openURL(url);
-              return;
-            } catch (err) {
-              console.log('Failed to open attachment url', err);
-            }
-          }
-          Clipboard.setString(url);
-          Alert.alert('Copied', 'Attachment URL copied to clipboard.');
-        }}
+        onPress={onOpenAttachment ? (attachment) => {
+          onOpenAttachment(attachment as MessageAttachmentSnapshot);
+        } : undefined}
       />
     </View>
   );
@@ -113,6 +100,7 @@ const MessageAttachments: React.FC<{ message: ApiMessage; onBlue?: boolean }> = 
 export interface MessageBubbleProps {
   index: number;
   message: ApiMessage;
+  onOpenAttachment?: (attachment: MessageAttachmentSnapshot) => void;
   isActive?: boolean;
   pinnedActions?: MessageActionKey[];
   onAction?: (action: MessageActionKey, index: number, message: ApiMessage) => void;
@@ -138,6 +126,7 @@ export interface MessageBubbleProps {
 const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  onOpenAttachment,
   isActive,
   pinnedActions,
   onAction,
@@ -162,7 +151,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -176,7 +165,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
     return (
       <View style={styles.row}>
         <View style={[styles.bubble, styles.userBubble]}>
-          <Text style={styles.headerText}>{`[${index}] User`}</Text>
+          <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] User`}</Text>
           <TextInput
             style={[styles.editInput, styles.editInputOnBlue]}
             value={editingText ?? ''}
@@ -205,10 +194,12 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
   return (
     <View style={styles.row}>
       <View style={[styles.bubble, styles.userBubble]}>
-        <Text style={styles.headerText}>{`[${index}] User`}</Text>
-        <MessageAttachments
+        <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] User`}</Text>
+        <MessageAttachmentsPreview
           message={message}
+          messageIndex={index}
           onBlue
+          onOpenAttachment={onOpenAttachment}
         />
         {content ? (
           <Text
@@ -241,6 +232,7 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
 const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  onOpenAttachment,
   isActive,
   pinnedActions,
   onAction,
@@ -269,7 +261,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -283,7 +275,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
     return (
       <View style={styles.row}>
         <View style={[styles.bubble, styles.otherBubble, styles.toolSystemBubble]}>
-          <Text style={styles.headerText}>{`[${index}] System`}</Text>
+          <Text style={[styles.headerText, styles.standaloneHeaderText]}>{`[${index}] System`}</Text>
           <TextInput
             style={styles.editInput}
             value={editingText ?? ''}
@@ -318,19 +310,24 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
             {compiledContent && (
               <TouchableOpacity
                 style={styles.collapseIconButton}
+                hitSlop={CHEVRON_HIT_SLOP}
                 onPress={() => setCompiledExpanded((prev) => !prev)}
                 testID="system-compiled-toggle"
               >
                 <Icon
                   name={compiledExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={14}
+                  size={CHEVRON_ICON_SIZE}
                   color={theme.textSecondary}
                 />
               </TouchableOpacity>
             )}
           </View>
         </View>
-        <MessageAttachments message={message} />
+        <MessageAttachmentsPreview
+          message={message}
+          messageIndex={index}
+          onOpenAttachment={onOpenAttachment}
+        />
         {content ? (
           <Text
             style={styles.systemText}
@@ -386,6 +383,7 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
 const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  onOpenAttachment,
   isActive,
   pinnedActions,
   onAction,
@@ -412,7 +410,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -433,18 +431,23 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
           {hasContent && (
             <TouchableOpacity
               style={styles.collapseIconButton}
+              hitSlop={CHEVRON_HIT_SLOP}
               onPress={() => setExpanded((prev) => !prev)}
             >
               <Icon
                 name={expanded ? 'chevron-up' : 'chevron-down'}
-                size={14}
+                size={CHEVRON_ICON_SIZE}
                 color={theme.textSecondary}
               />
             </TouchableOpacity>
           )}
         </View>
 
-        <MessageAttachments message={message} />
+        <MessageAttachmentsPreview
+          message={message}
+          messageIndex={index}
+          onOpenAttachment={onOpenAttachment}
+        />
 
         {hasContent && expanded && (
           <View style={styles.collapsibleContainerTool}>
@@ -502,6 +505,7 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
 const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  onOpenAttachment,
   isActive,
   pinnedActions,
   onAction,
@@ -524,9 +528,14 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
   const [toolCallsExpanded, setToolCallsExpanded] = useState(false);
   const [webSourcesExpanded, setWebSourcesExpanded] = useState(false);
   const content = selectDisplayContent(message);
+  const hasContent = !!content;
   const reasoning = typeof (message.metadata as any)?.reasoning === 'string'
     ? (message.metadata as any).reasoning
     : undefined;
+  const reasoningSingleLine = useMemo(() => {
+    if (!reasoning) return '';
+    return toSingleLinePreview(reasoning);
+  }, [reasoning]);
   const citations = useMemo(
     () => selectWebLinkEntries((message.metadata as any)?.url_citations),
     [message.metadata],
@@ -615,7 +624,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
     elements.forEach((el) => {
       if (!el || el.ui_type !== 'message_footer') return;
       const condition = (el as any).condition;
-      if (condition != null && !evaluateCondition(condition, message as Record<string, unknown>)) return;
+      if (condition != null && !evaluateCondition(condition, message)) return;
       const rawValue = extractByPath(message, el.data);
       const valueForTemplate = formatValueForElement(el, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') return;
@@ -672,26 +681,28 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
         <View style={styles.headerRow}>
           <Text style={styles.headerText}>{`[${index}] Assistant`}</Text>
           <View style={styles.headerIconsRow}>
-            {toolCallNames.length > 0 && (
-              <TouchableOpacity
-                style={styles.collapseIconButton}
-                onPress={() => setToolCallsExpanded((prev) => !prev)}
-              >
-                <Icon
-                  name={toolCallsExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={14}
-                  color={theme.textSecondary}
-                />
-              </TouchableOpacity>
-            )}
             {reasoning && (
               <TouchableOpacity
                 style={styles.collapseIconButton}
+                hitSlop={CHEVRON_HIT_SLOP}
                 onPress={() => setReasoningExpanded((prev) => !prev)}
               >
                 <Icon
                   name={reasoningExpanded ? 'chevron-up' : 'chevron-down'}
-                  size={14}
+                  size={CHEVRON_ICON_SIZE}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            )}
+            {!reasoning && !hasContent && toolCallNames.length > 0 && (
+              <TouchableOpacity
+                style={styles.collapseIconButton}
+                hitSlop={CHEVRON_HIT_SLOP}
+                onPress={() => setToolCallsExpanded((prev) => !prev)}
+              >
+                <Icon
+                  name={toolCallsExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={CHEVRON_ICON_SIZE}
                   color={theme.textSecondary}
                 />
               </TouchableOpacity>
@@ -699,7 +710,11 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
           </View>
         </View>
 
-        <MessageAttachments message={message} />
+        <MessageAttachmentsPreview
+          message={message}
+          messageIndex={index}
+          onOpenAttachment={onOpenAttachment}
+        />
 
         {reasoning && reasoningExpanded && (
           <View style={styles.collapsibleContainerReasoning}>
@@ -721,8 +736,9 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
           <Text
             style={styles.collapsedHintText}
             selectable
+            numberOfLines={1}
           >
-            Reasoning hidden (tap chevron to expand).
+            {reasoningSingleLine ? `Reasoning: ${reasoningSingleLine}` : 'Reasoning'}
           </Text>
         )}
 
@@ -765,17 +781,22 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
 
         {webSearchSources.length > 0 && (
           <View style={styles.linkSection}>
-            <TouchableOpacity
+            <View
               style={styles.linkSectionToggle}
-              onPress={() => setWebSourcesExpanded((prev) => !prev)}
             >
               <Text style={styles.linkSectionLabel}>{`Sources (${webSearchSources.length})`}</Text>
-              <Icon
-                name={webSourcesExpanded ? 'chevron-up' : 'chevron-down'}
-                size={14}
-                color={theme.textSecondary}
-              />
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.collapseIconButton}
+                hitSlop={CHEVRON_HIT_SLOP}
+                onPress={() => setWebSourcesExpanded((prev) => !prev)}
+              >
+                <Icon
+                  name={webSourcesExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={CHEVRON_ICON_SIZE}
+                  color={theme.textSecondary}
+                />
+              </TouchableOpacity>
+            </View>
 
             {webSourcesExpanded ? (
               webSearchSources.map((entry, idx) => {
@@ -797,6 +818,29 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             ) : (
               <Text style={styles.collapsedHintText}>Consulted sources hidden (tap chevron to expand).</Text>
             )}
+          </View>
+        )}
+
+        {toolCallNames.length > 0 && (reasoning || hasContent) && (
+          <View style={styles.disclosureRow}>
+            <Text
+              style={[styles.collapsedHintText, styles.disclosureText]}
+              selectable
+              numberOfLines={1}
+            >
+              {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {distinctToolCallNames.join(', ')}
+            </Text>
+            <TouchableOpacity
+              style={[styles.collapseIconButton, styles.disclosureChevronButton]}
+              hitSlop={CHEVRON_HIT_SLOP}
+              onPress={() => setToolCallsExpanded((prev) => !prev)}
+            >
+              <Icon
+                name={toolCallsExpanded ? 'chevron-up' : 'chevron-down'}
+                size={CHEVRON_ICON_SIZE}
+                color={theme.textSecondary}
+              />
+            </TouchableOpacity>
           </View>
         )}
 
@@ -856,8 +900,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
             </ScrollView>
           </View>
         )}
-
-        {toolCallNames.length > 0 && !toolCallsExpanded && (
+        {toolCallNames.length > 0 && !toolCallsExpanded && !reasoning && !hasContent && (
           <Text style={styles.collapsedHintText}>
             {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {distinctToolCallNames.join(', ')}
           </Text>
@@ -932,6 +975,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
 export const MessageBubble: React.FC<MessageBubbleProps> = ({
   index,
   message,
+  onOpenAttachment,
   isActive,
   pinnedActions,
   onAction,
@@ -958,6 +1002,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <UserMessageBubble
         index={index}
         message={message}
+        onOpenAttachment={onOpenAttachment}
         isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
@@ -978,6 +1023,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <SystemMessageBubble
         index={index}
         message={message}
+        onOpenAttachment={onOpenAttachment}
         isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
@@ -999,6 +1045,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <ToolMessageBubble
         index={index}
         message={message}
+        onOpenAttachment={onOpenAttachment}
         isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
@@ -1015,6 +1062,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <AssistantMessageBubble
         index={index}
         message={message}
+        onOpenAttachment={onOpenAttachment}
         isActive={isActive}
         pinnedActions={pinnedActions}
         onAction={onAction}
@@ -1094,17 +1142,20 @@ const createStyles = (theme: Theme) =>
       alignItems: 'center',
     },
     headerText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
       color: theme.textSecondary,
     },
+    standaloneHeaderText: {
+      marginBottom: 4,
+    },
     systemText: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
       color: theme.text,
       fontFamily: 'Courier',
       fontStyle: 'italic',
     },
     reasoningText: {
-      fontSize: 12,
+      fontSize: theme.typography.fontSize.small,
       color: theme.textSecondary,
       fontStyle: 'italic',
       fontFamily: 'Courier',
@@ -1113,20 +1164,20 @@ const createStyles = (theme: Theme) =>
       marginBottom: 8,
     },
     toolCallName: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
       color: theme.text,
       fontWeight: '600',
       marginBottom: 2,
       fontFamily: 'Courier',
     },
     toolCallArgs: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
       fontFamily: 'Courier',
       marginLeft: 8,
     },
     contentText: {
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.message,
       color: theme.text,
       fontFamily: 'Courier',
     },
@@ -1136,8 +1187,8 @@ const createStyles = (theme: Theme) =>
       color: theme.text,
     },
     collapseIconButton: {
-      paddingHorizontal: 4,
-      paddingVertical: 2,
+      paddingHorizontal: 6,
+      paddingVertical: 4,
     },
     collapsibleContainerTool: {
       marginTop: 4,
@@ -1159,7 +1210,7 @@ const createStyles = (theme: Theme) =>
     },
     collapsedHintText: {
       marginTop: 2,
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
       fontStyle: 'italic',
     },
@@ -1167,7 +1218,7 @@ const createStyles = (theme: Theme) =>
       marginTop: 4,
     },
     footerText: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
       fontFamily: 'Courier',
     },
@@ -1181,9 +1232,23 @@ const createStyles = (theme: Theme) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+      paddingHorizontal: 2,
+      paddingVertical: 2,
+    },
+    disclosureRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 2,
+    },
+    disclosureText: {
+      flexShrink: 1,
+      marginRight: 8,
+    },
+    disclosureChevronButton: {
+      marginLeft: 'auto',
     },
     linkSectionLabel: {
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
       fontWeight: '600',
       textTransform: 'uppercase',
@@ -1197,19 +1262,19 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.bubbleToolBg,
     },
     linkItemTitle: {
-      fontSize: 13,
+      fontSize: theme.typography.fontSize.secondary,
       color: theme.text,
       fontWeight: '600',
     },
     linkItemUrl: {
       marginTop: 2,
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.primary,
       textDecorationLine: 'underline',
     },
     linkItemSnippet: {
       marginTop: 4,
-      fontSize: 11,
+      fontSize: theme.typography.fontSize.tiny,
       color: theme.textSecondary,
     },
     editInput: {
@@ -1221,7 +1286,7 @@ const createStyles = (theme: Theme) =>
       borderRadius: 6,
       paddingHorizontal: 8,
       paddingVertical: 6,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.message,
       fontFamily: 'Courier',
       backgroundColor: theme.surface,
       color: theme.text,
@@ -1248,12 +1313,12 @@ const createStyles = (theme: Theme) =>
     },
     editButtonTextPrimary: {
       color: theme.textOnPrimary,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
       fontWeight: '600',
     },
     editButtonTextSecondary: {
       color: theme.text,
-      fontSize: 14,
+      fontSize: theme.typography.fontSize.normal,
       fontWeight: '600',
     },
     attachmentsWrapper: {

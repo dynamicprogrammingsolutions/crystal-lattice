@@ -1,0 +1,406 @@
+from __future__ import annotations
+
+import copy
+import json
+import os
+import re
+from pathlib import Path
+from typing import Any, Dict, Mapping, Sequence
+
+
+DEFAULT_PROJECT_CONFIG_PATH = "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json"
+DEFAULT_RUNTIME_IMAGE = "cloud-agent-runtime:latest"
+
+PROFILE_SECTIONS = {
+    "transfer_up_profiles",
+    "install_profiles",
+    "sync_down_profiles",
+    "container_profiles",
+}
+DEFAULT_PROFILE_KEYS = {
+    "default_transfer_up_profile",
+    "default_sync_down_profile",
+    "default_container_profile",
+}
+SCRIPT_FIELDS_BY_SECTION = {
+    "transfer_up_profiles": {"local_transfer_script"},
+    "install_profiles": {"cloud_install_script"},
+    "sync_down_profiles": {
+        "cloud_export_script",
+        "cloud_mark_synced_script",
+        "local_apply_script",
+    },
+}
+ENV_PLACEHOLDER_RE = re.compile(r"\$\{env:([^}]+)\}")
+
+
+ScriptCandidate = tuple[Any, Path]
+ScriptCandidates = Dict[tuple[str, str, str], list[ScriptCandidate]]
+
+
+def resolve_cloud_agent_profiles(
+    cloud_agent_config: Mapping[str, Any],
+    *,
+    env: Mapping[str, str] | None = None,
+) -> Dict[str, Any]:
+    """Resolve cloud profile defaults into the existing plugin state shape."""
+
+    env_map = dict(os.environ if env is None else env)
+    working_dir = Path(env_map.get("WORKING_DIR") or os.getcwd()).expanduser()
+    merged = copy.deepcopy(dict(cloud_agent_config))
+    _reject_requires(merged, path="application.cloud_agent")
+
+    script_candidates = _initial_script_candidates(merged, base_dir=working_dir)
+    project_config = _load_project_config(merged, env=env_map, working_dir=working_dir)
+    if project_config is not None:
+        project_config_data, project_base_dir = project_config
+        _reject_requires(project_config_data, path="project cloud-agent config")
+        _merge_profile_override(
+            merged,
+            project_config_data,
+            script_candidates=script_candidates,
+            base_dir=project_base_dir,
+        )
+
+    if not any(
+        isinstance(merged.get(section), Mapping) for section in PROFILE_SECTIONS
+    ):
+        return dict(merged)
+
+    _validate_sections(merged)
+    transfer_id = _required_id(merged, "default_transfer_up_profile")
+    sync_id = _required_id(merged, "default_sync_down_profile")
+    container_id = _required_id(merged, "default_container_profile")
+
+    transfer = _profile(merged, "transfer_up_profiles", transfer_id)
+    sync = _profile(merged, "sync_down_profiles", sync_id)
+    container = _profile(merged, "container_profiles", container_id)
+
+    install_id = transfer.get("install_profile")
+    if not isinstance(install_id, str) or not install_id.strip():
+        raise ValueError(
+            f"application.cloud_agent.transfer_up_profiles.{transfer_id}.install_profile is required"
+        )
+    install_id = install_id.strip()
+    _profile(merged, "install_profiles", install_id)
+
+    _validate_declared_compatibility(
+        merged,
+        transfer_id=transfer_id,
+        transfer=transfer,
+        sync_id=sync_id,
+        sync=sync,
+    )
+
+    effective = dict(merged)
+    effective["selected_transfer_up_profile"] = transfer_id
+    effective["selected_install_profile"] = install_id
+    effective["selected_sync_down_profile"] = sync_id
+    effective["selected_container_profile"] = container_id
+    effective["local_transfer_script"] = _resolve_script(
+        script_candidates,
+        "transfer_up_profiles",
+        transfer_id,
+        "local_transfer_script",
+        env=env_map,
+    )
+    effective["cloud_setup_script"] = _resolve_script(
+        script_candidates,
+        "install_profiles",
+        install_id,
+        "cloud_install_script",
+        env=env_map,
+    )
+    effective["cloud_install_script"] = effective["cloud_setup_script"]
+    effective["cloud_export_script"] = _resolve_script(
+        script_candidates,
+        "sync_down_profiles",
+        sync_id,
+        "cloud_export_script",
+        env=env_map,
+    )
+    effective["local_apply_script"] = _resolve_script(
+        script_candidates,
+        "sync_down_profiles",
+        sync_id,
+        "local_apply_script",
+        env=env_map,
+    )
+    effective["cloud_mark_synced_script"] = _resolve_optional_script(
+        script_candidates,
+        "sync_down_profiles",
+        sync_id,
+        "cloud_mark_synced_script",
+        env=env_map,
+    )
+
+    image = container.get("image")
+    effective["runtime_image"] = (
+        image.strip()
+        if isinstance(image, str) and image.strip()
+        else DEFAULT_RUNTIME_IMAGE
+    )
+    return effective
+
+
+def _load_project_config(
+    config: Mapping[str, Any], *, env: Mapping[str, str], working_dir: Path
+) -> tuple[Dict[str, Any], Path] | None:
+    raw_path = config.get("project_config_path")
+    if raw_path is None:
+        raw_path = DEFAULT_PROJECT_CONFIG_PATH
+    if not isinstance(raw_path, str) or not raw_path.strip():
+        return None
+
+    expanded = _expand_env(raw_path, env)
+    path = Path(expanded).expanduser()
+    if not path.is_absolute():
+        path = working_dir / path
+    if not path.exists():
+        return None
+    if not path.is_file():
+        raise ValueError(
+            f"application.cloud_agent.project_config_path is not a file: {path}"
+        )
+    parsed = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(parsed, dict):
+        raise ValueError("Project cloud-agent config must be a JSON object")
+    return parsed, _project_script_base_dir(path, env=env, working_dir=working_dir)
+
+
+def _project_script_base_dir(
+    path: Path, *, env: Mapping[str, str], working_dir: Path
+) -> Path:
+    if path.name == "cloud-agent.json" and path.parent.name == ".cloud-agent":
+        return path.parent.parent
+    if "WORKING_DIR" in env:
+        return working_dir
+    return path.parent
+
+
+def _merge_profile_override(
+    base: Dict[str, Any],
+    override: Mapping[str, Any],
+    *,
+    script_candidates: ScriptCandidates,
+    base_dir: Path,
+) -> None:
+    for key in DEFAULT_PROFILE_KEYS:
+        if key in override:
+            base[key] = copy.deepcopy(override[key])
+
+    for section in PROFILE_SECTIONS:
+        raw_profiles = override.get(section)
+        if raw_profiles is None:
+            continue
+        if not isinstance(raw_profiles, Mapping):
+            raise ValueError(f"application.cloud_agent.{section} must be an object")
+        target = base.setdefault(section, {})
+        if not isinstance(target, dict):
+            raise ValueError(f"application.cloud_agent.{section} must be an object")
+
+        script_fields = SCRIPT_FIELDS_BY_SECTION.get(section, set())
+        for profile_id, raw_profile in raw_profiles.items():
+            if not isinstance(profile_id, str) or not profile_id.strip():
+                raise ValueError(
+                    f"application.cloud_agent.{section} profile ids must be strings"
+                )
+            if not isinstance(raw_profile, Mapping):
+                raise ValueError(
+                    f"application.cloud_agent.{section}.{profile_id} must be an object"
+                )
+            existing = target.get(profile_id)
+            merged_profile = dict(existing) if isinstance(existing, Mapping) else {}
+            for field, value in raw_profile.items():
+                merged_profile[field] = copy.deepcopy(value)
+                if field in script_fields:
+                    key = (section, profile_id, field)
+                    inherited = script_candidates.get(key, [])
+                    candidates = _script_candidates(value, base_dir)
+                    if isinstance(value, list):
+                        candidates.extend(inherited)
+                    script_candidates[key] = candidates
+            target[profile_id] = merged_profile
+
+
+def _initial_script_candidates(
+    config: Mapping[str, Any], *, base_dir: Path
+) -> ScriptCandidates:
+    candidates: ScriptCandidates = {}
+    for section, fields in SCRIPT_FIELDS_BY_SECTION.items():
+        profiles = config.get(section)
+        if not isinstance(profiles, Mapping):
+            continue
+        for profile_id, profile in profiles.items():
+            if not isinstance(profile_id, str) or not isinstance(profile, Mapping):
+                continue
+            for field in fields:
+                if field in profile:
+                    candidates[(section, profile_id, field)] = _script_candidates(
+                        profile[field], base_dir
+                    )
+    return candidates
+
+
+def _script_candidates(value: Any, base_dir: Path) -> list[ScriptCandidate]:
+    if isinstance(value, str):
+        return [(value, base_dir)]
+    if isinstance(value, list):
+        return [(item, base_dir) for item in value if isinstance(item, str)]
+    return []
+
+
+def _resolve_script(
+    candidates: ScriptCandidates,
+    section: str,
+    profile_id: str,
+    field: str,
+    *,
+    env: Mapping[str, str],
+) -> str:
+    key = (section, profile_id, field)
+    attempted: list[str] = []
+    for raw, base_dir in candidates.get(key, []):
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        path = Path(_expand_env(raw, env)).expanduser()
+        if not path.is_absolute():
+            path = base_dir / path
+        path = path.resolve()
+        attempted.append(str(path))
+        if path.is_file():
+            return str(path)
+
+    path_label = f"application.cloud_agent.{section}.{profile_id}.{field}"
+    if attempted:
+        raise ValueError(
+            f"{path_label} did not resolve to an existing script: {attempted}"
+        )
+    raise ValueError(f"{path_label} is required")
+
+
+def _resolve_optional_script(
+    candidates: ScriptCandidates,
+    section: str,
+    profile_id: str,
+    field: str,
+    *,
+    env: Mapping[str, str],
+) -> str | None:
+    key = (section, profile_id, field)
+    if key not in candidates:
+        return None
+    return _resolve_script(candidates, section, profile_id, field, env=env)
+
+
+def _validate_sections(config: Mapping[str, Any]) -> None:
+    for section in PROFILE_SECTIONS:
+        profiles = config.get(section)
+        if profiles is None:
+            continue
+        if not isinstance(profiles, Mapping):
+            raise ValueError(f"application.cloud_agent.{section} must be an object")
+        for profile_id, profile in profiles.items():
+            if not isinstance(profile_id, str) or not profile_id.strip():
+                raise ValueError(
+                    f"application.cloud_agent.{section} profile ids must be strings"
+                )
+            if not isinstance(profile, Mapping):
+                raise ValueError(
+                    f"application.cloud_agent.{section}.{profile_id} must be an object"
+                )
+
+
+def _required_id(config: Mapping[str, Any], key: str) -> str:
+    value = config.get(key)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"application.cloud_agent.{key} is required")
+    return value.strip()
+
+
+def _profile(
+    config: Mapping[str, Any], section: str, profile_id: str
+) -> Mapping[str, Any]:
+    profiles = config.get(section)
+    if not isinstance(profiles, Mapping) or profile_id not in profiles:
+        raise ValueError(
+            f"application.cloud_agent.{section}.{profile_id} is not defined"
+        )
+    profile = profiles[profile_id]
+    if not isinstance(profile, Mapping):
+        raise ValueError(
+            f"application.cloud_agent.{section}.{profile_id} must be an object"
+        )
+    return profile
+
+
+def _validate_declared_compatibility(
+    config: Mapping[str, Any],
+    *,
+    transfer_id: str,
+    transfer: Mapping[str, Any],
+    sync_id: str,
+    sync: Mapping[str, Any],
+) -> None:
+    transfer_profiles = config.get("transfer_up_profiles")
+    sync_profiles = config.get("sync_down_profiles")
+    if not isinstance(transfer_profiles, Mapping) or not isinstance(
+        sync_profiles, Mapping
+    ):
+        return
+
+    for declared in _string_list(transfer.get("compatible_sync_down_profiles")):
+        if declared not in sync_profiles:
+            raise ValueError(
+                f"application.cloud_agent.transfer_up_profiles.{transfer_id}.compatible_sync_down_profiles references unknown sync profile {declared!r}"
+            )
+    for declared in _string_list(sync.get("compatible_transfer_up_profiles")):
+        if declared not in transfer_profiles:
+            raise ValueError(
+                f"application.cloud_agent.sync_down_profiles.{sync_id}.compatible_transfer_up_profiles references unknown transfer profile {declared!r}"
+            )
+
+    compatible_syncs = _string_list(transfer.get("compatible_sync_down_profiles"))
+    if compatible_syncs and sync_id not in compatible_syncs:
+        raise ValueError(
+            f"application.cloud_agent default sync profile {sync_id!r} is not compatible with transfer profile {transfer_id!r}"
+        )
+
+    compatible_transfers = _string_list(sync.get("compatible_transfer_up_profiles"))
+    if compatible_transfers and transfer_id not in compatible_transfers:
+        raise ValueError(
+            f"application.cloud_agent default transfer profile {transfer_id!r} is not compatible with sync profile {sync_id!r}"
+        )
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item.strip()]
+
+
+def _reject_requires(value: Any, *, path: str) -> None:
+    if isinstance(value, Mapping):
+        if "requires" in value:
+            raise ValueError(
+                f"{path}.requires is not supported; dependencies belong in container images or install scripts"
+            )
+        for key, item in value.items():
+            _reject_requires(item, path=f"{path}.{key}")
+    elif isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        for index, item in enumerate(value):
+            _reject_requires(item, path=f"{path}[{index}]")
+
+
+def _expand_env(value: str, env: Mapping[str, str]) -> str:
+    def replace(match: re.Match[str]) -> str:
+        return env.get(match.group(1), "")
+
+    return ENV_PLACEHOLDER_RE.sub(replace, value)
+
+
+__all__ = [
+    "DEFAULT_PROJECT_CONFIG_PATH",
+    "DEFAULT_RUNTIME_IMAGE",
+    "resolve_cloud_agent_profiles",
+]

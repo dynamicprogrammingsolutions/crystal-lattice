@@ -50,6 +50,12 @@ export const SESSION_ACTIONS: Record<SessionActionKey, SessionActionDefinition> 
     iconName: 'package',
     defaultPinned: false,
   },
+  snapshots: {
+    key: 'snapshots',
+    label: 'Snapshots',
+    iconName: 'archive',
+    defaultPinned: false,
+  },
 };
 
 export const ALL_SESSION_ACTIONS: SessionActionDefinition[] = Object.values(SESSION_ACTIONS);

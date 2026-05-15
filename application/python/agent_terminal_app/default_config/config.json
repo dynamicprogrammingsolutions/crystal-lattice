@@ -1,25 +1,54 @@
 {
   "plugin_cache_dir": "${env:CONFIG_DIR}/.plugin_cache/plugins",
-  "providers": {
-    "openrouter_codex_tools": {
-      "provider": "openrouter",
-      "model": "openai/gpt-5.4",
-      "api_key": "${env:OPENROUTER_API_KEY}",
-      "base_url": "https://openrouter.ai/api/v1",
+  "mixins": {
+    "provider_defaults": {
       "timeout": 300,
       "allowed_paths": [".", ".."],
       "max_file_size": 5242880,
       "max_output_chars": 10000,
       "working_directory": ".",
       "enable_reasoning": true,
-      "reasoning_effort": "medium",
-      "system_message_enabled": true,
-      "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/codex-tools"
-      ],
-      "shell_tool_mode": "auto",
+      "reasoning_effort": "medium"
+    },
+    "codex_mcp_defaults": {
+      "mcp_enabled": false,
+      "mcp_reuse_runtime": true,
+      "mcp_fail_on_startup_error": false,
+      "mcp_servers": {
+        "filesystem": {
+          "enabled": false,
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@modelcontextprotocol/server-filesystem",
+            "${env:WORKING_DIR}"
+          ],
+          "cwd": "${env:WORKING_DIR}",
+          "startup_timeout_seconds": 30,
+          "tool_timeout_seconds": 30
+        }
+      }
+    },
+    "codex_developer_message": {
       "codex_personality": "default",
+      "system_message_enabled": true,
       "codex_developer_messages": [
+        {
+          "model_regex": "^(openai/)?gpt-5\\.5$",
+          "personality": "default",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.5$",
+          "personality": "friendly",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_friendly.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.5$",
+          "personality": "pragmatic",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_pragmatic.md}"
+        },
         {
           "model_regex": "^(openai/)?gpt-5\\.4$",
           "personality": "default",
@@ -111,23 +140,8 @@
         }
       }
     },
-    "openrouter_qwen_tools": {
-      "provider": "openrouter",
-      "model": "qwen/qwen3.5-flash-02-23",
-      "api_key": "${env:OPENROUTER_API_KEY}",
-      "base_url": "https://openrouter.ai/api/v1",
-      "timeout": 300,
-      "allowed_paths": [".", ".."],
-      "max_file_size": 5242880,
-      "max_output_chars": 10000,
-      "working_directory": ".",
-      "enable_reasoning": true,
-      "reasoning_effort": "medium",
+    "qwen_system_message": {
       "system_message_enabled": true,
-      "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/qwen-tools"
-      ],
-      "disabled_plugins": ["apply_patch"],
       "system_message": {
         "template": "{{INTRODUCTION_AND_CORE_MANDATES}}\n\n{{PRIMARY_WORKFLOWS}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
@@ -168,23 +182,8 @@
         }
       }
     },
-    "openrouter_gemini_tools": {
-      "provider": "openrouter",
-      "model": "google/gemini-2.5-flash-lite",
-      "api_key": "${env:OPENROUTER_API_KEY}",
-      "base_url": "https://openrouter.ai/api/v1",
-      "timeout": 300,
-      "allowed_paths": [".", ".."],
-      "max_file_size": 5242880,
-      "max_output_chars": 10000,
-      "working_directory": ".",
-      "enable_reasoning": true,
-      "reasoning_effort": "medium",
+    "gemini_system_message": {
       "system_message_enabled": true,
-      "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/gemini-tools"
-      ],
-      "disabled_plugins": ["apply_patch"],
       "system_message": {
         "template": "{{PREAMBLE}}\n\n{{CORE_MANDATES}}\n\n{{WORKFLOW_SECTION}}\n\n{{OPERATIONAL_GUIDELINES}}\n\n{{GIT_SECTION}}\n\n{{CONTEXT_FILES_SECTION}}\n\n{{TASKS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
@@ -230,28 +229,8 @@
         }
       }
     },
-    "openrouter_grok_tools": {
-      "provider": "openrouter",
-      "model": "x-ai/grok-4.1-fast",
-      "api_key": "${env:OPENROUTER_API_KEY}",
-      "base_url": "https://openrouter.ai/api/v1",
-      "timeout": 300,
-      "allowed_paths": [".", ".."],
-      "max_file_size": 5242880,
-      "max_output_chars": 10000,
-      "working_directory": ".",
-      "enable_reasoning": true,
-      "reasoning_effort": "medium",
+    "grok_system_message": {
       "system_message_enabled": true,
-      "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/grok-tools",
-        "path:${env:BUILTIN_PLUGINS}/qwen-tools"
-      ],
-      "disabled_plugins": [
-        "qwen_read_file_tool",
-        "qwen_write_file_tool",
-        "qwen_edit_tool"
-      ],
       "system_message": {
         "template": "{{INTRODUCTION}}\n\n{{AVAILABLE_TOOLS_SECTION}}\n\n{{TOOL_USAGE_RULES}}\n\n{{WORKFLOW_AND_RESPONSE_GUIDANCE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}\n\n{{WORKING_DIRECTORY_LINE}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
@@ -292,23 +271,8 @@
         }
       }
     },
-    "openrouter_kimi_tools": {
-      "provider": "openrouter",
-      "model": "moonshotai/kimi-k2.5",
-      "api_key": "${env:OPENROUTER_API_KEY}",
-      "base_url": "https://openrouter.ai/api/v1",
-      "timeout": 300,
-      "allowed_paths": [".", ".."],
-      "max_file_size": 5242880,
-      "max_output_chars": 10000,
-      "working_directory": ".",
-      "enable_reasoning": true,
-      "reasoning_effort": "medium",
+    "kimi_system_message": {
       "system_message_enabled": true,
-      "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/kimi-tools"
-      ],
-      "disabled_plugins": ["apply_patch"],
       "system_message": {
         "template": "{{INTRODUCTION}}\n\n{{PROMPT_AND_TOOL_USE}}\n\n{{GENERAL_GUIDELINES_FOR_CODING}}\n\n{{GENERAL_GUIDELINES_FOR_RESEARCH_AND_DATA_PROCESSING}}\n\n{{WORKING_ENVIRONMENT_SECTION}}\n\n{{PROJECT_INFORMATION_SECTION}}\n\n{{TASKS}}\n\n{{ULTIMATE_REMINDERS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
@@ -354,141 +318,44 @@
         }
       }
     },
-    "openai": {
-      "provider": "openai_responses",
-      "model": "gpt-5-mini",
-      "api_key": "${env:OPENAI_API_KEY}",
-      "base_url": "https://api.openai.com/v1",
-      "timeout": 300,
-      "allowed_paths": [".", "..", "${env:CONFIG_DIR}"],
-      "max_file_size": 5242880,
-      "max_output_chars": 10000,
-      "working_directory": ".",
-      "enable_flex_processing": true,
-      "enable_reasoning": true,
-      "reasoning_summary": "detailed",
-      "enable_prompt_cache_retention_24h": true,
-      "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/codex-tools"
-      ],
-      "shell_tool_mode": "auto",
-      "codex_personality": "default",
-      "codex_developer_messages": [
-        {
-          "model_regex": "^(openai/)?gpt-5\\.4$",
-          "personality": "default",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_default.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.4$",
-          "personality": "friendly",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_friendly.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.4$",
-          "personality": "pragmatic",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.4/instructions_pragmatic.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.3-codex$",
-          "personality": "default",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.3-codex/instructions_default.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.3-codex$",
-          "personality": "friendly",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.3-codex/instructions_friendly.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.3-codex$",
-          "personality": "pragmatic",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.3-codex/instructions_pragmatic.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.2-codex$",
-          "personality": "default",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2-codex/instructions_default.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.2-codex$",
-          "personality": "friendly",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2-codex/instructions_friendly.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.2-codex$",
-          "personality": "pragmatic",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2-codex/instructions_pragmatic.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.1-codex$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.1-codex/instructions_default.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.2$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.2/instructions_default.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5\\.1$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.1/instructions_default.md}"
-        },
-        {
-          "model_regex": "^(openai/)?gpt-5$",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5/instructions_default.md}"
-        },
-        {
-          "model_regex": ".*",
-          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5/instructions_default.md}"
-        }
-      ],
+    "claude_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "${file:${env:CONFIG_DIR}/system_messages/codex/template.md}",
-        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py",
         "variables": {
-          "CODEX_DEVELOPER_MESSAGE": {
-            "inline_code": "select_codex_developer_message()"
+          "INTRODUCTION": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/introduction.md"
+            ]
           },
-          "CODEX_PROJECT_INSTRUCTIONS": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+          "WORKFLOW": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/workflow.md"
+            ]
           },
-          "CODEX_ENVIRONMENT_CONTEXT": {
-            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+          "TOOL_USAGE": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/tool-usage.md"
+            ]
           },
-          "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
-            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
-            "condition": {
-              "inline_code": "include_tasks()"
-            }
-          }
-        }
-      }
-    },
-    "openrouter_claude_tools": {
-      "provider": "openrouter",
-      "model": "anthropic/claude-haiku-4.5",
-      "api_key": "${env:OPENROUTER_API_KEY}",
-      "base_url": "https://openrouter.ai/api/v1",
-      "timeout": 300,
-      "allowed_paths": [".", ".."],
-      "max_file_size": 5242880,
-      "max_output_chars": 10000,
-      "working_directory": ".",
-      "enable_reasoning": true,
-      "reasoning_effort": "medium",
-      "system_message_enabled": true,
-      "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/codex-tools"
-      ],
-      "disabled_plugins": ["apply_patch"],
-      "system_message": {
-        "template": "{{CLAUDE_CODE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
-        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
-        "variables": {
-          "CLAUDE_CODE": {
-            "text": "${file:${env:CONFIG_DIR}/CLAUDE_CODE_DEFAULT.md}"
+          "TONE_AND_STYLE": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/tone-and-style.md"
+            ]
+          },
+          "MEMORY": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/memory.md"
+            ]
+          },
+          "ENVIRONMENT_SECTION": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_claude_environment_section.py"
+          },
+          "CONTEXT_MANAGEMENT": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/context-management.md"
+            ]
           },
           "TASKS": {
             "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
@@ -502,29 +369,59 @@
           }
         }
       }
+    }
+  },
+  "providers": {
+    "openrouter": {
+      "mixin_refs": ["provider_defaults"],
+      "provider": "openrouter",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1"
+    },
+    "openrouter_image_generation": {
+      "mixin_refs": ["provider_defaults"],
+      "provider": "openrouter_image_generation",
+      "api_key": "${env:OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "model": "black-forest-labs/flux.2-klein-4b",
+      "timeout": 180,
+      "aspect_ratio": "1:1"
+    },
+    "openai": {
+      "mixin_refs": ["provider_defaults"],
+      "provider": "openai_responses",
+      "api_key": "${env:OPENAI_API_KEY}",
+      "base_url": "https://api.openai.com/v1",
+      "auth_mode": "auto",
+      "allowed_paths": [".", "..", "${env:CONFIG_DIR}"],
+      "enable_flex_processing": true,
+      "enable_fast_mode": false,
+      "reasoning_summary": "detailed",
+      "enable_prompt_cache_retention_24h": true,
+      "system_message_as_instructions": true,
+      "strip_leading_system_or_developer_message": true,
+      "show_estimated_cached_tokens": true,
+      "show_openai_auth_mode": true
     },
     "ollama": {
+      "mixin_refs": ["provider_defaults"],
       "provider": "reference_openai_compatible",
       "base_url": "http://localhost:11434/v1",
       "model": "qwen3:0.6b",
-      "timeout": 180,
-      "allowed_paths": ["."],
-      "max_output_chars": 10000,
-      "working_directory": "."
+      "reasoning_field": "reasoning"
     },
     "fireworks": {
+      "mixin_refs": ["provider_defaults"],
       "provider": "reference_openai_compatible",
       "base_url": "https://api.fireworks.ai/inference/v1",
       "api_key": "${env:FIREWORKS_API_KEY}",
-      "model": "fireworks/qwen3-8b",
-      "timeout": 180,
+      "model": "fireworks/gpt-oss-20b",
       "min_request_interval_seconds": 1,
       "rate_limit_retry_delays_seconds": [1, 2, 4],
-      "allowed_paths": ["."],
-      "max_output_chars": 10000,
-      "working_directory": "."
+      "reasoning_field": "reasoning_content"
     },
     "zai": {
+      "mixin_refs": ["provider_defaults"],
       "provider": "reference_openai_compatible",
       "base_url": "https://api.z.ai/api/paas/v4",
       "endpoint_options": {
@@ -533,10 +430,6 @@
       },
       "api_key": "${env:ZAI_API_KEY}",
       "model": "glm-4.5-air",
-      "timeout": 180,
-      "allowed_paths": ["."],
-      "max_output_chars": 10000,
-      "working_directory": ".",
       "retry_on_timeout": [0, 5, 30],
       "retry_on_status": {
         "500": [0, 5, 30]
@@ -545,11 +438,13 @@
   },
   "plugins": [
     "path:${env:BUILTIN_PLUGINS}/openrouter",
+    "plugins.tool_gating_feature.ToolGatingFeature",
     "path:${env:BUILTIN_PLUGINS}/feature-request-options",
     "path:${env:BUILTIN_PLUGINS}/feature-system-message",
     "path:${env:BUILTIN_PLUGINS}/timestamp-extension",
     "path:${env:BUILTIN_PLUGINS}/feature-file-context",
     "path:${env:BUILTIN_PLUGINS}/feature-web-context",
+    "path:${env:BUILTIN_PLUGINS}/chatgpt-auth-app",
     "path:${env:BUILTIN_PLUGINS}/session-actions-app",
     "path:${env:BUILTIN_PLUGINS}/summarize-range-app",
     "path:${env:BUILTIN_PLUGINS}/session-title-app",
@@ -558,9 +453,12 @@
     "path:${env:BUILTIN_PLUGINS}/session-pinned-app",
     "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
     "path:${env:BUILTIN_PLUGINS}/rebuild-native-app",
+    "path:${env:BUILTIN_PLUGINS}/mcp-runtime-app",
     "path:${env:BUILTIN_PLUGINS}/session-ordering-buckets-app",
+    "path:${env:BUILTIN_PLUGINS}/session-asset-attachments",
     "path:${env:BUILTIN_PLUGINS}/reference-openai-compatible-provider",
-    "path:${env:BUILTIN_PLUGINS}/openai_responses"
+    "path:${env:BUILTIN_PLUGINS}/openai_responses",
+    "path:${env:BUILTIN_PLUGINS}/cloud-agent-app"
   ],
   "application": {
     "tool_output_line_limit": 20,
@@ -577,54 +475,217 @@
       "model": "openai/gpt-5-mini",
       "reasoningEffort": "low"
     },
-    "generate_title_max_messages": 999
+    "generate_title_max_messages": 999,
+    "chatgpt_auth": {},
+    "cloud_agent": {
+      "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
+      "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
+      "workspace_dir": ".",
+      "transfer_method": "managed_ssh",
+      "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
+      "default_transfer_up_profile": "working-tree-current-state",
+      "default_sync_down_profile": "working-tree-patch",
+      "default_container_profile": "default-runtime",
+      "transfer_up_profiles": {
+        "working-tree-current-state": {
+          "label": "Working tree current state",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state/transfer-up",
+          "install_profile": "repo-install",
+          "compatible_sync_down_profiles": ["working-tree-patch"]
+        }
+      },
+      "install_profiles": {
+        "repo-install": {
+          "label": "Repository install",
+          "cloud_install_script": "${env:CONFIG_DIR}/cloud-agent/profiles/repo-install/install"
+        }
+      },
+      "sync_down_profiles": {
+        "working-tree-patch": {
+          "label": "Apply cloud patch to current worktree",
+          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/export",
+          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/mark-synced",
+          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/apply-down",
+          "compatible_transfer_up_profiles": ["working-tree-current-state"]
+        }
+      },
+      "container_profiles": {
+        "default-runtime": {
+          "label": "Default cloud agent runtime",
+          "image": "cloud-agent-runtime:latest"
+        }
+      },
+      "managed_ssh": {
+        "adapter_script": null,
+        "ssh_path": "ssh",
+        "rsync_path": "rsync",
+        "extra_rsync_args": []
+      },
+      "config_assets": {
+        "include_config_dir": true,
+        "exclude": [
+          ".env",
+          ".env.*",
+          ".plugin_cache",
+          "logs",
+          "sessions",
+          "auth",
+          "state"
+        ],
+        "max_top_level_entry_bytes": 104857600
+      },
+      "runtime_env": {
+        "include_config_env": true,
+        "include": [],
+        "exclude": [
+          "CLOUD_ORCHESTRATOR_URL",
+          "CLOUD_ORCHESTRATOR_TOKEN",
+          "SERVER_HOST",
+          "SERVER_PORT",
+          "BRIDGE_URL",
+          "BRIDGE_LOCAL_HTTP_BASE",
+          "OPENAI_BASE_URL",
+          "CONFIG_DIR",
+          "BUILTIN_PLUGINS",
+          "PLUGIN_CACHE_DIR"
+        ],
+        "env_files": []
+      }
+    }
   },
   "agents": {
     "codex-openrouter": {
-      "provider": "openrouter_codex_tools",
-      "model": "openai/gpt-5.4"
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "provider": "openrouter",
+      "model": "openai/gpt-5.4-mini",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/codex-tools"
+      ],
+      "shell_tool_mode": "auto"
     },
     "codex-openai": {
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
-      "model": "gpt-5.4"
+      "model": "gpt-5.4-mini",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/codex-tools"
+      ],
+      "shell_tool_mode": "auto"
+    },
+    "codex-openai-api": {
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "provider": "openai",
+      "model": "gpt-5.4",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/codex-tools"
+      ],
+      "shell_tool_mode": "auto",
+      "auth_mode": "api",
+      "system_message_as_instructions": false,
+      "strip_leading_system_or_developer_message": false
     },
     "gpt-5-openrouter": {
-      "provider": "openrouter_codex_tools",
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "provider": "openrouter",
       "model": "openai/gpt-5",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/codex-tools"
+      ],
       "shell_tool_mode": "shell",
       "intercept_apply_patch": true,
       "disabled_plugins": ["apply_patch"]
     },
     "gpt-5-openai": {
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/codex-tools"
+      ],
       "shell_tool_mode": "shell",
       "intercept_apply_patch": true,
       "disabled_plugins": ["apply_patch"]
     },
     "qwen": {
-      "provider": "openrouter_qwen_tools",
-      "model": "qwen/qwen3.5-flash-02-23"
+      "mixin_refs": ["qwen_system_message"],
+      "provider": "openrouter",
+      "model": "qwen/qwen3.5-flash-02-23",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/qwen-tools"
+      ],
+      "disabled_plugins": ["apply_patch"]
     },
     "gemini": {
-      "provider": "openrouter_gemini_tools",
-      "model": "google/gemini-2.5-flash-lite"
+      "mixin_refs": ["gemini_system_message"],
+      "provider": "openrouter",
+      "model": "google/gemini-2.5-flash-lite",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/gemini-tools"
+      ],
+      "disabled_plugins": ["apply_patch"],
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api"
     },
     "grok": {
-      "provider": "openrouter_grok_tools",
-      "model": "x-ai/grok-4.1-fast"
+      "mixin_refs": ["grok_system_message"],
+      "provider": "openrouter",
+      "model": "x-ai/grok-4.1-fast",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/grok-tools",
+        "path:${env:BUILTIN_PLUGINS}/qwen-tools"
+      ],
+      "disabled_plugins": [
+        "qwen_read_file_tool",
+        "qwen_write_file_tool",
+        "qwen_edit_tool"
+      ]
     },
     "kimi": {
-      "provider": "openrouter_kimi_tools",
-      "model": "moonshotai/kimi-k2.5"
+      "mixin_refs": ["kimi_system_message"],
+      "provider": "openrouter",
+      "model": "moonshotai/kimi-k2.5",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/kimi-tools"
+      ],
+      "disabled_plugins": ["apply_patch"],
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api"
     },
     "claude": {
-      "provider": "openrouter_claude_tools",
-      "model": "anthropic/claude-haiku-4.5"
+      "mixin_refs": ["claude_system_message"],
+      "provider": "openrouter",
+      "model": "anthropic/claude-haiku-4.5",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
+      "reasoning_max_tokens": 16000,
+      "request_options": {
+        "provider": {
+          "order": ["anthropic"],
+          "allow_fallbacks": false
+        }
+      },
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api"
     },
     "glm": {
-      "provider": "openrouter_gemini_tools",
+      "mixin_refs": ["gemini_system_message"],
+      "provider": "openrouter",
       "model": "z-ai/glm-5",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/gemini-tools"
+      ],
+      "disabled_plugins": ["apply_patch"],
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api",
       "request_options": {
         "provider": {
           "order": ["z-ai"],
@@ -638,7 +699,7 @@
     },
     "fireworks": {
       "provider": "fireworks",
-      "model": "fireworks/qwen3-8b",
+      "model": "fireworks/gpt-oss-20b",
       "request_options": {
         "reasoning_history": "preserved"
       },
@@ -660,6 +721,9 @@
           "clear_thinking": "boolean"
         }
       }
+    },
+    "openrouter-image": {
+      "provider": "openrouter_image_generation"
     }
   }
 }

@@ -192,16 +192,19 @@ Add dependency:
 
 ### Moonshot Fetch Service Configuration
 
-```yaml
-services:
-  moonshot_fetch:
-    base_url: "https://api.moonshot.cn/v1/fetch"
-    api_key: "${MOONSHOT_API_KEY}"
-    oauth: null
-    custom_headers: null
+```json
+{
+  "moonshot_base_url": "https://api.kimi.com/coding/v1/fetch",
+  "moonshot_api_key": "${MOONSHOT_API_KEY}"
+}
 ```
 
-The plugin should read this from `config.get("services", {}).get("moonshot_fetch")`.
+Flattened config keys:
+- `moonshot_base_url`: Service endpoint URL
+- `moonshot_api_key`: API key (can use `${ENV_VAR}` placeholder)
+- `moonshot_custom_headers`: Additional headers (optional)
+
+The plugin reads these directly from config (no nested structure).
 
 ## Tests
 
@@ -285,24 +288,106 @@ services:
 - No IDE integration for approval flows
 - No browser rendering for JavaScript-heavy pages
 - Extraction quality depends on trafilatura
-```
 
 ## Requirements Checklist
 
-- [ ] Implement `KimiFetchURLTool` class
-- [ ] Moonshot fetch service support
-- [ ] Local fetch via `web-fetch-shared`
-- [ ] Trafilatura extraction with Kimi options
-- [ ] text/plain and text/markdown passthrough
-- [ ] Update `agent_plugin.json`
-- [ ] Update `__init__.py` exports
-- [ ] Update `pyproject.toml` dependencies
-- [ ] Add schema tests
-- [ ] Add Moonshot service tests
-- [ ] Add local fetch tests
-- [ ] Add extraction tests
-- [ ] Add OpenRouter integration test
-- [ ] Update README documentation
+- [x] Implement `KimiFetchURLTool` class
+- [x] Moonshot fetch service support
+- [x] Local fetch via `web-fetch-shared`
+- [x] Trafilatura extraction with Kimi options
+- [x] text/plain and text/markdown passthrough
+- [x] Update `agent_plugin.json`
+- [x] Update `__init__.py` exports
+- [x] Update `pyproject.toml` dependencies
+- [x] Add schema tests
+- [x] Add Moonshot service tests
+- [x] Add local fetch tests
+- [x] Add extraction tests
+- [x] Add OpenRouter integration test
+- [x] Update README documentation
+
+---
+
+## Execution Plan
+
+Added during completion.
+
+### Phase 1: Shared Library Enhancement
+1. Add `with_metadata` parameter to `extract_text()` in `web-fetch-shared`
+2. Add tests for the new parameter
+
+### Phase 2: KimiFetchURLTool Implementation
+1. Create `plugins/kimi-tools/src/kimi_tools/kimi_fetch_url_tool.py`
+2. Implement tool with:
+   - PascalCase tool name `FetchURL`
+   - Moonshot service fetch as primary path
+   - Local HTTP fetch + trafilatura as fallback
+   - No LLM summarization (raw extracted text)
+   - Kimi-specific trafilatura options
+
+### Phase 3: Package Updates
+1. Update `agent_plugin.json` with new tool entry
+2. Update `__init__.py` with export
+3. Update `pyproject.toml` with `web-fetch-shared` dependency
+4. Update README documentation
+
+### Phase 4: Tests
+1. Create `tests/test_kimi_fetch_url_tool.py` with unit tests
+2. Create `tests/test_kimi_fetch_url_tool_openrouter_integration.py` with integration tests
+   - Moonshot service tests only run when `MOONSHOT_API_KEY` is set
+
+---
+
+## Completion Notes
+
+**Implementation completed successfully.**
+
+### Files Created/Modified
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `plugins/web-fetch-shared/src/web_fetch_shared/web_fetch_engine.py` | Modified | Added `with_metadata` parameter to `extract_text()` |
+| `plugins/web-fetch-shared/tests/test_web_fetch_engine.py` | Modified | Added tests for `with_metadata` parameter |
+| `plugins/kimi-tools/src/kimi_tools/kimi_fetch_url_tool.py` | Created | KimiFetchURLTool implementation |
+| `plugins/kimi-tools/src/kimi_tools/__init__.py` | Modified | Added KimiFetchURLTool export |
+| `plugins/kimi-tools/agent_plugin.json` | Modified | Added KimiFetchURLTool entry |
+| `plugins/kimi-tools/pyproject.toml` | Modified | Added web-fetch-shared dependency |
+| `plugins/kimi-tools/README.md` | Modified | Added FetchURL documentation |
+| `plugins/kimi-tools/tests/test_kimi_fetch_url_tool.py` | Created | 33 unit tests |
+| `plugins/kimi-tools/tests/test_kimi_fetch_url_tool_openrouter_integration.py` | Created | Integration tests |
+
+### Key Implementation Details
+
+1. **Tool Schema**: Matches Kimi CLI exactly with PascalCase `FetchURL` name and single `url` parameter
+
+2. **Moonshot Service Integration**:
+   - Reads from `config.services.moonshot_fetch`
+   - Supports environment variable placeholders in `api_key` (e.g., `${MOONSHOT_API_KEY}`)
+   - Falls back to local fetch on any service error
+
+3. **Local Fetch Path**:
+   - Uses `fetch_url()` from web-fetch-shared
+   - Passthrough for `text/plain` and `text/markdown`
+   - Trafilatura extraction with Kimi-specific options:
+     - `include_comments=True`
+     - `include_tables=True`
+     - `include_formatting=False`
+     - `output_format="txt"`
+     - `with_metadata=True`
+
+4. **No LLM Summarization**: Unlike Gemini and Qwen tools, Kimi returns raw extracted text
+
+5. **Error Messages**: Match Kimi CLI wording exactly
+
+### Test Results
+
+```
+124 passed, 3 skipped in 81.61s
+```
+
+- 33 unit tests for FetchURL tool
+- 2 tests for `with_metadata` in web-fetch-shared
+- Moonshot integration tests skip when `MOONSHOT_API_KEY` not set
 
 ## Key Files
 

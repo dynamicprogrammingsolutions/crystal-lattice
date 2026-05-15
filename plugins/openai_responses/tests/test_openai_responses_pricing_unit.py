@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from openai_responses_plugins.openai_responses_pricing import (
     build_snapshot_payload,
     estimate_usage_cost,
@@ -84,6 +86,44 @@ def test_estimate_usage_cost_prefers_requested_service_tier() -> None:
     assert flex_estimated == 0.0002025
 
 
+def test_estimate_usage_cost_uses_manual_priority_service_tier_when_snapshot_is_missing_model() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[],
+    )
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 200},
+        "output_tokens": 100,
+    }
+
+    estimated = estimate_usage_cost(
+        usage,
+        model="gpt-5.5",
+        service_tier="priority",
+        snapshot=snapshot,
+        manual_entries={
+            "gpt-5.5": {
+                "model": "gpt-5.5",
+                "pricing": {
+                    "input_per_1m": 5.0,
+                    "cached_input_per_1m": 0.5,
+                    "output_per_1m": 30.0,
+                },
+                "service_tiers": {
+                    "priority": {
+                        "input_per_1m": 6.0,
+                        "cached_input_per_1m": 0.6,
+                        "output_per_1m": 36.0,
+                    }
+                },
+            }
+        },
+    )
+
+    assert estimated == pytest.approx(0.00852, rel=1e-9)
+
+
 def test_estimate_usage_cost_allows_missing_cached_tier_price_when_no_cached_tokens() -> None:
     snapshot = build_snapshot_payload(
         fetched_at="2026-03-11T00:00:00+00:00",
@@ -164,6 +204,65 @@ def test_resolve_pricing_entry_normalizes_snapshot_suffix_models() -> None:
     entry = resolve_pricing_entry("gpt-5-mini-2025-08-07", snapshot=snapshot)
     assert entry is not None
     assert entry["model"] == "gpt-5-mini"
+
+
+def test_resolve_pricing_entry_prefers_snapshot_entries_over_manual_fallbacks() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[
+            {
+                "model": "gpt-5.5",
+                "pricing": {
+                    "input_per_1m": 4.0,
+                    "cached_input_per_1m": 0.4,
+                    "output_per_1m": 20.0,
+                },
+            }
+        ],
+    )
+
+    entry = resolve_pricing_entry(
+        "gpt-5.5",
+        snapshot=snapshot,
+        manual_entries={
+            "gpt-5.5": {
+                "model": "gpt-5.5",
+                "pricing": {
+                    "input_per_1m": 5.0,
+                    "cached_input_per_1m": 0.5,
+                    "output_per_1m": 30.0,
+                },
+            }
+        },
+    )
+
+    assert entry is not None
+    assert entry["pricing"]["input_per_1m"] == 4.0
+
+
+def test_resolve_pricing_entry_uses_manual_fallback_when_snapshot_is_missing_model() -> None:
+    snapshot = build_snapshot_payload(
+        fetched_at="2026-03-11T00:00:00+00:00",
+        model_entries=[],
+    )
+
+    entry = resolve_pricing_entry(
+        "gpt-5.5",
+        snapshot=snapshot,
+        manual_entries={
+            "gpt-5.5": {
+                "model": "gpt-5.5",
+                "pricing": {
+                    "input_per_1m": 5.0,
+                    "cached_input_per_1m": 0.5,
+                    "output_per_1m": 30.0,
+                },
+            }
+        },
+    )
+
+    assert entry is not None
+    assert entry["pricing"]["input_per_1m"] == 5.0
 
 
 def test_merge_pricing_entry_preserves_existing_pricing_and_adds_tiers() -> None:

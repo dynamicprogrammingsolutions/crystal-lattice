@@ -5,6 +5,7 @@ Provides tools matching Codex CLI schemas:
 - ShellCommandTool: String-based shell command (for shell-command-family models) - tool name: "shell_command"
 - ShellTool: Legacy shell tool (tool name: "shell_legacy", disabled by default)
 - ApplyPatchTool: Apply unified diff patches
+- ViewImageTool: Load local images for model-visible vision inputs
 
 Features:
 - CodexVariantFeature: Emits "codex-variant" tag for shell-command-family models
@@ -20,6 +21,8 @@ from .shell_command_tool import ShellCommandTool
 from .shell_tool import ShellArrayTool
 from .shell_tool_legacy import ShellTool
 from .apply_patch_tool import ApplyPatchTool
+from .mcp_tool import CodexMCPTool
+from .view_image_tool import ViewImageTool
 from .codex_variant_feature import CodexVariantFeature
 
 __all__ = [
@@ -29,5 +32,7 @@ __all__ = [
     "ShellArrayTool",
     "ShellTool",
     "ApplyPatchTool",
+    "CodexMCPTool",
+    "ViewImageTool",
     "CodexVariantFeature",
 ]

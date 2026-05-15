@@ -121,6 +121,21 @@ def test_grep_names_only_and_pipeline_output(tmp_path: Path) -> None:
     assert "Found 1 match" in messages[0]["content"]
 
 
+def test_grep_truncates_long_lines_in_output(tmp_path: Path) -> None:
+    from tool_compat_shared.reader_engine import DEFAULT_GEMINI_LINE_CHAR_LIMIT
+
+    long_line = "z" * (DEFAULT_GEMINI_LINE_CHAR_LIMIT + 500)
+    (tmp_path / "big.sql").write_text(long_line + "\nshort z line\n", encoding="utf-8")
+    wrapper, state = _grep_wrapper(tmp_path)
+
+    result = wrapper.execute_tool("grep_search", {"pattern": "z"}, state)
+    text = wrapper.format_tool_result(result, state)
+    assert result["success"] is True
+    assert "... [truncated]" in text
+    assert "short z line" in text
+    assert "some lines were shortened" in result["return_display"]
+
+
 def test_plugin_manager_loads_all_gemini_tools(tmp_path: Path) -> None:
     mgr = PluginManager(cache_dir=tmp_path / "cache", policy={"install_deps": True})
     repo = Path(__file__).resolve().parents[1]
@@ -133,4 +148,7 @@ def test_plugin_manager_loads_all_gemini_tools(tmp_path: Path) -> None:
         "GeminiGlobTool",
         "GeminiWriteFileTool",
         "GeminiReplaceTool",
+        "GeminiShellTool",
+        "GeminiWebFetchTool",
+        "GeminiWebSearchTool",
     ]

@@ -5,7 +5,10 @@ import { useSubscribableSnapshot } from './useSubscribable';
 
 export type UseApplicationPluginsResult = Omit<PluginsRegistryState, 'loading' | 'error'>;
 
-export interface ApplicationPluginsContextValue extends PluginsRegistryState {}
+export interface ApplicationPluginsContextValue extends PluginsRegistryState {
+  refresh: () => Promise<void>;
+  invalidate: () => void;
+}
 
 const defaultContext: ApplicationPluginsContextValue = {
   actionsById: {},
@@ -16,6 +19,8 @@ const defaultContext: ApplicationPluginsContextValue = {
   sessionListPinnedToggles: [],
   loading: false,
   error: null,
+  refresh: async () => {},
+  invalidate: () => {},
 };
 
 const ApplicationPluginsContext = createContext<ApplicationPluginsContextValue>(defaultContext);
@@ -46,8 +51,17 @@ export const ApplicationPluginsProvider: React.FC<ApplicationPluginsProviderProp
     });
   }, [registry]);
 
+  const value = useMemo(
+    () => ({
+      ...state,
+      refresh: () => registry.refresh(),
+      invalidate: () => registry.invalidate(),
+    }),
+    [registry, state],
+  );
+
   return (
-    <ApplicationPluginsContext.Provider value={state}>
+    <ApplicationPluginsContext.Provider value={value}>
       {children}
     </ApplicationPluginsContext.Provider>
   );

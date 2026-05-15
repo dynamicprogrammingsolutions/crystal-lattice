@@ -207,14 +207,26 @@ class TerminalApplication:
         if not isinstance(session_id, str) or not session_id:
             raise TerminalUserError("session_id must be a non-empty string")
 
-        ctx = self._app.load_session(session_id)
-        if ctx is None:
-            raise TerminalUserError(f"session {session_id!r} not found")
+        try:
+            ctx = self._app.load_session(session_id)
+        except KeyError as exc:
+            detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+            if not (isinstance(detail, str) and detail.startswith("Unknown agent_id")):
+                raise
+            session = self._app.load_session_record(session_id)
+            if session is None:
+                raise TerminalUserError(f"session {session_id!r} not found") from exc
+            self._core = None
+            self._base_config = None
+            self._session = session
+        else:
+            if ctx is None:
+                raise TerminalUserError(f"session {session_id!r} not found")
 
-        core, base_config, session = ctx
-        self._core = core
-        self._base_config = base_config
-        self._session = session
+            core, base_config, session = ctx
+            self._core = core
+            self._base_config = base_config
+            self._session = session
         # Resume polling from the persisted cursor for this session so
         # that switching does not replay the entire event history.
         try:
@@ -631,6 +643,8 @@ class TerminalApplication:
         core, base_config, session = self.require_session()
 
         overrides = session.metadata.get("overrides")
+        with self._app.acquire_session_lock(session.session_id):
+            baseline_file_state = self._app.get_session_file_state(session.session_id)
 
         final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
         final_messages: List[Dict[str, Any]] = []
@@ -638,35 +652,28 @@ class TerminalApplication:
 
         store = self._app.get_event_store()
 
-        for ev in self._app.send_request(core, session, base_config, overrides, stream=stream):
+        for ev in self._app.send_request(
+            core,
+            session,
+            base_config,
+            overrides,
+            stream=stream,
+            baseline_file_state=baseline_file_state,
+        ):
             etype = ev.get("type")
 
             # Internal checkpoint events carry the live Session object so the
-            # terminal can persist progress incrementally. They are not
+            # terminal can track progress incrementally. They are not
             # published to the shared event store or exposed over the
             # network.
             if etype == "session_checkpoint":
                 session_obj = ev.get("session")
                 if isinstance(session_obj, Session):
-                    sid = session_obj.session_id
-                    # Serialize persistence and checkpoint emission using the
-                    # shared application-level lock so that multiple
-                    # frontends (terminal + HTTP server) coordinate access to
-                    # this session's state.
-                    with self._app.acquire_session_lock(sid):
-                        try:
-                            self._app.save_session(session_obj)
-                        except Exception:  # pragma: no cover - defensive
-                            pass
-                        self._session = session_obj
-                        try:
-                            final_session_dict = session_obj.to_dict()
-                        except Exception:  # pragma: no cover - defensive
-                            pass
-                        try:
-                            self._app.record_checkpoint(sid, ev.get("request_id"))
-                        except Exception:  # pragma: no cover - defensive
-                            pass
+                    self._session = session_obj
+                    try:
+                        final_session_dict = session_obj.to_dict()
+                    except Exception:  # pragma: no cover - defensive
+                        pass
                 continue
 
             stored = store.publish(ev)
@@ -682,7 +689,6 @@ class TerminalApplication:
         if final_session_dict is not None:
             try:
                 final_session = Session.from_dict(final_session_dict)
-                self._app.save_session(final_session)
                 self._session = final_session
             except Exception:  # pragma: no cover - defensive
                 pass
@@ -698,12 +704,25 @@ class TerminalApplication:
             return []
 
         store = self._app.get_event_store()
-        raw_events = store.list(
+        listed = store.list(
             since_id=self._last_event_id,
             request_id=None,
             session_id=session.session_id,
             limit=limit,
         )
+        raw_events = listed.get("events") or []
+        if listed.get("cursor_expired"):
+            latest_event_id = listed.get("latest_event_id")
+            if isinstance(latest_event_id, str) and latest_event_id:
+                self._last_event_id = latest_event_id
+            return [
+                {
+                    "type": "events_cursor_expired",
+                    "session_id": session.session_id,
+                    "message": "Event cursor expired; reload recommended.",
+                    "latest_event_id": latest_event_id,
+                }
+            ]
         events = self._app.compact_events(raw_events)
         if raw_events:
             last = raw_events[-1].get("event_id")
@@ -725,12 +744,12 @@ class TerminalApplication:
         """
         sid = session_id or self.session.session_id
         store = self._app.get_event_store()
-        return store.list(
+        return (store.list(
             since_id=since_id,
             request_id=request_id,
             session_id=sid,
             limit=limit,
-        )
+        ).get("events") or [])
 
     def get_feature_completions(self, text: str) -> List[Dict[str, Any]]:
         """Return feature-driven completion suggestions for the active session.

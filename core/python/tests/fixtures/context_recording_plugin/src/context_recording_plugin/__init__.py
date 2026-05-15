@@ -77,6 +77,17 @@ class ContextRecordingPlugin:
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+        request_key = "context_recording_request_marker"
+        request_value = state.get("config", {}).get(request_key) if isinstance(state.get("config"), dict) else None
+        if isinstance(request_value, str) and request_value:
+            request = state.get("request") if isinstance(state.get("request"), dict) else {}
+            return native_messages, {
+                **state,
+                "request": {
+                    **request,
+                    request_key: request_value,
+                },
+            }
         return native_messages, state
 
     def finalize(
@@ -93,6 +104,12 @@ class ContextRecordingPlugin:
                 "id": "record_context",
                 "label": "Record context",
                 "description": "Record the context for testing.",
+                "inputs": {},
+            },
+            {
+                "id": "record_initialized_context",
+                "label": "Record initialized context",
+                "description": "Record context after explicit request initialization.",
                 "inputs": {},
             },
             {
@@ -113,11 +130,29 @@ class ContextRecordingPlugin:
         context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
+        effective_state = state
+        if action_id == "record_initialized_context" and isinstance(context, dict):
+            core = context.get("core")
+            request_runtime = context.get("request_runtime")
+            request_context = context.get("request_context")
+            if (
+                core is not None
+                and isinstance(request_runtime, dict)
+                and isinstance(request_context, dict)
+            ):
+                _, effective_state = core.initialize_action_request(
+                    native_messages,
+                    state,
+                    request_runtime,
+                    request_context,
+                )
+
         # Record the context
         if isinstance(context, dict):
             ContextRecordingPlugin._captured_contexts.append({
                 **context,
                 "_action_id": action_id,
+                "_request": effective_state.get("request"),
             })
 
         return {

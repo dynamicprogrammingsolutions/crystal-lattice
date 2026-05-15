@@ -37,6 +37,11 @@ export type {
   ActionUiElement,
   ActionMutations,
   ActionUiEffects,
+  ActionDisplayOpenUrlAction,
+  ActionDisplayCopyTextAction,
+  ActionDisplayRunActionAction,
+  ActionDisplayFollowupAction,
+  ActionDisplayPayload,
   StandardActionResult,
   SessionListFieldElement,
   ApplicationUiElement,
@@ -49,6 +54,7 @@ export {
   extractByPath,
   renderTemplate,
   formatValueForElement,
+  coerceValueForElement,
   filterFooterElements,
   filterStatusBarElements,
   evaluateCondition,
@@ -57,6 +63,7 @@ export {
 export { selectDisplayContent, selectSingleLineContent } from './utils/messages';
 
 export { parseOptionalInt, parseIndexRangeText } from './utils/range';
+export { generateIdempotencyKey } from './utils/idempotency';
 export { selectAttachmentPreviewUrl } from './attachments/preview';
 export type { AttachmentDraftStatus } from './attachments/draftStatus';
 export { isAttachmentDraftBlocking, attachmentDraftStatusLabel } from './attachments/draftStatus';
@@ -64,14 +71,29 @@ export { isAttachmentDraftBlocking, attachmentDraftStatusLabel } from './attachm
 export type {
   Transport,
   HttpMethod,
+  PathPrefixTimeoutRule,
+  TransportTimeoutRule,
 } from './transport/transport';
 
 export type { KeyValueStore } from './storage/keyValueStore';
+export type {
+  SessionScopedMessagesCacheEntry,
+  SessionScopedMessagesBySession,
+  SessionScopedMessagesCache,
+  SessionScopedMessagesCacheIndexEntry,
+  SessionScopedMessagesCacheHydrationResult,
+} from './storage/sessionScopedMessagesCache';
 
 export { FetchTransport } from './transport/fetchTransport';
 export { BridgeTransport } from './transport/bridgeTransport';
+export {
+  CloudTransport,
+  formatCloudConnectionLink,
+  parseCloudConnectionLink,
+} from './transport/cloudTransport';
 
 export type { BridgeServer, WebSocketLike, WebSocketFactory } from './transport/bridgeTransport';
+export type { CloudConnectionLink } from './transport/cloudTransport';
 
 export type { Subscribable, Unsubscribe } from './util/subscribable';
 export { SimpleSubscribable } from './util/subscribable';
@@ -92,15 +114,24 @@ export {
 
 export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
-export type { SessionAssetRef, StoredAttachmentAssetDescriptor } from './plugins/attachmentActions';
+export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';
+export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
+export type {
+  SessionAssetRef,
+  StoredAttachmentAssetDescriptor,
+  DownloadedAttachmentPayload,
+} from './plugins/attachmentActions';
 export {
   DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID,
   DEFAULT_ATTACHMENT_ACTION_OWNER,
+  SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
   STORE_ATTACHMENT_ACTION_ID,
   DELETE_ATTACHMENT_ACTION_ID,
+  DOWNLOAD_ATTACHMENT_ACTION_ID,
   selectSessionAssetId,
   storeSessionAttachment,
   deleteSessionAttachment,
+  downloadSessionAttachment,
 } from './plugins/attachmentActions';
 
 export type { SessionsControllerState } from './sessions/sessionsController';
@@ -158,7 +189,18 @@ export type {
   ManualConnectionRecord,
   DiscoveryConnectionRecord,
   BridgeConnectionRecord,
+  CloudConnectionRecord,
   ConnectionRecord,
 } from './connections/types';
 
 export { CONNECTIONS_STORAGE_KEY, loadConnections, saveConnections } from './connections/store';
+export {
+  SESSION_SCOPED_MESSAGES_CACHE_INDEX_KEY,
+  SESSION_SCOPED_MESSAGES_CACHE_ENTRY_KEY_PREFIX,
+  getSessionScopedMessagesCacheEntryKey,
+  loadSessionScopedMessagesCache,
+  persistSessionScopedMessagesCacheEntry,
+  deleteSessionScopedMessagesCacheEntry,
+  deleteConnectionSessionScopedMessagesCacheEntries,
+  clearSessionScopedMessagesCache,
+} from './storage/sessionScopedMessagesCache';

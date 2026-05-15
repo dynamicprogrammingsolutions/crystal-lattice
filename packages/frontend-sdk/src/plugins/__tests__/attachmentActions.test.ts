@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentBackend } from '../../backend/backend';
+import type { ExecuteActionResponse } from '../../types/plugins';
 import {
+  downloadSessionAttachment,
   deleteSessionAttachment,
+  DOWNLOAD_ATTACHMENT_ACTION_ID,
+  SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
   selectSessionAssetId,
   storeSessionAttachment,
 } from '../attachmentActions';
@@ -24,7 +28,7 @@ function buildBackend(executeAction: AgentBackend['executeAction']): AgentBacken
 
 describe('attachmentActions', () => {
   it('stores an attachment using the provider-extension action contract', async () => {
-    const executeAction = vi.fn(async () => ({
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
       status: 'ok',
       plugin: 'openai_responses_attachments',
       action_id: 'store_attachment',
@@ -70,7 +74,7 @@ describe('attachmentActions', () => {
   });
 
   it('deletes an attachment using the provider-extension action contract', async () => {
-    const executeAction = vi.fn(async () => ({
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
       status: 'ok',
       plugin: 'openai_responses_attachments',
       action_id: 'delete_attachment',
@@ -107,8 +111,133 @@ describe('attachmentActions', () => {
     });
   });
 
+  it('downloads an attachment using the provider-extension action contract', async () => {
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
+      status: 'ok',
+      plugin: 'openrouter_image_generation_attachments',
+      action_id: 'download_attachment',
+      result: {
+        attachment_asset: {
+          asset_ref: {
+            kind: 'session_asset',
+            session_id: 's1',
+            asset_id: 'asset_9',
+            attachment_type: 'image',
+          },
+          filename: 'generated.png',
+          mime_type: 'image/png',
+        },
+        data_base64: 'QUJDRA==',
+      },
+    }));
+
+    const downloaded = await downloadSessionAttachment({
+      backend: buildBackend(executeAction),
+      sessionId: 's1',
+      assetId: 'asset_9',
+      pluginId: 'openrouter_image_generation_attachments',
+    });
+
+    expect(downloaded.attachment_asset.filename).toBe('generated.png');
+    expect(downloaded.data_base64).toBe('QUJDRA==');
+    expect(executeAction).toHaveBeenCalledWith({
+      pluginId: 'openrouter_image_generation_attachments',
+      actionId: DOWNLOAD_ATTACHMENT_ACTION_ID,
+      actionOwner: 'provider_extension',
+      idempotencyKey: undefined,
+      inputs: {
+        session_id: 's1',
+        asset_id: 'asset_9',
+      },
+    });
+  });
+
+  it('downloads a generic session asset using the application action contract', async () => {
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
+      status: 'ok',
+      plugin: SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
+      action_id: 'download_attachment',
+      result: {
+        attachment_asset: {
+          asset_ref: {
+            kind: 'session_asset',
+            session_id: 's1',
+            asset_id: 'asset_10',
+            attachment_type: 'image',
+          },
+          filename: 'opened.png',
+          mime_type: 'image/png',
+        },
+        data_base64: 'QUJDRA==',
+      },
+    }));
+
+    const downloaded = await downloadSessionAttachment({
+      backend: buildBackend(executeAction),
+      sessionId: 's1',
+      assetId: 'asset_10',
+      pluginId: SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
+    });
+
+    expect(downloaded.attachment_asset.filename).toBe('opened.png');
+    expect(executeAction).toHaveBeenCalledWith({
+      pluginId: SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
+      actionId: DOWNLOAD_ATTACHMENT_ACTION_ID,
+      actionOwner: 'application',
+      idempotencyKey: undefined,
+      inputs: {
+        session_id: 's1',
+        asset_id: 'asset_10',
+      },
+    });
+  });
+
+  it('forwards an explicit plugin id override for attachment actions', async () => {
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
+      status: 'ok',
+      plugin: 'reference_openai_compatible_attachments',
+      action_id: 'store_attachment',
+      result: {
+        attachment_asset: {
+          asset_ref: {
+            kind: 'session_asset',
+            session_id: 's1',
+            asset_id: 'asset_2',
+            attachment_type: 'image',
+          },
+          filename: 'red.png',
+          mime_type: 'image/png',
+        },
+      },
+    }));
+
+    await storeSessionAttachment({
+      backend: buildBackend(executeAction),
+      sessionId: 's1',
+      attachmentType: 'image',
+      filename: 'red.png',
+      mimeType: 'image/png',
+      dataBase64: 'QUJDRA==',
+      pluginId: 'reference_openai_compatible_attachments',
+    });
+
+    expect(executeAction).toHaveBeenCalledWith({
+      pluginId: 'reference_openai_compatible_attachments',
+      actionId: 'store_attachment',
+      actionOwner: 'provider_extension',
+      idempotencyKey: undefined,
+      inputs: {
+        session_id: 's1',
+        attachment_type: 'image',
+        filename: 'red.png',
+        mime_type: 'image/png',
+        data_base64: 'QUJDRA==',
+      },
+    });
+  });
+
   it('surfaces backend action errors with the server message', async () => {
-    const executeAction = vi.fn(async () => ({
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
       status: 'error',
       message: 'asset store unavailable',
     }));

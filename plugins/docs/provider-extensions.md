@@ -17,6 +17,10 @@ Reference implementations:
 - Tools: `core/python/plugins/openai_tools_extension.py`
 - Reasoning/thinking: `core/python/plugins/ollama_thinking_extension.py`
 
+See also:
+
+- [Tool interop flow](tool-interop.md)
+
 ---
 
 ## What extensions are for
@@ -138,6 +142,99 @@ tool_calls = [
 Provider/extension authors should preserve whichever tool-call shape they
 actually receive or emit rather than forcing everything into OpenAI chat format
 unless a concrete target API requires that conversion.
+
+### Tool call sanitization
+
+When LLMs return corrupted JSON in tool call `arguments` fields, the corrupted
+data can be stored in history and cause subsequent API calls to fail. The tool
+interop system provides sanitization to prevent this.
+
+#### `ToolCallAccessor.sanitize_call(call)`
+
+Each accessor implements `sanitize_call(call: JsonObject) -> JsonObject` that
+returns a sanitized copy of the tool call with valid arguments:
+
+```python
+class OpenAIChatToolCallAccessor:
+    def sanitize_call(self, call: JsonObject) -> JsonObject:
+        """Return a sanitized copy with valid JSON arguments.
+        
+        If arguments contain invalid JSON, returns a copy with
+        arguments set to "{}". Otherwise returns the call unchanged.
+        """
+        fn = call.get("function")
+        if not isinstance(fn, dict):
+            return call
+        arguments = fn.get("arguments")
+        if isinstance(arguments, str):
+            try:
+                json.loads(arguments)
+            except (json.JSONDecodeError, Exception):
+                return {
+                    **call,
+                    "function": {**fn, "arguments": "{}"},
+                }
+        return call
+```
+
+For custom tool calls with text payloads (not JSON), `sanitize_call` returns
+the call unchanged:
+
+```python
+class OpenAIResponsesCustomToolCallAccessor:
+    def sanitize_call(self, call: JsonObject) -> JsonObject:
+        # Text payload, no JSON sanitization needed
+        return call
+```
+
+#### `ToolInteropRegistry.sanitize_tool_call(call)`
+
+The registry provides a convenience method that delegates to the appropriate
+accessor:
+
+```python
+sanitized_call = registry.sanitize_tool_call(corrupted_call)
+```
+
+If the call format is not recognized, the call is returned unchanged.
+
+#### When to sanitize
+
+Provider extensions should sanitize tool calls in their `finalize` method
+before they are stored in history:
+
+```python
+from agent_core.tool_interop import get_registry_from_context
+
+
+class OpenAICompatibleToolsExtension(ProviderExtensionPlugin):
+    # ... other methods ...
+
+    def finalize(
+        self,
+        final_messages: list[dict[str, Any]],
+        native_messages: list[dict[str, Any]],
+        state: dict[str, Any],
+        *,
+        context: dict[str, Any] | None = None,
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+        """Sanitize tool_calls before storing in history."""
+        partial = state.get("partial")
+        if isinstance(partial, dict):
+            tool_calls = partial.get("tool_calls")
+            if isinstance(tool_calls, list):
+                registry = get_registry_from_context(context)
+                sanitized_calls = [
+                    registry.sanitize_tool_call(tc)
+                    for tc in tool_calls
+                    if isinstance(tc, dict)
+                ]
+                partial["tool_calls"] = sanitized_calls
+        return final_messages, native_messages, state
+```
+
+This ensures that corrupted JSON arguments are replaced with valid empty JSON
+objects (`"{}"`) before being stored in native history and sent back to the API.
 
 ---
 
@@ -395,8 +492,12 @@ class OpenAICompatibleToolsExtension(AccumulatorExtensionMixin, ProviderExtensio
 ```
 
 For providers that accept multiple tool schema formats, prefer using the active
-tool interop registry plus the provider / extension `accepted_tool_schema_formats(...)`
-hooks rather than hardcoding one source schema format. That allows:
+tool interop runtime context plus the provider / extension
+`accepted_tool_schema_formats(...)` hooks rather than hardcoding one source
+schema format. In `initialize_request(...)`, use
+`context["tool_interop"]["registry"]` and
+`context["tool_interop"]["schema_target_formats"]` so core-owned, request-specific
+interop contributions are respected. That allows:
 
 - already-native schemas to pass through unchanged
 - explicit adapters to be additive rather than exclusive

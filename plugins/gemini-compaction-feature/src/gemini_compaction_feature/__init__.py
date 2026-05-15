@@ -42,6 +42,25 @@ VERIFICATION_PROMPT = _VERIFICATION_PROMPT
 ACKNOWLEDGMENT_MESSAGE = _ACKNOWLEDGMENT_MESSAGE
 
 
+def _collect_final_messages_from_stream(
+    core: Any,
+    session: Any,
+    config: Dict[str, Any],
+    *,
+    request_id: str | None = None,
+) -> List[Dict[str, Any]]:
+    """Run an internal request via the streaming path and return final messages."""
+
+    final_messages: List[Dict[str, Any]] = []
+    for event in core.send_request_stream(session, config, request_id=request_id):
+        if event.get("type") != "final":
+            continue
+        raw_messages = event.get("messages")
+        if isinstance(raw_messages, list):
+            final_messages = raw_messages
+    return final_messages
+
+
 class GeminiCompactionFeaturePlugin:
     """Feature-level plugin implementing Gemini-style context compaction.
 
@@ -628,26 +647,36 @@ class GeminiCompactionFeaturePlugin:
             target_agent_id = agent_id_cfg.strip()
             if target_agent_id != session_agent_id:
                 # Need to switch agent - requires app context
-                core_compact, base_config_compact, _ = app.update_agent(target_agent_id, session)
+                (
+                    core_compact,
+                    base_config_compact,
+                    session_for_compact,
+                ) = app.update_agent(target_agent_id, session)
             else:
                 core_compact = core
                 base_config_compact = base_config
+                session_for_compact = session
         else:
             core_compact = core
             base_config_compact = base_config
+            session_for_compact = session
 
         # Build config for operations
         settings_overrides = compaction_cfg.get("settings_overrides") or {}
         combined_overrides = {**settings_overrides}
+        request_overrides = {
+            "disable_all_tools": True,
+            **combined_overrides,
+        }
 
         # Use core's slice_session to get messages for compaction
         # IMPORTANT: Use start/end to KEEP messages in the range, not remove_indices
         # which would REMOVE them. We need the messages TO BE COMPACTED in the session.
         from agent_app.config import resolve_request_config
-        slice_config = resolve_request_config(base_config_compact, combined_overrides)
+        slice_config = resolve_request_config(base_config_compact, request_overrides)
 
-        sliced_session = core.slice_session(
-            session,
+        sliced_session = core_compact.slice_session(
+            session_for_compact,
             slice_config,
             start=start_idx,
             end=end_idx,
@@ -684,7 +713,8 @@ class GeminiCompactionFeaturePlugin:
 
         # Run compaction request using core.send_request
         try:
-            new_session, final_messages = core_compact.send_request(
+            final_messages = _collect_final_messages_from_stream(
+                core_compact,
                 session_with_prompt,
                 slice_config,
             )
@@ -733,7 +763,8 @@ class GeminiCompactionFeaturePlugin:
             )
 
             try:
-                _, verify_final_messages = core_compact.send_request(
+                verify_final_messages = _collect_final_messages_from_stream(
+                    core_compact,
                     session_for_verify,
                     slice_config,
                 )

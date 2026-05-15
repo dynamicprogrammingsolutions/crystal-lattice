@@ -186,16 +186,25 @@ def test_runtime_system_message_templates_exist() -> None:
         "grok/available-tools-section.md",
         "grok/tool-usage-rules.md",
         "grok/response-guidelines.md",
+        "claude/template.md",
+        "claude/introduction.md",
+        "claude/workflow.md",
+        "claude/tool-usage.md",
+        "claude/tone-and-style.md",
+        "claude/memory.md",
+        "claude/context-management.md",
         "kimi/template.md",
         "kimi/introduction.md",
         "kimi/prompt-and-tool-use.md",
         "kimi/general-guidelines-for-coding.md",
         "kimi/general-guidelines-for-research-and-data-processing.md",
         "kimi/ultimate-reminders.md",
+        "helpers/claude_runtime.py",
         "helpers/codex_runtime.py",
         "helpers/runtime.py",
         "helpers/tasks_ui.py",
         "helpers/render_agents_context_section.py",
+        "helpers/render_claude_environment_section.py",
         "helpers/render_codex_project_instructions.py",
         "helpers/render_codex_environment_context.py",
         "helpers/render_kimi_working_environment_section.py",
@@ -206,7 +215,9 @@ def test_runtime_system_message_templates_exist() -> None:
         assert (RUNTIME_SYSTEM_MESSAGES_ROOT / relative_path).is_file(), relative_path
 
 
-def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_placeholders() -> None:
+def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_placeholders() -> (
+    None
+):
     runtime_templates = {
         "gemini/template.md": {
             "{{AVAILABLE_SUBAGENTS_SECTION}}",
@@ -268,8 +279,8 @@ def test_runtime_templates_and_portable_default_config_omit_deliberately_empty_p
     }
 
     for agent_id, removed_keys in removed_variable_keys.items():
-        provider_id = portable_config["agents"][agent_id]["provider"]
-        variables = portable_config["providers"][provider_id]["system_message"]["variables"]
+        mixin_ref = portable_config["agents"][agent_id]["mixin_refs"][0]
+        variables = portable_config["mixins"][mixin_ref]["system_message"]["variables"]
         for key in removed_keys:
             assert key not in variables, (agent_id, key)
 
@@ -281,7 +292,19 @@ def test_portable_default_config_is_self_contained() -> None:
     assert (DEFAULT_CONFIG_ROOT / "codex").is_dir()
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
-    codex_rows = config["providers"]["openrouter_codex_tools"]["codex_developer_messages"]
+    cloud_agent = config["application"]["cloud_agent"]
+    for old_key in (
+        "local_transfer_script",
+        "cloud_setup_script",
+        "cloud_export_script",
+        "local_apply_script",
+    ):
+        assert old_key not in cloud_agent
+    assert cloud_agent["project_config_path"] == (
+        "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json"
+    )
+
+    codex_rows = config["mixins"]["codex_developer_message"]["codex_developer_messages"]
 
     for row in codex_rows:
         text = row["text"]
@@ -294,8 +317,10 @@ def test_portable_default_config_is_self_contained() -> None:
     helper_paths = [
         "system_messages/helpers/runtime.py",
         "system_messages/helpers/tasks_ui.py",
+        "system_messages/helpers/claude_runtime.py",
         "system_messages/helpers/codex_runtime.py",
         "system_messages/helpers/render_agents_context_section.py",
+        "system_messages/helpers/render_claude_environment_section.py",
         "system_messages/helpers/render_codex_project_instructions.py",
         "system_messages/helpers/render_codex_environment_context.py",
         "system_messages/helpers/render_kimi_working_environment_section.py",
@@ -304,6 +329,13 @@ def test_portable_default_config_is_self_contained() -> None:
         "TASKS_v5.md",
         "TASKS_v6.md",
         "CLAUDE_CODE_DEFAULT.md",
+        "system_messages/claude/template.md",
+        "system_messages/claude/introduction.md",
+        "system_messages/claude/workflow.md",
+        "system_messages/claude/tool-usage.md",
+        "system_messages/claude/tone-and-style.md",
+        "system_messages/claude/memory.md",
+        "system_messages/claude/context-management.md",
         "system_messages/codex/template.md",
         "system_messages/gemini/template.md",
         "system_messages/qwen/template.md",
@@ -314,6 +346,11 @@ def test_portable_default_config_is_self_contained() -> None:
         "system_messages/kimi/general-guidelines-for-coding.md",
         "system_messages/kimi/general-guidelines-for-research-and-data-processing.md",
         "system_messages/kimi/ultimate-reminders.md",
+        "cloud-agent/profiles/working-tree-current-state/transfer-up",
+        "cloud-agent/profiles/repo-install/install",
+        "cloud-agent/profiles/working-tree-patch/export",
+        "cloud-agent/profiles/working-tree-patch/mark-synced",
+        "cloud-agent/profiles/working-tree-patch/apply-down",
     ]
 
     for relative_path in helper_paths:

@@ -1,4 +1,4 @@
-FROM elixir:1.15-alpine AS builder
+FROM public.ecr.aws/docker/library/elixir:1.15-alpine AS builder
 
 RUN apk add --no-cache build-base git
 
@@ -18,7 +18,7 @@ COPY lib ./lib
 RUN mix deps.compile && \
     mix compile
 
-FROM elixir:1.15-alpine
+FROM public.ecr.aws/docker/library/elixir:1.15-alpine
 
 RUN apk add --no-cache openssl ncurses-libs libstdc++ build-base git bash
 
@@ -39,6 +39,6 @@ COPY --from=builder /app/mix.exs /app/mix.lock ./
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-EXPOSE 4000
+EXPOSE 4000 4369 9100-9155
 
 ENTRYPOINT ["docker-entrypoint.sh"]

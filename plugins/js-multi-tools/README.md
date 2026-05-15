@@ -56,3 +56,7 @@ For safety/hardening, you can disable Node installs/builds globally via `plugin_
   }
 }
 ```
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

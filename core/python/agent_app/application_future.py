@@ -1,31 +1,59 @@
 from __future__ import annotations
 
+import asyncio
+import copy
+import concurrent.futures
 from dataclasses import dataclass
+import hashlib
 import json
+import inspect
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Set, Tuple, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterator,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    cast,
+)
 import uuid
 from contextlib import contextmanager
 from datetime import datetime
 import os
+import threading
 
-from agent_core import AgentCore, Session
+from agent_core import AgentCore, Message, Session
 from agent_core.plugin.loader import validate_plugin_for_kind
 
 from .app_plugins import ApplicationPluginWrapper
 from .config import (
     build_config_resolution_env,
+    build_runtime_overlay_env,
     build_agent_config,
     load_raw_config,
+    resolve_config_mixins,
     resolve_placeholders,
     resolve_request_config,
 )
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
-from .sessions import FilesystemSessionStore
-from .tool_loop import RequestCancellation, ToolLoopRunner
+from .sessions import (
+    FilesystemSessionStore,
+    NullSnapshotSelectionStore,
+    SessionFileState,
+    SessionSnapshotRecord,
+    SnapshotSelectionStore,
+)
+from .tool_loop import RequestCancellation, ToolLoopRunner, ToolLoopCheckpointError
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
+from .runtime_env import RuntimeEnvOverlay
+import weakref
 
 
 @dataclass(frozen=True)
@@ -48,6 +76,177 @@ class _AgentPluginRuntime:
     default_enabled_ids: Optional[List[str]]
 
 
+@dataclass
+class _CheckpointBaseline:
+    session: Session
+    file_state: SessionFileState
+
+
+class SessionConflictError(RuntimeError):
+    def __init__(
+        self,
+        detail: str,
+        *,
+        reason: str,
+        backup_path: Path | None = None,
+    ) -> None:
+        super().__init__(detail)
+        self.detail = detail
+        self.reason = reason
+        self.backup_path = backup_path
+
+
+class ReadonlySessionViewError(RuntimeError):
+    """Raised when a mutating operation targets a readonly snapshot view."""
+
+
+class AsyncRuntimeHost:
+    """Application-owned persistent asyncio host for plugin async hooks."""
+
+    def __init__(self) -> None:
+        self._thread = threading.Thread(
+            target=self._thread_main,
+            name="agent-application-async-runtime",
+            daemon=True,
+        )
+        self._loop_ready = threading.Event()
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._closed = False
+        self._thread.start()
+        self._loop_ready.wait()
+
+    def _thread_main(self) -> None:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self._loop = loop
+        self._loop_ready.set()
+        try:
+            loop.run_forever()
+        finally:
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                loop.run_until_complete(
+                    asyncio.gather(*pending, return_exceptions=True)
+                )
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.close()
+
+    def run_blocking(self, awaitable: Any) -> Any:
+        if self._closed:
+            raise RuntimeError("AsyncRuntimeHost is closed")
+        loop = self._loop
+        if loop is None:
+            raise RuntimeError("AsyncRuntimeHost loop is not available")
+        future = asyncio.run_coroutine_threadsafe(awaitable, loop)
+        return future.result()
+
+    async def run_async(self, awaitable: Any) -> Any:
+        return await asyncio.wrap_future(self.submit(awaitable))
+
+    def submit(self, awaitable: Any) -> concurrent.futures.Future[Any]:
+        if self._closed:
+            raise RuntimeError("AsyncRuntimeHost is closed")
+        loop = self._loop
+        if loop is None:
+            raise RuntimeError("AsyncRuntimeHost loop is not available")
+        return asyncio.run_coroutine_threadsafe(awaitable, loop)
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        loop = self._loop
+        if loop is not None:
+            loop.call_soon_threadsafe(loop.stop)
+        self._thread.join(timeout=5)
+
+
+class RuntimeStore:
+    """Generic application-owned store for opaque long-lived runtime objects."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._values: Dict[str, Any] = {}
+
+    def get(self, key: str, default: Any = None) -> Any:
+        if not isinstance(key, str) or not key:
+            return default
+        with self._lock:
+            return self._values.get(key, default)
+
+    def get_or_create(self, key: str, factory: Callable[[], Any]) -> Any:
+        if not isinstance(key, str) or not key:
+            raise ValueError("key must be a non-empty string")
+        with self._lock:
+            existing = self._values.get(key)
+            if existing is not None:
+                return existing
+            value = factory()
+            self._values[key] = value
+            return value
+
+    def set(self, key: str, value: Any) -> None:
+        if not isinstance(key, str) or not key:
+            raise ValueError("key must be a non-empty string")
+        old: Any | None = None
+        with self._lock:
+            old = self._values.get(key)
+            self._values[key] = value
+        if old is not None and old is not value:
+            self._close_value(old)
+
+    def setdefault(self, key: str, value: Any) -> Any:
+        if not isinstance(key, str) or not key:
+            raise ValueError("key must be a non-empty string")
+        with self._lock:
+            return self._values.setdefault(key, value)
+
+    def pop(self, key: str, default: Any = None, *, close: bool = False) -> Any:
+        if not isinstance(key, str) or not key:
+            return default
+        with self._lock:
+            value = self._values.pop(key, default)
+        if close and value is not default:
+            self._close_value(value)
+        return value
+
+    def snapshot(self) -> Dict[str, Any]:
+        with self._lock:
+            return dict(self._values)
+
+    def clear(self) -> None:
+        with self._lock:
+            items = list(self._values.values())
+            self._values.clear()
+        for value in items:
+            self._close_value(value)
+
+    def close(self) -> None:
+        self.clear()
+
+    @staticmethod
+    def _close_value(value: Any) -> None:
+        for attr in ("aclose", "close"):
+            fn = getattr(value, attr, None)
+            if not callable(fn):
+                continue
+            try:
+                result = fn()
+                if inspect.isawaitable(result):
+                    try:
+                        asyncio.run(result)
+                    except RuntimeError:
+                        with concurrent.futures.ThreadPoolExecutor(
+                            max_workers=1
+                        ) as executor:
+                            executor.submit(asyncio.run, result).result()
+            except Exception:
+                return
+            return
+
+
 class AgentApplication:
     """Future application-layer API around :class:`agent_core.AgentCore`.
 
@@ -64,19 +263,41 @@ class AgentApplication:
     application-layer implementation so it can be compared easily.
     """
 
+    _PROTECTED_SESSION_METADATA_KEYS = frozenset(
+        {
+            "agent_id",
+            "plugins",
+            "native_messages",
+            "native_messages_integrity",
+        }
+    )
+    _MISSING_METADATA = object()
+    _SESSION_CONFLICT_REASON_TEXTS = {
+        "stored_session_disappeared": "stored session disappeared",
+        "session_id_changed": "session id changed",
+        "message_count_changed": "message count changed",
+        "messages_changed": "messages changed",
+        "protected_metadata_changed": "protected metadata changed",
+    }
+
     def __init__(
         self,
         config_path: str | Path,
         session_root: str | Path,
         core_factory: Callable[[], AgentCore] = AgentCore,
         event_store: Optional[EventStore] = None,
+        snapshot_selection_store: SnapshotSelectionStore | None = None,
         env_overrides: Mapping[str, str] | None = None,
+        config_env: Mapping[str, str] | None = None,
     ) -> None:
         logger = get_logger("AgentApplication")
+        self._logger = logger
         # Core factory is stored so that per-session cores can be created
         # without sharing state across requests.
         self._core_factory = core_factory
         self._event_store: EventStore = event_store or InMemoryEventStore()
+        self._non_streaming_provider_classes: Set[type[Any]] = set()
+        self._provider_capability_lock = threading.Lock()
 
         # A single core instance is still used for import/export with the
         # filesystem session store; inference uses fresh cores created via
@@ -84,36 +305,46 @@ class AgentApplication:
         core = core_factory()
         self._core = core
 
-        raw_config = load_raw_config(config_path)
-        config_base_dir = str(Path(config_path).resolve().parent)
+        config_path_resolved = Path(config_path).resolve()
+        self._config_path = config_path_resolved
+        raw_config = load_raw_config(config_path_resolved)
+        self._raw_config: Dict[str, Any] = raw_config
+        config_base_dir = str(config_path_resolved.parent)
         resolution_env = build_config_resolution_env(
             config_path,
             env_overrides=env_overrides,
+            config_env=config_env,
         )
-        resolved_config, placeholder_errors = resolve_placeholders(raw_config, env=resolution_env)
-        self._config: Dict[str, Any] = resolved_config
-        self._config_errors: List[Dict[str, Any]] = placeholder_errors
+        resolved_config, placeholder_errors = resolve_placeholders(
+            raw_config, env=resolution_env
+        )
+        mixin_resolved_config, mixin_errors = resolve_config_mixins(resolved_config)
+        self._config: Dict[str, Any] = mixin_resolved_config
+        self._config_errors: List[Dict[str, Any]] = placeholder_errors + mixin_errors
+        self._resolved_env: Dict[str, str] = dict(resolution_env)
+        self._runtime_env_overlay = RuntimeEnvOverlay(
+            build_runtime_overlay_env(config_path, env_overrides=env_overrides)
+        )
+        self._runtime_env_overlay.install()
+        self._runtime_env_finalizer = weakref.finalize(
+            self,
+            AgentApplication._release_runtime_env_overlay,
+            self._runtime_env_overlay,
+        )
 
         plugin_specs = self._coerce_plugin_specs(
-            resolved_config.get("plugins"),
+            self._config.get("plugins"),
             "plugins",
             self._config_errors,
         )
         global_disabled_plugins = self._coerce_plugin_ids(
-            resolved_config.get("disabled_plugins"),
+            self._config.get("disabled_plugins"),
             "disabled_plugins",
             self._config_errors,
         )
 
-        plugin_cache_dir = resolved_config.get("plugin_cache_dir")
+        plugin_cache_dir = self._config.get("plugin_cache_dir")
         if not (isinstance(plugin_cache_dir, str) and plugin_cache_dir.strip()):
-            self._config_errors.append(
-                {
-                    "type": "plugin_cache_dir_missing",
-                    "detail": "plugin_cache_dir is required when using the application plugin manager",
-                    "path": "plugin_cache_dir",
-                }
-            )
             # Use a deterministic directory near the config so tests and
             # local runs do not write into the developer's home unexpectedly.
             cache_path = Path(config_base_dir) / ".plugin_cache" / "plugins"
@@ -122,13 +353,15 @@ class AgentApplication:
             if not cache_path.is_absolute():
                 cache_path = Path(config_base_dir) / cache_path
 
-        plugin_policy_in = resolved_config.get("plugin_policy") or {}
-        plugin_policy: Dict[str, Any] = dict(plugin_policy_in) if isinstance(plugin_policy_in, dict) else {}
+        plugin_policy_in = self._config.get("plugin_policy") or {}
+        plugin_policy: Dict[str, Any] = (
+            dict(plugin_policy_in) if isinstance(plugin_policy_in, dict) else {}
+        )
         plugin_policy.setdefault("base_dir", config_base_dir)
 
         mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
 
-        providers_cfg = resolved_config.get("providers") or {}
+        providers_cfg = self._config.get("providers") or {}
         provider_plugin_specs: Dict[str, List[Any]] = {}
         provider_disabled_plugins: Dict[str, List[str]] = {}
         if isinstance(providers_cfg, dict):
@@ -146,7 +379,7 @@ class AgentApplication:
                     self._config_errors,
                 )
 
-        agents = resolved_config.get("agents") or {}
+        agents = self._config.get("agents") or {}
         agent_plugin_specs: Dict[str, List[Any]] = {}
         agent_disabled_plugins: Dict[str, List[str]] = {}
         if isinstance(agents, dict):
@@ -201,8 +434,8 @@ class AgentApplication:
                         }
                     )
 
-        self._plugin_classes, self._plugins_by_kind_and_id = self._dedupe_plugin_classes_by_id(
-            all_plugin_classes_by_kind
+        self._plugin_classes, self._plugins_by_kind_and_id = (
+            self._dedupe_plugin_classes_by_id(all_plugin_classes_by_kind)
         )
 
         # Manual registration from config on the shared core uses the
@@ -226,15 +459,23 @@ class AgentApplication:
             # First registration for a given id wins to preserve config order.
             if plugin_id in self._app_plugins:
                 continue
-            wrapper = ApplicationPluginWrapper(plugin_id=plugin_id, plugin_class=plugin_class)
-            wrapper.init(resolved_config)
+            wrapper = ApplicationPluginWrapper(
+                plugin_id=plugin_id, plugin_class=plugin_class
+            )
+            wrapper.init(self._config)
             self._app_plugins[plugin_id] = wrapper
 
         session_root_path = Path(session_root)
         self._session_store = FilesystemSessionStore(session_root_path, core)
+        self._snapshot_selection_store = (
+            snapshot_selection_store or NullSnapshotSelectionStore()
+        )
         self._session_asset_store = FilesystemSessionAssetStore(
             session_root_path.parent / "session_assets"
         )
+        self._runtime_store = RuntimeStore()
+        self._tool_runtime = self._runtime_store
+        self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
         self._request_cancellations: Dict[str, RequestCancellation] = {}
@@ -254,7 +495,9 @@ class AgentApplication:
         for agent_id, agent_cfg in agents.items():
             if not isinstance(agent_cfg, dict):
                 continue
-            self._agent_base_configs[agent_id] = build_agent_config(resolved_config, agent_id)
+            self._agent_base_configs[agent_id] = build_agent_config(
+                self._config, agent_id
+            )
 
             provider_name = agent_cfg.get("provider")
             provider_spec_list = (
@@ -319,7 +562,9 @@ class AgentApplication:
             disabled_set.update(plugins_disabled_by_default - agent_enabled_plugins)
 
             all_plugin_ids = self._collect_plugin_ids(deduped_by_id)
-            default_enabled_ids = [pid for pid in all_plugin_ids if pid not in disabled_set]
+            default_enabled_ids = [
+                pid for pid in all_plugin_ids if pid not in disabled_set
+            ]
             if default_enabled_ids == all_plugin_ids:
                 default_enabled: Optional[List[str]] = None
             else:
@@ -332,6 +577,8 @@ class AgentApplication:
             )
             self._agent_plugin_runtimes[agent_id] = runtime
             self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
+
+        self._raise_for_fatal_config_errors()
 
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
@@ -372,6 +619,36 @@ class AgentApplication:
             }
         )
         return [raw_value]
+
+    def _raise_for_fatal_config_errors(self) -> None:
+        fatal_errors = [
+            err
+            for err in self._config_errors
+            if isinstance(err, dict)
+            and (
+                str(err.get("type") or "").startswith("plugin_")
+                or str(err.get("type") or "").startswith("mixin_")
+            )
+        ]
+        if not fatal_errors:
+            return
+
+        details: List[str] = []
+        for err in fatal_errors:
+            err_type = str(err.get("type") or "plugin_error")
+            path = err.get("path")
+            detail = err.get("detail")
+            parts = [err_type]
+            if isinstance(path, str) and path:
+                parts.append(path)
+            if isinstance(detail, str) and detail:
+                parts.append(detail)
+            details.append(" - ".join(parts))
+
+        raise RuntimeError(
+            "Configuration resolution failed:\n"
+            + "\n".join(f"- {item}" for item in details)
+        )
 
     @staticmethod
     def _coerce_plugin_ids(
@@ -461,7 +738,9 @@ class AgentApplication:
         return deduped_classes, deduped_by_id
 
     @staticmethod
-    def _collect_plugin_ids(plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]]) -> List[str]:
+    def _collect_plugin_ids(
+        plugins_by_kind_and_id: Dict[str, Dict[str, type[Any]]],
+    ) -> List[str]:
         ordered: List[str] = []
         seen: Set[str] = set()
         for kind in ("providers", "extensions", "features", "tools"):
@@ -478,6 +757,15 @@ class AgentApplication:
             raise KeyError(f"Unknown agent_id {agent_id!r}")
         return runtime
 
+    @staticmethod
+    def _is_unknown_agent_error(error: BaseException) -> bool:
+        if not isinstance(error, KeyError):
+            return False
+        if not error.args:
+            return False
+        detail = error.args[0]
+        return isinstance(detail, str) and detail.startswith("Unknown agent_id")
+
     def _configured_agent_plugin_ids(self, agent_id: str) -> Optional[List[str]]:
         agents = self._config.get("agents") if isinstance(self._config, dict) else {}
         agent_cfg = agents.get(agent_id) if isinstance(agents, dict) else None
@@ -488,8 +776,14 @@ class AgentApplication:
         if not isinstance(raw_plugins, list):
             return None
 
-        known_ids = set(self._collect_plugin_ids(self._get_agent_plugin_runtime(agent_id).plugins_by_kind_and_id))
-        configured_ids = [item for item in raw_plugins if isinstance(item, str) and item in known_ids]
+        known_ids = set(
+            self._collect_plugin_ids(
+                self._get_agent_plugin_runtime(agent_id).plugins_by_kind_and_id
+            )
+        )
+        configured_ids = [
+            item for item in raw_plugins if isinstance(item, str) and item in known_ids
+        ]
         return configured_ids or None
 
     def _plugin_id_for_class(self, plugin_class: type[Any]) -> str:
@@ -582,6 +876,64 @@ class AgentApplication:
 
         return self._build_core_with_enabled_ids(None)
 
+    def _provider_class_for_request(
+        self,
+        session: Session,
+        config: Dict[str, Any],
+    ) -> Optional[type[Any]]:
+        agent_id = None
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        raw_agent_id = metadata.get("agent_id") if isinstance(metadata, dict) else None
+        if isinstance(raw_agent_id, str) and raw_agent_id in self._agent_base_configs:
+            agent_id = raw_agent_id
+
+        if agent_id is not None:
+            provider_classes = list(
+                (
+                    self._get_agent_plugin_runtime(agent_id).plugin_classes.get(
+                        "providers"
+                    )
+                    or []
+                )
+            )
+        else:
+            provider_classes = list(self._plugin_classes.get("providers") or [])
+
+        if not provider_classes:
+            return None
+        return self._resolve_provider_class_for_config(provider_classes, config)
+
+    def _provider_supports_streaming(self, provider_class: Optional[type[Any]]) -> bool:
+        if provider_class is None:
+            return True
+        with self._provider_capability_lock:
+            return provider_class not in self._non_streaming_provider_classes
+
+    def _mark_provider_non_streaming(self, provider_class: Optional[type[Any]]) -> None:
+        if provider_class is None:
+            return
+        with self._provider_capability_lock:
+            self._non_streaming_provider_classes.add(provider_class)
+
+    def _resolve_request_stream_mode(
+        self,
+        *,
+        requested_stream: bool,
+        config: Dict[str, Any],
+        provider_class: Optional[type[Any]],
+    ) -> bool:
+        if not requested_stream:
+            return False
+
+        config_stream = config.get("stream")
+        if isinstance(config_stream, bool) and config_stream is False:
+            return False
+
+        if not self._provider_supports_streaming(provider_class):
+            return False
+
+        return True
+
     def _provider_identities_for_class(self, provider_class: type[Any]) -> List[str]:
         names: List[str] = []
 
@@ -664,7 +1016,10 @@ class AgentApplication:
             suggestions: List[str] = []
             for provider_class in matches:
                 idents = self._provider_identities_for_class(provider_class)
-                fq = next((ident for ident in idents if "." in ident), idents[0] if idents else "")
+                fq = next(
+                    (ident for ident in idents if "." in ident),
+                    idents[0] if idents else "",
+                )
                 if fq:
                     suggestions.append(fq)
             suggestions_str = ", ".join(sorted(set(suggestions)))
@@ -713,21 +1068,13 @@ class AgentApplication:
         plugin_runtime = self._get_agent_plugin_runtime(agent_id)
         enabled_ids = self._enabled_plugin_ids_for_session(agent_id, metadata)
         effective_overrides = self._effective_overrides(metadata, overrides)
-        effective_config = self._decorate_runtime_config(
-            resolve_request_config(base_cfg, effective_overrides)
-        )
+        effective_config = resolve_request_config(base_cfg, effective_overrides)
         core = self._build_core_with_enabled_ids(
             enabled_ids,
             selected_provider_config=effective_config,
             plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
         return core, base_cfg, effective_config
-
-    def _decorate_runtime_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        return {
-            **config,
-            "_session_asset_store": self._session_asset_store,
-        }
 
     def resolve_effective_config(
         self,
@@ -737,9 +1084,199 @@ class AgentApplication:
     ) -> Dict[str, Any]:
         metadata = session.metadata if isinstance(session.metadata, dict) else {}
         effective_overrides = self._effective_overrides(metadata, overrides)
-        return self._decorate_runtime_config(
-            resolve_request_config(base_config, effective_overrides)
+        return resolve_request_config(base_config, effective_overrides)
+
+    @staticmethod
+    def _session_messages_digest(session: Session) -> str:
+        return AgentApplication._messages_digest(session.messages)
+
+    @staticmethod
+    def _messages_digest(messages: Sequence[Message]) -> str:
+        payload = json.dumps(
+            [message.to_dict() for message in messages],
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    @classmethod
+    def _protected_session_metadata(cls, session: Session) -> Dict[str, Any]:
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        return {
+            key: value
+            for key, value in metadata.items()
+            if key in cls._PROTECTED_SESSION_METADATA_KEYS
+        }
+
+    @classmethod
+    def _merge_non_protected_session_metadata(
+        cls,
+        *,
+        baseline_session: Session,
+        stored_session: Session,
+        current_session: Session,
+    ) -> Dict[str, Any]:
+        baseline_metadata = (
+            dict(baseline_session.metadata)
+            if isinstance(baseline_session.metadata, dict)
+            else {}
         )
+        stored_metadata = (
+            dict(stored_session.metadata)
+            if isinstance(stored_session.metadata, dict)
+            else {}
+        )
+        current_metadata = (
+            dict(current_session.metadata)
+            if isinstance(current_session.metadata, dict)
+            else {}
+        )
+
+        merged_metadata = dict(current_metadata)
+        all_keys = set(baseline_metadata) | set(stored_metadata) | set(current_metadata)
+        for key in all_keys:
+            if key in cls._PROTECTED_SESSION_METADATA_KEYS:
+                continue
+
+            baseline_value = baseline_metadata.get(key, cls._MISSING_METADATA)
+            stored_value = stored_metadata.get(key, cls._MISSING_METADATA)
+
+            if stored_value != baseline_value:
+                if stored_value is cls._MISSING_METADATA:
+                    merged_metadata.pop(key, None)
+                else:
+                    merged_metadata[key] = stored_value
+
+        return merged_metadata
+
+    def _merge_session_if_compatible(
+        self,
+        *,
+        baseline_session: Session,
+        stored_session: Session,
+        current_session: Session,
+    ) -> Session:
+        if stored_session.session_id != baseline_session.session_id:
+            raise ValueError("session_id_changed")
+
+        if len(stored_session.messages) != len(baseline_session.messages):
+            raise ValueError("message_count_changed")
+
+        if self._session_messages_digest(
+            stored_session
+        ) != self._session_messages_digest(baseline_session):
+            raise ValueError("messages_changed")
+
+        if self._protected_session_metadata(
+            stored_session
+        ) != self._protected_session_metadata(baseline_session):
+            raise ValueError("protected_metadata_changed")
+
+        merged_metadata = self._merge_non_protected_session_metadata(
+            baseline_session=baseline_session,
+            stored_session=stored_session,
+            current_session=current_session,
+        )
+        return Session(
+            session_id=current_session.session_id,
+            messages=current_session.messages,
+            metadata=merged_metadata,
+        )
+
+    def _reconcile_session_with_store(
+        self,
+        *,
+        baseline_session: Session,
+        baseline_file_state: SessionFileState | None,
+        current_session: Session,
+        persist_on_success: bool,
+        conflict_prefix: str | None = None,
+        backup_on_conflict: bool = False,
+        conflict_request_id: str | None = None,
+    ) -> tuple[Session, _CheckpointBaseline | None]:
+        current_state = self._session_store.get_file_state(current_session.session_id)
+
+        try:
+            if baseline_file_state is not None and current_state == baseline_file_state:
+                if not persist_on_success:
+                    return current_session, _CheckpointBaseline(
+                        session=baseline_session,
+                        file_state=baseline_file_state,
+                    )
+
+                persisted = self._save_session_low_level(current_session)
+                saved_state = self._session_store.get_file_state(
+                    current_session.session_id
+                )
+                return persisted, _CheckpointBaseline(
+                    session=persisted,
+                    file_state=saved_state,
+                )
+
+            if not current_state.exists:
+                if not persist_on_success:
+                    return current_session, None
+
+                persisted = self._save_session_low_level(current_session)
+                saved_state = self._session_store.get_file_state(
+                    current_session.session_id
+                )
+                return persisted, _CheckpointBaseline(
+                    session=persisted,
+                    file_state=saved_state,
+                )
+
+            stored_session = self.load_session_record(current_session.session_id)
+            if stored_session is None:
+                raise ValueError("stored_session_disappeared")
+
+            merged_session = self._merge_session_if_compatible(
+                baseline_session=baseline_session,
+                stored_session=stored_session,
+                current_session=current_session,
+            )
+
+            if not persist_on_success:
+                return merged_session, _CheckpointBaseline(
+                    session=stored_session,
+                    file_state=current_state,
+                )
+
+            persisted = self._save_session_low_level(merged_session)
+            saved_state = self._session_store.get_file_state(merged_session.session_id)
+            return persisted, _CheckpointBaseline(
+                session=persisted,
+                file_state=saved_state,
+            )
+        except ValueError as exc:
+            if conflict_prefix is None:
+                raise
+            backup_path: Path | None = None
+            if backup_on_conflict:
+                backup_path = self._save_session_conflict_backup(
+                    current_session,
+                    request_id=conflict_request_id or self._new_request_id(),
+                )
+            suffix = self._SESSION_CONFLICT_REASON_TEXTS.get(
+                str(exc),
+                str(exc).replace("_", " "),
+            )
+            detail = f"{conflict_prefix}{suffix}."
+            if backup_path is not None:
+                detail = f"{detail} Backup saved to {backup_path}"
+            raise SessionConflictError(
+                detail,
+                reason=str(exc),
+                backup_path=backup_path,
+            ) from exc
+
+    def _save_session_conflict_backup(
+        self,
+        session: Session,
+        *,
+        request_id: str,
+    ) -> Path:
+        return self._session_store.save_backup(session, request_id=request_id)
 
     @staticmethod
     def _action_matches_trigger(action: Dict[str, Any], lifecycle: str) -> bool:
@@ -747,11 +1284,15 @@ class AgentApplication:
         if isinstance(trigger_val, str):
             return trigger_val == lifecycle
         if isinstance(trigger_val, list):
-            return any(isinstance(item, str) and item == lifecycle for item in trigger_val)
+            return any(
+                isinstance(item, str) and item == lifecycle for item in trigger_val
+            )
         return False
 
     @staticmethod
-    def _ensure_serializable_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _ensure_serializable_context(
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         if context is None:
             return {}
         if not isinstance(context, dict):
@@ -800,20 +1341,30 @@ class AgentApplication:
         next_session = self._session_from_result_value(result.get("session")) or session
 
         metadata_patch_raw = result.get("session_metadata")
-        metadata_patch = metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
+        metadata_patch = (
+            metadata_patch_raw if isinstance(metadata_patch_raw, dict) else {}
+        )
 
         overrides_patch_raw = result.get("session_overrides")
-        overrides_patch = overrides_patch_raw if isinstance(overrides_patch_raw, dict) else {}
+        overrides_patch = (
+            overrides_patch_raw if isinstance(overrides_patch_raw, dict) else {}
+        )
 
         if not metadata_patch and not overrides_patch:
             return next_session
 
-        metadata = dict(next_session.metadata) if isinstance(next_session.metadata, dict) else {}
+        metadata = (
+            dict(next_session.metadata)
+            if isinstance(next_session.metadata, dict)
+            else {}
+        )
         metadata.update(metadata_patch)
 
         if overrides_patch:
             stored_overrides = metadata.get("overrides")
-            normalized_overrides = stored_overrides if isinstance(stored_overrides, dict) else {}
+            normalized_overrides = (
+                stored_overrides if isinstance(stored_overrides, dict) else {}
+            )
             metadata["overrides"] = {**normalized_overrides, **overrides_patch}
 
         return Session(
@@ -851,7 +1402,9 @@ class AgentApplication:
         results: List[Dict[str, Any]] = []
 
         for action in self.get_application_actions():
-            if not isinstance(action, dict) or not self._action_matches_trigger(action, lifecycle):
+            if not isinstance(action, dict) or not self._action_matches_trigger(
+                action, lifecycle
+            ):
                 continue
             plugin_id = action.get("plugin")
             action_id = action.get("id")
@@ -897,7 +1450,9 @@ class AgentApplication:
             context=core_context,
         )
         results.extend(core_results)
-        core, base_config, _ = self._resolve_runtime_for_session(current_session, overrides)
+        core, base_config, _ = self._resolve_runtime_for_session(
+            current_session, overrides
+        )
         return core, base_config, current_session, results
 
     def _load_session_required(self, session_id: str) -> Session:
@@ -906,7 +1461,9 @@ class AgentApplication:
             raise KeyError(f"Session {session_id!r} not found")
         return session
 
-    def _extract_tool_calls(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _extract_tool_calls(
+        self, messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         tool_calls: List[Dict[str, Any]] = []
         for msg in messages:
             if msg.get("role") != "assistant":
@@ -917,7 +1474,9 @@ class AgentApplication:
                 tool_calls.extend([c for c in calls if isinstance(c, dict)])
         return tool_calls
 
-    def _extract_pending_tool_calls_from_session(self, session: Session) -> List[Dict[str, Any]]:
+    def _extract_pending_tool_calls_from_session(
+        self, session: Session
+    ) -> List[Dict[str, Any]]:
         """Return tool_calls from the last assistant message, if not yet answered.
 
         A simple heuristic is used: if there is any tool message after the last
@@ -951,7 +1510,9 @@ class AgentApplication:
     # Public helpers for tests / applications (manual registration)
     # ------------------------------------------------------------------
 
-    def register_provider(self, plugin_class: type, extensions: Optional[List[type]] = None) -> None:
+    def register_provider(
+        self, plugin_class: type, extensions: Optional[List[type]] = None
+    ) -> None:
         self._core.register_provider(plugin_class, extensions=extensions or [])
 
     def register_feature(self, plugin_class: type) -> None:
@@ -1046,7 +1607,9 @@ class AgentApplication:
         # Pass 2: merge consecutive partial/tool_partial events where possible
         # ------------------------------------------------------------------
 
-        def _merge_two(a: Dict[str, Any], b: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        def _merge_two(
+            a: Dict[str, Any], b: Dict[str, Any]
+        ) -> Optional[Dict[str, Any]]:
             """Return a merged event for ``a`` and ``b`` or ``None``.
 
             Only consecutive events of type ``partial`` or
@@ -1083,7 +1646,9 @@ class AgentApplication:
                 content_a = msg_a.get("content")
                 content_b = msg_b.get("content")
 
-                has_reasoning = isinstance(reasoning_a, str) or isinstance(reasoning_b, str)
+                has_reasoning = isinstance(reasoning_a, str) or isinstance(
+                    reasoning_b, str
+                )
                 has_content = isinstance(content_a, str) or isinstance(content_b, str)
                 if not (has_reasoning or has_content):
                     return None
@@ -1226,8 +1791,42 @@ class AgentApplication:
         """
 
         cfg = self._config if isinstance(self._config, dict) else {}
-        raw_app_cfg = cfg.get("application") if isinstance(cfg.get("application"), dict) else {}
+        raw_app_cfg = (
+            cfg.get("application") if isinstance(cfg.get("application"), dict) else {}
+        )
         return cast(Dict[str, Any], raw_app_cfg)
+
+    def get_config_path(self) -> Path:
+        """Return the path of the configuration file used by this application."""
+
+        return self._config_path
+
+    def get_raw_config(self) -> Dict[str, Any]:
+        """Return the unresolved top-level configuration mapping.
+
+        The raw config is useful for tools that need to preserve placeholders
+        such as ``${env:...}`` and ``${file:...}`` when producing derived
+        configuration artifacts.
+        """
+
+        return cast(Dict[str, Any], copy.deepcopy(self._raw_config))
+
+    def get_resolved_env(self) -> Dict[str, str]:
+        """Return the runtime env mapping used for config placeholder resolution."""
+
+        return dict(self._resolved_env)
+
+    @staticmethod
+    def _release_runtime_env_overlay(overlay: RuntimeEnvOverlay) -> None:
+        overlay.close()
+
+    def close(self) -> None:
+        """Release process-global runtime env overlay owned by this app."""
+
+        self._runtime_store.close()
+        self._async_runtime_host.close()
+        if self._runtime_env_finalizer.alive:
+            self._runtime_env_finalizer()
 
     def cancel_request(self, request_id: str) -> None:
         """Request cooperative cancellation for an in-flight request.
@@ -1373,9 +1972,11 @@ class AgentApplication:
 
         elements: List[Dict[str, Any]] = []
         for plugin_id, wrapper in self._app_plugins.items():
-            for raw_element in wrapper.get_ui_elements(config=config, tags=tags, models=models):
+            for raw_element in wrapper.get_ui_elements(
+                config=config, tags=tags, models=models
+            ):
                 if not isinstance(raw_element, dict):
-                    continue    
+                    continue
                 if "plugin" in raw_element and isinstance(raw_element["plugin"], str):
                     elements.append(raw_element)
                 else:
@@ -1393,7 +1994,9 @@ class AgentApplication:
         error envelopes.
         """
 
-        def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        def __init__(
+            self, message: str, details: Optional[Dict[str, Any]] = None
+        ) -> None:
             super().__init__(message)
             self.details: Dict[str, Any] = details or {}
 
@@ -1427,7 +2030,7 @@ class AgentApplication:
             # ``bool`` is a subclass of ``int``; treat it separately.
             return isinstance(value, int) and not isinstance(value, bool)
         if expected_type == "number":
-            return (isinstance(value, (int, float)) and not isinstance(value, bool))
+            return isinstance(value, (int, float)) and not isinstance(value, bool)
         if expected_type == "boolean":
             return isinstance(value, bool)
         return True
@@ -1537,7 +2140,9 @@ class AgentApplication:
 
         validated_inputs = self._validate_action_inputs(action_def, params)
 
-        return wrapper.execute_action(self, action_id, validated_inputs, context=context)
+        return wrapper.execute_action(
+            self, action_id, validated_inputs, context=context
+        )
 
     def execute_session_action(
         self,
@@ -1559,6 +2164,7 @@ class AgentApplication:
         session_id = params.get("session_id")
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
+        self._require_live_session_writable(session_id)
 
         action_params = dict(params)
         action_params.pop("session_id", None)
@@ -1567,42 +2173,59 @@ class AgentApplication:
             ctx = self.load_session(session_id)
             if ctx is None:
                 raise KeyError(f"Session {session_id!r} not found")
-
             core, base_config, session = ctx
-            metadata = session.metadata if isinstance(session.metadata, dict) else {}
-            overrides = metadata.get("overrides")
-            if not isinstance(overrides, dict):
-                overrides = {}
-            effective_config = self.resolve_effective_config(base_config, session, overrides)
+            baseline_file_state = self.get_session_file_state(session_id)
 
-            action_context = dict(context) if isinstance(context, dict) else {}
-            action_context.setdefault("app", self)
-            action_context.setdefault("application", self)
-            action_context.setdefault("session_asset_store", self._session_asset_store)
-            action_context.setdefault("base_config", base_config)
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = self.resolve_effective_config(
+            base_config, session, overrides
+        )
 
-            try:
-                new_session, result = core.execute_session_action(
-                    session,
-                    effective_config,
-                    plugin_id,
-                    action_id,
-                    action_params,
-                    context=action_context,
-                )
-            except AgentCore._SessionActionValidationError as exc:  # type: ignore[attr-defined]
-                raise self._ApplicationActionValidationError(
-                    str(exc),
-                    getattr(exc, "details", {}) or {},
-                ) from exc
+        action_context = dict(context) if isinstance(context, dict) else {}
+        action_context.setdefault("app", self)
+        action_context.setdefault("application", self)
+        action_context.setdefault("session_asset_store", self._session_asset_store)
+        action_context.setdefault("base_config", base_config)
 
-            self.save_session(new_session)
+        try:
+            new_session, result = core.execute_session_action(
+                session,
+                effective_config,
+                plugin_id,
+                action_id,
+                action_params,
+                context=action_context,
+            )
+        except AgentCore._SessionActionValidationError as exc:  # type: ignore[attr-defined]
+            raise self._ApplicationActionValidationError(
+                str(exc),
+                getattr(exc, "details", {}) or {},
+            ) from exc
+
+        self.save_session(
+            new_session,
+            reconcile=True,
+            baseline_session=session,
+            baseline_file_state=baseline_file_state,
+            conflict_prefix="Concurrent session modification detected while executing action; ",
+            backup_on_conflict=True,
+            acquire_lock=True,
+        )
 
         if not isinstance(result, dict):
             result = {}
 
-        mutations = result.get("mutations") if isinstance(result.get("mutations"), dict) else {}
-        ui_effects = result.get("ui_effects") if isinstance(result.get("ui_effects"), dict) else {}
+        mutations = (
+            result.get("mutations") if isinstance(result.get("mutations"), dict) else {}
+        )
+        ui_effects = (
+            result.get("ui_effects")
+            if isinstance(result.get("ui_effects"), dict)
+            else {}
+        )
 
         reload_ids = ui_effects.get("reload_session_ids")
         reload_list = list(reload_ids) if isinstance(reload_ids, list) else []
@@ -1639,16 +2262,26 @@ class AgentApplication:
         """Execute either an application action or a provider-extension session action."""
 
         if action_owner == "application":
-            return self.execute_application_action(plugin_id, action_id, params, context=context)
+            return self.execute_application_action(
+                plugin_id, action_id, params, context=context
+            )
         if action_owner in {"provider_extension", "feature"}:
-            return self.execute_session_action(plugin_id, action_id, params, context=context)
+            return self.execute_session_action(
+                plugin_id, action_id, params, context=context
+            )
 
         try:
-            return self.execute_application_action(plugin_id, action_id, params, context=context)
+            return self.execute_application_action(
+                plugin_id, action_id, params, context=context
+            )
         except KeyError:
-            if not (isinstance(params, dict) and isinstance(params.get("session_id"), str)):
+            if not (
+                isinstance(params, dict) and isinstance(params.get("session_id"), str)
+            ):
                 raise
-            return self.execute_session_action(plugin_id, action_id, params, context=context)
+            return self.execute_session_action(
+                plugin_id, action_id, params, context=context
+            )
 
     def load_session(
         self,
@@ -1664,11 +2297,14 @@ class AgentApplication:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
 
-        session = self._session_store.load(session_id)
+        snapshot_id = self.get_selected_session_snapshot(session_id)
+        session = self._session_store.load(session_id, snapshot_id=snapshot_id)
         if session is None:
             return None
 
-        core, base_cfg, _effective_config = self._resolve_runtime_for_session(session, overrides)
+        core, base_cfg, _effective_config = self._resolve_runtime_for_session(
+            session, overrides
+        )
         return core, base_cfg, session
 
     def load_session_record(self, session_id: str) -> Optional[Session]:
@@ -1681,24 +2317,155 @@ class AgentApplication:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
 
+        snapshot_id = self.get_selected_session_snapshot(session_id)
+        return self._session_store.load(session_id, snapshot_id=snapshot_id)
+
+    def load_live_session_record(self, session_id: str) -> Optional[Session]:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
         return self._session_store.load(session_id)
+
+    def get_selected_session_snapshot(self, session_id: str) -> str | None:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+        selected = self._snapshot_selection_store.get_selected_snapshot(session_id)
+        if not isinstance(selected, str) or not selected:
+            return None
+        if self._session_store.load(session_id, snapshot_id=selected) is None:
+            self._snapshot_selection_store.clear_selected_snapshot(session_id)
+            return None
+        return selected
+
+    def _require_live_session_writable(self, session_id: str) -> None:
+        selected = self._snapshot_selection_store.get_selected_snapshot(session_id)
+        if isinstance(selected, str) and selected:
+            raise ReadonlySessionViewError(
+                f"Session {session_id!r} is viewing readonly snapshot {selected!r}; clear selection before writing"
+            )
+
+    def list_session_snapshots(self, session_id: str) -> List[SessionSnapshotRecord]:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+        return self._session_store.list_snapshots(session_id)
+
+    def create_session_snapshot(
+        self,
+        session_id: str,
+        *,
+        reason: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> SessionSnapshotRecord:
+        live = self.load_live_session_record(session_id)
+        if live is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        return self._session_store.create_snapshot(
+            live, reason=reason, metadata=metadata
+        )
+
+    def select_session_snapshot(self, session_id: str, snapshot_id: str) -> None:
+        if self.load_live_session_record(session_id) is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        if self._session_store.load(session_id, snapshot_id=snapshot_id) is None:
+            raise KeyError(
+                f"Snapshot {snapshot_id!r} not found for session {session_id!r}"
+            )
+        self._snapshot_selection_store.select_snapshot(session_id, snapshot_id)
+
+    def clear_selected_session_snapshot(self, session_id: str) -> None:
+        self._snapshot_selection_store.clear_selected_snapshot(session_id)
+
+    def delete_session_snapshot(self, session_id: str, snapshot_id: str) -> bool:
+        return self._session_store.delete_snapshot(session_id, snapshot_id)
+
+    def restore_session_snapshot(self, session_id: str, snapshot_id: str) -> Session:
+        live = self.load_live_session_record(session_id)
+        if live is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        restored = self._session_store.load(session_id, snapshot_id=snapshot_id)
+        if restored is None:
+            raise KeyError(
+                f"Snapshot {snapshot_id!r} not found for session {session_id!r}"
+            )
+        if live.to_dict() != restored.to_dict():
+            self._session_store.create_snapshot(live, reason="before restore")
+        self._snapshot_selection_store.clear_selected_snapshot(session_id)
+        saved = self.save_session(restored, acquire_lock=False)
+        return saved
 
     def get_session_asset_store(self) -> FilesystemSessionAssetStore:
         return self._session_asset_store
 
-    def save_session(self, session: Session) -> None:
-        """Persist a session using the configured session store."""
+    def get_runtime_store(self) -> RuntimeStore:
+        return self._runtime_store
 
+    def get_tool_runtime(self) -> RuntimeStore:
+        return self._runtime_store
+
+    def run_awaitable_blocking(self, awaitable: Any) -> Any:
+        return self._async_runtime_host.run_blocking(awaitable)
+
+    def get_session_file_state(self, session_id: str) -> SessionFileState:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("session_id must be a non-empty string")
+        return self._session_store.get_file_state(session_id)
+
+    def _prepare_session_for_save(self, session: Session) -> Session:
         _core, _base_cfg, prepared_session, _results = self.run_session_lifecycle(
             "session_save_prepare",
             session,
             context={"session_id": session.session_id},
         )
-        self._session_store.save(prepared_session)
+        return prepared_session
+
+    def _save_session_low_level(self, session: Session) -> Session:
+        self._session_store.save(session)
+        return self.load_session_record(session.session_id) or session
+
+    def save_session(
+        self,
+        session: Session,
+        *,
+        reconcile: bool = False,
+        baseline_session: Session | None = None,
+        baseline_file_state: SessionFileState | None = None,
+        conflict_prefix: str | None = None,
+        backup_on_conflict: bool = False,
+        conflict_request_id: str | None = None,
+        acquire_lock: bool = False,
+    ) -> Session:
+        """Persist a session using the configured session store."""
+        if reconcile and baseline_session is None:
+            raise ValueError("baseline_session is required when reconcile=True")
+        self._require_live_session_writable(session.session_id)
+
+        @contextmanager
+        def _maybe_lock() -> Iterator[None]:
+            if not acquire_lock:
+                yield
+                return
+            with self.acquire_session_lock(session.session_id):
+                yield
+
+        with _maybe_lock():
+            prepared_session = self._prepare_session_for_save(session)
+            if not reconcile:
+                return self._save_session_low_level(prepared_session)
+
+            persisted, _baseline = self._reconcile_session_with_store(
+                baseline_session=cast(Session, baseline_session),
+                baseline_file_state=baseline_file_state,
+                current_session=prepared_session,
+                persist_on_success=True,
+                conflict_prefix=conflict_prefix,
+                backup_on_conflict=backup_on_conflict,
+                conflict_request_id=conflict_request_id,
+            )
+            return persisted
 
     def delete_session(self, session_id: str) -> None:
         """Delete a session from the store (no-op if missing)."""
 
+        self._require_live_session_writable(session_id)
         session = self._session_store.load(session_id)
         if session is not None:
             self.run_session_lifecycle(
@@ -1708,7 +2475,9 @@ class AgentApplication:
             )
         self._session_store.delete(session_id)
 
-    def create_session(self, agent_id: str) -> Tuple[AgentCore, Dict[str, Any], Session]:
+    def create_session(
+        self, agent_id: str
+    ) -> Tuple[AgentCore, Dict[str, Any], Session]:
         """Create and persist a new empty session for the given agent.
 
         Returns a tuple of ``(core, base_config, session)`` where ``core`` is a
@@ -1723,7 +2492,9 @@ class AgentApplication:
         core, base_cfg, _effective_config = self._resolve_runtime_for_session(session)
         return core, base_cfg, session
 
-    def create_session_ephemeral(self, agent_id: str) -> Tuple[AgentCore, Dict[str, Any], Session]:
+    def create_session_ephemeral(
+        self, agent_id: str
+    ) -> Tuple[AgentCore, Dict[str, Any], Session]:
         """Create a new empty session for the given agent without persisting it.
 
         This helper mirrors :meth:`create_session` but does not write the
@@ -1801,7 +2572,9 @@ class AgentApplication:
         )
         return core, base_config, new_session
 
-    def update_agent(self, agent_id: str, session: Session) -> Tuple[AgentCore, Dict[str, Any], Session]:
+    def update_agent(
+        self, agent_id: str, session: Session
+    ) -> Tuple[AgentCore, Dict[str, Any], Session]:
         """Reconfigure core/base_config for ``agent_id`` and update session metadata.
 
         This does not persist the session; callers are responsible for deciding
@@ -1812,22 +2585,37 @@ class AgentApplication:
         if not isinstance(agent_id, str) or not agent_id:
             raise ValueError("agent_id must be a non-empty string")
 
-        existing_metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        existing_metadata = (
+            session.metadata if isinstance(session.metadata, dict) else {}
+        )
         previous_agent_id = existing_metadata.get("agent_id")
         switch_context = {
             "session_id": session.session_id,
-            "previous_agent_id": previous_agent_id if isinstance(previous_agent_id, str) else None,
+            "previous_agent_id": (
+                previous_agent_id if isinstance(previous_agent_id, str) else None
+            ),
             "next_agent_id": agent_id,
         }
+        previous_agent_unavailable = False
 
-        current_core, current_base_cfg, _current_config = self._resolve_runtime_for_session(session)
-        _prep_core, _prep_base_cfg, prepared_session, _prep_results = self.run_session_lifecycle(
-            "agent_switch_prepare",
-            session,
-            core=current_core,
-            base_config=current_base_cfg,
-            context=switch_context,
-        )
+        try:
+            current_core, current_base_cfg, _current_config = (
+                self._resolve_runtime_for_session(session)
+            )
+            _prep_core, _prep_base_cfg, prepared_session, _prep_results = (
+                self.run_session_lifecycle(
+                    "agent_switch_prepare",
+                    session,
+                    core=current_core,
+                    base_config=current_base_cfg,
+                    context=switch_context,
+                )
+            )
+        except KeyError as exc:
+            if not self._is_unknown_agent_error(exc):
+                raise
+            previous_agent_unavailable = True
+            prepared_session = session
 
         metadata = prepared_session.metadata or {}
         switched_metadata = {**metadata, "agent_id": agent_id}
@@ -1860,6 +2648,11 @@ class AgentApplication:
             selected_provider_config=base_cfg,
             plugins_by_kind_and_id=plugin_runtime.plugins_by_kind_and_id,
         )
+        if previous_agent_unavailable:
+            switch_context = {
+                **switch_context,
+                "previous_agent_unavailable": True,
+            }
         core, base_cfg, switched_session, _results = self.run_session_lifecycle(
             "agent_switch_complete",
             switched_session,
@@ -1868,6 +2661,89 @@ class AgentApplication:
             context=switch_context,
         )
         return core, base_cfg, switched_session
+
+    def _build_tool_context(
+        self,
+        *,
+        session: Session,
+        request_id: str,
+    ) -> Dict[str, Any]:
+        return {
+            "app": self,
+            "application": self,
+            "base_config": self._config,
+            "session_id": session.session_id,
+            "session": session.to_dict(),
+            "request_id": request_id,
+            "session_asset_store": self._session_asset_store,
+            "runtime_store": self._runtime_store,
+            "tool_runtime": self._runtime_store,
+            "trigger_source": "application",
+        }
+
+    def prepare_tools_for_session(
+        self,
+        core: AgentCore,
+        session: Session,
+        base_config: Dict[str, Any],
+        overrides: Optional[Dict[str, Any]] = None,
+        *,
+        request_id: Optional[str] = None,
+    ) -> Tuple[AgentCore, Dict[str, Any], Session, Dict[str, Any], str]:
+        """Run request_prepare and explicitly prepare tools for the resulting runtime."""
+        rid = request_id or self._new_request_id()
+        request_context = {
+            "session_id": session.session_id,
+            "request_id": rid,
+            "stream": False,
+            "overrides": dict(overrides or {}),
+        }
+        core, base_config, session, _results = self.run_session_lifecycle(
+            "request_prepare",
+            session,
+            core=core,
+            base_config=base_config,
+            overrides=overrides,
+            context=request_context,
+        )
+        config = self.resolve_effective_config(base_config, session, overrides)
+        core.prepare_tools(
+            config,
+            context=self._build_tool_context(session=session, request_id=rid),
+        )
+        return core, base_config, session, config, rid
+
+    async def prepare_tools_for_session_async(
+        self,
+        core: AgentCore,
+        session: Session,
+        base_config: Dict[str, Any],
+        overrides: Optional[Dict[str, Any]] = None,
+        *,
+        request_id: Optional[str] = None,
+    ) -> Tuple[AgentCore, Dict[str, Any], Session, Dict[str, Any], str]:
+        """Async variant of :meth:`prepare_tools_for_session`."""
+        rid = request_id or self._new_request_id()
+        request_context = {
+            "session_id": session.session_id,
+            "request_id": rid,
+            "stream": False,
+            "overrides": dict(overrides or {}),
+        }
+        core, base_config, session, _results = self.run_session_lifecycle(
+            "request_prepare",
+            session,
+            core=core,
+            base_config=base_config,
+            overrides=overrides,
+            context=request_context,
+        )
+        config = self.resolve_effective_config(base_config, session, overrides)
+        await core.prepare_tools_async(
+            config,
+            context=self._build_tool_context(session=session, request_id=rid),
+        )
+        return core, base_config, session, config, rid
 
     # ------------------------------------------------------------------
     # Core-first request API (new architecture)
@@ -1882,6 +2758,7 @@ class AgentApplication:
         *,
         stream: bool = False,
         request_id: Optional[str] = None,
+        baseline_file_state: SessionFileState | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Core-first request API that yields events.
 
@@ -1892,13 +2769,14 @@ class AgentApplication:
 
         Key differences from the legacy API:
 
-        - Persistence is the responsibility of the caller
-        - The caller decides whether and how to expose events externally
+        - Checkpoint persistence is handled internally by the application
+        - The caller decides whether and how to expose public events externally
         - Tool loops are handled internally, with a configurable maximum
           depth (:class:`_ToolLoopConfig`).
         """
 
         rid = request_id or self._new_request_id()
+        self._require_live_session_writable(session.session_id)
 
         request_context = {
             "session_id": session.session_id,
@@ -1906,7 +2784,34 @@ class AgentApplication:
             "stream": bool(stream),
             "overrides": dict(overrides or {}),
         }
+        try:
+            with self.acquire_session_lock(session.session_id):
+                session, request_reconcile_baseline = (
+                    self._reconcile_session_with_store(
+                        baseline_session=session,
+                        baseline_file_state=baseline_file_state,
+                        current_session=session,
+                        persist_on_success=False,
+                        conflict_prefix="Concurrent session modification detected before request start; ",
+                        backup_on_conflict=True,
+                        conflict_request_id=rid,
+                    )
+                )
+        except SessionConflictError as exc:
+            yield {
+                "type": "error",
+                "session_id": session.session_id,
+                "request_id": rid,
+                "detail": exc.detail,
+            }
+            yield {
+                "type": "request_completed",
+                "session_id": session.session_id,
+                "request_id": rid,
+            }
+            return
         original_session = session
+
         core, base_config, session, _results = self.run_session_lifecycle(
             "request_prepare",
             session,
@@ -1916,6 +2821,28 @@ class AgentApplication:
             context=request_context,
         )
         config = self.resolve_effective_config(base_config, session, overrides)
+        provider_class = self._provider_class_for_request(session, config)
+        effective_stream = self._resolve_request_stream_mode(
+            requested_stream=bool(stream),
+            config=config,
+            provider_class=provider_class,
+        )
+        request_context["stream"] = effective_stream
+
+        latest_session = session
+
+        # Initial request_started event
+        yield {
+            "type": "request_started",
+            "session_id": session.session_id,
+            "request_id": rid,
+            "stream": effective_stream,
+        }
+
+        core.prepare_tools(
+            config,
+            context=self._build_tool_context(session=session, request_id=rid),
+        )
 
         cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
         self._request_cancellations[rid] = cancellation
@@ -1923,101 +2850,219 @@ class AgentApplication:
         def _is_cancelled() -> bool:
             return cancellation.is_cancelled()
 
-        # Initial request_started event
-        yield {
-            "type": "request_started",
-            "session_id": session.session_id,
-            "request_id": rid,
-            "stream": bool(stream),
-        }
+        def _refresh_config_for_session(current_session: Session) -> Dict[str, Any]:
+            refreshed = self.resolve_effective_config(
+                base_config, current_session, overrides
+            )
+            core.prepare_tools(
+                refreshed,
+                context={
+                    **self._build_tool_context(session=current_session, request_id=rid),
+                    "cancellation": cancellation,
+                },
+            )
+            return refreshed
+
+        def _persist_checkpoint(current_session: Session) -> Session:
+            nonlocal request_baseline_session
+            nonlocal request_baseline_file_state
+            with self.acquire_session_lock(current_session.session_id):
+                baseline_session = request_baseline_session or current_session
+                baseline_file_state = request_baseline_file_state
+                try:
+                    reconciled = self.save_session(
+                        current_session,
+                        reconcile=True,
+                        baseline_session=baseline_session,
+                        baseline_file_state=baseline_file_state,
+                        conflict_prefix="Concurrent session modification detected; ",
+                        backup_on_conflict=True,
+                        conflict_request_id=rid,
+                    )
+                    request_baseline_session = reconciled
+                    request_baseline_file_state = self.get_session_file_state(
+                        reconciled.session_id
+                    )
+                    self.record_checkpoint(reconciled.session_id, rid)
+                except SessionConflictError as exc:
+                    raise ToolLoopCheckpointError(exc.detail) from exc
+            return reconciled
+
+        def _sync_phase_session_for_request(current_session: Session) -> Session:
+            nonlocal request_baseline_session
+            nonlocal request_baseline_file_state
+            with self.acquire_session_lock(current_session.session_id):
+                if request_baseline_session is None:
+                    return current_session
+                try:
+                    refreshed, refreshed_baseline = self._reconcile_session_with_store(
+                        baseline_session=request_baseline_session,
+                        baseline_file_state=request_baseline_file_state,
+                        current_session=current_session,
+                        persist_on_success=False,
+                        conflict_prefix="Concurrent session modification detected before the next phase; ",
+                        backup_on_conflict=True,
+                        conflict_request_id=rid,
+                    )
+                    if refreshed_baseline is None:
+                        request_baseline_session = None
+                        request_baseline_file_state = None
+                    else:
+                        request_baseline_session = refreshed_baseline.session
+                        request_baseline_file_state = refreshed_baseline.file_state
+                except SessionConflictError as exc:
+                    raise ToolLoopCheckpointError(exc.detail) from exc
+            return refreshed
 
         latest_session = session
+        request_baseline_session = (
+            request_reconcile_baseline.session
+            if request_reconcile_baseline is not None
+            else None
+        )
+        request_baseline_file_state = (
+            request_reconcile_baseline.file_state
+            if request_reconcile_baseline is not None
+            else None
+        )
         if session != original_session:
+            latest_session = _persist_checkpoint(session)
             yield {
                 "type": "session_checkpoint",
-                "session_id": session.session_id,
+                "session_id": latest_session.session_id,
                 "request_id": rid,
-                "session": session,
+                "session": latest_session,
             }
-
-        loop_runner = ToolLoopRunner(
-            core=core,
-            config=config,
-            request_id=rid,
-            tool_loop_cfg=self._tool_loop_cfg,
-            cancel_callback=_is_cancelled,
-            cancellation=cancellation,
-            context={
-                "app": self,
-                "application": self,
-                "base_config": self._config,
-                "session_asset_store": self._session_asset_store,
-                "trigger_source": "application",
-            },
-        )
 
         error_seen = False
 
         try:
-            for event in loop_runner.run(session=session, stream=stream):
-                event_type = event.get("type")
+            current_stream = effective_stream
+            while True:
+                loop_runner = ToolLoopRunner(
+                    core=core,
+                    config=config,
+                    request_id=rid,
+                    tool_loop_cfg=self._tool_loop_cfg,
+                    cancel_callback=_is_cancelled,
+                    cancellation=cancellation,
+                    context={
+                        **self._build_tool_context(session=session, request_id=rid),
+                        "cancellation": cancellation,
+                    },
+                    on_session_checkpoint=_persist_checkpoint,
+                    session_for_phase=_sync_phase_session_for_request,
+                    config_for_session=_refresh_config_for_session,
+                )
 
-                if event_type == "session_checkpoint":
-                    event_session = event.get("session")
-                    if isinstance(event_session, Session):
-                        latest_session = event_session
-                    yield event
+                yielded_tool_loop_events = False
+                try:
+                    for event in loop_runner.run(
+                        session=session, stream=current_stream
+                    ):
+                        yielded_tool_loop_events = True
+                        event_type = event.get("type")
+
+                        if event_type == "session_checkpoint":
+                            event_session = event.get("session")
+                            if isinstance(event_session, Session):
+                                latest_session = event_session
+                            yield event
+                            continue
+
+                        if event_type == "error":
+                            yield event
+                            if not error_seen:
+                                error_seen = True
+                                before_session = latest_session
+                                core, base_config, latest_session, _ = (
+                                    self.run_session_lifecycle(
+                                        "request_error",
+                                        latest_session,
+                                        core=core,
+                                        base_config=base_config,
+                                        overrides=overrides,
+                                        context={
+                                            **request_context,
+                                            "error": {
+                                                "message": event.get("detail"),
+                                            },
+                                        },
+                                    )
+                                )
+                                if latest_session != before_session:
+                                    try:
+                                        latest_session = _persist_checkpoint(
+                                            latest_session
+                                        )
+                                    except ToolLoopCheckpointError:
+                                        pass
+                                    else:
+                                        yield {
+                                            "type": "session_checkpoint",
+                                            "session_id": latest_session.session_id,
+                                            "request_id": rid,
+                                            "session": latest_session,
+                                        }
+                            continue
+
+                        if event_type == "request_completed":
+                            if not error_seen:
+                                before_session = latest_session
+                                core, base_config, latest_session, _ = (
+                                    self.run_session_lifecycle(
+                                        "request_complete",
+                                        latest_session,
+                                        core=core,
+                                        base_config=base_config,
+                                        overrides=overrides,
+                                        context=request_context,
+                                    )
+                                )
+                                if latest_session != before_session:
+                                    try:
+                                        latest_session = _persist_checkpoint(
+                                            latest_session
+                                        )
+                                    except ToolLoopCheckpointError as exc:
+                                        error_seen = True
+                                        yield {
+                                            "type": "error",
+                                            "session_id": latest_session.session_id,
+                                            "request_id": rid,
+                                            "detail": exc.detail,
+                                        }
+                                    else:
+                                        yield {
+                                            "type": "session_checkpoint",
+                                            "session_id": latest_session.session_id,
+                                            "request_id": rid,
+                                            "session": latest_session,
+                                        }
+                            yield event
+                            self.record_checkpoint(latest_session.session_id, None)
+                            continue
+
+                        yield event
+                    break
+                except NotImplementedError as exc:
+                    if not current_stream or yielded_tool_loop_events:
+                        raise
+                    self._mark_provider_non_streaming(provider_class)
+                    current_stream = False
+                    request_context["stream"] = False
+                    self._logger.warning(
+                        "provider_streaming_not_implemented_falling_back_to_non_streaming",
+                        provider_class=(
+                            f"{provider_class.__module__}.{provider_class.__qualname__}"
+                            if provider_class is not None
+                            else None
+                        ),
+                        request_id=rid,
+                        session_id=session.session_id,
+                        detail=str(exc),
+                    )
                     continue
-
-                if event_type == "error":
-                    yield event
-                    if not error_seen:
-                        error_seen = True
-                        before_session = latest_session
-                        core, base_config, latest_session, _ = self.run_session_lifecycle(
-                            "request_error",
-                            latest_session,
-                            core=core,
-                            base_config=base_config,
-                            overrides=overrides,
-                            context={
-                                **request_context,
-                                "error": {
-                                    "message": event.get("detail"),
-                                },
-                            },
-                        )
-                        if latest_session != before_session:
-                            yield {
-                                "type": "session_checkpoint",
-                                "session_id": latest_session.session_id,
-                                "request_id": rid,
-                                "session": latest_session,
-                            }
-                    continue
-
-                if event_type == "request_completed":
-                    if not error_seen:
-                        before_session = latest_session
-                        core, base_config, latest_session, _ = self.run_session_lifecycle(
-                            "request_complete",
-                            latest_session,
-                            core=core,
-                            base_config=base_config,
-                            overrides=overrides,
-                            context=request_context,
-                        )
-                        if latest_session != before_session:
-                            yield {
-                                "type": "session_checkpoint",
-                                "session_id": latest_session.session_id,
-                                "request_id": rid,
-                                "session": latest_session,
-                            }
-                    yield event
-                    continue
-
-                yield event
         finally:
             self._cancelled_requests.discard(rid)
             self._request_cancellations.pop(rid, None)

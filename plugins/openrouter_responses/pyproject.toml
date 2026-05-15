@@ -10,13 +10,13 @@ description = "OpenRouter /responses provider + extensions for the AI Agent Plat
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-  "agent-core>=0.3.0",
   "requests>=2.0.0",
 ]
 
 
 [project.optional-dependencies]
 dev = [
+  "agent-core>=0.3.0",
   "pytest>=7.0.0",
 ]
 

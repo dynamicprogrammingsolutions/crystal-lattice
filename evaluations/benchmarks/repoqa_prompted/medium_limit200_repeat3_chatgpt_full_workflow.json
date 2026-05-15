@@ -1,0 +1,15 @@
+{
+  "benchmark": "repoqa-prompted",
+  "config_dir": "config/openai_chatgpt_reasoning_none_codex_balanced",
+  "base_manifest": "config/openai_api_reasoning_none_codex_balanced/manifests/repoqa-prompted-balanced-all-limit200-seed1-medium.json",
+  "stages": {
+    "full": {
+      "profile": "repoqa-prompted-gpt54-codex-medium-repeat3-chatgpt-docker",
+      "model": "gpt-5.4",
+      "input_manifest": "config/openai_api_reasoning_none_codex_balanced/manifests/repoqa-prompted-balanced-all-limit200-seed1-medium.json"
+    }
+  },
+  "report": {
+    "output_json": "config/openai_chatgpt_reasoning_none_codex_balanced/reports/medium-limit200-repeat3-chatgpt-full-summary.json"
+  }
+}

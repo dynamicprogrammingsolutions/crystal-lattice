@@ -8,7 +8,8 @@
     "qwen_tools.qwen_glob_tool.QwenGlobTool",
     "qwen_tools.qwen_write_file_tool.QwenWriteFileTool",
     "qwen_tools.qwen_edit_tool.QwenEditTool",
-    "qwen_tools.qwen_shell_tool.QwenShellTool"
+    "qwen_tools.qwen_shell_tool.QwenShellTool",
+    "qwen_tools.qwen_web_fetch_tool.QwenWebFetchTool"
   ],
   "kinds": {
     "qwen_tools.qwen_read_file_tool.QwenReadFileTool": "tools",
@@ -17,6 +18,7 @@
     "qwen_tools.qwen_glob_tool.QwenGlobTool": "tools",
     "qwen_tools.qwen_write_file_tool.QwenWriteFileTool": "tools",
     "qwen_tools.qwen_edit_tool.QwenEditTool": "tools",
-    "qwen_tools.qwen_shell_tool.QwenShellTool": "tools"
+    "qwen_tools.qwen_shell_tool.QwenShellTool": "tools",
+    "qwen_tools.qwen_web_fetch_tool.QwenWebFetchTool": "tools"
   }
 }

@@ -105,6 +105,56 @@ describe('runApplicationAction effect derivation', () => {
     expect(res.effects.some((e) => e.type === 'reloadSession')).toBe(false);
   });
 
+  it('renders display payloads for pollable starting action results', async () => {
+    const display = {
+      format: 'markdown' as const,
+      title: 'Cloud Agent Starting',
+      body: 'The cloud runtime is starting.',
+      variant: 'warning' as const,
+      actions: [
+        {
+          kind: 'copy_text' as const,
+          id: 'copy-cloud-connection-link',
+          label: 'Copy connection link',
+          text: 'crystal-lattice-cloud://connect?instance_id=inst_test',
+        },
+        {
+          kind: 'run_action' as const,
+          id: 'refresh-cloud-agent-status',
+          label: 'Refresh status',
+          plugin: 'cloud',
+          action_id: 'cloud.check_session_agent',
+        },
+      ],
+    };
+    const backend = buildBackend({
+      status: 'ok',
+      plugin: 'cloud',
+      action_id: 'cloud.start_session_agent',
+      result: {
+        state: 'starting',
+        connection_link: 'crystal-lattice-cloud://connect?instance_id=inst_test',
+        display,
+      },
+    });
+
+    const res = await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'session_action',
+        plugin: 'cloud',
+        id: 'cloud_start_session_agent',
+        label: 'Start cloud agent',
+        action_id: 'cloud.start_session_agent',
+      },
+      actionsById: {},
+      context: { sessionId: 's1' },
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.display).toEqual(display);
+  });
+
   it('reloads the current session only when explicitly requested via ui_effects', async () => {
     const backend = buildBackend({
       status: 'ok',
@@ -185,9 +235,190 @@ describe('runApplicationAction effect derivation', () => {
     expect(res.ok).toBe(true);
     expect(res.effects).toEqual([{ type: 'reloadSessionsList' }]);
   });
+
+  it('passes through generic display payloads for frontend rendering', async () => {
+    const backend = buildBackend({
+      status: 'ok',
+      plugin: 'chatgpt_auth',
+      action_id: 'login_start',
+      result: {
+        display: {
+          format: 'markdown',
+          title: 'ChatGPT Login',
+          body: 'Open [this link](https://auth.openai.com/codex/device)',
+          variant: 'info',
+          presentation: 'inline',
+          dismissible: true,
+          display_id: 'chatgpt-auth-login',
+          actions: [
+            {
+              kind: 'open_url',
+              id: 'open-login',
+              label: 'Open link',
+              url: 'https://auth.openai.com/codex/device',
+            },
+          ],
+        },
+        auth_status: {
+          state: 'pending',
+        },
+      },
+    });
+
+    const res = await runApplicationAction({
+      backend,
+      element: { ...ELEMENT, plugin: 'chatgpt_auth', action_id: 'login_start' },
+      actionsById: {
+        login_start: { ...ACTION_DEF, plugin: 'chatgpt_auth', id: 'login_start' },
+      },
+      context: { sessionId: 's1' },
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.display).toEqual({
+      format: 'markdown',
+      title: 'ChatGPT Login',
+      body: 'Open [this link](https://auth.openai.com/codex/device)',
+      variant: 'info',
+      presentation: 'inline',
+      dismissible: true,
+      display_id: 'chatgpt-auth-login',
+      actions: [
+        {
+          kind: 'open_url',
+          id: 'open-login',
+          label: 'Open link',
+          url: 'https://auth.openai.com/codex/device',
+        },
+      ],
+    });
+  });
 });
 
 describe('runApplicationAction input building', () => {
+  it('maps the current session id for session-scoped actions', async () => {
+    let capturedInputs: Record<string, any> | null = null;
+
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction: async ({ inputs }) => {
+        capturedInputs = inputs;
+        return {
+          status: 'ok',
+          plugin: 'cloud',
+          action_id: 'cloud.start_session_agent',
+          result: { mutations: {}, ui_effects: {} },
+        } as any;
+      },
+    } as any;
+
+    await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'session_action',
+        plugin: 'cloud',
+        id: 'cloud_start_session_agent',
+        label: 'Start cloud agent',
+        action_id: 'cloud.start_session_agent',
+        param_map: { session_id: '$session.session_id' },
+      } as any,
+      actionsById: {
+        'cloud.start_session_agent': {
+          plugin: 'cloud',
+          id: 'cloud.start_session_agent',
+          label: 'Start cloud agent',
+          inputs: {
+            session_id: { type: 'string', required: true },
+          },
+        } as any,
+      },
+      context: { sessionId: 's1' },
+    });
+
+    expect(capturedInputs).toEqual({ session_id: 's1' });
+  });
+
+  it('maps cloud instance inputs from session metadata', async () => {
+    let capturedInputs: Record<string, any> | null = null;
+
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction: async ({ inputs }) => {
+        capturedInputs = inputs;
+        return {
+          status: 'ok',
+          plugin: 'cloud',
+          action_id: 'cloud.check_session_agent',
+          result: { mutations: {}, ui_effects: {} },
+        } as any;
+      },
+    } as any;
+
+    await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'session_action',
+        plugin: 'cloud',
+        id: 'cloud_check_session_agent',
+        label: 'Check cloud status',
+        action_id: 'cloud.check_session_agent',
+        param_map: {
+          instance_id: '$session.metadata.cloud_agent.instance_id',
+          session_id: '$session.session_id',
+          token: '$session.metadata.cloud_agent.token',
+        },
+      } as any,
+      actionsById: {
+        'cloud.check_session_agent': {
+          plugin: 'cloud',
+          id: 'cloud.check_session_agent',
+          label: 'Check cloud status',
+          inputs: {
+            instance_id: { type: 'string', required: true },
+            session_id: { type: 'string', required: false },
+            token: { type: 'string', required: false },
+          },
+        } as any,
+      },
+      context: {
+        sessionId: 's1',
+        sessionSummary: {
+          session_id: 's1',
+          modified: 1,
+          preview: '',
+          metadata: {
+            cloud_agent: {
+              instance_id: 'inst_test',
+              token: 'tok_test',
+            },
+          },
+        },
+      },
+    });
+
+    expect(capturedInputs).toEqual({
+      instance_id: 'inst_test',
+      session_id: 's1',
+      token: 'tok_test',
+    });
+  });
+
   it('includes empty dialog fields when submit_empty is true', async () => {
     let capturedInputs: Record<string, any> | null = null;
 

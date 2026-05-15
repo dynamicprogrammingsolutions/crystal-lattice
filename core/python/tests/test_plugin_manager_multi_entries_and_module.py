@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 from agent_app.plugin_manager import PluginManager
+from agent_app.plugin_sources.local_path import LocalPathRepoSource
 
 
 def _fixtures_dir() -> Path:
@@ -135,3 +136,26 @@ def test_git_remote_disallowed_by_default(tmp_path: Path) -> None:
     mgr = PluginManager(cache_dir=cache_dir)
     res = mgr.resolve_all(["git+https://example.com/repo.git"])
     assert any(e.get("type") == "plugin_install_error" for e in res.errors)
+
+
+def test_localpath_git_fingerprint_changes_when_dirty_file_contents_change(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo_dirty_git_fp"
+    repo.mkdir(parents=True)
+    _make_installable_repo(repo, with_descriptor=True)
+    _init_git_repo(repo)
+
+    source = LocalPathRepoSource()
+
+    target = repo / "dev_plugins" / "file_reader_tool.py"
+    original = target.read_text(encoding="utf-8")
+    target.write_text(original + "\n# first dirty edit\n", encoding="utf-8")
+    first_fp = source._fingerprint_git(repo, repo)
+
+    target.write_text(original + "\n# second dirty edit\n", encoding="utf-8")
+    second_fp = source._fingerprint_git(repo, repo)
+
+    assert isinstance(first_fp, str)
+    assert isinstance(second_fp, str)
+    assert first_fp != second_fp

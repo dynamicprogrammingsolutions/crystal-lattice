@@ -65,15 +65,16 @@ describe('reduceStreamingState', () => {
     expect(afterSecond.streamingRow?.metadata?.reasoning).toBe('R1R2');
   });
 
-  it('final clears streamingRow', () => {
+  it('final clears streamingRow and keeps activeRequestId until completion', () => {
     const state: StreamingState = {
       activeRequestId: 'r1',
       requestError: null,
       streamingRow: { requestId: 'r1', reasoning: 'x', content: 'y', metadata: null },
     };
 
-    const next = reduceStreamingState(state, { type: 'final' } as any);
+    const next = reduceStreamingState(state, { type: 'final', request_id: 'r1' } as any);
     expect(next.streamingRow).toBeNull();
+    expect(next.activeRequestId).toBe('r1');
   });
 
   it('request_completed clears activeRequestId when matching', () => {

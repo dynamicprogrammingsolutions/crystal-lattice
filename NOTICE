@@ -1,0 +1,28 @@
+Crystal Lattice
+Copyright 2026 Dynamic Programming Solutions Kft.
+
+This project includes portions derived from or adapted from the following
+upstream projects:
+
+OpenAI Codex
+Copyright 2025 OpenAI
+https://github.com/openai/codex
+
+Kimi Code CLI
+Copyright 2025 Moonshot AI
+https://github.com/MoonshotAI/kimi-cli
+
+Gemini CLI
+Copyright 2025 Google LLC
+https://github.com/google-gemini/gemini-cli
+
+Grok CLI
+MIT License
+Package: @vibe-kit/grok-cli
+
+Qwen Code
+Copyright 2025 Qwen contributors
+https://github.com/QwenLM/qwen-code
+
+Additional subtree-specific attribution notices are provided in the directories
+that contain the derived prompt and tool compatibility materials.

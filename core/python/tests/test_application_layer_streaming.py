@@ -39,6 +39,7 @@ def test_send_request_streaming_emits_events(tmp_path: Path) -> None:
 
     core, base_config, session = app.create_session("default")
     session = core.add_message(session, "user", "Hello")
+    app.save_session(session)
 
     events = list(app.send_request(core, session, base_config, overrides=None, stream=True))
 
@@ -139,6 +140,7 @@ def test_cancel_request_and_resume(tmp_path: Path) -> None:
 
     core, base_config, session = app.create_session("default")
     session = core.add_message(session, "user", "Hello slow world")
+    app.save_session(session)
 
     events: list[dict] = []
 
@@ -189,6 +191,7 @@ def test_failure_then_resume(tmp_path: Path) -> None:
 
     core, base_config, session = app.create_session("default")
     session = core.add_message(session, "user", "Hi failing provider")
+    app.save_session(session)
 
     events1 = list(app.send_request(core, session, base_config, overrides=None, stream=False))
     kinds1 = {ev.get("type") for ev in events1}
@@ -215,6 +218,7 @@ def test_cancel_request_interrupts_silent_running_tool(tmp_path: Path) -> None:
         "function": {"name": "block_until_cancel", "arguments": json.dumps({})},
     }
     session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    app.save_session(session)
 
     events: list[dict] = []
     request_id = "req_tool_cancel_silent"
@@ -254,6 +258,7 @@ def test_cancel_request_interrupts_silent_running_tool(tmp_path: Path) -> None:
 
     _core2, _base2, session2 = app.create_session("default")
     session2 = core.add_message(session2, "user", "Hello after cancel")
+    app.save_session(session2)
     events2 = list(
         app.send_request(
             core,
@@ -286,6 +291,7 @@ def test_cancel_request_interrupts_tool_after_partial_output(tmp_path: Path) -> 
         },
     }
     session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    app.save_session(session)
 
     events: list[dict] = []
     request_id = "req_tool_cancel_partial"
@@ -337,6 +343,7 @@ def test_cancel_request_interrupts_silent_running_provider(tmp_path: Path) -> No
 
     core, base_config, session = app.create_session("default")
     session = core.add_message(session, "user", "Cancel provider call")
+    app.save_session(session)
 
     request_id = "req_provider_cancel_silent"
     events: list[dict] = []
@@ -396,6 +403,7 @@ def test_cancel_request_interrupts_provider_after_partial_output(tmp_path: Path)
 
     core, base_config, session = app.create_session("default")
     session = core.add_message(session, "user", "Cancel provider stream after partial")
+    app.save_session(session)
 
     request_id = "req_provider_cancel_partial"
     events: list[dict] = []
@@ -453,6 +461,7 @@ def test_cancel_request_interrupts_non_streaming_provider_call(tmp_path: Path) -
 
     core, base_config, session = app.create_session("default")
     session = core.add_message(session, "user", "Cancel blocking non-stream provider")
+    app.save_session(session)
 
     request_id = "req_provider_cancel_nonstream"
     events: list[dict] = []
@@ -509,8 +518,10 @@ def test_provider_cancellation_is_request_scoped(tmp_path: Path) -> None:
 
     core, base_config, session1 = app.create_session("default")
     session1 = core.add_message(session1, "user", "first request")
+    app.save_session(session1)
     _core2, _base2, session2 = app.create_session("default")
     session2 = core.add_message(session2, "user", "second request")
+    app.save_session(session2)
 
     events1: list[dict] = []
     events2: list[dict] = []

@@ -31,15 +31,24 @@ CORE_PY = ROOT / "core/python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
+from agent_app.sessions import FilesystemSnapshotSelectionStore
 from agent_core import Message, Session
 
 # Make dotted-path test plugins available to the application plugin loader.
 from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: F401
-from tests.dummy_provider import CancellableBlockingProvider, DummyProvider  # noqa: F401
+from tests.dummy_provider import (
+    CancellableBlockingProvider,
+    DummyProvider,
+)  # noqa: F401
+from tests.dummy_tool import DummyCalculator  # noqa: F401
+
+
+def _store_events(store: Any, **kwargs: Any) -> list[Dict[str, Any]]:
+    return list((store.list(**kwargs) or {}).get("events") or [])
 
 
 def _make_multi_provider_echo_config(tmp_path: Path) -> Path:
@@ -113,15 +122,124 @@ def _make_interceptor_tool_config(tmp_path: Path) -> Path:
     return path
 
 
-def _wait_for_request_completion(app: AgentApplication, session_id: str, timeout_seconds: float = 10.0) -> None:
+def _wait_for_request_completion(
+    app: AgentApplication, session_id: str, timeout_seconds: float = 10.0
+) -> None:
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
-        events = app.get_event_store().list(session_id=session_id, limit=100)
+        events = _store_events(app.get_event_store(), session_id=session_id, limit=100)
         kinds = {ev.get("type") for ev in events}
         if "final" in kinds or "request_completed" in kinds:
             return
         time.sleep(0.05)
     raise AssertionError("timed out waiting for final/request_completed events")
+
+
+class DelayingSessionStore:
+    """Wrap a session store and add an artificial delay to saves."""
+
+    def __init__(self, inner: Any, *, save_delay_seconds: float) -> None:
+        self._inner = inner
+        self._save_delay_seconds = save_delay_seconds
+
+    def load(
+        self, session_id: str, *, snapshot_id: Optional[str] = None
+    ) -> Optional[Session]:
+        return self._inner.load(session_id, snapshot_id=snapshot_id)
+
+    def save(self, session: Session) -> None:
+        time.sleep(self._save_delay_seconds)
+        self._inner.save(session)
+
+    def delete(self, session_id: str) -> None:
+        self._inner.delete(session_id)
+
+    def get_file_state(
+        self, session_id: str, *, snapshot_id: Optional[str] = None
+    ) -> Any:
+        getter = getattr(self._inner, "get_file_state")
+        return getter(session_id, snapshot_id=snapshot_id)
+
+    def save_backup(
+        self, session: Session, *, request_id: str, suffix: str = "tool-loop-conflict"
+    ) -> Path:
+        saver = getattr(self._inner, "save_backup")
+        return saver(session, request_id=request_id, suffix=suffix)
+
+    def list_snapshots(self, session_id: str) -> Any:
+        return self._inner.list_snapshots(session_id)
+
+    def create_snapshot(
+        self,
+        session: Session,
+        *,
+        reason: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        return self._inner.create_snapshot(session, reason=reason, metadata=metadata)
+
+    def delete_snapshot(self, session_id: str, snapshot_id: str) -> bool:
+        return self._inner.delete_snapshot(session_id, snapshot_id)
+
+
+def _make_slow_dummy_provider_config(tmp_path: Path, *, sleep_per_char: float) -> Path:
+    cfg: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
+        "providers": {
+            "dummy": {
+                "provider": "dummy_provider",
+                "model": "dummy-model",
+                "sleep_per_char": sleep_per_char,
+            }
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+        ],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+    }
+
+    path = tmp_path / "config_slow_dummy_provider.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
+def _make_slow_tool_loop_config(tmp_path: Path, *, sleep_per_char: float) -> Path:
+    cfg: Dict[str, Any] = {
+        "plugin_cache_dir": str(tmp_path / ".plugin_cache"),
+        "providers": {
+            "dummy": {
+                "provider": "dummy_provider",
+                "model": "dummy-model",
+                "sleep_per_char": sleep_per_char,
+            }
+        },
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_tool.DummyCalculator",
+        ],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+    }
+
+    path = tmp_path / "config_slow_tool_loop_provider.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
+def _request_has_completed(app: AgentApplication, session_id: str) -> bool:
+    events = _store_events(app.get_event_store(), session_id=session_id, limit=200)
+    kinds = {ev.get("type") for ev in events}
+    return "final" in kinds or "request_completed" in kinds
+
+
+def _first_history_event(events: list[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    for event in events:
+        if event.get("type") in {"message_appended", "final", "tool_results"}:
+            return event
+    return None
 
 
 def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
@@ -170,7 +288,7 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     deadline = time.time() + 30.0
     final_kinds: set[str] = set()
     while time.time() < deadline:
-        events = app.get_event_store().list(session_id=session_id, limit=100)
+        events = _store_events(app.get_event_store(), session_id=session_id, limit=100)
         final_kinds = {ev.get("type") for ev in events}
         if "final" in final_kinds or "request_completed" in final_kinds:
             break
@@ -194,14 +312,73 @@ def test_server_flow_with_echo_provider(tmp_path: Path) -> None:
     # the exact assistant content here.
 
     # 4) Basic check that events were recorded for this session.
-    events = app.get_event_store().list(session_id=session_id, limit=100)
+    events = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     kinds = {ev.get("type") for ev in events}
     assert "session_created" in kinds
     assert "message_appended" in kinds
     assert "request_started" in kinds or "final" in kinds
 
 
-def test_server_delete_preserves_native_history_with_multiple_loaded_providers(tmp_path: Path) -> None:
+def test_snapshot_selection_routes_resolve_snapshot_and_suppress_live_events(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    config_path = _make_multi_provider_echo_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(
+        str(config_path),
+        str(session_root),
+        snapshot_selection_store=FilesystemSnapshotSelectionStore(
+            session_root / ".snapshots"
+        ),
+    )
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "live message"},
+        app_instance=app,
+    )
+
+    snapshot_resp = server_mod.create_session_snapshot(
+        session_id,
+        {"reason": "manual"},
+        app_instance=app,
+    )
+    snapshot_id = snapshot_resp["snapshot"]["snapshot_id"]
+
+    server_mod.select_session_snapshot(session_id, snapshot_id, app_instance=app)
+
+    messages_resp = server_mod.list_session_messages(session_id, app_instance=app)
+    selected_resp = server_mod.get_selected_session_snapshot(
+        session_id, app_instance=app
+    )
+    events_resp = server_mod.list_events(
+        session_id=session_id, since_id="0", app_instance=app
+    )
+
+    assert messages_resp["readonly"] is True
+    assert messages_resp["snapshot_id"] == snapshot_id
+    assert selected_resp["snapshot_id"] == snapshot_id
+    assert [item["message"]["content"] for item in messages_resp["messages"]] == [
+        "live message"
+    ]
+    assert [ev.get("type") for ev in events_resp["events"]] == [
+        "session_snapshot_selected"
+    ]
+
+    server_mod.clear_selected_session_snapshot(session_id, app_instance=app)
+    cleared_resp = server_mod.list_session_messages(session_id, app_instance=app)
+
+    assert cleared_resp["readonly"] is False
+    assert cleared_resp["snapshot_id"] is None
+
+
+def test_server_delete_preserves_native_history_with_multiple_loaded_providers(
+    tmp_path: Path,
+) -> None:
     from agent_terminal_app import server as server_mod
 
     config_path = _make_multi_provider_echo_config(tmp_path)
@@ -220,7 +397,9 @@ def test_server_delete_preserves_native_history_with_multiple_loaded_providers(t
     assert ctx is not None
     core, _base_config, _session = ctx
     assert len(getattr(core, "_providers")) == 1
-    assert getattr(core, "_providers")[0].plugin_class.__name__ == "EchoOpenAILikeProvider"
+    assert (
+        getattr(core, "_providers")[0].plugin_class.__name__ == "EchoOpenAILikeProvider"
+    )
 
     provider = EchoOpenAILikeProvider()
     native_messages = provider.to_native_messages(
@@ -251,7 +430,9 @@ def test_server_delete_preserves_native_history_with_multiple_loaded_providers(t
         metadata={
             "agent_id": "default",
             "native_messages": native_messages,
-            "native_messages_integrity": core._compute_native_integrity(persisted_messages),
+            "native_messages_integrity": core._compute_native_integrity(
+                persisted_messages
+            ),
         },
     )
     app.save_session(session)
@@ -279,7 +460,10 @@ def test_server_delete_preserves_native_history_with_multiple_loaded_providers(t
     assert final_ctx is not None
     final_core, _final_base_config, final_session = final_ctx
     assert len(getattr(final_core, "_providers")) == 1
-    assert getattr(final_core, "_providers")[0].plugin_class.__name__ == "EchoOpenAILikeProvider"
+    assert (
+        getattr(final_core, "_providers")[0].plugin_class.__name__
+        == "EchoOpenAILikeProvider"
+    )
     assert isinstance((final_session.metadata or {}).get("native_messages"), list)
 
 
@@ -291,7 +475,9 @@ def test_send_request_single_flight_blocks_while_running(tmp_path: Path) -> None
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -315,6 +501,7 @@ def test_send_request_single_flight_blocks_while_running(tmp_path: Path) -> None
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         nonlocal call_count
         call_count += 1
@@ -421,7 +608,9 @@ def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -443,6 +632,7 @@ def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         nonlocal call_count
         call_count += 1
@@ -522,7 +712,9 @@ def test_send_message_endpoint_appends_and_starts_request(tmp_path: Path) -> Non
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -540,6 +732,7 @@ def test_send_message_endpoint_appends_and_starts_request(tmp_path: Path) -> Non
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         nonlocal call_count
         call_count += 1
@@ -610,7 +803,9 @@ def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -627,6 +822,7 @@ def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         nonlocal call_count
         call_count += 1
@@ -698,7 +894,9 @@ def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
     assert server_mod._get_active_send_request_id(session_id) is None
 
 
-def test_send_message_endpoint_idempotency_replays_without_double_append(tmp_path: Path) -> None:
+def test_send_message_endpoint_idempotency_replays_without_double_append(
+    tmp_path: Path,
+) -> None:
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
@@ -706,7 +904,9 @@ def test_send_message_endpoint_idempotency_replays_without_double_append(tmp_pat
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -722,6 +922,7 @@ def test_send_message_endpoint_idempotency_replays_without_double_append(tmp_pat
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         nonlocal call_count
         call_count += 1
@@ -803,7 +1004,9 @@ def test_send_message_endpoint_idempotency_key_reused_with_different_payload_con
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -818,6 +1021,7 @@ def test_send_message_endpoint_idempotency_key_reused_with_different_payload_con
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ):
         yield {
             "type": "request_started",
@@ -893,7 +1097,9 @@ def test_create_session_idempotency_key_replays_session_id(tmp_path: Path) -> No
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     import uuid
 
@@ -916,6 +1122,7 @@ def test_create_session_idempotency_key_replays_session_id(tmp_path: Path) -> No
     assert len(list(session_root.glob("*.json"))) == 1
 
 
+@pytest.mark.integration
 def test_get_session_ui_schema_includes_ui_types(tmp_path: Path) -> None:
     """GET /sessions/{session_id}/ui-schema exposes full UI entries.
 
@@ -933,7 +1140,9 @@ def test_get_session_ui_schema_includes_ui_types(tmp_path: Path) -> None:
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "codex-openrouter"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_ui_schema(session_id, app_instance=app)
@@ -953,6 +1162,7 @@ def test_get_session_ui_schema_includes_ui_types(tmp_path: Path) -> None:
     assert "status_bar" in ui_types
 
 
+@pytest.mark.integration
 def test_get_session_ui_schema_respects_session_overrides(tmp_path: Path) -> None:
     """GET /sessions/{id}/ui-schema returns different elements when overrides change.
 
@@ -968,16 +1178,22 @@ def test_get_session_ui_schema_respects_session_overrides(tmp_path: Path) -> Non
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "codex-openrouter"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # Baseline: no overrides → openrouter_usage contributes footer/status_bar elements.
     resp1 = server_mod.get_session_ui_schema(session_id, app_instance=app)
     elements1 = resp1.get("elements") or []
     from_openrouter_usage1 = [
-        el for el in elements1 if isinstance(el, dict) and el.get("plugin") == "openrouter_usage"
+        el
+        for el in elements1
+        if isinstance(el, dict) and el.get("plugin") == "openrouter_usage"
     ]
-    assert len(from_openrouter_usage1) > 0, "expected openrouter_usage elements without overrides"
+    assert (
+        len(from_openrouter_usage1) > 0
+    ), "expected openrouter_usage elements without overrides"
 
     # Set override that disables usage UI.
     server_mod.patch_session_overrides(
@@ -990,93 +1206,99 @@ def test_get_session_ui_schema_respects_session_overrides(tmp_path: Path) -> Non
     resp2 = server_mod.get_session_ui_schema(session_id, app_instance=app)
     elements2 = resp2.get("elements") or []
     from_openrouter_usage2 = [
-        el for el in elements2 if isinstance(el, dict) and el.get("plugin") == "openrouter_usage"
+        el
+        for el in elements2
+        if isinstance(el, dict) and el.get("plugin") == "openrouter_usage"
     ]
-    assert len(from_openrouter_usage2) == 0, (
-        "expected no openrouter_usage elements when show_usage is false"
-    )
-    assert len(elements2) < len(elements1), (
-        "schema should have fewer elements when usage UI is disabled"
-    )
+    assert (
+        len(from_openrouter_usage2) == 0
+    ), "expected no openrouter_usage elements when show_usage is false"
+    assert len(elements2) < len(
+        elements1
+    ), "schema should have fewer elements when usage UI is disabled"
 
 
+@pytest.mark.integration
 def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
-  """GET /sessions/{id}/config/schema returns flattened config entries.
+    """GET /sessions/{id}/config/schema returns flattened config entries.
 
-  Uses the OpenRouter application-layer config so that plugin config
-  schema entries are present and can be queried by key.
-  """
+    Uses the OpenRouter application-layer config so that plugin config
+    schema entries are present and can be queried by key.
+    """
 
-  from agent_terminal_app import server as server_mod
+    from agent_terminal_app import server as server_mod
 
-  base_dir = Path(server_mod.__file__).resolve().parent
-  config_path = base_dir / "config_openrouter_app_layer.json"
-  session_root = tmp_path / "sessions"
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
 
-  events = InMemoryEventStore()
-  app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-  create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
-  session_id = create_resp["session"]["session_id"]
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
 
-  resp = server_mod.get_session_config_schema(session_id, app_instance=app)
-  schema = resp.get("schema")
-  assert isinstance(schema, list)
+    resp = server_mod.get_session_config_schema(session_id, app_instance=app)
+    schema = resp.get("schema")
+    assert isinstance(schema, list)
 
-  keys = {entry.get("key") for entry in schema if isinstance(entry, dict)}
-  # openrouter_reasoning_extension contributes these keys to the config schema.
-  assert "reasoning_effort" in keys
-  assert "enable_reasoning" in keys
+    keys = {entry.get("key") for entry in schema if isinstance(entry, dict)}
+    # openrouter_reasoning_extension contributes these keys to the config schema.
+    assert "reasoning_effort" in keys
+    assert "enable_reasoning" in keys
 
 
+@pytest.mark.integration
 def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
-  """GET /sessions/{id}/config/schema exposes plugin config entries.
+    """GET /sessions/{id}/config/schema exposes plugin config entries.
 
-  Uses the OpenRouter application-layer config so that real plugin
-  config schema entries are present.
-  """
+    Uses the OpenRouter application-layer config so that real plugin
+    config schema entries are present.
+    """
 
-  from agent_terminal_app import server as server_mod
+    from agent_terminal_app import server as server_mod
 
-  base_dir = Path(server_mod.__file__).resolve().parent
-  config_path = base_dir / "config_openrouter_app_layer.json"
-  session_root = tmp_path / "sessions"
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
 
-  events = InMemoryEventStore()
-  app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-  create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
-  session_id = create_resp["session"]["session_id"]
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
 
-  resp = server_mod.get_session_config_schema(session_id, app_instance=app)
-  schema = resp.get("schema")
-  assert isinstance(schema, list)
+    resp = server_mod.get_session_config_schema(session_id, app_instance=app)
+    schema = resp.get("schema")
+    assert isinstance(schema, list)
 
-  keys = {entry.get("key") for entry in schema if isinstance(entry, dict)}
-  assert "reasoning_effort" in keys
-  assert "enable_reasoning" in keys
+    keys = {entry.get("key") for entry in schema if isinstance(entry, dict)}
+    assert "reasoning_effort" in keys
+    assert "enable_reasoning" in keys
 
 
+@pytest.mark.integration
 def test_get_session_base_config_returns_mapping(tmp_path: Path) -> None:
-  """GET /sessions/{id}/config/base returns a config mapping."""
+    """GET /sessions/{id}/config/base returns a config mapping."""
 
-  from agent_terminal_app import server as server_mod
+    from agent_terminal_app import server as server_mod
 
-  base_dir = Path(server_mod.__file__).resolve().parent
-  config_path = base_dir / "config_openrouter_app_layer.json"
-  session_root = tmp_path / "sessions"
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_openrouter_app_layer.json"
+    session_root = tmp_path / "sessions"
 
-  events = InMemoryEventStore()
-  app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-  create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
-  session_id = create_resp["session"]["session_id"]
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
 
-  resp = server_mod.get_session_base_config(session_id, app_instance=app)
-  cfg = resp.get("config")
-  assert isinstance(cfg, dict)
+    resp = server_mod.get_session_base_config(session_id, app_instance=app)
+    cfg = resp.get("config")
+    assert isinstance(cfg, dict)
 
 
+@pytest.mark.integration
 def test_session_plugins_endpoints_roundtrip(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
@@ -1087,7 +1309,9 @@ def test_session_plugins_endpoints_roundtrip(tmp_path: Path) -> None:
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "codex-openrouter"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     listed = server_mod.get_session_plugins(session_id, app_instance=app)["plugins"]
@@ -1127,7 +1351,9 @@ def test_session_plugins_endpoints_roundtrip(tmp_path: Path) -> None:
 
     deleted_plugins = deleted["plugins"]
     assert isinstance(deleted_plugins, list) and deleted_plugins
-    assert all(p.get("source") != "session" for p in deleted_plugins if isinstance(p, dict))
+    assert all(
+        p.get("source") != "session" for p in deleted_plugins if isinstance(p, dict)
+    )
 
 
 def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -> None:
@@ -1173,7 +1399,7 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
     history = session_dict.get("messages") or []
     assert history, "expected at least one message in the final session"
 
-    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     kinds = {ev.get("type") for ev in evs}
     assert "request_started" in kinds
     assert "final" in kinds or "request_completed" in kinds
@@ -1183,6 +1409,7 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
     assert checkpoint_events, "expected at least one checkpoint event for the session"
 
 
+@pytest.mark.integration
 def test_session_overrides_get_and_patch_round_trip(tmp_path: Path) -> None:
     """GET/PATCH /sessions/{id}/overrides round-trips a single key.
 
@@ -1226,6 +1453,7 @@ def test_session_overrides_get_and_patch_round_trip(tmp_path: Path) -> None:
     assert stored.get("reasoning_effort") == "high"
 
 
+@pytest.mark.integration
 def test_session_overrides_patch_bulk_merges_with_existing(tmp_path: Path) -> None:
     """PATCH /sessions/{id}/overrides merges bulk values with existing.
 
@@ -1265,7 +1493,10 @@ def test_session_overrides_patch_bulk_merges_with_existing(tmp_path: Path) -> No
     assert overrides.get("reasoning_effort") == "medium"
 
 
-def test_delete_session_override_removes_key_and_preserves_others(tmp_path: Path) -> None:
+@pytest.mark.integration
+def test_delete_session_override_removes_key_and_preserves_others(
+    tmp_path: Path,
+) -> None:
     """DELETE /sessions/{id}/overrides/{key} removes a single override key."""
 
     from agent_terminal_app import server as server_mod
@@ -1296,6 +1527,7 @@ def test_delete_session_override_removes_key_and_preserves_others(tmp_path: Path
     assert "reasoning_effort" not in overrides
 
 
+@pytest.mark.integration
 def test_delete_session_override_is_idempotent_for_missing_key(tmp_path: Path) -> None:
     """Deleting a non-existent override key is a no-op."""
 
@@ -1318,6 +1550,7 @@ def test_delete_session_override_is_idempotent_for_missing_key(tmp_path: Path) -
     assert before == after
 
 
+@pytest.mark.integration
 def test_get_session_base_config_returns_mapping(tmp_path: Path) -> None:
     """GET /sessions/{id}/config/base exposes base agent config as mapping."""
 
@@ -1338,7 +1571,10 @@ def test_get_session_base_config_returns_mapping(tmp_path: Path) -> None:
     assert isinstance(cfg, dict)
 
 
-def test_delete_session_override_removes_key_and_preserves_others(tmp_path: Path) -> None:
+@pytest.mark.integration
+def test_delete_session_override_removes_key_and_preserves_others(
+    tmp_path: Path,
+) -> None:
     """DELETE /sessions/{id}/overrides/{key} drops only the requested key."""
 
     from agent_terminal_app import server as server_mod
@@ -1367,6 +1603,7 @@ def test_delete_session_override_removes_key_and_preserves_others(tmp_path: Path
     assert "reasoning_effort" not in overrides
 
 
+@pytest.mark.integration
 def test_delete_session_override_is_idempotent_when_key_missing(tmp_path: Path) -> None:
     """DELETE /sessions/{id}/overrides/{key} is idempotent for missing keys."""
 
@@ -1383,7 +1620,9 @@ def test_delete_session_override_is_idempotent_when_key_missing(tmp_path: Path) 
     session_id = create_resp["session"]["session_id"]
 
     # No overrides set; deleting a non-existent key should not fail.
-    resp = server_mod.delete_session_override(session_id, "nonexistent", app_instance=app)
+    resp = server_mod.delete_session_override(
+        session_id, "nonexistent", app_instance=app
+    )
     assert isinstance(resp.get("session"), dict)
 
 
@@ -1404,7 +1643,9 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -1418,7 +1659,7 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
     # Run the helper synchronously to drive the non-streaming request.
     server_mod._run_send_request_background(app, session_id, {})
 
-    evs = app.get_event_store().list(session_id=session_id, limit=200)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=200)
     final_events = [ev for ev in evs if ev.get("type") == "final"]
     checkpoint_events = [ev for ev in evs if ev.get("type") == "checkpoint"]
 
@@ -1428,21 +1669,15 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
     last_final = final_events[-1]
     last_checkpoint = checkpoint_events[-1]
 
-    def _to_int(value: Any) -> int:
-        try:
-            return int(value)
-        except Exception:
-            return -1
-
-    assert _to_int(last_checkpoint.get("event_id")) > _to_int(
-        last_final.get("event_id")
-    )
+    assert evs.index(last_checkpoint) > evs.index(last_final)
 
     resp = server_mod.list_session_messages(session_id, app_instance=app)
     assert resp["cursor_event_id"] == last_checkpoint.get("event_id")
 
 
-def test_run_send_request_background_merges_session_and_http_overrides(tmp_path: Path) -> None:
+def test_run_send_request_background_merges_session_and_http_overrides(
+    tmp_path: Path,
+) -> None:
     """Background send merges metadata overrides with HTTP overrides.
 
     The per-session overrides stored in session.metadata["overrides"]
@@ -1458,7 +1693,9 @@ def test_run_send_request_background_merges_session_and_http_overrides(tmp_path:
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -1488,6 +1725,7 @@ def test_run_send_request_background_merges_session_and_http_overrides(tmp_path:
         overrides_arg: Dict[str, Any] | None,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ) -> list[dict[str, Any]]:
         captured["overrides"] = overrides_arg
         return []
@@ -1503,7 +1741,9 @@ def test_run_send_request_background_merges_session_and_http_overrides(tmp_path:
     assert merged == {"foo": "session", "both": "http", "bar": "http"}
 
 
-def test_run_send_request_background_uses_session_overrides_when_http_empty(tmp_path: Path) -> None:
+def test_run_send_request_background_uses_session_overrides_when_http_empty(
+    tmp_path: Path,
+) -> None:
     """Background send uses only session overrides when HTTP none provided."""
 
     from agent_terminal_app import server as server_mod
@@ -1514,7 +1754,9 @@ def test_run_send_request_background_uses_session_overrides_when_http_empty(tmp_
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -1543,6 +1785,7 @@ def test_run_send_request_background_uses_session_overrides_when_http_empty(tmp_
         overrides_arg: Dict[str, Any] | None,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ) -> list[dict[str, Any]]:
         captured["overrides"] = overrides_arg
         return []
@@ -1555,7 +1798,9 @@ def test_run_send_request_background_uses_session_overrides_when_http_empty(tmp_
     assert merged == {"alpha": 1, "beta": 2}
 
 
-def test_list_session_messages_includes_cursor_event_id_after_request(tmp_path: Path) -> None:
+def test_list_session_messages_includes_cursor_event_id_after_request(
+    tmp_path: Path,
+) -> None:
     """GET /sessions/{session_id}/messages returns cursor_event_id.
 
     The test runs a request to completion using the background helper
@@ -1584,7 +1829,7 @@ def test_list_session_messages_includes_cursor_event_id_after_request(tmp_path: 
 
     server_mod._run_send_request_background(app, session_id, {})
 
-    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     checkpoint_events = [ev for ev in evs if ev.get("type") == "checkpoint"]
     assert checkpoint_events, "expected at least one checkpoint event for the session"
     last_id = checkpoint_events[-1].get("event_id")
@@ -1612,7 +1857,9 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     # Create a session and append a single user message.
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
@@ -1625,9 +1872,11 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
     )
 
     # Monkeypatch AgentApplication.send_request to capture the generated
-    # events without running a real provider. We simulate the core
-    # contract: initial request_started, one session_checkpoint, final,
-    # request_completed.
+    # events without running a real provider. The stub mirrors the
+    # current application contract:
+    # - application-owned checkpoints are recorded during the request
+    # - a final null-request checkpoint is recorded after completion
+    # - session_checkpoint remains informational only
     captured_events: list[Dict[str, Any]] = []
 
     def _fake_send_request(
@@ -1638,8 +1887,10 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
         *,
         stream: bool = True,
         request_id: str | None = None,
+        baseline_file_state: Any = None,
     ) -> list[Dict[str, Any]]:
         rid = request_id or "req-test"
+        app.record_checkpoint(session_id, rid)
         # request_started
         captured_events.append(
             {
@@ -1675,20 +1926,21 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
                 "request_id": rid,
             }
         )
+        app.record_checkpoint(session_id, None)
         # The helper iterates over this list.
         return iter(captured_events)  # type: ignore[return-value]
 
     app.send_request = _fake_send_request  # type: ignore[assignment]
 
-    # Drive the background helper once. This should:
-    # - persist a checkpoint with request_id == rid during the request
-    # - then record a post-completion checkpoint with request_id None
+    # Drive the background helper once. The stubbed application layer
+    # records an in-request checkpoint and then a post-completion
+    # checkpoint with request_id None.
     server_mod._run_send_request_background(app, session_id, {})
 
     # Verify that at least one checkpoint exists with a non-null request_id
     # (during the request) and that the last checkpoint has request_id None
     # due to the post-completion marker.
-    evs = app.get_event_store().list(session_id=session_id, limit=200)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=200)
     checkpoints = [ev for ev in evs if ev.get("type") == "checkpoint"]
     assert checkpoints, "expected checkpoint events for the session"
 
@@ -1702,6 +1954,276 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
     resp = server_mod.list_session_messages(session_id, app_instance=app)
     assert resp["cursor_event_id"] == checkpoints[-1].get("event_id")
     assert resp.get("active_request_id") is None
+
+
+def test_messages_snapshots_stay_aligned_with_cursor_across_delayed_events_matrix(
+    tmp_path: Path,
+) -> None:
+    """Snapshots from /messages must align with their advertised cursor.
+
+    This regression widens the persistence window by delaying session saves,
+    then samples `/messages` during an in-flight request. For each sampled
+    snapshot, it queries `/events` after several delays and verifies that the
+    first history-mutating event after the snapshot cursor, if any, begins
+    exactly at the next expected message index.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    config_path = _make_slow_dummy_provider_config(tmp_path, sleep_per_char=0.02)
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
+    app._session_store = DelayingSessionStore(  # type: ignore[attr-defined]
+        app._session_store,  # type: ignore[attr-defined]
+        save_delay_seconds=0.15,
+    )
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    send_resp = server_mod.send_message(
+        session_id,
+        {
+            "message": {
+                "role": "user",
+                "content": "alignment-check " * 4,
+            },
+        },
+        app_instance=app,
+    )
+    assert send_resp.get("status") == "started"
+
+    delays = [0.0, 0.1, 0.5]
+    seen_samples: set[tuple[str, int, int]] = set()
+    observation_lock = threading.Lock()
+    observations: list[Dict[str, Any]] = []
+    workers: list[threading.Thread] = []
+
+    def _capture_events(snapshot: Dict[str, Any], delay_seconds: float) -> None:
+        time.sleep(delay_seconds)
+        events_resp = server_mod.list_events(
+            since_id=snapshot["cursor_event_id"],
+            session_id=session_id,
+            limit=100,
+            app_instance=app,
+        )
+        with observation_lock:
+            observations.append(
+                {
+                    "delay_seconds": delay_seconds,
+                    "cursor_event_id": snapshot["cursor_event_id"],
+                    "messages": snapshot["messages"],
+                    "events": events_resp.get("events") or [],
+                }
+            )
+
+    deadline = time.time() + 10.0
+    while time.time() < deadline:
+        snapshot = server_mod.list_session_messages(
+            session_id,
+            start=-50,
+            app_instance=app,
+        )
+        cursor_event_id = snapshot.get("cursor_event_id")
+        messages = snapshot.get("messages") or []
+        last_index = messages[-1]["index"] if messages else -1
+        sample_key = (
+            cursor_event_id or "",
+            len(messages),
+            last_index,
+        )
+        if cursor_event_id and sample_key not in seen_samples:
+            seen_samples.add(sample_key)
+            for delay_seconds in delays:
+                worker = threading.Thread(
+                    target=_capture_events,
+                    args=(snapshot, delay_seconds),
+                    daemon=True,
+                )
+                worker.start()
+                workers.append(worker)
+
+        if _request_has_completed(app, session_id):
+            break
+        time.sleep(0.05)
+
+    _wait_for_request_completion(app, session_id, timeout_seconds=10.0)
+
+    for worker in workers:
+        worker.join(timeout=2.0)
+
+    assert observations, "expected at least one sampled snapshot/events observation"
+
+    for observation in observations:
+        first_event = _first_history_event(observation["events"])
+        if first_event is None:
+            continue
+
+        messages = observation["messages"] or []
+        next_index = (messages[-1]["index"] + 1) if messages else 0
+        if first_event.get("type") == "message_appended":
+            observed_index = first_event.get("index")
+        else:
+            observed_index = first_event.get("start_index")
+
+        assert observed_index == next_index, (
+            "snapshot history was not aligned with cursor_event_id: "
+            f"delay={observation['delay_seconds']} cursor={observation['cursor_event_id']} "
+            f"next_index={next_index} first_event={first_event}"
+        )
+
+
+def test_tool_loop_snapshots_can_expose_history_ahead_of_cursor_when_checkpoint_lags(
+    tmp_path: Path,
+) -> None:
+    """Tool-loop snapshots should stay aligned even if checkpoint publication is slow.
+
+    This regression widens the exact suspected race: session persistence for a
+    checkpointed phase has already completed, but public checkpoint publication
+    lags. We then sample `/messages` and verify that the returned snapshot does
+    not already contain messages whose history-mutating event is still after the
+    advertised cursor.
+    """
+
+    from agent_terminal_app import server as server_mod
+
+    config_path = _make_slow_tool_loop_config(tmp_path, sleep_per_char=0.01)
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
+
+    original_record_checkpoint = app.record_checkpoint
+
+    def _delayed_record_checkpoint(
+        session_id: str, request_id: Optional[str]
+    ) -> Optional[str]:
+        time.sleep(0.15)
+        return original_record_checkpoint(session_id, request_id)
+
+    app.record_checkpoint = _delayed_record_checkpoint  # type: ignore[assignment]
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    tool_call = {
+        "id": "call_add",
+        "type": "function",
+        "function": {"name": "add", "arguments": json.dumps({"a": 2, "b": 3})},
+    }
+    ctx = app.load_session(session_id)
+    assert ctx is not None
+    _core, _base_config, session = ctx
+    session = Session(
+        session_id=session.session_id,
+        messages=[
+            Message(
+                role="assistant",
+                content="Running tools.",
+                metadata={"tool_calls": [tool_call]},
+            )
+        ],
+        metadata=session.metadata,
+    )
+    app.save_session(session)
+
+    send_resp = server_mod.send_request(
+        session_id, {"config_overrides": {}}, app_instance=app
+    )
+    assert send_resp.get("status") == "started"
+
+    delays = [0.0, 0.1, 0.5]
+    observation_lock = threading.Lock()
+    observations: list[Dict[str, Any]] = []
+    stop_sampling = threading.Event()
+
+    def _sample_snapshots() -> None:
+        while not stop_sampling.is_set():
+            snapshot = server_mod.list_session_messages(
+                session_id,
+                start=-50,
+                app_instance=app,
+            )
+            cursor_event_id = snapshot.get("cursor_event_id")
+            if cursor_event_id:
+                for delay_seconds in delays:
+                    events_resp = (
+                        server_mod.list_events(
+                            since_id=cursor_event_id,
+                            session_id=session_id,
+                            limit=200,
+                            app_instance=app,
+                        )
+                        if delay_seconds == 0.0
+                        else None
+                    )
+
+                    if delay_seconds > 0.0:
+                        time.sleep(delay_seconds)
+                        events_resp = server_mod.list_events(
+                            since_id=cursor_event_id,
+                            session_id=session_id,
+                            limit=200,
+                            app_instance=app,
+                        )
+
+                    with observation_lock:
+                        observations.append(
+                            {
+                                "delay_seconds": delay_seconds,
+                                "cursor_event_id": cursor_event_id,
+                                "messages": snapshot.get("messages") or [],
+                                "events": (events_resp or {}).get("events") or [],
+                            }
+                        )
+            time.sleep(0.02)
+
+    sampler = threading.Thread(target=_sample_snapshots, daemon=True)
+    sampler.start()
+
+    _wait_for_request_completion(app, session_id, timeout_seconds=15.0)
+    stop_sampling.set()
+    sampler.join(timeout=2.0)
+
+    assert observations, "expected at least one tool-loop snapshot observation"
+    event_types = {
+        ev.get("type")
+        for ev in _store_events(app.get_event_store(), session_id=session_id, limit=200)
+    }
+    assert "tool_results" in event_types
+
+    misaligned: list[Dict[str, Any]] = []
+    for observation in observations:
+        first_event = _first_history_event(observation["events"])
+        if first_event is None:
+            continue
+
+        messages = observation["messages"] or []
+        next_index = (messages[-1]["index"] + 1) if messages else 0
+        if first_event.get("type") == "message_appended":
+            observed_index = first_event.get("index")
+        else:
+            observed_index = first_event.get("start_index")
+
+        if observed_index != next_index:
+            misaligned.append(
+                {
+                    "delay_seconds": observation["delay_seconds"],
+                    "cursor_event_id": observation["cursor_event_id"],
+                    "next_index": next_index,
+                    "first_event": first_event,
+                }
+            )
+
+    assert (
+        not misaligned
+    ), f"found misaligned tool-loop snapshot/cursor observations: {misaligned[:3]}"
 
 
 def test_events_endpoint_bootstrap_returns_latest_event_id(tmp_path: Path) -> None:
@@ -1748,9 +2270,13 @@ def test_events_endpoint_bootstrap_returns_latest_event_id(tmp_path: Path) -> No
     # The latest event id should correspond to the last event published
     # in the store.
     assert isinstance(latest_event_id, str) and latest_event_id
+    assert ":" in latest_event_id
+    assert resp.get("cursor_expired") is False
 
 
-def test_events_endpoint_uses_session_cursor_as_default_since_id(tmp_path: Path) -> None:
+def test_events_endpoint_uses_session_cursor_as_default_since_id(
+    tmp_path: Path,
+) -> None:
     """GET /events?session_id=... uses cursor when since_id omitted.
 
     After a checkpoint is recorded for a session, polling /events for
@@ -1765,7 +2291,9 @@ def test_events_endpoint_uses_session_cursor_as_default_since_id(tmp_path: Path)
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -1798,6 +2326,77 @@ def test_events_endpoint_uses_session_cursor_as_default_since_id(tmp_path: Path)
     # Older events (including the checkpoint itself) should not be
     # included in this batch.
     assert cursor_id not in returned_ids
+    assert resp.get("cursor_expired") is False
+
+
+def test_events_endpoint_filtered_empty_response_still_includes_latest_event_id(
+    tmp_path: Path,
+) -> None:
+    """Filtered /events responses include a bootstrap cursor even when empty."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore()
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    # Publish an unrelated event so the global store has a latest event id,
+    # while the target session still has no matching events after filtering.
+    other = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    other_session_id = other["session"]["session_id"]
+    marker = app.publish_event({"type": "debug_marker", "session_id": other_session_id})
+
+    resp = server_mod.list_events(session_id=session_id, app_instance=app)
+
+    assert resp.get("events") == []
+    assert resp.get("latest_event_id") == marker.get("event_id")
+    assert resp.get("cursor_expired") is False
+
+
+def test_events_endpoint_reports_cursor_expired_for_pruned_same_store_cursor(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events_store = InMemoryEventStore(max_events_global=2)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
+
+    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create_resp["session"]["session_id"]
+
+    first = app.publish_event(
+        {"type": "message_appended", "session_id": session_id, "index": 0}
+    )
+    second = app.publish_event(
+        {"type": "request_started", "session_id": session_id, "request_id": "r1"}
+    )
+    third = app.publish_event({"type": "checkpoint", "session_id": session_id})
+
+    resp = server_mod.list_events(
+        session_id=session_id,
+        since_id=first.get("event_id"),
+        app_instance=app,
+    )
+
+    returned_ids = [ev.get("event_id") for ev in (resp.get("events") or [])]
+    assert resp.get("cursor_expired") is True
+    assert resp.get("latest_event_id") == third.get("event_id")
+    assert second.get("event_id") in returned_ids
+    assert third.get("event_id") in returned_ids
 
 
 def test_events_endpoint_compacts_partials(tmp_path: Path) -> None:
@@ -1814,7 +2413,9 @@ def test_events_endpoint_compacts_partials(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -1868,7 +2469,9 @@ def test_events_endpoint_merges_consecutive_partials(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -1932,7 +2535,9 @@ def test_events_endpoint_respects_compaction_flags(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -1986,7 +2591,9 @@ def test_events_endpoint_compacts_tool_partials(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -2056,7 +2663,9 @@ def test_events_endpoint_preserves_inflight_partials(tmp_path: Path) -> None:
     session_root = tmp_path / "sessions"
 
     events_store = InMemoryEventStore()
-    app = AgentApplication(str(config_path), str(session_root), event_store=events_store)
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=events_store
+    )
 
     create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
     session_id = create_resp["session"]["session_id"]
@@ -2095,7 +2704,9 @@ def test_events_endpoint_preserves_inflight_partials(tmp_path: Path) -> None:
     assert "tool_partial" in types
 
 
-def test_list_sessions_endpoint_returns_metadata_for_created_sessions(tmp_path: Path) -> None:
+def test_list_sessions_endpoint_returns_metadata_for_created_sessions(
+    tmp_path: Path,
+) -> None:
     """GET /sessions returns basic metadata for stored sessions.
 
     The test creates two sessions with user messages via the existing
@@ -2148,7 +2759,9 @@ def test_list_sessions_endpoint_returns_metadata_for_created_sessions(tmp_path: 
     assert isinstance(metadata_by_id[session_id2], dict)
 
 
-def test_list_sessions_endpoint_uses_cached_entries_when_unchanged(tmp_path: Path) -> None:
+def test_list_sessions_endpoint_uses_cached_entries_when_unchanged(
+    tmp_path: Path,
+) -> None:
     """GET /sessions reuses cached summaries when files are unchanged.
 
     This test exercises the caching layer indirectly by calling the
@@ -2213,7 +2826,9 @@ def test_list_sessions_endpoint_uses_cached_entries_when_unchanged(tmp_path: Pat
 
     second = server_mod.list_sessions(app_instance=app)
     sessions_second = second["sessions"]
-    preview_second = {entry["session_id"]: entry["preview"] for entry in sessions_second}
+    preview_second = {
+        entry["session_id"]: entry["preview"] for entry in sessions_second
+    }
 
     # The first session was not modified; its preview should remain the
     # same across calls.
@@ -2224,7 +2839,9 @@ def test_list_sessions_endpoint_uses_cached_entries_when_unchanged(tmp_path: Pat
     assert preview_second[session_id2] == "second session after"
 
 
-def test_list_sessions_endpoint_strips_native_messages_from_metadata(tmp_path: Path) -> None:
+def test_list_sessions_endpoint_strips_native_messages_from_metadata(
+    tmp_path: Path,
+) -> None:
     """GET /sessions does not include heavy native_messages metadata.
 
     Some providers store a full copy of the conversation under
@@ -2252,19 +2869,17 @@ def test_list_sessions_endpoint_strips_native_messages_from_metadata(tmp_path: P
     raw = json.loads(session_path.read_text(encoding="utf-8"))
     meta = raw.get("metadata") or {}
     if not isinstance(meta, dict):
-      meta = {}
+        meta = {}
     meta["native_messages"] = [
-      {"role": "system", "content": "x" * 1000},
-      {"role": "user", "content": "y" * 1000},
+        {"role": "system", "content": "x" * 1000},
+        {"role": "user", "content": "y" * 1000},
     ]
     raw["metadata"] = meta
     session_path.write_text(json.dumps(raw), encoding="utf-8")
 
     resp = server_mod.list_sessions(app_instance=app)
     sessions = resp["sessions"]
-    meta_by_id = {
-      entry["session_id"]: entry.get("metadata") for entry in sessions
-    }
+    meta_by_id = {entry["session_id"]: entry.get("metadata") for entry in sessions}
     assert session_id in meta_by_id
     meta_out = meta_by_id[session_id]
     assert isinstance(meta_out, dict)
@@ -2303,7 +2918,7 @@ def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
     )
 
     # Inspect raw events for this session.
-    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     appended = [ev for ev in evs if ev.get("type") == "message_appended"]
     checkpoints = [ev for ev in evs if ev.get("type") == "checkpoint"]
 
@@ -2317,22 +2932,16 @@ def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
     assert isinstance(last_appended.get("index"), int)
     assert isinstance(last_appended.get("message"), dict)
 
-    def _to_int(value: Any) -> int:
-        try:
-            return int(value)
-        except Exception:
-            return -1
-
-    assert _to_int(last_checkpoint.get("event_id")) > _to_int(
-        last_appended.get("event_id")
-    )
+    assert evs.index(last_checkpoint) > evs.index(last_appended)
 
     # The messages endpoint should expose the same cursor_event_id.
     resp = server_mod.list_session_messages(session_id, app_instance=app)
     assert resp["cursor_event_id"] == last_checkpoint.get("event_id")
 
 
-def test_add_message_accepts_multipart_content_and_allows_empty_content(tmp_path: Path) -> None:
+def test_add_message_accepts_multipart_content_and_allows_empty_content(
+    tmp_path: Path,
+) -> None:
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
@@ -2355,7 +2964,12 @@ def test_add_message_accepts_multipart_content_and_allows_empty_content(tmp_path
 
     resp = server_mod.add_message(
         session_id,
-        {"role": "user", "content": "", "multipartContent": multipart, "metadata": None},
+        {
+            "role": "user",
+            "content": "",
+            "multipartContent": multipart,
+            "metadata": None,
+        },
         app_instance=app,
     )
 
@@ -2365,7 +2979,7 @@ def test_add_message_accepts_multipart_content_and_allows_empty_content(tmp_path
     assert last["content"] == ""
     assert last.get("multipartContent") == multipart
 
-    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     appended = [ev for ev in evs if ev.get("type") == "message_appended"]
     assert appended, "expected message_appended event"
     msg = appended[-1].get("message")
@@ -2458,7 +3072,10 @@ def test_cancel_request_endpoint_triggers_cancellation(tmp_path: Path) -> None:
 
     # Prepare a simple session with one user message.
     core, base_config, session = app.create_session("default")
-    session = core.add_message(session, "user", "hello", metadata=None, config=base_config)
+    session = core.add_message(
+        session, "user", "hello", metadata=None, config=base_config
+    )
+    app.save_session(session)
 
     request_id = "test-request-id-123"
 
@@ -2482,7 +3099,9 @@ def test_cancel_request_endpoint_triggers_cancellation(tmp_path: Path) -> None:
     assert "final" not in kinds
 
 
-def test_cancel_request_endpoint_cancels_active_provider_request(tmp_path: Path) -> None:
+def test_cancel_request_endpoint_cancels_active_provider_request(
+    tmp_path: Path,
+) -> None:
     """POST /requests/{request_id}/cancel interrupts an already-active request."""
 
     from agent_terminal_app import server as server_mod
@@ -2494,7 +3113,9 @@ def test_cancel_request_endpoint_cancels_active_provider_request(tmp_path: Path)
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
     core, base_config, session = app.create_session("default")
-    session = core.add_message(session, "user", "cancel active provider request", metadata=None)
+    session = core.add_message(
+        session, "user", "cancel active provider request", metadata=None
+    )
     app.save_session(session)
     session_id = session.session_id
 
@@ -2509,7 +3130,9 @@ def test_cancel_request_endpoint_cancels_active_provider_request(tmp_path: Path)
     saw_started = False
     saw_active = False
     while time.time() < deadline:
-        current_events = app.get_event_store().list(session_id=session_id, limit=100)
+        current_events = _store_events(
+            app.get_event_store(), session_id=session_id, limit=100
+        )
         kinds = {ev.get("type") for ev in current_events}
         if "request_started" in kinds:
             saw_started = True
@@ -2527,13 +3150,17 @@ def test_cancel_request_endpoint_cancels_active_provider_request(tmp_path: Path)
     deadline = time.time() + 5.0
     final_events: list[dict] = []
     while time.time() < deadline:
-        final_events = app.get_event_store().list(session_id=session_id, limit=100)
+        final_events = _store_events(
+            app.get_event_store(), session_id=session_id, limit=100
+        )
         kinds = {ev.get("type") for ev in final_events}
         if "request_completed" in kinds:
             break
         time.sleep(0.05)
     else:
-        raise AssertionError("timed out waiting for request_completed after cancellation")
+        raise AssertionError(
+            "timed out waiting for request_completed after cancellation"
+        )
 
     final_kinds = {ev.get("type") for ev in final_events}
     assert "request_cancelled" in final_kinds
@@ -2561,7 +3188,9 @@ def test_get_api_data_returns_initial_state() -> None:
     from agent_terminal_app.server import app as fastapi_app
 
     # Reset the global store to a predictable state for this test.
-    server_mod._bonjour_data_store = server_mod.DataStore({"message": "Initial data", "count": 0})
+    server_mod._bonjour_data_store = server_mod.DataStore(
+        {"message": "Initial data", "count": 0}
+    )
 
     client = TestClient(fastapi_app)
     resp = client.get("/api/data")
@@ -2580,7 +3209,9 @@ def test_put_api_data_updates_store() -> None:
     from agent_terminal_app import server as server_mod
     from agent_terminal_app.server import app as fastapi_app
 
-    server_mod._bonjour_data_store = server_mod.DataStore({"message": "Initial data", "count": 0})
+    server_mod._bonjour_data_store = server_mod.DataStore(
+        {"message": "Initial data", "count": 0}
+    )
 
     client = TestClient(fastapi_app)
 
@@ -2629,6 +3260,7 @@ MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
 REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
 REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
 
+
 def _which(cmd: str) -> Optional[str]:
     import shutil
 
@@ -2638,7 +3270,9 @@ def _which(cmd: str) -> Optional[str]:
 def _run(cmd: list[str], timeout: int = 120):
     import subprocess
 
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -2661,8 +3295,11 @@ def ensure_ollama_model() -> None:
         pytest.skip(f"could not pull model {MODEL_TOOLS}: {e}")
 
 
+@pytest.mark.integration
 @pytest.mark.ollama
-def test_http_flow_with_tools_and_reasoning(ensure_ollama_model: None, tmp_path: Path) -> None:
+def test_http_flow_with_tools_and_reasoning(
+    ensure_ollama_model: None, tmp_path: Path
+) -> None:
     """End-to-end HTTP flow exercising tools and reasoning.
 
     The flow uses the real FastAPI app with config_openrouter_app_layer.json
@@ -2711,7 +3348,9 @@ def test_http_flow_with_tools_and_reasoning(ensure_ollama_model: None, tmp_path:
     session_root = tmp_path / "sessions"
 
     event_store = InMemoryEventStore()
-    app_instance = AgentApplication(str(config_path), str(session_root), event_store=event_store)
+    app_instance = AgentApplication(
+        str(config_path), str(session_root), event_store=event_store
+    )
 
     # Wire the custom AgentApplication into the FastAPI app via dependency override.
     from agent_terminal_app.server import app, get_agent_app
@@ -2727,7 +3366,9 @@ def test_http_flow_with_tools_and_reasoning(ensure_ollama_model: None, tmp_path:
             "Never guess. You also include brief reasoning in your metadata."
         )
 
-        resp = client.post("/sessions", json={"agent_id": "default", "system_message": system_message})
+        resp = client.post(
+            "/sessions", json={"agent_id": "default", "system_message": system_message}
+        )
         assert resp.status_code == 200
         session_id = resp.json()["session"]["session_id"]
 
@@ -2764,7 +3405,9 @@ def test_http_flow_with_tools_and_reasoning(ensure_ollama_model: None, tmp_path:
         send_resp_container: dict[str, Any] = {}
 
         def _run_send() -> None:
-            r = client.post(f"/sessions/{session_id}/send", json={"config_overrides": overrides})
+            r = client.post(
+                f"/sessions/{session_id}/send", json={"config_overrides": overrides}
+            )
             send_resp_container["response"] = r
 
         send_thread = threading.Thread(target=_run_send)
@@ -2842,7 +3485,9 @@ def test_http_flow_with_tools_and_reasoning(ensure_ollama_model: None, tmp_path:
         shared_app.dependency_overrides.clear()
 
 
-def test_update_message_endpoint_modifies_content_and_emits_event(tmp_path: Path) -> None:
+def test_update_message_endpoint_modifies_content_and_emits_event(
+    tmp_path: Path,
+) -> None:
     """PATCH /sessions/{session_id}/messages/{index} updates message content.
 
     The test creates a session with a system and two user messages,
@@ -2891,7 +3536,7 @@ def test_update_message_endpoint_modifies_content_and_emits_event(tmp_path: Path
     assert contents == ["system", "one", "two modified"]
 
     # Check that a message_modified event was recorded with the expected index.
-    evs = app.get_event_store().list(session_id=session_id, limit=100)
+    evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     modified = [ev for ev in evs if ev.get("type") == "message_modified"]
     assert modified, "expected at least one message_modified event"
     last_ev = modified[-1]
@@ -2901,7 +3546,9 @@ def test_update_message_endpoint_modifies_content_and_emits_event(tmp_path: Path
     assert isinstance(last_ev.get("message"), dict)
 
 
-def test_delete_messages_endpoint_supports_indices_range_and_last(tmp_path: Path) -> None:
+def test_delete_messages_endpoint_supports_indices_range_and_last(
+    tmp_path: Path,
+) -> None:
     """DELETE /sessions/{session_id}/messages handles all deletion modes.
 
     The test exercises the ``indices``, ``range``, and ``last`` shapes
@@ -3038,7 +3685,7 @@ def test_fork_session_endpoint_creates_truncated_copy(tmp_path: Path) -> None:
     assert forked_contents == ["system", "one", "two"]
 
     # A session_created event for the fork should be present.
-    evs = app.get_event_store().list(session_id=forked_id, limit=20)
+    evs = _store_events(app.get_event_store(), session_id=forked_id, limit=20)
     created = [ev for ev in evs if ev.get("type") == "session_created"]
     assert created, "expected a session_created event for forked session"
     assert created[-1].get("source_session_id") == source_id
@@ -3088,7 +3735,9 @@ def test_agent_endpoints_list_and_switch_agents(tmp_path: Path) -> None:
     assert md.get("agent_id") == "alt"
 
 
-def test_get_session_agent_returns_value_even_if_agent_is_unknown(tmp_path: Path) -> None:
+def test_get_session_agent_returns_value_even_if_agent_is_unknown(
+    tmp_path: Path,
+) -> None:
     """GET /sessions/{id}/agent should not require agent config resolution."""
 
     from agent_terminal_app import server as server_mod
@@ -3169,7 +3818,3 @@ def test_send_request_returns_400_when_agent_is_unknown(tmp_path: Path) -> None:
         server_mod.send_request(session_id, app_instance=app)
     assert excinfo.value.status_code == 400
     assert "Unknown agent_id" in str(excinfo.value.detail)
-
-
-
-

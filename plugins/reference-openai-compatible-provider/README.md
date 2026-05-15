@@ -10,6 +10,10 @@ Supports:
 - OpenAI-style tool calling
 - generic reasoning metadata extraction and preservation when providers return reasoning fields
 - generic usage metadata extraction when providers return `usage`
+- image attachments for OpenAI-compatible chat completions
+  - remote image URLs
+  - inline/data-URL images
+  - session-owned uploaded images stored locally by the application and inlined at send time
 
 Reasoning, tools, and usage are provider- and model-dependent.
 
@@ -92,6 +96,11 @@ These keys are read by `reference_openai_compatible_provider.provider.OpenAIComp
   - keys:
     - `mode`: `"disabled"`, `"early_only"`, or `"aggressive"`
     - `max_retries`: maximum number of stream recovery attempts when recovery is enabled
+- `allow_image_attachment_base64` (boolean, optional): allow inline/data-URL image attachments
+  - default: `true`
+  - also controls client-uploaded image attachments, because stored session assets are sent inline
+- `allow_image_attachment_url` (boolean, optional): allow remote image URL attachments
+  - default: `true`
 
 When `endpoint_options` is provided, the provider emits a config UI dropdown for `base_url`. Selecting an option updates `base_url` directly, so model discovery, request URLs, and rate-limit scoping automatically follow the selected endpoint.
 
@@ -198,6 +207,23 @@ When the provider returns `usage`, the usage extension surfaces a minimal shared
 - formatted token-count variants such as `metadata.usage_total_tokens_formatted`
 
 Provider-specific or extra usage fields stay inside raw `metadata.usage`.
+
+### Image attachments
+
+When the package is loaded through its plugin path, it also exposes the
+`reference_openai_compatible_attachments` provider extension. That extension:
+
+- advertises image attachment UI to the frontend
+- exposes `store_attachment` / `delete_attachment` / `download_attachment`
+  actions backed by the
+  application-owned session asset store
+- allows the frontend to upload an image to the local application first, then
+  send it later as a session-owned attachment
+- lets clients download a stored session-owned image again from message history
+
+Stored uploaded images are not uploaded to a provider-side file API. Instead,
+they are resolved from the local session asset store and converted to inline
+`data:` URLs when the chat-completions request is built.
 
 ## Retries and error recovery
 
@@ -352,3 +378,7 @@ Environment overrides used by the Ollama integration tests:
 ### Debugging streaming
 
 Set `debug_stream: true` in provider config to log decoded streaming chunks. Avoid enabling this when sending secrets because responses may include sensitive data.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

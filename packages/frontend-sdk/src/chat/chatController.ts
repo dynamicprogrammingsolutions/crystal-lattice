@@ -78,6 +78,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
   private epoch = 0;
   private autoReloadUsedEpoch = -1;
   private autoReloadInFlight = false;
+  private cursorExpiryRecoveryInFlight = false;
   private lastLoadRange: { start?: number; end?: number } = {};
 
   constructor(options: {
@@ -211,6 +212,78 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
     await this.reloadMessages({ start, end }, { bumpEpoch: false });
   }
 
+  async recoverAfterResume(): Promise<void> {
+    this.beginEpoch();
+    const range = this.getSnapshot().historyRange ?? this.lastLoadRange;
+    await this.reloadMessages(range, { bumpEpoch: false });
+  }
+
+  async recoverAfterCursorExpiry(): Promise<void> {
+    if (this.cursorExpiryRecoveryInFlight) {
+      return;
+    }
+
+    this.cursorExpiryRecoveryInFlight = true;
+    this.beginEpoch();
+    const range = this.getSnapshot().historyRange ?? this.lastLoadRange;
+    try {
+      await this.reloadMessages(range, { bumpEpoch: false });
+    } catch (err) {
+      this.setSnapshot({
+        ...this.getSnapshot(),
+        eventsStatus: 'expired',
+      });
+      throw err;
+    } finally {
+      this.cursorExpiryRecoveryInFlight = false;
+    }
+  }
+
+  private restartEventStreamingFromNullCursor(): void {
+    const current = this.getSnapshot();
+    this.setSnapshot({
+      ...current,
+      eventsCursorId: null,
+      listCursorEventId: null,
+      eventsStatus: 'idle',
+    });
+    this.startEventStreaming({ initialSinceId: null });
+  }
+
+  private handleCursorExpiry(): void {
+    const current = this.getSnapshot();
+    const expiredSnapshotCursor =
+      current.eventsCursorId != null &&
+      current.eventsCursorId === current.listCursorEventId;
+
+    if (expiredSnapshotCursor) {
+      this.restartEventStreamingFromNullCursor();
+      return;
+    }
+
+    this.setSnapshot({
+      ...current,
+      eventsStatus: 'expired',
+    });
+    void this.recoverAfterCursorExpiry().catch(() => {
+      // Keep the expired status visible if reload fails.
+    });
+  }
+
+  ensureEventStreamingStarted(options: { initialSinceId?: string | null } = {}): void {
+    const snapshot = this.getSnapshot();
+    if (snapshot.loading || !snapshot.followTail || this.isEventStreaming()) {
+      return;
+    }
+
+    const sinceId =
+      options.initialSinceId ??
+      snapshot.eventsCursorId ??
+      this.getSnapshot().eventsCursorId ??
+      null;
+    this.startEventStreaming({ initialSinceId: sinceId });
+  }
+
   async appendMessage(message: {
     role: 'user' | 'assistant' | 'system' | 'tool';
     content: string;
@@ -314,6 +387,9 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
           eventsStatus: source.getStatus(),
           updatedAtMs: Date.now(),
         });
+      },
+      onCursorExpired: () => {
+        this.handleCursorExpiry();
       },
     });
     this.setSnapshot({ ...this.getSnapshot(), eventsStatus: source.getStatus() });
@@ -466,6 +542,7 @@ export class ChatController extends SimpleSubscribable<ChatControllerState> {
         dirtyReason: null,
         updatedAtMs: Date.now(),
         activeRequestId,
+        requestError: null,
         streamingRow: null,
       });
 

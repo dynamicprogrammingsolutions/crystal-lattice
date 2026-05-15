@@ -2,11 +2,10 @@ import React, { useState, useMemo } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
-import type {
-  SessionsCache,
-  MessagesCache,
-} from '../App';
 import type { AgentBackend, ConnectionRecord, Transport } from '@crystal-lattice/frontend-sdk';
+import type { SessionsCache } from '../App';
+import type { DebugTimelineEntry } from './debugTimeline';
+import type { MessagesCache } from './cache/types';
 import ConnectionScreen from './ConnectionScreen';
 import ConnectionsScreen from './ConnectionsScreen';
 import SessionsScreen from './SessionsScreen';
@@ -49,6 +48,13 @@ interface ConnectedRootProps {
     sessionId: string,
     scrollAnchor: ChatScrollAnchor,
   ) => void;
+  debugTimeline: DebugTimelineEntry[];
+  onAppendDebugTimelineEntry: (
+    entry: Omit<DebugTimelineEntry, 'id' | 'timestampMs'> & {
+      detail?: string | null;
+      meta?: Record<string, any> | null;
+    },
+  ) => void;
 }
 
 const ConnectedRoot: React.FC<ConnectedRootProps> = ({
@@ -70,6 +76,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onUpdateMessagesCache,
   onSaveMessagesComposeText,
   onSaveMessagesScrollAnchor,
+  debugTimeline,
+  onAppendDebugTimelineEntry,
 }) => {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -294,6 +302,8 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                       onSaveMessagesScrollAnchor(connectionId, selectedSessionId, scrollAnchor);
                     }
                   }}
+                  debugTimeline={debugTimeline}
+                  onAppendDebugTimelineEntry={onAppendDebugTimelineEntry}
                 />
               );
             })()

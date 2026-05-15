@@ -24,6 +24,7 @@ from agent_app.application_future import AgentApplication
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+pytestmark = pytest.mark.integration
 
 REPO_TMP_DIR = Path(__file__).resolve().parents[3] / "tmp"
 REPO_TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -34,7 +35,9 @@ def _which(cmd: str) -> Optional[str]:
 
 
 def _run(cmd: list[str], timeout: int = 120) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+    return subprocess.run(
+        cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout
+    )
 
 
 @pytest.fixture(scope="module")
@@ -73,7 +76,9 @@ def _collect_events(
     assert ctx is not None, "session must exist"
     core, base_config, session = ctx
     events: list[Dict[str, Any]] = []
-    for ev in app.send_request(core, session, base_config, overrides or {}, stream=stream):
+    for ev in app.send_request(
+        core, session, base_config, overrides or {}, stream=stream
+    ):
         events.append(ev)
         if print_stream and ev["type"] == "partial":
             msg = ev.get("message", {})
@@ -91,7 +96,6 @@ def _compose_read_write_prompt(write_path: str, read_path: str, content: str) ->
         "3) Finally, answer with the file's content.\n"
         "You MUST use the tools; do not guess or skip steps."
     )
-
 
 
 def _make_local_env(tmp_path: Path) -> Dict[str, str]:
@@ -113,7 +117,9 @@ def _repo_files_root() -> Path:
     return _fixtures_root() / "repo_files"
 
 
-def _assert_tool_results_include(events: list[Dict[str, Any]], expected_tools: set[str]) -> None:
+def _assert_tool_results_include(
+    events: list[Dict[str, Any]], expected_tools: set[str]
+) -> None:
     tool_result_events = [ev for ev in events if ev.get("type") == "tool_results"]
     assert tool_result_events, "expected tool_results events"
     tool_msgs: list[Dict[str, Any]] = []
@@ -121,7 +127,9 @@ def _assert_tool_results_include(events: list[Dict[str, Any]], expected_tools: s
         tool_msgs.extend(ev.get("messages") or [])
     tool_names = {m.get("metadata", {}).get("tool_name") for m in tool_msgs}
     missing = expected_tools - tool_names
-    assert not missing, f"missing tool results for: {sorted(missing)} (saw {sorted(tool_names)})"
+    assert (
+        not missing
+    ), f"missing tool results for: {sorted(missing)} (saw {sorted(tool_names)})"
 
 
 def _run_read_write_scenario(app: AgentApplication, *, label: str) -> None:
@@ -130,11 +138,19 @@ def _run_read_write_scenario(app: AgentApplication, *, label: str) -> None:
 
     core, base_config, session = app.create_session("default")
     session_id = session.session_id
-    session = core.add_message(session, "system", "You are helpful. Always use tools and follow instructions exactly.")
-    session = core.add_message(session, "user", _compose_read_write_prompt(write_path, write_path, desired))
+    session = core.add_message(
+        session,
+        "system",
+        "You are helpful. Always use tools and follow instructions exactly.",
+    )
+    session = core.add_message(
+        session, "user", _compose_read_write_prompt(write_path, write_path, desired)
+    )
     app.save_session(session)
 
-    events = _collect_events(app, session_id, stream=False, overrides=None, print_stream=False)
+    events = _collect_events(
+        app, session_id, stream=False, overrides=None, print_stream=False
+    )
     _assert_tool_results_include(events, {"write_file", "read_file"})
 
 
@@ -145,7 +161,9 @@ def _copy_repo_file(rel_path: str, *, dest: Path) -> None:
 
 
 @pytest.mark.ollama
-def test_agent_application_with_localpath_plugins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ensure_model: None) -> None:
+def test_agent_application_with_localpath_plugins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ensure_model: None
+) -> None:
     """Verify loading dev plugins via a local path repo and execute a tool scenario."""
 
     env = _make_local_env(tmp_path)
@@ -154,10 +172,17 @@ def test_agent_application_with_localpath_plugins(tmp_path: Path, monkeypatch: p
 
     # Sanity-check: manager loads dev tools from local path repo.
     from agent_app.plugin_manager import PluginManager
+
     mgr = PluginManager(cache_dir=Path(env["PLUGIN_CACHE_DIR"]))
     sanity_specs = [
-        {"path": env["DEV_PLUGINS_DIR"], "entry": "dev_plugins.file_reader_tool.FileReaderTool"},
-        {"path": env["DEV_PLUGINS_DIR"], "entry": "dev_plugins.file_writer_tool.FileWriterTool"},
+        {
+            "path": env["DEV_PLUGINS_DIR"],
+            "entry": "dev_plugins.file_reader_tool.FileReaderTool",
+        },
+        {
+            "path": env["DEV_PLUGINS_DIR"],
+            "entry": "dev_plugins.file_writer_tool.FileWriterTool",
+        },
     ]
     res = mgr.resolve_all(sanity_specs)
     assert res.errors == []
@@ -196,9 +221,13 @@ def test_agent_application_with_localpath_plugins_module_only_descriptor(
 
     desc_root = tmp_path / "dev_plugins_desc"
     pkg_dir = desc_root / "dev_plugins"
-    shutil.copytree(Path(env["DEV_PLUGINS_DIR"]) / "dev_plugins", pkg_dir, dirs_exist_ok=True)
+    shutil.copytree(
+        Path(env["DEV_PLUGINS_DIR"]) / "dev_plugins", pkg_dir, dirs_exist_ok=True
+    )
     _copy_repo_file("dev_plugins/extra_tool.py", dest=pkg_dir / "extra_tool.py")
-    _copy_repo_file("dev_plugins/agent_plugin.json", dest=desc_root / "agent_plugin.json")
+    _copy_repo_file(
+        "dev_plugins/agent_plugin.json", dest=desc_root / "agent_plugin.json"
+    )
     _copy_repo_file("setup_with_descriptor.py", dest=desc_root / "setup.py")
 
     env["DEV_PLUGINS_DESC_DIR"] = str(desc_root)
@@ -238,31 +267,44 @@ def test_agent_application_with_localpath_plugins_canonical_items(
 
 def _init_git_repo_from_fixture(src_dir: Path, repo_dir: Path) -> str:
     # Copy only the package directory; keep the repo fixture small/clean.
-    shutil.copytree(src_dir / "dev_plugins", repo_dir / "dev_plugins", dirs_exist_ok=True)
+    shutil.copytree(
+        src_dir / "dev_plugins", repo_dir / "dev_plugins", dirs_exist_ok=True
+    )
     _copy_repo_file("setup_basic.py", dest=repo_dir / "setup.py")
     subprocess.check_call(["git", "init"], cwd=str(repo_dir))
     subprocess.check_call(["git", "add", "."], cwd=str(repo_dir))
-    subprocess.check_call([
-        "git",
-        "-c",
-        "user.email=test@example.com",
-        "-c",
-        "user.name=Test User",
-        "commit",
-        "-m",
-        "init",
-    ], cwd=str(repo_dir))
-    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(repo_dir)).decode().strip()
+    subprocess.check_call(
+        [
+            "git",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "user.name=Test User",
+            "commit",
+            "-m",
+            "init",
+        ],
+        cwd=str(repo_dir),
+    )
+    commit = (
+        subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(repo_dir))
+        .decode()
+        .strip()
+    )
     return commit
 
 
 def _init_git_repo_from_fixture_with_descriptor(src_dir: Path, repo_dir: Path) -> str:
     """Create a local git repo with a root plugin descriptor and an extra tool."""
 
-    shutil.copytree(src_dir / "dev_plugins", repo_dir / "dev_plugins", dirs_exist_ok=True)
+    shutil.copytree(
+        src_dir / "dev_plugins", repo_dir / "dev_plugins", dirs_exist_ok=True
+    )
     pkg_dir = repo_dir / "dev_plugins"
     _copy_repo_file("dev_plugins/extra_tool.py", dest=pkg_dir / "extra_tool.py")
-    _copy_repo_file("dev_plugins/agent_plugin.json", dest=repo_dir / "agent_plugin.json")
+    _copy_repo_file(
+        "dev_plugins/agent_plugin.json", dest=repo_dir / "agent_plugin.json"
+    )
     _copy_repo_file("setup_with_descriptor.py", dest=repo_dir / "setup.py")
     subprocess.check_call(["git", "init"], cwd=str(repo_dir))
     subprocess.check_call(["git", "add", "."], cwd=str(repo_dir))
@@ -279,12 +321,18 @@ def _init_git_repo_from_fixture_with_descriptor(src_dir: Path, repo_dir: Path) -
         ],
         cwd=str(repo_dir),
     )
-    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(repo_dir)).decode().strip()
+    commit = (
+        subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=str(repo_dir))
+        .decode()
+        .strip()
+    )
     return commit
 
 
 @pytest.mark.ollama
-def test_agent_application_with_git_plugins(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ensure_model: None) -> None:
+def test_agent_application_with_git_plugins(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ensure_model: None
+) -> None:
     """Verify loading dev plugins via a local git repo and execute a tool scenario."""
 
     env = _make_local_env(tmp_path)
@@ -296,15 +344,25 @@ def test_agent_application_with_git_plugins(tmp_path: Path, monkeypatch: pytest.
 
     # Sanity-check: manager loads dev tools from git repo.
     from agent_app.plugin_manager import PluginManager as _PM
+
     mgr2 = _PM(cache_dir=Path(env["PLUGIN_CACHE_DIR"]))
     res_git = mgr2.resolve_all(
         [
-            {"git": env["DEV_PLUGINS_GIT_DIR"], "entry": "dev_plugins.file_reader_tool.FileReaderTool"},
-            {"git": env["DEV_PLUGINS_GIT_DIR"], "entry": "dev_plugins.file_writer_tool.FileWriterTool"},
+            {
+                "git": env["DEV_PLUGINS_GIT_DIR"],
+                "entry": "dev_plugins.file_reader_tool.FileReaderTool",
+            },
+            {
+                "git": env["DEV_PLUGINS_GIT_DIR"],
+                "entry": "dev_plugins.file_writer_tool.FileWriterTool",
+            },
         ]
     )
     assert res_git.errors == []
-    assert {cls.__name__ for cls in res_git.classes} == {"FileReaderTool", "FileWriterTool"}
+    assert {cls.__name__ for cls in res_git.classes} == {
+        "FileReaderTool",
+        "FileWriterTool",
+    }
 
     config_path = _resolve_config_path("git_plugins.json")
     session_root = tmp_path / "sessions_git"

@@ -7,7 +7,7 @@ import type { UiSchemaElement } from '../types/uiSchema';
  */
 export function evaluateCondition(
   condition: unknown,
-  context: Record<string, unknown>,
+  context: object,
 ): boolean {
   if (condition == null || typeof condition !== 'object' || Array.isArray(condition)) {
     return true;
@@ -68,6 +68,90 @@ export function formatValueForElement(el: UiSchemaElement, rawValue: any): any {
     }
   }
   return rawValue;
+}
+
+/**
+ * Coerce a value to the appropriate type based on UI element type.
+ *
+ * This is used when saving values from UI inputs (which typically produce strings)
+ * to ensure the stored values have correct types for downstream processing.
+ *
+ * Type mappings:
+ * - "number" -> int (if no decimal) or float
+ * - "boolean" / "checkbox" -> bool
+ * - "text" / "string" -> string (stringified)
+ * - "select" / "dropdown" / others -> unchanged (select values stay as strings)
+ *
+ * @param element - The UI schema element (must have a `type` field)
+ * @param value - The value to coerce (typically a string from UI input)
+ * @returns The coerced value
+ */
+export function coerceValueForElement(element: UiSchemaElement, value: unknown): unknown {
+  const type = element?.type;
+
+  if (type === 'number') {
+    // Already a number - return as-is
+    if (typeof value === 'number') {
+      return value;
+    }
+    // Boolean -> float
+    if (typeof value === 'boolean') {
+      return value ? 1.0 : 0.0;
+    }
+    // String -> int or float
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed === '') {
+        return value; // Return empty string unchanged
+      }
+      // Try int first, then float
+      if (/^-?\d+$/.test(trimmed)) {
+        const intVal = parseInt(trimmed, 10);
+        if (Number.isFinite(intVal)) {
+          return intVal;
+        }
+      }
+      const floatVal = parseFloat(trimmed);
+      if (Number.isFinite(floatVal)) {
+        return floatVal;
+      }
+      // Not a valid number - return unchanged
+      return value;
+    }
+    return value;
+  }
+
+  if (type === 'boolean' || type === 'checkbox') {
+    // Already a boolean - return as-is
+    if (typeof value === 'boolean') {
+      return value;
+    }
+    // String -> boolean
+    if (typeof value === 'string') {
+      const lower = value.toLowerCase().trim();
+      if (lower === 'true' || lower === '1' || lower === 'yes' || lower === 'on') {
+        return true;
+      }
+      if (lower === 'false' || lower === '0' || lower === 'no' || lower === 'off' || lower === '') {
+        return false;
+      }
+      // Unknown string value - return unchanged
+      return value;
+    }
+    // Number -> boolean
+    if (typeof value === 'number') {
+      return Boolean(value);
+    }
+    return value;
+  }
+
+  if (type === 'text' || type === 'string') {
+    return value !== null && value !== undefined ? String(value) : value;
+  }
+
+  // "select", "dropdown", or unknown types - return unchanged
+  // Select values should stay as strings since options are string values
+  return value;
 }
 
 export function extractByPath(obj: any, path: string | undefined | null): any {

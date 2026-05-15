@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -22,7 +24,11 @@ if str(OPENAI_RESPONSES_SRC) not in sys.path:
 from agent_app.application_future import AgentApplication  # noqa: E402
 from agent_app.events import InMemoryEventStore  # noqa: E402
 import openai_responses_plugins.openai_responses_provider as provider_module  # noqa: E402
-from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider  # noqa: E402
+from openai_responses_plugins.openai_responses_provider import (
+    OpenAIResponsesProvider,
+)  # noqa: E402
+
+pytestmark = [pytest.mark.integration, pytest.mark.openai]
 
 
 class _FakeResponse:
@@ -82,7 +88,9 @@ def _write_config(tmp_path: Path) -> Path:
     return path
 
 
-def _build_app(tmp_path: Path, monkeypatch: Any) -> tuple[AgentApplication, _FakeClient]:
+def _build_app(
+    tmp_path: Path, monkeypatch: Any
+) -> tuple[AgentApplication, _FakeClient]:
     fake_client = _FakeClient()
     monkeypatch.setattr(provider_module, "OpenAI", lambda **kwargs: fake_client)
     monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda self, config: [])
@@ -96,7 +104,9 @@ def _build_app(tmp_path: Path, monkeypatch: Any) -> tuple[AgentApplication, _Fak
     return app, fake_client
 
 
-def test_openai_prompt_cache_ui_schema_and_create_time_key(tmp_path: Path, monkeypatch: Any) -> None:
+def test_openai_prompt_cache_ui_schema_and_create_time_key(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     from agent_terminal_app import server as server_mod
 
     app, _fake_client = _build_app(tmp_path, monkeypatch)
@@ -123,13 +133,17 @@ def test_openai_prompt_cache_ui_schema_and_create_time_key(tmp_path: Path, monke
         "enable_prompt_cache_retention_24h",
     }
 
-    session_actions = [el for el in prompt_elements if el.get("ui_type") == "session_action"]
+    session_actions = [
+        el for el in prompt_elements if el.get("ui_type") == "session_action"
+    ]
     assert len(session_actions) == 1
     assert session_actions[0]["action_id"] == "regenerate_prompt_cache_key"
     assert session_actions[0]["action_owner"] == "provider_extension"
 
 
-def test_openai_prompt_cache_key_can_be_edited_and_regenerated(tmp_path: Path, monkeypatch: Any) -> None:
+def test_openai_prompt_cache_key_can_be_edited_and_regenerated(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     from agent_terminal_app import server as server_mod
 
     app, _fake_client = _build_app(tmp_path, monkeypatch)
@@ -158,13 +172,17 @@ def test_openai_prompt_cache_key_can_be_edited_and_regenerated(tmp_path: Path, m
     assert action_resp["status"] == "ok"
     loaded = app.load_session_record(session_id)
     assert loaded is not None
-    regenerated_key = ((loaded.metadata or {}).get("overrides") or {}).get("prompt_cache_key")
+    regenerated_key = ((loaded.metadata or {}).get("overrides") or {}).get(
+        "prompt_cache_key"
+    )
     assert isinstance(regenerated_key, str)
     assert regenerated_key.startswith("opcache_")
     assert regenerated_key != "manual-key"
 
 
-def test_openai_prompt_cache_request_prepare_repairs_legacy_sessions(tmp_path: Path, monkeypatch: Any) -> None:
+def test_openai_prompt_cache_request_prepare_repairs_legacy_sessions(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     app, fake_client = _build_app(tmp_path, monkeypatch)
 
     core, base_config, session = app.create_session("default")
@@ -182,7 +200,9 @@ def test_openai_prompt_cache_request_prepare_repairs_legacy_sessions(tmp_path: P
     loaded = app.load_session(legacy_session.session_id)
     assert loaded is not None
     core, base_config, loaded_session = loaded
-    loaded_session = core.add_message(loaded_session, "user", "hello", config=base_config)
+    loaded_session = core.add_message(
+        loaded_session, "user", "hello", config=base_config
+    )
     app.save_session(loaded_session)
 
     events = list(app.send_request(core, loaded_session, base_config, stream=False))
@@ -190,7 +210,9 @@ def test_openai_prompt_cache_request_prepare_repairs_legacy_sessions(tmp_path: P
     checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
     assert checkpoints
     repaired_session = checkpoints[-1]["session"]
-    repaired_key = ((repaired_session.metadata or {}).get("overrides") or {}).get("prompt_cache_key")
+    repaired_key = ((repaired_session.metadata or {}).get("overrides") or {}).get(
+        "prompt_cache_key"
+    )
     assert isinstance(repaired_key, str)
     assert repaired_key.startswith("opcache_")
 
@@ -199,11 +221,15 @@ def test_openai_prompt_cache_request_prepare_repairs_legacy_sessions(tmp_path: P
     assert request_payload["prompt_cache_key"] == repaired_key
 
 
-def test_openai_prompt_cache_fork_preserves_existing_key(tmp_path: Path, monkeypatch: Any) -> None:
+def test_openai_prompt_cache_fork_preserves_existing_key(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     app, _fake_client = _build_app(tmp_path, monkeypatch)
 
     core, base_config, session = app.create_session("default")
-    original_key = ((session.metadata or {}).get("overrides") or {}).get("prompt_cache_key")
+    original_key = ((session.metadata or {}).get("overrides") or {}).get(
+        "prompt_cache_key"
+    )
     assert isinstance(original_key, str)
 
     session = core.add_message(session, "user", "hello", config=base_config)
@@ -217,5 +243,7 @@ def test_openai_prompt_cache_fork_preserves_existing_key(tmp_path: Path, monkeyp
         new_session_id="prompt-cache-fork",
     )
 
-    forked_key = ((forked.metadata or {}).get("overrides") or {}).get("prompt_cache_key")
+    forked_key = ((forked.metadata or {}).get("overrides") or {}).get(
+        "prompt_cache_key"
+    )
     assert forked_key == original_key

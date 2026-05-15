@@ -152,6 +152,7 @@ All messages are JSON with a `type` field.
 }
 ```
 
+
 **HTTP Response:**
 ```json
 {
@@ -757,4 +758,4 @@ cd server-python && python bridge_client.py
 
 ## License
 
-See main project README.
+This directory is available under the [GNU Affero General Public License v3.0](LICENSE).

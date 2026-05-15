@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Application-level plugin providing basic session actions.
 
 This plugin implements copy/fork/delete operations at the application layer
@@ -10,8 +8,10 @@ endpoint and contributes UI schema elements that higher-level frontends can
 use to render buttons and menus.
 """
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from __future__ import annotations
+
 import uuid
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from agent_core import Session
 
@@ -174,6 +174,24 @@ class SessionActionsAppPlugin:
                     "kind": "confirm",
                     "title": "Delete message",
                     "message": "Delete this message?",
+                },
+            },
+            {
+                "ui_type": "message_action",
+                "id": "delete_from_here",
+                "label": "Delete from here",
+                "icon": "trash-2",
+                "order": 35,
+                "action_id": "delete_messages",
+                "fixed_params": {},
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "start": "$message.index",
+                },
+                "dialog": {
+                    "kind": "confirm",
+                    "title": "Delete from here",
+                    "message": "Delete this message and all later messages?",
                 },
             },
             {
@@ -588,7 +606,7 @@ class SessionActionsAppPlugin:
             config = resolve_request_config(base_config, overrides)
 
             new_session = core.slice_session(session, config, remove_indices=delete_indices)
-            app.save_session(new_session)
+            new_session = app.save_session(new_session)
 
             concrete_indices = sorted(set(delete_indices))
 

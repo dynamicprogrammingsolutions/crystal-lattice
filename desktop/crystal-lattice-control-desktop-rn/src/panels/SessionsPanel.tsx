@@ -3,6 +3,8 @@ import type { LayoutChangeEvent } from 'react-native';
 import {
   ActivityIndicator,
   Alert,
+  Clipboard,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -22,13 +24,17 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 
 import type {
+  ActionDisplayFollowupAction,
   ActionUiElement,
+  ActionDisplayPayload,
   AgentBackend,
   SessionSummary,
+  RunActionContext,
 } from '@crystal-lattice/frontend-sdk';
 import {
   deriveSessionListPresentationFromGroups,
   groupSessionListFields,
+  normalizeActionDisplayForSurface,
   runApplicationAction,
 } from '@crystal-lattice/frontend-sdk';
 
@@ -45,6 +51,8 @@ import {
 import { asyncStorageKeyValueStore } from '../storage/asyncStorageKeyValueStore';
 import { desktopEventBus } from '../events/desktopEventBus';
 import { PanelHeader } from '../ui/PanelHeader';
+import { ActionResultModal } from '../ui/ActionResultModal';
+import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { truncateByChars } from '../utils/text';
@@ -55,6 +63,36 @@ const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_ac
 const SESSION_DOUBLE_CLICK_MS = 300;
 const SESSIONS_STALE_MS = 30_000;
 const DEFAULT_PINNED_SESSION_LIST_ACTION_KEYS: ActionKey[] = [];
+
+type ActionDisplayEntry = {
+  key: string;
+  display: ActionDisplayPayload;
+  context: RunActionContext;
+};
+
+function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
+  const key =
+    typeof display.display_id === 'string' && display.display_id
+      ? display.display_id
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return { key, display, context };
+}
+
+function upsertInlineDisplay(
+  current: ActionDisplayEntry[],
+  nextEntry: ActionDisplayEntry,
+): ActionDisplayEntry[] {
+  const displayId = nextEntry.display.display_id;
+  if (typeof displayId === 'string' && displayId) {
+    const existingIndex = current.findIndex((entry) => entry.display.display_id === displayId);
+    if (existingIndex >= 0) {
+      const updated = current.slice();
+      updated[existingIndex] = nextEntry;
+      return updated;
+    }
+  }
+  return [...current, nextEntry];
+}
 
 export interface SessionsPanelProps {
   focusedConnectionId: string | null;
@@ -254,6 +292,117 @@ function SessionsPanelInner({
   });
 
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
+  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
+  const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
+  const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
+
+  const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
+    const nextEntry = createDisplayEntry(display, context);
+    const presentation = display.presentation ?? 'modal';
+    if (presentation === 'inline' || presentation === 'banner') {
+      setActionResultDisplay(null);
+      setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
+      return;
+    }
+    setActionResultDisplay(nextEntry);
+  }, []);
+
+  const executePluginAction = useCallback(
+    async (element: ActionUiElement, context: RunActionContext) => {
+      if (!backend || !connectionId) {
+        Alert.alert('No connection', 'Connect to a server to run actions.');
+        return;
+      }
+
+      setPluginActionRunning(true);
+      try {
+        const { ok, effects, display, errorMessage } = await runApplicationAction({
+          backend,
+          element,
+          actionsById,
+          context,
+          effects: {
+            reloadSessionsListOnMutations: true,
+          },
+        });
+
+        if (!ok) {
+          Alert.alert('Action error', errorMessage || 'Failed to execute action');
+          return;
+        }
+
+        for (const effect of effects) {
+          if (effect.type === 'navigateToSession') {
+            onOpenSessionTab({
+              connectionId,
+              sessionId: effect.sessionId,
+              title: effect.sessionId,
+            });
+            return;
+          }
+        }
+
+        if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
+          desktopEventBus.publish('sessionsReloadRequested', {
+            connectionId,
+            reason: `action:${element.id}`,
+          });
+        }
+        const normalizedDisplay = normalizeActionDisplayForSurface({
+          display,
+          surface: 'session_list_action',
+          host: 'desktop',
+        });
+        if (normalizedDisplay) {
+          presentActionDisplay(normalizedDisplay, context);
+        }
+      } finally {
+        setPluginActionRunning(false);
+      }
+    },
+    [actionsById, backend, connectionId, onOpenSessionTab, presentActionDisplay],
+  );
+
+  const handleDisplayFollowupAction = useCallback(
+    async (entry: ActionDisplayEntry, action: ActionDisplayFollowupAction) => {
+      if (action.kind === 'open_url') {
+        try {
+          await Linking.openURL(action.url);
+        } catch (err: any) {
+          Alert.alert('Open link failed', err?.message || 'Unable to open the link.');
+        }
+        return;
+      }
+      if (action.kind === 'copy_text') {
+        Clipboard.setString(action.text);
+        Alert.alert('Copied', 'Copied to clipboard.');
+        return;
+      }
+      if (action.kind === 'run_action') {
+        if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
+          setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
+        }
+        setActiveDisplayActionId(action.id);
+        try {
+          await executePluginAction(
+            {
+              ui_type: 'action_result_followup',
+              plugin: action.plugin,
+              id: action.id,
+              label: action.label,
+              action_id: action.action_id,
+              action_owner: action.action_owner,
+              fixed_params: action.fixed_params as Record<string, any> | undefined,
+            },
+            entry.context,
+          );
+        } finally {
+          setActiveDisplayActionId(null);
+        }
+      }
+    },
+    [executePluginAction],
+  );
 
   const {
     activeElement: activePluginDialogElement,
@@ -268,54 +417,13 @@ function SessionsPanelInner({
         session: SessionSummary,
         dialogValues: Record<string, any> | undefined,
       ) => {
-        if (!backend || !connectionId) {
-          Alert.alert('No connection', 'Connect to a server to run actions.');
-          return;
-        }
-
-        setPluginActionRunning(true);
-        try {
-          const { ok, effects, errorMessage } = await runApplicationAction({
-            backend,
-            element,
-            actionsById,
-            context: {
-              sessionId: session.session_id,
-              sessionSummary: session,
-              dialogValues,
-            },
-            effects: {
-              reloadSessionsListOnMutations: true,
-            },
-          });
-
-          if (!ok) {
-            Alert.alert('Action error', errorMessage || 'Failed to execute action');
-            return;
-          }
-
-          for (const effect of effects) {
-            if (effect.type === 'navigateToSession') {
-              onOpenSessionTab({
-                connectionId,
-                sessionId: effect.sessionId,
-                title: effect.sessionId,
-              });
-              return;
-            }
-          }
-
-          if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
-            desktopEventBus.publish('sessionsReloadRequested', {
-              connectionId,
-              reason: `action:${element.id}`,
-            });
-          }
-        } finally {
-          setPluginActionRunning(false);
-        }
+        await executePluginAction(element, {
+          sessionId: session.session_id,
+          sessionSummary: session,
+          dialogValues,
+        });
       },
-      [actionsById, backend, connectionId, onOpenSessionTab],
+      [executePluginAction],
     ),
   );
 
@@ -535,6 +643,27 @@ function SessionsPanelInner({
 
   return (
     <View style={styles.root}>
+      {inlineActionDisplays.map((entry) => (
+        <ActionResultInlineCard
+          key={entry.key}
+          display={entry.display}
+          activeActionId={activeDisplayActionId}
+          onDismiss={() =>
+            setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
+          }
+          onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
+        />
+      ))}
+      <ActionResultModal
+        visible={!!actionResultDisplay}
+        display={actionResultDisplay?.display ?? null}
+        activeActionId={activeDisplayActionId}
+        onRequestClose={() => setActionResultDisplay(null)}
+        onFollowupAction={(action) => {
+          if (!actionResultDisplay) return;
+          handleDisplayFollowupAction(actionResultDisplay, action);
+        }}
+      />
       <PanelHeader
         title="Sessions"
         subtitle={subtitle}

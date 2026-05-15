@@ -1,5 +1,6 @@
 import type { ActionUiElement } from '../types/plugins';
 import type { UiSchemaElement } from '../types/uiSchema';
+import { evaluateCondition } from '../utils/uiSchema';
 
 export type SessionScopedActionUiType = 'session_action' | 'message_action';
 
@@ -34,10 +35,15 @@ function isActionUiElement(value: unknown, uiType?: SessionScopedActionUiType): 
 export function selectSessionScopedActionElements(options: {
   uiSchemaElements: UiSchemaElement[];
   uiType: SessionScopedActionUiType;
+  context?: object | null;
 }): ActionUiElement[] {
-  const { uiSchemaElements, uiType } = options;
+  const { uiSchemaElements, uiType, context } = options;
   return (uiSchemaElements || []).filter((element): element is ActionUiElement => {
-    return isActionUiElement(element, uiType);
+    if (!isActionUiElement(element, uiType)) {
+      return false;
+    }
+    const condition = (element as any).condition;
+    return context ? evaluateCondition(condition, context) : true;
   });
 }
 
@@ -45,8 +51,9 @@ export function mergeSessionScopedActionElements(options: {
   applicationActions: ActionUiElement[];
   uiSchemaElements: UiSchemaElement[];
   uiType: SessionScopedActionUiType;
+  context?: object | null;
 }): ActionUiElement[] {
-  const { applicationActions, uiSchemaElements, uiType } = options;
+  const { applicationActions, uiSchemaElements, uiType, context } = options;
 
   const mergedById = new Map<string, ActionUiElement>();
   const orderedIds: string[] = [];
@@ -55,13 +62,16 @@ export function mergeSessionScopedActionElements(options: {
     if (!isActionUiElement(action, uiType)) {
       continue;
     }
+    if (context && !evaluateCondition((action as any).condition, context)) {
+      continue;
+    }
     if (!mergedById.has(action.id)) {
       orderedIds.push(action.id);
     }
     mergedById.set(action.id, action);
   }
 
-  for (const action of selectSessionScopedActionElements({ uiSchemaElements, uiType })) {
+  for (const action of selectSessionScopedActionElements({ uiSchemaElements, uiType, context })) {
     if (!mergedById.has(action.id)) {
       orderedIds.push(action.id);
     }

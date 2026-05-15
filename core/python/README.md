@@ -219,6 +219,7 @@ By default pytest is configured with `-m 'not integration'`, so tests marked as 
 
 OpenRouter integration tests live under `plugins/openrouter/tests` (repo root) and are marked with `openrouter`.
 
+
 ### Run with Coverage
 
 ```bash
@@ -606,4 +607,4 @@ Current version: `0.3.0` (Functional Architecture + Discovery)
 
 ## License
 
-MIT License
+This directory is available under the [Apache License 2.0](../../LICENSE).

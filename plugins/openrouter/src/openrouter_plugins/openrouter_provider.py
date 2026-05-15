@@ -9,12 +9,19 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, Iterator, List, Tuple, Optional
 from dataclasses import dataclass, field
+import base64
 import json
 import queue
 import threading
 
 import requests
 
+from agent_core.tool_result_payloads import (
+    TOOL_RESULT_FIELD,
+    make_text_tool_result,
+    openai_chat_tool_result_content,
+    provider_native_tool_result_display,
+)
 from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
 
@@ -62,7 +69,9 @@ class OpenRouterProvider(ProviderPlugin):
                 self._inflight_requests[request_id] = runtime
         return runtime
 
-    def _clear_inflight(self, request_id: str | None, runtime: _InflightRequest) -> None:
+    def _clear_inflight(
+        self, request_id: str | None, runtime: _InflightRequest
+    ) -> None:
         runtime.done.set()
         if isinstance(request_id, str) and request_id:
             with self._inflight_lock:
@@ -87,6 +96,7 @@ class OpenRouterProvider(ProviderPlugin):
         out.pop("native_indices", None)
         out.pop("tool_calls", None)
         out.pop("tool_call_id", None)
+        out.pop("display", None)
         return out
 
     def _core_metadata_from_native_internal(self, internal: Any) -> Dict[str, Any]:
@@ -98,7 +108,92 @@ class OpenRouterProvider(ProviderPlugin):
             if key not in {"native_indices", "tool_calls", "tool_call_id"}
         }
         return out
-    
+
+    def _session_asset_store(self, context: Optional[Dict[str, Any]]) -> Any:
+        if isinstance(context, dict):
+            store = context.get("session_asset_store")
+            if store is not None:
+                return store
+        raise RuntimeError(
+            "[openrouter_provider] session asset attachment requires session_asset_store in context"
+        )
+
+    def _resolve_session_asset(
+        self,
+        context: Optional[Dict[str, Any]],
+        asset_ref: Dict[str, Any],
+        expected_attachment_type: str,
+    ) -> Tuple[str, str, bytes]:
+        store = self._session_asset_store(context)
+        session_id = asset_ref.get("session_id")
+        asset_id = asset_ref.get("asset_id")
+        if not isinstance(session_id, str) or not isinstance(asset_id, str):
+            raise ValueError("[openrouter_provider] invalid session asset reference")
+        record = store.load(session_id, asset_id)
+        if record.attachment_type != expected_attachment_type:
+            raise ValueError(
+                f"[openrouter_provider] session asset {asset_id!r} is not a {expected_attachment_type} attachment"
+            )
+        return record.filename, record.mime_type, store.load_bytes(session_id, asset_id)
+
+    def _expanded_tool_content(
+        self,
+        content: Any,
+        context: Optional[Dict[str, Any]],
+    ) -> Any:
+        if not isinstance(content, list):
+            return content
+
+        parts: List[Dict[str, Any]] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") != "image_url":
+                parts.append(dict(part))
+                continue
+
+            image_url = part.get("image_url")
+            if isinstance(image_url, dict) and image_url.get("asset_ref"):
+                _, mime_type, payload_bytes = self._resolve_session_asset(
+                    context,
+                    image_url["asset_ref"],
+                    "image",
+                )
+                parts.append(
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{mime_type};base64,{base64.b64encode(payload_bytes).decode('ascii')}"
+                        },
+                    }
+                )
+                continue
+
+            parts.append(dict(part))
+        return parts
+
+    def _expanded_request_messages(
+        self,
+        messages: List[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> List[Dict[str, Any]]:
+        context = state.get("_request_context")
+        context = context if isinstance(context, dict) else None
+        return [
+            (
+                {
+                    **msg,
+                    "content": self._expanded_tool_content(
+                        msg.get("content"),
+                        context,
+                    ),
+                }
+                if msg.get("role") == "tool"
+                else msg
+            )
+            for msg in messages
+        ]
+
     # ---------- Schemas ----------
     def get_config_schema(self) -> Dict[str, Any]:
         return {
@@ -135,7 +230,12 @@ class OpenRouterProvider(ProviderPlugin):
                     mid = m.get("id")
                     name = m.get("name")
                     if mid is not None:
-                        model_options.append({"label": name if name is not None else str(mid), "value": str(mid)})
+                        model_options.append(
+                            {
+                                "label": name if name is not None else str(mid),
+                                "value": str(mid),
+                            }
+                        )
         use_dropdown = len(model_options) > 0
         return [
             {
@@ -161,53 +261,53 @@ class OpenRouterProvider(ProviderPlugin):
                 "supported_file_types": ["png", "jpg", "jpeg", "webp", "gif"],
                 "display_placement": "below",
                 "label": "Image",
-                "icon": "image"
-            }
+                "icon": "image",
+            },
         ]
 
     # ---------- Models / capabilities ----------
     def _fetch_models_from_api(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Fetch model data from OpenRouter /models API.
-        
+
         Returns list of model descriptors with id, name, and supported_parameters.
         Returns empty list on error (logs warning).
         """
-        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip("/")
+        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip(
+            "/"
+        )
         models_url = f"{base_url}/models"
-        
+
         try:
             response = requests.get(models_url, timeout=10)
             response.raise_for_status()
             data = response.json()
-            
+
             # Extract models array from response
             models = data.get("data", [])
             if not isinstance(models, list):
                 get_logger("openrouter_provider").warning(
-                    "Invalid models response format",
-                    response=data
+                    "Invalid models response format", response=data
                 )
                 return []
-            
+
             return models
-            
+
         except requests.RequestException as e:
             get_logger("openrouter_provider").warning(
                 "Failed to fetch models from OpenRouter API",
                 error=str(e),
-                url=models_url
+                url=models_url,
             )
             return []
         except Exception as e:
             get_logger("openrouter_provider").warning(
-                "Unexpected error fetching models",
-                error=str(e)
+                "Unexpected error fetching models", error=str(e)
             )
             return []
-    
+
     def get_models(self, config: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Return model descriptors from OpenRouter API.
-        
+
         Fetches all models and filters by config.
         Core framework caches results per config.
         """
@@ -222,26 +322,38 @@ class OpenRouterProvider(ProviderPlugin):
         models: List[Dict[str, Any]],
     ) -> List[str]:
         """Return capability tags based on model's supported_parameters.
-        
+
         Checks the model's supported_parameters array from the OpenRouter API:
-        - 'tools' / 'tool' → 'supports_tools'
-        (Reasoning and verbosity tags are added by openrouter_reasoning and openrouter_verbosity extensions.)
-        
+        - 'reasoning' → 'supports_reasoning'
+        - 'verbosity' → 'supports_verbosity'
+        - 'tools' → 'supports_tools'
+
         Always includes: provider:openrouter, openrouter, supports_streaming
         Falls back to hardcoded tags if model data unavailable.
         """
         tags: List[str] = ["provider:openrouter", "openrouter"]
         tags.append("supports_streaming")  # All OpenRouter models support streaming
-        
+
         selected_id = config.get("model")
-        if isinstance(selected_id, str) and selected_id and models and isinstance(models, list):
+        if (
+            isinstance(selected_id, str)
+            and selected_id
+            and models
+            and isinstance(models, list)
+        ):
             for m in models:
                 if isinstance(m, dict) and m.get("id") == selected_id:
                     supported_params = m.get("supported_parameters", [])
                     if isinstance(supported_params, list) and len(supported_params) > 0:
-                        # Map supported_parameters to capability tags (reasoning/verbosity in extensions)
+                        # Map supported_parameters to capability tags
                         if "tools" in supported_params or "tool" in supported_params:
                             tags.append("supports_tools")
+                        if "reasoning" in supported_params:
+                            tags.append("supports_reasoning")
+                            tags.append("supports_reasoning_effort")
+                        if "gpt-5" in selected_id:
+                            tags.append("supports_verbosity")
+
                         return tags
 
         return tags
@@ -255,13 +367,16 @@ class OpenRouterProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
         *,
+        context: Optional[Dict[str, Any]] = None,
         request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         _ = request_id
 
         config = state["config"]
 
-        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip("/")
+        base_url = (config.get("base_url") or "https://openrouter.ai/api/v1").rstrip(
+            "/"
+        )
         api_key = config.get("api_key")
         model = config.get("model")
         timeout = float(config.get("timeout", 60))
@@ -289,12 +404,12 @@ class OpenRouterProvider(ProviderPlugin):
             "request": {
                 "url": url,
                 "payload": payload,
+                "messages": list(native_messages),
                 "headers": headers,
                 "timeout": timeout,
             },
             "partial": None,
         }
-
 
     # ---------- Message conversion ----------
     def to_native_messages(
@@ -307,13 +422,25 @@ class OpenRouterProvider(ProviderPlugin):
                 continue
 
             role = msg.get("role", "user")
-            content = msg.get("content", "")
+            raw_content = msg.get("content", "")
+            tool_result = msg.get(TOOL_RESULT_FIELD)
             raw_metadata = msg.get("metadata")
             metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
+            native_tool_content = (
+                openai_chat_tool_result_content(tool_result)
+                if role == "tool"
+                else None
+            )
+            content = raw_content
             if not isinstance(content, str):
                 content = ""
 
-            native_message: Dict[str, Any] = {"role": role, "content": content}
+            native_message: Dict[str, Any] = {
+                "role": role,
+                "content": (
+                    native_tool_content if native_tool_content is not None else content
+                ),
+            }
 
             tool_calls = metadata.get("tool_calls")
             if role == "assistant" and isinstance(tool_calls, list) and tool_calls:
@@ -326,6 +453,10 @@ class OpenRouterProvider(ProviderPlugin):
             internal_metadata = self._native_internal_from_core_metadata(metadata)
             if internal_metadata:
                 native_message["_metadata"] = internal_metadata
+
+            if native_tool_content is not None:
+                native.append(native_message)
+                continue
 
             multipart = msg.get("multipartContent")
             if not isinstance(multipart, list) or not multipart:
@@ -420,11 +551,33 @@ class OpenRouterProvider(ProviderPlugin):
                         continue
 
                 msg["content"] = "\n".join(text_parts)
-                if multipart_out:
+                if role == "tool":
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.chat_completions",
+                        "content": [
+                            dict(part) for part in content if isinstance(part, dict)
+                        ],
+                        "text": msg["content"],
+                    }
+                    msg[TOOL_RESULT_FIELD] = tool_result
+                    tool_name = metadata.get("tool_name")
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=tool_name if isinstance(tool_name, str) else None,
+                    )
+                    if isinstance(display, dict):
+                        metadata["display"] = display
+                elif multipart_out:
                     msg["multipartContent"] = multipart_out
 
             else:
                 msg["content"] = content if isinstance(content, str) else ""
+
+            if role == "tool" and TOOL_RESULT_FIELD not in msg:
+                msg[TOOL_RESULT_FIELD] = make_text_tool_result(
+                    text=msg["content"] if isinstance(msg.get("content"), str) else ""
+                )
 
             tool_calls = m.get("tool_calls")
             if isinstance(tool_calls, list) and tool_calls:
@@ -460,19 +613,32 @@ class OpenRouterProvider(ProviderPlugin):
         state: Dict[str, Any],
         *,
         request_id: str | None = None,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         request = state["request"]
         payload: Dict[str, Any] = {}
         logger = get_logger("openrouter_provider")
         self._validate_message_list(native_messages)
         override = request.get("messages")
         messages = override if isinstance(override, list) else native_messages
-        payload = {**request["payload"], "messages": messages, "stream": False}
+        messages = self._expanded_request_messages(
+            [m for m in messages if isinstance(m, dict)],
+            state,
+        )
+        messages_to_send = [
+            {k: v for k, v in m.items() if k != "_metadata"}
+            for m in messages
+            if isinstance(m, dict)
+        ]
+        payload = {**request["payload"], "messages": messages_to_send, "stream": False}
         logger.info(
             "sending request",
-            payload=str({**payload, "messages": "stripped", "tools": "stripped"}),
+            payload=str(
+                {**payload, "messages": "***REDACTED***", "tools": "***REDACTED***"}
+            ),
         )
-        logger.debug("full payload for non-streaming request", payload=payload)
+        # logger.debug("full payload for non-streaming request", payload=payload)
 
         runtime = self._register_inflight(request_id)
         results: queue.Queue[Tuple[str, Any]] = queue.Queue()
@@ -516,7 +682,9 @@ class OpenRouterProvider(ProviderPlugin):
                     if runtime.cancelled.is_set():
                         raise ProviderRequestCancelled(request_id)
                     if runtime.done.is_set() and results.empty():
-                        raise RuntimeError("OpenRouter API call failed: request ended without result")
+                        raise RuntimeError(
+                            "OpenRouter API call failed: request ended without result"
+                        )
                     continue
                 if kind == "result":
                     obj = value
@@ -529,16 +697,23 @@ class OpenRouterProvider(ProviderPlugin):
                 if isinstance(exc, requests.RequestException):
                     try:  # pragma: no cover - debug aid
                         debug_payload = json.dumps(payload, ensure_ascii=False)[:2000]
-                        print("[openrouter_provider] call_api error payload:", debug_payload)
+                        print(
+                            "[openrouter_provider] call_api error payload:",
+                            debug_payload,
+                        )
                     except Exception:
-                        print("[openrouter_provider] call_api error payload: <unserializable>")
+                        print(
+                            "[openrouter_provider] call_api error payload: <unserializable>"
+                        )
                     resp = getattr(exc, "response", None)
                     if resp is not None:
                         try:
                             err_detail = resp.json()
                         except Exception:
                             err_detail = resp.text
-                        print("[openrouter_provider] call_api error response:", err_detail)
+                        print(
+                            "[openrouter_provider] call_api error response:", err_detail
+                        )
                     raise RuntimeError(f"OpenRouter API call failed: {exc}") from exc
                 raise RuntimeError(f"OpenRouter API call failed: {exc}") from exc
         finally:
@@ -569,7 +744,6 @@ class OpenRouterProvider(ProviderPlugin):
 
         return [], [message], [*native_messages, message], state
 
-
     def stream_api(
         self,
         native_messages: List[Dict[str, Any]],
@@ -583,8 +757,20 @@ class OpenRouterProvider(ProviderPlugin):
         self._validate_message_list(native_messages)
         override = request.get("messages")
         messages = override if isinstance(override, list) else native_messages
-        payload = {**request["payload"], "messages": messages, "stream": True}
-        logger.info("sending request", payload=str({**payload, "messages": "stripped", "tools": "stripped"}))
+        messages = self._expanded_request_messages(
+            [m for m in messages if isinstance(m, dict)],
+            state,
+        )
+        messages_to_send = [
+            {k: v for k, v in m.items() if k != "_metadata"}
+            for m in messages
+            if isinstance(m, dict)
+        ]
+        payload = {**request["payload"], "messages": messages_to_send, "stream": True}
+        logger.info(
+            "sending request",
+            payload=str({**payload, "messages": "stripped", "tools": "stripped"}),
+        )
         logger.debug("full payload for streaming request", payload=payload)
 
         runtime = self._register_inflight(request_id)
@@ -673,7 +859,6 @@ class OpenRouterProvider(ProviderPlugin):
             self._clear_inflight(request_id, runtime)
             worker.join(timeout=1.0)
 
-
     # ---------- Helpers (default/general implementations) ----------
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -685,7 +870,9 @@ class OpenRouterProvider(ProviderPlugin):
 
         return {}
 
-    def process_delta(self, delta: Dict[str, Any], accumulated) -> Tuple[Dict[str, Any],Dict[str, Any]]:
+    def process_delta(
+        self, delta: Dict[str, Any], accumulated
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         Reduce a delta dict into a new partial accumulator, and optionally a final.
         Returns (partial_message_or_none, final_message_or_none, new_accumulated).
@@ -705,7 +892,10 @@ class OpenRouterProvider(ProviderPlugin):
         return {
             **current,
             **{key: delta.get(key, current.get(key, "")) for key in override},
-            **{key: ((current.get(key) or "") + (delta.get(key) or "")) for key in accumulate},
+            **{
+                key: ((current.get(key) or "") + (delta.get(key) or ""))
+                for key in accumulate
+            },
         }
 
     def process_chunk(
@@ -713,14 +903,16 @@ class OpenRouterProvider(ProviderPlugin):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        #print("chunk:", native_chunk)
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        # print("chunk:", native_chunk)
         partial, accumulated = self.process_delta(
             delta=self.extract_delta(native_chunk), accumulated=state.get("partial", {})
         )
         new_state = {**state, "partial": accumulated}
         return_values = [partial] if partial else [], [], native_messages, new_state
-        return  return_values
+        return return_values
 
     def finalize(
         self,
@@ -729,8 +921,12 @@ class OpenRouterProvider(ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         current_partial = state.get("partial", None)
         finals = [current_partial] if current_partial else []
-        full_history = [*native_messages, current_partial] if current_partial else native_messages
+        full_history = (
+            [*native_messages, current_partial] if current_partial else native_messages
+        )
         return finals, full_history, state
 
-    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def to_display_format(
+        self, message: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         return message

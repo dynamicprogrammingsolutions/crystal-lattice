@@ -13,10 +13,13 @@ import type {
   AgentBackend,
   BackendCapabilities,
   ListMessagesResult,
+  SessionSnapshotSummary,
   ToolPromptListItem,
 } from './backend';
 import { generateIdempotencyKey } from '../utils/idempotency';
 import { emitSessionUiSchemaInvalidated } from '../uiSchema/sessionUiSchemaInvalidation';
+
+const HEAVY_REQUEST_TIMEOUT_MS = 120_000;
 
 function buildQuery(params: Record<string, string | number | undefined>): string {
   const parts: string[] = [];
@@ -156,7 +159,97 @@ export class RestAgentBackend implements AgentBackend {
       messages,
       cursorEventId: resp.data?.cursor_event_id ?? null,
       activeRequestId: resp.data?.active_request_id ?? null,
+      readonly: resp.data?.readonly === true,
+      snapshotId: typeof resp.data?.snapshot_id === 'string' ? resp.data.snapshot_id : null,
     };
+  }
+
+  async listSessionSnapshots(sessionId: string): Promise<SessionSnapshotSummary[]> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots`;
+    const resp = await this.transport.request<{ snapshots?: SessionSnapshotSummary[] }>({
+      method: 'GET',
+      path,
+    });
+    return Array.isArray(resp.data?.snapshots) ? resp.data.snapshots : [];
+  }
+
+  async createSessionSnapshot(
+    sessionId: string,
+    params: { reason: string; metadata?: Record<string, any>; idempotencyKey?: string },
+  ): Promise<SessionSnapshotSummary> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots`;
+    const resp = await this.transport.request<{ snapshot: SessionSnapshotSummary }>({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(params.idempotencyKey),
+      body: {
+        reason: params.reason,
+        metadata: params.metadata ?? {},
+      },
+    });
+    return resp.data.snapshot as SessionSnapshotSummary;
+  }
+
+  async getSelectedSessionSnapshot(sessionId: string): Promise<string | null> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots/selected`;
+    const resp = await this.transport.request<{ snapshot_id?: string | null }>({
+      method: 'GET',
+      path,
+    });
+    return typeof resp.data?.snapshot_id === 'string' ? resp.data.snapshot_id : null;
+  }
+
+  async selectSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots/${encodeURIComponent(snapshotId)}/select`;
+    await this.transport.request({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: {},
+    });
+  }
+
+  async clearSelectedSessionSnapshot(
+    sessionId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots/selected`;
+    await this.transport.request({
+      method: 'DELETE',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+    });
+  }
+
+  async restoreSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots/${encodeURIComponent(snapshotId)}/restore`;
+    await this.transport.request({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: {},
+    });
+  }
+
+  async deleteSessionSnapshot(
+    sessionId: string,
+    snapshotId: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    const path = `/sessions/${encodeURIComponent(sessionId)}/snapshots/${encodeURIComponent(snapshotId)}`;
+    await this.transport.request({
+      method: 'DELETE',
+      path,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+    });
   }
 
   async appendMessage(
@@ -182,6 +275,7 @@ export class RestAgentBackend implements AgentBackend {
       path,
       headers: this.buildIdempotencyHeaders(options.idempotencyKey),
       body: payload,
+      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
     });
   }
 
@@ -220,6 +314,7 @@ export class RestAgentBackend implements AgentBackend {
       path,
       headers: this.buildIdempotencyHeaders(params.idempotencyKey),
       body: payload,
+      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
     });
     return resp.data as any;
   }
@@ -293,7 +388,7 @@ export class RestAgentBackend implements AgentBackend {
     sinceId?: string;
     requestId?: string;
     limit?: number;
-  }): Promise<Event[]> {
+  }): Promise<{ events: Event[]; latestEventId: string | null; cursorExpired: boolean }> {
     const query = buildQuery({
       session_id: params.sessionId,
       since_id: params.sinceId,
@@ -302,12 +397,28 @@ export class RestAgentBackend implements AgentBackend {
       internal_limit: 5000,
     });
 
-    const resp = await this.transport.request<{ events?: any[] }>({
+    const resp = await this.transport.request<{
+      events?: any[];
+      latest_event_id?: string | null;
+      cursor_expired?: boolean;
+    }>({
       method: 'GET',
       path: `/events${query}`,
     });
     const events = Array.isArray(resp.data?.events) ? resp.data.events : [];
-    return events as Event[];
+    return {
+      events: events as Event[],
+      latestEventId: resp.data?.latest_event_id ?? null,
+      cursorExpired: Boolean(resp.data?.cursor_expired),
+    };
+  }
+
+  async getLatestEventId(): Promise<string | null> {
+    const resp = await this.transport.request<{ latest_event_id?: string | null }>({
+      method: 'GET',
+      path: '/events',
+    });
+    return resp.data?.latest_event_id ?? null;
   }
 
   async getSessionAgent(sessionId: string): Promise<string> {
@@ -520,7 +631,40 @@ export class RestAgentBackend implements AgentBackend {
       path: '/actions',
       headers: this.buildIdempotencyHeaders(params.idempotencyKey),
       body: payload,
+      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
     });
-    return resp.data;
+    const data = resp.data;
+
+    if (data && data.status === 'ok') {
+      const result: any = data.result && typeof data.result === 'object' ? data.result : {};
+      const resultStatus = typeof result.status === 'string' ? result.status : 'ok';
+      if (resultStatus === 'ok') {
+        const mutations: any =
+          result.mutations && typeof result.mutations === 'object' ? result.mutations : {};
+        const uiEffects: any =
+          result.ui_effects && typeof result.ui_effects === 'object' ? result.ui_effects : {};
+
+        const invalidatedSessionIds = new Set<string>();
+        const maybeLists = [
+          mutations.updated_session_ids,
+          uiEffects.reload_session_ids,
+        ];
+        for (const rawList of maybeLists) {
+          if (!Array.isArray(rawList)) continue;
+          for (const id of rawList) {
+            if (typeof id === 'string' && id) {
+              invalidatedSessionIds.add(id);
+            }
+          }
+        }
+        for (const sessionId of invalidatedSessionIds) {
+          emitSessionUiSchemaInvalidated(this, sessionId, {
+            reason: 'action_session_updated',
+          });
+        }
+      }
+    }
+
+    return data;
   }
 }

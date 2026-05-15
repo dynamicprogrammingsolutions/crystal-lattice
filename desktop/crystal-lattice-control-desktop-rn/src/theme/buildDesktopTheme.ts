@@ -3,7 +3,23 @@ import type { Theme } from '@crystal-lattice/frontend-rn-components';
 import type { MacOSSystemThemePayload } from './types';
 import { mixColors, pickTextOnColor, scaleAlpha, withAlpha } from './colorUtils';
 
+const TYPOGRAPHY: Theme['typography'] = {
+  fontSize: {
+    tiny: 11,
+    small: 12,
+    secondary: 13,
+    normal: 14,
+    message: 15,
+    large: 16,
+    title: 18,
+    screenTitle: 24,
+    display: 28,
+    code: 14,
+  },
+};
+
 const FALLBACK_LIGHT: Theme = {
+  typography: TYPOGRAPHY,
   background: '#F2F2F7',
   backgroundAlt: '#FFFFFF',
   surface: '#FFFFFF',
@@ -31,6 +47,7 @@ const FALLBACK_LIGHT: Theme = {
 };
 
 const FALLBACK_DARK: Theme = {
+  typography: TYPOGRAPHY,
   background: '#000000',
   backgroundAlt: '#1C1C1E',
   surface: '#1C1C1E',
@@ -79,6 +96,7 @@ export function buildDesktopTheme(payload: MacOSSystemThemePayload | null): Them
   const backgroundAlt = mixColors(background, surface, isDark ? 0.16 : 0.22);
 
   return {
+    typography: TYPOGRAPHY,
     background,
     backgroundAlt,
     surface,
