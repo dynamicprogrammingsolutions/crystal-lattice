@@ -1,0 +1,10 @@
+codex-tools
+
+This package includes portions derived from or adapted from:
+
+OpenAI Codex
+Copyright 2025 OpenAI
+https://github.com/openai/codex
+
+The derived portions are used to provide Codex-compatible tool schemas,
+behavior, and prompt/tool integration semantics.

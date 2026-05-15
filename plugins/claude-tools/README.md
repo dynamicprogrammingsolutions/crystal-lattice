@@ -9,3 +9,7 @@ This package is being built from behavior-driven investigations of Claude Code's
 - `Read`: Claude Code-compatible file reader with Anthropic-native schemas and tool-result payloads.
 
 `Read` currently supports text files, images, PDF status/page rendering through Poppler, simple Jupyter notebooks, and observed Claude Code error formatting. OpenAI Chat Completions-compatible providers consume the Anthropic-native result through a narrow temporary bridge until first-class tool-result interop lands.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

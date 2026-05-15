@@ -1,0 +1,16 @@
+qwen-tools
+
+This package includes portions derived from or adapted from:
+
+Qwen Code
+Copyright 2025 Qwen contributors
+https://github.com/QwenLM/qwen-code
+
+The upstream Qwen Code README also acknowledges:
+
+Gemini CLI
+Copyright 2025 Google LLC
+https://github.com/google-gemini/gemini-cli
+
+The derived portions are used to provide Qwen-compatible tool schemas,
+behavior, output formatting, and prompt/tool interaction semantics.

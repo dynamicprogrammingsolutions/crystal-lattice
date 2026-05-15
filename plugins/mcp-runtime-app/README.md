@@ -10,3 +10,7 @@ This plugin exposes session actions for:
 
 It is intentionally application-scoped rather than tool-scoped so that the UI
 can inspect runtime state independent of any one wrapper plugin.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

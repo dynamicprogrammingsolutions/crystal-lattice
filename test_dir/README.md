@@ -18,3 +18,7 @@ What to expect
 - If prior reasoning is NOT preserved:
   - GPT-5 family: typically re-reasons after the tool call (loses the earlier reasoning), recomputes the index from seed2 but still uses the bank chosen in Step 1; with the seeds above, you may see "Cup" (id 9 in bank0).
   - Anthropic Claude (e.g., sonnet-4.5): often guesses a result without reasoning.
+
+## License
+
+This directory is available under the [Apache License 2.0](../LICENSE).

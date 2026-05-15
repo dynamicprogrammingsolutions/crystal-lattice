@@ -1,0 +1,42 @@
+Default System Messages
+
+This directory contains provider-specific system message materials. Some
+subdirectories include portions derived from or adapted from upstream projects:
+
+codex/
+OpenAI Codex
+Copyright 2025 OpenAI
+https://github.com/openai/codex
+
+kimi/
+Kimi Code CLI
+Copyright 2025 Moonshot AI
+https://github.com/MoonshotAI/kimi-cli
+
+The upstream Kimi Code CLI NOTICE also attributes reused portions to:
+OpenAI Codex
+Copyright 2025 OpenAI
+https://github.com/openai/codex
+
+gemini/
+Gemini CLI
+Copyright 2025 Google LLC
+https://github.com/google-gemini/gemini-cli
+
+qwen/
+Qwen Code
+Copyright 2025 Qwen contributors
+https://github.com/QwenLM/qwen-code
+
+The upstream Qwen Code README also acknowledges:
+Gemini CLI
+Copyright 2025 Google LLC
+https://github.com/google-gemini/gemini-cli
+
+grok/
+Grok CLI
+MIT License
+Package: @vibe-kit/grok-cli
+
+Other subdirectories in this tree are part of this project unless a more
+specific notice states otherwise.

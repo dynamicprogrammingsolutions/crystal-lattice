@@ -32,3 +32,7 @@ runtime config types exported here.
 `MCPRegistry` is the MCP-specific object intended to be stored inside the
 application-owned generic `runtime_store`. The store itself remains generic and
 MCP-agnostic; only the registry knows how to cache and reuse live MCP runtimes.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

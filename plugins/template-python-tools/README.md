@@ -18,3 +18,7 @@ python -m pip install -e core/python
 python -m pip install -e "plugins/template-python-tools[dev]"
 pytest plugins/template-python-tools/tests -q
 ```
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

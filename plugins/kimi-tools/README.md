@@ -158,3 +158,7 @@ Search for patterns in file contents using regular expressions.
 pip install -e ".[dev]"
 pytest tests -q
 ```
+
+## License
+
+This directory is available under the [Apache License 2.0](LICENSE).

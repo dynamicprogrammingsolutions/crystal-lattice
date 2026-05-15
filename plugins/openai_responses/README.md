@@ -713,3 +713,7 @@ pytest plugins/openai_responses/tests -m 'integration and openai' -q
 
 Those integration tests read `OPENAI_API_KEY` from the repo root `.env` during
 local use in this repo and skip when credentials are not available.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

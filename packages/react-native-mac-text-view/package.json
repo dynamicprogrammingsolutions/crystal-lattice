@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Reusable macOS native text view for React Native New Architecture consumers",
+  "license": "Apache-2.0",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "react-native": "src/index.ts",

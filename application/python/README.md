@@ -219,6 +219,7 @@ Important layout behavior:
 
 ## Provider Credentials
 
+
 The generated default config includes several real-provider agents. Useful
 model requests require the corresponding credentials, for example:
 
@@ -818,3 +819,7 @@ pytest application/python/tests/test_binary_distribution_docker.py -q
 
 This test is marked `integration` and `docker`. Docker validates Linux bundles
 only; macOS and Windows bundles still need native runners.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

@@ -34,3 +34,7 @@ The companion `openrouter_image_generation_attachments` extension exposes:
 These actions are session-asset-backed so uploaded input images and generated
 output images can both be previewed and downloaded by clients without storing
 large base64 payloads in session JSON.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

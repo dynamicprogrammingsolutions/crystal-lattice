@@ -203,3 +203,7 @@ For the RepoQA chained workflow, the same flag also relocates workflow reports u
 
 - shared framework guidance: `evaluations/AGENTS.md`
 - benchmark-specific setup: `evaluations/benchmarks/<benchmark>/README.md`
+
+## License
+
+This directory is available under the [Apache License 2.0](../LICENSE).

@@ -378,3 +378,7 @@ Environment overrides used by the Ollama integration tests:
 ### Debugging streaming
 
 Set `debug_stream: true` in provider config to log decoded streaming chunks. Avoid enabling this when sending secrets because responses may include sensitive data.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

@@ -179,3 +179,7 @@ pytest tests -q
 The Python package name is `codex_tools` and uses a `src/` layout.
 
 Plugin metadata lives at `agent_plugin.json` in the repo root.
+
+## License
+
+This directory is available under the [Apache License 2.0](LICENSE).

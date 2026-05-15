@@ -484,11 +484,17 @@ pytest core/python/examples/tests -qs
 python scripts/generate_examples_md.py
 ```
 
-## Status, Version, License
+## Status And Version
 
 - Core package: `agent-core` 0.3.0
 - Terminal CLI package: `crystal-lattice-cli` 0.1.0 (`crystal-lattice` command)
-- License: MIT
 
 See `core/python/pyproject.toml`, `application/python/pyproject.toml`, and the
 source files for the most up-to-date behavior.
+
+## License
+
+Unless a more specific `LICENSE` file applies in a subdirectory, repository
+contents are available under the [Apache License 2.0](LICENSE). When a
+directory includes its own `LICENSE` file, that file applies within that
+subtree. See [LICENSING.md](LICENSING.md) for the repository-wide rule.
