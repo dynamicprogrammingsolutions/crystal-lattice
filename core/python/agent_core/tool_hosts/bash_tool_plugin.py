@@ -5,6 +5,7 @@ import os
 import queue
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -47,6 +48,7 @@ class BashToolPlugin:
 
     bash_args_mode: str = "flags"
     bash_positional: List[Dict[str, Any]] = []
+    bash_config_keys: List[str] = []
 
     bash_timeout_seconds: float = 60.0
     bash_error_timeout_seconds: float = 5.0
@@ -141,9 +143,7 @@ class BashToolPlugin:
         except ValueError as exc:
             return "", str(exc), 2
         cwd = self._resolve_cwd(state)
-        env = dict(os.environ)
-        if extra_env:
-            env.update({k: str(v) for k, v in extra_env.items() if isinstance(k, str)})
+        env = self._build_subprocess_env(state, extra_env)
 
         try:
             cp = subprocess.run(
@@ -174,6 +174,35 @@ class BashToolPlugin:
             return os.path.abspath(os.path.expanduser(wd.strip()))
         except Exception:
             return wd.strip()
+
+    def _build_subprocess_env(
+        self,
+        state: Optional[Dict[str, Any]] = None,
+        extra_env: Optional[Mapping[str, str]] = None,
+    ) -> Dict[str, str]:
+        env = dict(os.environ)
+        env.setdefault("AGENT_TOOL_PYTHON", sys.executable)
+
+        cfg = state.get("config") if isinstance(state, dict) else None
+        if isinstance(cfg, dict):
+            for raw_key in self.bash_config_keys or []:
+                if not isinstance(raw_key, str):
+                    continue
+                key = raw_key.strip()
+                if not key:
+                    continue
+                value = cfg.get(key)
+                if value is None or isinstance(value, (dict, list)):
+                    continue
+                env_name = "AGENT_TOOL_CONFIG_" + "".join(
+                    ch if ch.isalnum() else "_" for ch in key.upper()
+                ).strip("_")
+                if env_name:
+                    env[env_name] = str(value)
+
+        if extra_env:
+            env.update({k: str(v) for k, v in extra_env.items() if isinstance(k, str)})
+        return env
 
     def _build_invocation(
         self,
@@ -310,12 +339,14 @@ class BashToolPlugin:
 
         cwd = self._resolve_cwd(state)
         timeout_seconds = float(self.bash_timeout_seconds)
+        env = self._build_subprocess_env(state)
 
         try:
             cp = subprocess.run(
                 cmd,
                 input=stdin_data,
                 cwd=cwd,
+                env=env,
                 capture_output=True,
                 text=True,
                 timeout=timeout_seconds,
@@ -393,11 +424,13 @@ class BashToolPlugin:
         cwd = self._resolve_cwd(state)
         timeout_seconds = float(self.bash_timeout_seconds)
         stream_stderr = bool(self.bash_stream_stderr)
+        env = self._build_subprocess_env(state)
 
         try:
             proc = subprocess.Popen(
                 cmd,
                 cwd=cwd,
+                env=env,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

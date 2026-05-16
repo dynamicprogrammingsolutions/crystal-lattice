@@ -100,6 +100,17 @@ Supported subcommands:
 - `run`
 - `error` (optional)
 
+Runtime environment variables injected by the host include:
+
+- `AGENT_TOOL_PYTHON`
+  - absolute path to the exact Python interpreter running the bash tool host
+  - useful for bash tools that need to invoke helper Python scripts without
+    rediscovering `python3` through `PATH`
+- `AGENT_TOOL_TIMED_OUT`
+  - set to `1` when the host invokes the optional `error` subcommand after a timeout
+- `AGENT_TOOL_TIMEOUT_SECONDS`
+  - timeout value associated with a timed-out invocation
+
 Minimal working example:
 
 ```bash
@@ -267,6 +278,37 @@ Current v1 constraints:
 - exactly one tool schema per bash file
 - `schema.id` must match `tools[0].function.name`
 
+Optional fields:
+
+- `config_keys`
+  - list of config keys that the host should expose to the bash subprocess
+  - each key is passed as an environment variable named:
+    - `AGENT_TOOL_CONFIG_<UPPER_SNAKE_CASE_KEY>`
+  - only scalar config values are passed through; lists/dicts are ignored
+
+Example:
+
+```json
+{
+  "id": "send_to_kindle",
+  "version": "0.1.0",
+  "args_mode": "json",
+  "config_keys": [
+    "send_to_kindle_smtp_user",
+    "send_to_kindle_default_to"
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "send_to_kindle",
+        "parameters": {"type": "object", "properties": {}}
+      }
+    }
+  ]
+}
+```
+
 ### `preview`
 
 `preview` should print a short single-line preview to stdout and exit 0.
@@ -313,6 +355,18 @@ On timeout, the host sets:
 
 - `AGENT_TOOL_TIMED_OUT=1`
 - `AGENT_TOOL_TIMEOUT_SECONDS=<n>`
+
+In normal `schema` / `preview` / `run` / `error` invocations, the host also sets:
+
+- `AGENT_TOOL_PYTHON=<sys.executable>`
+
+This lets bash tools reliably reuse the same Python environment as the host.
+Recommended pattern:
+
+```bash
+PYTHON_BIN="${AGENT_TOOL_PYTHON:-$(command -v python3)}"
+"${PYTHON_BIN}" ./helper.py
+```
 
 ---
 
@@ -395,6 +449,41 @@ run)
 The host uses `config["working_directory"]` when present to set the subprocess
 cwd. If it is absent, the default shell/process cwd is used.
 
+### Selected config propagation
+
+When a bash tool schema declares `config_keys`, the host reads those keys from
+the resolved request config (`state["config"]`) and exposes them as
+environment variables:
+
+- config key: `send_to_kindle_smtp_user`
+- subprocess env: `AGENT_TOOL_CONFIG_SEND_TO_KINDLE_SMTP_USER`
+
+This is the recommended way for bash tools to consume agent/provider/mixin
+defaults that may themselves come from `${env:...}` placeholders in config.
+
+Recommended pattern:
+
+```bash
+SMTP_USER="${AGENT_TOOL_CONFIG_SEND_TO_KINDLE_SMTP_USER:-}"
+```
+
+### Python interpreter propagation
+
+The host exports:
+
+- `AGENT_TOOL_PYTHON`
+
+with the value of the host process's `sys.executable`.
+
+This is the preferred interpreter for bash tools that call Python helpers
+because it preserves:
+
+- the same virtual environment or packaged runtime as the host
+- the same installed dependencies
+- the same certificate store / interpreter-specific runtime behavior
+
+Prefer this over rediscovering `python3` via shell `PATH` when possible.
+
 ### Streaming
 
 Tool stdout is streamed as partial output.
@@ -457,12 +546,15 @@ Good things to verify:
 - argument passing works for the chosen `args_mode`
 - timeout/failure formatting is reasonable
 - directory and single-file loading both work
+- helper scripts use `AGENT_TOOL_PYTHON` correctly when Python is involved
+- declared `config_keys` arrive as expected in subprocess env
 
 ---
 
 ## Common pitfalls
 
 - Forgetting to enable `plugin_policy.allow_bash_tools`
+- Loading a bash tool repo with `path:...` instead of `bash:...` or `{"bash_tool": ...}`
 - Printing invalid JSON from `schema`
 - Mismatching `schema.id` and `tools[0].function.name`
 - Returning multiple tools from one file
