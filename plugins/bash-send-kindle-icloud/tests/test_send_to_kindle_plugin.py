@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import re
 import shutil
 import zipfile
 from pathlib import Path
@@ -247,3 +248,141 @@ def test_build_epub_round_trip_uses_default_local_link_filter(tmp_path: Path) ->
     assert "details" in rendered
     assert str(second) not in rendered
     assert "https://example.com" in rendered
+
+
+@pytest.mark.skipif(
+    shutil.which("bash") is None or shutil.which("jq") is None,
+    reason="bash and jq executables are required",
+)
+def test_send_markdown_to_kindle_preview_summarizes_inputs(tmp_path: Path) -> None:
+    first = tmp_path / "01.md"
+    second = tmp_path / "02.md"
+    first.write_text("## Preview Book\n", encoding="utf-8")
+    second.write_text("# Second\n", encoding="utf-8")
+
+    tool_cls = _resolve_tool_class_by_name(tmp_path, "send_markdown_to_kindle")
+    tool = tool_cls()
+    state = tool.init({"send_to_kindle_default_to": "reader@kindle.com"})
+    preview = tool.format_tool_call_preview(
+        "send_markdown_to_kindle",
+        {
+            "markdown_files": [str(first), str(second)],
+        },
+        state,
+    )
+
+    assert preview.startswith("send_markdown_to_kindle")
+    assert "files=2" in preview
+    assert "Preview Book" in preview
+    assert "reader@kindle.com" in preview
+    assert re.search(
+        r"output_filename=preview-book-\d{8}-\d{6}\.epub",
+        preview,
+    )
+
+
+@pytest.mark.skipif(
+    not _have_build_epub_deps(),
+    reason="bash, jq, and pandoc executables are required",
+)
+def test_send_markdown_to_kindle_builds_and_dry_runs_send(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SEND_TO_KINDLE_DRY_RUN", "1")
+
+    second = tmp_path / "02-details.md"
+    second.write_text("# Details\n\nSupporting content.\n", encoding="utf-8")
+
+    first = tmp_path / "01-main.md"
+    first.write_text("## Bundle Book\n\nSee details.\n", encoding="utf-8")
+
+    tool_cls = _resolve_tool_class_by_name(tmp_path, "send_markdown_to_kindle")
+
+    core = AgentCore()
+    core.register_tool(tool_cls)
+
+    tool_call = {
+        "id": "call_send_markdown_1",
+        "type": "function",
+        "function": {
+            "name": "send_markdown_to_kindle",
+            "arguments": {
+                "markdown_files": [str(first), str(second)],
+                "author": "Plugin Test",
+                "to": "override@example.com",
+            },
+        },
+    }
+
+    items = list(
+        core.iter_tool_messages(
+            [tool_call],
+            config={
+                "send_to_kindle_smtp_user": "tester@icloud.com",
+                "send_to_kindle_from_addr": "tester@icloud.com",
+                "send_to_kindle_default_to": "reader@kindle.com",
+                "send_to_kindle_keychain_service": "test-kindle",
+            },
+        )
+    )
+    finals = [it for it in items if isinstance(it, dict) and it.get("role") == "tool"]
+    assert len(finals) == 1
+    content = finals[0].get("content", "")
+    assert "built_epub=" in content
+    assert "dry_run=true" in content
+    assert "override@example.com" in content
+    assert "title=Bundle Book" in content
+
+    match = re.search(r"attachment=([^ ]*bundle-book-\d{8}-\d{6}\.epub)", content)
+    assert match is not None
+    assert not Path(match.group(1)).exists()
+
+
+@pytest.mark.skipif(
+    not _have_build_epub_deps(),
+    reason="bash, jq, and pandoc executables are required",
+)
+def test_send_markdown_to_kindle_respects_explicit_output_filename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SEND_TO_KINDLE_DRY_RUN", "1")
+
+    first = tmp_path / "01-main.md"
+    first.write_text("# Explicit Name\n", encoding="utf-8")
+
+    tool_cls = _resolve_tool_class_by_name(tmp_path, "send_markdown_to_kindle")
+
+    core = AgentCore()
+    core.register_tool(tool_cls)
+
+    tool_call = {
+        "id": "call_send_markdown_2",
+        "type": "function",
+        "function": {
+            "name": "send_markdown_to_kindle",
+            "arguments": {
+                "markdown_files": [str(first)],
+                "output_filename": "Custom Output",
+            },
+        },
+    }
+
+    items = list(
+        core.iter_tool_messages(
+            [tool_call],
+            config={
+                "send_to_kindle_smtp_user": "tester@icloud.com",
+                "send_to_kindle_from_addr": "tester@icloud.com",
+                "send_to_kindle_default_to": "reader@kindle.com",
+                "send_to_kindle_keychain_service": "test-kindle",
+            },
+        )
+    )
+    finals = [it for it in items if isinstance(it, dict) and it.get("role") == "tool"]
+    assert len(finals) == 1
+    content = finals[0].get("content", "")
+    assert "title=Explicit Name" in content
+
+    match = re.search(r"attachment=(.+?Custom Output\.epub)(?:\s|$)", content)
+    assert match is not None
+    assert not Path(match.group(1)).exists()

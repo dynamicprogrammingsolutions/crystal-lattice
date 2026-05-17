@@ -1,6 +1,7 @@
 {
   "bash_tools": [
     {"file": "send_to_kindle.bash"},
-    {"file": "build_epub_from_markdown.bash"}
+    {"file": "build_epub_from_markdown.bash"},
+    {"file": "send_markdown_to_kindle.bash"}
   ]
 }

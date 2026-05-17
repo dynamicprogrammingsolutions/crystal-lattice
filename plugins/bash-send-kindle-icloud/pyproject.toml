@@ -30,6 +30,7 @@ include = ["bash_send_kindle_icloud*"]
   "agent_plugin.json",
   "build_epub_from_markdown.bash",
   "send_to_kindle.bash",
+  "send_markdown_to_kindle.bash",
   "send_icloud_email.py",
   "strip_local_file_references.lua",
 ]
