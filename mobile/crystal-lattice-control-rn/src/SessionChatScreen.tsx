@@ -32,10 +32,12 @@ import {
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
   runApplicationAction,
+  resolveAttachmentActionPluginId,
   selectSessionAssetId,
   selectLastAssistantMessage,
   storeSessionAttachment,
   generateIdempotencyKey,
+  type ComposerAttachmentUiElement as SharedComposerAttachmentUiElement,
   type RunActionContext,
   type AttachmentDraftStatus,
 } from '@crystal-lattice/frontend-sdk';
@@ -162,7 +164,7 @@ type ComposerActionUiElementBase = UiSchemaElement & {
   attachment_action_plugin?: string;
 };
 
-type ComposerAttachmentUiElement = ComposerActionUiElementBase & {
+type ComposerAttachmentUiElement = SharedComposerAttachmentUiElement & ComposerActionUiElementBase & {
   ui_type: 'composer_attachment';
   supported_file_types?: string[];
   supports_upload?: boolean;
@@ -230,18 +232,6 @@ function upsertInlineDisplay(
     }
   }
   return [...current, nextEntry];
-}
-
-function resolveAttachmentActionPluginId(element: ComposerAttachmentUiElement): string | null {
-  const actionPlugin = (element as any).attachment_action_plugin;
-  if (typeof actionPlugin === 'string' && actionPlugin.trim()) {
-    return actionPlugin.trim();
-  }
-  const plugin = (element as any).plugin;
-  if (typeof plugin === 'string' && plugin.trim()) {
-    return plugin.trim();
-  }
-  return null;
 }
 
 const TRANSCRIPT_STATUS_ROW: TranscriptRow = { kind: 'status' };

@@ -8,6 +8,7 @@ import { FetchTransport } from '../../transport/fetchTransport';
 import { RestAgentBackend } from '../../backend/restBackend';
 import {
   downloadSessionAttachment,
+  resolveAttachmentActionPluginId,
   selectAttachmentPreviewUrl,
   storeSessionAttachment,
 } from '../../index';
@@ -116,10 +117,11 @@ async function getImageAttachmentPluginId(
       element.attachment_type === 'image',
   ) as any;
 
-  if (!imageAttachmentElement || typeof imageAttachmentElement.plugin !== 'string') {
+  const pluginId = resolveAttachmentActionPluginId(imageAttachmentElement);
+  if (!imageAttachmentElement || typeof pluginId !== 'string' || !pluginId) {
     throw new Error('image composer attachment plugin was not exposed in session UI schema');
   }
-  return imageAttachmentElement.plugin;
+  return pluginId;
 }
 
 const OPENROUTER_API_KEY = loadEnvVarFromRoot('OPENROUTER_API_KEY');

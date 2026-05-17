@@ -6,6 +6,7 @@ import {
   downloadSessionAttachment,
   deleteSessionAttachment,
   DOWNLOAD_ATTACHMENT_ACTION_ID,
+  resolveAttachmentActionPluginId,
   SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
   selectSessionAssetId,
   storeSessionAttachment,
@@ -234,6 +235,38 @@ describe('attachmentActions', () => {
         data_base64: 'QUJDRA==',
       },
     });
+  });
+
+  it('prefers attachment_action_plugin over plugin when resolving attachment action ownership', () => {
+    expect(
+      resolveAttachmentActionPluginId({
+        ui_type: 'composer_attachment',
+        plugin: 'openai_responses',
+        attachment_action_plugin: 'openai_responses_attachments',
+        attachment_type: 'image',
+      }),
+    ).toBe('openai_responses_attachments');
+  });
+
+  it('falls back to plugin when no attachment_action_plugin is provided', () => {
+    expect(
+      resolveAttachmentActionPluginId({
+        ui_type: 'composer_attachment',
+        plugin: 'openrouter_image_generation_attachments',
+        attachment_type: 'image',
+      }),
+    ).toBe('openrouter_image_generation_attachments');
+  });
+
+  it('returns null when an attachment element does not define a usable action plugin', () => {
+    expect(
+      resolveAttachmentActionPluginId({
+        ui_type: 'composer_attachment',
+        plugin: '   ',
+        attachment_action_plugin: '',
+        attachment_type: 'image',
+      }),
+    ).toBeNull();
   });
 
   it('surfaces backend action errors with the server message', async () => {

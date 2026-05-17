@@ -35,6 +35,7 @@ import type {
 } from '@crystal-lattice/frontend-sdk';
 import {
   attachmentDraftStatusLabel,
+  resolveAttachmentActionPluginId,
   deleteSessionAttachment,
   deriveSessionListPresentationFromGroups,
   filterFooterElements,
@@ -46,6 +47,7 @@ import {
   selectSessionAssetId,
   selectDisplayContent,
   storeSessionAttachment,
+  type ComposerAttachmentUiElement as SharedComposerAttachmentUiElement,
   type AttachmentDraftStatus,
 } from '@crystal-lattice/frontend-sdk';
 import {
@@ -125,10 +127,11 @@ type ChatSessionActionKey = 'reload' | 'agentSwitch' | 'messageLimit' | 'setting
 
 type ChatComposerActionKey = 'append' | 'appendAs' | 'resend' | 'cancel';
 
-type ComposerAttachmentUiElement = {
+type ComposerAttachmentUiElement = SharedComposerAttachmentUiElement & {
   ui_type: 'composer_attachment';
   key?: string;
   plugin?: string;
+  attachment_action_plugin?: string;
   attachment_type?: string;
   supported_file_types?: string[];
   supports_upload?: boolean;
@@ -1231,11 +1234,7 @@ export const ChatPane = React.memo(function ChatPane({
           filename: params.filename,
           mimeType: params.mimeType,
           dataBase64: params.dataBase64,
-          pluginId:
-            typeof (params.element as any).plugin === 'string' &&
-            String((params.element as any).plugin).trim()
-              ? String((params.element as any).plugin).trim()
-              : undefined,
+          pluginId: resolveAttachmentActionPluginId(params.element) ?? undefined,
         });
 
         beginAddDraftAttachment({

@@ -116,6 +116,7 @@ export { runApplicationAction, getRunActionErrorMessage } from './plugins/action
 export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';
 export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
 export type {
+  ComposerAttachmentUiElement,
   SessionAssetRef,
   StoredAttachmentAssetDescriptor,
   DownloadedAttachmentPayload,
@@ -128,6 +129,7 @@ export {
   DELETE_ATTACHMENT_ACTION_ID,
   DOWNLOAD_ATTACHMENT_ACTION_ID,
   selectSessionAssetId,
+  resolveAttachmentActionPluginId,
   storeSessionAttachment,
   deleteSessionAttachment,
   downloadSessionAttachment,

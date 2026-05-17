@@ -24,6 +24,7 @@ Each attachment type is described by its own UI schema element.
   - `label`
   - `metadata_ui` describing optional per-attachment metadata controls (shape is frontend contract).
   - `prepare_action` (string action id, e.g. `"upload_image"`)
+  - `attachment_action_plugin` (string plugin id for attachment lifecycle actions when different from the contributing plugin)
 
 ## Semantics: `prepare_action`
 
@@ -34,6 +35,21 @@ When present, `prepare_action` names an action that the UI can call to normalize
   - Frontends should use `prepare_action` as `action_id`.
 - The action semantics should match application actions (inputs/result envelope), but the implementation lives in provider/extension (or other core plugin types).
   - See Phase 2 plan: `tasks/20260215-multipart-upload/090-asset-prepare-upload-action.md`.
+
+## Semantics: `attachment_action_plugin`
+
+When present, `attachment_action_plugin` identifies the plugin that owns attachment lifecycle actions such as:
+
+- `store_attachment`
+- `delete_attachment`
+- `download_attachment`
+
+Frontends should resolve the action target as:
+
+1. `attachment_action_plugin` when present and non-empty
+2. otherwise the element's `plugin` field
+
+This supports providers that contribute the `composer_attachment` UI element while delegating attachment storage/download actions to a companion extension plugin.
 
 ## Suggested Ownership
 
