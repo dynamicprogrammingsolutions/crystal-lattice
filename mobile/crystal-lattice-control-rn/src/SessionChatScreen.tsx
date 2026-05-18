@@ -83,7 +83,7 @@ import AttachmentViewerHost from './components/AttachmentViewerHost';
 import type { DebugTimelineEntry } from './debugTimeline';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
 import { selectDisplayContent } from './messageUtils';
-import { pickAssetAsDataUrl } from './attachmentPicking';
+import { pickAssetAsDataUrl, type AssetPickSource } from './attachmentPicking';
 import { AttachmentThumbnailStrip, type AttachmentLike } from './components/AttachmentThumbnailStrip';
 import { ComposerAttachmentsManageModal } from './components/ComposerAttachmentsManageModal';
 import {
@@ -737,6 +737,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     | null
   >(null);
   const [attachmentPickInProgress, setAttachmentPickInProgress] = useState(false);
+  const [attachmentPickRecoveryAvailable, setAttachmentPickRecoveryAvailable] = useState(false);
+  const [attachmentPickStatusText, setAttachmentPickStatusText] = useState('');
   const [attachmentBackgroundOperation, setAttachmentBackgroundOperation] =
     useState<AttachmentBackgroundOperation>(null);
   const [imageAttachVisible, setImageAttachVisible] = useState(false);
@@ -846,9 +848,72 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     activeRequestId: string | null;
     dirty: boolean;
   } | null>(null);
+  const attachmentPickRequestIdRef = useRef(0);
+  const attachmentPickRecoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearAttachmentPickRecoveryTimer = useCallback(() => {
+    if (attachmentPickRecoveryTimerRef.current != null) {
+      clearTimeout(attachmentPickRecoveryTimerRef.current);
+      attachmentPickRecoveryTimerRef.current = null;
+    }
+  }, []);
+
+  const beginAttachmentPick = useCallback(
+    (statusText: string) => {
+      attachmentPickRequestIdRef.current += 1;
+      const requestId = attachmentPickRequestIdRef.current;
+      clearAttachmentPickRecoveryTimer();
+      setAttachmentPickStatusText(statusText);
+      setAttachmentPickInProgress(true);
+      setAttachmentPickRecoveryAvailable(false);
+      attachmentPickRecoveryTimerRef.current = setTimeout(() => {
+        if (attachmentPickRequestIdRef.current === requestId) {
+          setAttachmentPickRecoveryAvailable(true);
+        }
+      }, 4000);
+      return requestId;
+    },
+    [clearAttachmentPickRecoveryTimer],
+  );
+
+  const finishAttachmentPick = useCallback(
+    (requestId: number) => {
+      if (attachmentPickRequestIdRef.current !== requestId) {
+        return;
+      }
+      clearAttachmentPickRecoveryTimer();
+      setAttachmentPickInProgress(false);
+      setAttachmentPickRecoveryAvailable(false);
+      setAttachmentPickStatusText('');
+    },
+    [clearAttachmentPickRecoveryTimer],
+  );
+
+  const resetAttachmentPickState = useCallback(
+    (options?: { showAlert?: boolean }) => {
+      attachmentPickRequestIdRef.current += 1;
+      clearAttachmentPickRecoveryTimer();
+      setAttachmentPickInProgress(false);
+      setAttachmentPickRecoveryAvailable(false);
+      setAttachmentPickStatusText('');
+      if (options?.showAlert) {
+        Alert.alert(
+          'Picker reset',
+          'If a system picker is still open, dismiss it before trying again.',
+        );
+      }
+    },
+    [clearAttachmentPickRecoveryTimer],
+  );
+
   useEffect(() => {
     onSaveComposeTextRef.current = onSaveComposeText;
   }, [onSaveComposeText]);
+
+  useEffect(() => () => {
+    attachmentPickRequestIdRef.current += 1;
+    clearAttachmentPickRecoveryTimer();
+  }, [clearAttachmentPickRecoveryTimer]);
 
   useEffect(() => {
     if (Platform.OS !== 'android') return;
@@ -2184,14 +2249,20 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return;
       }
 
-      setAttachmentPickInProgress(true);
+      const requestId = beginAttachmentPick(
+        element.attachment_type === 'pdf' ? 'Opening PDF picker...' : 'Opening file picker...',
+      );
       try {
         const picked = await pickAssetAsDataUrl({
           attachmentType: element.attachment_type,
           supportedFileTypes: Array.isArray(element.supported_file_types)
             ? element.supported_file_types
             : [],
+          source: 'files',
         });
+        if (attachmentPickRequestIdRef.current !== requestId) {
+          return;
+        }
         if (!picked) {
           return;
         }
@@ -2203,18 +2274,21 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           dataUrl: picked.dataUrl,
         });
       } catch (err: any) {
+        if (attachmentPickRequestIdRef.current !== requestId) {
+          return;
+        }
         console.log('Failed to pick attachment', err);
         const message = err?.message || 'Failed to pick attachment';
         Alert.alert('Attachment error', message);
       } finally {
-        setAttachmentPickInProgress(false);
+        finishAttachmentPick(requestId);
       }
     },
-    [attachmentPickInProgress, storePickedAttachment],
+    [attachmentPickInProgress, beginAttachmentPick, finishAttachmentPick, storePickedAttachment],
   );
 
   const pickImageForElement = useCallback(
-    async (source: 'library' | 'camera') => {
+    async (source: AssetPickSource) => {
       if (!imageAttachElement) {
         return;
       }
@@ -2222,15 +2296,24 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return;
       }
 
-      setAttachmentPickInProgress(true);
+      const requestId = beginAttachmentPick(
+        source === 'camera'
+          ? 'Opening camera...'
+          : source === 'files'
+            ? 'Opening file picker...'
+            : 'Opening photo library...',
+      );
       try {
         const picked = await pickAssetAsDataUrl({
           attachmentType: 'image',
-          imageSource: source,
+          source,
           supportedFileTypes: Array.isArray(imageAttachElement.supported_file_types)
             ? imageAttachElement.supported_file_types
             : [],
         });
+        if (attachmentPickRequestIdRef.current !== requestId) {
+          return;
+        }
         if (!picked) {
           return;
         }
@@ -2243,14 +2326,23 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           dataUrl: picked.dataUrl,
         });
       } catch (err: any) {
+        if (attachmentPickRequestIdRef.current !== requestId) {
+          return;
+        }
         console.log('Failed to pick image attachment', err);
         const message = err?.message || 'Failed to pick image attachment';
         Alert.alert('Attachment error', message);
       } finally {
-        setAttachmentPickInProgress(false);
+        finishAttachmentPick(requestId);
       }
     },
-    [attachmentPickInProgress, imageAttachElement, storePickedAttachment],
+    [
+      attachmentPickInProgress,
+      beginAttachmentPick,
+      finishAttachmentPick,
+      imageAttachElement,
+      storePickedAttachment,
+    ],
   );
 
   const addImageUrlForElement = useCallback(() => {
@@ -3340,6 +3432,32 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        </View>
 	      )}
 
+        {attachmentPickInProgress && (
+          <View style={styles.pickerRecoveryContainer}>
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="small" color={theme.primary} />
+              <Text style={styles.loadingText}>
+                {attachmentPickStatusText || 'Opening picker...'}
+              </Text>
+            </View>
+            {attachmentPickRecoveryAvailable && (
+              <>
+                <Text style={styles.pickerRecoveryText}>
+                  If no system picker appeared, reset the attach controls and try again.
+                </Text>
+                <View style={styles.pickerRecoveryButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.button, styles.secondaryButton, styles.pendingRecoveryButton]}
+                    onPress={() => resetAttachmentPickState({ showAlert: true })}
+                  >
+                    <Text style={styles.buttonTextSecondary}>Reset picker</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
         <ChatTranscript
           listRef={listRef}
           messages={messages}
@@ -3507,9 +3625,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                   <Text style={styles.modalSubtitle}>
                     {Boolean((imageAttachElement as any)?.supports_upload ?? true) &&
                     Boolean((imageAttachElement as any)?.supports_url ?? true)
-                      ? 'Choose a photo source or paste an image URL.'
+                      ? 'Choose a photo source, pick a file, or paste an image URL.'
                       : Boolean((imageAttachElement as any)?.supports_upload ?? true)
-                        ? 'Choose a photo source.'
+                        ? 'Choose a photo source or pick a file.'
                         : 'Paste an image URL.'}
                   </Text>
 
@@ -3540,6 +3658,19 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                         }
                       >
                         <Text style={styles.buttonTextSecondary}>Take photo</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
+                        onPress={() => pickImageForElement('files')}
+                        disabled={
+                          sendInProgress ||
+                          !!pendingRequestRecovery ||
+                          !!activeRequestId ||
+                          attachmentPickInProgress ||
+                          attachmentActionInProgress
+                        }
+                      >
+                        <Text style={styles.buttonTextSecondary}>Choose File</Text>
                       </TouchableOpacity>
                     </View>
                   )}
@@ -4201,8 +4332,27 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'flex-end',
       marginBottom: 4,
     },
+    pickerRecoveryContainer: {
+      marginBottom: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surfaceAlt,
+    },
+    pickerRecoveryText: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    pickerRecoveryButtonsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      marginTop: 8,
+    },
     imageSourceButtonsRow: {
       flexDirection: 'row',
+      flexWrap: 'wrap',
       gap: 8,
       marginBottom: 12,
     },
