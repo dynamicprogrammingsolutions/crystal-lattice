@@ -111,8 +111,8 @@ class InterceptorCalculator:
         if isinstance(pid, str) and pid:
             prompt_id = fmt(pid)
         else:
-            suf = tool_call_id if isinstance(tool_call_id, str) and tool_call_id else "tool"
-            prompt_id = f"{schema_id}_{suf}"
+            suf_raw = str(tool_call_id).strip() if tool_call_id is not None else ""
+            prompt_id = f"{schema_id}_{suf_raw}" if suf_raw else f"{schema_id}_tool"
 
         out: Dict[str, Any] = {
             "id": prompt_id,
@@ -194,13 +194,24 @@ class InterceptorCalculator:
                     "schema_id": "web_access",
                     "schema_params": {"url": display_url},
                 }
-            if answer.get("button_id") == "reject":
+            raw_bid = answer.get("button_id")
+            bid = str(raw_bid).strip().lower() if isinstance(raw_bid, str) else ""
+            if bid == "reject":
                 return {
                     "kind": "respond",
                     "tool_result": {"success": False, "error": "Rejected web access"},
                     "continue_loop": True,
                 }
-            return {"kind": "continue"}
+            if bid in ("accept", "allow", "ok"):
+                return {"kind": "continue"}
+            return {
+                "kind": "respond",
+                "tool_result": {
+                    "success": False,
+                    "error": "Unknown or unsupported web prompt choice",
+                },
+                "continue_loop": True,
+            }
 
         if tool_name != "add":
             return {"kind": "continue"}
@@ -213,12 +224,13 @@ class InterceptorCalculator:
                 "schema_id": "add_confirmation",
                 "schema_params": {"a": a_b.get("a", ""), "b": a_b.get("b", "")},
             }
-        button_id = answer.get("button_id")
+        raw_bid = answer.get("button_id")
+        button_id = str(raw_bid).strip().lower() if isinstance(raw_bid, str) else ""
         if button_id == "deny":
             return {
                 "kind": "respond",
                 "tool_result": {"success": False, "error": "Denied by interceptor"},
-                "continue_loop": True,
+                "continue_loop": False,
             }
         if button_id == "deny_stop":
             return {
@@ -238,7 +250,24 @@ class InterceptorCalculator:
                     fn["arguments"] = args_json
                     call["function"] = fn
                 return {"kind": "continue", "tool_call": call}
-        return {"kind": "continue"}
+            return {
+                "kind": "respond",
+                "tool_result": {
+                    "success": False,
+                    "error": "Transform requested but raw tool call was missing",
+                },
+                "continue_loop": False,
+            }
+        if button_id in ("allow", "ok"):
+            return {"kind": "continue"}
+        return {
+            "kind": "respond",
+            "tool_result": {
+                "success": False,
+                "error": "Unknown or unsupported prompt choice (tool not run)",
+            },
+            "continue_loop": False,
+        }
 
     def intercept_tool_result(
         self,

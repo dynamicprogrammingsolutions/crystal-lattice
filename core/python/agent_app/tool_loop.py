@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import threading
 from typing import Any, Callable, Dict, Iterator, List
-import traceback  # Add this import at the beginning of your file
 
 from agent_core import AgentCore, Message, MessageRole, Session
 from agent_core.tool_result_payloads import TOOL_RESULT_FIELD
@@ -103,6 +102,13 @@ class ToolLoopRunner:
     def _extract_tool_calls(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         return self._core.extract_tool_calls_from_messages(messages)
 
+    @staticmethod
+    def _tool_call_ids_match(stored: Any, current: Any) -> bool:
+        """Compare tool call ids across JSON/session boundaries (e.g. str vs int)."""
+        if stored is None or current is None:
+            return False
+        return str(stored).strip() == str(current).strip()
+
     def _extract_pending_tool_calls_from_session(self, session: Session) -> List[Dict[str, Any]]:
         """Return tool_calls from the last assistant message, if not yet answered.
 
@@ -200,9 +206,12 @@ class ToolLoopRunner:
     def _find_assistant_message_index_for_tool_call(
         self,
         session: Session,
-        tool_call_id: str | None,
+        tool_call_id: str | int | None,
     ) -> int | None:
-        if not isinstance(tool_call_id, str) or not tool_call_id:
+        if tool_call_id is None:
+            return None
+        tid = str(tool_call_id).strip()
+        if not tid:
             return None
         for idx in range(len(session.messages) - 1, -1, -1):
             msg = session.messages[idx]
@@ -216,7 +225,7 @@ class ToolLoopRunner:
                 if not isinstance(call, dict):
                     continue
                 call_id = call.get("id") or call.get("call_id")
-                if isinstance(call_id, str) and call_id == tool_call_id:
+                if ToolLoopRunner._tool_call_ids_match(call_id, tid):
                     return idx
         return None
 
@@ -554,7 +563,9 @@ class ToolLoopRunner:
                     if isinstance(current, dict):
                         if (
                             current.get("phase") == "tool_call"
-                            and current.get("tool_call_id") == call_id
+                            and ToolLoopRunner._tool_call_ids_match(
+                                current.get("tool_call_id"), call_id
+                            )
                             and isinstance(current.get("answer"), dict)
                         ):
                             resume_answer = dict(current.get("answer") or {})
@@ -1154,8 +1165,6 @@ class ToolLoopRunner:
         except NotImplementedError:
             raise
         except Exception as exc:
-            print(f"Error in ToolLoopRunner: {exc}")
-            traceback.print_exc()  # Print the stack trace
             yield {
                 "type": "error",
                 "session_id": current_session.session_id,

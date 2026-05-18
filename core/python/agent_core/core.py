@@ -216,19 +216,6 @@ class AgentCore:
 
         from agent_core.types import Message  # local import to avoid cycles
 
-        # Note on metadata preservation:
-        #
-        # When provider-native history is enabled (session.metadata contains
-        # ``native_messages``), this helper rebuilds the full core message list
-        # from the provider-native sequence.
-        #
-        # By design, arbitrary application-level ``Message.metadata`` is NOT
-        # automatically preserved across the native -> core rebuild step.
-        # If metadata must survive a native-history rebuild, providers/
-        # extensions/features should explicitly persist it into the provider-
-        # native message dicts under the ``_metadata`` key in
-        # ``to_native_messages`` and restore it in ``from_native_messages``.
-
         def _core_only_session(clean_metadata):
             cleaned = dict(clean_metadata)
             cleaned.pop("native_indices", None)
@@ -248,19 +235,6 @@ class AgentCore:
                 messages=new_messages,
                 metadata=new_session_metadata,
             )
-
-        # Tool orchestration and interception rely on metadata (`tool_calls`,
-        # `interception_*`) being available on core messages. When native history
-        # is enabled, the native -> core rebuild does not guarantee arbitrary
-        # metadata round-trips for all providers. For these messages, prefer a
-        # core-only append and drop native history so the next request can
-        # reconstruct it if needed.
-        if isinstance(md, dict) and (
-            "tool_calls" in md
-            or "interception_current" in md
-            or "interception_phases" in md
-        ):
-            return _core_only_session(md), None
 
         retained_native = None
 

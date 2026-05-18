@@ -933,9 +933,12 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
                 density="compact"
                 onSubmit={(payload) => {
                   const bid =
-                    typeof payload.buttonId === 'string' && payload.buttonId
-                      ? payload.buttonId
-                      : 'ok';
+                    typeof payload.buttonId === 'string' && payload.buttonId.trim()
+                      ? payload.buttonId.trim()
+                      : '';
+                  if (!bid) {
+                    return;
+                  }
                   void onToolInterceptorPromptSubmit({
                     messageIndex: index,
                     promptId: promptIdForSubmit,

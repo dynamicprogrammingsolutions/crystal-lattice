@@ -11,6 +11,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
+import pytest
+
 from agent_app.application_future import AgentApplication
 from agent_app.tool_loop import ToolLoopRunner
 from agent_core import AgentCore, Message, Session
@@ -212,6 +214,170 @@ def test_interceptor_tool_prompt_title_overridable_from_config(tmp_path: Path) -
     assert isinstance(prompt, dict)
     assert prompt.get("title") == "Custom title from config"
     assert prompt.get("message") == "Custom body from config."
+
+
+@pytest.mark.parametrize("deny_button_id", ["deny", "Deny"])
+def test_interceptor_deny_does_not_execute_add(
+    tmp_path: Path, deny_button_id: str
+) -> None:
+    config_path = _make_interceptor_tool_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    core, base_config, session = app.create_session("default")
+
+    tool_call: Dict[str, object] = {
+        "id": f"call_deny_{deny_button_id}",
+        "type": "function",
+        "function": {"name": "add", "arguments": json.dumps({"a": 2, "b": 3})},
+    }
+    session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    app.save_session(session)
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
+    final_session = [ev for ev in events if ev.get("type") == "session_checkpoint"][-1]["session"]
+    assert isinstance(final_session, Session)
+    assistant = final_session.messages[-1]
+    current = (assistant.metadata or {}).get("interception_current")
+    assert isinstance(current, dict)
+    prompt = current.get("pending_prompt")
+    assert isinstance(prompt, dict)
+
+    new_md = dict(assistant.metadata or {})
+    next_current = dict(current)
+    next_current["answer"] = {
+        "prompt_id": prompt.get("id"),
+        "button_id": deny_button_id,
+        "values": {},
+    }
+    new_md["interception_current"] = next_current
+    resumed = Session(
+        session_id=final_session.session_id,
+        messages=[
+            *final_session.messages[:-1],
+            Message(
+                role=assistant.role,
+                content=assistant.content,
+                metadata=new_md,
+                multipart_content=assistant.multipart_content,
+            ),
+        ],
+        metadata=final_session.metadata,
+    )
+    app.save_session(resumed)
+    events2 = list(app.send_request(core, resumed, base_config, overrides=None, stream=False))
+    resumed_session = [ev for ev in events2 if ev.get("type") == "session_checkpoint"][-1]["session"]
+    assert isinstance(resumed_session, Session)
+    tool_messages = [m for m in resumed_session.messages if m.role == "tool"]
+    assert tool_messages
+    assert "Denied by interceptor" in tool_messages[-1].content
+    assert "Result:" not in tool_messages[-1].content
+
+
+def test_interceptor_unknown_button_does_not_execute_add(tmp_path: Path) -> None:
+    config_path = _make_interceptor_tool_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    core, base_config, session = app.create_session("default")
+
+    tool_call: Dict[str, object] = {
+        "id": "call_bad_btn",
+        "type": "function",
+        "function": {"name": "add", "arguments": json.dumps({"a": 1, "b": 1})},
+    }
+    session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    app.save_session(session)
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
+    final_session = [ev for ev in events if ev.get("type") == "session_checkpoint"][-1]["session"]
+    assert isinstance(final_session, Session)
+    assistant = final_session.messages[-1]
+    current = (assistant.metadata or {}).get("interception_current")
+    assert isinstance(current, dict)
+    prompt = current.get("pending_prompt")
+    assert isinstance(prompt, dict)
+
+    new_md = dict(assistant.metadata or {})
+    next_current = dict(current)
+    next_current["answer"] = {
+        "prompt_id": prompt.get("id"),
+        "button_id": "not_a_real_action",
+        "values": {},
+    }
+    new_md["interception_current"] = next_current
+    resumed = Session(
+        session_id=final_session.session_id,
+        messages=[
+            *final_session.messages[:-1],
+            Message(
+                role=assistant.role,
+                content=assistant.content,
+                metadata=new_md,
+                multipart_content=assistant.multipart_content,
+            ),
+        ],
+        metadata=final_session.metadata,
+    )
+    app.save_session(resumed)
+    events2 = list(app.send_request(core, resumed, base_config, overrides=None, stream=False))
+    resumed_session = [ev for ev in events2 if ev.get("type") == "session_checkpoint"][-1]["session"]
+    assert isinstance(resumed_session, Session)
+    tool_messages = [m for m in resumed_session.messages if m.role == "tool"]
+    assert tool_messages
+    assert "Unknown or unsupported prompt choice" in tool_messages[-1].content
+    assert "Result:" not in tool_messages[-1].content
+
+
+def test_interceptor_resume_denies_when_metadata_tool_call_id_is_int(tmp_path: Path) -> None:
+    """``interception_current.tool_call_id`` may deserialize as int; must still match."""
+    config_path = _make_interceptor_tool_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    core, base_config, session = app.create_session("default")
+
+    tool_call: Dict[str, object] = {
+        "id": "501",
+        "type": "function",
+        "function": {"name": "add", "arguments": json.dumps({"a": 40, "b": 28})},
+    }
+    session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    app.save_session(session)
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
+    final_session = [ev for ev in events if ev.get("type") == "session_checkpoint"][-1]["session"]
+    assert isinstance(final_session, Session)
+    assistant = final_session.messages[-1]
+    current = (assistant.metadata or {}).get("interception_current")
+    assert isinstance(current, dict)
+    prompt = current.get("pending_prompt")
+    assert isinstance(prompt, dict)
+
+    new_md = dict(assistant.metadata or {})
+    next_current = dict(current)
+    next_current["tool_call_id"] = 501
+    next_current["answer"] = {
+        "prompt_id": prompt.get("id"),
+        "button_id": "deny",
+        "values": {},
+    }
+    new_md["interception_current"] = next_current
+    resumed = Session(
+        session_id=final_session.session_id,
+        messages=[
+            *final_session.messages[:-1],
+            Message(
+                role=assistant.role,
+                content=assistant.content,
+                metadata=new_md,
+                multipart_content=assistant.multipart_content,
+            ),
+        ],
+        metadata=final_session.metadata,
+    )
+    app.save_session(resumed)
+    events2 = list(app.send_request(core, resumed, base_config, overrides=None, stream=False))
+    resumed_session = [ev for ev in events2 if ev.get("type") == "session_checkpoint"][-1]["session"]
+    assert isinstance(resumed_session, Session)
+    tool_messages = [m for m in resumed_session.messages if m.role == "tool"]
+    assert tool_messages
+    assert "Denied by interceptor" in tool_messages[-1].content
+    assert "Result: 68" not in tool_messages[-1].content
 
 
 def test_interceptor_prompt_suspend_and_resume(tmp_path: Path) -> None:
