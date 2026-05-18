@@ -39,6 +39,7 @@ export type {
   ActionDisplayOpenUrlAction,
   ActionDisplayCopyTextAction,
   ActionDisplayRunActionAction,
+  ActionDisplayDownloadAttachmentAssetAction,
   ActionDisplayFollowupAction,
   ActionDisplayPayload,
   StandardActionResult,
@@ -122,7 +123,6 @@ export type {
   DownloadedAttachmentPayload,
 } from './plugins/attachmentActions';
 export {
-  DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID,
   DEFAULT_ATTACHMENT_ACTION_OWNER,
   SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
   STORE_ATTACHMENT_ACTION_ID,

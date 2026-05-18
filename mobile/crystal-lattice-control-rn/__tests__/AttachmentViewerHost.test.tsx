@@ -237,6 +237,7 @@ test('attachment viewer reopens with cached full-size image', async () => {
         attachment_type: 'image',
       },
     },
+    metadata: { download_plugin_id: 'plugin.image' },
   });
   const backend = {
     kind: 'rest',
@@ -292,6 +293,6 @@ test('attachment viewer reopens with cached full-size image', async () => {
   });
 
   expect(renderer.root.findByProps({ testID: 'image-zoom' }).props.uri).toBe(
-    'file:///tmp/attachment-previews/session-session-1-asset-asset-1-plugin--full-red.png',
+    'file:///tmp/attachment-previews/session-session-1-asset-asset-1-plugin-plugin.image-full-red.png',
   );
 });

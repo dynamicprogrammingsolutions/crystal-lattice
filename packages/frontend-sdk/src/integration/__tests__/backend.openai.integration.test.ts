@@ -142,7 +142,7 @@ describeIf('backend integration (real FastAPI server + frontend SDK + OpenAI Res
         mimeType: 'image/png',
         dataBase64: image.dataBase64,
         clientAttachmentId: 'sdk-openai-draft-image',
-        pluginId: attachmentPluginId ?? undefined,
+        pluginId: attachmentPluginId ?? '',
       });
 
       await controller.appendMessage({

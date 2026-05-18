@@ -11,8 +11,6 @@ import {
   View,
 } from 'react-native';
 import RNFS from 'react-native-fs';
-import Share from 'react-native-share';
-import { saveDocuments } from '@react-native-documents/picker';
 import {
   CameraRoll,
   iosRequestAddOnlyGalleryPermission,
@@ -34,6 +32,10 @@ import {
   resolveAttachmentDownloadPluginId,
   type MessageAttachmentSnapshot,
 } from '../messageAttachments';
+import {
+  saveLocalDocument,
+  shareLocalDocument,
+} from '../utils/generatedFileActions';
 import { useTheme, type Theme } from '../theme';
 
 function attachmentViewerCacheKey(
@@ -213,7 +215,7 @@ export const AttachmentViewerHost: React.FC<{
           backend,
           sessionId,
           assetId,
-          pluginId: pluginId ?? undefined,
+          pluginId: pluginId ?? '',
         });
         await RNFS.writeFile(targetPath, downloaded.data_base64, 'base64');
         return `file://${targetPath}`;
@@ -239,17 +241,11 @@ export const AttachmentViewerHost: React.FC<{
   const handleSaveToFile = useCallback(
     async (targetAttachment: MessageAttachmentSnapshot) => {
       const localUri = await ensureAttachmentLocalFile(targetAttachment, { preferOriginal: true });
-      const result = await saveDocuments({
-        sourceUris: [localUri],
+      return saveLocalDocument({
+        localUri,
         mimeType: attachmentMimeType(targetAttachment),
         fileName: attachmentFilename(targetAttachment),
-        copy: true,
       });
-      const saved = result[0];
-      if (saved?.error) {
-        throw new Error(saved.error);
-      }
-      return saved?.name || attachmentFilename(targetAttachment);
     },
     [ensureAttachmentLocalFile],
   );
@@ -271,11 +267,10 @@ export const AttachmentViewerHost: React.FC<{
   const handleShareAttachment = useCallback(
     async (targetAttachment: MessageAttachmentSnapshot) => {
       const localUri = await ensureAttachmentLocalFile(targetAttachment, { preferOriginal: true });
-      await Share.open({
-        url: localUri,
-        type: attachmentMimeType(targetAttachment),
-        filename: attachmentFilename(targetAttachment),
-        failOnCancel: false,
+      await shareLocalDocument({
+        localUri,
+        mimeType: attachmentMimeType(targetAttachment),
+        fileName: attachmentFilename(targetAttachment),
       });
     },
     [ensureAttachmentLocalFile],
