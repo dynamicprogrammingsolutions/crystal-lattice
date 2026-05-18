@@ -103,6 +103,7 @@ import { useTheme, type Theme } from './theme';
 import { useApplicationPlugins } from './ApplicationPluginsContext';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { usePluginActionDialog } from './usePluginActionDialog';
+import { handleGeneratedFileFollowupAction } from './utils/generatedFileActions';
 import type { Event } from './eventsTypes';
 
 interface SessionChatScreenProps {
@@ -845,7 +846,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     activeRequestId: string | null;
     dirty: boolean;
   } | null>(null);
-
   useEffect(() => {
     onSaveComposeTextRef.current = onSaveComposeText;
   }, [onSaveComposeText]);
@@ -1525,6 +1525,21 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         Alert.alert('Copied', 'Copied to clipboard.');
         return;
       }
+      if (action.kind === 'download_attachment_asset') {
+        if (!backend) {
+          Alert.alert('No connection', 'Connect to a server to download the generated file.');
+          return;
+        }
+        try {
+          await handleGeneratedFileFollowupAction({ backend, action });
+        } catch (err: any) {
+          Alert.alert(
+            'File action failed',
+            err?.message || 'Unable to open the generated file.',
+          );
+        }
+        return;
+      }
       if (action.kind === 'run_action') {
         if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
           setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
@@ -1548,7 +1563,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         }
       }
     },
-    [executePluginAction],
+    [backend, executePluginAction],
   );
 
   const recoverChatAfterResume = useCallback(
@@ -1804,7 +1819,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           backend,
           sessionId,
           assetId,
-          pluginId: typeof pluginId === 'string' && pluginId.trim() ? pluginId.trim() : undefined,
+          pluginId: typeof pluginId === 'string' && pluginId.trim() ? pluginId.trim() : '',
         });
       } catch (err: any) {
         if (!suppressAlert) {
@@ -2122,7 +2137,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           filename: options.filename,
           mimeType: options.mimeType,
           dataUrl: options.dataUrl,
-          pluginId: pluginId ?? undefined,
+          pluginId: pluginId ?? '',
         });
 
         beginAddAttachmentPart({
@@ -3324,7 +3339,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          </Text>
 	        </View>
 	      )}
-	
+
         <ChatTranscript
           listRef={listRef}
           messages={messages}
