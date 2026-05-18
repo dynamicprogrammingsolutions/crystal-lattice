@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, Dict, List
 
@@ -79,13 +80,24 @@ class InterceptorCalculator:
                         ],
                     },
                 }
-            if answer.get("button_id") == "reject":
+            raw_bid = answer.get("button_id")
+            bid = str(raw_bid).strip().lower() if isinstance(raw_bid, str) else ""
+            if bid == "reject":
                 return {
                     "kind": "respond",
                     "tool_result": {"success": False, "error": "Rejected web access"},
                     "continue_loop": True,
                 }
-            return {"kind": "continue"}
+            if bid in ("accept", "allow", "ok"):
+                return {"kind": "continue"}
+            return {
+                "kind": "respond",
+                "tool_result": {
+                    "success": False,
+                    "error": "Unknown or unsupported web prompt choice",
+                },
+                "continue_loop": True,
+            }
 
         if tool_name != "add":
             return {"kind": "continue"}
@@ -105,12 +117,13 @@ class InterceptorCalculator:
                     ],
                 },
             }
-        button_id = answer.get("button_id")
+        raw_bid = answer.get("button_id")
+        button_id = str(raw_bid).strip().lower() if isinstance(raw_bid, str) else ""
         if button_id == "deny":
             return {
                 "kind": "respond",
                 "tool_result": {"success": False, "error": "Denied by interceptor"},
-                "continue_loop": True,
+                "continue_loop": False,
             }
         if button_id == "deny_stop":
             return {
@@ -119,14 +132,35 @@ class InterceptorCalculator:
                 "continue_loop": False,
             }
         if button_id == "transform":
-            call = payload.get("raw_call")
-            if isinstance(call, dict):
-                call = dict(call)
-                fn = dict(call.get("function") or {})
-                fn["arguments"] = '{"a": 2, "b": 8}'
-                call["function"] = fn
+            raw = payload.get("raw_call")
+            if isinstance(raw, dict):
+                call = dict(raw)
+                args_json = json.dumps({"a": 2, "b": 8}, separators=(",", ":"))
+                if call.get("type") == "function_call":
+                    call["arguments"] = args_json
+                else:
+                    fn = dict(call.get("function") or {})
+                    fn["arguments"] = args_json
+                    call["function"] = fn
                 return {"kind": "continue", "tool_call": call}
-        return {"kind": "continue"}
+            return {
+                "kind": "respond",
+                "tool_result": {
+                    "success": False,
+                    "error": "Transform requested but raw tool call was missing",
+                },
+                "continue_loop": False,
+            }
+        if button_id in ("allow", "ok"):
+            return {"kind": "continue"}
+        return {
+            "kind": "respond",
+            "tool_result": {
+                "success": False,
+                "error": "Unknown or unsupported prompt choice (tool not run)",
+            },
+            "continue_loop": False,
+        }
 
     def intercept_tool_result(
         self,

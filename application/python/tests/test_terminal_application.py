@@ -1529,14 +1529,17 @@ def test_list_plugins_for_session_implicit_defaults(tmp_path: Path) -> None:
         assert entry["active"] is True
         sources.add(entry["source"])
 
-    # config_echo_app.json registers one provider, two extensions, and one
-    # test-only feature used to preserve metadata for terminal /list rendering.
+    # config_echo_app.json registers one provider, two extensions, and
+    # metadata features for native round-trip (echo list + interception).
     assert ids_by_kind["providers"] == ["echo_openai_like"]
     assert ids_by_kind["extensions"] == [
         "delay_extension",
         "random_failure_extension",
     ]
-    assert ids_by_kind["features"] == ["echo_provider_metadata_preserver"]
+    assert ids_by_kind["features"] == [
+        "echo_provider_metadata_preserver",
+        "tool_interceptor_metadata_preserver",
+    ]
     assert "tools" not in ids_by_kind or ids_by_kind["tools"] == []
 
     # With no explicit agent or session plugin list, the effective
@@ -1736,6 +1739,7 @@ async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
     assert "delay_extension" in joined
     assert "random_failure_extension" in joined
     assert "echo_provider_metadata_preserver" in joined
+    assert "tool_interceptor_metadata_preserver" in joined
 
     last_list = ui_state.get("plugins_last_list")
     assert isinstance(last_list, list)
@@ -1744,6 +1748,7 @@ async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
         "delay_extension",
         "random_failure_extension",
         "echo_provider_metadata_preserver",
+        "tool_interceptor_metadata_preserver",
     ]
 
     # Disable the first extension by index.
@@ -1758,6 +1763,7 @@ async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
         "echo_openai_like",
         "random_failure_extension",
         "echo_provider_metadata_preserver",
+        "tool_interceptor_metadata_preserver",
     ]
 
     core, _base_config, active_session = term_app.require_session()
@@ -1783,6 +1789,7 @@ async def test_plugins_slash_command_lists_and_toggles(tmp_path: Path) -> None:
     assert md2.get("plugins") == [
         "echo_openai_like",
         "echo_provider_metadata_preserver",
+        "tool_interceptor_metadata_preserver",
     ]
 
     core_after_off, _base_config_after_off, active_session_after_off = (
