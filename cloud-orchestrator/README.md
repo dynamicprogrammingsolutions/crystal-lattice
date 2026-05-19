@@ -211,3 +211,7 @@ npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e
 ```
 
 If the external orchestrator uses a control-plane token, also set `CLOUD_ORCHESTRATOR_E2E_CONTROL_TOKEN`.
+
+## License
+
+This directory is available under the [GNU Affero General Public License v3.0](LICENSE).

@@ -191,3 +191,7 @@ Variable-level `runtime_code` helpers may also export `get_ui_elements()`. The f
 - Use `code` for moderately complex dynamic sections such as optional local-instructions blocks.
 
 See [application/python/agent_terminal_app/default_config/config.json](application/python/agent_terminal_app/default_config/config.json) for a multi-vendor example that follows this pattern.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

@@ -242,7 +242,8 @@ def test_localpath_git_fingerprint_includes_declared_sibling_dependency(
         assert res1.errors == []
         rev1 = installer.requests[-1].revision
         assert "tool-compat-shared" in installer.requests[-1].metadata["local_dependencies"]
-        assert "--no-cache-dir" in installer.requests[-1].policy["pip_args"]
+        assert installer.requests[-1].policy["pip_cache_dir"] == str(cache_dir / "pip")
+        assert "--no-cache-dir" not in installer.requests[-1].policy.get("pip_args", [])
 
         (shared_pkg / "__init__.py").write_text("VALUE = 2\n", encoding="utf-8")
         res2 = mgr.resolve_all([spec])

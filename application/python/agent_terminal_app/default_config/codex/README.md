@@ -54,3 +54,7 @@ Codex can also intentionally drop `model_messages` and use `base_instructions` i
 - The personality feature is disabled.
 
 Those behaviors are implemented in Codex CLI code (not in this repo).
+
+## License
+
+This directory is available under the [Apache License 2.0](LICENSE).

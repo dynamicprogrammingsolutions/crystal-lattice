@@ -17,7 +17,6 @@ import io
 import json
 import queue
 import threading
-from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
@@ -27,7 +26,12 @@ from urllib.request import Request, urlopen
 
 from openai import OpenAI
 
-from agent_core.tool_result_payloads import openai_responses_tool_result_output
+from agent_core.tool_result_payloads import (
+    TOOL_RESULT_FIELD,
+    make_text_tool_result,
+    openai_responses_tool_result_output,
+    provider_native_tool_result_display,
+)
 from agent_core.types import ProviderPlugin, ProviderRequestCancelled
 from agent_core.utils import get_logger
 from .openai_responses_attachment_assets import (
@@ -78,6 +82,7 @@ from .openai_responses_runtime import (
     chatgpt_default_headers as _chatgpt_default_headers_shared,
     effective_auth_mode as _effective_auth_mode_shared,
     normalize_auth_mode as _normalize_auth_mode_shared,
+    prepare_input_and_instructions_for_endpoint as _prepare_input_and_instructions_shared,
     resolve_api_key as _resolve_api_key_shared,
     resolve_base_url as _resolve_base_url_shared,
     should_strip_leading_system_or_developer_message as _should_strip_leading_shared,
@@ -851,6 +856,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
         *,
+        context: Optional[Dict[str, Any]] = None,
         request_id: str | None = None,
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         _ = request_id
@@ -876,6 +882,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
         }
         request["headers"].update(self._chatgpt_default_headers(cfg))
 
+        request["messages"] = self._expanded_request_history(
+            [msg for msg in native_messages if isinstance(msg, dict)],
+            state,
+            context,
+        )
+
         return list(native_messages), {**state, "request": request}
 
     def _native_internal_from_core_metadata(self, metadata: Any) -> Dict[str, Any]:
@@ -883,6 +895,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
             return {}
         out = dict(metadata)
         out.pop("native_indices", None)
+        out.pop("display", None)
         return out
 
     def _core_metadata_from_native_internal(self, internal: Any) -> Dict[str, Any]:
@@ -1068,6 +1081,58 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 )
             ),
         )
+
+    def _expanded_tool_output(
+        self,
+        output: Any,
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Any:
+        if not isinstance(output, list):
+            return output
+
+        parts: List[Dict[str, Any]] = []
+        for part in output:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") != "input_image":
+                parts.append(dict(part))
+                continue
+
+            image_url = part.get("image_url")
+            if isinstance(image_url, dict) and image_url.get("asset_ref"):
+                expanded = self._image_part_to_input_image(image_url, state, context)
+                parts.append({**part, "image_url": expanded.get("image_url")})
+                continue
+
+            parts.append(dict(part))
+
+        return parts
+
+    def _expanded_request_history(
+        self,
+        history: List[Dict[str, Any]],
+        state: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+        expanded: List[Dict[str, Any]] = []
+        for item in history:
+            if not isinstance(item, dict):
+                continue
+            if item.get("type") == "function_call_output":
+                expanded.append(
+                    {
+                        **item,
+                        "output": self._expanded_tool_output(
+                            item.get("output"),
+                            state,
+                            context,
+                        ),
+                    }
+                )
+                continue
+            expanded.append(item)
+        return expanded
 
     def _pdf_part_to_input_file(
         self,
@@ -1773,16 +1838,10 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         "[openai_responses_provider] tool message requires metadata.tool_call_id"
                     )
 
-                output: Any = openai_responses_tool_result_output(msg.get("content"))
-                if isinstance(metadata, dict):
-                    structured_output = metadata.get("tool_output_content")
-                    if (
-                        output is None
-                        and isinstance(structured_output, list)
-                        and all(isinstance(item, dict) for item in structured_output)
-                    ):
-                        output = structured_output
-
+                provider_native_tool_result = msg.get(TOOL_RESULT_FIELD)
+                output: Any = openai_responses_tool_result_output(
+                    provider_native_tool_result
+                )
                 if output is None:
                     output = msg.get("content", "")
                     if not isinstance(output, str):
@@ -1877,8 +1936,37 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 tool_md = dict(internal_md)
                 tool_md.setdefault("tool_call_id", call_id)
                 tool_md["native_indices"] = [native_index]
+                raw_output = item.get("output")
+                if isinstance(raw_output, list):
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.responses",
+                        "output": [
+                            dict(part)
+                            for part in raw_output
+                            if isinstance(part, dict)
+                        ],
+                        "text": output,
+                    }
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=(
+                            tool_md.get("tool_name")
+                            if isinstance(tool_md.get("tool_name"), str)
+                            else None
+                        ),
+                    )
+                    if isinstance(display, dict):
+                        tool_md["display"] = display
+                else:
+                    tool_result = make_text_tool_result(text=output)
                 _append_core_message(
-                    {"role": "tool", "content": output, "metadata": tool_md},
+                    {
+                        "role": "tool",
+                        "content": output,
+                        "metadata": tool_md,
+                        TOOL_RESULT_FIELD: tool_result,
+                    },
                     owned_indices=[native_index],
                 )
 
@@ -1976,12 +2064,37 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 md = dict(internal_md)
                 md.setdefault("tool_call_id", call_id)
                 md["native_indices"] = [native_index]
+                raw_output = item.get("output")
+                if isinstance(raw_output, list):
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.responses",
+                        "output": [
+                            dict(part)
+                            for part in raw_output
+                            if isinstance(part, dict)
+                        ],
+                        "text": output,
+                    }
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=(
+                            md.get("tool_name")
+                            if isinstance(md.get("tool_name"), str)
+                            else None
+                        ),
+                    )
+                    if isinstance(display, dict):
+                        md["display"] = display
+                else:
+                    tool_result = make_text_tool_result(text=output)
 
                 _append_core_message(
                     {
                         "role": "tool",
                         "content": output,
                         "metadata": md,
+                        TOOL_RESULT_FIELD: tool_result,
                     },
                     owned_indices=[native_index],
                 )
@@ -2282,18 +2395,23 @@ class OpenAIResponsesProvider(ProviderPlugin):
                 "[openai_responses_provider] chatgpt auth_mode requires streaming requests; use send_request_stream or switch auth_mode to api/auto"
             )
 
-        payload = dict(request.get("payload") or {})
-        instructions = self._request_instructions(request)
-        if instructions is not None:
-            payload["instructions"] = instructions
-
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
-        if self._should_strip_leading_system_or_developer_message(cfg):
-            base_history = self._strip_leading_system_or_developer_message(base_history)
+        if isinstance(base_history, list):
+            base_history = self._expanded_request_history(base_history, state, context)
         self._validate_native_item_list(base_history)
+        prepared_input = _prepare_input_and_instructions_shared(
+            base_history,
+            self._request_instructions(request),
+            cfg,
+        )
+        self._validate_native_item_list(prepared_input.input_items)
 
-        request_history = [item for item in base_history if isinstance(item, dict)]
+        payload = dict(request.get("payload") or {})
+        if prepared_input.instructions is not None:
+            payload["instructions"] = prepared_input.instructions
+
+        request_history = list(prepared_input.input_items)
 
         timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
         max_retries = self._request_max_retries(request)
@@ -2451,19 +2569,24 @@ class OpenAIResponsesProvider(ProviderPlugin):
             raise RuntimeError("[openai_responses_provider] missing request in state")
         context = self._request_context(state)
 
-        payload = dict(request.get("payload") or {})
-        instructions = self._request_instructions(request)
-        if instructions is not None:
-            payload["instructions"] = instructions
-
         override = request.get("messages")
         base_history = override if isinstance(override, list) else native_messages
+        if isinstance(base_history, list):
+            base_history = self._expanded_request_history(base_history, state, context)
         cfg = state.get("config") or {}
-        if self._should_strip_leading_system_or_developer_message(cfg):
-            base_history = self._strip_leading_system_or_developer_message(base_history)
         self._validate_native_item_list(base_history)
+        prepared_input = _prepare_input_and_instructions_shared(
+            base_history,
+            self._request_instructions(request),
+            cfg,
+        )
+        self._validate_native_item_list(prepared_input.input_items)
 
-        request_history = [item for item in base_history if isinstance(item, dict)]
+        payload = dict(request.get("payload") or {})
+        if prepared_input.instructions is not None:
+            payload["instructions"] = prepared_input.instructions
+
+        request_history = list(prepared_input.input_items)
 
         timeout = self._coerce_timeout(request.get("timeout", _DEFAULT_TIMEOUT))
         max_retries = self._request_max_retries(request)

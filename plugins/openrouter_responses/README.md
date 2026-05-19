@@ -6,3 +6,7 @@ plus `/responses`-compatible extensions.
 This package is intentionally separate from `openrouter-plugins` (the `/chat/completions`
 provider bundle) so applications can load one or both without extension/provider name
 collisions.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

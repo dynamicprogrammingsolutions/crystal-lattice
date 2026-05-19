@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
@@ -20,6 +20,25 @@ function stringArrayEqual(a: ReadonlyArray<string>, b: ReadonlyArray<string>): b
     if (a[i] !== b[i]) return false;
   }
   return true;
+}
+
+function deriveMruTabIds(
+  previousMruTabIds: ReadonlyArray<string>,
+  tabs: ReadonlyArray<DesktopSessionTab>,
+  activeTabId: string | null,
+): string[] {
+  const validTabIds = new Set(tabs.map((tab) => tab.tabId));
+  const prunedMruTabIds = previousMruTabIds.filter((tabId) => validTabIds.has(tabId));
+
+  if (activeTabId && validTabIds.has(activeTabId)) {
+    return [activeTabId, ...prunedMruTabIds.filter((tabId) => tabId !== activeTabId)];
+  }
+
+  return prunedMruTabIds;
+}
+
+function deriveWarmTabIds(mruTabIds: ReadonlyArray<string>): string[] {
+  return mruTabIds.slice(0, RECENT_ACTIVE_TAB_COUNT).sort();
 }
 
 export interface ChatPaneTabStackProps {
@@ -119,32 +138,30 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
   // Keep MRU ordering in a ref so switching among already-active tabs
   // doesn't force a second render from state updates.
   const mruTabIdsRef = useRef<string[]>(activeTabId ? [activeTabId] : []);
-  // State only tracks membership (not ordering) of the warm set.
-  const warmTabIdsRef = useRef<string[]>(activeTabId ? [activeTabId] : []);
-  const [warmTabIds, setWarmTabIds] = useState<string[]>(() => (activeTabId ? [activeTabId] : []));
-
-  useEffect(() => {
-    const valid = new Set(tabs.map((tab) => tab.tabId));
-
-    const pruned = mruTabIdsRef.current.filter((id) => valid.has(id));
-    if (activeTabId && valid.has(activeTabId)) {
-      mruTabIdsRef.current = [activeTabId, ...pruned.filter((id) => id !== activeTabId)];
-    } else {
-      mruTabIdsRef.current = pruned;
-    }
-
-    const nextWarm = mruTabIdsRef.current.slice(0, RECENT_ACTIVE_TAB_COUNT).sort();
-    if (!stringArrayEqual(nextWarm, warmTabIdsRef.current)) {
-      warmTabIdsRef.current = nextWarm;
-    }
-    //setWarmTabIds((prev) => (stringArrayEqual(prev, nextWarm) ? prev : nextWarm));
+  const { nextMruTabIds, warmTabIds } = useMemo(() => {
+    const nextMru = deriveMruTabIds(mruTabIdsRef.current, tabs, activeTabId);
+    return {
+      nextMruTabIds: nextMru,
+      warmTabIds: deriveWarmTabIds(nextMru),
+    };
   }, [activeTabId, tabs]);
 
-  const warmSet = useMemo(() => new Set(warmTabIdsRef.current), [warmTabIdsRef.current]);
+  useEffect(() => {
+    if (stringArrayEqual(mruTabIdsRef.current, nextMruTabIds)) {
+      return;
+    }
+    mruTabIdsRef.current = nextMruTabIds;
+  }, [nextMruTabIds]);
+
+  const warmSet = useMemo(() => new Set(warmTabIds), [warmTabIds]);
+  const renderedTabs = useMemo(
+    () => tabs.filter((tab) => warmSet.has(tab.tabId)),
+    [tabs, warmSet],
+  );
 
   return (
     <View style={styles.stack}>
-      {tabs.map((tab) => {
+      {renderedTabs.map((tab) => {
         const connectionName = connectionNameById[tab.connectionId] ?? tab.connectionId;
         const backend = getBackend(tab.connectionId);
 	        const sessionSummary =

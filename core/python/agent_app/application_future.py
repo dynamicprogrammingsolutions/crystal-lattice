@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import copy
+import concurrent.futures
 from dataclasses import dataclass
 import hashlib
 import json
+import inspect
 from pathlib import Path
 from typing import (
     Any,
@@ -97,41 +100,151 @@ class ReadonlySessionViewError(RuntimeError):
     """Raised when a mutating operation targets a readonly snapshot view."""
 
 
-class _ToolRuntimeStore:
-    """Application-owned store for long-lived tool runtime objects.
-
-    The store is intentionally minimal in this task: long-running hooks may use
-    it to persist live managers or clients between fresh ``AgentCore``
-    instances, while cheap hooks consume only JSON-like prepared data.
-    """
+class AsyncRuntimeHost:
+    """Application-owned persistent asyncio host for plugin async hooks."""
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._values: Dict[Tuple[str, str], Any] = {}
+        self._thread = threading.Thread(
+            target=self._thread_main,
+            name="agent-application-async-runtime",
+            daemon=True,
+        )
+        self._loop_ready = threading.Event()
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._closed = False
+        self._thread.start()
+        self._loop_ready.wait()
 
-    def get(self, namespace: str, key: str) -> Any | None:
-        if not isinstance(namespace, str) or not namespace:
-            return None
+    def _thread_main(self) -> None:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self._loop = loop
+        self._loop_ready.set()
+        try:
+            loop.run_forever()
+        finally:
+            pending = asyncio.all_tasks(loop)
+            for task in pending:
+                task.cancel()
+            if pending:
+                loop.run_until_complete(
+                    asyncio.gather(*pending, return_exceptions=True)
+                )
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.close()
+
+    def run_blocking(self, awaitable: Any) -> Any:
+        if self._closed:
+            raise RuntimeError("AsyncRuntimeHost is closed")
+        loop = self._loop
+        if loop is None:
+            raise RuntimeError("AsyncRuntimeHost loop is not available")
+        future = asyncio.run_coroutine_threadsafe(awaitable, loop)
+        return future.result()
+
+    async def run_async(self, awaitable: Any) -> Any:
+        return await asyncio.wrap_future(self.submit(awaitable))
+
+    def submit(self, awaitable: Any) -> concurrent.futures.Future[Any]:
+        if self._closed:
+            raise RuntimeError("AsyncRuntimeHost is closed")
+        loop = self._loop
+        if loop is None:
+            raise RuntimeError("AsyncRuntimeHost loop is not available")
+        return asyncio.run_coroutine_threadsafe(awaitable, loop)
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        loop = self._loop
+        if loop is not None:
+            loop.call_soon_threadsafe(loop.stop)
+        self._thread.join(timeout=5)
+
+
+class RuntimeStore:
+    """Generic application-owned store for opaque long-lived runtime objects."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._values: Dict[str, Any] = {}
+
+    def get(self, key: str, default: Any = None) -> Any:
         if not isinstance(key, str) or not key:
-            return None
+            return default
         with self._lock:
-            return self._values.get((namespace, key))
+            return self._values.get(key, default)
 
-    def set(self, namespace: str, key: str, value: Any) -> None:
-        if not isinstance(namespace, str) or not namespace:
-            raise ValueError("namespace must be a non-empty string")
+    def get_or_create(self, key: str, factory: Callable[[], Any]) -> Any:
         if not isinstance(key, str) or not key:
             raise ValueError("key must be a non-empty string")
         with self._lock:
-            self._values[(namespace, key)] = value
+            existing = self._values.get(key)
+            if existing is not None:
+                return existing
+            value = factory()
+            self._values[key] = value
+            return value
 
-    def pop(self, namespace: str, key: str) -> Any | None:
-        if not isinstance(namespace, str) or not namespace:
-            return None
+    def set(self, key: str, value: Any) -> None:
         if not isinstance(key, str) or not key:
-            return None
+            raise ValueError("key must be a non-empty string")
+        old: Any | None = None
         with self._lock:
-            return self._values.pop((namespace, key), None)
+            old = self._values.get(key)
+            self._values[key] = value
+        if old is not None and old is not value:
+            self._close_value(old)
+
+    def setdefault(self, key: str, value: Any) -> Any:
+        if not isinstance(key, str) or not key:
+            raise ValueError("key must be a non-empty string")
+        with self._lock:
+            return self._values.setdefault(key, value)
+
+    def pop(self, key: str, default: Any = None, *, close: bool = False) -> Any:
+        if not isinstance(key, str) or not key:
+            return default
+        with self._lock:
+            value = self._values.pop(key, default)
+        if close and value is not default:
+            self._close_value(value)
+        return value
+
+    def snapshot(self) -> Dict[str, Any]:
+        with self._lock:
+            return dict(self._values)
+
+    def clear(self) -> None:
+        with self._lock:
+            items = list(self._values.values())
+            self._values.clear()
+        for value in items:
+            self._close_value(value)
+
+    def close(self) -> None:
+        self.clear()
+
+    @staticmethod
+    def _close_value(value: Any) -> None:
+        for attr in ("aclose", "close"):
+            fn = getattr(value, attr, None)
+            if not callable(fn):
+                continue
+            try:
+                result = fn()
+                if inspect.isawaitable(result):
+                    try:
+                        asyncio.run(result)
+                    except RuntimeError:
+                        with concurrent.futures.ThreadPoolExecutor(
+                            max_workers=1
+                        ) as executor:
+                            executor.submit(asyncio.run, result).result()
+            except Exception:
+                return
+            return
 
 
 class AgentApplication:
@@ -360,7 +473,9 @@ class AgentApplication:
         self._session_asset_store = FilesystemSessionAssetStore(
             session_root_path.parent / "session_assets"
         )
-        self._tool_runtime = _ToolRuntimeStore()
+        self._runtime_store = RuntimeStore()
+        self._tool_runtime = self._runtime_store
+        self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
         self._request_cancellations: Dict[str, RequestCancellation] = {}
@@ -1708,6 +1823,8 @@ class AgentApplication:
     def close(self) -> None:
         """Release process-global runtime env overlay owned by this app."""
 
+        self._runtime_store.close()
+        self._async_runtime_host.close()
         if self._runtime_env_finalizer.alive:
             self._runtime_env_finalizer()
 
@@ -2278,8 +2395,14 @@ class AgentApplication:
     def get_session_asset_store(self) -> FilesystemSessionAssetStore:
         return self._session_asset_store
 
-    def get_tool_runtime(self) -> _ToolRuntimeStore:
-        return self._tool_runtime
+    def get_runtime_store(self) -> RuntimeStore:
+        return self._runtime_store
+
+    def get_tool_runtime(self) -> RuntimeStore:
+        return self._runtime_store
+
+    def run_awaitable_blocking(self, awaitable: Any) -> Any:
+        return self._async_runtime_host.run_blocking(awaitable)
 
     def get_session_file_state(self, session_id: str) -> SessionFileState:
         if not isinstance(session_id, str) or not session_id:
@@ -2549,10 +2672,12 @@ class AgentApplication:
             "app": self,
             "application": self,
             "base_config": self._config,
+            "session_id": session.session_id,
             "session": session.to_dict(),
             "request_id": request_id,
             "session_asset_store": self._session_asset_store,
-            "tool_runtime": self._tool_runtime,
+            "runtime_store": self._runtime_store,
+            "tool_runtime": self._runtime_store,
             "trigger_source": "application",
         }
 

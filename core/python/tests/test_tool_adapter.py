@@ -121,6 +121,32 @@ def test_tool_wrapper_async_execute_accepts_legacy_sync_tool_signature() -> None
     assert result == {"success": True, "result": "echo:hello:ok"}
 
 
+def test_tool_wrapper_sync_execute_falls_back_to_async_hook() -> None:
+    class AsyncOnlyTool(ToolPlugin):
+        name = "async_only_tool"
+        version = "1.0.0"
+
+        def init(self, config):
+            return {"config": config}
+
+        async def execute_tool_async(self, tool_name, payload, state, **_kwargs):
+            return {
+                "success": True,
+                "result": f"{tool_name}:{payload['value']}:{state['config']['suffix']}",
+            }
+
+    wrapper = ToolWrapper(AsyncOnlyTool)
+    state = wrapper.init({"suffix": "ok"})
+
+    result = wrapper.execute_tool(
+        "echo",
+        {"value": "hello"},
+        state,
+    )
+
+    assert result == {"success": True, "result": "echo:hello:ok"}
+
+
 def test_tool_wrapper_async_stream_accepts_legacy_sync_tool_signature() -> None:
     class LegacySyncTool(ToolPlugin):
         name = "legacy_sync_tool"

@@ -58,3 +58,7 @@ For safety/hardening, you can disable Node installs/builds globally via `plugin_
 ```
 
 Alternatively, you can build the plugin directory yourself (and ensure the plugin cache contains the built `dist/` output).
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

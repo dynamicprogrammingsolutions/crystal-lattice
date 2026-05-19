@@ -4,6 +4,7 @@ export interface ApiMessage {
   role: MessageRole;
   content: string;
   multipartContent?: any[] | null;
+  toolResult?: Record<string, any> | null;
   metadata?: Record<string, any> | null;
 }
 

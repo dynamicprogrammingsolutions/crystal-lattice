@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import base64
+import sys
 from pathlib import Path
 
-from agent_core.tool_result_payloads import FORMAT_OPENAI_CHAT_COMPLETIONS
-from kimi_tools.kimi_read_media_file_tool import KimiReadMediaFileTool
+ROOT = Path(__file__).resolve().parents[3]
+CORE_PY = ROOT / "core/python"
+if str(CORE_PY) not in sys.path:
+    sys.path.insert(0, str(CORE_PY))
+
+from agent_app.session_assets import FilesystemSessionAssetStore  # noqa: E402
+from agent_core.tool_result_payloads import FORMAT_OPENAI_CHAT_COMPLETIONS  # noqa: E402
+from kimi_tools.kimi_read_media_file_tool import KimiReadMediaFileTool  # noqa: E402
 
 
 PNG_BASE64 = (
@@ -65,16 +72,11 @@ def test_read_png_returns_image_payloads(tmp_path: Path) -> None:
     assert result["mime_type"] == "image/png"
     assert result["image_url"].startswith("data:image/png;base64,")
     assert result["bytes"] == len(_png_bytes())
-    assert result["tool_output_content"] == [
-        {"type": "input_image", "image_url": result["image_url"]}
-    ]
-    assert result["multipartContent"] == [
-        {
-            "type": "image",
-            "content": {"url": result["image_url"]},
-            "metadata": {"path": result["path"], "mime_type": "image/png"},
-        }
-    ]
+    assert result["display_content"] == {
+        "url": result["image_url"],
+        "filename": "tiny.png",
+        "mime_type": "image/png",
+    }
     assert "Loaded image file" in result["message"]
     if result["width"] is not None:
         assert "original size 1x1px" in result["message"]
@@ -86,14 +88,46 @@ def test_read_png_returns_image_payloads(tmp_path: Path) -> None:
     assert [part["type"] for part in content] == ["text", "image_url", "text"]
     assert "<system>" in content[0]["text"]
     assert f'<image path="{result["path"]}">' in content[0]["text"]
-    assert content[1]["image_url"]["url"] == result["image_url"]
+    assert content[1]["image_url"] == {"url": result["image_url"]}
     assert content[2]["text"] == "</image>"
     assert result["image_url"] not in content[0]["text"]
     assert result["image_url"] not in content[2]["text"]
     display = tool.to_display_format("", result, state)
     assert display["type"] == "image"
     assert display["single_line"] == "ReadMediaFile: tiny.png"
-    assert result["image_url"] not in display["single_line"]
+    assert display["content"] == result["display_content"]
+    assert display["content_text"] == result["message"]
+
+
+def test_read_png_stores_asset_backed_multipart_with_context(tmp_path: Path) -> None:
+    image = tmp_path / "tiny.png"
+    image.write_bytes(_png_bytes())
+    tool, state = _make_tool(tmp_path)
+    asset_store = FilesystemSessionAssetStore(tmp_path / "assets")
+
+    result = tool.execute_tool(
+        "ReadMediaFile",
+        {"path": "tiny.png"},
+        state,
+        context={"session_id": "sess_1", "session_asset_store": asset_store},
+    )
+
+    assert result["success"] is True
+    content = result["display_content"]
+    assert content["asset_ref"]["kind"] == "session_asset"
+    assert content["asset_ref"]["session_id"] == "sess_1"
+    assert content["filename"] == "tiny.png"
+    assert content["mime_type"] == "image/png"
+    assert content["preview_data_base64"] == result["image_url"].split(",", 1)[1]
+    assert content["preview_mime_type"] == "image/png"
+    formatted = tool.format_tool_result(result, state)
+    assert formatted["content"][1]["image_url"] == {
+        "asset_ref": content["asset_ref"],
+        "filename": "tiny.png",
+        "mime_type": "image/png",
+    }
+    stored = asset_store.load_bytes("sess_1", content["asset_ref"]["asset_id"])
+    assert stored == _png_bytes()
 
 
 def test_read_extensionless_png(tmp_path: Path) -> None:

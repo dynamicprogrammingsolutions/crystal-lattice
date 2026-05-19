@@ -7,7 +7,10 @@ import { execFileSync } from 'node:child_process';
 import { FetchTransport } from '../../transport/fetchTransport';
 import { RestAgentBackend } from '../../backend/restBackend';
 import { ChatController } from '../../chat/chatController';
-import { storeSessionAttachment } from '../../plugins/attachmentActions';
+import {
+  resolveAttachmentActionPluginId,
+  storeSessionAttachment,
+} from '../../plugins/attachmentActions';
 import { startBackendServer, waitFor } from '../harness';
 
 function findRepoRoot(fromDir: string): string {
@@ -104,6 +107,7 @@ describeIf('backend integration (real FastAPI server + frontend SDK + OpenAI Res
         plugins: [`path:${openaiResponsesPluginDir}`],
         agents: { default: { provider: 'openai' } },
       },
+      startupTimeoutMs: 120000,
     });
     stopServer = started.stop;
 
@@ -117,6 +121,18 @@ describeIf('backend integration (real FastAPI server + frontend SDK + OpenAI Res
     controller.startEventStreaming({ initialSinceId: controller.getSnapshot().eventsCursorId });
 
     try {
+      const sessionUiElements = await backend.getSessionUiSchema(sessionId);
+      const imageAttachmentElement = sessionUiElements.find(
+        (element: any) =>
+          element &&
+          element.ui_type === 'composer_attachment' &&
+          element.attachment_type === 'image',
+      ) as any;
+      expect(imageAttachmentElement?.plugin).toBe('openai_responses');
+      expect(imageAttachmentElement?.attachment_action_plugin).toBe('openai_responses_attachments');
+      const attachmentPluginId = resolveAttachmentActionPluginId(imageAttachmentElement);
+      expect(attachmentPluginId).toBe('openai_responses_attachments');
+
       const image = generateRedSquarePngBase64();
       const asset = await storeSessionAttachment({
         backend,
@@ -126,6 +142,7 @@ describeIf('backend integration (real FastAPI server + frontend SDK + OpenAI Res
         mimeType: 'image/png',
         dataBase64: image.dataBase64,
         clientAttachmentId: 'sdk-openai-draft-image',
+        pluginId: attachmentPluginId ?? undefined,
       });
 
       await controller.appendMessage({

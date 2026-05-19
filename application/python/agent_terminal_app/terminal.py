@@ -1990,6 +1990,7 @@ async def _run_terminal(
         completer=completer,
         complete_while_typing=True,
         bottom_toolbar=lambda: _status_bar_text(app),
+        erase_when_done=True,
     )
     key_bindings = _build_key_bindings(app, write, ui_state)
 
@@ -2004,7 +2005,7 @@ async def _run_terminal(
                 default_text = ui_state.get("input_prefill") or ""
                 ui_state["input_prefill"] = ""
                 user_input = await prompt_session.prompt_async(
-                    "You> ",
+                    "> ",
                     key_bindings=key_bindings,
                     default=default_text,
                 )

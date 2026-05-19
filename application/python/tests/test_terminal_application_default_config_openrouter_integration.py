@@ -113,8 +113,8 @@ def test_terminal_application_default_config_agents_make_real_tool_calls(
             "expected_text": "KIMI integration line",
         },
         "claude": {
-            "prompt": "Use the shell tool to print the first line of claude.txt and reply with exactly that line.",
-            "expected_tools": {"shell", "shell_command"},
+            "prompt": "Use the Read tool to read claude.txt and reply with exactly the first line.",
+            "expected_tools": {"Read"},
             "expected_text": "CLAUDE integration line",
         },
     }

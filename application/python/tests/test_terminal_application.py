@@ -7,6 +7,7 @@ provider configuration so they do not require network access.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 from pathlib import Path
@@ -83,6 +84,56 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "session_created" in kinds
     assert "message_appended" in kinds
     assert "request_started" in kinds or "final" in kinds
+
+
+@pytest.mark.asyncio
+async def test_run_terminal_uses_compact_erasing_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    echo_config = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(
+        str(echo_config), str(session_root), event_store=events
+    )
+    term_app = term_mod.TerminalApplication(
+        config_path=str(echo_config),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    captured: dict[str, object] = {}
+
+    class _FakePromptSession:
+        def __init__(self, *args, **kwargs) -> None:
+            captured["session_args"] = args
+            captured["session_kwargs"] = kwargs
+
+        async def prompt_async(self, message, **kwargs):
+            captured["prompt_message"] = message
+            captured["prompt_kwargs"] = kwargs
+            raise EOFError()
+
+    async def _fake_poll_events(app, write, ui_state, poll_interval=0.1) -> None:
+        return None
+
+    monkeypatch.setattr(term_mod, "PromptSession", _FakePromptSession)
+    monkeypatch.setattr(term_mod, "_poll_events", _fake_poll_events)
+    monkeypatch.setattr(term_mod, "_set_terminal_title", lambda title: None)
+    monkeypatch.setattr(term_mod, "patch_stdout", lambda *_args, **_kwargs: contextlib.nullcontext())
+
+    await term_mod._run_terminal(term_app)
+
+    session_kwargs = captured.get("session_kwargs")
+    assert isinstance(session_kwargs, dict)
+    assert session_kwargs.get("erase_when_done") is True
+    assert captured.get("prompt_message") == "> "
 
 
 def test_terminal_started_request_clears_active_request_id_for_http_snapshots(

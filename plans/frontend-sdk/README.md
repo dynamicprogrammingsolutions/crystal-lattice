@@ -32,3 +32,7 @@ This plan also explicitly keeps the door open for an **in-process backend** in s
 - `plans/frontend-sdk/08-ui-representation-boundaries.md`
 - `plans/frontend-sdk/09-chat-persistence-scroll-and-reconcile.md`
 - `plans/frontend-sdk/proposed-interfaces.ts`
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

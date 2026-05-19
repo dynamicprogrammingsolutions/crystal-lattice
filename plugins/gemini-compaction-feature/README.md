@@ -64,4 +64,4 @@ This plugin depends on `gemini-compaction-app` for shared prompts and helpers.
 
 ## License
 
-MIT
+This directory is available under the [Apache License 2.0](../../LICENSE).

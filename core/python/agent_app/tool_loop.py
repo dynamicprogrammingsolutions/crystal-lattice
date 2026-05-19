@@ -6,6 +6,7 @@ import traceback  # Add this import at the beginning of your file
 
 
 from agent_core import AgentCore, MessageRole, Session
+from agent_core.tool_result_payloads import TOOL_RESULT_FIELD
 from agent_core.types import ProviderRequestCancelled
 
 
@@ -453,12 +454,15 @@ class ToolLoopRunner:
                 role = "tool"  # type: ignore[assignment]
             content = last_final.get("content", "")
             metadata = last_final.get("metadata") or {}
+            tool_result = last_final.get(TOOL_RESULT_FIELD)
             current_session = core.add_message(
                 current_session,
                 role,
                 content,
                 metadata,
                 config=config,
+                context=self._context,
+                tool_result=tool_result if isinstance(tool_result, dict) else None,
             )
 
             if self._is_cancelled():

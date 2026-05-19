@@ -10,6 +10,26 @@
       "enable_reasoning": true,
       "reasoning_effort": "medium"
     },
+    "codex_mcp_defaults": {
+      "mcp_enabled": false,
+      "mcp_reuse_runtime": true,
+      "mcp_fail_on_startup_error": false,
+      "mcp_servers": {
+        "filesystem": {
+          "enabled": false,
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@modelcontextprotocol/server-filesystem",
+            "${env:WORKING_DIR}"
+          ],
+          "cwd": "${env:WORKING_DIR}",
+          "startup_timeout_seconds": 30,
+          "tool_timeout_seconds": 30
+        }
+      }
+    },
     "codex_developer_message": {
       "codex_personality": "default",
       "system_message_enabled": true,
@@ -301,11 +321,41 @@
     "claude_system_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{CLAUDE_CODE}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
-        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/runtime.py",
+        "template": "{{INTRODUCTION}}\n\n{{WORKFLOW}}\n\n{{TOOL_USAGE}}\n\n{{TONE_AND_STYLE}}\n\n{{MEMORY}}\n\n{{ENVIRONMENT_SECTION}}\n\n{{CONTEXT_MANAGEMENT}}\n\n{{TASKS}}\n\n{{AGENTS_SECTION}}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/claude_runtime.py",
         "variables": {
-          "CLAUDE_CODE": {
-            "text": "${file:${env:CONFIG_DIR}/CLAUDE_CODE_DEFAULT.md}"
+          "INTRODUCTION": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/introduction.md"
+            ]
+          },
+          "WORKFLOW": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/workflow.md"
+            ]
+          },
+          "TOOL_USAGE": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/tool-usage.md"
+            ]
+          },
+          "TONE_AND_STYLE": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/tone-and-style.md"
+            ]
+          },
+          "MEMORY": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/memory.md"
+            ]
+          },
+          "ENVIRONMENT_SECTION": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_claude_environment_section.py"
+          },
+          "CONTEXT_MANAGEMENT": {
+            "files": [
+              "${env:CONFIG_DIR}/system_messages/claude/context-management.md"
+            ]
           },
           "TASKS": {
             "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
@@ -403,7 +453,9 @@
     "path:${env:BUILTIN_PLUGINS}/session-pinned-app",
     "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
     "path:${env:BUILTIN_PLUGINS}/rebuild-native-app",
+    "path:${env:BUILTIN_PLUGINS}/mcp-runtime-app",
     "path:${env:BUILTIN_PLUGINS}/session-ordering-buckets-app",
+    "path:${env:BUILTIN_PLUGINS}/session-asset-attachments",
     "path:${env:BUILTIN_PLUGINS}/reference-openai-compatible-provider",
     "path:${env:BUILTIN_PLUGINS}/openai_responses",
     "path:${env:BUILTIN_PLUGINS}/cloud-agent-app"
@@ -503,7 +555,7 @@
   },
   "agents": {
     "codex-openrouter": {
-      "mixin_refs": ["codex_developer_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openrouter",
       "model": "openai/gpt-5.4-mini",
       "plugins": [
@@ -512,7 +564,7 @@
       "shell_tool_mode": "auto"
     },
     "codex-openai": {
-      "mixin_refs": ["codex_developer_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5.4-mini",
       "plugins": [
@@ -521,7 +573,7 @@
       "shell_tool_mode": "auto"
     },
     "codex-openai-api": {
-      "mixin_refs": ["codex_developer_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5.4",
       "plugins": [
@@ -533,7 +585,7 @@
       "strip_leading_system_or_developer_message": false
     },
     "gpt-5-openrouter": {
-      "mixin_refs": ["codex_developer_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openrouter",
       "model": "openai/gpt-5",
       "plugins": [
@@ -544,7 +596,7 @@
       "disabled_plugins": ["apply_patch"]
     },
     "gpt-5-openai": {
-      "mixin_refs": ["codex_developer_message"],
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openai",
       "model": "gpt-5",
       "plugins": [
@@ -608,9 +660,19 @@
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
       "plugins": [
-        "path:${env:BUILTIN_PLUGINS}/codex-tools"
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
       ],
-      "disabled_plugins": ["apply_patch"]
+      "reasoning_max_tokens": 16000,
+      "request_options": {
+        "provider": {
+          "order": ["anthropic"],
+          "allow_fallbacks": false
+        }
+      },
+      "gemini_api_key": "${env:GEMINI_API_KEY}",
+      "tavily_api_key": "${env:TAVILY_API_KEY}",
+      "web_search_enabled": true,
+      "web_search_provider": "gemini_api"
     },
     "glm": {
       "mixin_refs": ["gemini_system_message"],

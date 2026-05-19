@@ -12,16 +12,18 @@ from .openai_responses_runtime import (
     DEFAULT_TIMEOUT,
     build_openai_sdk_client,
     effective_auth_mode,
-    should_strip_leading_system_or_developer_message,
-    strip_leading_system_or_developer_message,
+    prepare_input_and_instructions_for_endpoint,
 )
 
 _USE_CHATGPT_AUTH_FOR_COMPACTION_KEY = "use_chatgpt_auth_for_compaction"
+_COMPACTION_MODEL_KEY = "compaction_model"
 _USE_PLACEHOLDER_TRANSCRIPT_KEY = "use_compaction_placeholder_transcript"
 _COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
 _COMPACTION_METADATA_KEY = "openai_responses_compaction"
 _COMPACTION_PLACEHOLDER_TEXT = "Earlier conversation compacted to reduce context size."
-_PLACEHOLDER_TRANSCRIPT_STATE_KEY = "_openai_responses_use_compaction_placeholder_transcript"
+_PLACEHOLDER_TRANSCRIPT_STATE_KEY = (
+    "_openai_responses_use_compaction_placeholder_transcript"
+)
 
 
 class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
@@ -50,7 +52,16 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                     "transcript as a single placeholder message instead of rebuilding "
                     "the compacted native output directly."
                 ),
-            }
+            },
+            _COMPACTION_MODEL_KEY: {
+                "type": "string",
+                "required": False,
+                "default": "",
+                "description": (
+                    "Optional model used for native compaction. Leave empty to use "
+                    "the normal request model."
+                ),
+            },
         }
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
@@ -83,6 +94,13 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 "key": _USE_PLACEHOLDER_TRANSCRIPT_KEY,
                 "label": "Show compacted history as placeholder transcript",
                 "default": False,
+            },
+            {
+                "ui_type": "config",
+                "type": "text",
+                "key": _COMPACTION_MODEL_KEY,
+                "label": "Compaction model",
+                "placeholder": "Use current model",
             },
             {
                 "ui_type": "session_action",
@@ -131,10 +149,12 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                         }
                     ],
                 },
-            }
+            },
         ]
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         _ = config, models
         return ["ext:openai_responses_native_compaction"]
 
@@ -165,7 +185,7 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 "inputs": {
                     "end_index": {"type": "integer", "required": False},
                 },
-            }
+            },
         ]
 
     def _coerce_timeout(self, raw: Any) -> float:
@@ -184,6 +204,12 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         if not isinstance(model, str) or not model.strip():
             raise ValueError("[openai_responses_native_compaction] model is required")
         return model.strip()
+
+    def _resolve_compaction_model(self, config: Dict[str, Any]) -> str:
+        compaction_model = config.get(_COMPACTION_MODEL_KEY)
+        if isinstance(compaction_model, str) and compaction_model.strip():
+            return compaction_model.strip()
+        return self._resolve_model(config)
 
     def _use_chatgpt_auth_for_compaction(self, config: Dict[str, Any]) -> bool:
         raw = config.get(_USE_CHATGPT_AUTH_FOR_COMPACTION_KEY, True)
@@ -211,7 +237,9 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
     def _sanitize_input_item(self, item: Dict[str, Any]) -> Dict[str, Any]:
         metadata = item.get("_metadata")
         if isinstance(metadata, dict):
-            sanitized = {key: value for key, value in item.items() if key != "_metadata"}
+            sanitized = {
+                key: value for key, value in item.items() if key != "_metadata"
+            }
         else:
             sanitized = dict(item)
 
@@ -268,22 +296,34 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 next_part = {"type": str(part_type)}
                 if isinstance(cleaned_part.get("image_url"), (str, dict)):
                     next_part["image_url"] = cleaned_part["image_url"]
-                if isinstance(cleaned_part.get("file_id"), str) and cleaned_part.get("file_id"):
+                if isinstance(cleaned_part.get("file_id"), str) and cleaned_part.get(
+                    "file_id"
+                ):
                     next_part["file_id"] = cleaned_part["file_id"]
-                if isinstance(cleaned_part.get("detail"), str) and cleaned_part.get("detail"):
+                if isinstance(cleaned_part.get("detail"), str) and cleaned_part.get(
+                    "detail"
+                ):
                     next_part["detail"] = cleaned_part["detail"]
                 cleaned_content.append(next_part)
                 continue
 
             if part_type == "input_file":
                 next_part = {"type": "input_file"}
-                if isinstance(cleaned_part.get("file_url"), str) and cleaned_part.get("file_url"):
+                if isinstance(cleaned_part.get("file_url"), str) and cleaned_part.get(
+                    "file_url"
+                ):
                     next_part["file_url"] = cleaned_part["file_url"]
-                if isinstance(cleaned_part.get("file_id"), str) and cleaned_part.get("file_id"):
+                if isinstance(cleaned_part.get("file_id"), str) and cleaned_part.get(
+                    "file_id"
+                ):
                     next_part["file_id"] = cleaned_part["file_id"]
-                if isinstance(cleaned_part.get("file_data"), str) and cleaned_part.get("file_data"):
+                if isinstance(cleaned_part.get("file_data"), str) and cleaned_part.get(
+                    "file_data"
+                ):
                     next_part["file_data"] = cleaned_part["file_data"]
-                if isinstance(cleaned_part.get("filename"), str) and cleaned_part.get("filename"):
+                if isinstance(cleaned_part.get("filename"), str) and cleaned_part.get(
+                    "filename"
+                ):
                     next_part["filename"] = cleaned_part["filename"]
                 cleaned_content.append(next_part)
                 continue
@@ -435,7 +475,8 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             affected = [
                 idx
                 for idx, indices in enumerate(msg_indices)
-                if indices and any(start <= native_index <= end for native_index in indices)
+                if indices
+                and any(start <= native_index <= end for native_index in indices)
             ]
 
             if affected:
@@ -557,14 +598,18 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         if not compaction_indices:
             return list(messages)
 
-        working_messages = [dict(message) for message in messages if isinstance(message, dict)]
+        working_messages = [
+            dict(message) for message in messages if isinstance(message, dict)
+        ]
         working_indices: List[List[int]] = []
         for message in working_messages:
             raw_metadata = message.get("metadata")
             metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
             raw_indices = metadata.get("native_indices")
             if isinstance(raw_indices, list):
-                working_indices.append([index for index in raw_indices if isinstance(index, int)])
+                working_indices.append(
+                    [index for index in raw_indices if isinstance(index, int)]
+                )
             else:
                 working_indices.append([])
 
@@ -572,7 +617,9 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             for idx, native_index_list in enumerate(working_indices):
                 if compaction_index not in native_index_list:
                     continue
-                remaining = [value for value in native_index_list if value != compaction_index]
+                remaining = [
+                    value for value in native_index_list if value != compaction_index
+                ]
                 working_indices[idx] = remaining
                 updated = self._copy_message_with_native_indices(
                     working_messages[idx],
@@ -611,7 +658,9 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
 
         delta = len(effective_messages) - len(prepared_native_messages)
         leading = effective_messages[:delta]
-        if leading and all(self._is_system_or_developer_message(item) for item in leading):
+        if leading and all(
+            self._is_system_or_developer_message(item) for item in leading
+        ):
             return min(prefix_native_end + delta, len(effective_messages))
         return min(prefix_native_end, len(effective_messages))
 
@@ -621,7 +670,14 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         prefix_native_end: int,
         request: Dict[str, Any],
         config: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]], List[Dict[str, Any]]]:
+        instructions: Optional[str],
+    ) -> Tuple[
+        List[Dict[str, Any]],
+        Optional[str],
+        Optional[Dict[str, Any]],
+        List[Dict[str, Any]],
+        Optional[Dict[str, Any]],
+    ]:
         override = request.get("messages")
         effective_messages = (
             [item for item in override if isinstance(item, dict)]
@@ -635,11 +691,14 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         )
         prefix_native = list(prepared_native_messages[:prefix_native_end])
         prefix_input = list(effective_messages[:effective_prefix_end])
-        if should_strip_leading_system_or_developer_message(config):
-            prefix_input = strip_leading_system_or_developer_message(prefix_input)
+        prepared_input = prepare_input_and_instructions_for_endpoint(
+            prefix_input,
+            instructions,
+            config,
+        )
         input_items = [
             self._sanitize_input_item(item)
-            for item in prefix_input
+            for item in prepared_input.input_items
             if isinstance(item, dict)
         ]
         original_first = prefix_native[0] if prefix_native else None
@@ -649,7 +708,13 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             else None
         )
         suffix_native = list(prepared_native_messages[prefix_native_end:])
-        return input_items, restore_first, suffix_native
+        return (
+            input_items,
+            prepared_input.instructions,
+            restore_first,
+            suffix_native,
+            prepared_input.stripped_leading_message,
+        )
 
     def _restore_leading_system_or_developer_message(
         self,
@@ -695,13 +760,17 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
 
         native_indices: List[int] = []
         for message in prefix_messages:
-            raw_metadata = message.metadata if isinstance(message.metadata, dict) else {}
+            raw_metadata = (
+                message.metadata if isinstance(message.metadata, dict) else {}
+            )
             raw_indices = raw_metadata.get("native_indices")
             if not isinstance(raw_indices, list) or not raw_indices:
                 raise RuntimeError(
                     "visible message range cannot be compacted because native history mapping is missing"
                 )
-            native_indices.extend(index for index in raw_indices if isinstance(index, int))
+            native_indices.extend(
+                index for index in raw_indices if isinstance(index, int)
+            )
 
         if not native_indices:
             raise RuntimeError(
@@ -710,7 +779,9 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
 
         unique_indices = sorted(set(native_indices))
         if unique_indices[0] != 0:
-            raise RuntimeError("compaction range must start at the beginning of native history")
+            raise RuntimeError(
+                "compaction range must start at the beginning of native history"
+            )
         expected = list(range(unique_indices[-1] + 1))
         if unique_indices != expected:
             missing = sorted(set(expected).difference(unique_indices))
@@ -718,7 +789,8 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 if all(
                     0 <= missing_index < len(native_messages)
                     and isinstance(native_messages[missing_index], dict)
-                    and native_messages[missing_index].get("type") in _COMPACTION_ITEM_TYPES
+                    and native_messages[missing_index].get("type")
+                    in _COMPACTION_ITEM_TYPES
                     for missing_index in missing
                 ):
                     return unique_indices[-1] + 1
@@ -734,7 +806,9 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             dumped = payload.model_dump(mode="python")
             if isinstance(dumped, dict):
                 return dumped
-        raise RuntimeError("[openai_responses_native_compaction] invalid SDK compaction payload")
+        raise RuntimeError(
+            "[openai_responses_native_compaction] invalid SDK compaction payload"
+        )
 
     def execute_action(
         self,
@@ -782,8 +856,10 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             else {}
         )
         compaction_config = self._compaction_config(config)
-        model = self._resolve_model(compaction_config)
-        timeout = self._coerce_timeout(compaction_config.get("timeout", DEFAULT_TIMEOUT))
+        model = self._resolve_compaction_model(compaction_config)
+        timeout = self._coerce_timeout(
+            compaction_config.get("timeout", DEFAULT_TIMEOUT)
+        )
         end_index = self._resolve_end_index(session, params)
         prefix_native_end = self._resolve_prefix_native_end(
             session,
@@ -797,16 +873,17 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         )
         raw_instructions = request.get("instructions")
         instructions_value = (
-            raw_instructions.strip() if isinstance(raw_instructions, str) and raw_instructions.strip() else None
+            raw_instructions.strip()
+            if isinstance(raw_instructions, str) and raw_instructions.strip()
+            else None
         )
 
         try:
             client = self._build_client(compaction_config)
         except ValueError as exc:
-            if (
-                effective_auth_mode(config) == "chatgpt"
-                and not self._use_chatgpt_auth_for_compaction(config)
-            ):
+            if effective_auth_mode(
+                config
+            ) == "chatgpt" and not self._use_chatgpt_auth_for_compaction(config):
                 raise RuntimeError(
                     "OpenAI Responses native compaction is configured to use the API endpoint, "
                     "but no OpenAI API key is available. Set config.api_key / OPENAI_API_KEY "
@@ -814,11 +891,18 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 ) from exc
             raise
 
-        input_items, restore_first, suffix_native = self._build_compaction_input(
+        (
+            input_items,
+            instructions_value,
+            restore_first,
+            suffix_native,
+            stripped_leading_message,
+        ) = self._build_compaction_input(
             current_native_messages,
             prefix_native_end,
             request,
             compaction_config,
+            instructions_value,
         )
 
         try:
@@ -840,7 +924,9 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         response_obj = self._response_to_dict(sdk_response)
         output = response_obj.get("output")
         if not isinstance(output, list):
-            raise RuntimeError("OpenAI Responses compact failed: missing output list in response")
+            raise RuntimeError(
+                "OpenAI Responses compact failed: missing output list in response"
+            )
 
         new_native_messages = [
             self._sanitize_compacted_output_item(item)
@@ -848,11 +934,16 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             if isinstance(item, dict)
         ]
         if not new_native_messages:
-            raise RuntimeError("OpenAI Responses compact failed: empty compacted output")
+            raise RuntimeError(
+                "OpenAI Responses compact failed: empty compacted output"
+            )
         new_native_messages = self._restore_leading_system_or_developer_message(
             new_native_messages,
             restore_first,
         )
+        if stripped_leading_message is not None:
+            preserved_first = restore_first or stripped_leading_message
+            new_native_messages = [preserved_first, *new_native_messages]
 
         return {
             "native_messages": [*new_native_messages, *suffix_native],

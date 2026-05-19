@@ -241,6 +241,7 @@ def test_prepare_tools_populates_sync_discovery_and_execution() -> None:
                 "tool_plugin": "prepared_catalog_tool",
                 "display": {"type": "text", "content": "Result: sync-runtime:core"},
             },
+            "toolResult": {"type": "tool_result", "text": "Result: sync-runtime:core"},
         }
     ]
 
@@ -305,6 +306,7 @@ def test_application_send_request_prepares_tools_with_application_context(
     assert ApplicationPreparedTool.prepare_calls == 1
     assert isinstance(ApplicationPreparedTool.last_context, dict)
     assert ApplicationPreparedTool.last_context["trigger_source"] == "application"
+    assert ApplicationPreparedTool.last_context["runtime_store"] is app.get_runtime_store()
     assert ApplicationPreparedTool.last_context["tool_runtime"] is app.get_tool_runtime()
     assert ApplicationPreparedTool.last_context["session"]["session_id"] == session.session_id
     assert isinstance(ApplicationPreparedTool.last_context["request_id"], str)

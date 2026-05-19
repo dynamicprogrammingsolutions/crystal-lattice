@@ -156,3 +156,7 @@ def parse_urls_from_text(text: str) -> tuple[list[str], list[str]]
 | `DEFAULT_MAX_SIZE_BYTES` | `10 * 1024 * 1024` | Default max response size (10MB) |
 | `DEFAULT_MAX_CHARS` | `100000` | Default truncation limit |
 | `TRUNCATION_MARKER` | `"... [Content truncated due to size limit]"` | Default truncation marker |
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

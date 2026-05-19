@@ -17,3 +17,7 @@ Tool results receive timestamps **only after the session is persisted and reload
 
 - Adds per-request `duration` (start/end timestamps + elapsed time).
 - Adds per-turn cumulative `turn duration` similar to OpenRouter usage turn totals.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

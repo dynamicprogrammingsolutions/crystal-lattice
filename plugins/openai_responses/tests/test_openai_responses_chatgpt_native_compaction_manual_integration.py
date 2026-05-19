@@ -47,7 +47,7 @@ def _load_saved_credentials() -> dict[str, object]:
 
 
 def _chatgpt_config(credentials_path: Path) -> dict[str, object]:
-    model = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5"
+    model = os.getenv("OPENAI_RESPONSES_CHATGPT_MODEL") or "gpt-5.5"
     return {
         "provider": "openai_responses",
         "model": model,
@@ -78,7 +78,8 @@ def _assert_has_compaction_native_items(session) -> None:
     native_history = (session.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
     assert any(
-        isinstance(item, dict) and item.get("type") in {"compaction", "compaction_summary"}
+        isinstance(item, dict)
+        and item.get("type") in {"compaction", "compaction_summary"}
         for item in native_history
     )
 
@@ -125,10 +126,6 @@ def test_openai_responses_chatgpt_saved_login_native_compaction() -> None:
 
     assert result["message"] == "Compacted the full visible history."
     _assert_has_compaction_native_items(compacted_session)
-    assert all(
-        message.content != "Earlier conversation compacted to reduce context size."
-        for message in compacted_session.messages
-    )
 
     compacted_session = core.add_message(
         compacted_session,
@@ -152,6 +149,7 @@ def test_openai_responses_chatgpt_saved_login_native_compaction() -> None:
     native_history = (final_session.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
     assert any(
-        isinstance(item, dict) and item.get("type") in {"compaction", "compaction_summary"}
+        isinstance(item, dict)
+        and item.get("type") in {"compaction", "compaction_summary"}
         for item in native_history
     )

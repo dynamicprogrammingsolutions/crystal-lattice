@@ -17,3 +17,7 @@ Reusable macOS-native multiline text view for React Native New Architecture cons
 ## Example
 
 See [example/MacTextViewExample.tsx](./example/MacTextViewExample.tsx) for a package-owned usage example that exercises the public API.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

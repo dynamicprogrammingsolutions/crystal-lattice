@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 import shutil
+import sys
 
 import pytest
 
@@ -58,6 +59,126 @@ def test_plugin_manager_resolves_bash_shorthand_path(tmp_path: Path) -> None:
     assert res.errors == []
     assert len(res.classes) == 1
     assert getattr(res.classes[0], "name", None) == "read_line_range"
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash executable not available")
+def test_bash_tool_host_exposes_agent_tool_python(tmp_path: Path) -> None:
+    tool_file = tmp_path / "python_env_tool.bash"
+    tool_file.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+
+sub="${1-}"
+shift || true
+
+case "$sub" in
+  schema)
+    cat <<'JSON'
+{"id":"python_env_tool","version":"0.1.0","args_mode":"flags","tools":[{"type":"function","function":{"name":"python_env_tool","description":"Reports AGENT_TOOL_PYTHON","parameters":{"type":"object","properties":{},"required":[]}}}]}
+JSON
+    ;;
+  run)
+    printf '%s' "${AGENT_TOOL_PYTHON:-}"
+    ;;
+  *)
+    exit 2
+    ;;
+esac
+""",
+        encoding="utf-8",
+    )
+
+    cache_dir = tmp_path / "cache"
+    policy = _bash_tool_policy(_core_python_dir())
+    policy["base_dir"] = str(tmp_path)
+    mgr = PluginManager(cache_dir=cache_dir, policy=policy)
+
+    res = mgr.resolve_all(
+        [
+            {"bash_tool": {"file": str(tool_file.name)}},
+        ]
+    )
+    assert res.errors == []
+    tool_cls = res.classes[0]
+
+    core = AgentCore()
+    core.register_tool(tool_cls)
+
+    items = list(
+        core.iter_tool_messages(
+            [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "python_env_tool", "arguments": {}},
+                }
+            ],
+            config={},
+        )
+    )
+    finals = [it for it in items if isinstance(it, dict) and "part" not in it]
+    assert len(finals) == 1
+    assert finals[0].get("content", "") == sys.executable
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="bash executable not available")
+def test_bash_tool_host_exposes_selected_config_keys(tmp_path: Path) -> None:
+    tool_file = tmp_path / "config_env_tool.bash"
+    tool_file.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+
+sub="${1-}"
+shift || true
+
+case "$sub" in
+  schema)
+    cat <<'JSON'
+{"id":"config_env_tool","version":"0.1.0","args_mode":"flags","config_keys":["sample_config_value"],"tools":[{"type":"function","function":{"name":"config_env_tool","description":"Reports selected config env","parameters":{"type":"object","properties":{},"required":[]}}}]}
+JSON
+    ;;
+  run)
+    printf '%s' "${AGENT_TOOL_CONFIG_SAMPLE_CONFIG_VALUE:-}"
+    ;;
+  *)
+    exit 2
+    ;;
+esac
+""",
+        encoding="utf-8",
+    )
+
+    cache_dir = tmp_path / "cache"
+    policy = _bash_tool_policy(_core_python_dir())
+    policy["base_dir"] = str(tmp_path)
+    mgr = PluginManager(cache_dir=cache_dir, policy=policy)
+
+    res = mgr.resolve_all(
+        [
+            {"bash_tool": {"file": str(tool_file.name)}},
+        ]
+    )
+    assert res.errors == []
+    tool_cls = res.classes[0]
+
+    core = AgentCore()
+    core.register_tool(tool_cls)
+
+    items = list(
+        core.iter_tool_messages(
+            [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "config_env_tool", "arguments": {}},
+                }
+            ],
+            config={"sample_config_value": "hello-config"},
+        )
+    )
+    finals = [it for it in items if isinstance(it, dict) and "part" not in it]
+    assert len(finals) == 1
+    assert finals[0].get("content", "") == "hello-config"
 
 
 @pytest.mark.skipif(shutil.which("bash") is None, reason="bash executable not available")

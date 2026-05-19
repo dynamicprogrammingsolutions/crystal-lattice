@@ -7,6 +7,7 @@ Local path repos are installed into the plugin cache via
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 import sys
 import textwrap
 
@@ -239,3 +240,41 @@ def test_non_bundled_builtin_plugins_path_still_installs_to_cache(
 
     assert res.errors == []
     assert next(cache_dir.glob("repo@*")).is_dir()
+
+
+def test_plugin_manager_defaults_pip_cache_next_to_plugins_cache(tmp_path: Path) -> None:
+    mgr = PluginManager(cache_dir=tmp_path / ".plugin_cache" / "plugins")
+
+    assert mgr.policy["pip_cache_dir"] == str(tmp_path / ".plugin_cache" / "pip")
+
+
+def test_pip_target_installer_uses_configured_pip_cache_dir(tmp_path: Path, monkeypatch) -> None:
+    project_dir = _make_dev_repo(tmp_path)
+    cache_dir = tmp_path / ".plugin_cache" / "plugins"
+    pip_cache_dir = tmp_path / ".plugin_cache" / "pip"
+    commands: list[list[str]] = []
+    original_sys_path = list(sys.path)
+
+    def fake_check_call(cmd):  # type: ignore[no-untyped-def]
+        commands.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    try:
+        PipTargetInstallStrategy().ensure_installed(
+            InstallRequest(
+                cache_dir=cache_dir,
+                safe_id="repo",
+                revision="rev",
+                project_dir=project_dir,
+                policy={"pip_cache_dir": str(pip_cache_dir)},
+                metadata={},
+            )
+        )
+    finally:
+        sys.path[:] = original_sys_path
+
+    assert commands
+    assert "--cache-dir" in commands[0]
+    assert commands[0][commands[0].index("--cache-dir") + 1] == str(pip_cache_dir)
+    assert "--no-cache-dir" not in commands[0]

@@ -6,6 +6,8 @@ import {
   downloadSessionAttachment,
   deleteSessionAttachment,
   DOWNLOAD_ATTACHMENT_ACTION_ID,
+  resolveAttachmentActionPluginId,
+  SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
   selectSessionAssetId,
   storeSessionAttachment,
 } from '../attachmentActions';
@@ -151,6 +153,46 @@ describe('attachmentActions', () => {
     });
   });
 
+  it('downloads a generic session asset using the application action contract', async () => {
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
+      status: 'ok',
+      plugin: SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
+      action_id: 'download_attachment',
+      result: {
+        attachment_asset: {
+          asset_ref: {
+            kind: 'session_asset',
+            session_id: 's1',
+            asset_id: 'asset_10',
+            attachment_type: 'image',
+          },
+          filename: 'opened.png',
+          mime_type: 'image/png',
+        },
+        data_base64: 'QUJDRA==',
+      },
+    }));
+
+    const downloaded = await downloadSessionAttachment({
+      backend: buildBackend(executeAction),
+      sessionId: 's1',
+      assetId: 'asset_10',
+      pluginId: SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
+    });
+
+    expect(downloaded.attachment_asset.filename).toBe('opened.png');
+    expect(executeAction).toHaveBeenCalledWith({
+      pluginId: SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
+      actionId: DOWNLOAD_ATTACHMENT_ACTION_ID,
+      actionOwner: 'application',
+      idempotencyKey: undefined,
+      inputs: {
+        session_id: 's1',
+        asset_id: 'asset_10',
+      },
+    });
+  });
+
   it('forwards an explicit plugin id override for attachment actions', async () => {
     const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
       status: 'ok',
@@ -193,6 +235,38 @@ describe('attachmentActions', () => {
         data_base64: 'QUJDRA==',
       },
     });
+  });
+
+  it('prefers attachment_action_plugin over plugin when resolving attachment action ownership', () => {
+    expect(
+      resolveAttachmentActionPluginId({
+        ui_type: 'composer_attachment',
+        plugin: 'openai_responses',
+        attachment_action_plugin: 'openai_responses_attachments',
+        attachment_type: 'image',
+      }),
+    ).toBe('openai_responses_attachments');
+  });
+
+  it('falls back to plugin when no attachment_action_plugin is provided', () => {
+    expect(
+      resolveAttachmentActionPluginId({
+        ui_type: 'composer_attachment',
+        plugin: 'openrouter_image_generation_attachments',
+        attachment_type: 'image',
+      }),
+    ).toBe('openrouter_image_generation_attachments');
+  });
+
+  it('returns null when an attachment element does not define a usable action plugin', () => {
+    expect(
+      resolveAttachmentActionPluginId({
+        ui_type: 'composer_attachment',
+        plugin: '   ',
+        attachment_action_plugin: '',
+        attachment_type: 'image',
+      }),
+    ).toBeNull();
   });
 
   it('surfaces backend action errors with the server message', async () => {

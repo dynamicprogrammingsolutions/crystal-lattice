@@ -6,6 +6,7 @@ defmodule Bridge.MixProject do
       app: :bridge,
       version: "0.1.0",
       elixir: "~> 1.14",
+      licenses: ["AGPL-3.0-only"],
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]

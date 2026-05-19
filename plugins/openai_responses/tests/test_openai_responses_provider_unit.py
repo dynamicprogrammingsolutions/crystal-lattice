@@ -14,6 +14,7 @@ from agent_core import AgentCore
 from agent_core.tool_result_payloads import (
     FORMAT_OPENAI_CHAT_COMPLETIONS,
     FORMAT_OPENAI_RESPONSES,
+    TOOL_RESULT_FIELD,
     make_provider_native_tool_result,
 )
 from agent_core.types import ProviderRequestCancelled
@@ -1048,6 +1049,185 @@ def test_call_api_can_strip_leading_system_message_from_request_history() -> Non
     assert sent_input[0]["role"] == "user"
 
 
+def test_api_mode_keeps_leading_system_message_without_strip_flag() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureClient(_load_fixture())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "system", "content": "Visible system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://api.openai.com/v1/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+        },
+    }
+
+    provider.call_api(native_messages, state)
+
+    call = fixture_client.responses.calls[0]
+    assert "instructions" not in call
+    assert [item["role"] for item in call["input"]] == ["system", "user"]
+
+
+def test_chatgpt_stream_moves_leading_system_message_to_instructions() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureStreamingClient(_load_stream_fixture_events())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "system", "content": "Visible system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    original_native = list(native_messages)
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+            "_openai_responses_effective_auth_mode": "chatgpt",
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://chatgpt.com/backend-api/codex/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+        },
+    }
+
+    list(provider.stream_api(native_messages, state))
+
+    call = fixture_client.responses.calls[0]
+    assert call["instructions"] == "Visible system prompt"
+    assert [item["role"] for item in call["input"]] == ["user"]
+    assert native_messages == original_native
+
+
+def test_chatgpt_stream_moves_leading_developer_message_to_instructions() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureStreamingClient(_load_stream_fixture_events())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "developer", "content": "Visible developer prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+            "_openai_responses_effective_auth_mode": "chatgpt",
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://chatgpt.com/backend-api/codex/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+        },
+    }
+
+    list(provider.stream_api(native_messages, state))
+
+    call = fixture_client.responses.calls[0]
+    assert call["instructions"] == "Visible developer prompt"
+    assert [item["role"] for item in call["input"]] == ["user"]
+
+
+def test_chatgpt_stream_preserves_existing_request_instructions() -> None:
+    provider = OpenAIResponsesProvider()
+    fixture_client = _FixtureStreamingClient(_load_stream_fixture_events())
+    native_messages = provider.to_native_messages(
+        [
+            {"role": "system", "content": "Visible system prompt"},
+            {"role": "user", "content": "hello"},
+        ],
+        {},
+    )
+    state = {
+        "config": {
+            "model": "gpt-5-mini",
+            "api_key": "test_key",
+            "base_url": "https://api.openai.com/v1",
+            "timeout": 42,
+            "_openai_responses_effective_auth_mode": "chatgpt",
+        },
+        "client": fixture_client,
+        "request": {
+            "url": "https://chatgpt.com/backend-api/codex/responses",
+            "payload": {"model": "gpt-5-mini"},
+            "headers": {
+                "Authorization": "Bearer test_key",
+                "Content-Type": "application/json",
+            },
+            "timeout": 42.0,
+            "instructions": "Explicit instructions",
+        },
+    }
+
+    list(provider.stream_api(native_messages, state))
+
+    call = fixture_client.responses.calls[0]
+    assert call["instructions"] == "Explicit instructions"
+    assert [item["role"] for item in call["input"]] == ["system", "user"]
+
+
+def test_runtime_extracts_leading_system_text_from_responses_parts() -> None:
+    native_messages = [
+        {
+            "type": "message",
+            "role": "system",
+            "content": [
+                {"type": "input_text", "text": "First"},
+                {"type": "input_image", "image_url": "data:image/png;base64,AAA"},
+                {"type": "text", "text": "Second"},
+            ],
+        },
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "hello"}],
+        },
+    ]
+
+    prepared = runtime_module.prepare_input_and_instructions_for_endpoint(
+        native_messages,
+        None,
+        {"_openai_responses_effective_auth_mode": "chatgpt"},
+    )
+
+    assert prepared.instructions == "First\nSecond"
+    assert prepared.input_items == [native_messages[1]]
+    assert prepared.stripped_leading_message == native_messages[0]
+
+
 def test_stream_api_can_strip_leading_developer_message_from_request_history() -> None:
     provider = OpenAIResponsesProvider()
     fixture_client = _FixtureStreamingClient(_load_stream_fixture_events())
@@ -1199,22 +1379,27 @@ def test_to_native_messages_supports_image_url_and_data_url() -> None:
     ]
 
 
-def test_to_native_messages_preserves_structured_tool_output_content() -> None:
+def test_to_native_messages_uses_tool_result_without_metadata_duplication() -> None:
     provider = OpenAIResponsesProvider()
     image_item = {
         "type": "input_image",
         "image_url": "data:image/png;base64,AAA",
         "detail": "high",
     }
+    payload = make_provider_native_tool_result(
+        format=FORMAT_OPENAI_RESPONSES,
+        output=[image_item],
+        text='{"image_url":"data:image/png;base64,AAA"}',
+    )
 
     native = provider.to_native_messages(
         [
             {
                 "role": "tool",
                 "content": '{"image_url":"data:image/png;base64,AAA"}',
+                TOOL_RESULT_FIELD: payload,
                 "metadata": {
                     "tool_call_id": "call_view_1",
-                    "tool_output_content": [image_item],
                     "trace_id": "t1",
                 },
             }
@@ -1228,7 +1413,6 @@ def test_to_native_messages_preserves_structured_tool_output_content() -> None:
             "call_id": "call_view_1",
             "output": [image_item],
             "_metadata": {
-                "tool_output_content": [image_item],
                 "trace_id": "t1",
             },
         }
@@ -1251,7 +1435,8 @@ def test_to_native_messages_uses_openai_responses_tool_result_envelope() -> None
         [
             {
                 "role": "tool",
-                "content": payload,
+                "content": "opened image",
+                TOOL_RESULT_FIELD: payload,
                 "metadata": {"tool_call_id": "call_view_1"},
             }
         ],
@@ -1285,7 +1470,8 @@ def test_to_native_messages_converts_openai_chat_tool_result_envelope() -> None:
         [
             {
                 "role": "tool",
-                "content": payload,
+                "content": "opened image",
+                TOOL_RESULT_FIELD: payload,
                 "metadata": {"tool_call_id": "call_view_1"},
             }
         ],

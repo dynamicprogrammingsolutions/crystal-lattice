@@ -1,8 +1,10 @@
 import type { AgentBackend } from '../backend/backend';
 import type { ExecuteActionResponse } from '../types/plugins';
+import type { UiSchemaElement } from '../types/uiSchema';
 
 export const DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID = 'openai_responses_attachments';
 export const DEFAULT_ATTACHMENT_ACTION_OWNER = 'provider_extension';
+export const SESSION_ASSET_ATTACHMENTS_PLUGIN_ID = 'session_asset_attachments';
 export const STORE_ATTACHMENT_ACTION_ID = 'store_attachment';
 export const DELETE_ATTACHMENT_ACTION_ID = 'delete_attachment';
 export const DOWNLOAD_ATTACHMENT_ACTION_ID = 'download_attachment';
@@ -31,6 +33,12 @@ export interface StoredAttachmentAssetDescriptor {
 export interface DownloadedAttachmentPayload {
   attachment_asset: StoredAttachmentAssetDescriptor;
   data_base64: string;
+}
+
+export interface ComposerAttachmentUiElement extends UiSchemaElement {
+  ui_type: 'composer_attachment';
+  attachment_type?: string;
+  attachment_action_plugin?: string;
 }
 
 function actionErrorMessage(response: ExecuteActionResponse): string {
@@ -83,6 +91,26 @@ function ensureStoredAttachmentDescriptor(value: any): StoredAttachmentAssetDesc
   return value as StoredAttachmentAssetDescriptor;
 }
 
+function attachmentActionOwner(pluginId: string): string {
+  return pluginId === SESSION_ASSET_ATTACHMENTS_PLUGIN_ID ? 'application' : DEFAULT_ATTACHMENT_ACTION_OWNER;
+}
+
+export function resolveAttachmentActionPluginId(
+  element: ComposerAttachmentUiElement | null | undefined,
+): string | null {
+  const actionPlugin = element?.attachment_action_plugin;
+  if (typeof actionPlugin === 'string' && actionPlugin.trim()) {
+    return actionPlugin.trim();
+  }
+
+  const plugin = element?.plugin;
+  if (typeof plugin === 'string' && plugin.trim()) {
+    return plugin.trim();
+  }
+
+  return null;
+}
+
 export function selectSessionAssetId(content: any): string | null {
   const assetRef = content?.asset_ref;
   if (
@@ -121,7 +149,7 @@ export async function storeSessionAttachment(options: {
   const response = await options.backend.executeAction({
     pluginId,
     actionId: STORE_ATTACHMENT_ACTION_ID,
-    actionOwner: DEFAULT_ATTACHMENT_ACTION_OWNER,
+      actionOwner: attachmentActionOwner(pluginId),
     idempotencyKey: options.idempotencyKey,
     inputs: {
       session_id: sessionId,
@@ -168,7 +196,7 @@ export async function deleteSessionAttachment(options: {
   const response = await options.backend.executeAction({
     pluginId,
     actionId: DELETE_ATTACHMENT_ACTION_ID,
-    actionOwner: DEFAULT_ATTACHMENT_ACTION_OWNER,
+      actionOwner: attachmentActionOwner(pluginId),
     idempotencyKey: options.idempotencyKey,
     inputs: {
       session_id: sessionId,
@@ -206,7 +234,7 @@ export async function downloadSessionAttachment(options: {
   const response = await options.backend.executeAction({
     pluginId,
     actionId: DOWNLOAD_ATTACHMENT_ACTION_ID,
-    actionOwner: DEFAULT_ATTACHMENT_ACTION_OWNER,
+      actionOwner: attachmentActionOwner(pluginId),
     idempotencyKey: options.idempotencyKey,
     inputs: {
       session_id: sessionId,

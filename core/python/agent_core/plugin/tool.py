@@ -58,7 +58,16 @@ class ToolWrapper(ToolPlugin):
         return default_prepared
 
     @staticmethod
-    def _run_awaitable_blocking(awaitable: Any) -> Any:
+    def _run_awaitable_blocking(
+        awaitable: Any,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        app = None
+        if isinstance(context, dict):
+            app = context.get("app") or context.get("application")
+        runner = getattr(app, "run_awaitable_blocking", None)
+        if callable(runner):
+            return runner(awaitable)
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -136,7 +145,7 @@ class ToolWrapper(ToolPlugin):
                 context=context,
             )
             if inspect.isawaitable(result):
-                result = self._run_awaitable_blocking(result)
+                result = self._run_awaitable_blocking(result, context=context)
             self.prepared = result if isinstance(result, dict) else {}
             return self.prepared
         self.prepared = {}
@@ -231,6 +240,25 @@ class ToolWrapper(ToolPlugin):
             raise RuntimeError(f"Tool {self.name} not initialized")
         working_state = self._state_or_default(state, self.state)
         working_prepared = self._prepared_or_default(prepared, self.prepared)
+        impl_sync = self.plugin._get_impl_method("execute_tool", ToolPlugin)
+        if impl_sync is None:
+            impl_async = getattr(self.plugin.impl, "execute_tool_async", None)
+            if callable(impl_async):
+                return self._run_awaitable_blocking(
+                    self.plugin.execute_tool_async(
+                        tool_name,
+                        payload,
+                        working_state,
+                        payload_kind=payload_kind,
+                        payload_format=payload_format,
+                        payload_metadata=payload_metadata,
+                        tool_call=tool_call,
+                        cancellation=cancellation,
+                        context=context,
+                        prepared=working_prepared,
+                    ),
+                    context=context,
+                )
         return self.plugin.execute_tool(
             tool_name,
             payload,
@@ -336,18 +364,47 @@ class ToolWrapper(ToolPlugin):
             raise RuntimeError(f"Tool {self.name} not initialized")
         working_state = self._state_or_default(state, self.state)
         working_prepared = self._prepared_or_default(prepared, self.prepared)
-        return self.plugin.stream_tool(
-            tool_name,
-            payload,
-            working_state,
-            payload_kind=payload_kind,
-            payload_format=payload_format,
-            payload_metadata=payload_metadata,
-            tool_call=tool_call,
-            cancellation=cancellation,
-            context=context,
-            prepared=working_prepared,
-        )
+        impl_sync = self.plugin._get_impl_method("stream_tool", ToolPlugin)
+        if impl_sync is not None:
+            return self.plugin.stream_tool(
+                tool_name,
+                payload,
+                working_state,
+                payload_kind=payload_kind,
+                payload_format=payload_format,
+                payload_metadata=payload_metadata,
+                tool_call=tool_call,
+                cancellation=cancellation,
+                context=context,
+                prepared=working_prepared,
+            )
+
+        async def _collect_async_chunks() -> List[Dict[str, Any]]:
+            chunks: List[Dict[str, Any]] = []
+            async for chunk in self.plugin.stream_tool_async(
+                tool_name,
+                payload,
+                working_state,
+                payload_kind=payload_kind,
+                payload_format=payload_format,
+                payload_metadata=payload_metadata,
+                tool_call=tool_call,
+                cancellation=cancellation,
+                context=context,
+                prepared=working_prepared,
+            ):
+                if isinstance(chunk, dict):
+                    chunks.append(chunk)
+            return chunks
+
+        chunks = self._run_awaitable_blocking(_collect_async_chunks(), context=context)
+
+        def _iter_chunks() -> Iterator[Dict[str, Any]]:
+            for chunk in chunks or []:
+                if isinstance(chunk, dict):
+                    yield chunk
+
+        return _iter_chunks()
 
     async def stream_tool_async(
         self,

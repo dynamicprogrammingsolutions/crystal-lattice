@@ -10,6 +10,7 @@ request.
 
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
@@ -27,7 +28,12 @@ from agent_core.tool_interop import (
     get_registry_from_context,
     get_schema_target_formats_from_context,
 )
-from agent_core.tool_result_payloads import openai_responses_tool_result_output
+from agent_core.tool_result_payloads import (
+    TOOL_RESULT_FIELD,
+    make_text_tool_result,
+    openai_responses_tool_result_output,
+    provider_native_tool_result_display,
+)
 from agent_core.types import ProviderPlugin
 from agent_core.utils import get_logger
 
@@ -266,6 +272,20 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             "request": {
                 "url": url,
                 "payload": payload,
+                "messages": [
+                    (
+                        {
+                            **msg,
+                            "output": self._expanded_tool_output(
+                                msg.get("output"),
+                                context,
+                            ),
+                        }
+                        if isinstance(msg, dict) and msg.get("type") == "function_call_output"
+                        else msg
+                    )
+                    for msg in native_messages
+                ],
                 "headers": headers,
                 "timeout": timeout,
             },
@@ -294,7 +314,74 @@ class OpenRouterResponsesProvider(ProviderPlugin):
             return {}
         out = dict(metadata)
         out.pop("native_indices", None)
+        out.pop("display", None)
         return out
+
+    def _session_asset_store(self, context: Optional[Dict[str, Any]]) -> Any:
+        if isinstance(context, dict):
+            store = context.get("session_asset_store")
+            if store is not None:
+                return store
+        raise RuntimeError(
+            "[openrouter_responses_provider] session asset attachment requires session_asset_store in context"
+        )
+
+    def _resolve_session_asset(
+        self,
+        context: Optional[Dict[str, Any]],
+        asset_ref: Dict[str, Any],
+        expected_attachment_type: str,
+    ) -> Tuple[str, str, bytes]:
+        store = self._session_asset_store(context)
+        session_id = asset_ref.get("session_id")
+        asset_id = asset_ref.get("asset_id")
+        if not isinstance(session_id, str) or not isinstance(asset_id, str):
+            raise ValueError(
+                "[openrouter_responses_provider] invalid session asset reference"
+            )
+        record = store.load(session_id, asset_id)
+        if record.attachment_type != expected_attachment_type:
+            raise ValueError(
+                f"[openrouter_responses_provider] session asset {asset_id!r} is not a {expected_attachment_type} attachment"
+            )
+        return record.filename, record.mime_type, store.load_bytes(session_id, asset_id)
+
+    def _expanded_tool_output(
+        self,
+        output: Any,
+        context: Optional[Dict[str, Any]],
+    ) -> Any:
+        if not isinstance(output, list):
+            return output
+
+        parts: List[Dict[str, Any]] = []
+        for part in output:
+            if not isinstance(part, dict):
+                continue
+            if part.get("type") != "input_image":
+                parts.append(dict(part))
+                continue
+
+            image_url = part.get("image_url")
+            if isinstance(image_url, dict) and image_url.get("asset_ref"):
+                _, mime_type, payload_bytes = self._resolve_session_asset(
+                    context,
+                    image_url["asset_ref"],
+                    "image",
+                )
+                parts.append(
+                    {
+                        **part,
+                        "image_url": (
+                            f"data:{mime_type};base64,"
+                            f"{base64.b64encode(payload_bytes).decode('ascii')}"
+                        ),
+                    }
+                )
+                continue
+
+            parts.append(dict(part))
+        return parts
 
     def _native_internal_from_core_metadata_excluding(
         self, metadata: Any, *, exclude_keys: List[str]
@@ -556,13 +643,17 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 tcid = md.get("tool_call_id") if isinstance(md, dict) else None
                 if not isinstance(tcid, str) or not tcid:
                     tcid = f"call_{hash(str(msg)) % 1000000:06d}"
-                output_val = msg.get("content", "")
+                output_val = msg.get(TOOL_RESULT_FIELD)
+                if output_val is None:
+                    output_val = msg.get("content", "")
                 structured_output = openai_responses_tool_result_output(output_val)
-                output: Any = (
-                    structured_output
-                    if structured_output is not None
-                    else output_val if isinstance(output_val, str) else ""
-                )
+                output: Any
+                if structured_output is not None:
+                    output = structured_output
+                elif isinstance(output_val, dict):
+                    output = msg.get("content", "")
+                else:
+                    output = output_val if isinstance(output_val, str) else ""
 
                 internal_md = self._native_internal_from_core_metadata_excluding(
                     md,
@@ -615,7 +706,38 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 core_md = dict(internal_md)
                 core_md.setdefault("tool_call_id", call_id)
                 core_md["native_indices"] = [native_index]
-                _append_normalized({"role": "tool", "content": output, "metadata": core_md})
+                raw_output = item.get("output")
+                if isinstance(raw_output, list):
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.responses",
+                        "output": [
+                            dict(part)
+                            for part in raw_output
+                            if isinstance(part, dict)
+                        ],
+                        "text": output,
+                    }
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=(
+                            core_md.get("tool_name")
+                            if isinstance(core_md.get("tool_name"), str)
+                            else None
+                        ),
+                    )
+                    if isinstance(display, dict):
+                        core_md["display"] = display
+                else:
+                    tool_result = make_text_tool_result(text=output)
+                _append_normalized(
+                    {
+                        "role": "tool",
+                        "content": output,
+                        "metadata": core_md,
+                        TOOL_RESULT_FIELD: tool_result,
+                    }
+                )
 
             current_segment = []
             current_response_id = None
@@ -679,7 +801,38 @@ class OpenRouterResponsesProvider(ProviderPlugin):
                 core_md = dict(internal_md)
                 core_md.setdefault("tool_call_id", call_id)
                 core_md.setdefault("native_indices", [native_index])
-                normalized.append({"role": "tool", "content": output, "metadata": core_md})
+                raw_output = m.get("output")
+                if isinstance(raw_output, list):
+                    tool_result = {
+                        "type": "provider_native_tool_result",
+                        "format": "openai.responses",
+                        "output": [
+                            dict(part)
+                            for part in raw_output
+                            if isinstance(part, dict)
+                        ],
+                        "text": output,
+                    }
+                    display = provider_native_tool_result_display(
+                        tool_result,
+                        tool_name=(
+                            core_md.get("tool_name")
+                            if isinstance(core_md.get("tool_name"), str)
+                            else None
+                        ),
+                    )
+                    if isinstance(display, dict):
+                        core_md["display"] = display
+                else:
+                    tool_result = make_text_tool_result(text=output)
+                normalized.append(
+                    {
+                        "role": "tool",
+                        "content": output,
+                        "metadata": core_md,
+                        TOOL_RESULT_FIELD: tool_result,
+                    }
+                )
                 continue
 
             # Ignore other items (e.g. reasoning). They remain in native history.

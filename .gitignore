@@ -348,3 +348,4 @@ application/python/agent_terminal_app/_tmp_sessions_help4/3895d4ba-c74d-410d-847
 /cloud-orchestrator/.data/
 /cloud-orchestrator/.elixir_ls/
 /cloud-orchestrator/deploy/aws-ec2/.state/
+/evaluations/config/*/cache

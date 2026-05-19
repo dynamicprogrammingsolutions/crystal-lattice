@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import base64
-import json
 from pathlib import Path
 
 from agent_core.plugin import ToolWrapper
@@ -9,6 +8,7 @@ from agent_core.tool_interop import (
     DEFAULT_TOOL_INTEROP_REGISTRY,
     OpenAIChatToolSchemaAccessor,
 )
+from agent_app.session_assets import FilesystemSessionAssetStore
 
 from codex_tools.view_image_tool import ViewImageTool
 
@@ -84,7 +84,7 @@ def test_view_image_responses_schema_converts_to_chat_schema(tmp_path: Path) -> 
     assert "output_schema" not in converted["function"]
 
 
-def test_view_image_loads_png_and_returns_native_output_content(tmp_path: Path) -> None:
+def test_view_image_loads_png_and_returns_structured_result_and_display(tmp_path: Path) -> None:
     image = tmp_path / "tiny.png"
     image.write_bytes(_png_bytes())
     wrapper, state = _wrapper(tmp_path)
@@ -95,32 +95,56 @@ def test_view_image_loads_png_and_returns_native_output_content(tmp_path: Path) 
     assert result["mime_type"] == "image/png"
     assert result["image_url"].startswith("data:image/png;base64,")
     assert result["detail"] == "high"
-    output_content = result["tool_output_content"]
-    assert output_content == [
-        {
-            "type": "input_image",
-            "image_url": result["image_url"],
-            "detail": "high",
-        }
-    ]
-    assert result["multipartContent"] == [
-        {
-            "type": "image",
-            "content": {"url": result["image_url"]},
-            "metadata": {"detail": "high", "path": result["path"]},
-        }
-    ]
+    assert result["display_content"] == {
+        "url": result["image_url"],
+        "filename": "tiny.png",
+        "mime_type": "image/png",
+    }
 
     formatted = wrapper.format_tool_result(result, state)
-    payload = json.loads(formatted)
-    assert payload["image_url"] == result["image_url"]
-    assert payload["detail"] == "high"
-    assert payload["mime_type"] == "image/png"
+    assert formatted["type"] == "provider_native_tool_result"
+    assert formatted["format"] == "openai.responses"
+    assert formatted["output"][0]["type"] == "input_text"
+    assert formatted["output"][1]["type"] == "input_image"
+    assert formatted["output"][1]["image_url"] == result["image_url"]
+    assert formatted["output"][1]["detail"] == "high"
 
-    display = wrapper.to_display_format(formatted, result, state)
+    display = wrapper.to_display_format("", result, state)
     assert display["type"] == "image"
     assert display["single_line"] == "view_image: tiny.png"
-    assert result["image_url"] not in display["single_line"]
+    assert display["content"] == result["display_content"]
+    assert display["content_text"] == result["message"]
+
+
+def test_view_image_stores_asset_backed_display_content_with_context(tmp_path: Path) -> None:
+    image = tmp_path / "tiny.png"
+    image.write_bytes(_png_bytes())
+    wrapper, state = _wrapper(tmp_path)
+    asset_store = FilesystemSessionAssetStore(tmp_path / "assets")
+
+    result = wrapper.execute_tool(
+        "view_image",
+        {"path": "tiny.png"},
+        state,
+        context={"session_id": "sess_1", "session_asset_store": asset_store},
+    )
+
+    assert result["success"] is True
+    content = result["display_content"]
+    assert content["asset_ref"]["kind"] == "session_asset"
+    assert content["asset_ref"]["session_id"] == "sess_1"
+    assert content["filename"] == "tiny.png"
+    assert content["mime_type"] == "image/png"
+    assert content["preview_data_base64"] == result["image_url"].split(",", 1)[1]
+    assert content["preview_mime_type"] == "image/png"
+    formatted = wrapper.format_tool_result(result, state)
+    assert formatted["output"][1]["image_url"] == {
+        "asset_ref": content["asset_ref"],
+        "filename": "tiny.png",
+        "mime_type": "image/png",
+    }
+    stored = asset_store.load_bytes("sess_1", content["asset_ref"]["asset_id"])
+    assert stored == _png_bytes()
 
 
 def test_view_image_rejects_invalid_detail(tmp_path: Path) -> None:

@@ -114,6 +114,26 @@ def test_initialize_request_without_effort():
     assert request_options["reasoning"]["enabled"] is True
 
 
+def test_initialize_request_with_max_tokens_omits_effort() -> None:
+    """Anthropic-style max token config should suppress reasoning effort."""
+    ext = OpenRouterReasoningExtension()
+    config = {
+        "model": "anthropic/claude-haiku-4.5",
+        "enable_reasoning": True,
+        "reasoning_effort": "medium",
+        "reasoning_max_tokens": 16000,
+    }
+    state = {"config": config}
+
+    state = ext.init(config, state)
+    _native_messages, state = ext.initialize_request([], state)
+
+    request_options = state["config"]["request_options"]
+    assert request_options["reasoning"]["enabled"] is True
+    assert request_options["reasoning"]["max_tokens"] == 16000
+    assert "effort" not in request_options["reasoning"]
+
+
 def test_to_native_messages_is_identity():
     """to_native_messages leaves native messages unchanged."""
     ext = OpenRouterReasoningExtension()
@@ -242,7 +262,7 @@ def test_accumulate_reasoning_details_text_multiple_chunks():
 
 
 def test_accumulate_reasoning_details_signature_multiple_chunks():
-    """Accumulate signature field across multiple chunks (Anthropic)."""
+    """Signature field should use the latest value, not concatenation."""
     ext = OpenRouterReasoningExtension()
 
     current_details = [
@@ -267,8 +287,37 @@ def test_accumulate_reasoning_details_signature_multiple_chunks():
     result = ext._accumulate_reasoning_details(current_details, delta_details)
 
     assert len(result) == 1
-    assert result[0]["signature"] == "abc123def456"  # Accumulated, not overridden!
+    assert result[0]["signature"] == "def456"
     assert result[0]["text"] == "Complete text"
+
+
+def test_accumulate_reasoning_details_signature_duplicate_chunk_keeps_valid_value():
+    """Repeated full signature chunks should not duplicate the signature."""
+    ext = OpenRouterReasoningExtension()
+
+    current_details = [
+        {
+            "type": "reasoning.text",
+            "text": "Complete text",
+            "signature": "full-signature",
+            "format": "anthropic-claude-v1",
+            "index": 0,
+        }
+    ]
+
+    delta_details = [
+        {
+            "type": "reasoning.text",
+            "signature": "full-signature",
+            "format": "anthropic-claude-v1",
+            "index": 0,
+        }
+    ]
+
+    result = ext._accumulate_reasoning_details(current_details, delta_details)
+
+    assert len(result) == 1
+    assert result[0]["signature"] == "full-signature"
 
 
 def test_accumulate_reasoning_details_data_multiple_chunks():

@@ -13,6 +13,7 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Zeroconf from 'react-native-zeroconf';
 import {
@@ -35,9 +36,9 @@ import {
   type TransportTimeoutRule,
 } from '@crystal-lattice/frontend-sdk';
 import ConnectedRoot from './src/ConnectedRoot';
+import { useMessagesCache } from './src/cache/useMessagesCache';
 import { getConnectionAdditionalInfo } from './src/connectionInfo';
-import type { SessionSummary, IndexedMessage } from './src/api';
-import type { ChatScrollAnchor } from './src/chatScroll';
+import type { SessionSummary } from './src/api';
 import {
   appendDebugTimelineEntry,
   createDebugTimelineEntry,
@@ -61,7 +62,6 @@ const connectionsStore: KeyValueStore = {
   delete: (key) => AsyncStorage.removeItem(key),
 };
 const STORAGE_KEY_SESSIONS_CACHE = 'clc_sessions_cache_v1';
-const STORAGE_KEY_MESSAGES_CACHE = 'clc_messages_cache_v1';
 
 export interface SessionsCacheEntry {
   connectionId: string;
@@ -70,21 +70,6 @@ export interface SessionsCacheEntry {
 }
 
 export type SessionsCache = Record<string, SessionsCacheEntry>;
-
-export interface MessagesCacheEntry {
-  connectionId: string;
-  sessionId: string;
-  messages: IndexedMessage[];
-  lastLoadedAt: number | null;
-  eventsCursorId?: string | null;
-  cursorEventId?: string | null;
-  activeRequestId?: string | null;
-  composeText?: string;
-  scrollAnchor?: ChatScrollAnchor;
-}
-
-export type MessagesBySession = Record<string, MessagesCacheEntry>;
-export type MessagesCache = Record<string, MessagesBySession>;
 
 function generateId(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -194,7 +179,6 @@ function App(): React.JSX.Element {
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null);
   const [connectionsLoading, setConnectionsLoading] = useState(false);
   const [sessionsCache, setSessionsCache] = useState<SessionsCache>({});
-  const [messagesCache, setMessagesCache] = useState<MessagesCache>({});
   const [debugTimeline, setDebugTimeline] = useState<DebugTimelineEntry[]>([]);
   
   const [isSearching, setIsSearching] = useState(false);
@@ -216,6 +200,13 @@ function App(): React.JSX.Element {
   const styles = useMemo(() => createStyles(theme), [theme]);
   const appStateRef = useRef(AppState.currentState);
   const foregroundRecoveryInFlightRef = useRef(false);
+  const {
+    messagesCache,
+    updateMessagesCache,
+    saveMessagesComposeText,
+    saveMessagesScrollAnchor,
+    deleteConnectionMessagesCache,
+  } = useMessagesCache(connectionsStore);
   const activeConnection = useMemo(
     () =>
       selectedConnectionId != null
@@ -284,29 +275,6 @@ function App(): React.JSX.Element {
   }, []);
 
   useEffect(() => {
-    const loadMessagesCache = async () => {
-      try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY_MESSAGES_CACHE);
-        if (!raw) {
-          return;
-        }
-        try {
-          const parsed = JSON.parse(raw) as MessagesCache;
-          if (parsed && typeof parsed === 'object') {
-            setMessagesCache(parsed);
-          }
-        } catch (err) {
-          console.log('Failed to parse stored messages cache', err);
-        }
-      } catch (err) {
-        console.log('Failed to load messages cache', err);
-      }
-    };
-
-    loadMessagesCache();
-  }, []);
-
-  useEffect(() => {
     const save = async () => {
       try {
         await saveConnections(connectionsStore, connections);
@@ -333,21 +301,6 @@ function App(): React.JSX.Element {
     saveSessions();
   }, [sessionsCache]);
 
-  useEffect(() => {
-    const saveMessages = async () => {
-      try {
-        await AsyncStorage.setItem(
-          STORAGE_KEY_MESSAGES_CACHE,
-          JSON.stringify(messagesCache),
-        );
-      } catch (err) {
-        console.log('Failed to save messages cache', err);
-      }
-    };
-
-    saveMessages();
-  }, [messagesCache]);
-
   const updateSessionsCache = (connectionId: string, list: SessionSummary[]) => {
     setSessionsCache((prev) => ({
       ...prev,
@@ -357,52 +310,6 @@ function App(): React.JSX.Element {
         lastLoadedAt: Date.now(),
       },
     }));
-  };
-
-  const updateMessagesCache = (
-    connectionId: string,
-    sessionId: string,
-    list: IndexedMessage[],
-    eventsCursorId: string | null,
-    activeRequestId: string | null,
-  ) => {
-    setMessagesCache((prev) => {
-      const bySession = prev[connectionId] ?? {};
-
-      const existing = bySession[sessionId];
-
-      const entry: MessagesCacheEntry = {
-        ...(existing ?? {}),
-        connectionId,
-        sessionId,
-        messages: list,
-        lastLoadedAt: Date.now(),
-        eventsCursorId,
-        activeRequestId,
-      };
-
-      const nextBySession: MessagesBySession = { ...bySession, [sessionId]: entry };
-
-      const MAX_SESSIONS_PER_CONNECTION = 10;
-      const sessionIds = Object.keys(nextBySession);
-      if (sessionIds.length > MAX_SESSIONS_PER_CONNECTION) {
-        const sortedByAge = sessionIds
-          .map((id) => nextBySession[id])
-          .sort((a, b) => (a.lastLoadedAt ?? 0) - (b.lastLoadedAt ?? 0));
-        const toDrop = sortedByAge.slice(
-          0,
-          sessionIds.length - MAX_SESSIONS_PER_CONNECTION,
-        );
-        for (const old of toDrop) {
-          delete nextBySession[old.sessionId];
-        }
-      }
-
-      return {
-        ...prev,
-        [connectionId]: nextBySession,
-      };
-    });
   };
 
   const upsertConnection = useCallback((record: ConnectionRecord) => {
@@ -417,70 +324,6 @@ function App(): React.JSX.Element {
     });
   }, []);
 
-  const saveMessagesComposeText = (
-    connectionId: string,
-    sessionId: string,
-    composeText: string,
-  ) => {
-    setMessagesCache((prev) => {
-      const bySession = prev[connectionId] ?? {};
-      const existing = bySession[sessionId];
-
-      const entry: MessagesCacheEntry = existing
-        ? {
-            ...existing,
-            composeText,
-          }
-        : {
-            connectionId,
-            sessionId,
-            messages: [],
-            lastLoadedAt: null,
-            composeText,
-          };
-
-      return {
-        ...prev,
-        [connectionId]: {
-          ...bySession,
-          [sessionId]: entry,
-        },
-      };
-    });
-  };
-
-  const saveMessagesScrollAnchor = (
-    connectionId: string,
-    sessionId: string,
-    scrollAnchor: ChatScrollAnchor,
-  ) => {
-    setMessagesCache((prev) => {
-      const bySession = prev[connectionId] ?? {};
-      const existing = bySession[sessionId];
-
-      const entry: MessagesCacheEntry = existing
-        ? {
-            ...existing,
-            scrollAnchor,
-          }
-        : {
-            connectionId,
-            sessionId,
-            messages: [],
-            lastLoadedAt: null,
-            composeText: '',
-            scrollAnchor,
-          };
-
-      return {
-        ...prev,
-        [connectionId]: {
-          ...bySession,
-          [sessionId]: entry,
-        },
-      };
-    });
-  };
 
   const openBridgeRepairFlow = useCallback(
     async (
@@ -997,14 +840,7 @@ function App(): React.JSX.Element {
       return next;
     });
 
-    setMessagesCache((prev) => {
-      if (!prev[record.id]) {
-        return prev;
-      }
-      const next = { ...prev };
-      delete next[record.id];
-      return next;
-    });
+    deleteConnectionMessagesCache(record.id);
 
     if (selectedConnectionId === record.id) {
       disconnectIfPossible(transport);
@@ -1401,65 +1237,70 @@ function App(): React.JSX.Element {
   };
 
   return (
-    <SafeAreaProvider>
-      <ThemeProvider theme={theme}>
-        <PinnedActionsProvider>
-          <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-            <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-          {/** Determine active connection info for display components */}
-          {/** This is derived once here and passed down rather than recomputed in children. */}
-          {(() => {
-          const activeConnectionAdditionalInfo =
-            activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
-          const activeConnectionName = activeConnection != null ? activeConnection.name : null;
+    <GestureHandlerRootView style={styles.gestureRoot}>
+      <SafeAreaProvider>
+        <ThemeProvider theme={theme}>
+          <PinnedActionsProvider>
+            <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+              <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+              {/** Determine active connection info for display components */}
+              {/** This is derived once here and passed down rather than recomputed in children. */}
+              {(() => {
+                const activeConnectionAdditionalInfo =
+                  activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
+                const activeConnectionName = activeConnection != null ? activeConnection.name : null;
 
-          return (
-            <ConnectedRoot
-              backend={backend}
-              transport={transport}
-              onDisconnect={handleDisconnect}
-              connections={connections}
-              connectionsLoading={connectionsLoading}
-              onSelectConnectionRecord={handleSelectSavedConnection}
-              onNewConnectionRequested={() => {
-                if (backend) {
-                  handleDisconnect();
-                }
-                setConnectionMethod(null);
-                setShowConnectionWizard(true);
-              }}
-              renderConnectionWizard={() => {
-                if (!showConnectionWizard) {
-                  return null;
-                }
-                if (!connectionMethod) {
-                  return renderMethodSelection();
-                }
-                return renderConnectingScreen();
-              }}
-              onDeleteConnectionRecord={handleDeleteConnection}
-              activeConnectionId={selectedConnectionId}
-              activeConnectionName={activeConnectionName}
-              activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
-              sessionsCache={sessionsCache}
-              onUpdateSessionsCache={updateSessionsCache}
-              messagesCache={messagesCache}
-              onUpdateMessagesCache={updateMessagesCache}
-              onSaveMessagesComposeText={saveMessagesComposeText}
-              onSaveMessagesScrollAnchor={saveMessagesScrollAnchor}
-              debugTimeline={debugTimeline}
-              onAppendDebugTimelineEntry={appendDebugNote}
-            />
-          );
-          })()}
-          </SafeAreaView>
-        </PinnedActionsProvider>
-      </ThemeProvider>
-    </SafeAreaProvider>
+                return (
+                  <ConnectedRoot
+                    backend={backend}
+                    transport={transport}
+                    onDisconnect={handleDisconnect}
+                    connections={connections}
+                    connectionsLoading={connectionsLoading}
+                    onSelectConnectionRecord={handleSelectSavedConnection}
+                    onNewConnectionRequested={() => {
+                      if (backend) {
+                        handleDisconnect();
+                      }
+                      setConnectionMethod(null);
+                      setShowConnectionWizard(true);
+                    }}
+                    renderConnectionWizard={() => {
+                      if (!showConnectionWizard) {
+                        return null;
+                      }
+                      if (!connectionMethod) {
+                        return renderMethodSelection();
+                      }
+                      return renderConnectingScreen();
+                    }}
+                    onDeleteConnectionRecord={handleDeleteConnection}
+                    activeConnectionId={selectedConnectionId}
+                    activeConnectionName={activeConnectionName}
+                    activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
+                    sessionsCache={sessionsCache}
+                    onUpdateSessionsCache={updateSessionsCache}
+                    messagesCache={messagesCache}
+                    onUpdateMessagesCache={updateMessagesCache}
+                    onSaveMessagesComposeText={saveMessagesComposeText}
+                    onSaveMessagesScrollAnchor={saveMessagesScrollAnchor}
+                    debugTimeline={debugTimeline}
+                    onAppendDebugTimelineEntry={appendDebugNote}
+                  />
+                );
+              })()}
+            </SafeAreaView>
+          </PinnedActionsProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
+    gestureRoot: {
+      flex: 1,
+    },
     safeArea: {
       flex: 1,
       backgroundColor: theme.background,

@@ -33,3 +33,7 @@ In your app config, add the plugin and enable bash tools:
 
 To create a new tool, copy `read_line_range.bash`, change the `schema` output
 (`id`, `tools[0].function.name`, and parameters), then update `run`.
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

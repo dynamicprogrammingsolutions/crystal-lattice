@@ -1,0 +1,10 @@
+gemini-tools
+
+This package includes portions derived from or adapted from:
+
+Gemini CLI
+Copyright 2025 Google LLC
+https://github.com/google-gemini/gemini-cli
+
+The derived portions are used to provide Gemini-compatible tool schemas,
+behavior, and prompt/tool interaction semantics.

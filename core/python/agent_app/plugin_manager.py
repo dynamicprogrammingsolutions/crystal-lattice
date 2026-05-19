@@ -1,11 +1,11 @@
-from __future__ import annotations
-
 """Application-level plugin manager.
 
 The plugin manager is intentionally thin: it only orchestrates across plugin
 sources. Each source owns the low-level work to resolve a spec into one or more
 plugin classes (installation/cloning, descriptor parsing, importing, etc.).
 """
+
+from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
@@ -32,7 +32,9 @@ class PluginManager:
         sources: Optional[List[PluginSource]] = None,
     ) -> None:
         self.cache_dir = cache_dir
-        self.policy: Mapping[str, Any] = policy or {}
+        policy_dict: Dict[str, Any] = dict(policy or {})
+        policy_dict.setdefault("pip_cache_dir", str(self._default_pip_cache_dir(cache_dir)))
+        self.policy: Mapping[str, Any] = policy_dict
         if sources is None:
             installer = PipTargetInstallStrategy()
             self.sources: List[PluginSource] = [
@@ -44,6 +46,11 @@ class PluginManager:
             ]
         else:
             self.sources = sources
+
+    def _default_pip_cache_dir(self, cache_dir: Path) -> Path:
+        if cache_dir.name == "plugins":
+            return cache_dir.parent / "pip"
+        return cache_dir / "pip"
 
     def resolve_all(self, specs: Any) -> PluginResolution:
         """Resolve plugin specs into classes.

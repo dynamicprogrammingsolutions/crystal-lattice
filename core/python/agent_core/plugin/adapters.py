@@ -1206,7 +1206,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
         context: Optional[Dict[str, Any]] = None,
         prepared: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        fn = getattr(self.impl, "execute_tool", None)
+        fn = self._get_impl_method("execute_tool", ToolPlugin)
         if callable(fn):
             out = self._call_with_optional_kwargs(
                 fn,
@@ -1442,7 +1442,7 @@ class ToolDefaultsAdapter(_BasePluginDefaults, ToolPlugin):
                     yield chunk
             return
 
-        fn = getattr(self.impl, "stream_tool", None)
+        fn = self._get_impl_method("stream_tool", ToolPlugin)
         if callable(fn):
             for chunk in self.stream_tool(
                 tool_name,

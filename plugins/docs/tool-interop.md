@@ -564,7 +564,7 @@ Assume the tool returns:
 
 ### Tool wrapper formats the result
 
-`format_tool_result(...)` turns that value into the core tool message content.
+`format_tool_result(...)` returns the canonical structured tool-result payload.
 
 For example:
 
@@ -572,6 +572,10 @@ For example:
 {
   "role": "tool",
   "content": "{\"path\":\"README.md\",\"content\":\"# Project title\"}",
+  "toolResult": {
+    "type": "tool_result",
+    "text": "{\"path\":\"README.md\",\"content\":\"# Project title\"}"
+  },
   "metadata": {
     "tool_name": "read_file",
     "tool_call_id": "call_123"
@@ -583,10 +587,12 @@ This is the core-side result representation that gets appended to the session.
 
 ### Where result conversion happens
 
-There is no `ToolResultAdapter` registry today.
+Tool results now use the same interop layer as schemas and calls:
 
-Instead, provider or provider-extension `to_native_messages(...)` converts that
-core tool message into the provider-native wire shape.
+- `ToolResultAccessor` inspects stored/public `toolResult` payloads
+- `ToolResultAdapter` converts `toolResult` payloads between formats
+- provider or provider-extension `to_native_messages(...)` still decides where
+  the converted payload lands in the native message/item shape
 
 For an OpenAI-compatible provider, the sent native message may become:
 
@@ -619,6 +625,10 @@ The core session stores the core tool message:
 {
   "role": "tool",
   "content": "{\"path\":\"README.md\",\"content\":\"# Project title\"}",
+  "toolResult": {
+    "type": "tool_result",
+    "text": "{\"path\":\"README.md\",\"content\":\"# Project title\"}"
+  },
   "metadata": {
     "tool_call_id": "call_123",
     "tool_name": "read_file"
@@ -634,50 +644,58 @@ If the next request reuses native history, the provider-native result message is
 what gets replayed to the provider.
 
 If native history must be rebuilt from core messages, provider or
-provider-extension `to_native_messages(...)` recreates that provider-native
-shape from the stored core tool message.
+provider-extension `to_native_messages(...)` converts the stored `toolResult`
+into the provider-native result shape and preserves compact attachment refs
+until request-time expansion.
 
-### Why results do not use interop adapters today
+### Why results now use interop adapters
 
-Results are part of ordinary message flow after tool execution, not part of the
-provider-generated tool-call envelope.
+Results are still ordinary message flow after tool execution, but the
+structured `toolResult` payload is now explicitly inspectable and convertible.
 
 So the conversion points are:
 
 - schema: `initialize_request(...)`
 - tool call: native response -> core metadata/tool loop input
-- tool result: core tool message -> provider-native message
+- tool result: core/public `toolResult` -> provider-native result payload
 
 ## General rule for tool results
 
-Tool results do not currently go through a tool-result adapter registry.
-
-Instead, the flow is:
+The flow is:
 
 1. core executes the tool
 2. the tool returns a result value
 3. the tool wrapper formats that result with `format_tool_result(...)`
-4. core creates a normal `role=="tool"` message
-5. provider or provider-extension `to_native_messages(...)` converts that core
-   tool message into provider-native output form
+4. core stores:
+   - string `content` fallback
+   - structured top-level `toolResult`
+   - user-facing `metadata.display`
+5. provider or provider-extension `to_native_messages(...)` converts
+   `toolResult` into provider-native output form
+6. provider `initialize_request(...)` expands compact attachment refs into the
+   final API payload when needed
 
 That means:
 
 - schema adapters are for request-time tool declarations
 - call adapters/accessors are for provider response tool calls
-- tool result conversion lives in provider/provider-extension message mapping
-- provider-native tool result envelopes are interpreted by provider message
-  conversion, not by the tool loop
+- tool result adapters cover structured result conversion
+- provider/provider-extension message mapping decides how converted tool-result
+  payloads are embedded into native history
 
 ### Why results are different
 
 Results are not provider-generated tool-call objects. They are regular message
-traffic produced after tool execution.
+traffic produced after tool execution, so adapters convert the structured
+`toolResult` payload rather than the outer message.
 
 So if you need provider-specific result handling, implement it in:
 
+- tool/provider/provider-extension `get_tool_interop_contribution(...)` when
+  you need new result accessors or adapters
 - provider `to_native_messages(...)`
 - provider-extension `to_native_messages(...)`
+- provider `initialize_request(...)` for request-time attachment expansion
 - provider `from_native_messages(...)` if you also need rebuild symmetry
 
 ## Practical responsibilities by plugin type
@@ -688,6 +706,8 @@ Responsible for:
 
 - emitting source schemas
 - contributing extra schema/call accessors or adapters when needed
+- contributing result accessors/adapters when tool results use a non-default
+  structured envelope
 - executing calls based on normalized payload semantics
 - formatting tool results
 

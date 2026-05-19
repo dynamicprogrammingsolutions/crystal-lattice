@@ -1,0 +1,35 @@
+{
+  "benchmark": "repoqa-prompted",
+  "config_dir": "config/openai_api_reasoning_none_balanced",
+  "base_manifest": "config/openai_api_reasoning_none_balanced/manifests/repoqa-prompted-balanced-all-limit20-seed1.json",
+  "base_manifest_generation": {
+    "language": "all",
+    "limit": 20,
+    "seed": 1,
+    "output_manifest": "config/openai_api_reasoning_none_balanced/manifests/repoqa-prompted-balanced-all-limit20-seed1.json"
+  },
+  "stages": {
+    "nano": {
+      "profile": "repoqa-prompted-gpt54nano-balanced-sample-docker",
+      "model": "gpt-5.4-nano",
+      "input_manifest": "config/openai_api_reasoning_none_balanced/manifests/repoqa-prompted-balanced-all-limit20-seed1.json",
+      "next_manifest": "config/openai_api_reasoning_none_balanced/manifests/repoqa-prompted-balanced-all-limit20-seed1-unsolved-by-nano-sample.json",
+      "next_stage": "mini"
+    },
+    "mini": {
+      "profile": "repoqa-prompted-gpt54mini-balanced-sample-docker",
+      "model": "gpt-5.4-mini",
+      "input_manifest": "config/openai_api_reasoning_none_balanced/manifests/repoqa-prompted-balanced-all-limit20-seed1-unsolved-by-nano-sample.json",
+      "next_manifest": "config/openai_api_reasoning_none_balanced/manifests/repoqa-prompted-balanced-all-limit20-seed1-unsolved-by-mini-sample.json",
+      "next_stage": "full"
+    },
+    "full": {
+      "profile": "repoqa-prompted-gpt54-balanced-sample-docker",
+      "model": "gpt-5.4",
+      "input_manifest": "config/openai_api_reasoning_none_balanced/manifests/repoqa-prompted-balanced-all-limit20-seed1-unsolved-by-mini-sample.json"
+    }
+  },
+  "report": {
+    "output_json": "config/openai_api_reasoning_none_balanced/reports/chained-sample20-summary.json"
+  }
+}

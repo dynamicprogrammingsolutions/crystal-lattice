@@ -75,6 +75,13 @@ export type {
 } from './transport/transport';
 
 export type { KeyValueStore } from './storage/keyValueStore';
+export type {
+  SessionScopedMessagesCacheEntry,
+  SessionScopedMessagesBySession,
+  SessionScopedMessagesCache,
+  SessionScopedMessagesCacheIndexEntry,
+  SessionScopedMessagesCacheHydrationResult,
+} from './storage/sessionScopedMessagesCache';
 
 export { FetchTransport } from './transport/fetchTransport';
 export { BridgeTransport } from './transport/bridgeTransport';
@@ -109,6 +116,7 @@ export { runApplicationAction, getRunActionErrorMessage } from './plugins/action
 export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';
 export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
 export type {
+  ComposerAttachmentUiElement,
   SessionAssetRef,
   StoredAttachmentAssetDescriptor,
   DownloadedAttachmentPayload,
@@ -116,10 +124,12 @@ export type {
 export {
   DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID,
   DEFAULT_ATTACHMENT_ACTION_OWNER,
+  SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
   STORE_ATTACHMENT_ACTION_ID,
   DELETE_ATTACHMENT_ACTION_ID,
   DOWNLOAD_ATTACHMENT_ACTION_ID,
   selectSessionAssetId,
+  resolveAttachmentActionPluginId,
   storeSessionAttachment,
   deleteSessionAttachment,
   downloadSessionAttachment,
@@ -181,3 +191,13 @@ export type {
 } from './connections/types';
 
 export { CONNECTIONS_STORAGE_KEY, loadConnections, saveConnections } from './connections/store';
+export {
+  SESSION_SCOPED_MESSAGES_CACHE_INDEX_KEY,
+  SESSION_SCOPED_MESSAGES_CACHE_ENTRY_KEY_PREFIX,
+  getSessionScopedMessagesCacheEntryKey,
+  loadSessionScopedMessagesCache,
+  persistSessionScopedMessagesCacheEntry,
+  deleteSessionScopedMessagesCacheEntry,
+  deleteConnectionSessionScopedMessagesCacheEntries,
+  clearSessionScopedMessagesCache,
+} from './storage/sessionScopedMessagesCache';

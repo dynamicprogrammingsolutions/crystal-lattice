@@ -78,3 +78,7 @@ implementations (Tavily, Gemini API).
 
 - `aiohttp>=3.8.0` — For async HTTP in `web_search_engine.py` (lazy-imported)
 - `google-genai>=0.3.0` — Optional, for `GeminiApiProvider` (install with `[gemini]` extra)
+
+## License
+
+This directory is available under the [Apache License 2.0](../../LICENSE).

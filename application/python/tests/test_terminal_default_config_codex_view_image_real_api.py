@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import sys
 from pathlib import Path
@@ -130,36 +129,18 @@ def _assert_view_image_was_used(final_session: Session) -> None:
 
 def _message_has_structured_image_result(message: Any) -> bool:
     metadata = message.metadata if isinstance(message.metadata, dict) else {}
-    output_content = metadata.get("tool_output_content")
-    if isinstance(output_content, list) and any(
-        isinstance(item, dict)
-        and item.get("type") == "input_image"
-        and isinstance(item.get("image_url"), str)
-        and item["image_url"].startswith("data:image/png;base64,")
-        for item in output_content
+    display = metadata.get("display")
+    content = display.get("content") if isinstance(display, dict) else None
+    if (
+        isinstance(content, dict)
+        and isinstance(content.get("asset_ref"), dict)
+        and isinstance(content.get("preview_data_base64"), str)
     ):
         return True
 
-    multipart = getattr(message, "multipartContent", None)
-    if isinstance(multipart, list) and any(
-        isinstance(item, dict)
-        and item.get("type") == "image"
-        and isinstance(item.get("content"), dict)
-        and isinstance(item["content"].get("url"), str)
-        and item["content"]["url"].startswith("data:image/png;base64,")
-        for item in multipart
-    ):
+    tool_result = getattr(message, "tool_result", None)
+    if isinstance(tool_result, dict) and isinstance(tool_result.get("output"), list):
         return True
-
-    if isinstance(message.content, str):
-        try:
-            payload = json.loads(message.content)
-        except json.JSONDecodeError:
-            return False
-        image_url = payload.get("image_url") if isinstance(payload, dict) else None
-        return isinstance(image_url, str) and image_url.startswith(
-            "data:image/png;base64,"
-        )
 
     return False
 

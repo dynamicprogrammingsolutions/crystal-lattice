@@ -57,7 +57,11 @@ from .plugin import (
     FeatureWrapper,
     ToolWrapper,
 )
-from .utils import pipeline, get_logger
+from .utils import get_logger
+from .tool_interop import CORE_TEXT_TOOL_RESULT_FORMAT_ID, ToolInteropTarget
+from .tool_result_payloads import (
+    TOOL_RESULT_FIELD,
+)
 import uuid
 import json
 import re
@@ -169,7 +173,15 @@ class AgentCore:
                 md["native_indices"] = global_indices
             else:
                 md.pop("native_indices", None)
-            return {**msg, "metadata": md}
+            restored = {**msg}
+            roundtrip_multipart = md.pop("_core_multipartContent", None)
+            if (
+                "multipartContent" not in restored
+                and isinstance(roundtrip_multipart, list)
+            ):
+                restored["multipartContent"] = roundtrip_multipart
+            restored["metadata"] = md
+            return restored
 
         if len(final_core) == local_count:
             return [
@@ -198,6 +210,7 @@ class AgentCore:
         role = role_value
         content = message_dict.get("content", "")
         multipart_content = message_dict.get("multipartContent")
+        tool_result = message_dict.get(TOOL_RESULT_FIELD)
         raw_md = message_dict.get("metadata") or {}
         md = dict(raw_md) if isinstance(raw_md, dict) else {}
 
@@ -224,6 +237,7 @@ class AgentCore:
                 content=content,
                 metadata=cleaned or None,
                 multipart_content=multipart_content,
+                tool_result=tool_result if isinstance(tool_result, dict) else None,
             )
             new_messages = [*session.messages, new_message]
             new_session_metadata = dict(base_metadata)
@@ -267,6 +281,8 @@ class AgentCore:
             retained_native = []
 
         try:
+            if multipart_content:
+                md["_core_multipartContent"] = multipart_content
             core_suffix = [
                 {
                     "role": role,
@@ -276,6 +292,8 @@ class AgentCore:
             ]
             if multipart_content:
                 core_suffix[0]["multipartContent"] = multipart_content
+            if isinstance(tool_result, dict):
+                core_suffix[0][TOOL_RESULT_FIELD] = tool_result
             suffix_native = self._core_messages_to_native_for_config(
                 core_suffix, config or {}, context=context
             )
@@ -646,6 +664,7 @@ class AgentCore:
         multipart_content: Optional[List[Dict[str, Any]]] = None,
         after_index: Optional[int] = None,
         context: Optional[Dict[str, Any]] = None,
+        tool_result: Optional[Dict[str, Any]] = None,
     ) -> Session:
         """Add a message to the session (pure function).
 
@@ -666,6 +685,10 @@ class AgentCore:
                 provider/feature/extension pipelines using the ``_metadata``
                 key on provider-native messages.
             config: Optional configuration used to resolve provider and plugins.
+            tool_result: Optional structured tool result payload for this
+                message. This is the canonical structured representation for
+                tool messages and may be consumed by providers when appending
+                to provider-native history.
             after_index: Optional index after which to insert the message.
                 When ``None`` (default), the message is appended at the end.
                 ``after_index == -1`` inserts at the beginning. Negative
@@ -683,6 +706,8 @@ class AgentCore:
         }
         if multipart_content:
             message_dict["multipartContent"] = multipart_content
+        if tool_result is not None:
+            message_dict[TOOL_RESULT_FIELD] = tool_result
         # Compute insertion point. When after_index is None, append at end.
         message_count = len(session.messages)
         if after_index is None:
@@ -4364,9 +4389,8 @@ class AgentCore:
             except Exception as exc:
                 formatted_content = f"Tool formatting error: {exc}"
 
-            display_text = (
-                formatted_content if isinstance(formatted_content, str) else ""
-            )
+            inspected_result = registry.inspect_result(formatted_content)
+            display_text = inspected_result.text
             display_payload: Dict[str, Any] | None = None
             try:
                 display_candidate = tool.to_display_format(
@@ -4379,6 +4403,39 @@ class AgentCore:
             except Exception:
                 display_payload = None
 
+            if (
+                isinstance(display_payload, dict)
+                and display_payload.get("type") == "text"
+                and display_payload.get("content") == display_text
+                and "single_line" not in display_payload
+                and isinstance(inspected_result.display, dict)
+            ):
+                display_payload = inspected_result.display
+
+            tool_result_value: Dict[str, Any]
+            if isinstance(formatted_content, dict) and (
+                inspected_result.format_id != CORE_TEXT_TOOL_RESULT_FORMAT_ID
+            ):
+                tool_result_value = formatted_content
+            else:
+                converted_result = registry.convert_tool_result(
+                    formatted_content,
+                    target=ToolInteropTarget("core.tool_result"),
+                    target_formats=[CORE_TEXT_TOOL_RESULT_FORMAT_ID],
+                )
+                if isinstance(converted_result, dict):
+                    tool_result_value = converted_result
+                else:
+                    tool_result_value = {
+                        "type": "tool_result",
+                        "text": inspected_result.text,
+                    }
+
+            if display_payload is None:
+                canonical_result = registry.inspect_result(tool_result_value)
+                if isinstance(canonical_result.display, dict):
+                    display_payload = canonical_result.display
+
             metadata = {
                 "tool_call_id": call_id,
                 "tool_name": name,
@@ -4390,24 +4447,13 @@ class AgentCore:
                 metadata["tool_plugin"] = plugin_name
             if display_payload is not None:
                 metadata["display"] = display_payload
-            tool_output_content = last_result.get("tool_output_content")
-            if isinstance(tool_output_content, list):
-                metadata["tool_output_content"] = [
-                    item for item in tool_output_content if isinstance(item, dict)
-                ]
 
             tool_message = {
                 "role": "tool",
-                "content": formatted_content if formatted_content is not None else "",
+                "content": registry.inspect_result(tool_result_value).text,
                 "metadata": metadata,
+                TOOL_RESULT_FIELD: tool_result_value,
             }
-            multipart_content = last_result.get("multipartContent")
-            if isinstance(multipart_content, list):
-                filtered_multipart = [
-                    item for item in multipart_content if isinstance(item, dict)
-                ]
-                if filtered_multipart:
-                    tool_message["multipartContent"] = filtered_multipart
 
             yield tool_message
 

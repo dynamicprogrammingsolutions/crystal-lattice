@@ -69,6 +69,16 @@ def test_default_config_effective_agent_configs_stay_intact(
                 "provider": {"order": ["z-ai"], "allow_fallbacks": False}
             },
         },
+        "claude": {
+            "provider": "openrouter",
+            "model": "anthropic/claude-haiku-4.5",
+            "reasoning_max_tokens": 16000,
+            "web_search_enabled": True,
+            "web_search_provider": "gemini_api",
+            "request_options": {
+                "provider": {"order": ["anthropic"], "allow_fallbacks": False}
+            },
+        },
         "openrouter-image": {
             "provider": "openrouter_image_generation",
             "model": "black-forest-labs/flux.2-klein-4b",

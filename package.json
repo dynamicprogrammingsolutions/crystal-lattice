@@ -1,6 +1,7 @@
 {
   "name": "crystal-lattice-monorepo",
   "private": true,
+  "license": "Apache-2.0",
   "workspaces": [
     "packages/*"
   ]

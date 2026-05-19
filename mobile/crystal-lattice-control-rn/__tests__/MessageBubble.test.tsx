@@ -2,38 +2,9 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 
 import MessageBubble from '../src/components/MessageBubble';
+import { AttachmentThumbnailStrip } from '../src/components/AttachmentThumbnailStrip';
 import { ThemeProvider, lightTheme } from '../src/theme';
 
-
-jest.mock('react-native-image-modal', () => {
-  const React = require('react');
-  const { View } = require('react-native');
-  return function ImageModalMock(props: any) {
-    return React.createElement(View, props);
-  };
-});
-
-jest.mock('react-native-fs', () => ({
-  CachesDirectoryPath: '/tmp',
-  mkdir: jest.fn(async () => {}),
-  writeFile: jest.fn(async () => {}),
-  downloadFile: jest.fn(() => ({ promise: Promise.resolve({ statusCode: 200 }) })),
-}));
-
-jest.mock('react-native-share', () => ({
-  open: jest.fn(async () => {}),
-}));
-
-jest.mock('@react-native-documents/picker', () => ({
-  saveDocuments: jest.fn(async () => [{ name: 'attachment.png' }]),
-}));
-
-jest.mock('@react-native-camera-roll/camera-roll', () => ({
-  CameraRoll: {
-    saveAsset: jest.fn(async () => {}),
-  },
-  iosRequestAddOnlyGalleryPermission: jest.fn(async () => 'granted'),
-}));
 
 jest.mock('../src/theme', () => {
   const actual = jest.requireActual('../src/theme');
@@ -45,7 +16,7 @@ jest.mock('../src/theme', () => {
 });
 
 
-function renderMessageBubble(message: any) {
+function renderMessageBubble(message: any, extraProps: Record<string, any> = {}) {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(
@@ -53,6 +24,7 @@ function renderMessageBubble(message: any) {
         <MessageBubble
           index={0}
           message={message}
+          {...extraProps}
         />
       </ThemeProvider>
     );
@@ -141,4 +113,45 @@ test('message attachment rendering keeps hook order when multipart parts appear 
 
   expect(() => updateMessageBubble(renderer, imageUserMessage)).not.toThrow();
   expect(() => updateMessageBubble(renderer, plainUserMessage)).not.toThrow();
+});
+
+
+test('message attachment preview opens a stable attachment snapshot', () => {
+  const onOpenAttachment = jest.fn();
+  const renderer = renderMessageBubble(
+    {
+      role: 'user',
+      content: 'Image text',
+      metadata: {},
+      multipartContent: [
+        {
+          type: 'image',
+          content: {
+            filename: 'red.png',
+            mime_type: 'image/png',
+            preview_url: 'data:image/png;base64,QUJDRA==',
+          },
+          metadata: { download_plugin_id: 'plugin.image' },
+        },
+      ],
+    },
+    { onOpenAttachment },
+  );
+
+  const strip = renderer.root.findByType(AttachmentThumbnailStrip);
+  ReactTestRenderer.act(() => {
+    strip.props.onPress(strip.props.attachments[0]);
+  });
+
+  expect(onOpenAttachment).toHaveBeenCalledTimes(1);
+  expect(onOpenAttachment).toHaveBeenCalledWith(
+    expect.objectContaining({
+      id: '0',
+      type: 'image',
+      messageIndex: 0,
+      partIndex: 0,
+      cacheKey: '0:0',
+      metadata: { download_plugin_id: 'plugin.image' },
+    }),
+  );
 });

@@ -1,0 +1,21 @@
+{
+  "benchmark": "repoqa-prompted",
+  "agent_id": "repoqa-prompted-openai-api-minimal-reasoning-none",
+  "model": "gpt-5.4-mini",
+  "runtime_backend": "docker",
+  "repeat_count": 5,
+  "max_task_restarts": 1,
+  "schedule": {
+    "window_minutes": 1,
+    "tasks_per_window": 1000,
+    "max_parallel_tasks": 10
+  },
+  "paths": {
+    "results_root": "results/mini-50",
+    "workspace_root": "workspaces/mini-50"
+  },
+  "docker": {
+    "enabled": true,
+    "image_tag": "agent-evaluations:repoqa"
+  }
+}
