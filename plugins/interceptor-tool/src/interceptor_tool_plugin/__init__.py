@@ -61,7 +61,7 @@ class InterceptorCalculator:
         url = args.get("url") if isinstance(args, dict) else None
 
         is_web_access = (
-            ("web" in tool_name_str and ("fetch" in tool_name_str or "search" in tool_name_str))
+            ("web" in tool_name_str.lower() and ("fetch" in tool_name_str.lower() or "search" in tool_name_str.lower()))
             or isinstance(url, str)
         )
 
