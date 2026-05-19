@@ -36,6 +36,7 @@ forwarded after `--`.
 | Hosted API | `npm run integration:backend:openai` | OpenAI Responses attachment integration; requires `OPENAI_API_KEY`. |
 | Hosted API | `npm run integration:backend:openrouter` | OpenRouter chat attachment integration; requires `OPENROUTER_API_KEY`. |
 | Hosted API | `npm run integration:backend:openrouter-images` | OpenRouter image-generation attachment integration; requires `OPENROUTER_API_KEY`. |
+| Hosted API | `npm run integration:backend:openrouter:interceptor` | Real-provider tool interception flow via SDK prompt APIs; requires `OPENROUTER_API_KEY` or `OPENAI_API_KEY`. |
 | Hosted API | `npm run integration:backend:openrouter:mcp` | Codex MCP app-action integration; requires `OPENROUTER_API_KEY` and `npx`. |
 | Bridge e2e | `npm run integration:bridge` | Bridge e2e in Docker mode by default. |
 | Bridge e2e / AWS | `npm run integration:bridge:aws:fargate-secure` | Bridge e2e against AWS Fargate secure deployment. |
@@ -213,6 +214,43 @@ Example:
 
 ```bash
 npm run integration:backend:openrouter
+```
+
+### `backend.tool_interceptor.integration.test.ts`
+
+Selected by `npm run integration:backend:openrouter:interceptor`.
+
+Gate: `RUN_BACKEND_OPENROUTER_INTERCEPTOR_INTEGRATION=1` and at least one of:
+
+- `OPENROUTER_API_KEY`
+- `OPENAI_API_KEY`
+
+This file loads the shared fixture config at
+`src/integration/fixtures/interceptor-provider-matrix.config.json`, a
+simplified version of the local Crystal config shape, and runs the real
+tool-interception happy path against whichever provider credentials are
+available:
+
+- `intercept-openrouter` using `openrouter`
+- `intercept-openai` using `openai_responses`
+
+For each available provider, it:
+
+- sends a real user prompt through the SDK
+- observes a pending interception prompt through SDK prompt APIs
+- answers the prompt through the SDK
+- verifies that the resumed request reaches a stable completed state
+- reloads the session through both the same controller and a fresh controller
+
+Default fixture models:
+
+- OpenRouter: `openai/gpt-5.4-nano`
+- OpenAI Responses: `gpt-5-mini`
+
+Example:
+
+```bash
+npm run integration:backend:openrouter:interceptor
 ```
 
 ### `backend.codex_mcp.integration.test.ts`
