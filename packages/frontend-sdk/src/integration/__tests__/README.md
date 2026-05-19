@@ -171,21 +171,32 @@ npm run integration:backend:openrouter-images
 
 ### `backend.tool_interceptor.integration.test.ts`
 
-Gate: `RUN_BACKEND_OPENROUTER_INTERCEPTOR_INTEGRATION=1` and `OPENROUTER_API_KEY`
+Gate: `RUN_BACKEND_OPENROUTER_INTERCEPTOR_INTEGRATION=1` and at least one of:
 
-This file reads `OPENROUTER_API_KEY`, optional `OPENROUTER_BASE_URL`, and
-optional `OPENROUTER_INTERCEPTOR_E2E_MODEL` from the shell or repository root
-`.env`. It starts a real backend with the OpenRouter provider plus the
-`interceptor-tool` plugin and verifies the full CL-150 flow:
+- `OPENROUTER_API_KEY`
+- `OPENAI_API_KEY`
 
-- send a real user prompt through the SDK
-- observe a pending interception prompt through SDK prompt APIs
-- answer the prompt through the SDK
-- verify that the resumed request completes with both tool output and assistant output
+This file loads the shared fixture config at
+`src/integration/fixtures/interceptor-provider-matrix.config.json`, a
+simplified version of the local Crystal config shape, and runs the real
+tool-interception happy path against whichever provider credentials are
+available:
 
-Default model:
+- `intercept-openrouter` using `openrouter`
+- `intercept-openai` using `openai_responses`
 
-- `OPENROUTER_INTERCEPTOR_E2E_MODEL=openai/gpt-5.4-nano`
+For each available provider, it:
+
+- sends a real user prompt through the SDK
+- observes a pending interception prompt through SDK prompt APIs
+- answers the prompt through the SDK
+- verifies that the resumed request reaches a stable completed state
+- reloads the session through both the same controller and a fresh controller
+
+Default fixture models:
+
+- OpenRouter: `openai/gpt-5.4-nano`
+- OpenAI Responses: `gpt-5-mini`
 
 Example:
 
