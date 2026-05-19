@@ -5,13 +5,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from .export_utils import (
+    DEFAULT_LANGUAGE,
+    DEFAULT_LUA_FILTER_PATH,
+    DEFAULT_TOC_DEPTH,
     PDF_ENGINE_AUTO,
     build_message_export_context,
+    build_session_export_context,
     convert_markdown_to_epub,
     convert_markdown_to_pdf,
     ensure_suffix,
     normalize_pdf_engine,
     render_message_markdown,
+    render_session_markdown,
     slugify_filename_stem,
     temp_output_path,
 )
@@ -44,6 +49,19 @@ def _load_session_message(
     return session, effective_config, messages[message_index], base_config
 
 
+def _load_session(
+    app: "AgentApplication",
+    *,
+    session_id: str,
+) -> tuple[Any, Dict[str, Any], Any]:
+    loaded = app.load_session(session_id)
+    if loaded is None:
+        raise KeyError(f"Session {session_id!r} not found")
+    _core, base_config, session = loaded
+    effective_config = app.resolve_effective_config(base_config, session)
+    return session, effective_config, base_config
+
+
 def _kindle_config(effective_config: Dict[str, Any]) -> tuple[str, str, str, str]:
     smtp_user = str(effective_config.get("send_to_kindle_smtp_user") or "").strip()
     from_addr = str(
@@ -64,16 +82,42 @@ def _kindle_config(effective_config: Dict[str, Any]) -> tuple[str, str, str, str
     return smtp_user, from_addr, to_addr, keychain_service
 
 
+def _session_title_key(state: Dict[str, Any]) -> str:
+    raw = state.get("session_title_metadata_key")
+    return raw if isinstance(raw, str) and raw else "title"
+
+
+def _read_session_title(session: Any, state: Dict[str, Any]) -> str | None:
+    metadata = getattr(session, "metadata", None)
+    if not isinstance(metadata, dict):
+        return None
+    raw = metadata.get(_session_title_key(state))
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return None
+
+
 class MessageSendToKindleAppPlugin:
     name = "message_send_to_kindle"
     version = "0.1.0"
 
     def get_config_schema(self) -> Dict[str, Any]:
-        return {}
+        return {
+            "session_title_metadata_key": {
+                "type": "string",
+                "required": False,
+                "default": "title",
+                "description": "Metadata key used for reading a session title when building session exports.",
+            }
+        }
 
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
-        _ = app_config
-        return {}
+        application_cfg = app_config.get("application")
+        if not isinstance(application_cfg, dict):
+            application_cfg = {}
+        raw_key = application_cfg.get("session_title_metadata_key")
+        metadata_key = raw_key.strip() if isinstance(raw_key, str) and raw_key.strip() else "title"
+        return {"session_title_metadata_key": metadata_key}
 
     def get_ui_elements(
         self,
@@ -94,22 +138,67 @@ class MessageSendToKindleAppPlugin:
                     "session_id": "$session.session_id",
                     "message_index": "$message.index",
                     "title": "$dialog.title",
+                    "to": "$dialog.to",
                 },
                 "dialog": {
                     "kind": "form",
                     "title": "Send to Kindle",
-                    "message": "Choose a title for the exported EPUB.",
+                    "message": "Optionally choose a title for the exported EPUB.",
                     "inputs": [
                         {
                             "name": "title",
                             "type": "string",
                             "label": "Title",
-                            "required": True,
-                            "placeholder": "Export title",
-                        }
+                            "required": False,
+                            "submit_empty": True,
+                            "placeholder": "Optional title",
+                        },
+                        {
+                            "name": "to",
+                            "type": "string",
+                            "label": "Recipient email",
+                            "required": False,
+                            "submit_empty": True,
+                            "placeholder": "Optional email override",
+                        },
                     ],
                 },
-            }
+            },
+            {
+                "ui_type": "session_action",
+                "id": "session_send_to_kindle",
+                "label": "Send Session to Kindle",
+                "icon": "book",
+                "action_id": "send_session_to_kindle",
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "title": "$dialog.title",
+                    "to": "$dialog.to",
+                },
+                "dialog": {
+                    "kind": "form",
+                    "title": "Send Session to Kindle",
+                    "message": "Optionally choose a title for the exported session EPUB.",
+                    "inputs": [
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "label": "Title",
+                            "required": False,
+                            "submit_empty": True,
+                            "placeholder": "Optional title",
+                        },
+                        {
+                            "name": "to",
+                            "type": "string",
+                            "label": "Recipient email",
+                            "required": False,
+                            "submit_empty": True,
+                            "placeholder": "Optional email override",
+                        },
+                    ],
+                },
+            },
         ]
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -122,9 +211,20 @@ class MessageSendToKindleAppPlugin:
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
                     "message_index": {"type": "integer", "required": True},
-                    "title": {"type": "string", "required": True},
+                    "title": {"type": "string", "required": False, "default": ""},
+                    "to": {"type": "string", "required": False, "default": ""},
                 },
-            }
+            },
+            {
+                "id": "send_session_to_kindle",
+                "label": "Send Session to Kindle",
+                "description": "Export user and assistant messages from a session as EPUB and send it through the configured Kindle email path.",
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
+                    "title": {"type": "string", "required": False, "default": ""},
+                    "to": {"type": "string", "required": False, "default": ""},
+                },
+            },
         ]
 
     def execute_action(
@@ -136,41 +236,63 @@ class MessageSendToKindleAppPlugin:
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         _ = context, state
-        if action_id != "send_to_kindle":
+        if action_id not in {"send_to_kindle", "send_session_to_kindle"}:
             return _error(f"Unknown action_id {action_id!r}")
 
         session_id = str(params.get("session_id") or "")
-        message_index = params.get("message_index")
-        title = str(params.get("title") or "").strip()
-        if not session_id or not isinstance(message_index, int) or not title:
+        raw_title = str(params.get("title") or "").strip()
+        raw_to = str(params.get("to") or "").strip()
+        if not session_id:
             return _error("Missing required Kindle export parameters.")
 
         try:
-            _session, effective_config, message, _base_config = _load_session_message(
-                app,
-                session_id=session_id,
-                message_index=message_index,
-            )
-            export_context = build_message_export_context(
-                session_id=session_id,
-                message_index=message_index,
-                message=message,
-            )
-            markdown_text = render_message_markdown(export_context, title=title)
-            filename = f"{slugify_filename_stem(title, fallback=export_context.default_filename_stem)}.epub"
+            if action_id == "send_to_kindle":
+                message_index = params.get("message_index")
+                if not isinstance(message_index, int):
+                    return _error("Missing required Kindle export parameters.")
+                _session, effective_config, message, _base_config = _load_session_message(
+                    app,
+                    session_id=session_id,
+                    message_index=message_index,
+                )
+                export_context = build_message_export_context(
+                    session_id=session_id,
+                    message_index=message_index,
+                    message=message,
+                )
+                effective_title = raw_title or export_context.default_title
+                markdown_text = render_message_markdown(export_context, title=effective_title)
+                filename = f"{slugify_filename_stem(effective_title, fallback=export_context.default_filename_stem)}.epub"
+                body = f"Exported from session {session_id}, message {message_index}."
+            else:
+                session, effective_config, _base_config = _load_session(app, session_id=session_id)
+                session_title = _read_session_title(session, state)
+                export_context = build_session_export_context(
+                    session_id=session_id,
+                    session_title=session_title,
+                    messages=list(getattr(session, "messages", []) or []),
+                )
+                effective_title = raw_title or export_context.default_title
+                markdown_text = render_session_markdown(export_context, title=effective_title)
+                filename = f"{slugify_filename_stem(effective_title, fallback=export_context.default_filename_stem)}.epub"
+                body = f"Exported from session {session_id}."
             output_path = temp_output_path(filename=filename)
             convert_markdown_to_epub(
                 markdown_text=markdown_text,
-                title=title,
+                title=effective_title,
                 output_path=output_path,
+                language=DEFAULT_LANGUAGE,
+                toc_depth=DEFAULT_TOC_DEPTH,
+                lua_filter=DEFAULT_LUA_FILTER_PATH,
             )
             smtp_user, from_addr, to_addr, keychain_service = _kindle_config(effective_config)
+            recipient = raw_to or to_addr
             send_icloud_attachment(
                 smtp_user=smtp_user,
                 from_addr=from_addr,
-                to_addr=to_addr,
-                subject=title,
-                body=f"Exported from session {session_id}, message {message_index}.",
+                to_addr=recipient,
+                subject=effective_title,
+                body=body,
                 attachment_path=output_path,
                 keychain_service=keychain_service,
             )
@@ -186,11 +308,11 @@ class MessageSendToKindleAppPlugin:
 
         return {
             "status": "ok",
-            "message": f"Sent {filename} to {to_addr}.",
+            "message": f"Sent {filename} to {recipient}.",
             "display": {
                 "format": "text",
                 "title": "Sent to Kindle",
-                "body": f"Sent {filename} to {to_addr}.",
+                "body": f"Sent {filename} to {recipient}.",
                 "variant": "success",
                 "presentation": "banner",
                 "dismissible": True,
@@ -203,11 +325,22 @@ class MessageShareAsPdfAppPlugin:
     version = "0.1.0"
 
     def get_config_schema(self) -> Dict[str, Any]:
-        return {}
+        return {
+            "session_title_metadata_key": {
+                "type": "string",
+                "required": False,
+                "default": "title",
+                "description": "Metadata key used for reading a session title when building session exports.",
+            }
+        }
 
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
-        _ = app_config
-        return {}
+        application_cfg = app_config.get("application")
+        if not isinstance(application_cfg, dict):
+            application_cfg = {}
+        raw_key = application_cfg.get("session_title_metadata_key")
+        metadata_key = raw_key.strip() if isinstance(raw_key, str) and raw_key.strip() else "title"
+        return {"session_title_metadata_key": metadata_key}
 
     def get_ui_elements(
         self,
@@ -253,7 +386,42 @@ class MessageShareAsPdfAppPlugin:
                         },
                     ],
                 },
-            }
+            },
+            {
+                "ui_type": "session_action",
+                "id": "session_share_as_pdf",
+                "label": "Share Session as PDF",
+                "icon": "file-text",
+                "action_id": "share_session_as_pdf",
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "title": "$dialog.title",
+                    "filename": "$dialog.filename",
+                },
+                "dialog": {
+                    "kind": "form",
+                    "title": "Share Session as PDF",
+                    "message": "Optionally customize the document title and filename.",
+                    "inputs": [
+                        {
+                            "name": "title",
+                            "type": "string",
+                            "label": "Title",
+                            "required": False,
+                            "submit_empty": True,
+                            "placeholder": "Optional document title",
+                        },
+                        {
+                            "name": "filename",
+                            "type": "string",
+                            "label": "Filename",
+                            "required": False,
+                            "submit_empty": True,
+                            "placeholder": "Optional filename",
+                        },
+                    ],
+                },
+            },
         ]
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -266,6 +434,16 @@ class MessageShareAsPdfAppPlugin:
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
                     "message_index": {"type": "integer", "required": True},
+                    "title": {"type": "string", "required": False, "default": ""},
+                    "filename": {"type": "string", "required": False, "default": ""},
+                },
+            },
+            {
+                "id": "share_session_as_pdf",
+                "label": "Share Session as PDF",
+                "description": "Export user and assistant session messages as PDF and return a follow-up action for save/share.",
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
                     "title": {"type": "string", "required": False, "default": ""},
                     "filename": {"type": "string", "required": False, "default": ""},
                 },
@@ -307,42 +485,58 @@ class MessageShareAsPdfAppPlugin:
                 "data_base64": base64.b64encode(payload).decode("ascii"),
                 "message": f"Downloaded attachment {asset_id}",
             }
-        if action_id != "share_as_pdf":
+        if action_id not in {"share_as_pdf", "share_session_as_pdf"}:
             return _error(f"Unknown action_id {action_id!r}")
 
         session_id = str(params.get("session_id") or "")
-        message_index = params.get("message_index")
         raw_title = str(params.get("title") or "").strip()
         raw_filename = str(params.get("filename") or "").strip()
-        if not session_id or not isinstance(message_index, int):
+        if not session_id:
             return _error("Missing required PDF export parameters.")
 
         try:
-            _session, effective_config, message, _base_config = _load_session_message(
-                app,
-                session_id=session_id,
-                message_index=message_index,
-            )
-            export_context = build_message_export_context(
-                session_id=session_id,
-                message_index=message_index,
-                message=message,
-            )
-            title = raw_title or export_context.default_title
+            if action_id == "share_as_pdf":
+                message_index = params.get("message_index")
+                if not isinstance(message_index, int):
+                    return _error("Missing required PDF export parameters.")
+                _session, effective_config, message, _base_config = _load_session_message(
+                    app,
+                    session_id=session_id,
+                    message_index=message_index,
+                )
+                export_context = build_message_export_context(
+                    session_id=session_id,
+                    message_index=message_index,
+                    message=message,
+                )
+                title = raw_title or export_context.default_title
+                markdown_text = render_message_markdown(export_context, title=title)
+                default_filename_stem = export_context.default_filename_stem
+                body_message_target = f"message {message_index}"
+            else:
+                session, effective_config, _base_config = _load_session(app, session_id=session_id)
+                session_title = _read_session_title(session, state)
+                export_context = build_session_export_context(
+                    session_id=session_id,
+                    session_title=session_title,
+                    messages=list(getattr(session, "messages", []) or []),
+                )
+                title = raw_title or export_context.default_title
+                markdown_text = render_session_markdown(export_context, title=title)
+                default_filename_stem = export_context.default_filename_stem
+                body_message_target = "session"
             if raw_filename:
                 filename = ensure_suffix(raw_filename, ".pdf")
             elif raw_title:
                 filename = ensure_suffix(
                     slugify_filename_stem(
                         raw_title,
-                        fallback=export_context.default_filename_stem,
+                        fallback=default_filename_stem,
                     ),
                     ".pdf",
                 )
             else:
-                filename = f"{export_context.default_filename_stem}.pdf"
-
-            markdown_text = render_message_markdown(export_context, title=title)
+                filename = f"{default_filename_stem}.pdf"
             output_path = temp_output_path(filename=filename)
             engine_used = convert_markdown_to_pdf(
                 markdown_text=markdown_text,
@@ -358,7 +552,11 @@ class MessageShareAsPdfAppPlugin:
                 filename=filename,
                 mime_type="application/pdf",
                 data_base64=base64.b64encode(output_path.read_bytes()).decode("ascii"),
-                metadata={"generated_by": self.name, "message_index": message_index},
+                metadata=(
+                    {"generated_by": self.name, "message_index": message_index}
+                    if action_id == "share_as_pdf"
+                    else {"generated_by": self.name, "scope": "session"}
+                ),
             )
         except Exception as exc:
             return _error(str(exc))
@@ -377,7 +575,7 @@ class MessageShareAsPdfAppPlugin:
             "display": {
                 "format": "text",
                 "title": "PDF ready",
-                "body": f"Generated {filename} from message {message_index} using {engine_used}.",
+                "body": f"Generated {filename} from {body_message_target} using {engine_used}.",
                 "variant": "success",
                 "presentation": "modal",
                 "dismissible": True,

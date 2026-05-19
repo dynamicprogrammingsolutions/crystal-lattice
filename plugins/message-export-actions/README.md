@@ -5,14 +5,18 @@ Application plugins that add two message actions to the chat UI:
 - `Send to Kindle`
 - `Share as PDF`
 
-These actions export a single selected message, not the whole session.
+These plugins now expose both:
+
+- message actions for exporting a single selected message
+- session actions for exporting a filtered session transcript
 
 ## Features
 
 - `Send to Kindle`
-  - prompts for a title
+  - prompts for an optional title
+  - supports an optional recipient email override
   - generates an EPUB with `pandoc`
-  - derives the attachment filename from the title
+  - derives the attachment filename from the effective title
   - sends through iCloud SMTP using the same config-key contract as the existing Kindle tool
 
 - `Share as PDF`
@@ -21,6 +25,15 @@ These actions export a single selected message, not the whole session.
   - stores the PDF as a session asset
   - returns a follow-up action so clients can share on mobile or save on desktop
   - includes its own download action, so it does not rely on a separate attachment-download plugin being loaded
+
+Session export behavior:
+
+- includes all `user` messages
+- includes `assistant` messages that have non-empty text content
+- excludes `system` and `tool` messages
+- adds an `H1` header at the top with the session id and session title when available
+- adds an `H2` header for each exported user or assistant message
+- demotes headings inside message content so message-local headings start at `H3`
 
 ## Configuration keys
 
@@ -43,6 +56,15 @@ Behavior:
 - `auto`: prefer `pandoc` when available, otherwise use `xhtml2pdf`
 - `pandoc`: require `pandoc`
 - `xhtml2pdf`: always use the Python fallback engine
+
+Kindle title behavior:
+
+- message export default title: `Session <short-session-id> Message <index>`
+- session export default title:
+  - session metadata title when present
+  - otherwise `Session <short-session-id>`
+- both Kindle actions also accept an optional `to` email override
+  - when omitted, `send_to_kindle_default_to` is used
 
 ## Runtime dependencies
 
@@ -218,5 +240,10 @@ You can also load it from the built-in plugins directory if your install layout 
 ## Notes
 
 - `Send to Kindle` does not currently fall back when `pandoc` is unavailable. It returns a clear error instead.
-- v1 export scope is intentionally limited to message text plus lightweight metadata.
-- Multipart attachments are not rendered into the exported document in v1.
+- Export scope is intentionally limited to message text plus lightweight metadata.
+- Multipart attachments are not rendered into the exported document in this version.
+- EPUB generation uses the same general metadata defaults as the bash Kindle tools:
+  - language defaults to `en-US`
+  - TOC is enabled
+  - TOC depth defaults to `2`
+  - the built-in local-link Lua filter is applied by default

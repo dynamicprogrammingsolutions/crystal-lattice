@@ -47,7 +47,7 @@ def _config_path(tmp_path: Path) -> Path:
                 "message_export_pdf_engine": "xhtml2pdf",
             }
         },
-        "application": {},
+        "application": {"session_title_metadata_key": "title"},
     }
     path = tmp_path / "config_message_export_actions.json"
     path.write_text(json.dumps(cfg), encoding="utf-8")
@@ -74,7 +74,50 @@ def _seed_session_with_message(app: AgentApplication, *, content: str) -> tuple[
     return updated.session_id, len(updated.messages) - 1
 
 
-def test_ui_schema_exposes_both_message_actions(tmp_path: Path) -> None:
+def _seed_session_with_messages(app: AgentApplication) -> str:
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(
+        session,
+        "system",
+        "System content should not be exported.",
+        config=app.resolve_effective_config(base_config, session),
+    )
+    session = core.add_message(
+        session,
+        "user",
+        "# User heading\nUser body",
+        config=app.resolve_effective_config(base_config, session),
+    )
+    session = core.add_message(
+        session,
+        "tool",
+        "Tool content should not be exported.",
+        config=app.resolve_effective_config(base_config, session),
+    )
+    session = core.add_message(
+        session,
+        "assistant",
+        "## Assistant heading\nAssistant body",
+        config=app.resolve_effective_config(base_config, session),
+    )
+    session = core.add_message(
+        session,
+        "assistant",
+        "",
+        config=app.resolve_effective_config(base_config, session),
+    )
+    metadata = dict(session.metadata or {})
+    metadata["title"] = "Project planning"
+    session = type(session)(
+        session_id=session.session_id,
+        messages=session.messages,
+        metadata=metadata,
+    )
+    app.save_session(session)
+    return session.session_id
+
+
+def test_ui_schema_exposes_message_and_session_actions(tmp_path: Path) -> None:
     app = _build_app(tmp_path)
     session_id, _message_index = _seed_session_with_message(app, content="Hello export")
 
@@ -92,17 +135,40 @@ def test_ui_schema_exposes_both_message_actions(tmp_path: Path) -> None:
 
     assert ("message_send_to_kindle", "send_to_kindle") in message_actions
     assert ("message_share_as_pdf", "share_as_pdf") in message_actions
+    session_actions = {
+        (el["plugin"], el["action_id"])
+        for el in elements
+        if el.get("ui_type") == "session_action"
+    }
+    assert ("message_send_to_kindle", "send_session_to_kindle") in session_actions
+    assert ("message_share_as_pdf", "share_session_as_pdf") in session_actions
 
 
-def test_send_to_kindle_uses_title_for_filename(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_send_to_kindle_uses_optional_title_default_and_bashlike_epub_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     app = _build_app(tmp_path)
     session_id, message_index = _seed_session_with_message(app, content="Kindle export body")
 
     sent: Dict[str, Any] = {}
 
-    def _fake_convert_markdown_to_epub(*, markdown_text: str, title: str, output_path: Path) -> None:
+    def _fake_convert_markdown_to_epub(
+        *,
+        markdown_text: str,
+        title: str,
+        output_path: Path,
+        author: str | None = None,
+        language: str = "",
+        toc_depth: int = 0,
+        lua_filter: Path | None = None,
+    ) -> None:
         sent["markdown_text"] = markdown_text
         sent["title"] = title
+        sent["language"] = language
+        sent["toc_depth"] = toc_depth
+        sent["lua_filter"] = lua_filter
+        sent["author"] = author
         output_path.write_bytes(b"dummy-epub")
 
     def _fake_send_icloud_attachment(**kwargs: Any) -> None:
@@ -117,16 +183,89 @@ def test_send_to_kindle_uses_title_for_filename(tmp_path: Path, monkeypatch: pyt
         {
             "session_id": session_id,
             "message_index": message_index,
-            "title": "Hello Kindle Export",
+            "title": "",
         },
         action_owner="application",
     )
 
     assert result["status"] == "ok"
-    assert sent["subject"] == "Hello Kindle Export"
+    assert sent["subject"] == f"Session {session_id[:8]} Message {message_index}"
     assert sent["to_addr"] == "reader@kindle.com"
-    assert sent["attachment_path"].name == "hello-kindle-export.epub"
+    assert sent["attachment_path"].name == f"session-{session_id[:8]}-message-{message_index}.epub"
     assert "Kindle export body" in sent["markdown_text"]
+    assert sent["language"] == "en-US"
+    assert sent["toc_depth"] == 2
+    assert isinstance(sent["lua_filter"], Path)
+    assert sent["lua_filter"].name == "strip_local_file_references.lua"
+    assert sent["author"] is None
+
+
+def test_send_to_kindle_allows_recipient_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _build_app(tmp_path)
+    session_id, message_index = _seed_session_with_message(app, content="Kindle export body")
+
+    sent: Dict[str, Any] = {}
+
+    def _fake_convert_markdown_to_epub(**kwargs: Any) -> None:
+        kwargs["output_path"].write_bytes(b"dummy-epub")
+
+    monkeypatch.setattr(plugin_module, "convert_markdown_to_epub", _fake_convert_markdown_to_epub)
+    monkeypatch.setattr(plugin_module, "send_icloud_attachment", lambda **kwargs: sent.update(kwargs))
+
+    result = app.execute_action(
+        "message_send_to_kindle",
+        "send_to_kindle",
+        {
+            "session_id": session_id,
+            "message_index": message_index,
+            "title": "",
+            "to": "override@example.com",
+        },
+        action_owner="application",
+    )
+
+    assert result["status"] == "ok"
+    assert sent["to_addr"] == "override@example.com"
+    assert "override@example.com" in result["message"]
+
+
+def test_send_session_to_kindle_filters_roles_and_demotes_headings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _build_app(tmp_path)
+    session_id = _seed_session_with_messages(app)
+
+    sent: Dict[str, Any] = {}
+
+    def _fake_convert_markdown_to_epub(**kwargs: Any) -> None:
+        sent.update(kwargs)
+        output_path = kwargs["output_path"]
+        output_path.write_bytes(b"dummy-epub")
+
+    monkeypatch.setattr(plugin_module, "convert_markdown_to_epub", _fake_convert_markdown_to_epub)
+    monkeypatch.setattr(plugin_module, "send_icloud_attachment", lambda **kwargs: sent.update(kwargs))
+
+    result = app.execute_action(
+        "message_send_to_kindle",
+        "send_session_to_kindle",
+        {"session_id": session_id, "title": ""},
+        action_owner="application",
+    )
+
+    assert result["status"] == "ok"
+    markdown_text = sent["markdown_text"]
+    assert markdown_text.startswith(f"# {session_id} - Project planning")
+    assert "## User message 1" in markdown_text
+    assert "## Assistant message 3" in markdown_text
+    assert "System content should not be exported." not in markdown_text
+    assert "Tool content should not be exported." not in markdown_text
+    assert "### User heading" in markdown_text
+    assert "#### Assistant heading" in markdown_text
+    assert sent["attachment_path"].name == "project-planning.epub"
 
 
 def test_share_as_pdf_returns_download_followup_and_downloads_asset(
@@ -184,6 +323,45 @@ def test_share_as_pdf_returns_download_followup_and_downloads_asset(
     assert base64.b64decode(download["data_base64"]) == b"%PDF-1.4\nmock pdf\n"
 
 
+def test_share_session_as_pdf_uses_session_title_and_default_filename(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _build_app(tmp_path)
+    session_id = _seed_session_with_messages(app)
+
+    seen: Dict[str, Any] = {}
+
+    def _fake_convert_markdown_to_pdf(
+        *,
+        markdown_text: str,
+        title: str,
+        output_path: Path,
+        engine_setting: str,
+    ) -> str:
+        seen["markdown_text"] = markdown_text
+        seen["title"] = title
+        seen["engine_setting"] = engine_setting
+        output_path.write_bytes(b"%PDF-1.4\nmock pdf\n")
+        return "xhtml2pdf"
+
+    monkeypatch.setattr(plugin_module, "convert_markdown_to_pdf", _fake_convert_markdown_to_pdf)
+
+    result = app.execute_action(
+        "message_share_as_pdf",
+        "share_session_as_pdf",
+        {"session_id": session_id, "title": "", "filename": ""},
+        action_owner="application",
+    )
+
+    assert result["status"] == "ok"
+    assert seen["title"] == "Project planning"
+    assert seen["engine_setting"] == "xhtml2pdf"
+    assert seen["markdown_text"].startswith(f"# {session_id} - Project planning")
+    followup = result["display"]["actions"][0]
+    assert followup["filename"] == f"session-{session_id[:8]}.pdf"
+
+
 def test_select_pdf_runtime_engine_prefers_xhtml2pdf_when_pandoc_pdf_path_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -203,3 +381,8 @@ def test_select_pdf_runtime_engine_prefers_xhtml2pdf_when_pandoc_pdf_path_unavai
 def test_plugin_classes_keep_expected_ids() -> None:
     assert MessageSendToKindleAppPlugin.name == "message_send_to_kindle"
     assert MessageShareAsPdfAppPlugin.name == "message_share_as_pdf"
+
+
+def test_demote_markdown_headings_starts_message_headings_at_h3() -> None:
+    rendered = export_utils.demote_markdown_headings("# One\n## Two\n### Three", base_level=3)
+    assert rendered == "### One\n#### Two\n##### Three"

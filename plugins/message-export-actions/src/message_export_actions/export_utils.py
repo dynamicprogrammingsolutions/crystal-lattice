@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
 from markdown import markdown as markdown_to_html
 from xhtml2pdf import pisa
@@ -22,6 +22,10 @@ SUPPORTED_PDF_ENGINES = {
     PDF_ENGINE_PANDOC,
     PDF_ENGINE_XHTML2PDF,
 }
+DEFAULT_LANGUAGE = "en-US"
+DEFAULT_TOC_DEPTH = 2
+DEFAULT_EPUB_TITLE = "Untitled EPUB"
+DEFAULT_LUA_FILTER_PATH = Path(__file__).with_name("strip_local_file_references.lua")
 
 
 @dataclass(frozen=True)
@@ -35,6 +39,16 @@ class MessageExportContext:
     multipart_count: int
     default_title: str
     default_filename_stem: str
+
+
+@dataclass(frozen=True)
+class SessionExportContext:
+    session_id: str
+    session_short_id: str
+    session_title: str | None
+    default_title: str
+    default_filename_stem: str
+    entries: Tuple[MessageExportContext, ...]
 
 
 def normalize_pdf_engine(raw_value: Any) -> str:
@@ -93,6 +107,64 @@ def build_message_export_context(
     )
 
 
+def build_session_export_context(
+    *,
+    session_id: str,
+    session_title: str | None,
+    messages: Sequence[Any],
+) -> SessionExportContext:
+    session_short_id = session_id[:8]
+    entries: List[MessageExportContext] = []
+    for index, message in enumerate(messages):
+        role = str(getattr(message, "role", "") or "")
+        content = str(getattr(message, "content", "") or "")
+        if role == "assistant" and not content.strip():
+            continue
+        if role not in {"user", "assistant"}:
+            continue
+        entries.append(
+            build_message_export_context(
+                session_id=session_id,
+                message_index=index,
+                message=message,
+            )
+        )
+
+    default_title = session_title.strip() if isinstance(session_title, str) and session_title.strip() else f"Session {session_short_id}"
+    default_filename_stem = f"session-{session_short_id}"
+    return SessionExportContext(
+        session_id=session_id,
+        session_short_id=session_short_id,
+        session_title=session_title.strip() if isinstance(session_title, str) and session_title.strip() else None,
+        default_title=default_title,
+        default_filename_stem=default_filename_stem,
+        entries=tuple(entries),
+    )
+
+
+def _role_label(role: str) -> str:
+    if role == "assistant":
+        return "Assistant"
+    if role == "user":
+        return "User"
+    return role.title() if role else "Message"
+
+
+def demote_markdown_headings(markdown_text: str, *, base_level: int = 3) -> str:
+    offset = max(base_level - 1, 0)
+    lines = markdown_text.splitlines()
+    adjusted: List[str] = []
+    for line in lines:
+        match = re.match(r"^(\s{0,3})(#{1,6})(\s+.*)$", line)
+        if not match:
+            adjusted.append(line)
+            continue
+        indent, hashes, rest = match.groups()
+        new_level = min(len(hashes) + offset, 6)
+        adjusted.append(f"{indent}{'#' * new_level}{rest}")
+    return "\n".join(adjusted)
+
+
 def render_message_markdown(context: MessageExportContext, *, title: str) -> str:
     lines = [
         f"# {title}",
@@ -108,6 +180,34 @@ def render_message_markdown(context: MessageExportContext, *, title: str) -> str
         lines.append(context.content)
     else:
         lines.append("_This message has no text content._")
+    return "\n".join(lines).strip() + "\n"
+
+
+def render_session_markdown(context: SessionExportContext, *, title: str) -> str:
+    h1 = f"# {context.session_id}"
+    if context.session_title:
+        h1 = f"# {context.session_id} - {context.session_title}"
+    if title != context.default_title:
+        h1 = f"# {context.session_id} - {title}"
+
+    lines: List[str] = [h1, ""]
+    if not context.entries:
+        lines.append("_This session has no exportable user or assistant messages._")
+        return "\n".join(lines).strip() + "\n"
+
+    for entry in context.entries:
+        lines.extend(
+            [
+                f"## {_role_label(entry.role)} message {entry.message_index}",
+                "",
+            ]
+        )
+        if entry.content.strip():
+            lines.append(demote_markdown_headings(entry.content, base_level=3))
+        else:
+            lines.append("_This message has no text content._")
+        lines.extend(["", ""])
+
     return "\n".join(lines).strip() + "\n"
 
 
@@ -146,7 +246,16 @@ def select_pdf_runtime_engine(engine_setting: str) -> Tuple[str, str | None]:
     return PDF_ENGINE_XHTML2PDF, None
 
 
-def convert_markdown_to_epub(*, markdown_text: str, title: str, output_path: Path) -> None:
+def convert_markdown_to_epub(
+    *,
+    markdown_text: str,
+    title: str,
+    output_path: Path,
+    author: str | None = None,
+    language: str = DEFAULT_LANGUAGE,
+    toc_depth: int = DEFAULT_TOC_DEPTH,
+    lua_filter: Path | None = None,
+) -> None:
     if not pandoc_available():
         raise RuntimeError("EPUB export requires pandoc, but pandoc is not installed.")
 
@@ -154,18 +263,51 @@ def convert_markdown_to_epub(*, markdown_text: str, title: str, output_path: Pat
         work_dir = Path(tmpdir)
         markdown_path = work_dir / "document.md"
         markdown_path.write_text(markdown_text, encoding="utf-8")
+        metadata_path = work_dir / "metadata.yaml"
+
+        effective_title = title or DEFAULT_EPUB_TITLE
+        effective_language = language or DEFAULT_LANGUAGE
+        effective_toc_depth = toc_depth if isinstance(toc_depth, int) and toc_depth > 0 else DEFAULT_TOC_DEPTH
+        effective_filter = lua_filter or DEFAULT_LUA_FILTER_PATH
+        if not effective_filter.is_file():
+            raise RuntimeError(f"EPUB export Lua filter not found: {effective_filter}")
+
+        if author:
+            metadata_path.write_text(
+                (
+                    f"---\n"
+                    f'title: "{effective_title}"\n'
+                    f"author:\n"
+                    f'  - "{author}"\n'
+                    f'language: "{effective_language}"\n'
+                    f"toc: true\n"
+                    f"toc-depth: {effective_toc_depth}\n"
+                    f"---\n"
+                ),
+                encoding="utf-8",
+            )
+        else:
+            metadata_path.write_text(
+                (
+                    f"---\n"
+                    f'title: "{effective_title}"\n'
+                    f'language: "{effective_language}"\n'
+                    f"toc: true\n"
+                    f"toc-depth: {effective_toc_depth}\n"
+                    f"---\n"
+                ),
+                encoding="utf-8",
+            )
 
         cmd = [
             "pandoc",
-            "--from",
-            "gfm",
-            "--to",
-            "epub",
-            "--metadata",
-            f"title={title}",
+            str(metadata_path),
+            str(markdown_path),
+            f"--lua-filter={effective_filter}",
+            "--toc",
+            f"--toc-depth={effective_toc_depth}",
             "-o",
             str(output_path),
-            str(markdown_path),
         ]
         result = subprocess.run(cmd, check=False, capture_output=True, text=True)
         if result.returncode != 0:

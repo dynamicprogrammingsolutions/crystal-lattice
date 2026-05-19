@@ -6,6 +6,7 @@ Add two application-plugin-backed message actions: `Send to Kindle` and `Share a
 
 - [x] Add application plugin support for a `Send to Kindle` message action.
 - [x] Add application plugin support for a `Share as PDF` message action.
+- [x] Add session actions for both Kindle and PDF exports.
 - [x] Add a config key for PDF engine selection with `auto`, `pandoc`, and `xhtml2pdf` modes.
 - [x] Reuse the existing agent-level Kindle config keys:
   - `send_to_kindle_smtp_user`
@@ -13,7 +14,10 @@ Add two application-plugin-backed message actions: `Send to Kindle` and `Share a
   - `send_to_kindle_default_to`
   - `send_to_kindle_keychain_service`
 - [x] `Send to Kindle` should prompt only for `title`, and derive the EPUB filename from that title.
+- [x] Make `Send to Kindle` title optional and use the same defaulting pattern as PDF exports.
 - [x] `Share as PDF` should prompt for optional `title` and optional `filename`, and generate defaults when omitted.
+- [x] Session export should include user messages and assistant messages with text content, while excluding tool and system messages.
+- [x] Session export should add a top-level `H1` and per-message `H2` headings, and demote message-local headings to start at `H3`.
 - [x] Generated PDFs should be delivered through a frontend flow that opens share options on mobile and a save dialog on desktop.
 - [x] Reuse existing file-transfer and session-asset infrastructure where possible instead of inventing a second binary-delivery path.
 - [x] Document runtime dependencies for export/conversion clearly, especially PDF conversion dependencies.
@@ -351,13 +355,21 @@ Added during implementation on 2026-05-17.
 - Implemented a new plugin package at `plugins/message-export-actions/` with two application plugins:
   - `message_send_to_kindle`
   - `message_share_as_pdf`
+- Expanded both plugins to expose session actions in addition to message actions.
 - Added shared export utilities for:
   - single-message markdown rendering
+  - session transcript markdown rendering
+  - heading demotion inside exported message bodies
   - EPUB conversion with `pandoc`
   - PDF conversion with runtime engine selection:
     - `auto`
     - `pandoc`
     - `xhtml2pdf`
+- Updated Kindle export so title is optional and EPUB generation now uses bash-tool-aligned defaults for:
+  - language
+  - TOC
+  - TOC depth
+  - local-link Lua filtering
 - Added a self-contained PDF download action under `message_share_as_pdf` so generated-file follow-up actions do not depend on a separate app plugin being loaded.
 - Added a new follow-up action kind in the frontend SDK:
   - `download_attachment_asset`
