@@ -326,27 +326,27 @@
         "variables": {
           "INTRODUCTION": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/introduction.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/introduction.md"
             ]
           },
           "WORKFLOW": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/workflow.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/workflow.md"
             ]
           },
           "TOOL_USAGE": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/tool-usage.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage.md"
             ]
           },
           "TONE_AND_STYLE": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/tone-and-style.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tone-and-style.md"
             ]
           },
           "MEMORY": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/memory.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/memory.md"
             ]
           },
           "ENVIRONMENT_SECTION": {
@@ -354,7 +354,7 @@
           },
           "CONTEXT_MANAGEMENT": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/context-management.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/context-management.md"
             ]
           },
           "TASKS": {
