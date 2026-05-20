@@ -5,6 +5,17 @@ Short description: Implement the interception-capable tool contract from spec `9
 Parent Task: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/000-main.md
 Depends On: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/010-design-toolplugin-interceptor-contract-and-prompt-schema.md
 
+## Requirements checklist
+
+- [x] `ToolPlugin` protocol, wrappers, and adapters were extended with interception hooks and `priority` support.
+- [x] Call-phase interception orchestration was added around normal tool execution, including `continue` / `prompt` / `respond` handling.
+- [ ] Result-phase interception supports full prompt suspend/resume semantics end-to-end, not just transform/respond behavior.
+- [x] Prompt lifecycle metadata is persisted on existing assistant/tool messages using `interception_current` and `interception_phases`.
+- [ ] Prompt submission persists answered state in a spec-aligned way at submit time and keeps retained native history synchronized before resume.
+- [x] Backend/API plumbing was added to surface pending prompts and accept prompt responses.
+- [ ] Prompt-response submission is strongly correlated to the exact message/phase/tool-call being answered and resumes with the original effective request context.
+- [x] Core/application tests and a reference interceptor fixture were added for ordering, lifecycle, and suspend/resume behavior.
+
 ## Scope
 
 - Implement `ToolPlugin` protocol updates from `955` (`intercept_tool_call`, `intercept_tool_result`, optional `priority`).
