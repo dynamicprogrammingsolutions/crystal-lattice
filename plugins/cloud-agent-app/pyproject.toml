@@ -7,6 +7,7 @@ name = "cloud-agent-app"
 version = "0.1.0"
 description = "Cloud agent application plugin and managed SSH transfer adapter."
 requires-python = ">=3.10"
+license = {text = "AGPL-3.0"}
 
 [project.optional-dependencies]
 dev = ["pytest"]

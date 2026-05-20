@@ -1,3 +1,32 @@
+# Licensing note:
+# This file contains both original code authored for this repository and
+# material derived from or adapted from Claude Code or other
+# Anthropic-authored materials.
+#
+# Except for the Anthropic-derived material identified in this file, the
+# original code in this file is licensed under the Apache License, Version 2.0.
+#
+# Copyright 2026 Dynamic Programming Solutions Kft.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# Anthropic-derived material in this file is not licensed by us under
+# Apache-2.0.
+#
+# © Anthropic PBC. All rights reserved. Use is subject to Anthropic's
+# Commercial Terms of Service:
+# https://www.anthropic.com/legal/commercial-terms
+
 from __future__ import annotations
 
 import base64
@@ -21,6 +50,7 @@ from tool_compat_shared import read_file_with_encoding
 from .interop import claude_tool_interop_contribution
 
 
+# ANTHROPIC-DERIVED MATERIAL START
 READ_DESCRIPTION = (
     "Reads a file from the local filesystem. You can access any file directly by using this tool.\n"
     "Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.\n\n"
@@ -69,6 +99,7 @@ READ_SCHEMA: Dict[str, Any] = {
         "type": "object",
     },
 }
+# ANTHROPIC-DERIVED MATERIAL END
 
 DEFAULT_LINE_LIMIT = 2000
 MAX_FULL_READ_BYTES = 256 * 1024
