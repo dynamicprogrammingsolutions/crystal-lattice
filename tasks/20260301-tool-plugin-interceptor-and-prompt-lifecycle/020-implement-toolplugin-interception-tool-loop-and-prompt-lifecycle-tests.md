@@ -81,3 +81,44 @@ Depends On: tasks/20260301-tool-plugin-interceptor-and-prompt-lifecycle/010-desi
 - `application/python/agent_terminal_app/server.py#L2403`
 - `core/python/tests/test_application_layer_tools.py`
 - `application/python/tests/test_agent_terminal_app_server.py`
+
+## Execution plan
+
+Backfilled after implementation branch review.
+
+1. Extend plugin protocols, adapters, and wrappers with interception hooks and `priority` support while preserving no-op defaults for existing tools.
+2. Implement call-phase and result-phase interception orchestration in the application tool loop, including metadata persistence on assistant/tool messages and suspend/resume handling for prompt flows.
+3. Add server/API/event/client plumbing for discovering pending prompts, submitting prompt answers, and rendering prompt state in the existing message UI.
+4. Add a metadata preservation helper for native-history providers plus a reference interceptor plugin fixture that exercises prompt gating and result transformation.
+5. Add core/application/integration tests around ordering, prompt lifecycle persistence, suspend/resume behavior, and provider-matrix end-to-end validation.
+
+## Completion Notes
+
+Backfilled after implementation branch review.
+
+- Implemented interception hooks across tool, extension, and feature protocol/wrapper layers in `core/python/agent_core/types.py`, `core/python/agent_core/plugin/adapters.py`, `core/python/agent_core/plugin/tool.py`, `core/python/agent_core/plugin/extension.py`, and `core/python/agent_core/plugin/feature.py`.
+- Implemented interception orchestration in `core/python/agent_app/tool_loop.py`, including:
+  - call-phase prompt/continue/respond handling
+  - `interception_current` / `interception_phases` metadata writes on assistant and tool messages
+  - suspend/resume behavior using pending tool calls already present in session history
+  - emitted `tool_interceptor_prompt` events for client reload/resume behavior
+- Added prompt-response endpoints in `application/python/agent_terminal_app/server.py` and matching SDK/client plumbing in:
+  - `packages/frontend-sdk/src/backend/backend.ts`
+  - `packages/frontend-sdk/src/backend/restBackend.ts`
+  - `packages/frontend-sdk/src/chat/chatController.ts`
+  - `mobile/crystal-lattice-control-rn/src/SessionChatScreen.tsx`
+  - `mobile/crystal-lattice-control-rn/src/components/MessageBubble.tsx`
+- Added native-history metadata preservation helper `core/python/plugins/tool_interceptor_metadata_preserver.py` and wired it into example/test config, plus a packaged reference plugin in `plugins/interceptor-tool`.
+- Added tests and fixtures in:
+  - `core/python/tests/interceptor_tool.py`
+  - `core/python/tests/test_application_layer_tools.py`
+  - `core/python/tests/test_tool_interceptor_metadata_preserver.py`
+  - `application/python/tests/test_agent_terminal_app_server.py`
+  - `packages/frontend-sdk/src/integration/__tests__/backend.tool_interceptor.integration.test.ts`
+
+Later review against task `010` / spec `955` found follow-up gaps that should be addressed in a separate remediation pass:
+
+- Prompt submission mutates message state directly in the server and can leave retained native history stale.
+- V1 scope drifted beyond the original design by adding plugin-side schema/materialization APIs, extension/feature interception, and a separate prompt read endpoint.
+- `tool_result`-phase prompting is not fully implemented, and prompt-answer correlation / resume context preservation are weaker than the spec intended.
+- Native-history preservation still depends on manual config in some flows, and frontend convergence currently relies on dirty/reload behavior instead of message-history-only reconciliation.
