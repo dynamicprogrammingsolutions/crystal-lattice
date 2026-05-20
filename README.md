@@ -494,7 +494,31 @@ source files for the most up-to-date behavior.
 
 ## License
 
-Unless a more specific `LICENSE` file applies in a subdirectory, repository
-contents are available under the [Apache License 2.0](LICENSE). When a
-directory includes its own `LICENSE` file, that file applies within that
-subtree. See [LICENSING.md](LICENSING.md) for the repository-wide rule.
+Unless otherwise noted, original source code and other original materials in
+this repository are licensed under the Apache License, Version 2.0.
+
+Copyright 2026 Dynamic Programming Solutions Kft.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this material except in compliance with the License.
+You may obtain a copy of the License at
+
+<http://www.apache.org/licenses/LICENSE-2.0>
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Some subdirectories may include their own `LICENSE` files, file-level license
+headers, `NOTICE` files, or other rights notices. Those more specific notices
+apply within their respective files or subtrees.
+
+Some compatibility-oriented materials in this repository are derived from or
+adapted from third-party systems and are not necessarily licensed by us under
+Apache-2.0. Rights for those materials should be determined from the
+applicable file-level notices, subtree-specific notices, and upstream terms.
+
+See [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md) for the repository-wide
+licensing rule.
