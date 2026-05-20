@@ -116,7 +116,7 @@ Backfilled after implementation branch review.
   - `application/python/tests/test_agent_terminal_app_server.py`
   - `packages/frontend-sdk/src/integration/__tests__/backend.tool_interceptor.integration.test.ts`
 
-Later review against task `010` / spec `955` found follow-up gaps that should be addressed in a separate remediation pass:
+Later review of implementation alignment with task `010` / spec `955` found follow-up gaps that should be addressed in a separate remediation pass:
 
 - Prompt submission mutates message state directly in the server and can leave retained native history stale.
 - V1 scope drifted beyond the original design by adding plugin-side schema/materialization APIs, extension/feature interception, and a separate prompt read endpoint.
