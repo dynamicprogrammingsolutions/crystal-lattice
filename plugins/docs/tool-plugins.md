@@ -864,6 +864,10 @@ interact with the application layer.
 
 The context is layered, with each layer adding capabilities:
 
+Caller-supplied context is additive only. Reserved keys owned by the
+context builders are not overridden; if a caller reuses one of those keys,
+the builder keeps the owned value and emits a warning.
+
 **Layer 1 (Core - always present when called from AgentCore):**
 
 ```python

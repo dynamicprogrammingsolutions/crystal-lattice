@@ -1168,6 +1168,10 @@ class FeaturePlugin(BasePlugin, Protocol):
         **Layer 3 (Terminal/Server - implementation-specific):**
             - Implementation-specific keys added by terminal or HTTP server
 
+        Caller-supplied context is additive only. Reserved keys owned by the
+        context builders are not overridden; on clashes the builder keeps the
+        owned value and emits a warning.
+
         Features can check for enhanced capabilities using ``context.get("app")``.
         """
         return {"native_messages": list(native_messages)}
@@ -1466,6 +1470,10 @@ class ToolPlugin(BasePlugin, Protocol):
             - ``app`` and ``application``: AgentApplication instance
             - ``base_config``: Full base configuration (all agents)
             - ``session_asset_store``: Session asset store for file attachments
+
+        Caller-supplied context is additive only. Reserved keys owned by the
+        context builders are not overridden; on clashes the builder keeps the
+        owned value and emits a warning.
 
         Tools can use context to make LLM calls::
 

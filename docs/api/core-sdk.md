@@ -577,8 +577,14 @@ context = {
     "trigger_source": "core",  # Where action was triggered
     "session": session.to_dict(),  # Serialized session
     "lifecycle": trigger,      # Lifecycle trigger name (if applicable)
+    "request_context": {...},  # Request-initialized plugin context
+    "request_runtime": {...},  # Request runtime helpers
 }
 ```
+
+Caller-provided `context` is additive only. Reserved keys owned by the
+context builders are not overridden; on clashes the builder keeps the owned
+value and emits a warning.
 
 **Example:**
 ```python
@@ -625,6 +631,9 @@ Lifecycle actions are plugin-defined actions with a `trigger` field that matches
 
 **Context:**
 Same as `execute_session_action`, with additional `lifecycle` key set to the trigger name.
+Lifecycle and `response_finalize` action-style flows also receive
+`request_context` and `request_runtime` so plugins can opt into the same
+request initialization helpers that explicit session actions use.
 
 **Example:**
 ```python

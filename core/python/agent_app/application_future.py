@@ -29,6 +29,7 @@ import threading
 
 from agent_core import AgentCore, Message, Session
 from agent_core.plugin.loader import validate_plugin_for_kind
+from .app_context import ApplicationContext
 
 from .app_plugins import ApplicationPluginWrapper
 from .config import (
@@ -475,6 +476,13 @@ class AgentApplication:
         )
         self._runtime_store = RuntimeStore()
         self._tool_runtime = self._runtime_store
+        self._context = ApplicationContext(
+            app=self,
+            application=self,
+            session_asset_store=self._session_asset_store,
+            runtime_store=self._runtime_store,
+            tool_runtime=self._runtime_store,
+        )
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
@@ -1311,16 +1319,48 @@ class AgentApplication:
         extra_context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         context = self._ensure_serializable_context(extra_context)
-        return {
-            **context,
-            "lifecycle": lifecycle,
-            "trigger_source": "application",
-            "session": session.to_dict(),
-            "config": config,
-            "app": self,
-            "application": self,
-            "base_config": self._config,
+        return self._context.build_lifecycle_context(
+            lifecycle=lifecycle,
+            session=session,
+            config=config,
+            base_config=self._config,
+            extra=context,
+        )
+
+    def _build_core_handoff_context(
+        self,
+        extra_context: Optional[Mapping[str, Any]] = None,
+        *,
+        base_config: Optional[Mapping[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        blocked = {
+            "core",
+            "config",
+            "session",
+            "session_id",
+            "request_id",
+            "stream",
+            "trigger_source",
+            "lifecycle",
+            "request_context",
+            "request_runtime",
+            "final_messages",
+            "native_messages",
+            "native_final_messages",
+            "turn_native_start_index",
         }
+        merged_extra = (
+            {
+                key: value
+                for key, value in extra_context.items()
+                if isinstance(key, str) and key not in blocked
+            }
+            if isinstance(extra_context, Mapping)
+            else {}
+        )
+        if isinstance(base_config, Mapping):
+            merged_extra["base_config"] = dict(base_config)
+        return self._context.build_core_extra(extra=merged_extra)
 
     @staticmethod
     def _session_from_result_value(value: Any) -> Optional[Session]:
@@ -1437,17 +1477,14 @@ class AgentApplication:
                 overrides,
             )
 
-        core_context = self._build_lifecycle_context(
-            lifecycle,
-            current_session,
-            effective_config,
-            context,
-        )
         current_session, core_results = core.execute_lifecycle_actions(
             current_session,
             effective_config,
             lifecycle,
-            context=core_context,
+            context=self._build_core_handoff_context(
+                context,
+                base_config=self._config,
+            ),
         )
         results.extend(core_results)
         core, base_config, _ = self._resolve_runtime_for_session(
@@ -2184,12 +2221,6 @@ class AgentApplication:
             base_config, session, overrides
         )
 
-        action_context = dict(context) if isinstance(context, dict) else {}
-        action_context.setdefault("app", self)
-        action_context.setdefault("application", self)
-        action_context.setdefault("session_asset_store", self._session_asset_store)
-        action_context.setdefault("base_config", base_config)
-
         try:
             new_session, result = core.execute_session_action(
                 session,
@@ -2197,7 +2228,10 @@ class AgentApplication:
                 plugin_id,
                 action_id,
                 action_params,
-                context=action_context,
+                context=self._build_core_handoff_context(
+                    context,
+                    base_config=base_config,
+                ),
             )
         except AgentCore._SessionActionValidationError as exc:  # type: ignore[attr-defined]
             raise self._ApplicationActionValidationError(
@@ -2667,19 +2701,24 @@ class AgentApplication:
         *,
         session: Session,
         request_id: str,
+        base_config: Dict[str, Any],
     ) -> Dict[str, Any]:
-        return {
-            "app": self,
-            "application": self,
-            "base_config": self._config,
-            "session_id": session.session_id,
-            "session": session.to_dict(),
-            "request_id": request_id,
-            "session_asset_store": self._session_asset_store,
-            "runtime_store": self._runtime_store,
-            "tool_runtime": self._runtime_store,
-            "trigger_source": "application",
-        }
+        return self._context.build_tool_context(
+            session=session,
+            request_id=request_id,
+            base_config=base_config,
+        )
+
+    def _build_request_context_for_core(
+        self,
+        *,
+        base_config: Dict[str, Any],
+        overrides: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        return self._build_core_handoff_context(
+            {"overrides": dict(overrides or {})},
+            base_config=base_config,
+        )
 
     def prepare_tools_for_session(
         self,
@@ -2709,7 +2748,11 @@ class AgentApplication:
         config = self.resolve_effective_config(base_config, session, overrides)
         core.prepare_tools(
             config,
-            context=self._build_tool_context(session=session, request_id=rid),
+            context=self._build_tool_context(
+                session=session,
+                request_id=rid,
+                base_config=base_config,
+            ),
         )
         return core, base_config, session, config, rid
 
@@ -2741,7 +2784,11 @@ class AgentApplication:
         config = self.resolve_effective_config(base_config, session, overrides)
         await core.prepare_tools_async(
             config,
-            context=self._build_tool_context(session=session, request_id=rid),
+            context=self._build_tool_context(
+                session=session,
+                request_id=rid,
+                base_config=base_config,
+            ),
         )
         return core, base_config, session, config, rid
 
@@ -2839,10 +2886,12 @@ class AgentApplication:
             "stream": effective_stream,
         }
 
-        core.prepare_tools(
-            config,
-            context=self._build_tool_context(session=session, request_id=rid),
+        tool_context = self._build_tool_context(
+            session=session,
+            request_id=rid,
+            base_config=base_config,
         )
+        core.prepare_tools(config, context=tool_context)
 
         cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
         self._request_cancellations[rid] = cancellation
@@ -2857,7 +2906,11 @@ class AgentApplication:
             core.prepare_tools(
                 refreshed,
                 context={
-                    **self._build_tool_context(session=current_session, request_id=rid),
+                    **self._build_tool_context(
+                        session=current_session,
+                        request_id=rid,
+                        base_config=base_config,
+                    ),
                     "cancellation": cancellation,
                 },
             )
@@ -2946,8 +2999,12 @@ class AgentApplication:
                     tool_loop_cfg=self._tool_loop_cfg,
                     cancel_callback=_is_cancelled,
                     cancellation=cancellation,
-                    context={
-                        **self._build_tool_context(session=session, request_id=rid),
+                    context={**tool_context, "cancellation": cancellation},
+                    request_context={
+                        **self._build_request_context_for_core(
+                            base_config=base_config,
+                            overrides=overrides,
+                        ),
                         "cancellation": cancellation,
                     },
                     on_session_checkpoint=_persist_checkpoint,

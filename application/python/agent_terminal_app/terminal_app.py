@@ -248,7 +248,14 @@ class TerminalApplication:
 
         # Append via core so that features (including timestamp plugins)
         # can enrich metadata such as ``metadata.timestamp``.
-        new_session = core.add_message(session, "user", content, base_md, config=_base_config)
+        new_session = core.add_message(
+            session,
+            "user",
+            content,
+            base_md,
+            config=_base_config,
+            context=self._app._build_core_handoff_context(base_config=_base_config),
+        )
         self._app.save_session(new_session)
 
         last_message = new_session.messages[-1] if new_session.messages else None
@@ -604,7 +611,13 @@ class TerminalApplication:
         )
         config = resolve_request_config(base_config, overrides)
 
-        new_session = core.modify_message(session, target_index, content, config)
+        new_session = core.modify_message(
+            session,
+            target_index,
+            content,
+            config,
+            context=self._app._build_core_handoff_context(base_config=base_config),
+        )
         self._app.save_session(new_session)
 
         updated_message = new_session.messages[target_index]
@@ -791,7 +804,14 @@ class TerminalApplication:
 
         normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
 
-        new_session: Session = core.add_message(session, normalized_role, content, metadata, config=_base_config)
+        new_session: Session = core.add_message(
+            session,
+            normalized_role,
+            content,
+            metadata,
+            config=_base_config,
+            context=self._app._build_core_handoff_context(base_config=_base_config),
+        )
         self._app.save_session(new_session)
 
         if self._session is not None and self._session.session_id == new_session.session_id:

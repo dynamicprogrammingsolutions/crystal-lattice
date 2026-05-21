@@ -650,6 +650,10 @@ Provider extension actions return:
 
 Provider extensions receive layered context that provides access to runtime capabilities.
 
+Caller-supplied context is additive only. Reserved keys owned by the
+context builders are not overridden; if a caller reuses one of those keys,
+the builder keeps the owned value and emits a warning.
+
 ### Layer 1: Core-level context (always present)
 
 ```python
@@ -669,6 +673,8 @@ context = {
 | `trigger_source` | `str` | Where action was triggered (`"core"`, `"application"`) |
 | `session` | `dict` | Serialized session |
 | `lifecycle` | `str` | Lifecycle trigger name (for lifecycle-triggered actions) |
+| `request_context` | `dict` | Request-initialized plugin context for action-style flows |
+| `request_runtime` | `dict` | Request runtime helpers (`provider`, `features`) for action-style flows |
 
 ### Layer 2: Application-level context (when called from AgentApplication)
 

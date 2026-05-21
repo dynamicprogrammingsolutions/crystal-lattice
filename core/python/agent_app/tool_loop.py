@@ -79,6 +79,7 @@ class ToolLoopRunner:
         cancel_callback: Any | None = None,
         cancellation: RequestCancellation | None = None,
         context: Dict[str, Any] | None = None,
+        request_context: Dict[str, Any] | None = None,
         on_session_checkpoint: Callable[[Session], Session | None] | None = None,
         session_for_phase: Callable[[Session], Session | None] | None = None,
         config_for_session: Callable[[Session], Dict[str, Any] | None] | None = None,
@@ -90,6 +91,7 @@ class ToolLoopRunner:
         self._cancel_callback = cancel_callback
         self._cancellation = cancellation
         self._context = context
+        self._request_context = request_context
         self._on_session_checkpoint = on_session_checkpoint
         self._session_for_phase = session_for_phase
         self._config_for_session = config_for_session
@@ -215,7 +217,7 @@ class ToolLoopRunner:
                     config,
                     request_id=rid,
                     cancellation=self._cancellation,
-                    context=self._context,
+                    context=self._request_context or self._context,
                 )
             except ProviderRequestCancelled:
                 yield {
@@ -262,7 +264,7 @@ class ToolLoopRunner:
                 config,
                 request_id=rid,
                 cancellation=self._cancellation,
-                context=self._context,
+                context=self._request_context or self._context,
             ):
                 if self._is_cancelled():
                     yield {

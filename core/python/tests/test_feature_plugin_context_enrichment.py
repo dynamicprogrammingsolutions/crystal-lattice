@@ -141,20 +141,20 @@ class TestCoreContextEnrichment:
         assert contexts[0].get("trigger_source") == "core"
         assert contexts[0].get("lifecycle") == "request_complete"
 
-    def test_context_enrichment_preserves_existing_values(self) -> None:
-        """Context from caller should be preserved if already set."""
+    def test_context_enrichment_warns_and_keeps_core_owned_values(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
         core = _build_core()
         config = _config()
 
         session = core.create_session()
-
-        # Pass custom context
         custom_context = {
             "custom_key": "custom_value",
             "trigger_source": "custom_source",
         }
 
-        new_session, result = core.execute_session_action(
+        core.execute_session_action(
             session,
             config,
             plugin_id="context_recording",
@@ -163,13 +163,35 @@ class TestCoreContextEnrichment:
             context=custom_context,
         )
 
-        # Check captured context
         contexts = ContextRecordingFeature.get_captured_contexts()
         assert len(contexts) == 1
-        # Custom value should be preserved
         assert contexts[0].get("custom_key") == "custom_value"
-        # Core's trigger_source should NOT overwrite custom value (setdefault behavior)
-        assert contexts[0].get("trigger_source") == "custom_source"
+        assert contexts[0].get("trigger_source") == "core"
+        assert "context_reserved_key_clash_external" in capsys.readouterr().out
+
+    def test_response_finalize_context_includes_request_support(
+        self,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        core = _build_core()
+        config = _config()
+
+        session = core.create_session()
+        session = core.add_message(session, "user", "hello", config=config)
+
+        core.send_request(session, config)
+
+        contexts = ContextRecordingFeature.get_captured_contexts()
+        response_context = next(
+            ctx
+            for ctx in contexts
+            if ctx.get("_action_id") == "record_response_finalize_context"
+        )
+        assert isinstance(response_context.get("request_context"), dict)
+        assert isinstance(response_context.get("request_runtime"), dict)
+        assert response_context.get("lifecycle") == "response_finalize"
+        captured = capsys.readouterr().out
+        assert "call_path=response_lifecycle" not in captured
 
 
 class TestAppContextEnrichment:

@@ -251,11 +251,16 @@ class TestApplicationContextEnrichment:
                 assert "base_config" in ctx, "Lifecycle context should include 'base_config'"
                 assert "lifecycle" in ctx, "Lifecycle context should include 'lifecycle'"
                 assert ctx["lifecycle"] == "request_complete"
+                assert isinstance(ctx.get("request_context"), dict)
+                assert isinstance(ctx.get("request_runtime"), dict)
+                assert "session_asset_store" in ctx
 
     def test_custom_context_flows_through_application(
-        self, tmp_path: Path, clear_captured_contexts: None
+        self,
+        tmp_path: Path,
+        clear_captured_contexts: None,
     ) -> None:
-        """Custom context passed to application methods reaches feature plugins.
+        """Custom additive context survives, but reserved keys are ignored.
 
         This tests Layer 3 context: any custom context passed by the caller
         (terminal, server, or test) should flow through to the plugin.
@@ -272,11 +277,8 @@ class TestApplicationContextEnrichment:
         session = core.add_message(session, "user", "Test", None, base_config)
         app.save_session(session)
 
-        # Pass custom context with keys that overlap with enrichment keys.
-        # The setdefault behavior ensures that higher-layer context values
-        # are not overwritten by lower-layer enrichment keys.
         custom_context = {
-            "trigger_source": "custom_terminal",  # Override default "application"
+            "trigger_source": "custom_terminal",
             "custom_key": "custom_value",
         }
 
@@ -293,11 +295,34 @@ class TestApplicationContextEnrichment:
 
         ctx = contexts[0]
 
-        # Custom value should be preserved (setdefault behavior)
-        assert ctx.get("trigger_source") == "custom_terminal", \
-            "Custom 'trigger_source' should not be overwritten by enrichment"
-        assert ctx.get("custom_key") == "custom_value", \
-            "Custom 'custom_key' should be present in context"
+        assert ctx.get("trigger_source") == "core"
+        assert ctx.get("custom_key") == "custom_value"
+
+    def test_response_finalize_includes_request_support(
+        self,
+        tmp_path: Path,
+        clear_captured_contexts: None,
+    ) -> None:
+        plugin_class = _get_plugin_class()
+        assert plugin_class is not None, "Could not load ContextRecordingPlugin"
+
+        app = _make_app(tmp_path, _minimal_config())
+        core, base_config, session = app.create_session("default")
+        session = core.add_message(session, "user", "Test", None, base_config)
+        app.save_session(session)
+
+        list(app.send_request(core, session, base_config, stream=False))
+
+        contexts = plugin_class.get_captured_contexts()
+        response_context = next(
+            ctx
+            for ctx in contexts
+            if ctx.get("_action_id") == "record_response_finalize_context"
+        )
+        assert isinstance(response_context.get("request_context"), dict)
+        assert isinstance(response_context.get("request_runtime"), dict)
+        assert response_context.get("lifecycle") == "response_finalize"
+        assert "session_asset_store" in response_context
 
 
 class TestContextStructure:

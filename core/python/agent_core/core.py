@@ -51,6 +51,7 @@ Examples:
 
 from typing import Any, Dict, List, Optional, Iterator, AsyncIterator, Tuple, Set
 from .types import Message, Session, MessageRole, ToolDescriptor
+from .core_context import CoreContext
 from .plugin import (
     ProviderWrapper,
     ExtensionWrapper,
@@ -440,7 +441,15 @@ class AgentCore:
 
         return (joined, [])
 
-    def _modify_single_message_with_native(self, session, index, content, config):
+    def _modify_single_message_with_native(
+        self,
+        session,
+        index,
+        content,
+        config,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ):
         from agent_core.types import Message  # local import to avoid cycles
 
         messages = session.messages
@@ -544,7 +553,7 @@ class AgentCore:
         }
 
         native_suffix = self._core_messages_to_native_for_config(
-            [core_msg], config or {}
+            [core_msg], config or {}, context=context
         )
 
         # Best-effort patch: replace the native slice [start_idx, end_idx] with the
@@ -557,7 +566,7 @@ class AgentCore:
         # Use post-initialize native to ensure features like SystemMessageFeature
         # have their structural changes reflected in stored metadata.
         new_messages, post_init_native = self._rebuild_core_from_native(
-            new_native, config or {}
+            new_native, config or {}, context=context
         )
 
         new_metadata = {
@@ -596,6 +605,7 @@ class AgentCore:
         self._tags_cache: Dict[Tuple[int, Tuple[int, str, str]], List[str]] = {}
         self._prepared_tool_states: Dict[Tuple[int, str], Dict[str, Any]] = {}
         self._prepared_tool_data: Dict[Tuple[int, str], Dict[str, Any]] = {}
+        self._context = CoreContext(core=self)
 
     def _reset_caches(self) -> None:
         """Reset internal caches for models, dependencies, and tags."""
@@ -754,6 +764,8 @@ class AgentCore:
         index: int,
         content: str,
         config: Optional[Dict[str, Any]] = None,
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Session:
         """Modify the content of an existing message (pure function).
 
@@ -774,7 +786,7 @@ class AgentCore:
             New Session with the modified message (immutable update).
         """
         return self._modify_single_message_with_native(
-            session, index, content, config or {}
+            session, index, content, config or {}, context=context
         )
 
     def _slice_session_core_only(
@@ -1167,6 +1179,7 @@ class AgentCore:
         *,
         start: Optional[int] = None,
         end: Optional[int] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Session:
         """Rebuild provider-native history from the current core messages.
 
@@ -1255,6 +1268,7 @@ class AgentCore:
             replacement_native = self._core_messages_to_native_for_config(
                 replacement_core,
                 config,
+                context=context,
             )
 
             before = retained_native[: unique_indices[0]]
@@ -1262,7 +1276,7 @@ class AgentCore:
             new_native = [*before, *replacement_native, *after]
 
             rebuilt_messages, post_init_native = self._rebuild_core_from_native(
-                new_native, config
+                new_native, config, context=context
             )
 
             base_metadata["native_messages"] = post_init_native
@@ -1278,13 +1292,17 @@ class AgentCore:
 
         # Convert core messages to provider-native history.
         core_dicts: List[Dict[str, Any]] = [m.to_dict() for m in session.messages]
-        new_native = self._core_messages_to_native_for_config(core_dicts, config)
+        new_native = self._core_messages_to_native_for_config(
+            core_dicts,
+            config,
+            context=context,
+        )
 
         # Rebuild canonical core messages from the new native history so that
         # provider/feature transformations and native_indices are normalized.
         # Use post-initialize native to capture any structural changes from features.
         rebuilt_messages, post_init_native = self._rebuild_core_from_native(
-            new_native, config
+            new_native, config, context=context
         )
 
         new_metadata: Dict[str, Any] = (
@@ -1782,6 +1800,125 @@ class AgentCore:
             "tools": effective,
         }
 
+    @staticmethod
+    def _build_request_runtime(
+        provider: Any,
+        features: List[Any],
+    ) -> Dict[str, Any]:
+        return {
+            "provider": provider,
+            "features": list(features),
+        }
+
+    def _build_request_context(
+        self,
+        *,
+        config: Dict[str, Any],
+        provider: Optional[ProviderWrapper],
+        enabled_extensions: List[ExtensionWrapper],
+        enabled_features: List[FeatureWrapper],
+        enabled_tools: List[ToolWrapper],
+        tags: List[str],
+        models: List[Dict[str, Any]],
+        available_tools: Optional[List[ToolDescriptor]] = None,
+        tools: Optional[List[ToolDescriptor]] = None,
+        session: Optional[Session] = None,
+        request_id: str | None = None,
+        stream: bool | None = None,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        plugin_context = self._build_plugin_context(
+            config=config,
+            provider=provider,
+            enabled_extensions=enabled_extensions,
+            enabled_features=enabled_features,
+            enabled_tools=enabled_tools,
+            tags=tags,
+            models=models,
+            available_tools=available_tools,
+            tools=tools,
+            request_id=request_id,
+        )
+        if session is None:
+            return self._context.build_rebuild_context(
+                config=config,
+                plugin_context=plugin_context,
+                extra=extra,
+            )
+        return self._context.build_request_context(
+            config=config,
+            plugin_context=plugin_context,
+            session=session,
+            request_id=request_id,
+            stream=stream,
+            extra=extra,
+        )
+
+    def _build_session_action_context(
+        self,
+        *,
+        config: Dict[str, Any],
+        session: Session,
+        request_context: Dict[str, Any],
+        request_runtime: Dict[str, Any],
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return self._context.build_session_action_context(
+            config=config,
+            session=session,
+            request_context=request_context,
+            request_runtime=request_runtime,
+            extra=extra,
+        )
+
+    def _build_lifecycle_action_context(
+        self,
+        *,
+        config: Dict[str, Any],
+        session: Session,
+        lifecycle: str,
+        request_context: Dict[str, Any],
+        request_runtime: Dict[str, Any],
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return self._context.build_lifecycle_action_context(
+            config=config,
+            session=session,
+            lifecycle=lifecycle,
+            request_context=request_context,
+            request_runtime=request_runtime,
+            extra=extra,
+        )
+
+    def _build_response_lifecycle_context(
+        self,
+        *,
+        config: Dict[str, Any],
+        session: Session,
+        lifecycle: str,
+        request_context: Dict[str, Any],
+        request_runtime: Dict[str, Any],
+        final_messages: List[Dict[str, Any]],
+        native_final_messages: List[Dict[str, Any]],
+        native_messages: List[Dict[str, Any]],
+        stream: bool,
+        turn_native_start_index: int,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return self._context.build_response_lifecycle_context(
+            config=config,
+            session=session,
+            lifecycle=lifecycle,
+            request_context=request_context,
+            request_runtime=request_runtime,
+            final_messages=final_messages,
+            native_final_messages=native_final_messages,
+            native_messages=native_messages,
+            stream=stream,
+            turn_native_start_index=turn_native_start_index,
+            extra=extra,
+        )
+
     def _init_provider_and_features_for_config(
         self,
         provider: ProviderWrapper,
@@ -1940,7 +2077,7 @@ class AgentCore:
             tools,
             config,
         )
-        request_context = self._build_plugin_context(
+        request_context = self._build_request_context(
             config=_provider_config,
             provider=provider,
             enabled_extensions=enabled_extensions,
@@ -1950,9 +2087,8 @@ class AgentCore:
             models=self._get_models_for_config(provider, config),
             available_tools=self.get_available_tools(config),
             tools=self._get_prepared_tools_for_config(config),
+            extra=context,
         )
-        if isinstance(context, dict):
-            request_context = {**request_context, **context}
 
         # Initialize request chains using the adjusted native history.
         # Skip this for internal session operations to avoid features like
@@ -2048,7 +2184,7 @@ class AgentCore:
         features = sorted(features, key=lambda feat: getattr(feat, "priority", 100))
         available_tools = self.get_available_tools(config)
         effective_tools = self._get_prepared_tools_for_config(config)
-        request_context = self._build_plugin_context(
+        request_context = self._build_request_context(
             config=_provider_config,
             provider=provider,
             enabled_extensions=provider._iter_extensions(),
@@ -2058,10 +2194,10 @@ class AgentCore:
             models=list(models or []),
             available_tools=available_tools,
             tools=effective_tools,
+            session=session,
             request_id=request_id,
+            extra=context,
         )
-        if isinstance(context, dict):
-            request_context = {**request_context, **context}
         # Build messages (core shape)
         messages = [msg.to_dict() for msg in session.messages]
 
@@ -2219,7 +2355,7 @@ class AgentCore:
                 )
             )
             baseline_native_len = len(native_messages)
-            request_context = self._build_plugin_context(
+            request_context = self._build_request_context(
                 config=state.get("config") or config,
                 provider=provider,
                 enabled_extensions=provider._iter_extensions(),
@@ -2229,10 +2365,11 @@ class AgentCore:
                 models=self._get_models_for_config(provider, config),
                 available_tools=self.get_available_tools(config),
                 tools=self._get_prepared_tools_for_config(config),
+                session=session,
                 request_id=request_id,
+                stream=False,
+                extra=context,
             )
-            if isinstance(context, dict):
-                request_context = {**request_context, **context}
 
             logger.debug(
                 "sending request",
@@ -2313,6 +2450,7 @@ class AgentCore:
                 native_final_messages=final_native,
                 stream=False,
                 turn_native_start_index=baseline_native_len,
+                context=request_context,
             )
         )
         state_metadata_patch = (
@@ -2423,7 +2561,7 @@ class AgentCore:
                 )
             )
             baseline_native_len = len(native_messages)
-            request_context = self._build_plugin_context(
+            request_context = self._build_request_context(
                 config=state.get("config") or config,
                 provider=provider,
                 enabled_extensions=provider._iter_extensions(),
@@ -2433,10 +2571,11 @@ class AgentCore:
                 models=self._get_models_for_config(provider, config),
                 available_tools=self.get_available_tools(config),
                 tools=self._get_prepared_tools_for_config(config),
+                session=session,
                 request_id=request_id,
+                stream=True,
+                extra=context,
             )
-            if isinstance(context, dict):
-                request_context = {**request_context, **context}
 
             logger.debug(
                 "start streaming request",
@@ -2536,6 +2675,7 @@ class AgentCore:
                 native_final_messages=combined_native_finals,
                 stream=True,
                 turn_native_start_index=baseline_native_len,
+                context=request_context,
             )
         )
         state_metadata_patch = (
@@ -2635,7 +2775,7 @@ class AgentCore:
                 )
             )
             baseline_native_len = len(native_messages)
-            request_context = self._build_plugin_context(
+            request_context = self._build_request_context(
                 config=state.get("config") or config,
                 provider=provider,
                 enabled_extensions=provider._iter_extensions(),
@@ -2645,10 +2785,11 @@ class AgentCore:
                 models=self._get_models_for_config(provider, config),
                 available_tools=self.get_available_tools(config),
                 tools=self._get_prepared_tools_for_config(config),
+                session=session,
                 request_id=request_id,
+                stream=True,
+                extra=context,
             )
-            if isinstance(context, dict):
-                request_context = {**request_context, **context}
 
             aggregated_native_finals: List[Dict[str, Any]] = []
 
@@ -2729,6 +2870,7 @@ class AgentCore:
                 native_final_messages=combined_native_finals,
                 stream=True,
                 turn_native_start_index=baseline_native_len,
+                context=request_context,
             )
         )
         state_metadata_patch = (
@@ -3165,6 +3307,8 @@ class AgentCore:
         session: Session,
         config: Dict[str, Any],
         result: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[Session, Dict[str, Any]]:
         raw_native = result.get("native_messages")
         if not isinstance(raw_native, list) or not all(
@@ -3192,7 +3336,7 @@ class AgentCore:
 
         # Rebuild and get post-initialize native to ensure features' structural changes are captured
         new_messages, post_init_native = self._rebuild_core_from_native(
-            new_native_messages, rebuild_config
+            new_native_messages, rebuild_config, context=context
         )
 
         new_metadata["native_messages"] = post_init_native
@@ -3255,17 +3399,7 @@ class AgentCore:
         validated_inputs = self._validate_session_action_inputs(action_def, params)
         native_messages = self._native_messages_for_session_action(session, config)
 
-        # Layer 1: Core-level context enrichment.
-        # Higher layers (application, terminal) may have already set these;
-        # use setdefault so we never overwrite a richer value.
-        enriched_context: Dict[str, Any] = (
-            dict(context) if isinstance(context, dict) else {}
-        )
-        enriched_context.setdefault("core", self)
-        enriched_context.setdefault("config", config)
-        enriched_context.setdefault("trigger_source", "core")
-        enriched_context.setdefault("session", session.to_dict())
-        request_context = self._build_plugin_context(
+        request_context = self._build_request_context(
             config=state.get("config") or config,
             provider=provider,
             enabled_extensions=provider._iter_extensions(),
@@ -3275,13 +3409,17 @@ class AgentCore:
             models=self._get_models_for_config(provider, config),
             available_tools=self.get_available_tools(config),
             tools=self._get_prepared_tools_for_config(config),
+            session=session,
+            extra=context,
         )
-        request_context.update(enriched_context)
-        enriched_context["request_context"] = request_context
-        enriched_context["request_runtime"] = {
-            "provider": provider,
-            "features": list(features),
-        }
+        request_runtime = self._build_request_runtime(provider, features)
+        enriched_context = self._build_session_action_context(
+            config=config,
+            session=session,
+            request_context=request_context,
+            request_runtime=request_runtime,
+            extra=context,
+        )
 
         action_owner = action_def.get("action_owner")
         if action_owner == "feature":
@@ -3314,7 +3452,12 @@ class AgentCore:
             )
         if not isinstance(result, dict):
             raise RuntimeError("session action must return a dict")
-        return self._apply_session_action_result(session, config, result)
+        return self._apply_session_action_result(
+            session,
+            config,
+            result,
+            context=context,
+        )
 
     def execute_lifecycle_actions(
         self,
@@ -3354,17 +3497,28 @@ class AgentCore:
                 current_session, config
             )
 
-            # Layer 1: Core-level context enrichment.
-            # Higher layers (application, terminal) may have already set these;
-            # use setdefault so we never overwrite a richer value.
-            enriched_context: Dict[str, Any] = (
-                dict(context) if isinstance(context, dict) else {}
+            request_context = self._build_request_context(
+                config=state.get("config") or config,
+                provider=provider,
+                enabled_extensions=provider._iter_extensions(),
+                enabled_features=features,
+                enabled_tools=[],
+                tags=[],
+                models=self._get_models_for_config(provider, config),
+                available_tools=self.get_available_tools(config),
+                tools=self._get_prepared_tools_for_config(config),
+                session=current_session,
+                extra=context,
             )
-            enriched_context.setdefault("core", self)
-            enriched_context.setdefault("config", config)
-            enriched_context.setdefault("trigger_source", "core")
-            enriched_context.setdefault("lifecycle", trigger)
-            enriched_context.setdefault("session", current_session.to_dict())
+            request_runtime = self._build_request_runtime(provider, features)
+            enriched_context = self._build_lifecycle_action_context(
+                config=config,
+                session=current_session,
+                lifecycle=trigger,
+                request_context=request_context,
+                request_runtime=request_runtime,
+                extra=context,
+            )
 
             if action_owner == "feature":
                 result: Optional[Dict[str, Any]] = None
@@ -3399,6 +3553,7 @@ class AgentCore:
                 current_session,
                 config,
                 result,
+                context=context,
             )
             results.append(
                 {
@@ -3444,6 +3599,55 @@ class AgentCore:
         ]
         metadata_patch: Dict[str, Any] = {}
         results: List[Dict[str, Any]] = []
+        request_runtime = self._build_request_runtime(provider, features)
+        context_is_request_context = False
+        if (
+            isinstance(context, dict)
+            and isinstance(context.get("enabled_plugins"), dict)
+            and isinstance(context.get("tool_interop"), dict)
+        ):
+            context_is_request_context = True
+            request_context = dict(context)
+            response_context_extra = {
+                key: value
+                for key, value in context.items()
+                if isinstance(key, str)
+                and key
+                not in {
+                    "core",
+                    "config",
+                    "request_id",
+                    "session",
+                    "session_id",
+                    "stream",
+                    "tags",
+                    "models",
+                    "provider",
+                    "tool_interop",
+                    "enabled_plugins",
+                    "available_tools",
+                    "tools",
+                }
+            }
+        else:
+            request_context = self._build_request_context(
+                config=state.get("config") or config,
+                provider=provider,
+                enabled_extensions=provider._iter_extensions(),
+                enabled_features=features,
+                enabled_tools=[],
+                tags=[],
+                models=self._get_models_for_config(provider, config),
+                available_tools=self.get_available_tools(config),
+                tools=self._get_prepared_tools_for_config(config),
+                session=session,
+                request_id=(context or {}).get("request_id")
+                if isinstance(context, dict)
+                else None,
+                stream=stream,
+                extra=context,
+            )
+            response_context_extra = context
 
         available_actions = self._collect_core_session_actions(
             provider, features, state
@@ -3460,21 +3664,21 @@ class AgentCore:
                 continue
 
             validated_inputs = self._validate_session_action_inputs(action_def, {})
-            enriched_context: Dict[str, Any] = (
-                dict(context) if isinstance(context, dict) else {}
+            enriched_context = self._build_response_lifecycle_context(
+                config=config,
+                session=session,
+                lifecycle=trigger,
+                request_context=request_context,
+                request_runtime=request_runtime,
+                final_messages=current_final_messages,
+                native_final_messages=[
+                    msg for msg in native_final_messages if isinstance(msg, dict)
+                ],
+                native_messages=current_native_messages,
+                stream=stream,
+                turn_native_start_index=turn_native_start_index,
+                extra=response_context_extra,
             )
-            enriched_context["core"] = self
-            enriched_context["config"] = config
-            enriched_context["trigger_source"] = "core"
-            enriched_context["lifecycle"] = trigger
-            enriched_context["session"] = session.to_dict()
-            enriched_context["final_messages"] = current_final_messages
-            enriched_context["native_final_messages"] = [
-                msg for msg in native_final_messages if isinstance(msg, dict)
-            ]
-            enriched_context["native_messages"] = current_native_messages
-            enriched_context["stream"] = bool(stream)
-            enriched_context["turn_native_start_index"] = turn_native_start_index
 
             if action_owner == "feature":
                 result: Optional[Dict[str, Any]] = None
@@ -3911,10 +4115,12 @@ class AgentCore:
         config: Dict[str, Any],
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        enriched = dict(context) if isinstance(context, dict) else {}
-        enriched.setdefault("core", self)
-        enriched.setdefault("config", config)
-        enriched.setdefault("trigger_source", "core")
+        enriched = self._context.build_tool_context(
+            config=config,
+            extra=context,
+        )
+        if "trigger_source" not in enriched:
+            enriched["trigger_source"] = "core"
         return enriched
 
     def prepare_tools(

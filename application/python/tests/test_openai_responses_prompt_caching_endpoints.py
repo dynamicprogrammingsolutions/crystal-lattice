@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import sys
 from pathlib import Path
@@ -94,6 +95,11 @@ def _build_app(
     fake_client = _FakeClient()
     monkeypatch.setattr(provider_module, "OpenAI", lambda **kwargs: fake_client)
     monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda self, config: [])
+    monkeypatch.setattr(
+        OpenAIResponsesProvider,
+        "_create_sdk_client_with_options",
+        lambda self, config, *, timeout, max_retries: fake_client,
+    )
 
     config_path = _write_config(tmp_path)
     app = AgentApplication(
@@ -247,3 +253,72 @@ def test_openai_prompt_cache_fork_preserves_existing_key(
         "prompt_cache_key"
     )
     assert forked_key == original_key
+
+
+def test_openai_prompt_cache_request_prepare_rebuild_preserves_asset_context(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    app, fake_client = _build_app(tmp_path, monkeypatch)
+
+    core, base_config, session = app.create_session("default")
+    image_record = app.get_session_asset_store().store_base64(
+        session_id=session.session_id,
+        attachment_type="image",
+        filename="square.png",
+        mime_type="image/png",
+        data_base64=base64.b64encode(b"image-bytes").decode("ascii"),
+    )
+
+    native_messages = [
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "hello"}],
+        },
+        {
+            "type": "function_call_output",
+            "call_id": "call_view_1",
+            "output": [
+                {"type": "input_text", "text": "<image>"},
+                {
+                    "type": "input_image",
+                    "image_url": {
+                        "asset_ref": image_record.asset_ref(),
+                        "filename": image_record.filename,
+                        "mime_type": image_record.mime_type,
+                    },
+                },
+                {"type": "input_text", "text": "</image>"},
+            ],
+        },
+    ]
+
+    rebuilt_messages, rebuilt_native = core._rebuild_core_from_native(
+        native_messages,
+        base_config,
+        context=app._build_core_handoff_context(base_config=base_config),
+    )
+    session = type(session)(
+        session_id=session.session_id,
+        messages=rebuilt_messages,
+        metadata={
+            **(session.metadata or {}),
+            "native_messages": rebuilt_native,
+            "native_messages_integrity": core._compute_native_integrity(
+                rebuilt_messages
+            ),
+        },
+    )
+    app.save_session(session)
+
+    events = list(app.send_request(core, session, base_config, stream=False))
+    checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
+    assert checkpoints
+
+    assert fake_client.responses.calls
+    request_payload = fake_client.responses.calls[-1]
+    assert request_payload["input"][1]["type"] == "function_call_output"
+    expanded_image = request_payload["input"][1]["output"][1]
+    assert expanded_image["type"] == "input_image"
+    assert isinstance(expanded_image["image_url"], str)
+    assert expanded_image["image_url"].startswith("data:image/png;base64,")
