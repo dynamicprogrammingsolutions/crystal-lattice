@@ -51,7 +51,16 @@ class DummyProvider(ProviderPlugin):
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> List[Dict[str, Any]]:
-        return native_messages
+        result = []
+        for m in native_messages:
+            if not isinstance(m, dict):
+                continue
+            core_msg = dict(m)
+            if "_metadata" in core_msg:
+                md = dict(core_msg.pop("_metadata"))
+                core_msg["metadata"] = {**core_msg.get("metadata", {}), **md}
+            result.append(core_msg)
+        return result
 
     def initialize_request(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]

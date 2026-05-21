@@ -182,7 +182,6 @@ export type {
   AgentBackend,
   BackendCapabilities,
   ListMessagesResult,
-  ToolPromptListItem,
   FeatureCompletion,
 } from './backend/backend';
 

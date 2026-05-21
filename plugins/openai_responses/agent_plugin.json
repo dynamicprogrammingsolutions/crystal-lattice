@@ -13,7 +13,8 @@
     "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension",
     "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension",
     "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension",
-    "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension"
+    "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension",
+    "plugins.tool_interceptor_metadata_preserver.ToolInterceptorMetadataPreserver"
   ],
   "kinds": {
     "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider": "providers",
@@ -27,6 +28,7 @@
     "openai_responses_plugins.openai_responses_websearch_extension.OpenAIResponsesWebSearchExtension": "extensions",
     "openai_responses_plugins.openai_responses_reasoning_extension.OpenAIResponsesReasoningExtension": "extensions",
     "openai_responses_plugins.openai_responses_usage_extension.OpenAIResponsesUsageExtension": "extensions",
-    "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension": "extensions"
+    "openai_responses_plugins.openai_responses_verbosity_extension.OpenAIResponsesVerbosityExtension": "extensions",
+    "plugins.tool_interceptor_metadata_preserver.ToolInterceptorMetadataPreserver": "features"
   }
 }

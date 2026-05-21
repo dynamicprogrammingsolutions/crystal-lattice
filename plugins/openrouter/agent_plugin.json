@@ -11,7 +11,8 @@
     "openrouter_plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension",
     "openrouter_plugins.openrouter_usage_extension.OpenRouterUsageExtension",
     "openrouter_plugins.openrouter_verbosity_extension.OpenRouterVerbosityExtension",
-    "openrouter_plugins.openrouter_image_generation_attachments_extension.OpenRouterImageGenerationAttachmentsExtension"
+    "openrouter_plugins.openrouter_image_generation_attachments_extension.OpenRouterImageGenerationAttachmentsExtension",
+    "plugins.tool_interceptor_metadata_preserver.ToolInterceptorMetadataPreserver"
   ],
   "kinds": {
     "openrouter_plugins.openrouter_provider.OpenRouterProvider": "providers",
@@ -23,6 +24,7 @@
     "openrouter_plugins.openrouter_websearch_extension.OpenRouterWebSearchExtension": "extensions",
     "openrouter_plugins.openrouter_usage_extension.OpenRouterUsageExtension": "extensions",
     "openrouter_plugins.openrouter_verbosity_extension.OpenRouterVerbosityExtension": "extensions",
-    "openrouter_plugins.openrouter_image_generation_attachments_extension.OpenRouterImageGenerationAttachmentsExtension": "extensions"
+    "openrouter_plugins.openrouter_image_generation_attachments_extension.OpenRouterImageGenerationAttachmentsExtension": "extensions",
+    "plugins.tool_interceptor_metadata_preserver.ToolInterceptorMetadataPreserver": "features"
   }
 }

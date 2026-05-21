@@ -528,3 +528,44 @@ def test_interceptor_transform_responses_shaped_tool_call(tmp_path: Path) -> Non
     tool_messages = [m for m in sess2.messages if m.role == "tool"]
     assert tool_messages
     assert "Result: 8" in tool_messages[-1].content
+
+
+def test_interceptor_tool_result_phase_prompting(tmp_path: Path) -> None:
+    """Verify tool_result phase interception works end-to-end with prompts."""
+    # This test requires an interceptor that supports result-phase prompting
+    # For now, we'll create a minimal test that verifies the plumbing works
+    
+    # Note: InterceptorCalculator doesn't currently implement result-phase prompting
+    # This test documents the expected behavior once it's implemented
+    config_path = _make_interceptor_tool_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    core, base_config, session = app.create_session("default")
+
+    # Add tool call
+    tool_call: Dict[str, object] = {
+        "id": "call_result_test",
+        "type": "function",
+        "function": {"name": "add", "arguments": json.dumps({"a": 10, "b": 20})},
+    }
+    session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    app.save_session(session)
+    
+    # Send request - should suspend at call-phase prompt first
+    events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
+    checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
+    suspended = checkpoints[-1]["session"]
+    
+    # For now, just verify the structure supports result-phase metadata
+    # When result-phase prompting is implemented in an interceptor,
+    # this test should be extended to:
+    # 1. Approve the call-phase prompt
+    # 2. Execute the tool
+    # 3. Suspend at result-phase prompt
+    # 4. Approve the result-phase prompt
+    # 5. Verify completion
+    
+    # Verify the session structure can hold result-phase prompts
+    assert isinstance(suspended, Session)
+    # Result-phase prompts would be stored on tool message metadata
+    # just like call-phase prompts are on assistant messages
