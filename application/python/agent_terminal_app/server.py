@@ -2899,39 +2899,8 @@ def list_session_messages(
     }
 
 
-@app.get("/sessions/{session_id}/tool-prompts")
-def list_session_tool_prompts(
-    session_id: str,
-    app_instance: AgentApplication = Depends(get_agent_app),
-) -> Dict[str, Any]:
-    """List pending tool interception prompts for a session."""
-    try:
-        with app_instance.acquire_session_lock(session_id):
-            session = app_instance.load_session_record(session_id)
-            if session is None:
-                raise KeyError(f"Session {session_id!r} not found")
-            prompts: List[Dict[str, Any]] = []
-            for index, msg in enumerate(session.messages):
-                md = msg.metadata or {}
-                current = md.get("interception_current")
-                if not isinstance(current, dict):
-                    continue
-                prompt = current.get("pending_prompt")
-                if not isinstance(prompt, dict):
-                    continue
-                prompts.append(
-                    {
-                        "message_index": index,
-                        "phase": current.get("phase"),
-                        "tool_call_id": current.get("tool_call_id"),
-                        "tool_name": current.get("tool_name"),
-                        "plugin": current.get("plugin"),
-                        "prompt": prompt,
-                    }
-                )
-    except KeyError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"prompts": prompts}
+
+
 
 
 @app.post("/sessions/{session_id}/tool-prompts/respond")
@@ -2941,9 +2910,19 @@ def submit_session_tool_prompt(
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
     """Submit an answer for a pending tool interception prompt and resume."""
+    message_index = body.get("message_index")
+    phase = body.get("phase")
+    tool_call_id = body.get("tool_call_id")
     prompt_id = body.get("prompt_id")
     button_id = body.get("button_id")
     values = body.get("values")
+
+    if not isinstance(message_index, int):
+        raise HTTPException(status_code=400, detail="message_index must be an integer")
+    if not isinstance(phase, str) or not phase:
+        raise HTTPException(status_code=400, detail="phase must be a non-empty string")
+    if not isinstance(tool_call_id, str) or not tool_call_id:
+        raise HTTPException(status_code=400, detail="tool_call_id must be a non-empty string")
     if not isinstance(prompt_id, str) or not prompt_id:
         raise HTTPException(status_code=400, detail="prompt_id must be a non-empty string")
     if not isinstance(button_id, str) or not button_id:
@@ -2953,54 +2932,29 @@ def submit_session_tool_prompt(
     if not isinstance(values, dict):
         raise HTTPException(status_code=400, detail="values must be an object")
 
-    matched = False
     try:
-        with app_instance.acquire_session_lock(session_id):
-            session = app_instance.load_session_record(session_id)
-            if session is None:
-                raise KeyError(f"Session {session_id!r} not found")
-            messages = list(session.messages)
-            for idx, msg in enumerate(messages):
-                md = dict(msg.metadata or {})
-                current = md.get("interception_current")
-                if not isinstance(current, dict):
-                    continue
-                prompt = current.get("pending_prompt")
-                if not isinstance(prompt, dict):
-                    continue
-                if prompt.get("id") != prompt_id:
-                    continue
-                current["answer"] = {
-                    "prompt_id": prompt_id,
-                    "button_id": button_id,
-                    "values": values,
-                }
-                md["interception_current"] = current
-                messages[idx] = Message(
-                    role=msg.role,
-                    content=msg.content,
-                    metadata=md or None,
-                    multipart_content=msg.multipart_content,
-                )
-                matched = True
-                break
-            if not matched:
-                raise HTTPException(status_code=404, detail="Pending prompt not found")
-            updated = Session(
-                session_id=session.session_id,
-                messages=messages,
-                metadata=session.metadata,
-            )
-            app_instance.save_session(updated)
+        result = app_instance.submit_interceptor_prompt_answer(
+            session_id=session_id,
+            message_index=message_index,
+            phase=phase,
+            tool_call_id=tool_call_id,
+            prompt_id=prompt_id,
+            button_id=button_id,
+            values=values,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    overrides = result.get("overrides") or {}
     send_result = send_request(
         session_id,
-        {"config_overrides": {}},
+        {"config_overrides": overrides},
         app_instance=app_instance,
     )
     return {"status": "accepted", "request": send_result}
+
 
 
 @app.get("/events")

@@ -574,6 +574,132 @@ class AgentCore:
             metadata=new_metadata,
         )
 
+    def _modify_single_message_metadata_with_native(self, session, index, metadata, config):
+        from agent_core.types import Message  # local import to avoid cycles
+
+        messages = session.messages
+        message_count = len(messages)
+
+        # Normalize and validate index (supports negative indices).
+        if not isinstance(index, int):
+            raise TypeError("index must be an integer")
+
+        target_index = index
+        if target_index < 0:
+            target_index = message_count + target_index
+        if target_index < 0 or target_index >= message_count:
+            raise IndexError("message index out of range")
+
+        target = messages[target_index]
+
+        base_metadata = (
+            dict(session.metadata) if isinstance(session.metadata, dict) else {}
+        )
+
+        # Core-only path: drop native history and indices, update metadata only.
+        def _core_only_session() -> Session:
+            new_messages: List[Message] = []
+            for idx, msg in enumerate(messages):
+                data = msg.to_dict()
+                md = dict(metadata) if idx == target_index else dict(data.get("metadata") or {})
+                md.pop("native_indices", None)
+                multipart_content = data.get("multipartContent")
+                from agent_core.core import TOOL_RESULT_FIELD
+                tool_result = data.get(TOOL_RESULT_FIELD)
+                new_messages.append(
+                    Message(
+                        role=data["role"],
+                        content=data["content"],
+                        metadata=md or None,
+                        multipart_content=multipart_content,
+                        tool_result=tool_result if isinstance(tool_result, dict) else None,
+                    )
+                )
+
+            new_session_metadata: Dict[str, Any] = dict(base_metadata)
+            new_session_metadata.pop("native_messages", None)
+            new_session_metadata.pop("native_messages_integrity", None)
+
+            return type(session)(
+                session_id=session.session_id,
+                messages=new_messages,
+                metadata=new_session_metadata,
+            )
+
+        # If there is no retained native history, fall back immediately.
+        retained_native = None
+        if isinstance(session.metadata, dict):
+            rn = session.metadata.get("native_messages")
+            if isinstance(rn, list):
+                retained_native = rn
+
+        if retained_native is None:
+            return _core_only_session()
+
+        # Verify integrity before attempting any native-preserving update.
+        self._verify_native_integrity(session)
+
+        original_native = retained_native
+
+        # Determine which native indices belong to the target message.
+        target_md = target.metadata if isinstance(target.metadata, dict) else {}
+        native_indices = target_md.get("native_indices")
+        if not native_indices:
+            raise RuntimeError(
+                "modify_message_metadata requires non-empty native_indices for target message"
+            )
+
+        # Save tool_result from original messages before rebuilding
+        original_tool_results = {}
+        for idx, msg in enumerate(messages):
+            if msg.tool_result is not None:
+                original_tool_results[idx] = msg.tool_result
+
+        new_native = []
+        for i, n_msg in enumerate(original_native):
+            if i in native_indices:
+                n_msg_copy = dict(n_msg)
+                n_msg_md = dict(n_msg_copy.get("_metadata") or {})
+                n_msg_copy["_metadata"] = {**n_msg_md, **metadata}
+                new_native.append(n_msg_copy)
+            else:
+                new_native.append(n_msg)
+
+        # Rebuild core messages from the updated native history.
+        # skip_initialize=True: metadata mutation is not a request-preparation
+        # step, so initialize_request (which validates api_key) must not run.
+        new_messages, post_init_native = self._rebuild_core_from_native(
+            new_native, config or {}, skip_initialize=True
+        )
+
+        # Restore tool_result to rebuilt messages
+        final_messages = []
+        for idx, msg in enumerate(new_messages):
+            if idx in original_tool_results:
+                final_messages.append(
+                    Message(
+                        role=msg.role,
+                        content=msg.content,
+                        metadata=msg.metadata,
+                        multipart_content=msg.multipart_content,
+                        tool_result=original_tool_results[idx],
+                    )
+                )
+            else:
+                final_messages.append(msg)
+
+        new_metadata = {
+            **base_metadata,
+            "native_messages": post_init_native,
+            "native_messages_integrity": self._compute_native_integrity(final_messages),
+        }
+
+        return type(session)(
+            session_id=session.session_id,
+            messages=final_messages,
+            metadata=new_metadata,
+        )
+
     def __init__(self):
         """Initialize core with empty plugin pipeline.
 
@@ -777,6 +903,35 @@ class AgentCore:
         """
         return self._modify_single_message_with_native(
             session, index, content, config or {}
+        )
+
+    def modify_message_metadata(
+        self,
+        session: Session,
+        index: int,
+        metadata: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+    ) -> Session:
+        """Modify the metadata of an existing message (pure function).
+
+        The message role and content remain unchanged. When provider-native
+        history is present and safely mappable via `native_indices`, the
+        corresponding native messages are updated by copying the new metadata
+        into their `_metadata` dictionary. Otherwise, native history
+        is dropped and will be reconstructed on the next request.
+
+        Args:
+            session: Current session.
+            index: Message index to modify (0-based; negative indices supported).
+            metadata: New metadata dictionary. This replaces the existing core metadata.
+            config: Optional configuration used to resolve provider and plugins
+                when rebuilding native history.
+
+        Returns:
+            New Session with the modified message (immutable update).
+        """
+        return self._modify_single_message_metadata_with_native(
+            session, index, metadata, config or {}
         )
 
     def _slice_session_core_only(

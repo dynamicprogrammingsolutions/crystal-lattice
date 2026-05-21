@@ -272,6 +272,8 @@ type ChatTranscriptProps = {
   onScroll: (event: any) => void;
   onToolInterceptorPromptSubmit: (args: {
     messageIndex: number;
+    phase: string | null;
+    toolCallId: string | null;
     promptId: string;
     buttonId: string;
     values: Record<string, unknown>;
@@ -2698,6 +2700,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const handleToolInterceptorPromptSubmit = useCallback(
     async (args: {
       messageIndex: number;
+      phase: string | null;
+      toolCallId: string | null;
       promptId: string;
       buttonId: string;
       values: Record<string, unknown>;
@@ -2710,6 +2714,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       setToolPromptSubmittingKey(key);
       try {
         await backend.submitSessionToolPromptResponse(sessionId, {
+          message_index: args.messageIndex,
+          phase: args.phase ?? 'tool_call',
+          tool_call_id: args.toolCallId ?? '',
           prompt_id: args.promptId,
           button_id: args.buttonId,
           values: args.values,

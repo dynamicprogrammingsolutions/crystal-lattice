@@ -230,7 +230,7 @@ class InterceptorCalculator:
             return {
                 "kind": "respond",
                 "tool_result": {"success": False, "error": "Denied by interceptor"},
-                "continue_loop": False,
+                "continue_loop": True,
             }
         if button_id == "deny_stop":
             return {

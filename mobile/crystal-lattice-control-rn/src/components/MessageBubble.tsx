@@ -116,6 +116,8 @@ export interface MessageBubbleProps {
   pluginActionDefs?: MessageActionDefinition[];
   onToolInterceptorPromptSubmit?: (args: {
     messageIndex: number;
+    phase: string | null;
+    toolCallId: string | null;
     promptId: string;
     buttonId: string;
     values: Record<string, unknown>;
@@ -941,6 +943,8 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
                   }
                   void onToolInterceptorPromptSubmit({
                     messageIndex: index,
+                    phase: typeof interceptionCurrent?.phase === 'string' ? interceptionCurrent.phase : null,
+                    toolCallId: typeof interceptionCurrent?.tool_call_id === 'string' ? interceptionCurrent.tool_call_id : null,
                     promptId: promptIdForSubmit,
                     buttonId: bid,
                     values: payload.values || {},

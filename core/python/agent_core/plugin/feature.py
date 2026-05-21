@@ -163,36 +163,7 @@ class FeatureWrapper(FeaturePlugin):
             action_id, session, native_messages, params, context, state
         )
 
-    def materialize_interception_prompt(
-        self,
-        state: Dict[str, Any],
-        *,
-        schema_id: str,
-        schema_params: Dict[str, Any],
-        tool_call_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        return self.plugin.materialize_interception_prompt(
-            state,
-            schema_id=schema_id,
-            schema_params=schema_params,
-            tool_call_id=tool_call_id,
-        )
 
-    def intercept_tool_call(
-        self,
-        payload: Dict[str, Any],
-        context: Dict[str, Any],
-        state: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        return self.plugin.intercept_tool_call(payload, context, state)
-
-    def intercept_tool_result(
-        self,
-        payload: Dict[str, Any],
-        context: Dict[str, Any],
-        state: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        return self.plugin.intercept_tool_result(payload, context, state)
 
     def get_completions(
         self,

@@ -584,20 +584,42 @@ def test_server_tool_prompt_list_and_respond_flow(tmp_path: Path) -> None:
     assert send_resp.get("status") == "started"
     _wait_for_request_completion(app, session_id)
 
-    prompts_resp = server_mod.list_session_tool_prompts(session_id, app_instance=app)
-    prompts = prompts_resp.get("prompts") or []
-    assert prompts
-    prompt = prompts[0]["prompt"]
-    assert isinstance(prompt, dict)
+    # Derive pending prompt from message metadata (spec 955 contract).
+    messages_resp = server_mod.list_session_messages(session_id, app_instance=app)
+    prompt = None
+    prompt_message_index = None
+    phase = None
+    tool_call_id = None
+    for item in messages_resp.get("messages") or []:
+        md = (item.get("message") or {}).get("metadata") or {}
+        current = md.get("interception_current")
+        if isinstance(current, dict):
+            pp = current.get("pending_prompt")
+            if isinstance(pp, dict):
+                prompt = pp
+                prompt_message_index = item.get("index")
+                phase = current.get("phase")
+                tool_call_id = current.get("tool_call_id")
+                break
+    assert prompt is not None
     prompt_id = prompt.get("id")
     assert isinstance(prompt_id, str) and prompt_id
 
     respond_resp = server_mod.submit_session_tool_prompt(
         session_id,
-        {"prompt_id": prompt_id, "button_id": "allow", "values": {}},
+        {
+            "message_index": prompt_message_index,
+            "phase": phase,
+            "tool_call_id": tool_call_id,
+            "prompt_id": prompt_id,
+            "button_id": "allow",
+            "values": {},
+        },
         app_instance=app,
     )
     assert respond_resp.get("status") == "accepted"
+
+
 
 
 def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None:

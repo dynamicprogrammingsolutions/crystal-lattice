@@ -2749,6 +2749,100 @@ class AgentApplication:
     # Core-first request API (new architecture)
     # ------------------------------------------------------------------
 
+    def submit_interceptor_prompt_answer(
+        self,
+        session_id: str,
+        message_index: int,
+        phase: str,
+        tool_call_id: str,
+        prompt_id: str,
+        button_id: str,
+        values: Optional[Dict[str, Any]] = None,
+        baseline_file_state: Optional[SessionFileState] = None,
+    ) -> Dict[str, Any]:
+        """Submit an interceptor prompt answer and return resume context.
+
+        Returns a dictionary containing at least:
+            - 'session': The updated Session object
+            - 'overrides': The original request overrides to be reused for resuming
+            - 'resume_ready': True if the prompt was successfully answered
+        """
+        if values is None:
+            values = {}
+
+        with self.acquire_session_lock(session_id):
+            session = self.load_session_record(session_id)
+            if session is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            # Validate index
+            messages = session.messages
+            if message_index < 0 or message_index >= len(messages):
+                raise ValueError("message_index out of range")
+
+            msg = messages[message_index]
+            md = dict(msg.metadata or {})
+            
+            # Verify pending prompt
+            current = md.get("interception_current")
+            if not isinstance(current, dict):
+                raise ValueError("Target message has no current interception state")
+            
+            if current.get("phase") != phase:
+                raise ValueError(f"Phase mismatch (expected {phase}, got {current.get('phase')})")
+            
+            if current.get("tool_call_id") != tool_call_id:
+                raise ValueError("Tool call ID mismatch")
+
+            pending_prompt = current.get("pending_prompt")
+            if not isinstance(pending_prompt, dict):
+                raise ValueError("Target message has no pending prompt")
+            
+            if pending_prompt.get("id") != prompt_id:
+                raise ValueError("Prompt ID mismatch")
+
+            # Compute new metadata
+            phases = list(md.get("interception_phases") or [])
+            phases.append({
+                "type": "prompt_response",
+                "phase": phase,
+                "tool_call_id": tool_call_id,
+                "tool_name": current.get("tool_name"),
+                "plugin": current.get("plugin"),
+                "prompt": pending_prompt,
+                "prompt_id": prompt_id,
+                "button_id": button_id,
+                "values": values,
+            })
+            
+            new_current = dict(current)
+            new_current.pop("pending_prompt", None)
+            request_overrides = new_current.get("request_overrides") or {}
+            
+            md["interception_phases"] = phases
+            md["interception_current"] = new_current
+            
+            core, _, _ = self._resolve_runtime_for_session(session)
+            
+            updated_session = core.modify_message_metadata(
+                session,
+                message_index,
+                md,
+            )
+            
+            # Persist the mutation safely
+            saved_session = self.save_session(
+                updated_session,
+                baseline_file_state=baseline_file_state,
+                acquire_lock=False, # We already hold it
+            )
+            
+            return {
+                "session": saved_session,
+                "overrides": request_overrides,
+                "resume_ready": True,
+            }
+
     def send_request(
         self,
         core: AgentCore,

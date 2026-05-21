@@ -147,7 +147,6 @@ describeIf('backend integration (real FastAPI server + frontend SDK + tool inter
       }, { timeoutMs: 180000, intervalMs: 500 });
     } catch (err) {
       const listed = await options.backend.listMessages(options.sessionId);
-      const prompts = await options.backend.listSessionToolPrompts(options.sessionId);
       const snapshot = options.controller.getSnapshot();
       const toolMessages = listed.messages
         .filter((message) => message.message.role === 'tool')
@@ -155,13 +154,13 @@ describeIf('backend integration (real FastAPI server + frontend SDK + tool inter
       const lastAssistant = [...listed.messages]
         .reverse()
         .find((message) => message.message.role === 'assistant');
-      const promptSummary = prompts.map((prompt) => ({
-        message_index: prompt.message_index,
-        phase: prompt.phase,
-        tool_call_id: prompt.tool_call_id,
-        tool_name: prompt.tool_name,
-        prompt_id: (prompt.prompt as any)?.id ?? null,
-        title: (prompt.prompt as any)?.title ?? null,
+      const promptSummary = selectPendingToolPrompts(snapshot.messages).map((row) => ({
+        message_index: row.messageIndex,
+        phase: row.phase,
+        tool_call_id: row.toolCallId,
+        tool_name: row.toolName,
+        prompt_id: (row.prompt as any)?.id ?? null,
+        title: (row.prompt as any)?.title ?? null,
       }));
       throw new Error(
         [
@@ -213,18 +212,19 @@ describeIf('backend integration (real FastAPI server + frontend SDK + tool inter
         configOverrides: {},
       });
 
-      const promptList = await (async () => {
-        let prompts: Awaited<ReturnType<typeof backend.listSessionToolPrompts>> = [];
+      const pendingPromptRow = await (async () => {
+        let rows: ReturnType<typeof selectPendingToolPrompts> = [];
         await waitForAsync(async () => {
-          prompts = await backend.listSessionToolPrompts(sessionId);
-          return prompts.length > 0;
+          await controller.loadMessages();
+          rows = selectPendingToolPrompts(controller.getSnapshot().messages);
+          return rows.length > 0;
         }, { timeoutMs: 180000, intervalMs: 500 });
-        return prompts;
+        return rows[0] ?? null;
       })();
 
-      expect(promptList.length, `${providerCase.providerName} should surface an interceptor prompt`).toBeGreaterThan(0);
-      const pending = promptList[0];
-      expect(pending.tool_name).toBe('add');
+      expect(pendingPromptRow, `${providerCase.providerName} should surface an interceptor prompt`).not.toBeNull();
+      const pending = pendingPromptRow!;
+      expect(pending.toolName).toBe('add');
       expect(String((pending.prompt as any)?.title || '')).toContain('Allow');
 
       const promptId = String((pending.prompt as any)?.id || '');
@@ -233,6 +233,9 @@ describeIf('backend integration (real FastAPI server + frontend SDK + tool inter
       const submitResult = await backend.submitSessionToolPromptResponse(
         sessionId,
         {
+          message_index: pending.messageIndex,
+          phase: pending.phase ?? 'tool_call',
+          tool_call_id: pending.toolCallId ?? '',
           prompt_id: promptId,
           button_id: 'allow',
           values: {},
@@ -256,8 +259,7 @@ describeIf('backend integration (real FastAPI server + frontend SDK + tool inter
         .find((message) => message.message.role === 'assistant');
       expect(String(lastAssistantAfterCompletion?.message.content || '')).toContain('INTERCEPT_OK_5');
 
-      const promptsAfterCompletion = await backend.listSessionToolPrompts(sessionId);
-      expect(promptsAfterCompletion).toEqual([]);
+      await controller.loadMessages();
       expect(selectPendingToolPrompts(controller.getSnapshot().messages)).toEqual([]);
 
       const reopenedController = new ChatController({ backend, sessionId });
