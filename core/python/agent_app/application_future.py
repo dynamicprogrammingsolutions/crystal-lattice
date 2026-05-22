@@ -2822,12 +2822,13 @@ class AgentApplication:
             md["interception_phases"] = phases
             md["interception_current"] = new_current
             
-            core, _, _ = self._resolve_runtime_for_session(session)
-            
+            core, _, effective_config = self._resolve_runtime_for_session(session)
+
             updated_session = core.modify_message_metadata(
                 session,
                 message_index,
                 md,
+                config=effective_config,
             )
             
             # Persist the mutation safely

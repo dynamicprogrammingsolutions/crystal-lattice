@@ -672,21 +672,44 @@ class AgentCore:
             new_native, config or {}, skip_initialize=True
         )
 
-        # Restore tool_result to rebuilt messages
+        # Restore tool_result to rebuilt messages, and patch the target
+        # message to ensure intended metadata is applied.
+        #
+        # Some providers (e.g. openai_responses) produce a core message with
+        # empty metadata when the native segment contains only non-"message"
+        # typed items (e.g. "reasoning", "function_call"). In that case
+        # Crystal Lattice metadata fields like interception_phases are lost.
+        # We overlay the intended metadata onto the rebuilt target message,
+        # preserving native_indices from the rebuild.
         final_messages = []
         for idx, msg in enumerate(new_messages):
+            patched_metadata = msg.metadata
+            if idx == target_index:
+                rebuilt_md: Dict[str, Any] = dict(msg.metadata or {})
+                for key, value in metadata.items():
+                    if key != "native_indices":
+                        rebuilt_md[key] = value
+                patched_metadata = rebuilt_md or None
             if idx in original_tool_results:
                 final_messages.append(
                     Message(
                         role=msg.role,
                         content=msg.content,
-                        metadata=msg.metadata,
+                        metadata=patched_metadata,
                         multipart_content=msg.multipart_content,
                         tool_result=original_tool_results[idx],
                     )
                 )
             else:
-                final_messages.append(msg)
+                final_messages.append(
+                    Message(
+                        role=msg.role,
+                        content=msg.content,
+                        metadata=patched_metadata,
+                        multipart_content=msg.multipart_content,
+                        tool_result=msg.tool_result if hasattr(msg, "tool_result") else None,
+                    ) if idx == target_index else msg
+                )
 
         new_metadata = {
             **base_metadata,

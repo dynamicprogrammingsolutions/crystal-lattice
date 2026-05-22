@@ -1696,6 +1696,19 @@ class OpenAIResponsesProvider(ProviderPlugin):
 
         if canonical is None:
             metadata: Dict[str, Any] = {}
+            # Merge internal_md from all segment items so Crystal Lattice metadata
+            # (e.g., interception_current, interception_phases, tool_calls) is
+            # preserved when a segment contains only non-"message" items
+            # (e.g., reasoning, function_call). Without this, a metadata-only
+            # mutation via modify_message_metadata would silently drop these
+            # fields, because _assistant_candidate_from_response_item only
+            # produces a candidate for "message" type items.
+            for _native_index, _item, internal_md in segment:
+                if isinstance(internal_md, dict) and internal_md:
+                    for k, v in internal_md.items():
+                        if k == "native_indices":
+                            continue
+                        metadata[k] = v
             if response_id:
                 metadata["response_id"] = response_id
             url_citations = self._extract_url_citations(segment_output_items)

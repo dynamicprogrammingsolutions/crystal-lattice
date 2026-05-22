@@ -367,6 +367,8 @@ const ChatTranscript = React.memo(({
           renderMode,
           isEditing,
           isEditing ? editingText : null,
+          onToolInterceptorPromptSubmit,
+          toolInterceptorPromptSubmittingKey,
         ];
       }}
       renderItem={({ item: row }) => {
@@ -733,6 +735,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
   const [sendInProgress, setSendInProgress] = useState(false);
   const [toolPromptSubmittingKey, setToolPromptSubmittingKey] = useState<string | null>(null);
+  const toolPromptSubmittingRef = React.useRef(false);
   const [attachmentsAbove, setAttachmentsAbove] = useState<MultipartPartDraft[]>([]);
   const [attachmentsBelow, setAttachmentsBelow] = useState<MultipartPartDraft[]>([]);
   const [attachmentsManageVisible, setAttachmentsManageVisible] = useState(false);
@@ -2711,6 +2714,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         return;
       }
       const key = `${args.messageIndex}:${args.promptId}`;
+      // Prevent double-submit while already processing any prompt
+      if (toolPromptSubmittingRef.current) {
+        return;
+      }
+      toolPromptSubmittingRef.current = true;
       setToolPromptSubmittingKey(key);
       try {
         await backend.submitSessionToolPromptResponse(sessionId, {
@@ -2738,6 +2746,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           Alert.alert('Error', msg || 'Failed to submit prompt response');
         }
       } finally {
+        toolPromptSubmittingRef.current = false;
         setToolPromptSubmittingKey(null);
       }
     },
