@@ -254,7 +254,9 @@ class TerminalApplication:
             content,
             base_md,
             config=_base_config,
-            context=self._app._build_core_handoff_context(base_config=_base_config),
+            context=self._app._context.build_core_handoff_context(
+                base_config=_base_config
+            ),
         )
         self._app.save_session(new_session)
 
@@ -616,7 +618,9 @@ class TerminalApplication:
             target_index,
             content,
             config,
-            context=self._app._build_core_handoff_context(base_config=base_config),
+            context=self._app._context.build_core_handoff_context(
+                base_config=base_config
+            ),
         )
         self._app.save_session(new_session)
 
@@ -810,7 +814,9 @@ class TerminalApplication:
             content,
             metadata,
             config=_base_config,
-            context=self._app._build_core_handoff_context(base_config=_base_config),
+            context=self._app._context.build_core_handoff_context(
+                base_config=_base_config
+            ),
         )
         self._app.save_session(new_session)
 

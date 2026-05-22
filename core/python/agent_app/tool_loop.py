@@ -8,6 +8,7 @@ import traceback  # Add this import at the beginning of your file
 from agent_core import AgentCore, MessageRole, Session
 from agent_core.tool_result_payloads import TOOL_RESULT_FIELD
 from agent_core.types import ProviderRequestCancelled
+from .app_context import ApplicationContext
 
 
 class RequestCancellation:
@@ -76,10 +77,11 @@ class ToolLoopRunner:
         config: Dict[str, Any],
         request_id: str,
         tool_loop_cfg: Any,
+        app_context: ApplicationContext,
+        base_config: Dict[str, Any],
+        overrides: Dict[str, Any] | None = None,
         cancel_callback: Any | None = None,
         cancellation: RequestCancellation | None = None,
-        context: Dict[str, Any] | None = None,
-        request_context: Dict[str, Any] | None = None,
         on_session_checkpoint: Callable[[Session], Session | None] | None = None,
         session_for_phase: Callable[[Session], Session | None] | None = None,
         config_for_session: Callable[[Session], Dict[str, Any] | None] | None = None,
@@ -88,10 +90,11 @@ class ToolLoopRunner:
         self._config = config
         self._request_id = request_id
         self._tool_loop_cfg = tool_loop_cfg
+        self._app_context = app_context
+        self._base_config = dict(base_config)
+        self._overrides = dict(overrides or {})
         self._cancel_callback = cancel_callback
         self._cancellation = cancellation
-        self._context = context
-        self._request_context = request_context
         self._on_session_checkpoint = on_session_checkpoint
         self._session_for_phase = session_for_phase
         self._config_for_session = config_for_session
@@ -161,11 +164,6 @@ class ToolLoopRunner:
             if isinstance(updated, dict):
                 self._config = updated
 
-        if isinstance(self._context, dict):
-            self._context = {
-                **self._context,
-                "session": session.to_dict(),
-            }
         return session
 
     def _checkpoint_session(self, session: Session) -> Session:
@@ -217,7 +215,17 @@ class ToolLoopRunner:
                     config,
                     request_id=rid,
                     cancellation=self._cancellation,
-                    context=self._request_context or self._context,
+                    context=self._app_context.build_core_handoff_context(
+                        base_config=self._base_config,
+                        extra={
+                            "overrides": dict(self._overrides),
+                            **(
+                                {"cancellation": self._cancellation}
+                                if self._cancellation is not None
+                                else {}
+                            ),
+                        },
+                    ),
                 )
             except ProviderRequestCancelled:
                 yield {
@@ -264,7 +272,17 @@ class ToolLoopRunner:
                 config,
                 request_id=rid,
                 cancellation=self._cancellation,
-                context=self._request_context or self._context,
+                context=self._app_context.build_core_handoff_context(
+                    base_config=self._base_config,
+                    extra={
+                        "overrides": dict(self._overrides),
+                        **(
+                            {"cancellation": self._cancellation}
+                            if self._cancellation is not None
+                            else {}
+                        ),
+                    },
+                ),
             ):
                 if self._is_cancelled():
                     yield {
@@ -398,7 +416,16 @@ class ToolLoopRunner:
                 [call],
                 config,
                 cancellation=self._cancellation,
-                context=self._context,
+                context=self._app_context.build_tool_context(
+                    session=current_session,
+                    request_id=self._request_id,
+                    base_config=self._base_config,
+                    extra=(
+                        {"cancellation": self._cancellation}
+                        if self._cancellation is not None
+                        else None
+                    ),
+                ),
             ):
                 if not isinstance(item, dict):
                     continue
@@ -463,7 +490,16 @@ class ToolLoopRunner:
                 content,
                 metadata,
                 config=config,
-                context=self._context,
+                context=self._app_context.build_tool_context(
+                    session=current_session,
+                    request_id=self._request_id,
+                    base_config=self._base_config,
+                    extra=(
+                        {"cancellation": self._cancellation}
+                        if self._cancellation is not None
+                        else None
+                    ),
+                ),
                 tool_result=tool_result if isinstance(tool_result, dict) else None,
             )
 

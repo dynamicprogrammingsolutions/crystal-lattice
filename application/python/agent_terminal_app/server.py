@@ -360,7 +360,7 @@ def _append_message_to_session_locked(
         metadata,
         config,
         multipart_content=multipart_content,
-        context=app_instance._build_core_handoff_context(base_config=config),
+        context=app_instance._context.build_core_handoff_context(base_config=config),
     )
     app_instance.save_session(new_session)
 
@@ -1871,7 +1871,7 @@ def update_message(
                 target_index,
                 content,
                 config,
-                context=app_instance._build_core_handoff_context(
+                context=app_instance._context.build_core_handoff_context(
                     base_config=base_config
                 ),
             )

@@ -159,7 +159,7 @@ def test_application_send_request_uses_stored_session_asset_refs(
         "user",
         "Use the stored attachment.",
         config=app.resolve_effective_config(base_config, session),
-        context=app._build_core_handoff_context(base_config=base_config),
+        context=app._context.build_core_handoff_context(base_config=base_config),
         multipart_content=[
             {
                 "type": "image",
@@ -195,7 +195,7 @@ def test_application_send_request_uses_stored_session_asset_refs(
         "user",
         "Use the same attachment again.",
         config=app.resolve_effective_config(base_config, final_session),
-        context=app._build_core_handoff_context(base_config=base_config),
+        context=app._context.build_core_handoff_context(base_config=base_config),
         multipart_content=[
             {
                 "type": "image",
@@ -255,7 +255,7 @@ def test_modify_message_and_rebuild_native_history_keep_session_asset_context(
         "user",
         "Use the stored attachment.",
         config=effective_config,
-        context=app._build_core_handoff_context(base_config=base_config),
+        context=app._context.build_core_handoff_context(base_config=base_config),
         multipart_content=[
             {
                 "type": "image",
@@ -282,7 +282,7 @@ def test_modify_message_and_rebuild_native_history_keep_session_asset_context(
         0,
         "Use the edited stored attachment.",
         app.resolve_effective_config(base_config, session),
-        context=app._build_core_handoff_context(base_config=base_config),
+        context=app._context.build_core_handoff_context(base_config=base_config),
     )
     assert isinstance((session.metadata or {}).get("native_messages"), list)
     app.save_session(session)
@@ -297,7 +297,7 @@ def test_modify_message_and_rebuild_native_history_keep_session_asset_context(
     rebuilt = core.rebuild_native_history(
         session,
         app.resolve_effective_config(base_config, session),
-        context=app._build_core_handoff_context(base_config=base_config),
+        context=app._context.build_core_handoff_context(base_config=base_config),
     )
     assert isinstance((rebuilt.metadata or {}).get("native_messages"), list)
     app.save_session(rebuilt)

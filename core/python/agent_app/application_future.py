@@ -1327,41 +1327,6 @@ class AgentApplication:
             extra=context,
         )
 
-    def _build_core_handoff_context(
-        self,
-        extra_context: Optional[Mapping[str, Any]] = None,
-        *,
-        base_config: Optional[Mapping[str, Any]] = None,
-    ) -> Dict[str, Any]:
-        blocked = {
-            "core",
-            "config",
-            "session",
-            "session_id",
-            "request_id",
-            "stream",
-            "trigger_source",
-            "lifecycle",
-            "request_context",
-            "request_runtime",
-            "final_messages",
-            "native_messages",
-            "native_final_messages",
-            "turn_native_start_index",
-        }
-        merged_extra = (
-            {
-                key: value
-                for key, value in extra_context.items()
-                if isinstance(key, str) and key not in blocked
-            }
-            if isinstance(extra_context, Mapping)
-            else {}
-        )
-        if isinstance(base_config, Mapping):
-            merged_extra["base_config"] = dict(base_config)
-        return self._context.build_core_extra(extra=merged_extra)
-
     @staticmethod
     def _session_from_result_value(value: Any) -> Optional[Session]:
         if isinstance(value, Session):
@@ -1481,9 +1446,9 @@ class AgentApplication:
             current_session,
             effective_config,
             lifecycle,
-            context=self._build_core_handoff_context(
-                context,
+            context=self._context.build_core_handoff_context(
                 base_config=self._config,
+                extra=context,
             ),
         )
         results.extend(core_results)
@@ -2228,9 +2193,9 @@ class AgentApplication:
                 plugin_id,
                 action_id,
                 action_params,
-                context=self._build_core_handoff_context(
-                    context,
+                context=self._context.build_core_handoff_context(
                     base_config=base_config,
+                    extra=context,
                 ),
             )
         except AgentCore._SessionActionValidationError as exc:  # type: ignore[attr-defined]
@@ -2696,30 +2661,6 @@ class AgentApplication:
         )
         return core, base_cfg, switched_session
 
-    def _build_tool_context(
-        self,
-        *,
-        session: Session,
-        request_id: str,
-        base_config: Dict[str, Any],
-    ) -> Dict[str, Any]:
-        return self._context.build_tool_context(
-            session=session,
-            request_id=request_id,
-            base_config=base_config,
-        )
-
-    def _build_request_context_for_core(
-        self,
-        *,
-        base_config: Dict[str, Any],
-        overrides: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
-        return self._build_core_handoff_context(
-            {"overrides": dict(overrides or {})},
-            base_config=base_config,
-        )
-
     def prepare_tools_for_session(
         self,
         core: AgentCore,
@@ -2748,7 +2689,7 @@ class AgentApplication:
         config = self.resolve_effective_config(base_config, session, overrides)
         core.prepare_tools(
             config,
-            context=self._build_tool_context(
+            context=self._context.build_tool_context(
                 session=session,
                 request_id=rid,
                 base_config=base_config,
@@ -2784,7 +2725,7 @@ class AgentApplication:
         config = self.resolve_effective_config(base_config, session, overrides)
         await core.prepare_tools_async(
             config,
-            context=self._build_tool_context(
+            context=self._context.build_tool_context(
                 session=session,
                 request_id=rid,
                 base_config=base_config,
@@ -2886,7 +2827,7 @@ class AgentApplication:
             "stream": effective_stream,
         }
 
-        tool_context = self._build_tool_context(
+        tool_context = self._context.build_tool_context(
             session=session,
             request_id=rid,
             base_config=base_config,
@@ -2906,7 +2847,7 @@ class AgentApplication:
             core.prepare_tools(
                 refreshed,
                 context={
-                    **self._build_tool_context(
+                    **self._context.build_tool_context(
                         session=current_session,
                         request_id=rid,
                         base_config=base_config,
@@ -2997,16 +2938,11 @@ class AgentApplication:
                     config=config,
                     request_id=rid,
                     tool_loop_cfg=self._tool_loop_cfg,
+                    app_context=self._context,
+                    base_config=base_config,
+                    overrides=overrides,
                     cancel_callback=_is_cancelled,
                     cancellation=cancellation,
-                    context={**tool_context, "cancellation": cancellation},
-                    request_context={
-                        **self._build_request_context_for_core(
-                            base_config=base_config,
-                            overrides=overrides,
-                        ),
-                        "cancellation": cancellation,
-                    },
                     on_session_checkpoint=_persist_checkpoint,
                     session_for_phase=_sync_phase_session_for_request,
                     config_for_session=_refresh_config_for_session,

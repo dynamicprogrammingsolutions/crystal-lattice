@@ -575,6 +575,110 @@ Added after review feedback.
 6. Remove any now-unused generic-builder code paths while preserving the existing behavior and warning semantics.
 7. Re-run the focused tests around context enrichment and the OpenAI Responses regressions.
 
+## Next cleanup plan
+
+Added after architecture review feedback.
+
+### Next cleanup goals
+
+- [ ] Stop overloading one `context` parameter to mean both “already-built request context” and “caller/app extra context”.
+- [ ] Move remaining context-shaping decisions out of `core.py` and `application_future.py` into `core_context.py` and `app_context.py`.
+- [x] Remove the `response_context_extra` stripping/filtering path entirely.
+- [ ] Keep application full-context building only for application-owned execution paths.
+- [ ] Make warnings meaningful again by eliminating normal-path self-collisions.
+- [x] Simplify `ToolLoopRunner` context creation so it uses `ApplicationContext` directly instead of multiple wrapper helpers.
+
+### Next cleanup execution plan
+
+1. Split core-owned request context from additive extra context at the API boundary.
+   - Change `execute_response_lifecycle_actions(...)` to take explicit `request_context` and `extra_context` inputs instead of one overloaded `context`.
+   - Update all callers in:
+     - `send_request(...)`
+     - `send_request_stream(...)`
+     - `send_request_stream_async(...)`
+
+2. Apply the same ownership split to other action-style core paths where needed.
+   - Review and simplify:
+     - `execute_session_action(...)`
+     - `execute_lifecycle_actions(...)`
+     - `_apply_session_action_result(...)`
+     - `_rebuild_core_from_native(...)`
+   - Goal:
+     - built core request context is passed explicitly where needed
+     - additive app/caller extras are passed separately
+     - no owner has to detect whether a dict is “already a request context”
+
+3. Centralize more of the shaping logic in `core_context.py`.
+   - Remove meaningful context-shaping policy from `AgentCore` helper methods.
+   - `AgentCore` should gather raw runtime inputs only.
+   - `CoreContext` should decide how request/lifecycle/session-action/response-lifecycle/tool/rebuild contexts are assembled.
+   - If thin forwarding helpers remain in `AgentCore`, they should not perform merge, filtering, stripping, fallback, or shape-detection logic.
+
+4. Centralize more of the shaping logic in `app_context.py`.
+   - `ApplicationContext` should own:
+     - full context for application plugin execution
+     - full context for application-owned tool execution
+     - additive app-owned extras for core handoff
+   - `AgentApplication` should not build or reshape a full core-facing context beyond supplying raw inputs to `ApplicationContext`.
+
+5. Remove `response_context_extra` and similar stripping logic.
+   - Once `request_context` and `extra_context` are explicit, delete the current filtering path that strips core-owned keys back out of a reused request context.
+   - Replace it with direct use of:
+     - explicit built `request_context`
+     - explicit additive `extra_context`
+
+6. Keep application full-context construction only where it is actually required.
+   - Preserve full application context for:
+     - application plugins
+     - application-owned tool execution
+   - Do not use application full-context construction for core-owned execution paths.
+
+7. Simplify `ToolLoopRunner` context creation.
+   - Let `ToolLoopRunner` receive the `ApplicationContext` object plus raw runtime inputs it already owns or is given (for example `base_config`, `request_id`, `overrides`, additive extra context).
+   - Have `ToolLoopRunner` call `ApplicationContext` directly for:
+     - application-owned tool context
+     - application-owned additive core handoff extras
+   - Avoid nested wrapper chains such as:
+     - `_build_request_context_for_core(...)`
+     - `_build_core_handoff_context(...)`
+     - `_build_tool_context(...)`
+   - If any wrappers remain in `AgentApplication`, keep them as thin forwarding calls with no shaping logic.
+
+8. Tighten test coverage around the cleanup.
+   - Add or refine tests to assert:
+     - no spurious clash warnings on normal `response_finalize` flow
+     - application-owned extras such as `session_asset_store` still appear in response lifecycle plugin context
+     - core-owned fields still appear through `request_context`
+     - no context-shape detection is needed on normal paths
+
+9. Update docs after the cleanup.
+   - Clarify that:
+     - `ApplicationContext` builds application-owned contexts and app-owned extras
+     - `CoreContext` builds all core-owned request/lifecycle/action/rebuild/tool contexts
+   - Remove wording that suggests both owners build the same top-level context for core-owned flows.
+
+### Next cleanup progress notes
+
+Added during implementation.
+
+- Removed the application-side helper stack around `ToolLoopRunner`:
+  - deleted `_build_tool_context(...)`
+  - deleted `_build_request_context_for_core(...)`
+  - deleted `_build_core_handoff_context(...)`
+- `ToolLoopRunner` now receives `ApplicationContext` plus raw inputs and calls `ApplicationContext` directly at use sites.
+- `ApplicationContext` now owns the core-handoff shaping directly via `build_core_handoff_context(...)`.
+- `execute_response_lifecycle_actions(...)` now takes explicit `request_context` and `extra_context` inputs.
+- Removed the old response-lifecycle shape-detection / `response_context_extra` filtering path entirely.
+
+### Next cleanup verification
+
+- Passed:
+  - `pytest core/python/tests/test_feature_plugin_context_enrichment.py -q`
+  - `pytest application/python/tests/test_feature_plugin_context_enrichment.py -q`
+  - `pytest application/python/tests/test_openai_responses_prompt_caching_endpoints.py -q`
+  - `pytest application/python/tests/test_openai_responses_session_asset_send_path.py -q`
+  - `pytest application/python/tests/test_tool_image_asset_messages.py -q`
+
 ### Follow-up completion notes
 
 Added after implementation.

@@ -25,17 +25,44 @@ class ApplicationContext:
             "tool_runtime": tool_runtime,
         }
 
-    def build_core_extra(
+    def build_core_handoff_context(
         self,
         *,
+        base_config: Mapping[str, Any],
         extra: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
+        blocked = {
+            "core",
+            "config",
+            "session",
+            "session_id",
+            "request_id",
+            "stream",
+            "trigger_source",
+            "lifecycle",
+            "request_context",
+            "request_runtime",
+            "final_messages",
+            "native_messages",
+            "native_final_messages",
+            "turn_native_start_index",
+        }
+        filtered_extra = (
+            {
+                key: value
+                for key, value in extra.items()
+                if isinstance(key, str) and key not in blocked
+            }
+            if isinstance(extra, Mapping)
+            else {}
+        )
+        filtered_extra["base_config"] = dict(base_config)
         return merge_context_layers(
             builder="application",
             call_path="core_handoff",
             generic_layer=self._generic_layer,
             specific_layer={},
-            extra=extra,
+            extra=filtered_extra,
         )
 
     def build_lifecycle_context(

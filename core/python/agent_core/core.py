@@ -2450,7 +2450,8 @@ class AgentCore:
                 native_final_messages=final_native,
                 stream=False,
                 turn_native_start_index=baseline_native_len,
-                context=request_context,
+                request_context=request_context,
+                extra_context=context,
             )
         )
         state_metadata_patch = (
@@ -2675,7 +2676,8 @@ class AgentCore:
                 native_final_messages=combined_native_finals,
                 stream=True,
                 turn_native_start_index=baseline_native_len,
-                context=request_context,
+                request_context=request_context,
+                extra_context=context,
             )
         )
         state_metadata_patch = (
@@ -2870,7 +2872,8 @@ class AgentCore:
                 native_final_messages=combined_native_finals,
                 stream=True,
                 turn_native_start_index=baseline_native_len,
-                context=request_context,
+                request_context=request_context,
+                extra_context=context,
             )
         )
         state_metadata_patch = (
@@ -3580,7 +3583,8 @@ class AgentCore:
         native_final_messages: List[Dict[str, Any]],
         stream: bool,
         turn_native_start_index: int,
-        context: Optional[Dict[str, Any]] = None,
+        request_context: Dict[str, Any],
+        extra_context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[
         List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any], List[Dict[str, Any]]
     ]:
@@ -3600,54 +3604,6 @@ class AgentCore:
         metadata_patch: Dict[str, Any] = {}
         results: List[Dict[str, Any]] = []
         request_runtime = self._build_request_runtime(provider, features)
-        context_is_request_context = False
-        if (
-            isinstance(context, dict)
-            and isinstance(context.get("enabled_plugins"), dict)
-            and isinstance(context.get("tool_interop"), dict)
-        ):
-            context_is_request_context = True
-            request_context = dict(context)
-            response_context_extra = {
-                key: value
-                for key, value in context.items()
-                if isinstance(key, str)
-                and key
-                not in {
-                    "core",
-                    "config",
-                    "request_id",
-                    "session",
-                    "session_id",
-                    "stream",
-                    "tags",
-                    "models",
-                    "provider",
-                    "tool_interop",
-                    "enabled_plugins",
-                    "available_tools",
-                    "tools",
-                }
-            }
-        else:
-            request_context = self._build_request_context(
-                config=state.get("config") or config,
-                provider=provider,
-                enabled_extensions=provider._iter_extensions(),
-                enabled_features=features,
-                enabled_tools=[],
-                tags=[],
-                models=self._get_models_for_config(provider, config),
-                available_tools=self.get_available_tools(config),
-                tools=self._get_prepared_tools_for_config(config),
-                session=session,
-                request_id=(context or {}).get("request_id")
-                if isinstance(context, dict)
-                else None,
-                stream=stream,
-                extra=context,
-            )
-            response_context_extra = context
 
         available_actions = self._collect_core_session_actions(
             provider, features, state
@@ -3677,7 +3633,7 @@ class AgentCore:
                 native_messages=current_native_messages,
                 stream=stream,
                 turn_native_start_index=turn_native_start_index,
-                extra=response_context_extra,
+                extra=extra_context,
             )
 
             if action_owner == "feature":

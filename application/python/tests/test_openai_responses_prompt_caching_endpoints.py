@@ -296,7 +296,7 @@ def test_openai_prompt_cache_request_prepare_rebuild_preserves_asset_context(
     rebuilt_messages, rebuilt_native = core._rebuild_core_from_native(
         native_messages,
         base_config,
-        context=app._build_core_handoff_context(base_config=base_config),
+        context=app._context.build_core_handoff_context(base_config=base_config),
     )
     session = type(session)(
         session_id=session.session_id,
