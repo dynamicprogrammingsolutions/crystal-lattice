@@ -252,5 +252,12 @@ export function reduceMessageHistoryWithOptions(
     return { kind: 'ok', messages: trimmed, needsBackfill };
   }
 
+  // When an interceptor prompt fires, the session has pending metadata that
+  // is not delivered via a message_modified event. Mark dirty so the
+  // controller auto-reloads and the pending_prompt becomes visible.
+  if (type === 'tool_interceptor_prompt') {
+    return { kind: 'dirty', messages, reason: 'tool_interceptor_prompt: pending prompt requires reload' };
+  }
+
   return { kind: 'noop', messages };
 }
