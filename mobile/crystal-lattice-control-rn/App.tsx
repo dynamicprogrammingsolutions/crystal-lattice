@@ -46,6 +46,8 @@ import {
 } from './src/debugTimeline';
 import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
 import { PinnedActionsProvider } from './src/PinnedActionsContext';
+import { AnimatedSplashScreen } from './src/components/AnimatedSplashScreen';
+
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
@@ -196,6 +198,14 @@ function App(): React.JSX.Element {
   const [cloudConnectionLink, setCloudConnectionLink] = useState('');
 
   const [isLoading, setIsLoading] = useState(false);
+  const [isAppLoading, setIsAppLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsAppLoading(false);
+    }, 2800);
+    return () => clearTimeout(timer);
+  }, []);
 
   const styles = useMemo(() => createStyles(theme), [theme]);
   const appStateRef = useRef(AppState.currentState);
@@ -1241,55 +1251,59 @@ function App(): React.JSX.Element {
       <SafeAreaProvider>
         <ThemeProvider theme={theme}>
           <PinnedActionsProvider>
-            <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-              <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
-              {/** Determine active connection info for display components */}
-              {/** This is derived once here and passed down rather than recomputed in children. */}
-              {(() => {
-                const activeConnectionAdditionalInfo =
-                  activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
-                const activeConnectionName = activeConnection != null ? activeConnection.name : null;
+            {isAppLoading ? (
+              <AnimatedSplashScreen />
+            ) : (
+              <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+                <StatusBar barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'} />
+                {/** Determine active connection info for display components */}
+                {/** This is derived once here and passed down rather than recomputed in children. */}
+                {(() => {
+                  const activeConnectionAdditionalInfo =
+                    activeConnection != null ? getConnectionAdditionalInfo(activeConnection) : null;
+                  const activeConnectionName = activeConnection != null ? activeConnection.name : null;
 
-                return (
-                  <ConnectedRoot
-                    backend={backend}
-                    transport={transport}
-                    onDisconnect={handleDisconnect}
-                    connections={connections}
-                    connectionsLoading={connectionsLoading}
-                    onSelectConnectionRecord={handleSelectSavedConnection}
-                    onNewConnectionRequested={() => {
-                      if (backend) {
-                        handleDisconnect();
-                      }
-                      setConnectionMethod(null);
-                      setShowConnectionWizard(true);
-                    }}
-                    renderConnectionWizard={() => {
-                      if (!showConnectionWizard) {
-                        return null;
-                      }
-                      if (!connectionMethod) {
-                        return renderMethodSelection();
-                      }
-                      return renderConnectingScreen();
-                    }}
-                    onDeleteConnectionRecord={handleDeleteConnection}
-                    activeConnectionId={selectedConnectionId}
-                    activeConnectionName={activeConnectionName}
-                    activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
-                    sessionsCache={sessionsCache}
-                    onUpdateSessionsCache={updateSessionsCache}
-                    messagesCache={messagesCache}
-                    onUpdateMessagesCache={updateMessagesCache}
-                    onSaveMessagesComposeText={saveMessagesComposeText}
-                    onSaveMessagesScrollAnchor={saveMessagesScrollAnchor}
-                    debugTimeline={debugTimeline}
-                    onAppendDebugTimelineEntry={appendDebugNote}
-                  />
-                );
-              })()}
-            </SafeAreaView>
+                  return (
+                    <ConnectedRoot
+                      backend={backend}
+                      transport={transport}
+                      onDisconnect={handleDisconnect}
+                      connections={connections}
+                      connectionsLoading={connectionsLoading}
+                      onSelectConnectionRecord={handleSelectSavedConnection}
+                      onNewConnectionRequested={() => {
+                        if (backend) {
+                          handleDisconnect();
+                        }
+                        setConnectionMethod(null);
+                        setShowConnectionWizard(true);
+                      }}
+                      renderConnectionWizard={() => {
+                        if (!showConnectionWizard) {
+                          return null;
+                        }
+                        if (!connectionMethod) {
+                          return renderMethodSelection();
+                        }
+                        return renderConnectingScreen();
+                      }}
+                      onDeleteConnectionRecord={handleDeleteConnection}
+                      activeConnectionId={selectedConnectionId}
+                      activeConnectionName={activeConnectionName}
+                      activeConnectionAdditionalInfo={activeConnectionAdditionalInfo}
+                      sessionsCache={sessionsCache}
+                      onUpdateSessionsCache={updateSessionsCache}
+                      messagesCache={messagesCache}
+                      onUpdateMessagesCache={updateMessagesCache}
+                      onSaveMessagesComposeText={saveMessagesComposeText}
+                      onSaveMessagesScrollAnchor={saveMessagesScrollAnchor}
+                      debugTimeline={debugTimeline}
+                      onAppendDebugTimelineEntry={appendDebugNote}
+                    />
+                  );
+                })()}
+              </SafeAreaView>
+            )}
           </PinnedActionsProvider>
         </ThemeProvider>
       </SafeAreaProvider>
