@@ -70,6 +70,12 @@ Background result:
 Command running in background with ID: <BACKGROUND_ID>. Output is being written to: <BACKGROUND_OUTPUT_PATH>
 ```
 
+Full Claude harness follow-up behavior:
+
+- Claude also exposes `TaskStop` and `TaskOutput` outside the narrower standard-tool slice.
+- For bash tasks, the `TaskOutput` schema text explicitly recommends using `Read` on the returned output file path.
+- When prompted to prefer a dedicated task-management stop tool, Claude stops a running background Bash task with `TaskStop(task_id=<BACKGROUND_ID>)`.
+
 ## Implementation Direction
 
 - Implement `Bash` as an Anthropic-native Claude tool, not an OpenAI-first function tool.

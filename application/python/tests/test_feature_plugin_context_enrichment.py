@@ -4,7 +4,7 @@ These tests verify that context flows correctly from the application layer
 to feature plugins when calling AgentApplication methods.
 
 This tests Layer 2 and Layer 3 context:
-- Layer 2: Application adds (app, base_config, session_asset_store)
+- Layer 2: Application adds (app, base_config, session_asset_store, runtime_state_root)
 - Layer 3: Custom context from caller flows through to plugin
 """
 
@@ -139,7 +139,7 @@ class TestApplicationContextEnrichment:
         session = core.add_message(session, "user", "Test", None, base_config)
         app.save_session(session)
 
-        result = app.execute_session_action(
+        app.execute_session_action(
             plugin_id="context_recording",
             action_id="record_context",
             params={"session_id": session.session_id},
@@ -254,6 +254,7 @@ class TestApplicationContextEnrichment:
                 assert isinstance(ctx.get("request_context"), dict)
                 assert isinstance(ctx.get("request_runtime"), dict)
                 assert "session_asset_store" in ctx
+                assert "runtime_state_root" in ctx
 
     def test_custom_context_flows_through_application(
         self,
@@ -282,7 +283,7 @@ class TestApplicationContextEnrichment:
             "custom_key": "custom_value",
         }
 
-        result = app.execute_session_action(
+        app.execute_session_action(
             plugin_id="context_recording",
             action_id="record_context",
             params={"session_id": session.session_id},
@@ -323,6 +324,7 @@ class TestApplicationContextEnrichment:
         assert isinstance(response_context.get("request_runtime"), dict)
         assert response_context.get("lifecycle") == "response_finalize"
         assert "session_asset_store" in response_context
+        assert "runtime_state_root" in response_context
 
 
 class TestContextStructure:
@@ -345,7 +347,7 @@ class TestContextStructure:
         session = core.add_message(session, "user", "Test", None, base_config)
         app.save_session(session)
 
-        result = app.execute_session_action(
+        app.execute_session_action(
             plugin_id="context_recording",
             action_id="record_context",
             params={"session_id": session.session_id},
@@ -365,7 +367,13 @@ class TestContextStructure:
             "request_context",
             "request_runtime",
         ]
-        expected_layer2_keys = ["app", "application", "base_config", "session_asset_store"]
+        expected_layer2_keys = [
+            "app",
+            "application",
+            "base_config",
+            "session_asset_store",
+            "runtime_state_root",
+        ]
 
         for key in expected_layer1_keys:
             assert key in ctx, f"Layer 1 key '{key}' should be present in context"

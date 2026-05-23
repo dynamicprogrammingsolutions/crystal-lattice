@@ -21,6 +21,7 @@ Create a `claude-tools` plugin package that reproduces Claude Code's standard to
 - [x] Implement the fourth Claude `Glob` slice with Anthropic-native schema/call/result handling.
 - [x] Implement the fifth Claude `Grep` slice with Anthropic-native schema/call/result handling.
 - [x] Implement the sixth Claude `Bash` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the Claude `TaskStop` slice for background Bash task termination.
 - [x] Add narrow tool-result interop so Anthropic-native Claude `Read` can run through OpenAI-compatible providers.
 - [ ] Implement the remaining Claude standard tools: `WebFetch` and `WebSearch`.
 - [ ] Expand fixture parity and tests from the `Read` slice to the remaining tools.
@@ -349,3 +350,13 @@ python -m py_compile plugins/claude-tools/src/claude_tools/claude_bash_tool.py p
 python plugins/claude-tools/investigation/scripts/investigate_bash_tool.py --case all --discard-raw
 pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py plugins/claude-tools/tests/test_claude_grep_tool.py plugins/claude-tools/tests/test_claude_bash_tool.py -q
 ```
+
+TaskStop slice added during continuation:
+
+- Added `ClaudeTaskStopTool` in `plugins/claude-tools/src/claude_tools/claude_task_stop_tool.py`.
+- Registered `ClaudeTaskStopTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added focused investigation fixtures and notes:
+  - `plugins/claude-tools/investigation/fixtures/task-stop/*.json`
+  - `plugins/claude-tools/investigation/notes/task-stop-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_task_stop_tool.py`.
+- Kept `Read` as the primary Claude-shaped way to inspect background Bash output; `TaskStop` is only for termination.

@@ -4,6 +4,7 @@
   "entries": [
     "claude_tools.claude_bash_tool.ClaudeBashTool",
     "claude_tools.claude_read_tool.ClaudeReadTool",
+    "claude_tools.claude_task_stop_tool.ClaudeTaskStopTool",
     "claude_tools.claude_write_tool.ClaudeWriteTool",
     "claude_tools.claude_edit_tool.ClaudeEditTool",
     "claude_tools.claude_glob_tool.ClaudeGlobTool",
@@ -12,6 +13,7 @@
   "kinds": {
     "claude_tools.claude_bash_tool.ClaudeBashTool": "tools",
     "claude_tools.claude_read_tool.ClaudeReadTool": "tools",
+    "claude_tools.claude_task_stop_tool.ClaudeTaskStopTool": "tools",
     "claude_tools.claude_write_tool.ClaudeWriteTool": "tools",
     "claude_tools.claude_edit_tool.ClaudeEditTool": "tools",
     "claude_tools.claude_glob_tool.ClaudeGlobTool": "tools",

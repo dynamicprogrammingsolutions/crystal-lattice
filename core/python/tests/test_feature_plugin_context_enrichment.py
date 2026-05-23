@@ -207,14 +207,21 @@ class TestAppContextEnrichment:
     - application: Alias for app (backward compatibility)
     - base_config: Full base configuration (all agents)
     - session_asset_store: Session asset store for file attachments
+    - runtime_state_root: Persistent runtime-state root directory
     """
 
     def test_app_context_keys_documented(self) -> None:
         """Document expected app-level context keys."""
-        expected_layer2_keys = ["app", "application", "base_config", "session_asset_store"]
+        expected_layer2_keys = [
+            "app",
+            "application",
+            "base_config",
+            "session_asset_store",
+            "runtime_state_root",
+        ]
         # These keys are added by AgentApplication in _build_lifecycle_context
         # and execute_session_action
-        assert len(expected_layer2_keys) == 4
+        assert len(expected_layer2_keys) == 5
 
 
 if __name__ == "__main__":

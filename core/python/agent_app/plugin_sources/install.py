@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import importlib
 
 
 class PluginInstallError(Exception):
@@ -43,7 +44,7 @@ class PipTargetInstallStrategy:
     - Cache directory naming and atomic temp-dir swap
     - pip invocation (`pip_args`, `install_deps: false` -> `--no-deps`)
     - Writing `plugin_metadata.json`
-    - `sys.path` activation (core-first append)
+    - `sys.path` activation (latest installed plugin takes precedence)
     """
 
     def ensure_installed(self, request: InstallRequest) -> Path:  # type: ignore[override]
@@ -55,14 +56,16 @@ class PipTargetInstallStrategy:
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         install_dir = cache_dir / f"{request.safe_id}@{request.revision}"
-        if install_dir.exists():
+        if install_dir.exists() and self._install_dir_matches_request(install_dir, request):
             self._activate_sys_path(install_dir)
             return install_dir
 
         with self._install_lock(cache_dir, request.safe_id, request.revision):
-            if install_dir.exists():
+            if install_dir.exists() and self._install_dir_matches_request(install_dir, request):
                 self._activate_sys_path(install_dir)
                 return install_dir
+            if install_dir.exists():
+                shutil.rmtree(install_dir, ignore_errors=True)
 
             temp_dir = cache_dir / f".{request.safe_id}@{request.revision}.tmp"
             if temp_dir.exists():
@@ -117,10 +120,73 @@ class PipTargetInstallStrategy:
 
     def _activate_sys_path(self, install_dir: Path) -> None:
         value = str(install_dir)
-        if value not in sys.path:
-            sys.path.append(value)
+        try:
+            sys.path.remove(value)
+        except ValueError:
+            pass
+        sys.path.insert(0, value)
+        self._evict_stale_modules(install_dir)
+        importlib.invalidate_caches()
+
+    def _evict_stale_modules(self, install_dir: Path) -> None:
+        top_levels = self._top_level_modules_for_install_dir(install_dir)
+        if not top_levels:
+            return
+        install_dir_resolved = install_dir.resolve()
+        prefixes = tuple(f"{name}." for name in top_levels)
+        to_remove: list[str] = []
+        for module_name, module in list(sys.modules.items()):
+            if not (
+                module_name in top_levels
+                or any(module_name.startswith(prefix) for prefix in prefixes)
+            ):
+                continue
+            module_file = getattr(module, "__file__", None)
+            if not isinstance(module_file, str) or not module_file:
+                to_remove.append(module_name)
+                continue
+            try:
+                module_path = Path(module_file).resolve()
+            except Exception:
+                to_remove.append(module_name)
+                continue
+            try:
+                module_path.relative_to(install_dir_resolved)
+            except ValueError:
+                to_remove.append(module_name)
+        for module_name in to_remove:
+            sys.modules.pop(module_name, None)
+
+    def _top_level_modules_for_install_dir(self, install_dir: Path) -> set[str]:
+        discovered: set[str] = set()
+        for top_level_file in install_dir.glob("*.dist-info/top_level.txt"):
+            try:
+                text = top_level_file.read_text(encoding="utf-8", errors="ignore")
+            except Exception:
+                continue
+            for line in text.splitlines():
+                name = line.strip()
+                if name and name.isidentifier():
+                    discovered.add(name)
+        if discovered:
+            return discovered
+        for child in install_dir.iterdir():
+            name = child.name
+            if child.is_dir():
+                if name.endswith((".dist-info", ".data")):
+                    continue
+                if name.isidentifier():
+                    discovered.add(name)
+                continue
+            if child.is_file() and child.suffix == ".py":
+                stem = child.stem
+                if stem.isidentifier():
+                    discovered.add(stem)
+        return discovered
 
     def _pip_cache_args(self, request: InstallRequest, pip_args: List[str]) -> List[str]:
+        if request.metadata.get("local_dependencies"):
+            return ["--no-cache-dir"]
         if "--no-cache-dir" in pip_args:
             return []
         if any(arg == "--cache-dir" or arg.startswith("--cache-dir=") for arg in pip_args):
@@ -164,3 +230,66 @@ class PipTargetInstallStrategy:
                 self._activate_sys_path(src_dir)
             elif (project / "pyproject.toml").is_file() or (project / "setup.py").is_file():
                 self._activate_sys_path(project)
+
+    def _install_dir_matches_request(
+        self,
+        install_dir: Path,
+        request: InstallRequest,
+    ) -> bool:
+        metadata_path = install_dir / "plugin_metadata.json"
+        if not metadata_path.is_file():
+            return False
+        try:
+            installed = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except Exception:
+            return False
+        if not isinstance(installed, dict):
+            return False
+        for key, value in request.metadata.items():
+            if installed.get(key) != value:
+                return False
+        requested_dep_versions = request.metadata.get("local_dependency_versions")
+        if isinstance(requested_dep_versions, dict):
+            installed_dep_versions = self._installed_distribution_versions(install_dir)
+            for raw_name, raw_version in requested_dep_versions.items():
+                if not isinstance(raw_name, str) or not isinstance(raw_version, str):
+                    return False
+                if installed_dep_versions.get(self._normalize_distribution_name(raw_name)) != raw_version:
+                    return False
+        return True
+
+    def _installed_distribution_versions(self, install_dir: Path) -> Dict[str, str]:
+        versions: Dict[str, str] = {}
+        for dist_dir in install_dir.glob("*.dist-info"):
+            metadata_path = dist_dir / "METADATA"
+            if not metadata_path.is_file():
+                continue
+            name: str | None = None
+            version: str | None = None
+            try:
+                lines = metadata_path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            except Exception:
+                continue
+            for line in lines:
+                if line.startswith("Name: "):
+                    name = line[6:].strip()
+                elif line.startswith("Version: "):
+                    version = line[9:].strip()
+                if name and version:
+                    break
+            if name and version:
+                versions[self._normalize_distribution_name(name)] = version
+        return versions
+
+    def _normalize_distribution_name(self, name: str) -> str:
+        normalized = []
+        previous_sep = False
+        for ch in name.lower():
+            if ch.isalnum():
+                normalized.append(ch)
+                previous_sep = False
+            else:
+                if not previous_sep:
+                    normalized.append("-")
+                    previous_sep = True
+        return "".join(normalized).strip("-")

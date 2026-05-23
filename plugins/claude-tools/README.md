@@ -12,6 +12,7 @@ This package is being built from behavior-driven investigations of Claude Code's
 - `Glob`: Claude Code-compatible file matcher with Anthropic-native schemas, relative-vs-absolute output parity, and truncation handling.
 - `Grep`: Claude Code-compatible regex search tool with Anthropic-native schemas and mode-specific result formatting.
 - `Bash`: Claude Code-compatible shell execution tool with Anthropic-native schemas, timeout handling, and background command support.
+- `TaskStop`: Claude Code-compatible background-task stop tool for terminating running Bash tasks by task ID.
 
 `Read` currently supports text files, images, PDF status/page rendering through Poppler, simple Jupyter notebooks, and observed Claude Code error formatting. OpenAI Chat Completions-compatible providers consume the Anthropic-native result through a narrow temporary bridge until first-class tool-result interop lands.
 
@@ -24,6 +25,8 @@ This package is being built from behavior-driven investigations of Claude Code's
 `Grep` currently supports default `files_with_matches`, `content`, and `count` output modes, along with the observed no-match string and missing-path error wrapper.
 
 `Bash` currently supports foreground execution, raw-success vs `Exit code N` failure formatting, the observed timeout behavior, and the Claude background-run message format.
+
+`TaskStop` currently supports stopping running background Bash tasks by the background ID returned from `Bash`. `Read` remains the primary Claude-shaped way to inspect Bash background output via the returned output path.
 
 ## License
 

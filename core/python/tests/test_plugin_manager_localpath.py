@@ -7,6 +7,7 @@ Local path repos are installed into the plugin cache via
 from __future__ import annotations
 
 from pathlib import Path
+import importlib
 import subprocess
 import sys
 import textwrap
@@ -185,6 +186,82 @@ def test_localpath_source_can_install_sibling_dependency(tmp_path: Path) -> None
     assert res.classes[0]().execute_tool("show_value", {}, {})["result"] == 7
     installed = next(cache_dir.glob("pluginrepo@*"))
     assert (installed / "sharedpkg").is_dir()
+
+
+def test_activate_sys_path_gives_precedence_to_latest_install(tmp_path: Path) -> None:
+    older = tmp_path / "older"
+    newer = tmp_path / "newer"
+    for base, value in ((older, "old"), (newer, "new")):
+        pkg = base / "shadowpkg"
+        pkg.mkdir(parents=True, exist_ok=True)
+        (pkg / "__init__.py").write_text(f"VALUE = {value!r}\n", encoding="utf-8")
+
+    installer = PipTargetInstallStrategy()
+    original_sys_path = list(sys.path)
+    original_module = sys.modules.pop("shadowpkg", None)
+    try:
+        installer._activate_sys_path(older)
+        import shadowpkg  # type: ignore[import-not-found]
+
+        assert shadowpkg.VALUE == "old"
+
+        installer._activate_sys_path(newer)
+        assert "shadowpkg" not in sys.modules
+        shadowpkg = importlib.import_module("shadowpkg")
+        assert shadowpkg.VALUE == "new"
+        assert sys.path[0] == str(newer)
+    finally:
+        sys.path[:] = original_sys_path
+        if original_module is not None:
+            sys.modules["shadowpkg"] = original_module
+        else:
+            sys.modules.pop("shadowpkg", None)
+
+
+def test_activate_sys_path_evicts_stale_imported_modules(tmp_path: Path) -> None:
+    older = tmp_path / "older"
+    newer = tmp_path / "newer"
+    for base, value in ((older, "old"), (newer, "new")):
+        pkg = base / "shadowpkg"
+        dist = base / f"shadowpkg-{value}.dist-info"
+        pkg.mkdir(parents=True, exist_ok=True)
+        dist.mkdir(parents=True, exist_ok=True)
+        (pkg / "__init__.py").write_text(f"VALUE = {value!r}\n", encoding="utf-8")
+        (pkg / "sub.py").write_text(f"VALUE = {value!r}\n", encoding="utf-8")
+        (dist / "top_level.txt").write_text("shadowpkg\n", encoding="utf-8")
+
+    installer = PipTargetInstallStrategy()
+    original_sys_path = list(sys.path)
+    original_shadowpkg = sys.modules.pop("shadowpkg", None)
+    original_shadowpkg_sub = sys.modules.pop("shadowpkg.sub", None)
+    try:
+        installer._activate_sys_path(older)
+        import shadowpkg  # type: ignore[import-not-found]
+        import shadowpkg.sub  # type: ignore[import-not-found]
+
+        assert shadowpkg.VALUE == "old"
+        assert shadowpkg.sub.VALUE == "old"
+
+        installer._activate_sys_path(newer)
+
+        assert "shadowpkg" not in sys.modules
+        assert "shadowpkg.sub" not in sys.modules
+
+        import shadowpkg as reimported_shadowpkg  # type: ignore[import-not-found]
+        import shadowpkg.sub as reimported_shadowpkg_sub  # type: ignore[import-not-found]
+
+        assert reimported_shadowpkg.VALUE == "new"
+        assert reimported_shadowpkg_sub.VALUE == "new"
+    finally:
+        sys.path[:] = original_sys_path
+        if original_shadowpkg is not None:
+            sys.modules["shadowpkg"] = original_shadowpkg
+        else:
+            sys.modules.pop("shadowpkg", None)
+        if original_shadowpkg_sub is not None:
+            sys.modules["shadowpkg.sub"] = original_shadowpkg_sub
+        else:
+            sys.modules.pop("shadowpkg.sub", None)
 
 
 def test_bundled_localpath_source_activates_source_tree_without_pip(

@@ -474,12 +474,15 @@ class AgentApplication:
         self._session_asset_store = FilesystemSessionAssetStore(
             session_root_path.parent / "session_assets"
         )
+        self._runtime_state_root = session_root_path.parent / "runtime"
+        self._runtime_state_root.mkdir(parents=True, exist_ok=True)
         self._runtime_store = RuntimeStore()
         self._tool_runtime = self._runtime_store
         self._context = ApplicationContext(
             app=self,
             application=self,
             session_asset_store=self._session_asset_store,
+            runtime_state_root=self._runtime_state_root,
             runtime_store=self._runtime_store,
             tool_runtime=self._runtime_store,
         )
@@ -2393,6 +2396,9 @@ class AgentApplication:
 
     def get_session_asset_store(self) -> FilesystemSessionAssetStore:
         return self._session_asset_store
+
+    def get_runtime_state_root(self) -> Path:
+        return self._runtime_state_root
 
     def get_runtime_store(self) -> RuntimeStore:
         return self._runtime_store

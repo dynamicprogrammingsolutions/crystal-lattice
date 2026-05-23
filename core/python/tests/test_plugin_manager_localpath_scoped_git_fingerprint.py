@@ -29,8 +29,12 @@ class _RecordingInstaller:
             )
 
         install_dir_str = str(install_dir)
-        if install_dir_str not in sys.path:
-            sys.path.append(install_dir_str)
+        try:
+            sys.path.remove(install_dir_str)
+        except ValueError:
+            pass
+        sys.path.insert(0, install_dir_str)
+        if install_dir_str not in self._sys_paths_added:
             self._sys_paths_added.append(install_dir_str)
         return install_dir
 

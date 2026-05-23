@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Mapping, Optional
 import hashlib
 import os
 import subprocess
+import tomllib
 
 from agent_core.utils import get_logger
 
@@ -161,6 +162,7 @@ class LocalPathRepoSource:
 
         git_fp = self._fingerprint_git(base, project_dir)
         dependency_fps = self._fingerprint_local_path_dependencies(base, project_dir)
+        dependency_versions = self._local_dependency_versions(base, dependency_fps)
         fp = self._combine_fingerprints(
             git_fp or self._fingerprint_files(project_dir), dependency_fps
         )
@@ -184,6 +186,8 @@ class LocalPathRepoSource:
                 metadata["scope"] = parts[3]
         if dependency_fps:
             metadata["local_dependencies"] = dependency_fps
+        if dependency_versions:
+            metadata["local_dependency_versions"] = dependency_versions
 
         src_root = cache_dir / "src"
         src_root.mkdir(parents=True, exist_ok=True)
@@ -291,6 +295,36 @@ class LocalPathRepoSource:
                 except Exception:
                     continue
         return "\n".join(chunks)
+
+    def _local_dependency_versions(
+        self,
+        base: Path,
+        dependency_fps: Mapping[str, str],
+    ) -> Dict[str, str]:
+        versions: Dict[str, str] = {}
+        for dependency_name in dependency_fps.keys():
+            dependency_dir = (base.parent / dependency_name).resolve()
+            version = self._project_version(dependency_dir)
+            if isinstance(version, str) and version:
+                versions[dependency_name] = version
+        return versions
+
+    def _project_version(self, project_dir: Path) -> Optional[str]:
+        pyproject_path = project_dir / "pyproject.toml"
+        if pyproject_path.is_file():
+            try:
+                payload = tomllib.loads(
+                    pyproject_path.read_text(encoding="utf-8", errors="ignore")
+                )
+            except Exception:
+                payload = None
+            if isinstance(payload, dict):
+                project = payload.get("project")
+                if isinstance(project, dict):
+                    version = project.get("version")
+                    if isinstance(version, str) and version.strip():
+                        return version.strip()
+        return None
 
     def _fingerprint_git(self, base: Path, project_dir: Path) -> Optional[str]:
         """Return a git-based fingerprint scoped to the plugin project directory.

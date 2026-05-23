@@ -364,3 +364,22 @@ Key `Bash` findings:
 - Timeout result format: `Exit code 143`
 - The captured `cd ... && pwd` fixture returns only the command output for that call; each execution still starts from the configured working directory in this implementation.
 - Background result format: `Command running in background with ID: <BACKGROUND_ID>. Output is being written to: <BACKGROUND_OUTPUT_PATH>`
+
+TaskStop-tool investigation added during continuation:
+
+- Added `plugins/claude-tools/investigation/scripts/investigate_task_stop_tool.py`.
+- Added normalized fixtures:
+  - `plugins/claude-tools/investigation/fixtures/task-stop/success-stop-background-task.json`
+  - `plugins/claude-tools/investigation/fixtures/task-stop/error-task-not-found.json`
+  - `plugins/claude-tools/investigation/fixtures/task-stop/error-invalid-parameters.json`
+- Added implementation notes:
+  - `plugins/claude-tools/investigation/notes/task-stop-tool.md`
+
+Key `TaskStop` findings:
+
+- In the full Claude Code harness, dedicated task-management tools are present alongside the narrower standard tools, including `TaskStop` and `TaskOutput`.
+- Claude starts background Bash tasks with `Bash(..., run_in_background: true)` and can stop them with `TaskStop(task_id=<BACKGROUND_ID>)`.
+- `TaskOutput` exists, but its schema text explicitly recommends using `Read` on the output file path returned by `Bash` for bash-task output.
+- Successful stop result is a compact JSON string describing the stopped task.
+- Unknown task result: `<tool_use_error>No task found with ID: does-not-exist</tool_use_error>`
+- Unexpected parameters trigger the observed `InputValidationError` wrapper.

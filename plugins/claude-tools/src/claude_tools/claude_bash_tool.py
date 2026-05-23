@@ -33,12 +33,7 @@ import asyncio
 import concurrent.futures
 import os
 import re
-import secrets
 import shlex
-import subprocess
-import tempfile
-import time
-import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -47,9 +42,13 @@ from agent_core.tool_result_payloads import (
     make_provider_native_tool_result,
 )
 from agent_core.types import ToolPlugin
+from tool_compat_shared.background_processes import (
+    DEFAULT_BACKGROUND_OWNERSHIP_MODE,
+    DEFAULT_BACKGROUND_SHUTDOWN_POLICY,
+    ensure_background_process_registry,
+)
 from tool_compat_shared.shell_engine import (
     ShellInfo,
-    build_sync_subprocess_kwargs,
     detect_shell,
     run_shell_command,
 )
@@ -220,7 +219,6 @@ BASH_SCHEMA: Dict[str, Any] = {
 
 DEFAULT_TIMEOUT_MS = 120_000
 MAX_TIMEOUT_MS = 600_000
-BACKGROUND_START_DELAY_SECONDS = 0.2
 SENTINEL_STATUS = "__CLAUDE_BASH_STATUS__:"
 SENTINEL_CWD = "__CLAUDE_BASH_CWD__:"
 SENTINEL_RE = re.compile(
@@ -288,19 +286,42 @@ def _parse_wrapped_output(output: str, *, working_directory: str) -> dict[str, A
     }
 
 
-def _sanitize_path_for_background(path: str) -> str:
-    return str(Path(path).resolve()).replace(os.sep, "-").strip("-") or "workspace"
+def _runtime_state_root_from_context(
+    context: Optional[Dict[str, Any]],
+    *,
+    working_directory: str,
+) -> Path:
+    if isinstance(context, dict):
+        root = context.get("runtime_state_root")
+        if isinstance(root, (str, os.PathLike)):
+            return Path(root).expanduser().resolve()
+    return (Path(working_directory).resolve() / ".crystal" / "runtime").resolve()
 
 
-def _background_root(working_directory: str) -> Path:
-    tmp_root = Path(tempfile.gettempdir()).resolve()
-    uid = os.getuid() if hasattr(os, "getuid") else 0
-    return tmp_root / f"claude-{uid}" / _sanitize_path_for_background(working_directory) / str(uuid.uuid4()) / "tasks"
+def _tool_runtime_from_context(context: Optional[Dict[str, Any]]) -> Any | None:
+    if isinstance(context, dict):
+        return context.get("tool_runtime") or context.get("runtime_store")
+    return None
 
 
-def _background_id() -> str:
-    alphabet = "abcdefghijklmnopqrstuvwxyz0123456789"
-    return "".join(secrets.choice(alphabet) for _ in range(9))
+def _session_id_from_context(context: Optional[Dict[str, Any]]) -> str | None:
+    if not isinstance(context, dict):
+        return None
+    value = context.get("session_id")
+    return value if isinstance(value, str) and value else None
+
+
+def _agent_id_from_context(context: Optional[Dict[str, Any]]) -> str | None:
+    if not isinstance(context, dict):
+        return None
+    session = context.get("session")
+    if not isinstance(session, dict):
+        return None
+    metadata = session.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    value = metadata.get("agent_id")
+    return value if isinstance(value, str) and value else None
 
 
 class ClaudeBashTool(ToolPlugin):
@@ -314,6 +335,14 @@ class ClaudeBashTool(ToolPlugin):
             "working_directory": str(Path(working_directory).resolve()),
             "timeout_ms": int(config.get("shell_timeout_ms") or DEFAULT_TIMEOUT_MS),
             "max_timeout_ms": int(config.get("shell_max_timeout_ms") or MAX_TIMEOUT_MS),
+            "background_ownership_mode": str(
+                config.get("background_process_ownership_mode")
+                or DEFAULT_BACKGROUND_OWNERSHIP_MODE
+            ),
+            "background_shutdown_policy": str(
+                config.get("background_process_shutdown_policy")
+                or DEFAULT_BACKGROUND_SHUTDOWN_POLICY
+            ),
         }
 
     def get_tool_interop_contribution(self, state: Dict[str, Any]):
@@ -394,46 +423,6 @@ class ClaudeBashTool(ToolPlugin):
             "success": exit_code == 0,
         }
 
-    def _execute_background(
-        self,
-        command: str,
-        *,
-        working_directory: str,
-    ) -> Dict[str, Any]:
-        background_id = _background_id()
-        output_root = _background_root(working_directory)
-        output_root.mkdir(parents=True, exist_ok=True)
-        output_path = output_root / f"{background_id}.output"
-        shell = _detect_login_shell()
-        args = [shell.path, *shell.args, command]
-        with output_path.open("w", encoding="utf-8") as output_handle:
-            process = subprocess.Popen(
-                args,
-                cwd=working_directory,
-                stdout=output_handle,
-                stderr=subprocess.STDOUT,
-                text=True,
-                **build_sync_subprocess_kwargs(),
-            )
-        time.sleep(BACKGROUND_START_DELAY_SECONDS)
-        exit_code = process.poll()
-        if exit_code is not None:
-            payload = output_path.read_text(encoding="utf-8", errors="replace")
-            cleaned = payload.rstrip("\n")
-            success = exit_code == 0
-            return {
-                "background": False,
-                "output": cleaned,
-                "success": success,
-                "exit_code": exit_code,
-            }
-        return {
-            "background": True,
-            "background_id": background_id,
-            "output_path": str(output_path),
-            "pid": int(process.pid),
-        }
-
     def execute_tool(
         self,
         tool_name: Optional[str],
@@ -441,6 +430,7 @@ class ClaudeBashTool(ToolPlugin):
         state: Dict[str, Any],
         *,
         tool_call: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
         **_: Any,
     ) -> Dict[str, Any]:
         if tool_name != "Bash":
@@ -468,13 +458,37 @@ class ClaudeBashTool(ToolPlugin):
 
         working_directory = str(state.get("working_directory") or os.getcwd())
         if bool(payload.get("run_in_background")):
-            background = self._execute_background(
+            registry = ensure_background_process_registry(
+                runtime_state_root=_runtime_state_root_from_context(
+                    context,
+                    working_directory=working_directory,
+                ),
+                tool_runtime=_tool_runtime_from_context(context),
+            )
+            background = registry.start_background_command(
                 command.strip(),
                 working_directory=working_directory,
+                shell=_detect_login_shell(),
+                ownership_mode=str(
+                    state.get("background_ownership_mode")
+                    or DEFAULT_BACKGROUND_OWNERSHIP_MODE
+                ),
+                shutdown_policy=str(
+                    state.get("background_shutdown_policy")
+                    or DEFAULT_BACKGROUND_SHUTDOWN_POLICY
+                ),
+                agent_id=_agent_id_from_context(context),
+                session_id=_session_id_from_context(context),
+                request_id=(
+                    context.get("request_id")
+                    if isinstance(context, dict)
+                    and isinstance(context.get("request_id"), str)
+                    else None
+                ),
             )
-            if background.get("background"):
-                output_path = str(background["output_path"])
-                background_id = str(background["background_id"])
+            if background.status == "running":
+                output_path = str(background.output_path)
+                background_id = background.process_id
                 message = (
                     f"Command running in background with ID: {background_id}. "
                     f"Output is being written to: {output_path}"
@@ -487,12 +501,15 @@ class ClaudeBashTool(ToolPlugin):
                         "background": True,
                         "background_id": background_id,
                         "output_path": output_path,
-                        "pid": int(background["pid"]),
+                        "pid": int(background.pid),
                     },
                 )
-            exit_code = int(background.get("exit_code") or 0)
-            output = str(background.get("output") or "")
-            if background.get("success"):
+            output = (
+                background.output_path.read_text(encoding="utf-8", errors="replace")
+                if background.output_path.exists()
+                else ""
+            )
+            if background.status == "succeeded":
                 return self._result(
                     tool_use_id=tool_use_id,
                     message=self._format_success_output(output),
@@ -500,7 +517,10 @@ class ClaudeBashTool(ToolPlugin):
                 )
             return self._result(
                 tool_use_id=tool_use_id,
-                message=self._format_failure_output(exit_code=exit_code, output=output),
+                message=self._format_failure_output(
+                    exit_code=int(background.exit_code or 0),
+                    output=output,
+                ),
                 success=False,
             )
 

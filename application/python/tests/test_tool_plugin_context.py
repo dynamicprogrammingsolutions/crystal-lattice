@@ -1,7 +1,7 @@
 """Tests for tool plugin context enrichment at the application layer.
 
 Tests that the application layer enriches context with Layer 2 keys
-(app, application, base_config, session_asset_store) when tools are
+(app, application, base_config, session_asset_store, runtime_state_root) when tools are
 executed through the tool loop.
 
 Note: The detailed tool context tests are in core/python/tests/test_tool_plugin_context.py.
@@ -17,9 +17,9 @@ from typing import Any, Dict
 
 from agent_core import AgentCore
 from agent_app.application_future import AgentApplication
+from agent_app.app_context import ApplicationContext
 from agent_app.events import InMemoryEventStore
 from agent_app.tool_loop import ToolLoopRunner
-from plugins.echo_openai_like_provider import EchoOpenAILikeProvider
 
 
 def _base_config() -> Dict[str, Any]:
@@ -90,6 +90,7 @@ class TestToolLoopRunnerContextEnrichment:
             "application": app,
             "base_config": app._config,
             "session_asset_store": app._session_asset_store,
+            "runtime_state_root": app.get_runtime_state_root(),
             "trigger_source": "application",
         }
 
@@ -108,25 +109,26 @@ class TestToolLoopRunnerContextEnrichment:
         app = _make_app(tmp_path)
         core, base_config, session = app.create_session("default")
 
-        # Create a ToolLoopRunner with context (simulating what send_request does)
+        # Create a ToolLoopRunner with app_context (simulating what send_request does)
+        app_context = ApplicationContext(
+            app=app,
+            application=app,
+            session_asset_store=app._session_asset_store,
+            runtime_state_root=app.get_runtime_state_root(),
+            runtime_store=app.get_runtime_store(),
+            tool_runtime=app.get_tool_runtime(),
+        )
         runner = ToolLoopRunner(
             core=core,
             config={"provider": "echo_openai_like", "model": "test-model"},
             request_id="test-request-1",
             tool_loop_cfg={},
-            context={
-                "app": app,
-                "application": app,
-                "base_config": base_config,
-                "session_asset_store": app._session_asset_store,
-                "trigger_source": "application",
-            },
+            app_context=app_context,
+            base_config=base_config,
         )
 
-        # Verify runner has context
-        assert runner._context is not None
-        assert runner._context.get("app") is app
-        assert runner._context.get("trigger_source") == "application"
+        assert runner._app_context is app_context
+        assert runner._base_config == base_config
 
 
 class TestToolContextDocumentation:
@@ -139,8 +141,14 @@ class TestToolContextDocumentation:
 
     def test_layer2_context_keys_documented(self) -> None:
         """Document expected Layer 2 context keys for tools."""
-        expected_layer2_keys = ["app", "application", "base_config", "session_asset_store"]
-        assert len(expected_layer2_keys) == 4
+        expected_layer2_keys = [
+            "app",
+            "application",
+            "base_config",
+            "session_asset_store",
+            "runtime_state_root",
+        ]
+        assert len(expected_layer2_keys) == 5
 
     def test_context_usage_pattern_documented(self) -> None:
         """Document the expected usage pattern for tools using context."""

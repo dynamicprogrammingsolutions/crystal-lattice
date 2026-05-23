@@ -14,6 +14,7 @@ class ApplicationContext:
         app: Any,
         application: Any | None = None,
         session_asset_store: Any | None = None,
+        runtime_state_root: Any | None = None,
         runtime_store: Any | None = None,
         tool_runtime: Any | None = None,
     ) -> None:
@@ -21,6 +22,7 @@ class ApplicationContext:
             "app": app,
             "application": application if application is not None else app,
             "session_asset_store": session_asset_store,
+            "runtime_state_root": runtime_state_root,
             "runtime_store": runtime_store,
             "tool_runtime": tool_runtime,
         }
