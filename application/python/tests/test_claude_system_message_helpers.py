@@ -219,6 +219,8 @@ def test_default_config_claude_agent_uses_claude_tools(
     assert "claude_grep_tool" in plugin_ids
     assert "claude_bash_tool" in plugin_ids
     assert "claude_task_stop_tool" in plugin_ids
+    assert "claude_web_fetch_tool" in plugin_ids
+    assert "claude_web_search_tool" in plugin_ids
     assert "shell" not in plugin_ids
 
     config = json.loads(config_path.read_text(encoding="utf-8"))

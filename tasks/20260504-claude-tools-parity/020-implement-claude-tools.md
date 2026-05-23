@@ -5,12 +5,12 @@ Create a `claude-tools` plugin package that reproduces Claude Code's standard to
 ## Requirements checklist
 
 - [x] Add `plugins/claude-tools` with package metadata, `agent_plugin.json`, source package, README, and tests.
-- [ ] Implement `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `WebFetch`, and `WebSearch` with Claude-compatible names and schemas.
-- [ ] Author Claude tools in Anthropic-native schema/call/result format, not primarily in OpenAI Chat Completions function format.
-- [ ] Add tool interop accessors/adapters so Anthropic-native Claude tools can run through OpenAI Chat Completions-style providers.
-- [ ] Reuse `tool-compat-shared` and `web-fetch-shared` for filesystem, search, shell, and web functionality.
+- [x] Implement `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `WebFetch`, and `WebSearch` with Claude-compatible names and schemas.
+- [x] Author Claude tools in Anthropic-native schema/call/result format, not primarily in OpenAI Chat Completions function format.
+- [x] Add tool interop accessors/adapters so Anthropic-native Claude tools can run through OpenAI Chat Completions-style providers.
+- [x] Reuse `tool-compat-shared` and `web-fetch-shared` for filesystem, search, shell, and web functionality.
 - [ ] Add Claude-specific formatting helpers to shared packages only when they are genuinely reusable and covered by tests.
-- [ ] Match observed success, error, and truncation result formatting from the investigation fixtures.
+- [x] Match observed success, error, and truncation result formatting from the investigation fixtures.
 
 ## Task checklist
 
@@ -23,8 +23,8 @@ Create a `claude-tools` plugin package that reproduces Claude Code's standard to
 - [x] Implement the sixth Claude `Bash` slice with Anthropic-native schema/call/result handling.
 - [x] Implement the Claude `TaskStop` slice for background Bash task termination.
 - [x] Add narrow tool-result interop so Anthropic-native Claude `Read` can run through OpenAI-compatible providers.
-- [ ] Implement the remaining Claude standard tools: `WebFetch` and `WebSearch`.
-- [ ] Expand fixture parity and tests from the `Read` slice to the remaining tools.
+- [x] Implement the remaining Claude standard tools: `WebFetch` and `WebSearch`.
+- [x] Expand fixture parity and tests from the `Read` slice to the remaining tools.
 - [ ] Revisit shared interop/formatting cleanup once the full Claude tool surface is implemented.
 
 Parent Task: tasks/20260504-claude-tools-parity/000-main.md
@@ -360,3 +360,39 @@ TaskStop slice added during continuation:
   - `plugins/claude-tools/investigation/notes/task-stop-tool.md`
 - Added focused unit tests in `plugins/claude-tools/tests/test_claude_task_stop_tool.py`.
 - Kept `Read` as the primary Claude-shaped way to inspect background Bash output; `TaskStop` is only for termination.
+
+WebFetch and WebSearch slices added during continuation:
+
+- Added `ClaudeWebFetchTool` in `plugins/claude-tools/src/claude_tools/claude_web_fetch_tool.py`.
+- Added `ClaudeWebSearchTool` in `plugins/claude-tools/src/claude_tools/claude_web_search_tool.py`.
+- Registered both tools in `plugins/claude-tools/agent_plugin.json`.
+- Updated package exports in `plugins/claude-tools/src/claude_tools/__init__.py`.
+- Added the explicit shared fetch dependency in `plugins/claude-tools/setup.py`.
+- Added focused unit tests:
+  - `plugins/claude-tools/tests/test_claude_web_fetch_tool.py`
+  - `plugins/claude-tools/tests/test_claude_web_search_tool.py`
+- Updated the focused Claude default-config helper test to assert the `claude` agent exposes both new tool ids.
+
+WebFetch implementation notes:
+
+- Reuses `web-fetch-shared` for fetch, extraction, truncation, rate-limiting, and prompt-based summarization.
+- Preserves the Claude-facing `WebFetch` schema and Anthropic-native result envelope.
+- Matches the investigated `Invalid URL`, `timeout of 60000ms exceeded`, and cross-host `REDIRECT DETECTED` result shapes.
+- Treats private/localhost URLs as invalid in the Claude-shaped layer, matching the observed Claude behavior for the investigated case.
+
+WebSearch implementation notes:
+
+- Reuses `tool_compat_shared.web_search_engine` providers and supports both `gemini_api` and `tavily` backends.
+- Preserves the Claude-facing `WebSearch` schema and Anthropic-native result envelope.
+- Formats successful results into the Claude-shaped plain-text structure with `Links:` and the mandatory reminder about markdown source links.
+- Applies domain filtering in the Claude tool layer even though the captured Claude server behavior did not appear to enforce it strictly.
+
+Focused verification run for the web slices:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/claude_web_fetch_tool.py plugins/claude-tools/src/claude_tools/claude_web_search_tool.py plugins/claude-tools/tests/test_claude_web_fetch_tool.py plugins/claude-tools/tests/test_claude_web_search_tool.py
+ruff check plugins/claude-tools/src/claude_tools plugins/claude-tools/tests application/python/tests/test_claude_system_message_helpers.py
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py plugins/claude-tools/tests/test_claude_grep_tool.py plugins/claude-tools/tests/test_claude_bash_tool.py plugins/claude-tools/tests/test_claude_task_stop_tool.py plugins/claude-tools/tests/test_claude_web_fetch_tool.py plugins/claude-tools/tests/test_claude_web_search_tool.py application/python/tests/test_claude_system_message_helpers.py -q
+```
+
+Result during completion: `66 passed`; `ruff` reported `All checks passed`.

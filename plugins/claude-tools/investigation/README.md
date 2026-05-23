@@ -10,6 +10,13 @@ Run the first investigation script with:
 python plugins/claude-tools/investigation/scripts/investigate_read_tool.py --case success-small-file
 ```
 
+Run the web investigations with:
+
+```bash
+python plugins/claude-tools/investigation/scripts/investigate_web_fetch_tool.py --case all
+python plugins/claude-tools/investigation/scripts/investigate_web_search_tool.py --case all
+```
+
 Run the system-message investigation with:
 
 ```bash

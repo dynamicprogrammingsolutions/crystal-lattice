@@ -1,0 +1,71 @@
+{
+  "assistant_tool_use": {
+    "id": "<TOOL_CALL_ID>",
+    "input": {
+      "allowed_domains": [
+        "wikipedia.org"
+      ],
+      "query": "example domain"
+    },
+    "name": "WebSearch",
+    "type": "tool_use"
+  },
+  "case": "success-allowed-domains",
+  "claude_returncode": 0,
+  "final_result": "DONE.",
+  "raw_artifact_dir": null,
+  "request_count": 5,
+  "request_urls": [
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true"
+  ],
+  "tool_result_message": {
+    "content": [
+      {
+        "cache_control": {
+          "type": "ephemeral"
+        },
+        "content": "Web search results for query: \"example domain\"\n\nLinks: [{\"title\":\"Example.com\",\"url\":\"https://en.wikipedia.org/wiki/Example_domain\"},{\"title\":\"RFC 2606: Reserved Top Level DNS Names - Ian Duncan - Ian Duncan\",\"url\":\"https://www.iankduncan.com/projects/rfc-browser/2606\"},{\"title\":\"example.com - Reserved Documentation Placeholder | URLert\",\"url\":\"https://www.urlert.com/domains/example.com\"},{\"title\":\".example - ICANNWiki\",\"url\":\"https://icannwiki.org/.example\"},{\"title\":\"RFC 2606:  Reserved Top Level DNS Names\",\"url\":\"https://rfcs.web.fc2.com/rfc2606.html\"}]\n\nHere's a summary of what I found about \"example domain\":\n\n**Example.com and related domains** (`example.com`, `example.net`, `example.org`, `example.edu`) are **reserved domain names** designated by the Internet Assigned Numbers Authority (IANA) for documentation and example purposes.\n\n## Key Information:\n\n- **Purpose**: These domains are intended for use in books, tutorials, technical documentation, sample network configurations, and any context where a domain name example is needed\n- **Reservation**: They are reserved by IANA at the direction of the Internet Engineering Task Force (IETF)\n- **RFC 2606**: The official specification for these reserved domains is documented in RFC 2606 (1999), which also reserves the `.test`, `.invalid`, and `.localhost` top-level domains\n- **History**: First reserved in 1992 for `.com`, `.net`, and `.org`; officially standardized in RFC 2606 in 1999\n- **Operator**: ICANN operates websites for these domains with placeholder content that reflects their purpose\n\n## Why they exist:\nTo prevent conflicts - if documentation used real domain names, users might accidentally try to access or modify real websites. These reserved domains ensure that examples can be safely copied without risk of interfering with actual internet resources.\n\nYou can visit [example.com](https://www.example.com) to see the placeholder page that explains this purpose.\n\n\nREMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks.",
+        "tool_use_id": "<TOOL_CALL_ID>",
+        "type": "tool_result"
+      }
+    ],
+    "role": "user"
+  },
+  "tool_schema": {
+    "description": "\n- Allows Claude to search the web and use the results to inform responses\n- Provides up-to-date information for current events and recent data\n- Returns search result information formatted as search result blocks, including links as markdown hyperlinks\n- Use this tool for accessing information beyond Claude's knowledge cutoff\n- Searches are performed automatically within a single API call\n\nCRITICAL REQUIREMENT - You MUST follow this:\n  - After answering the user's question, you MUST include a \"Sources:\" section at the end of your response\n  - In the Sources section, list all relevant URLs from the search results as markdown hyperlinks: [Title](URL)\n  - This is MANDATORY - never skip including sources in your response\n  - Example format:\n\n    [Your answer here]\n\n    Sources:\n    - [Source Title 1](https://example.com/1)\n    - [Source Title 2](https://example.com/2)\n\nUsage notes:\n  - Domain filtering is supported to include or block specific websites\n  - Web search is only available in the US\n\nIMPORTANT - Use the correct year in search queries:\n  - The current month is May 2026. You MUST use this year when searching for recent information, documentation, or current events.\n  - Example: If the user asks for \"latest React docs\", search for \"React documentation\" with the current year, NOT last year\n",
+    "input_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_domains": {
+          "description": "Only include search results from these domains",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "blocked_domains": {
+          "description": "Never include search results from these domains",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "query": {
+          "description": "The search query to use",
+          "minLength": 2,
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "name": "WebSearch"
+  }
+}

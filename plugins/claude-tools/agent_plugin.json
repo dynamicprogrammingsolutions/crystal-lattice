@@ -8,7 +8,9 @@
     "claude_tools.claude_write_tool.ClaudeWriteTool",
     "claude_tools.claude_edit_tool.ClaudeEditTool",
     "claude_tools.claude_glob_tool.ClaudeGlobTool",
-    "claude_tools.claude_grep_tool.ClaudeGrepTool"
+    "claude_tools.claude_grep_tool.ClaudeGrepTool",
+    "claude_tools.claude_web_fetch_tool.ClaudeWebFetchTool",
+    "claude_tools.claude_web_search_tool.ClaudeWebSearchTool"
   ],
   "kinds": {
     "claude_tools.claude_bash_tool.ClaudeBashTool": "tools",
@@ -17,6 +19,8 @@
     "claude_tools.claude_write_tool.ClaudeWriteTool": "tools",
     "claude_tools.claude_edit_tool.ClaudeEditTool": "tools",
     "claude_tools.claude_glob_tool.ClaudeGlobTool": "tools",
-    "claude_tools.claude_grep_tool.ClaudeGrepTool": "tools"
+    "claude_tools.claude_grep_tool.ClaudeGrepTool": "tools",
+    "claude_tools.claude_web_fetch_tool.ClaudeWebFetchTool": "tools",
+    "claude_tools.claude_web_search_tool.ClaudeWebSearchTool": "tools"
   }
 }

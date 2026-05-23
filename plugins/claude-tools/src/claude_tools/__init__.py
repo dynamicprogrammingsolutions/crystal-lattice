@@ -20,6 +20,8 @@ from .claude_grep_tool import ClaudeGrepTool
 from .claude_glob_tool import ClaudeGlobTool
 from .claude_read_tool import ClaudeReadTool
 from .claude_task_stop_tool import ClaudeTaskStopTool
+from .claude_web_fetch_tool import ClaudeWebFetchTool
+from .claude_web_search_tool import ClaudeWebSearchTool
 from .claude_write_tool import ClaudeWriteTool
 
 __all__ = [
@@ -30,4 +32,6 @@ __all__ = [
     "ClaudeGlobTool",
     "ClaudeGrepTool",
     "ClaudeTaskStopTool",
+    "ClaudeWebFetchTool",
+    "ClaudeWebSearchTool",
 ]

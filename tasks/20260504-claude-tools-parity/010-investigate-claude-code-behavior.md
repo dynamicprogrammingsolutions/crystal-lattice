@@ -5,8 +5,8 @@ Build and run deterministic Claude Code proxy investigations for all standard to
 ## Requirements checklist
 
 - [x] Create a repeatable harness that launches `../openai-proxy`, runs Claude Code through Ollama's Anthropic-compatible API, captures stdout/stderr/debug/proxy logs, and normalizes volatile fields.
-- [ ] Capture schemas for `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `WebFetch`, and `WebSearch`.
-- [ ] Capture result formatting for success and important error/truncation cases for each standard tool.
+- [x] Capture schemas for `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `WebFetch`, and `WebSearch`.
+- [x] Capture result formatting for success and important error/truncation cases for each standard tool.
 - [x] Capture Claude Code system-message request bodies with no tools and with relevant tool subsets enabled.
 - [x] Store normalized fixtures or investigation artifacts in a repo location suitable for tests or future reference.
 
@@ -383,3 +383,52 @@ Key `TaskStop` findings:
 - Successful stop result is a compact JSON string describing the stopped task.
 - Unknown task result: `<tool_use_error>No task found with ID: does-not-exist</tool_use_error>`
 - Unexpected parameters trigger the observed `InputValidationError` wrapper.
+
+WebFetch-tool investigation added during continuation:
+
+- Added `plugins/claude-tools/investigation/scripts/investigate_web_fetch_tool.py`.
+- Ran these cases successfully through Claude Code, Ollama, and `../openai-proxy`:
+  - `success-text-file`
+  - `success-html-page`
+  - `success-redirect-different-host`
+  - `error-invalid-private-url`
+  - `error-timeout`
+- Committed normalized fixtures:
+  - `plugins/claude-tools/investigation/fixtures/web-fetch/success-text-file.json`
+  - `plugins/claude-tools/investigation/fixtures/web-fetch/success-html-page.json`
+  - `plugins/claude-tools/investigation/fixtures/web-fetch/success-redirect-different-host.json`
+  - `plugins/claude-tools/investigation/fixtures/web-fetch/error-invalid-private-url.json`
+  - `plugins/claude-tools/investigation/fixtures/web-fetch/error-timeout.json`
+- Updated implementation directions:
+  - `plugins/claude-tools/investigation/notes/web-fetch-tool.md`
+
+Key `WebFetch` findings:
+
+- Successful fetch results are plain strings containing the prompt-shaped answer, not wrapped JSON.
+- Redirects to a different host do not auto-follow; Claude returns the observed `REDIRECT DETECTED` block and instructs the model to call `WebFetch` again with the redirected URL.
+- `http://localhost:3000` returns `Invalid URL`.
+- A real public URL timeout returns `timeout of 60000ms exceeded`.
+- Real success coverage was possible with public text and HTML pages; no local mock server was required for the initial fixture set.
+
+WebSearch-tool investigation added during continuation:
+
+- Added `plugins/claude-tools/investigation/scripts/investigate_web_search_tool.py`.
+- Ran these cases successfully through Claude Code, Ollama, and `../openai-proxy`:
+  - `success-basic`
+  - `success-allowed-domains`
+  - `success-blocked-domains`
+  - `error-query-too-short`
+- Committed normalized fixtures:
+  - `plugins/claude-tools/investigation/fixtures/web-search/success-basic.json`
+  - `plugins/claude-tools/investigation/fixtures/web-search/success-allowed-domains.json`
+  - `plugins/claude-tools/investigation/fixtures/web-search/success-blocked-domains.json`
+  - `plugins/claude-tools/investigation/fixtures/web-search/error-query-too-short.json`
+- Updated implementation directions:
+  - `plugins/claude-tools/investigation/notes/web-search-tool.md`
+
+Key `WebSearch` findings:
+
+- Real Claude `WebSearch` responses were captured successfully in this environment with no additional Claude-side setup beyond the existing proxy/Ollama harness.
+- Successful results are plain text with a `Web search results for query: ...` header, a `Links:` JSON-like list, a prose summary, and a trailing reminder to include sources as markdown hyperlinks.
+- `allowed_domains` and `blocked_domains` are passed through by Claude when explicitly requested, but the observed result sets were not strictly filtered to those domains.
+- Too-short queries fail with the observed `<tool_use_error>InputValidationError: ...</tool_use_error>` wrapper.

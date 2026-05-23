@@ -4,8 +4,8 @@ Create Claude Code-compatible system message, standard tools, and compaction sup
 
 ## Task checklist
 
-- [ ] `tasks/20260504-claude-tools-parity/010-investigate-claude-code-behavior.md` - partial: repeatable harness exists, `Read`, `Write`, `Edit`, `Glob`, `Grep`, and `Bash` fixtures are captured, and system-message fixtures are captured; web-tool investigations remain.
-- [ ] `tasks/20260504-claude-tools-parity/020-implement-claude-tools.md` - partial: Claude `Read`, `Write`, `Edit`, `Glob`, `Grep`, and `Bash` plus Anthropic-native tool/result interop landed; only the web tools remain unimplemented.
+- [x] `tasks/20260504-claude-tools-parity/010-investigate-claude-code-behavior.md` - completed for the standard-tool scope: repeatable harnesses and normalized fixtures now exist for `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `WebFetch`, `WebSearch`, plus system-message coverage.
+- [ ] `tasks/20260504-claude-tools-parity/020-implement-claude-tools.md` - partial: all standard Claude tools plus `TaskStop` are implemented; remaining follow-up is shared interop/formatting cleanup and broader validation/docs work.
 - [x] `tasks/20260504-claude-tools-parity/030-implement-claude-system-message-and-config.md` - completed for the current Claude `Read` slice: the primary `claude` default-config agent now uses `claude-tools`, the structured Claude system message is wired in, and focused rendering/config tests pass.
 - [ ] `tasks/20260504-claude-tools-parity/040-investigate-and-implement-claude-compaction.md`
 - [ ] `tasks/20260504-claude-tools-parity/050-validation-and-docs.md`
