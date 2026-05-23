@@ -6,6 +6,7 @@ Welcome to the API documentation. This site is generated from in-code docstrings
 - Types and protocols: see TYPES_AND_PROTOCOLS.md
 - Examples: see EXAMPLES.md
 - Core SDK reference: see Reference → AgentCore
+- Tool call interception: see [API → Tool Interceptor](api/tool-interceptor.md)
 
 Getting started locally
 

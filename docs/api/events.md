@@ -220,7 +220,7 @@ Final assistant messages for a phase.
 Defined in:
 
 - `core/python/agent_app/tool_loop.py`
-  - `_apply_tool_calls` (tool_calls, tool_partial, tool_results)
+  - `_apply_tool_calls` (tool_calls, tool_partial, tool_results, tool_interceptor_prompt)
 
 ### `tool_calls`
 
@@ -291,6 +291,33 @@ Summary of final tool messages appended to the session.
       }
     }
   ]
+}
+```
+
+### `tool_interceptor_prompt`
+
+Emitted when a tool interceptor plugin pauses execution to prompt the user for a decision (allow/deny/custom). The request is suspended until `POST /sessions/{session_id}/tool-prompts/respond` is called.
+
+See [Tool Call Interception](./tool-interceptor.md) for the full schema, the HTTP resume API, and how to write an interceptor plugin.
+
+```jsonc
+{
+  "type": "tool_interceptor_prompt",
+  "session_id": "<session-id>",
+  "request_id": "<request-id>",
+  "message_index": 3,           // index in session.messages of the suspended assistant message
+  "phase": "call",              // "call" (before execution) | "result" (after execution)
+  "tool_call_id": "<id>",
+  "tool_name": "add_numbers",
+  "plugin": "my_interceptor",
+  "prompt": {
+    "id": "<uuid>",
+    "buttons": [
+      { "id": "allow", "label": "Allow" },
+      { "id": "deny",  "label": "Deny"  }
+    ],
+    "fields": []
+  }
 }
 ```
 
