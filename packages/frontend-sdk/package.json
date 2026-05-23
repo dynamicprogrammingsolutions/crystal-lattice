@@ -8,6 +8,7 @@
     "test:watch": "vitest",
     "integration:backend": "RUN_BACKEND_INTEGRATION=1 vitest run src/integration/__tests__/backend.integration.test.ts",
     "integration:backend:openai": "RUN_BACKEND_OPENAI_INTEGRATION=1 vitest run src/integration/__tests__/backend.openai.integration.test.ts",
+    "integration:backend:openrouter": "RUN_BACKEND_OPENROUTER_INTEGRATION=1 vitest run src/integration/__tests__/backend.openrouter.integration.test.ts",
     "integration:backend:openrouter-images": "RUN_BACKEND_OPENROUTER_INTEGRATION=1 vitest run src/integration/__tests__/backend.image_attachments.integration.test.ts",
     "integration:backend:openrouter:mcp": "RUN_BACKEND_OPENROUTER_INTEGRATION=1 vitest run src/integration/__tests__/backend.codex_mcp.integration.test.ts",
     "integration:bridge": "RUN_BRIDGE_E2E_INTEGRATION=1 vitest run src/integration/__tests__/bridge.e2e.integration.test.ts",

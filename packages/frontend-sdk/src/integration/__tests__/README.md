@@ -26,6 +26,7 @@ after `--`.
 | --- | --- |
 | `npm run integration:backend` | `backend.integration.test.ts` with local deterministic providers. |
 | `npm run integration:backend:openai` | OpenAI Responses attachment integration. |
+| `npm run integration:backend:openrouter` | OpenRouter chat attachment integration. |
 | `npm run integration:backend:openrouter-images` | OpenRouter image-generation attachment integration. |
 | `npm run integration:bridge` | Bridge e2e in Docker mode by default. |
 | `npm run integration:bridge:aws:fargate-secure` | Bridge e2e against AWS Fargate secure deployment. |
@@ -166,6 +167,30 @@ Example:
 
 ```bash
 npm run integration:backend:openrouter-images
+```
+
+### `backend.openrouter.integration.test.ts`
+
+Gate: `RUN_BACKEND_OPENROUTER_INTEGRATION=1` and `OPENROUTER_API_KEY`
+
+This file reads `OPENROUTER_API_KEY`, optional `OPENROUTER_BASE_URL`, and
+optional `OPENROUTER_VISION_MODEL` from the shell or repository root `.env`.
+It starts a real backend with the general OpenRouter chat provider and
+verifies upload-backed image attachment storage plus `asset_ref` sending
+through the shared frontend SDK helpers.
+
+Default vision-capable chat model:
+
+- `OPENROUTER_VISION_MODEL=google/gemini-2.5-flash-lite`
+
+Test:
+
+- `stores an attachment through the SDK action helper and sends it by asset_ref against the real API`
+
+Example:
+
+```bash
+npm run integration:backend:openrouter
 ```
 
 ### `bridge.e2e.integration.test.ts`

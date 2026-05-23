@@ -81,6 +81,27 @@ function createAttachment(overrides: Record<string, any> = {}) {
   };
 }
 
+function createAssetOnlyAttachment() {
+  return {
+    id: '0',
+    type: 'image',
+    content: {
+      asset_ref: {
+        kind: 'session_asset',
+        session_id: 'session-1',
+        asset_id: 'asset-1',
+        attachment_type: 'image',
+      },
+      filename: 'red.png',
+      mime_type: 'image/png',
+    },
+    metadata: { download_plugin_id: 'plugin.image' },
+    messageIndex: 2,
+    partIndex: 0,
+    cacheKey: '2:0',
+  };
+}
+
 function renderHost(options: { backend?: any; attachment?: any } = {}) {
   let renderer: ReactTestRenderer.ReactTestRenderer;
   ReactTestRenderer.act(() => {
@@ -294,5 +315,56 @@ test('attachment viewer reopens with cached full-size image', async () => {
 
   expect(renderer.root.findByProps({ testID: 'image-zoom' }).props.uri).toBe(
     'file:///tmp/attachment-previews/session-session-1-asset-asset-1-plugin-plugin.image-full-red.png',
+  );
+});
+
+test('attachment viewer auto-downloads asset-backed images that do not include inline preview data', async () => {
+  const executeAction = jest.fn(async () => ({
+    status: 'ok',
+    result: {
+      attachment_asset: {
+        asset_ref: {
+          kind: 'session_asset',
+          session_id: 'session-1',
+          asset_id: 'asset-1',
+          attachment_type: 'image',
+        },
+        filename: 'red.png',
+        mime_type: 'image/png',
+      },
+      data_base64: 'RlVMTA==',
+    },
+  }));
+  const backend = {
+    kind: 'rest',
+    executeAction,
+  };
+
+  const renderer = renderHost({
+    backend,
+    attachment: createAssetOnlyAttachment(),
+  });
+
+  await ReactTestRenderer.act(async () => {
+    await Promise.resolve();
+  });
+
+  expect(executeAction).toHaveBeenCalledWith(
+    expect.objectContaining({
+      pluginId: 'plugin.image',
+      actionId: 'download_attachment',
+      inputs: {
+        session_id: 'session-1',
+        asset_id: 'asset-1',
+      },
+    }),
+  );
+  expect(mockWriteFile).toHaveBeenCalledWith(
+    '/tmp/attachment-previews/session-session-1-asset-asset-1-plugin-plugin.image-red.png',
+    'RlVMTA==',
+    'base64',
+  );
+  expect(renderer.root.findByProps({ testID: 'image-zoom' }).props.uri).toBe(
+    'file:///tmp/attachment-previews/session-session-1-asset-asset-1-plugin-plugin.image-red.png',
   );
 });
