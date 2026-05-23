@@ -16,8 +16,13 @@ Create a `claude-tools` plugin package that reproduces Claude Code's standard to
 
 - [x] Create the `claude-tools` package scaffold and investigation fixture layout.
 - [x] Implement the first Claude `Read` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the second Claude `Write` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the third Claude `Edit` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the fourth Claude `Glob` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the fifth Claude `Grep` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the sixth Claude `Bash` slice with Anthropic-native schema/call/result handling.
 - [x] Add narrow tool-result interop so Anthropic-native Claude `Read` can run through OpenAI-compatible providers.
-- [ ] Implement the remaining Claude standard tools: `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `WebFetch`, and `WebSearch`.
+- [ ] Implement the remaining Claude standard tools: `WebFetch` and `WebSearch`.
 - [ ] Expand fixture parity and tests from the `Read` slice to the remaining tools.
 - [ ] Revisit shared interop/formatting cleanup once the full Claude tool surface is implemented.
 
@@ -251,3 +256,96 @@ pytest core/python/tests/test_core_execute_tool_calls.py core/python/tests/test_
 ```
 
 Result: `17 passed, 1 failed`. The failure is `core/python/tests/test_tool_structured_output.py::test_iter_tool_messages_preserves_structured_tool_output_content`, which expects tool messages to expose `multipartContent`. Current core emits `tool_output_content` metadata and `toolResult`, but does not add top-level `multipartContent` in `iter_tool_messages()`. This appears to be outside the Claude `Read` slice and overlaps the cleanup direction in `tasks/20260508-tool-result-interop-accessors-adapters.md`.
+
+Write slice added during continuation:
+
+- Added `ClaudeWriteTool` in `plugins/claude-tools/src/claude_tools/claude_write_tool.py`.
+- Added cross-tool Claude file-activity tracking in `plugins/claude-tools/src/claude_tools/activity.py` so `Read` can unlock `Write` for existing files within a request-like context.
+- Updated `ClaudeReadTool` to record successful reads for the observed Claude read-before-write guard.
+- Registered `ClaudeWriteTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added `Write` investigation harness, fixtures, and notes:
+  - `plugins/claude-tools/investigation/scripts/investigate_write_tool.py`
+  - `plugins/claude-tools/investigation/fixtures/write/*.json`
+  - `plugins/claude-tools/investigation/notes/write-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_write_tool.py`.
+
+Focused verification run for the write slice:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/activity.py plugins/claude-tools/src/claude_tools/claude_write_tool.py plugins/claude-tools/investigation/scripts/normalize_proxy_log.py plugins/claude-tools/investigation/scripts/investigate_write_tool.py plugins/claude-tools/tests/test_claude_write_tool.py
+python plugins/claude-tools/investigation/scripts/investigate_write_tool.py --case all --discard-raw
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py -q
+```
+
+Edit slice added during continuation:
+
+- Added `ClaudeEditTool` in `plugins/claude-tools/src/claude_tools/claude_edit_tool.py`.
+- Reused the shared Claude file-activity tracking so `Read` unlocks `Edit` for existing files within a request-like context.
+- Registered `ClaudeEditTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added `Edit` investigation harness, fixtures, and notes:
+  - `plugins/claude-tools/investigation/scripts/investigate_edit_tool.py`
+  - `plugins/claude-tools/investigation/fixtures/edit/*.json`
+  - `plugins/claude-tools/investigation/notes/edit-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_edit_tool.py`.
+
+Focused verification run for the edit slice:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/claude_edit_tool.py plugins/claude-tools/investigation/scripts/investigate_edit_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py
+python plugins/claude-tools/investigation/scripts/investigate_edit_tool.py --case all --discard-raw
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py -q
+```
+
+Glob slice added during continuation:
+
+- Added `ClaudeGlobTool` in `plugins/claude-tools/src/claude_tools/claude_glob_tool.py`.
+- Registered `ClaudeGlobTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added `Glob` investigation harness, fixtures, and notes:
+  - `plugins/claude-tools/investigation/scripts/investigate_glob_tool.py`
+  - `plugins/claude-tools/investigation/fixtures/glob/*.json`
+  - `plugins/claude-tools/investigation/notes/glob-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_glob_tool.py`.
+
+Focused verification run for the glob slice:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/claude_glob_tool.py plugins/claude-tools/investigation/scripts/investigate_glob_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py
+python plugins/claude-tools/investigation/scripts/investigate_glob_tool.py --case all --discard-raw
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py -q
+```
+
+Grep slice added during continuation:
+
+- Added `ClaudeGrepTool` in `plugins/claude-tools/src/claude_tools/claude_grep_tool.py`.
+- Registered `ClaudeGrepTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added `Grep` investigation harness, fixtures, and notes:
+  - `plugins/claude-tools/investigation/scripts/investigate_grep_tool.py`
+  - `plugins/claude-tools/investigation/fixtures/grep/*.json`
+  - `plugins/claude-tools/investigation/notes/grep-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_grep_tool.py`.
+
+Focused verification run for the grep slice:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/claude_grep_tool.py plugins/claude-tools/investigation/scripts/investigate_grep_tool.py plugins/claude-tools/tests/test_claude_grep_tool.py
+python plugins/claude-tools/investigation/scripts/investigate_grep_tool.py --case all --discard-raw
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py plugins/claude-tools/tests/test_claude_grep_tool.py -q
+```
+
+Bash slice added during continuation:
+
+- Added `ClaudeBashTool` in `plugins/claude-tools/src/claude_tools/claude_bash_tool.py`.
+- Registered `ClaudeBashTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added `Bash` investigation harness, fixtures, and notes:
+  - `plugins/claude-tools/investigation/scripts/investigate_bash_tool.py`
+  - `plugins/claude-tools/investigation/fixtures/bash/*.json`
+  - `plugins/claude-tools/investigation/notes/bash-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_bash_tool.py`.
+
+Focused verification run for the bash slice:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/claude_bash_tool.py plugins/claude-tools/investigation/scripts/investigate_bash_tool.py plugins/claude-tools/tests/test_claude_bash_tool.py
+python plugins/claude-tools/investigation/scripts/investigate_bash_tool.py --case all --discard-raw
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py plugins/claude-tools/tests/test_claude_grep_tool.py plugins/claude-tools/tests/test_claude_bash_tool.py -q
+```

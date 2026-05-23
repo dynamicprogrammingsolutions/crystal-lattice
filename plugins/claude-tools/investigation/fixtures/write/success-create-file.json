@@ -1,0 +1,57 @@
+{
+  "assistant_tool_use": {
+    "id": "<TOOL_CALL_ID>",
+    "input": {
+      "content": "WRITE_SENTINEL one two three",
+      "file_path": "<WORKSPACE>/note.txt"
+    },
+    "name": "Write",
+    "type": "tool_use"
+  },
+  "case": "success-create-file",
+  "claude_returncode": 0,
+  "final_result": "CREATED",
+  "raw_artifact_dir": null,
+  "request_count": 3,
+  "request_urls": [
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true"
+  ],
+  "tool_result_message": {
+    "content": [
+      {
+        "cache_control": {
+          "type": "ephemeral"
+        },
+        "content": "File created successfully at: <WORKSPACE>/note.txt",
+        "tool_use_id": "<TOOL_CALL_ID>",
+        "type": "tool_result"
+      }
+    ],
+    "role": "user"
+  },
+  "tool_schema": {
+    "description": "Writes a file to the local filesystem.\n\nUsage:\n- This tool will overwrite the existing file if there is one at the provided path.\n- If this is an existing file, you MUST use the Read tool first to read the file's contents. This tool will fail if you did not read the file first.\n- Prefer the Edit tool for modifying existing files \u2014 it only sends the diff. Only use this tool to create new files or for complete rewrites.\n- NEVER create documentation files (*.md) or README files unless explicitly requested by the User.\n- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.",
+    "input_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "description": "The content to write to the file",
+          "type": "string"
+        },
+        "file_path": {
+          "description": "The absolute path to the file to write (must be absolute, not relative)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path",
+        "content"
+      ],
+      "type": "object"
+    },
+    "name": "Write"
+  }
+}

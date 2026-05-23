@@ -7,8 +7,23 @@ This package is being built from behavior-driven investigations of Claude Code's
 ## Implemented Tools
 
 - `Read`: Claude Code-compatible file reader with Anthropic-native schemas and tool-result payloads.
+- `Write`: Claude Code-compatible file writer with Anthropic-native schemas, parent-directory creation, and the observed read-before-write guard for existing files.
+- `Edit`: Claude Code-compatible exact string editor with Anthropic-native schemas, read-before-edit guard behavior, and replace-all support.
+- `Glob`: Claude Code-compatible file matcher with Anthropic-native schemas, relative-vs-absolute output parity, and truncation handling.
+- `Grep`: Claude Code-compatible regex search tool with Anthropic-native schemas and mode-specific result formatting.
+- `Bash`: Claude Code-compatible shell execution tool with Anthropic-native schemas, timeout handling, and background command support.
 
 `Read` currently supports text files, images, PDF status/page rendering through Poppler, simple Jupyter notebooks, and observed Claude Code error formatting. OpenAI Chat Completions-compatible providers consume the Anthropic-native result through a narrow temporary bridge until first-class tool-result interop lands.
+
+`Write` currently supports new-file creation, full overwrites after a prior `Read`, and the observed Claude error payload when attempting to overwrite an unread existing file.
+
+`Edit` currently supports exact single replacements, `replace_all`, and the observed Claude error payloads for missing prior reads, missing match strings, and ambiguous multiple matches.
+
+`Glob` currently supports default-directory relative results, scoped absolute-path results, the observed no-match string, and the Claude truncation suffix for large result sets.
+
+`Grep` currently supports default `files_with_matches`, `content`, and `count` output modes, along with the observed no-match string and missing-path error wrapper.
+
+`Bash` currently supports foreground execution, raw-success vs `Exit code N` failure formatting, the observed timeout behavior, and the Claude background-run message format.
 
 ## License
 

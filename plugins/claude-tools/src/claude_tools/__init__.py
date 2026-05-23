@@ -14,6 +14,18 @@
 
 """Claude Code-compatible tool plugin bundle."""
 
+from .claude_bash_tool import ClaudeBashTool
+from .claude_edit_tool import ClaudeEditTool
+from .claude_grep_tool import ClaudeGrepTool
+from .claude_glob_tool import ClaudeGlobTool
 from .claude_read_tool import ClaudeReadTool
+from .claude_write_tool import ClaudeWriteTool
 
-__all__ = ["ClaudeReadTool"]
+__all__ = [
+    "ClaudeBashTool",
+    "ClaudeReadTool",
+    "ClaudeWriteTool",
+    "ClaudeEditTool",
+    "ClaudeGlobTool",
+    "ClaudeGrepTool",
+]

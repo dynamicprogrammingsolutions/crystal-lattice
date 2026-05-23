@@ -2,9 +2,19 @@
   "module": "claude_tools",
   "subdirectory": ".",
   "entries": [
-    "claude_tools.claude_read_tool.ClaudeReadTool"
+    "claude_tools.claude_bash_tool.ClaudeBashTool",
+    "claude_tools.claude_read_tool.ClaudeReadTool",
+    "claude_tools.claude_write_tool.ClaudeWriteTool",
+    "claude_tools.claude_edit_tool.ClaudeEditTool",
+    "claude_tools.claude_glob_tool.ClaudeGlobTool",
+    "claude_tools.claude_grep_tool.ClaudeGrepTool"
   ],
   "kinds": {
-    "claude_tools.claude_read_tool.ClaudeReadTool": "tools"
+    "claude_tools.claude_bash_tool.ClaudeBashTool": "tools",
+    "claude_tools.claude_read_tool.ClaudeReadTool": "tools",
+    "claude_tools.claude_write_tool.ClaudeWriteTool": "tools",
+    "claude_tools.claude_edit_tool.ClaudeEditTool": "tools",
+    "claude_tools.claude_glob_tool.ClaudeGlobTool": "tools",
+    "claude_tools.claude_grep_tool.ClaudeGrepTool": "tools"
   }
 }

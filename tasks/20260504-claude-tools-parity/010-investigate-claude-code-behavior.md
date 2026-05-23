@@ -230,3 +230,137 @@ System-message investigation added during completion:
   - `plugins/claude-tools/investigation/notes/system-message.md`
 
 Key finding: Claude Code includes `Primary working directory: <WORKSPACE>` in the main system prompt's `# Environment` section. Tool schemas such as `Read`, `Write`, and `Edit` require absolute file paths. In the `read-relative-path` case, the user asked for `README.md`, and Claude called `Read` with `<WORKSPACE>/README.md`.
+
+Write-tool investigation added during continuation:
+
+- Added `plugins/claude-tools/investigation/scripts/investigate_write_tool.py`.
+- Ran these cases successfully through Claude Code, Ollama, and `../openai-proxy`:
+  - `success-create-file`
+  - `success-overwrite-after-read`
+  - `error-overwrite-without-read`
+  - `success-create-missing-parent`
+- Committed normalized fixtures:
+  - `plugins/claude-tools/investigation/fixtures/write/success-create-file.json`
+  - `plugins/claude-tools/investigation/fixtures/write/success-overwrite-after-read.json`
+  - `plugins/claude-tools/investigation/fixtures/write/error-overwrite-without-read.json`
+  - `plugins/claude-tools/investigation/fixtures/write/success-create-missing-parent.json`
+- Updated implementation directions:
+  - `plugins/claude-tools/investigation/notes/write-tool.md`
+
+Key `Write` findings:
+
+- Successful create result: `File created successfully at: <WORKSPACE>/note.txt`
+- Successful overwrite after `Read`: `The file <WORKSPACE>/existing.txt has been updated successfully.`
+- Overwriting an existing unread file returns `is_error: true` with `<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>`
+- `Write` creates missing parent directories when needed.
+
+Edit-tool investigation added during continuation:
+
+- Added `plugins/claude-tools/investigation/scripts/investigate_edit_tool.py`.
+- Ran these cases successfully through Claude Code, Ollama, and `../openai-proxy`:
+  - `success-single-replace`
+  - `success-replace-all`
+  - `error-without-read`
+  - `error-string-not-found`
+  - `error-multiple-without-replace-all`
+- Committed normalized fixtures:
+  - `plugins/claude-tools/investigation/fixtures/edit/success-single-replace.json`
+  - `plugins/claude-tools/investigation/fixtures/edit/success-replace-all.json`
+  - `plugins/claude-tools/investigation/fixtures/edit/error-without-read.json`
+  - `plugins/claude-tools/investigation/fixtures/edit/error-string-not-found.json`
+  - `plugins/claude-tools/investigation/fixtures/edit/error-multiple-without-replace-all.json`
+- Updated implementation directions:
+  - `plugins/claude-tools/investigation/notes/edit-tool.md`
+
+Key `Edit` findings:
+
+- Successful single replacement: `The file <WORKSPACE>/sample.txt has been updated successfully.`
+- Successful `replace_all`: `The file <WORKSPACE>/dups.txt has been updated. All occurrences were successfully replaced.`
+- Editing an existing unread file returns `is_error: true` with `<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>`
+- Missing match string returns `is_error: true` with `<tool_use_error>String to replace not found in file.\nString: DOES_NOT_EXIST</tool_use_error>`
+- Ambiguous multiple matches with `replace_all: false` return `is_error: true` with the observed guidance to use `replace_all` or provide more context.
+
+Glob-tool investigation added during continuation:
+
+- Added `plugins/claude-tools/investigation/scripts/investigate_glob_tool.py`.
+- Ran these cases successfully through Claude Code, Ollama, and `../openai-proxy`:
+  - `success-default-relative`
+  - `success-scoped-absolute`
+  - `success-no-matches`
+  - `error-missing-directory`
+  - `success-truncated-results`
+- Committed normalized fixtures:
+  - `plugins/claude-tools/investigation/fixtures/glob/success-default-relative.json`
+  - `plugins/claude-tools/investigation/fixtures/glob/success-scoped-absolute.json`
+  - `plugins/claude-tools/investigation/fixtures/glob/success-no-matches.json`
+  - `plugins/claude-tools/investigation/fixtures/glob/error-missing-directory.json`
+  - `plugins/claude-tools/investigation/fixtures/glob/success-truncated-results.json`
+- Updated implementation directions:
+  - `plugins/claude-tools/investigation/notes/glob-tool.md`
+
+Key `Glob` findings:
+
+- When `path` is omitted, successful matches are newline-delimited paths relative to the current working directory.
+- When `path` is provided, successful matches are newline-delimited absolute paths.
+- No-match result: `No files found`
+- Missing directory result: `is_error: true` with `<tool_use_error>Directory does not exist: <WORKSPACE>/missing-dir. Note: your current working directory is <WORKSPACE>.</tool_use_error>`
+- Large result sets append `(Results are truncated. Consider using a more specific path or pattern.)`
+
+Grep-tool investigation added during continuation:
+
+- Added `plugins/claude-tools/investigation/scripts/investigate_grep_tool.py`.
+- Ran these cases successfully through Claude Code, Ollama, and `../openai-proxy`:
+  - `success-default-relative`
+  - `success-default-absolute`
+  - `success-content-mode`
+  - `success-count-mode`
+  - `success-no-matches`
+  - `error-missing-path`
+- Committed normalized fixtures:
+  - `plugins/claude-tools/investigation/fixtures/grep/success-default-relative.json`
+  - `plugins/claude-tools/investigation/fixtures/grep/success-default-absolute.json`
+  - `plugins/claude-tools/investigation/fixtures/grep/success-content-mode.json`
+  - `plugins/claude-tools/investigation/fixtures/grep/success-count-mode.json`
+  - `plugins/claude-tools/investigation/fixtures/grep/success-no-matches.json`
+  - `plugins/claude-tools/investigation/fixtures/grep/error-missing-path.json`
+- Updated implementation directions:
+  - `plugins/claude-tools/investigation/notes/grep-tool.md`
+
+Key `Grep` findings:
+
+- Default `files_with_matches` mode returns `Found N files` followed by newline-delimited paths.
+- With no `path`, those result paths are relative to the current working directory.
+- With `path` provided, those result paths are absolute.
+- `content` mode returns raw `path:line:text` lines with line numbers.
+- `count` mode returns `path:count` lines followed by a blank line and `Found N total occurrences across M files.`
+- No-match result: `No files found`
+- Missing path result: `is_error: true` with `<tool_use_error>Path does not exist: <WORKSPACE>/missing. Note: your current working directory is <WORKSPACE>.</tool_use_error>`
+
+Bash-tool investigation added during continuation:
+
+- Added `plugins/claude-tools/investigation/scripts/investigate_bash_tool.py`.
+- Ran these cases successfully through Claude Code, Ollama, and `../openai-proxy`:
+  - `success-pwd`
+  - `success-stderr-zero`
+  - `error-nonzero`
+  - `error-timeout`
+  - `success-cwd-reset`
+  - `success-background`
+- Committed normalized fixtures:
+  - `plugins/claude-tools/investigation/fixtures/bash/success-pwd.json`
+  - `plugins/claude-tools/investigation/fixtures/bash/success-stderr-zero.json`
+  - `plugins/claude-tools/investigation/fixtures/bash/error-nonzero.json`
+  - `plugins/claude-tools/investigation/fixtures/bash/error-timeout.json`
+  - `plugins/claude-tools/investigation/fixtures/bash/success-cwd-reset.json`
+  - `plugins/claude-tools/investigation/fixtures/bash/success-background.json`
+- Updated implementation directions:
+  - `plugins/claude-tools/investigation/notes/bash-tool.md`
+
+Key `Bash` findings:
+
+- Successful foreground command output is returned as raw text with no prefix.
+- Stderr with exit code `0` is still returned as a successful raw result.
+- Non-zero exit result format: `Exit code N` followed by command output when present.
+- Timeout result format: `Exit code 143`
+- The captured `cd ... && pwd` fixture returns only the command output for that call; each execution still starts from the configured working directory in this implementation.
+- Background result format: `Command running in background with ID: <BACKGROUND_ID>. Output is being written to: <BACKGROUND_OUTPUT_PATH>`

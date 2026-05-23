@@ -47,6 +47,7 @@ from agent_core.tool_result_payloads import (
 from agent_core.types import ToolPlugin
 from tool_compat_shared import read_file_with_encoding
 
+from .activity import record_read_path
 from .interop import claude_tool_interop_contribution
 
 
@@ -494,6 +495,7 @@ class ClaudeReadTool(ToolPlugin):
         state: Dict[str, Any],
         *,
         tool_call: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
         **_: Any,
     ) -> Dict[str, Any]:
         if tool_name != "Read":
@@ -540,25 +542,37 @@ class ClaudeReadTool(ToolPlugin):
         pages = payload.get("pages")
         pages_value = pages if isinstance(pages, str) else None
         if path.suffix.lower() == ".pdf":
-            return self._read_pdf(path, tool_use_id, pages_value)
+            result = self._read_pdf(path, tool_use_id, pages_value)
+            if result.get("success"):
+                record_read_path(path, context=context, state=state)
+            return result
         if path.suffix.lower() == ".ipynb":
             try:
-                return self._read_notebook(path, tool_use_id)
+                result = self._read_notebook(path, tool_use_id)
+                if result.get("success"):
+                    record_read_path(path, context=context, state=state)
+                return result
             except Exception as exc:
                 return self._error(tool_use_id, str(exc), path=str(path))
 
         data = path.read_bytes()
         if _detect_image_mime(data, path) is not None:
-            return self._read_image(path, tool_use_id)
+            result = self._read_image(path, tool_use_id)
+            if result.get("success"):
+                record_read_path(path, context=context, state=state)
+            return result
 
         offset = payload.get("offset")
         limit = payload.get("limit")
-        return self._read_text(
+        result = self._read_text(
             path,
             tool_use_id,
             offset=offset if isinstance(offset, int) else None,
             limit=limit if isinstance(limit, int) else None,
         )
+        if result.get("success"):
+            record_read_path(path, context=context, state=state)
+        return result
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
         content = result.get("anthropic_content")

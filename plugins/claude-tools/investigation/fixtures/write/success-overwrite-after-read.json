@@ -1,0 +1,58 @@
+{
+  "assistant_tool_use": {
+    "id": "<TOOL_CALL_ID>",
+    "input": {
+      "content": "NEW_CONTENT",
+      "file_path": "<WORKSPACE>/existing.txt"
+    },
+    "name": "Write",
+    "type": "tool_use"
+  },
+  "case": "success-overwrite-after-read",
+  "claude_returncode": 0,
+  "final_result": "DONE",
+  "raw_artifact_dir": null,
+  "request_count": 4,
+  "request_urls": [
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true"
+  ],
+  "tool_result_message": {
+    "content": [
+      {
+        "cache_control": {
+          "type": "ephemeral"
+        },
+        "content": "The file <WORKSPACE>/existing.txt has been updated successfully.",
+        "tool_use_id": "<TOOL_CALL_ID>",
+        "type": "tool_result"
+      }
+    ],
+    "role": "user"
+  },
+  "tool_schema": {
+    "description": "Writes a file to the local filesystem.\n\nUsage:\n- This tool will overwrite the existing file if there is one at the provided path.\n- If this is an existing file, you MUST use the Read tool first to read the file's contents. This tool will fail if you did not read the file first.\n- Prefer the Edit tool for modifying existing files \u2014 it only sends the diff. Only use this tool to create new files or for complete rewrites.\n- NEVER create documentation files (*.md) or README files unless explicitly requested by the User.\n- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.",
+    "input_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "description": "The content to write to the file",
+          "type": "string"
+        },
+        "file_path": {
+          "description": "The absolute path to the file to write (must be absolute, not relative)",
+          "type": "string"
+        }
+      },
+      "required": [
+        "file_path",
+        "content"
+      ],
+      "type": "object"
+    },
+    "name": "Write"
+  }
+}
