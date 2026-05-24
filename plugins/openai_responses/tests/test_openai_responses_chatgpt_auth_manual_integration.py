@@ -25,6 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 _DEFAULT_CHATGPT_AUTH_STATE_DIR = (
     REPO_ROOT / "plugins" / "chatgpt-auth-app" / "tests" / ".manual-state"
 )
+pytestmark = pytest.mark.api
 
 
 def _manual_state_dir() -> Path:

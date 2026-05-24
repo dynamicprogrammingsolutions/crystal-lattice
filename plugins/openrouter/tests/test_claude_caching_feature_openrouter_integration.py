@@ -38,6 +38,7 @@ from openrouter_plugins.claude_caching_extension import ClaudeCachingExtension
 
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+pytestmark = pytest.mark.api
 BASE_URL = "https://openrouter.ai/api/v1"
 MODEL_CLAUDE = "anthropic/claude-haiku-4.5"
 

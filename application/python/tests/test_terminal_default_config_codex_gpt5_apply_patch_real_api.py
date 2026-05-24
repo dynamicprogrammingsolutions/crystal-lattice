@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable
 
 import pytest
-from dotenv import load_dotenv
+from repo_test_env import get_repo_env
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -42,8 +42,7 @@ EXPECTED_GPT5_APPLY_PATCH_MARKER = (
 
 @pytest.fixture(scope="module")
 def ensure_openrouter_api_key() -> str:
-    load_dotenv(ROOT / ".env")
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = get_repo_env("OPENROUTER_API_KEY")
     if not api_key:
         pytest.skip("OPENROUTER_API_KEY not set; skipping default-config OpenRouter GPT-5 tests")
     return api_key
@@ -51,8 +50,7 @@ def ensure_openrouter_api_key() -> str:
 
 @pytest.fixture(scope="module")
 def ensure_openai_api_key() -> str:
-    load_dotenv(ROOT / ".env")
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = get_repo_env("OPENAI_API_KEY")
     if not api_key:
         pytest.skip("OPENAI_API_KEY not set; skipping default-config OpenAI GPT-5 tests")
     return api_key
@@ -137,6 +135,7 @@ def _assert_apply_patch_shell_call(final_session: Session) -> None:
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_config_gpt5_openrouter_agent_selects_gpt5_prompt_and_uses_apply_patch(
     ensure_openrouter_api_key: str,
@@ -184,6 +183,7 @@ def test_default_config_gpt5_openrouter_agent_selects_gpt5_prompt_and_uses_apply
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openai
 def test_default_config_gpt5_openai_agent_selects_gpt5_prompt_and_uses_apply_patch(
     ensure_openai_api_key: str,

@@ -37,7 +37,12 @@ from openrouter_plugins.openrouter_reasoning_extension import OpenRouterReasonin
 from openrouter_plugins.openrouter_tools_extension import OpenRouterToolsExtension
 from plugins.request_options_feature import RequestOptionsFeature
 
-pytestmark = [pytest.mark.integration, pytest.mark.openrouter]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.api,
+    pytest.mark.openrouter,
+    pytest.mark.slow_integration,
+]
 
 
 MODELS = {

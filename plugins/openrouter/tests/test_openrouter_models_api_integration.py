@@ -17,7 +17,11 @@ except ImportError:
 from openrouter_plugins.openrouter_provider import OpenRouterProvider
 
 
+pytestmark = pytest.mark.openrouter
+
+
 @pytest.mark.integration
+@pytest.mark.api
 def test_fetch_models_from_api_success():
     """Fetch models from OpenRouter API and verify structure."""
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -48,6 +52,7 @@ def test_fetch_models_from_api_success():
 
 
 @pytest.mark.integration
+@pytest.mark.api
 def test_get_tags_uses_real_model_capabilities():
     """Verify get_tags detects capabilities from API data."""
     api_key = os.getenv("OPENROUTER_API_KEY")

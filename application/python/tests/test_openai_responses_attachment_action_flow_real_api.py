@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pytest
-from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
 
@@ -31,6 +30,7 @@ from agent_app.application_future import AgentApplication  # noqa: E402
 from agent_app.events import InMemoryEventStore  # noqa: E402
 from agent_terminal_app.server import app as fastapi_app  # noqa: E402
 from agent_terminal_app.server import get_agent_app  # noqa: E402
+from repo_test_env import get_repo_env  # noqa: E402
 
 
 def _vision_model() -> str:
@@ -131,14 +131,14 @@ def _wait_for_final_event(client: TestClient, session_id: str, timeout_seconds: 
 
 @pytest.fixture(scope="module")
 def ensure_openai_api_key() -> str:
-    load_dotenv(ROOT / ".env")
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = get_repo_env("OPENAI_API_KEY")
     if not api_key:
         pytest.skip("OPENAI_API_KEY not set; skipping OpenAI FastAPI attachment action-flow tests")
     return api_key
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openai
 def test_openai_responses_action_store_then_send_asset_ref_endpoint_real_api(
     ensure_openai_api_key: str,

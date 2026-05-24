@@ -53,6 +53,8 @@ agent_terminal_app = [
 [tool.pytest.ini_options]
 markers = [
     "integration: integration tests that may hit real services",
+    "api: hosted API integration tests requiring credentials and potentially incurring cost",
+    "slow_integration: slow integration tests that should be run selectively",
     "docker: tests that require Docker",
     "gemini: tests requiring Gemini credentials",
     "openai: tests requiring OpenAI credentials",

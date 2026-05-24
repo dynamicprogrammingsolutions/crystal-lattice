@@ -18,6 +18,7 @@ dependencies = [
 dev = [
   "agent-core>=0.3.0",
   "pytest>=7.0.0",
+  "python-dotenv>=1.0.0",
 ]
 
 
@@ -39,5 +40,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 markers = [
   "integration: integration tests that call real services",
+  "api: hosted API integration tests requiring credentials and potentially incurring cost",
+  "slow_integration: slow integration tests that should be run selectively",
   "openrouter: tests requiring OpenRouter",
 ]

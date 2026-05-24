@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 from typing import Callable
 
 import pytest
-from dotenv import load_dotenv
+
+from repo_test_env import get_repo_env
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -18,21 +18,6 @@ if str(APP_PY) not in sys.path:
 CORE_PY = ROOT / "core/python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
-
-
-def _get_env_key(key_name: str) -> str:
-    value = os.environ.get(key_name, "")
-    if value:
-        return value
-    env_path = ROOT / ".env"
-    if not env_path.exists():
-        return ""
-    for line in env_path.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or not line.startswith(f"{key_name}="):
-            continue
-        return line[len(key_name) + 1 :].strip().strip('"').strip("'")
-    return ""
 
 
 def _prepare_workspace(tmp_path: Path) -> Path:
@@ -78,29 +63,27 @@ def _build_terminal_app(
     from agent_app.events import InMemoryEventStore
     from agent_terminal_app.terminal_app import TerminalApplication
 
-    load_dotenv(ROOT / ".env")
-
-    openrouter_key = _get_env_key("OPENROUTER_API_KEY")
+    openrouter_key = get_repo_env("OPENROUTER_API_KEY")
     if not openrouter_key:
         pytest.skip("OPENROUTER_API_KEY not set; skipping Claude default-config smoke tests")
 
-    gemini_key = _get_env_key("GEMINI_API_KEY")
+    gemini_key = get_repo_env("GEMINI_API_KEY")
     if not gemini_key:
         pytest.skip("GEMINI_API_KEY not set; skipping Claude WebSearch smoke tests")
 
     monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_key)
     monkeypatch.setenv("GEMINI_API_KEY", gemini_key)
-    monkeypatch.setenv("TAVILY_API_KEY", _get_env_key("TAVILY_API_KEY") or "test-tavily-key")
-    monkeypatch.setenv("OPENAI_API_KEY", _get_env_key("OPENAI_API_KEY") or "test-openai-key")
-    monkeypatch.setenv("FIREWORKS_API_KEY", _get_env_key("FIREWORKS_API_KEY") or "test-fireworks-key")
-    monkeypatch.setenv("ZAI_API_KEY", _get_env_key("ZAI_API_KEY") or "test-zai-key")
+    monkeypatch.setenv("TAVILY_API_KEY", get_repo_env("TAVILY_API_KEY", "test-tavily-key"))
+    monkeypatch.setenv("OPENAI_API_KEY", get_repo_env("OPENAI_API_KEY", "test-openai-key"))
+    monkeypatch.setenv("FIREWORKS_API_KEY", get_repo_env("FIREWORKS_API_KEY", "test-fireworks-key"))
+    monkeypatch.setenv("ZAI_API_KEY", get_repo_env("ZAI_API_KEY", "test-zai-key"))
     monkeypatch.setenv(
         "CLOUD_ORCHESTRATOR_URL",
-        _get_env_key("CLOUD_ORCHESTRATOR_URL") or "http://cloud-orchestrator.test",
+        get_repo_env("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test"),
     )
     monkeypatch.setenv(
         "CLOUD_ORCHESTRATOR_TOKEN",
-        _get_env_key("CLOUD_ORCHESTRATOR_TOKEN") or "test-cloud-token",
+        get_repo_env("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token"),
     )
 
     config_path = (
@@ -160,6 +143,7 @@ def _run_claude_smoke_case(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_claude_smoke_write_read_edit(
     tmp_path: Path,
@@ -191,6 +175,7 @@ def test_default_claude_smoke_write_read_edit(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_claude_smoke_glob_grep(
     tmp_path: Path,
@@ -219,6 +204,7 @@ def test_default_claude_smoke_glob_grep(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_claude_smoke_bash_read_taskstop(
     tmp_path: Path,
@@ -250,6 +236,7 @@ def test_default_claude_smoke_bash_read_taskstop(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_claude_smoke_webfetch(
     tmp_path: Path,
@@ -277,6 +264,7 @@ def test_default_claude_smoke_webfetch(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_claude_smoke_websearch(
     tmp_path: Path,

@@ -51,6 +51,7 @@ def _run_request(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_agent_application_default_config_claude_reads_files_and_reasons(
     ensure_openrouter_api_key: str,

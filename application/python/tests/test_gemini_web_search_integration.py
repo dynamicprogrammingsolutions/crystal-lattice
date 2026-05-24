@@ -11,12 +11,12 @@ environment or .env file.
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
 
 import pytest
+
+from repo_test_env import get_repo_env
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -30,24 +30,9 @@ if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
 
 
-def _get_env_key(key_name: str) -> str:
-    """Get API key from environment or .env file."""
-    value = os.environ.get(key_name, "")
-    if not value:
-        env_path = ROOT / ".env"
-        if env_path.exists():
-            with open(env_path) as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith(f"{key_name}="):
-                        value = line[len(key_name) + 1 :].strip().strip('"').strip("'")
-                        break
-    return value
-
-
 @pytest.fixture(scope="module")
 def gemini_api_key() -> str:
-    key = _get_env_key("GEMINI_API_KEY")
+    key = get_repo_env("GEMINI_API_KEY")
     if not key:
         pytest.skip("GEMINI_API_KEY not set; skipping web search integration test")
     return key
@@ -55,12 +40,12 @@ def gemini_api_key() -> str:
 
 @pytest.fixture(scope="module")
 def tavily_api_key() -> str:
-    return _get_env_key("TAVILY_API_KEY")
+    return get_repo_env("TAVILY_API_KEY")
 
 
 @pytest.fixture(scope="module")
 def openrouter_api_key() -> str:
-    key = _get_env_key("OPENROUTER_API_KEY")
+    key = get_repo_env("OPENROUTER_API_KEY")
     if not key:
         pytest.skip("OPENROUTER_API_KEY not set; skipping web search integration test")
     return key
@@ -222,8 +207,6 @@ def test_google_web_search_in_available_tools(
     gemini_api_key: str,
 ) -> None:
     """google_web_search should appear in available tools when enabled."""
-    from agent_app.application_future import AgentApplication
-    from agent_app.events import InMemoryEventStore
     from agent_terminal_app.terminal_app import TerminalApplication
 
     agent_app = _make_agent_app(
@@ -264,6 +247,7 @@ def test_google_web_search_in_available_tools(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.gemini
 def test_web_search_gemini_api_real_call(
     tmp_path: Path,
@@ -328,6 +312,7 @@ def test_web_search_gemini_api_real_call(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.gemini
 def test_web_search_tavily_backend_real_call(
     tmp_path: Path,

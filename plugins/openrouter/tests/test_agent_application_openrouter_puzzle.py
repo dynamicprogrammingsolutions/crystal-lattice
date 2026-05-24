@@ -25,6 +25,7 @@ from agent_app.events import InMemoryEventStore
 
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+pytestmark = pytest.mark.api
 
 
 @pytest.fixture(scope="module")

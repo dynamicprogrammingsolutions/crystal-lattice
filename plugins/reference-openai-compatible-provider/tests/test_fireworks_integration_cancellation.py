@@ -14,6 +14,8 @@ from fireworks_test_utils import (
 )
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
 
+pytestmark = pytest.mark.api
+
 
 @pytest.mark.integration
 @pytest.mark.fireworks

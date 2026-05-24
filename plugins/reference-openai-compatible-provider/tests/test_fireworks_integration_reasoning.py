@@ -10,6 +10,8 @@ from fireworks_test_utils import (
     iter_request_stream_or_skip,
 )
 
+pytestmark = pytest.mark.api
+
 
 @pytest.mark.integration
 @pytest.mark.fireworks

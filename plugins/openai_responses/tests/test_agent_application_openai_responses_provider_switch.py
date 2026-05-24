@@ -23,6 +23,7 @@ SWITCH_SEED = "Harbor 814; Maple 370; Cinder 926."
 DELETE_BRANCH_SEED = "Willow 462; Copper 118; Slate 907."
 FORK_BRANCH_SEED = "Briar 555; Onyx 204; Cedar 731."
 EDIT_BRANCH_SEED = "Saffron 620; Lattice 146; Ember 833."
+pytestmark = pytest.mark.api
 
 
 @pytest.fixture(scope="module")

@@ -105,6 +105,7 @@ def _wait_for_final_event(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_config_openrouter_image_agent_generates_asset_backed_image(
     ensure_openrouter_api_key: str,
@@ -167,6 +168,7 @@ def test_default_config_openrouter_image_agent_generates_asset_backed_image(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_config_openrouter_image_agent_send_message_endpoint_real_api(
     ensure_openrouter_api_key: str,

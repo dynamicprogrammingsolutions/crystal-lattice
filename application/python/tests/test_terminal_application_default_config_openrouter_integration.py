@@ -59,6 +59,7 @@ def ensure_openrouter_api_key() -> str:
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_terminal_application_default_config_agents_make_real_tool_calls(
     ensure_openrouter_api_key: str,

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 import sys
 import tempfile
@@ -8,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable
 
 import pytest
-from dotenv import load_dotenv
+from repo_test_env import get_repo_env
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -40,8 +39,7 @@ TEST_MODEL = "openai/gpt-5.4-nano"
 
 @pytest.fixture(scope="module")
 def ensure_openrouter_api_key() -> str:
-    load_dotenv(ROOT / ".env")
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = get_repo_env("OPENROUTER_API_KEY")
     if not api_key:
         pytest.skip("OPENROUTER_API_KEY not set; skipping default-config Codex MCP integration test")
     return api_key
@@ -68,6 +66,7 @@ def _iter_tool_messages(session: Session) -> Iterable[Session]:
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_config_codex_mcp_via_real_ui_flow(
     ensure_openrouter_api_key: str,
@@ -160,7 +159,7 @@ def test_default_config_codex_mcp_via_real_ui_flow(
 
         app_ui_before = server_mod.get_session_application_ui_schema(session_id, app_instance=app)
         app_elements_before = app_ui_before["elements"]
-        status_action = next(
+        next(
             element
             for element in app_elements_before
             if isinstance(element, dict)

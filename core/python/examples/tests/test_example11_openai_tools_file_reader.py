@@ -23,6 +23,7 @@ if CORE_PY not in sys.path:
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 OPENAI_BASE_URL = f"{OLLAMA_HOST}/v1"
 MODEL_TOOLS = os.getenv("OLLAMA_MODEL_TOOLS", "qwen3:0.6b")
+pytestmark = pytest.mark.integration
 
 
 def _which(cmd: str) -> Optional[str]:

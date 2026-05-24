@@ -29,6 +29,7 @@ from plugins.request_options_feature import RequestOptionsFeature
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = "https://openrouter.ai/api/v1"
+pytestmark = pytest.mark.api
 
 # Models for testing
 # Note: Using models that support reasoning

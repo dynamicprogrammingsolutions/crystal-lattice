@@ -33,6 +33,7 @@ except ImportError:
 
 
 BASE_URL = "https://openrouter.ai/api/v1"
+pytestmark = pytest.mark.api
 
 
 def _get_openai_provider_options() -> Dict[str, Any]:

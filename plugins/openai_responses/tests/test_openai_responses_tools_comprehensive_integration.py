@@ -18,6 +18,7 @@ from plugins.request_options_feature import RequestOptionsFeature
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+pytestmark = pytest.mark.api
 
 
 @pytest.fixture(scope="module")
