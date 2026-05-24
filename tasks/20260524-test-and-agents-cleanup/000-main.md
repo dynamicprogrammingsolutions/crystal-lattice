@@ -6,7 +6,7 @@ Create a coordinated cleanup plan for root `AGENTS.md`, Python test structure an
 
 - [x] `tasks/20260524-test-and-agents-cleanup/010-test-markers-env-and-standard-runs.md`
 - [ ] `tasks/20260524-test-and-agents-cleanup/020-agents-and-testing-doc-guidance.md`
-- [ ] `tasks/20260524-test-and-agents-cleanup/030-test-and-build-command-alignment.md`
+- [x] `tasks/20260524-test-and-agents-cleanup/030-test-and-build-command-alignment.md`
 - [ ] `tasks/20260524-test-and-agents-cleanup/040-follow-on-test-cleanup-backlog.md`
 
 ## Why this cleanup exists

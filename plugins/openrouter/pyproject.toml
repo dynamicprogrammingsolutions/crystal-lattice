@@ -38,6 +38,7 @@ include = ["openrouter_plugins*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = "-m 'not integration'"
 markers = [
   "integration: integration tests that call real services",
   "api: hosted API integration tests requiring credentials and potentially incurring cost",

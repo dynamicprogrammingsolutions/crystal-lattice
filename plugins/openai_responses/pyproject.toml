@@ -41,6 +41,7 @@ openai_responses_plugins = ["data/*.json"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = "-m 'not integration and not manual_integration'"
 markers = [
   "integration: integration tests that call real services",
   "api: hosted API integration tests requiring credentials and potentially incurring cost",

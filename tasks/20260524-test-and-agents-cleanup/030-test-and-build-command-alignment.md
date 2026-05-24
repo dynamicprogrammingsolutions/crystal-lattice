@@ -4,11 +4,11 @@ Align package-level pytest marker declarations, default command behavior, and do
 
 ## Requirements checklist
 
-- [ ] Align pytest marker declarations across core, application, and major provider plugin packages.
-- [ ] Decide whether package-level default pytest behavior should exclude integration suites in more places.
-- [ ] Update documented standard commands to match the actual package behavior.
-- [ ] Ensure provider plugin packages used for major-change verification are explicitly covered.
-- [ ] Record any command changes that may affect existing local habits or CI workflows.
+- [x] Align pytest marker declarations across core, application, and major provider plugin packages.
+- [x] Decide whether package-level default pytest behavior should exclude integration suites in more places.
+- [x] Update documented standard commands to match the actual package behavior.
+- [x] Ensure provider plugin packages used for major-change verification are explicitly covered.
+- [x] Record any command changes that may affect existing local habits or CI workflows.
 
 Parent Task: `tasks/20260524-test-and-agents-cleanup/000-main.md`
 
@@ -128,3 +128,48 @@ The user asked for test/build command cleanup, but current research so far is mu
 - A contributor can tell which command to run for fast local verification versus hosted API verification without reading a large block of prose.
 - Package marker declarations support the documented command matrix.
 - The command story explicitly handles slow integration suites instead of burying them inside generic integration runs.
+
+## Execution plan
+
+Added during task completion after user approval.
+
+1. Keep `core/python` default pytest behavior unchanged because it already excludes `integration`.
+2. Narrow `application/python` default pytest behavior by adding package-local `addopts` that exclude `integration` and `docker`.
+3. Narrow `plugins/openrouter` default pytest behavior by adding package-local `addopts` that exclude `integration`.
+4. Narrow `plugins/openai_responses` default pytest behavior by adding package-local `addopts` that exclude `integration` and `manual_integration`.
+5. Narrow `plugins/reference-openai-compatible-provider` default pytest behavior by adding package-local `addopts` that exclude `integration`.
+6. Audit for any remaining provider-backed tests that are not marked `integration`, because those would bypass the narrower defaults.
+7. Validate package-local selection with collection-only runs using plain `pytest tests` as well as marker-targeted `integration`, `api`, and `slow_integration` collection checks.
+8. Record any behavior-change implications in the task notes so the later docs task can explain the narrower defaults clearly.
+
+## Completion Notes
+
+Added during task completion.
+
+- Chose the narrower-default approach and implemented package-local `addopts` changes in:
+  - `application/python/pyproject.toml`
+  - `plugins/openrouter/pyproject.toml`
+  - `plugins/openai_responses/pyproject.toml`
+  - `plugins/reference-openai-compatible-provider/pyproject.toml`
+- Final default behavior after this change:
+  - `application/python`: `-m 'not integration and not docker'`
+  - `plugins/openrouter`: `-m 'not integration'`
+  - `plugins/openai_responses`: `-m 'not integration and not manual_integration'`
+  - `plugins/reference-openai-compatible-provider`: `-m 'not integration'`
+- Left `core/python` unchanged because it already had the intended narrow default.
+- Audited for provider-marked tests without `integration` in:
+  - `application/python/tests`
+  - `plugins/openai_responses/tests`
+  - `plugins/reference-openai-compatible-provider/tests`
+  and found no remaining mismatches in those surfaces.
+- Verified package-local default collection behavior with plain `pytest tests --collect-only -q` in:
+  - `application/python`
+  - `plugins/openrouter`
+  - `plugins/openai_responses`
+  - `plugins/reference-openai-compatible-provider`
+- Verified that explicit opt-in selection still works by running marker-targeted collection with `-o addopts=''` for:
+  - `integration`
+  - `integration and api`
+  - `api and slow_integration` where relevant
+- Behavior-change implication to document in the later docs task:
+  - contributors who previously relied on package-local `pytest tests` to include integration suites will now need explicit marker-based commands or `-o addopts=''`

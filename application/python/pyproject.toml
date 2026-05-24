@@ -51,6 +51,7 @@ agent_terminal_app = [
 ]
 
 [tool.pytest.ini_options]
+addopts = "-m 'not integration and not docker'"
 markers = [
     "integration: integration tests that may hit real services",
     "api: hosted API integration tests requiring credentials and potentially incurring cost",
