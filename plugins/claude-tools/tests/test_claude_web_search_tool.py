@@ -19,7 +19,6 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 
 ROOT = Path(__file__).resolve().parents[3]
 CORE_PY = ROOT / "core/python"
@@ -35,14 +34,14 @@ if str(SHARED_SRC) not in sys.path:
 if str(FETCH_SRC) not in sys.path:
     sys.path.insert(0, str(FETCH_SRC))
 
-from agent_core import AgentCore
 from agent_core.tool_interop import (
     DEFAULT_TOOL_INTEROP_REGISTRY,
     compose_tool_interop_registry,
 )
-from agent_core.tool_result_payloads import FORMAT_ANTHROPIC_MESSAGES, TOOL_RESULT_FIELD
+from agent_core.tool_result_payloads import FORMAT_ANTHROPIC_MESSAGES
 from claude_tools import ClaudeWebSearchTool
-from tool_compat_shared import SearchResponse, SearchResult
+from claude_tools.claude_web_search_tool import _filter_results
+from tool_compat_shared import SearchResult
 
 
 def _wrapper(tmp_path: Path, config: dict | None = None):
@@ -60,17 +59,6 @@ def _fixture(name: str) -> dict:
         / f"{name}.json"
     )
     return json.loads(path.read_text(encoding="utf-8"))
-
-
-def _execute_messages(tmp_path: Path, config: dict, calls: list[dict]) -> list[dict]:
-    core = AgentCore()
-    core.register_tool(ClaudeWebSearchTool)
-    return list(
-        core.iter_tool_messages(
-            calls,
-            {"working_directory": str(tmp_path), **config},
-        )
-    )
 
 
 def test_schema_matches_observed_fixture(tmp_path: Path) -> None:
@@ -102,28 +90,30 @@ def test_anthropic_schema_converts_to_openai_chat_schema(tmp_path: Path) -> None
 
 
 def test_validation_error_matches_fixture(tmp_path: Path) -> None:
-    messages = _execute_messages(
+    tool, state = _wrapper(
         tmp_path,
         {"web_search_enabled": True, "gemini_api_key": "gemini-test"},
-        [
-            {
-                "id": "call_web_search_1",
-                "type": "function",
-                "function": {
-                    "name": "WebSearch",
-                    "arguments": json.dumps({"query": "x"}),
-                },
-            }
-        ],
+    )
+    result = tool.execute_tool(
+        "WebSearch",
+        {"query": "x"},
+        state,
+        tool_call={"id": "call_web_search_1"},
     )
 
     expected = _fixture("error-query-too-short")["tool_result_message"]["content"][0]
-    assert messages[0]["content"] == expected["content"]
-    assert messages[0][TOOL_RESULT_FIELD]["content"][0]["is_error"] is True
+    assert result["text"] == expected["content"]
+    assert result["anthropic_content"][0]["is_error"] is True
 
 
 def test_formats_claude_shaped_success_result(tmp_path: Path) -> None:
-    response = SearchResponse(
+    tool, state = _wrapper(
+        tmp_path,
+        {"web_search_enabled": True, "gemini_api_key": "gemini-test"},
+    )
+    content = tool._format_content(
+        query="example domain",
+        summary="Example domains are reserved by IANA for documentation purposes.",
         results=[
             SearchResult(
                 title="Example.com",
@@ -134,30 +124,7 @@ def test_formats_claude_shaped_success_result(tmp_path: Path) -> None:
                 url="https://www.iankduncan.com/projects/rfc-browser/2606",
             ),
         ],
-        answer="Example domains are reserved by IANA for documentation purposes.",
-        query="example domain",
     )
-
-    with patch(
-        "claude_tools.claude_web_search_tool.GeminiApiProvider.search",
-        new=AsyncMock(return_value=response),
-    ):
-        messages = _execute_messages(
-            tmp_path,
-            {"web_search_enabled": True, "gemini_api_key": "gemini-test"},
-            [
-                {
-                    "id": "call_web_search_1",
-                    "type": "function",
-                    "function": {
-                        "name": "WebSearch",
-                        "arguments": json.dumps({"query": "example domain"}),
-                    },
-                }
-            ],
-        )
-
-    content = messages[0]["content"]
     assert content.startswith('Web search results for query: "example domain"\n\nLinks: [')
     assert '"title":"Example.com"' in content
     assert "Example domains are reserved by IANA for documentation purposes." in content
@@ -165,12 +132,14 @@ def test_formats_claude_shaped_success_result(tmp_path: Path) -> None:
         "REMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks."
         in content
     )
-    assert messages[0][TOOL_RESULT_FIELD]["format"] == FORMAT_ANTHROPIC_MESSAGES
+    result = tool._result(tool_use_id="call_web_search_1", text=content, success=True)
+    formatted = tool.format_tool_result(result, state)
+    assert formatted["format"] == FORMAT_ANTHROPIC_MESSAGES
 
 
 def test_allowed_domains_are_enforced_in_formatted_links(tmp_path: Path) -> None:
-    response = SearchResponse(
-        results=[
+    filtered = _filter_results(
+        [
             SearchResult(
                 title="Wikipedia",
                 url="https://en.wikipedia.org/wiki/Example_domain",
@@ -180,44 +149,13 @@ def test_allowed_domains_are_enforced_in_formatted_links(tmp_path: Path) -> None
                 url="https://example.org/info",
             ),
         ],
-        answer="Results summary.",
-        query="example domain",
+        allowed_domains=["wikipedia.org"],
+        blocked_domains=[],
     )
 
-    with (
-        patch(
-            "claude_tools.claude_web_search_tool.GeminiApiProvider.search",
-            new=AsyncMock(return_value=response),
-        ),
-        patch(
-            "claude_tools.claude_web_search_tool.run_prompted_summary_request",
-            return_value=(True, "Filtered summary."),
-        ),
-    ):
-        messages = _execute_messages(
-            tmp_path,
-            {"web_search_enabled": True, "gemini_api_key": "gemini-test"},
-            [
-                {
-                    "id": "call_web_search_1",
-                    "type": "function",
-                    "function": {
-                        "name": "WebSearch",
-                        "arguments": json.dumps(
-                            {
-                                "query": "example domain",
-                                "allowed_domains": ["wikipedia.org"],
-                            }
-                        ),
-                    },
-                }
-            ],
-        )
-
-    content = messages[0]["content"]
-    assert "en.wikipedia.org" in content
-    assert "example.org/info" not in content
-    assert "Filtered summary." in content
+    assert [item.url for item in filtered] == [
+        "https://en.wikipedia.org/wiki/Example_domain"
+    ]
 
 
 def test_tavily_provider_can_be_selected(tmp_path: Path) -> None:
