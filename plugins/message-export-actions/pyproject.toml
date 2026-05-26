@@ -30,6 +30,9 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = ["message_export_actions*"]
 
+[tool.setuptools.package-data]
+message_export_actions = ["*.lua"]
+
 
 [tool.setuptools.data-files]
 "" = ["agent_plugin.json"]

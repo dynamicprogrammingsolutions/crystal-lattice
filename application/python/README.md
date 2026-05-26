@@ -87,6 +87,40 @@ For binary build work:
 python -m pip install -e core/python -e "application/python[binary]"
 ```
 
+## Testing
+
+For contributors and local validation:
+
+- Fast default package run:
+
+  ```bash
+  pytest application/python/tests -q
+  ```
+
+  This package defaults to `-m 'not integration and not docker'`.
+
+- Non-API integration:
+
+  ```bash
+  pytest application/python/tests -m 'integration and not api and not slow_integration and not docker' -q
+  ```
+
+- Hosted API integration:
+
+  ```bash
+  pytest application/python/tests -m 'integration and api and not slow_integration and not docker' -q
+  ```
+
+- Docker-only bundle validation:
+
+  ```bash
+  pytest application/python/tests -m docker -q
+  ```
+
+The application test suite bootstraps the repo root `.env` for local
+real-provider tests and does not overwrite already-exported environment
+variables.
+
 ## Running Crystal Lattice
 
 ### Server Only

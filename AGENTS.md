@@ -15,7 +15,7 @@ Main pieces:
 - **Mobile app** (`mobile/crystal-lattice-control-rn`): React Native client (Crystal Lattice Control) that connects to the terminal/HTTP app directly or via the bridge, providing a sessions/messages UI on phones and simulators.
 - **Bridge service** (`bridge-elixir`): Elixir/Phoenix WebSocket bridge that lets mobile/desktop apps talk to local HTTP servers across networks using pairing + proxied HTTP requests.
 - **Built-in plugins** (`core/python/plugins`): providers, extensions, features, tools.
-- **Examples & tests** (`core/python/examples`, `core/python/tests`, `application/python/tests`).
+- **Examples & tests** (`core/python/examples`, `core/python/tests`, `application/python/tests`, `plugins/*/tests`).
 
 Design principles:
 - Immutable core types (`Message`, `Session`); operations return new objects.
@@ -106,16 +106,41 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   ```
 
 **Tests**
-- Core + plugins:
-  ```bash
-  pytest core/python/tests -q
-  ```
-- Marked suites:
-  - OpenRouter (plugin bundle): `pytest plugins/openrouter/tests -m openrouter -q`
-  - All integration: `pytest core/python/tests -m integration -q`
-  - Ollama-only: `pytest core/python/tests -m ollama -q`
-- Examples: `pytest core/python/examples/tests -qs`
-- Terminal app: `pytest application/python/tests -q`
+- Major Python test locations:
+  - `core/python/tests`
+  - `core/python/examples/tests`
+  - `application/python/tests`
+  - `plugins/openrouter/tests`
+  - `plugins/openai_responses/tests`
+  - `plugins/reference-openai-compatible-provider/tests`
+- Default package-local `pytest` runs are intentionally narrow:
+  - `core/python`: excludes `integration`
+  - `application/python`: excludes `integration` and `docker`
+  - `plugins/openrouter`: excludes `integration`
+  - `plugins/openai_responses`: excludes `integration` and `manual_integration`
+  - `plugins/reference-openai-compatible-provider`: excludes `integration`
+- Fast default verification:
+  - `pytest core/python/tests -q`
+  - `pytest application/python/tests -q`
+  - `pytest plugins/openrouter/tests -q`
+  - `pytest plugins/openai_responses/tests -q`
+  - `pytest plugins/reference-openai-compatible-provider/tests -q`
+- Integration verification:
+  - Core non-API integration: `pytest core/python/tests -m 'integration and not api and not slow_integration' -q`
+  - Application non-API integration: `pytest application/python/tests -m 'integration and not api and not slow_integration and not docker' -q`
+  - Local Ollama verification: `pytest core/python/tests -m 'ollama and not api' -q`
+- Hosted API verification:
+  - Examples / SDK smoke tests: `pytest core/python/examples/tests -m 'integration and api and not slow_integration' -q`
+  - Application hosted API: `pytest application/python/tests -m 'integration and api and not slow_integration and not docker' -q`
+  - OpenRouter: `pytest plugins/openrouter/tests -m 'integration and api and not slow_integration and openrouter' -q`
+  - OpenAI Responses: `pytest plugins/openai_responses/tests -m 'integration and api and not slow_integration and openai' -q`
+  - Reference provider Fireworks: `pytest plugins/reference-openai-compatible-provider/tests -m 'integration and api and not slow_integration and fireworks' -q`
+  - Reference provider Z.ai: `pytest plugins/reference-openai-compatible-provider/tests -m 'integration and api and not slow_integration and zai' -q`
+- Slow integration verification:
+  - Run slow suites selectively, usually by package marker or single file rather than all at once.
+  - OpenRouter slow hosted suites: `pytest plugins/openrouter/tests -m 'slow_integration and openrouter' -q`
+- Provider follow-up for major changes:
+  - For major provider, request-pipeline, tool-loop, or default-config changes, explicitly consider follow-up verification in `plugins/openrouter`, `plugins/openai_responses`, and `plugins/reference-openai-compatible-provider`.
 - Coverage (core focus):
   ```bash
   pytest core/python/tests -v --cov=core/python/agent_core --cov-report=term-missing
@@ -128,7 +153,7 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 
 **Docs**
 - `mkdocs serve` / `mkdocs build`
-- After changing examples: `pytest core/python/examples/tests -qs && python scripts/generate_examples_md.py`
+- After changing examples: run the relevant example tests selectively, then `python scripts/generate_examples_md.py`
 
 ---
 
@@ -193,13 +218,17 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 
 **What to test**
 - Prefer **unit tests** first (pure functions, protocol implementations, small helpers).
-- Use **integration tests** for multi-layer flows or real providers; mark them (`integration`, `openrouter`, `ollama`).
+- Use **integration tests** for multi-layer flows or provider-backed behavior; mark them with `integration`.
+- Add `api` for hosted real-provider tests that require credentials and may incur cost.
+- Add `slow_integration` for broad, high-latency, or expensive integration suites that should be run selectively.
+- Keep provider selectors such as `openrouter`, `openai`, `ollama`, `gemini`, `fireworks`, `zai`, plus `docker` and `manual_integration`, so specific integration slices stay easy to target.
+- Treat `not integration` as the practical quick filter for local verification; some intentionally fast local Ollama coverage may still remain in that path if it is not marked `integration`.
 - Use **example / end-to-end tests** for high-level flows (`core/python/examples/tests`, `application/python/tests`).
 
 **Test realism**
 - Integration/e2e tests must exercise realistic public user/deployment flows. Do not make a test pass by adding test-only shortcuts, direct internal endpoints, special overrides, or alternate paths that hide an important product defect.
 - If a realistic test exposes a real issue, keep the test realistic and fix the product code. If the fix is out of scope, report the failing test and exposed issue clearly instead of weakening the test.
-- When a requested or required test is gated by markers, flags, or environment variables, run it with the appropriate marker/flag/env enabled instead of accepting a skipped result as success. If the test needs credentials, check the repo's documented dotenv/config loading path before concluding credentials are unavailable; many suites load `.env` values automatically or can be run from a command that sources the relevant dotenv file. Report a skipped gated test as "not run" unless you explicitly enabled the gate and verified the skip is intentional for the current task.
+- When a requested or required test is gated by markers, flags, or environment variables, run it with the appropriate marker/flag/env enabled instead of accepting a skipped result as success. The main Python suites in `core/python/tests`, `core/python/examples/tests`, `application/python/tests`, `plugins/openrouter/tests`, `plugins/openai_responses/tests`, and `plugins/reference-openai-compatible-provider/tests` bootstrap the repo-root `.env` via suite `conftest.py` without overwriting already-exported env vars, but do not assume every other suite in the repo does. Report a skipped gated test as "not run" unless you explicitly enabled the gate and verified the skip is intentional for the current task.
 
 **Design/testing style**
 - Keep code functional/immutable; avoid in-place mutation of shared data.

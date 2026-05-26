@@ -4,11 +4,12 @@ Update the root testing guidance so it matches the actual repo: where tests live
 
 ## Requirements checklist
 
-- [ ] Update root `AGENTS.md` with accurate test locations and standard run guidance.
-- [ ] Document the new marker semantics and the practical meaning of `not integration`.
-- [ ] Clarify env-loading expectations for real-provider tests.
-- [ ] Explicitly list major provider plugin packages that should be exercised after significant changes.
-- [ ] Decide whether `.env.example` should be expanded in the same pass to reflect documented real-provider test needs.
+- [x] Update root `AGENTS.md` with accurate test locations and standard run guidance.
+- [x] Document the new marker semantics and the practical meaning of `not integration`.
+- [x] Clarify env-loading expectations for real-provider tests.
+- [x] Explicitly list major provider plugin packages that should be exercised after significant changes.
+- [x] Decide whether `.env.example` should be expanded in the same pass to reflect documented real-provider test needs.
+- [x] Update affected package-local README files where test or env guidance would otherwise drift from the new defaults.
 
 Parent Task: `tasks/20260524-test-and-agents-cleanup/000-main.md`
 
@@ -127,3 +128,61 @@ Useful places to cite or mirror in wording:
 - Do not leave root `AGENTS.md` saying "many suites load `.env` automatically" unless the code is changed to make that statement true.
 - If `.env.example` is updated in this cleanup, keep the example values clearly placeholder-only and do not mirror any real credential names beyond the env keys themselves.
 - The final docs should reflect the actual marker policy chosen in subtask 010, not a partially-implemented intermediate state.
+
+## Execution plan
+
+Added during task completion after user approval.
+
+1. Rewrite the root `AGENTS.md` testing guidance around run intent instead of a short directory list:
+   - fast default verification
+   - integration verification
+   - hosted API verification
+   - slow integration verification
+   - provider-plugin follow-up coverage for major changes
+2. Update root `AGENTS.md` so it documents the actual package-local pytest defaults now in effect for:
+   - `core/python`
+   - `application/python`
+   - `plugins/openrouter`
+   - `plugins/openai_responses`
+   - `plugins/reference-openai-compatible-provider`
+3. Document marker semantics in `AGENTS.md`, including:
+   - `integration`
+   - `api`
+   - `slow_integration`
+   - provider markers such as `openrouter`, `openai`, `ollama`, `gemini`, `fireworks`, `zai`
+   - `docker`
+   - `manual_integration`
+   and explain that `not integration` is the practical quick filter, while still allowing intentionally fast local Ollama tests that are not marked `integration`.
+4. Tighten the env-loading guidance in `AGENTS.md` so it reflects the shared repo-root `.env` bootstrap in the main Python suites without implying every suite in the repo auto-loads dotenv.
+5. Expand `.env.example` to cover the main hosted-provider keys and the most relevant optional base URL overrides while keeping the file clearly placeholder-only.
+6. Update affected package-local README files for consistency:
+   - `application/python/README.md`
+   - `plugins/openrouter/README.md`
+   - `plugins/openai_responses/README.md`
+   - `plugins/reference-openai-compatible-provider/README.md`
+7. Leave `application/python/agent_terminal_app/AGENTS.md` unchanged unless a conflicting test/env statement is discovered, since the current file does not document package-local pytest commands.
+8. Validate the docs pass by reading the updated sections back against the current package `pyproject.toml` defaults and checking for obvious command drift.
+
+## Completion Notes
+
+Added during task completion.
+
+- Rewrote the root `AGENTS.md` testing guidance so it now documents:
+  - the major Python test locations
+  - package-local default pytest behavior
+  - fast default verification commands
+  - integration, hosted `api`, and `slow_integration` verification paths
+  - provider follow-up expectations for major request-pipeline and default-config changes
+- Updated `AGENTS.md` marker guidance so `integration`, `api`, `slow_integration`, provider markers, `docker`, and `manual_integration` are all described together, including the practical meaning of `not integration`.
+- Tightened the root env-loading guidance to reflect the current shared repo-root `.env` bootstrap used by the main Python suites without claiming that every suite in the repository auto-loads dotenv.
+- Expanded `.env.example` to include the main hosted-provider credentials and optional base URL overrides alongside the existing Ollama settings.
+- Updated package-local README files for consistency:
+  - `application/python/README.md`
+  - `plugins/openrouter/README.md`
+  - `plugins/openai_responses/README.md`
+  - `plugins/reference-openai-compatible-provider/README.md`
+- Left `application/python/agent_terminal_app/AGENTS.md` unchanged because the file does not currently document package-local pytest commands or conflicting env-loading behavior.
+- Validation performed:
+  - read-back comparison against current package `pyproject.toml` defaults
+  - marker-targeted `pytest --collect-only` checks for the newly documented example, Docker, slow OpenRouter, manual ChatGPT, and Fireworks command slices
+- No live provider tests were run for this docs task.

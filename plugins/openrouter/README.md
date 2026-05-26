@@ -35,6 +35,33 @@ These actions are session-asset-backed so uploaded input images and generated
 output images can both be previewed and downloaded by clients without storing
 large base64 payloads in session JSON.
 
+## Testing
+
+For contributors and local validation:
+
+- Fast default package run:
+
+  ```bash
+  pytest plugins/openrouter/tests -q
+  ```
+
+  This package defaults to `-m 'not integration'`.
+
+- Hosted OpenRouter integration:
+
+  ```bash
+  pytest plugins/openrouter/tests -m 'integration and api and not slow_integration and openrouter' -q
+  ```
+
+- Slow hosted integration:
+
+  ```bash
+  pytest plugins/openrouter/tests -m 'slow_integration and openrouter' -q
+  ```
+
+The OpenRouter test suite bootstraps the repo root `.env` for local use and
+does not overwrite already-exported environment variables.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

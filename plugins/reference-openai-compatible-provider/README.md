@@ -358,22 +358,40 @@ python -m pip install -e "plugins/reference-openai-compatible-provider[dev]"
 
 ### Tests
 
-Unit tests:
+Fast default package run:
 
 ```bash
 pytest plugins/reference-openai-compatible-provider/tests -q
 ```
 
-Integration tests (requires a local Ollama server):
+This package defaults to `-m 'not integration'`.
+
+Local Ollama integration:
 
 ```bash
-pytest plugins/reference-openai-compatible-provider/tests -m integration -q
+pytest plugins/reference-openai-compatible-provider/tests -m 'integration and ollama and not api and not slow_integration' -q
+```
+
+Hosted Fireworks integration:
+
+```bash
+pytest plugins/reference-openai-compatible-provider/tests -m 'integration and api and not slow_integration and fireworks' -q
+```
+
+Hosted Z.ai integration:
+
+```bash
+pytest plugins/reference-openai-compatible-provider/tests -m 'integration and api and not slow_integration and zai' -q
 ```
 
 Environment overrides used by the Ollama integration tests:
 
 - `OLLAMA_OPENAI_BASE_URL` (default `http://localhost:11434/v1`)
 - `OLLAMA_OPENAI_MODEL` (default `qwen3:0.6b`)
+
+The reference-provider test suite bootstraps the repo root `.env` during local
+use and does not overwrite already-exported environment variables. Hosted API
+tests typically require `FIREWORKS_API_KEY` or `ZAI_API_KEY`.
 
 ### Debugging streaming
 
