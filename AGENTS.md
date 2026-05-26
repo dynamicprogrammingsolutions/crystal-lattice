@@ -13,8 +13,11 @@ Main pieces:
 - **Application layer** (`core/python/agent_app`): config loading, session & event stores, tool loop.
 - **Terminal + HTTP + mobile integration app** (`application/python/agent_terminal_app`): FastAPI JSON API, prompt_toolkit terminal, and glue for mobile connectivity (direct HTTP, Bonjour/mDNS, and bridge service).
 - **Mobile app** (`mobile/crystal-lattice-control-rn`): React Native client (Crystal Lattice Control) that connects to the terminal/HTTP app directly or via the bridge, providing a sessions/messages UI on phones and simulators.
+- **Desktop app** (`desktop/crystal-lattice-control-desktop-rn`): React Native macOS desktop client for Crystal Lattice Control.
+- **Shared packages** (`packages/`): shared frontend SDKs, React bindings, React Native components, and tool-host packages used by mobile, desktop, and related runtimes.
 - **Bridge service** (`bridge-elixir`): Elixir/Phoenix WebSocket bridge that lets mobile/desktop apps talk to local HTTP servers across networks using pairing + proxied HTTP requests.
-- **Built-in plugins** (`core/python/plugins`): providers, extensions, features, tools.
+- **Built-in plugin projects** (`plugins/`): first-party plugin repos used by the current runtime and bundled layout, plus plugin docs and templates.
+- **Core-packaged plugins** (`core/python/plugins`): older Python plugins shipped with `agent-core`, kept mainly for tests, compatibility, and a small set of package-local/core features.
 - **Examples & tests** (`core/python/examples`, `core/python/tests`, `application/python/tests`, `plugins/*/tests`).
 
 Design principles:
@@ -61,6 +64,21 @@ See `application/python/agent_terminal_app/AGENTS.md` for directory-specific gui
 
 See `mobile/crystal-lattice-control-rn/AGENTS.md` for React Native–specific guidelines, styling rules, and notes on message rendering and scrolling behavior.
 
+**Desktop app – `desktop/crystal-lattice-control-desktop-rn`**
+- React Native macOS desktop client for Crystal Lattice Control.
+- Reuses shared workspace packages from `packages/`.
+- See `desktop/crystal-lattice-control-desktop-rn/README.md` for setup and workflow details.
+
+**Shared packages – `packages/`**
+- Shared workspace packages used by mobile, desktop, and tool runtimes.
+- Main examples:
+  - `packages/frontend-sdk`
+  - `packages/frontend-sdk-react`
+  - `packages/frontend-rn-components`
+  - `packages/tool-host-node`
+  - `packages/react-native-mac-text-view`
+- Check the package-local README before changing shared interfaces or package-specific build/test behavior.
+
 **Bridge service – `bridge-elixir`**
 - Distributed Elixir/Phoenix bridge that:
   - Accepts "server" WebSocket clients (e.g. Python `agent_terminal_app`).
@@ -76,33 +94,46 @@ See `bridge-elixir/AGENTS.md` for directory-specific guidelines and deployment n
 See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules and related test references.
 
 **Plugins**
-- Built-in plugins: `core/python/plugins` (Python package `plugins.*`)
-  - Providers: e.g. `openai_provider.py`, `echo_openai_like_provider.py`.
-  - Extensions/features/tools: reasoning, request-options, system-message, shell, file reader/writer, math, apply-patch.
-- Optional plugin repos: `plugins/` (each is separately installable and/or loadable via `path:`)
-  - OpenRouter provider bundle: `plugins/openrouter` (Python package `openrouter_plugins.*`).
+- Built-in plugin projects: `plugins/`
+  - First-party plugin repos used by the current runtime and bundled layout.
+  - Contains Python plugin packages, Node/Bash tool packages, templates, and shared plugin docs.
+  - Depending on plugin type, loaders may use `path:`, `node:`, or `bash:` sources.
+  - Start with `plugins/AGENTS.md` and `plugins/docs/index.md`.
+- Core-packaged plugins: `core/python/plugins` (Python package `plugins.*`)
+  - Older plugins that still ship inside `agent-core`.
+  - Used mainly for tests, compatibility, and a small set of package-local/core features.
+  - Do not place new plugins here without explicit user consent.
 
 **Docs & scripts**
 - Root: `ARCHITECTURE.md`, `PROJECT_PLAN.md`, `TYPES_AND_PROTOCOLS.md`, `DEVELOPMENT.md`, `EXAMPLES.md`.
 - API docs: `docs/api/core-sdk.md`, `docs/reference/agent_core/*`.
-- Plugin guide: `docs/plugins/development.md`.
-- Provider plugin guide (canonical): `plugins/docs/provider-plugins.md`.
+- Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
+- Older/general plugin overview: `docs/plugins/development.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
+
+**Auxiliary directories**
+- `evaluations/`: shared evaluation framework and benchmark suites.
+- `tasks/`: task handoff files used for planning and delegated follow-up work.
+- `plan/` and `plans/`: planning notes and older work artifacts.
+- `artifacts/`, `build/`, `dist/`, `tmp/`: generated outputs, staging areas, and local scratch space.
+- `test_dir/`: ad hoc local scratch/test workspace.
 
 ---
 
 ## 3. Development Workflow
 
 **Setup (Python 3.10+)**
-- Core + plugins:
+- Core SDK + core-packaged plugins:
   ```bash
-  cd core/python
-  pip install -e ".[dev]"
+  python -m pip install -e "core/python[dev]"
   ```
-- Terminal app:
+- Terminal app against the local core checkout:
   ```bash
-  cd application/python
-  pip install -e .
+  python -m pip install -e application/python
+  ```
+- Built-in or optional plugin packages you are actively changing:
+  ```bash
+  python -m pip install -e "plugins/<plugin-name>[dev]"
   ```
 
 **Tests**
@@ -165,11 +196,17 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 - Change `types.py` or `plugin/*.py` when you touch public types or plugin-wrapping behavior.
 - Tests: `core/python/tests` (+ example tests if examples demonstrate the change).
 
-**Plugins (`core/python/plugins`)**
-- Add/modify providers, extensions, features, tools here.
-- Use `docs/plugins/development.md` and `core/python/agent_core/types.py` as protocol references.
-- Provider-specific authoring guide: `plugins/docs/provider-plugins.md`.
-- Tests: plugin-focused tests under `core/python/tests` and, if relevant, example tests.
+**Built-in And First-party Plugin Projects (`plugins/`)**
+- Add/modify providers, provider extensions, features, tools, application plugins, and related tool packages here.
+- Start with `plugins/AGENTS.md` and `plugins/docs/index.md`.
+- Use `plugins/docs/provider-plugins.md`, `plugins/docs/provider-extensions.md`, `plugins/docs/feature-plugins.md`, `plugins/docs/tool-plugins.md`, and `plugins/docs/application-plugins.md` as the current authoring docs.
+- Tests live alongside each plugin project under `plugins/<plugin>/tests`.
+
+**Core-packaged plugins (`core/python/plugins`)**
+- This is the older in-package plugin directory for `agent-core`.
+- Use it mainly for tests, compatibility, and a small set of package-local/core features that truly belong in the core package.
+- Do not place new plugins here without explicit user consent.
+- Tests remain primarily under `core/python/tests`.
 
 **Application layer (`agent_app`)**
 - Use `core/python/agent_app/application_future.py` and `tool_loop.py` when changing:
@@ -193,19 +230,28 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 - Plugins are plain classes with instance methods, using explicit `state: dict`.
 - Instances are short-lived per request; avoid persistent mutable attributes.
 - Providers/extensions/features share provider state; tools keep separate tool state.
+- For new first-party plugin work, prefer repo-root `plugins/` unless there is a clear reason the code must stay in the core package.
 
 **Provider plugins** (`ProviderPlugin`)
-- Implement `init(config)`, `call_api` or `stream_api`, `process_chunk`, `finalize`.
-- Rely on default adapters for `to_native_messages`, `from_native_messages`, `initialize_request` when possible.
-- Put implementations in `core/python/plugins` and add unit/integration tests.
+- Implement the hooks your provider actually needs.
+- Default adapters can supply `to_native_messages`, `from_native_messages`, `initialize_request`, `finalize`, and `stream_api` when they are omitted.
+- Put new first-party implementations in repo-root `plugins/` and add unit/integration tests alongside the plugin project.
 
 **Extensions & features**
 - Extensions (`ProviderExtensionPlugin`): hot-path streaming enrichments + finalize.
 - Features (`FeaturePlugin`): cold-path per-turn behavior, operate in `init` / `initialize_request` / `finalize`.
+- See `plugins/docs/provider-extensions.md`, `plugins/docs/feature-plugins.md`, and `plugins/docs/actions.md` for the current hook surface.
+
+**Application plugins** (`ApplicationPlugin`)
+- Application-layer plugins live above `AgentCore` and can expose actions and UI schema with access to sessions, persistence, and multi-session workflows.
+- Protocol: `core/python/agent_app/app_plugins.py`
+- Docs: `plugins/docs/application-plugins.md`
 
 **Tools** (`ToolPlugin`)
-- Implement `init`, `get_tool_schemas`, `execute_tool`, `format_tool_result` (and optionally `stream_tool`, `to_display_format`).
+- Implement the hooks you need such as `init`, `get_tool_schemas`, `execute_tool`, and `format_tool_result`; optional hooks include preparation, streaming, async, and display helpers.
 - Register via `AgentCore.register_tool`; use `get_tool_schemas`, `iter_tool_messages`, `execute_tool_calls` in apps.
+- Tool-packaged plugins can be Python, Node, or Bash depending on the loader.
+- Docs: `plugins/docs/tool-plugins.md`, `plugins/docs/node-tool-plugins.md`, `plugins/docs/bash-tool-plugins.md`, and `plugins/docs/tool-interop.md`.
 
 ---
 
@@ -214,7 +260,7 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 **When to add tests**
 - Any new public behavior or API surface.
 - Any bugfix (add a regression test that fails before the fix).
-- Any change in `agent_core`, `agent_app`, `agent_terminal_app`, or built-in plugins visible to users.
+- Any change in `agent_core`, `agent_app`, `agent_terminal_app`, built-in plugin projects, or core-packaged plugins visible to users.
 
 **What to test**
 - Prefer **unit tests** first (pure functions, protocol implementations, small helpers).
@@ -239,8 +285,9 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 **Plugin + test fixture placement**
 - Do not add new `core/python/tests` that depend on repo-root `plugins/` (use `core/python/tests/fixtures` instead).
 - Test-only plugins/fixtures live under `core/python/tests` (prefer `core/python/tests/fixtures`).
-- Simple/manual plugins that ship with the core package live under `core/python/plugins`.
-- Production plugins live under repo-root `plugins/`, and their tests live alongside them.
+- Core-packaged plugins that still ship with `agent-core` live under `core/python/plugins`.
+- First-party built-in plugin projects live under repo-root `plugins/`, and their tests live alongside them.
+- Do not add new plugin projects under `core/python/plugins` without explicit user consent.
 
 **When to update docs**
 - Changing core APIs, plugin protocols, or application behavior:

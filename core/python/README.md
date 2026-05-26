@@ -22,18 +22,22 @@ This SDK follows **pure functional programming** principles:
 
 ## Installation
 
+These commands install only the `agent_core` package from `core/python`. They
+do not install `application/python` or any repo-root plugin packages under
+`plugins/`.
+
 ### From Source
 
 ```bash
 cd core/python
-pip install -e .
+python -m pip install -e .
 ```
 
 ### Development Installation
 
 ```bash
 cd core/python
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 ```
 
 ## Quick Start

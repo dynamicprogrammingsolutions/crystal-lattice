@@ -265,10 +265,15 @@ Set up a development environment:
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e "core/python[dev]"
+```
+
+Add the terminal/server app when the plugin work needs app-level integration:
+
+```bash
 python -m pip install -e application/python
 ```
 
-Try a template plugin test loop:
+Install each repo-root plugin package separately when you are actively changing it:
 
 ```bash
 python -m pip install -e "plugins/template-python-provider[dev]"
@@ -281,6 +286,7 @@ supported forms.
 
 ### Plugin Docs
 
+- [plugins/docs/index.md](plugins/docs/index.md)
 - [plugins/docs/provider-plugins.md](plugins/docs/provider-plugins.md)
 - [plugins/docs/tool-plugins.md](plugins/docs/tool-plugins.md)
 - [plugins/docs/node-tool-plugins.md](plugins/docs/node-tool-plugins.md)
@@ -291,6 +297,7 @@ supported forms.
 - [plugins/docs/plugin-packaging-and-loading.md](plugins/docs/plugin-packaging-and-loading.md)
 - [plugins/docs/testing-and-validation.md](plugins/docs/testing-and-validation.md)
 - [plugins/docs/ui-elements.md](plugins/docs/ui-elements.md)
+- [docs/plugins/development.md](docs/plugins/development.md) - older/general plugin overview
 
 ## Core Development Quickstart
 
@@ -302,6 +309,10 @@ source .venv/bin/activate
 python -m pip install -e "core/python[dev]"
 python -m pip install -e application/python
 ```
+
+`core/python[dev]` installs the core SDK development environment from this
+repo checkout. It does not install repo-root plugin packages, so install
+`plugins/<plugin-name>[dev]` separately when you are changing a plugin.
 
 Run the common fast test sets:
 
@@ -380,14 +391,14 @@ authorizes proxied HTTP requests.
 
 - `core/python/agent_core` - core SDK.
 - `core/python/agent_app` - app runtime, config, sessions, events, tool loop.
-- `core/python/plugins` - built-in Python plugins installed with `agent-core`.
+- `core/python/plugins` - core-packaged Python plugins kept mainly for tests, compatibility, and some package-local/core features.
 - `core/python/examples` - runnable examples used as executable docs.
 - `core/python/tests` - core, app-layer, and plugin tests.
 - `application/python/agent_terminal_app` - CLI, terminal, FastAPI server, mobile glue.
 - `application/python/tests` - terminal/server tests.
 - `mobile/crystal-lattice-control-rn` - React Native app.
 - `bridge-elixir` - bridge service and Docker/HAProxy setup.
-- `plugins` - optional plugin bundles, templates, and plugin docs.
+- `plugins` - built-in plugin projects for the current runtime layout, plus templates and shared plugin docs.
 - `docs` - MkDocs/API reference docs.
 
 ## Core SDK Examples
@@ -471,7 +482,8 @@ mkdocs serve
 Key docs:
 
 - [docs/api/core-sdk.md](docs/api/core-sdk.md)
-- [docs/plugins/development.md](docs/plugins/development.md)
+- [plugins/docs/index.md](plugins/docs/index.md)
+- [docs/plugins/development.md](docs/plugins/development.md) - older/general plugin overview
 - [docs/reference/agent_core](docs/reference/agent_core)
 - [application/python/README.md](application/python/README.md)
 - [mobile/crystal-lattice-control-rn/README.md](mobile/crystal-lattice-control-rn/README.md)

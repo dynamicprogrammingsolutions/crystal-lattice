@@ -8,6 +8,14 @@ Create a coordinated cleanup plan for root `AGENTS.md`, Python test structure an
 - [x] `tasks/20260524-test-and-agents-cleanup/020-agents-and-testing-doc-guidance.md`
 - [x] `tasks/20260524-test-and-agents-cleanup/030-test-and-build-command-alignment.md`
 - [ ] `tasks/20260524-test-and-agents-cleanup/040-follow-on-test-cleanup-backlog.md`
+- [x] `tasks/20260524-test-and-agents-cleanup/050-root-agents-fact-audit-and-structure-refresh.md`
+- [x] `tasks/20260524-test-and-agents-cleanup/051-plugin-terminology-and-docs-entrypoint-alignment.md`
+- [x] `tasks/20260524-test-and-agents-cleanup/052-setup-and-install-guidance-alignment.md`
+- [ ] `tasks/20260524-test-and-agents-cleanup/060-sdk-test-guidance-and-command-alignment.md`
+- [ ] `tasks/20260524-test-and-agents-cleanup/070-root-readme-fact-audit-and-structure-refresh.md`
+- [ ] `tasks/20260524-test-and-agents-cleanup/080-package-local-docs-fact-audit-and-alignment.md`
+- [ ] `tasks/20260524-test-and-agents-cleanup/090-build-command-guidance-and-validation.md`
+- [ ] `tasks/20260524-test-and-agents-cleanup/100-root-package-json-maintainer-commands.md`
 
 ## Why this cleanup exists
 

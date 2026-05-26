@@ -81,6 +81,11 @@ python -m pip install -e "core/python[dev]"
 python -m pip install -e application/python
 ```
 
+For local source development, install `core/python` first so
+`application/python` resolves against your checkout of the core SDK. This
+editable install still does not install repo-root plugin packages; install
+`plugins/<plugin-name>[dev]` separately when you are actively changing one.
+
 For binary build work:
 
 ```bash
