@@ -16,6 +16,7 @@
     "integration:bridge:aws:fargate-public": "RUN_BRIDGE_E2E_INTEGRATION=1 RUN_AWS_BRIDGE_TESTS=1 BRIDGE_E2E_MODE=aws-public-task vitest run src/integration/__tests__/bridge.e2e.integration.test.ts",
     "integration:bridge:aws:ec2": "RUN_BRIDGE_E2E_INTEGRATION=1 RUN_AWS_BRIDGE_TESTS=1 BRIDGE_E2E_MODE=aws-ec2-secure vitest run src/integration/__tests__/bridge.e2e.integration.test.ts",
     "integration:cloud": "RUN_CLOUD_ORCHESTRATOR_E2E=1 vitest run src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts",
+    "integration:cloud:profiles": "RUN_CLOUD_ORCHESTRATOR_PROFILE_E2E=1 vitest run src/integration/__tests__/cloud-orchestrator.profiles.e2e.integration.test.ts",
     "integration:cloud:openrouter": "RUN_CLOUD_ORCHESTRATOR_E2E=1 RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E=1 vitest run src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts",
     "integration:cloud:codex": "RUN_CLOUD_ORCHESTRATOR_E2E=1 RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E=1 vitest run src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts",
     "integration:cloud:aws": "RUN_CLOUD_ORCHESTRATOR_E2E=1 RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1 CLOUD_ORCHESTRATOR_E2E_MODE=aws-ec2-cloudfront vitest run src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts",

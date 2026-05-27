@@ -163,6 +163,12 @@ def test_cloud_runtime_materializes_transfer_and_runs_setup_and_export_scripts(
         encoding="utf-8",
     )
     setup_script.chmod(0o755)
+    install_script = scripts_dir / "install"
+    install_script.write_text(
+        '#!/usr/bin/env bash\nset -euo pipefail\nprintf install > "$CLOUD_WORKSPACE_DIR/install-ran.txt"\n',
+        encoding="utf-8",
+    )
+    install_script.chmod(0o755)
     export_script = scripts_dir / "export"
     export_script.write_text(
         '#!/usr/bin/env bash\nset -euo pipefail\ncp "$CLOUD_WORKSPACE_DIR/local.txt" "$TRANSFER_DIR/exported.txt"\n',
@@ -199,6 +205,9 @@ def test_cloud_runtime_materializes_transfer_and_runs_setup_and_export_scripts(
         assert (instance_dir / "workspace" / "setup-ran.txt").read_text(
             encoding="utf-8"
         ) == "setup"
+        assert (instance_dir / "workspace" / "install-ran.txt").read_text(
+            encoding="utf-8"
+        ) == "install"
 
         exported = client.post("/cloud-agent/runtime/export")
         assert exported.status_code == 200

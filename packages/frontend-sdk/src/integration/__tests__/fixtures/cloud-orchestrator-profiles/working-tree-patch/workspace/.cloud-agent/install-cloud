@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+: "${TRANSFER_STAGE_DIR:?}"
+
+test -f "${TRANSFER_STAGE_DIR}/.env"
+cp "${TRANSFER_STAGE_DIR}/.env" "${CLOUD_WORKSPACE_DIR}/staged.env"
+cp "${TRANSFER_STAGE_DIR}/local-stage-context.txt" "${CLOUD_WORKSPACE_DIR}/local-stage-context.txt"
+printf 'CLOUD_WORKSPACE_DIR=%s\nTRANSFER_STAGE_DIR=%s\n' \
+  "${CLOUD_WORKSPACE_DIR}" \
+  "${TRANSFER_STAGE_DIR}" \
+  > "${CLOUD_WORKSPACE_DIR}/install-hook-context.txt"

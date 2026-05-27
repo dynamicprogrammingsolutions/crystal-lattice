@@ -13,6 +13,7 @@ DEFAULT_RUNTIME_IMAGE = "cloud-agent-runtime:latest"
 
 PROFILE_SECTIONS = {
     "transfer_up_profiles",
+    "cloud_setup_profiles",
     "install_profiles",
     "sync_down_profiles",
     "container_profiles",
@@ -23,7 +24,8 @@ DEFAULT_PROFILE_KEYS = {
     "default_container_profile",
 }
 SCRIPT_FIELDS_BY_SECTION = {
-    "transfer_up_profiles": {"local_transfer_script"},
+    "transfer_up_profiles": {"local_stage_script", "local_transfer_script"},
+    "cloud_setup_profiles": {"cloud_setup_script"},
     "install_profiles": {"cloud_install_script"},
     "sync_down_profiles": {
         "cloud_export_script",
@@ -76,6 +78,14 @@ def resolve_cloud_agent_profiles(
     sync = _profile(merged, "sync_down_profiles", sync_id)
     container = _profile(merged, "container_profiles", container_id)
 
+    setup_id = transfer.get("cloud_setup_profile")
+    if not isinstance(setup_id, str) or not setup_id.strip():
+        raise ValueError(
+            f"application.cloud_agent.transfer_up_profiles.{transfer_id}.cloud_setup_profile is required"
+        )
+    setup_id = setup_id.strip()
+    _profile(merged, "cloud_setup_profiles", setup_id)
+
     install_id = transfer.get("install_profile")
     if not isinstance(install_id, str) or not install_id.strip():
         raise ValueError(
@@ -94,9 +104,17 @@ def resolve_cloud_agent_profiles(
 
     effective = dict(merged)
     effective["selected_transfer_up_profile"] = transfer_id
+    effective["selected_cloud_setup_profile"] = setup_id
     effective["selected_install_profile"] = install_id
     effective["selected_sync_down_profile"] = sync_id
     effective["selected_container_profile"] = container_id
+    effective["local_stage_script"] = _resolve_optional_script(
+        script_candidates,
+        "transfer_up_profiles",
+        transfer_id,
+        "local_stage_script",
+        env=env_map,
+    )
     effective["local_transfer_script"] = _resolve_script(
         script_candidates,
         "transfer_up_profiles",
@@ -106,12 +124,18 @@ def resolve_cloud_agent_profiles(
     )
     effective["cloud_setup_script"] = _resolve_script(
         script_candidates,
+        "cloud_setup_profiles",
+        setup_id,
+        "cloud_setup_script",
+        env=env_map,
+    )
+    effective["cloud_install_script"] = _resolve_script(
+        script_candidates,
         "install_profiles",
         install_id,
         "cloud_install_script",
         env=env_map,
     )
-    effective["cloud_install_script"] = effective["cloud_setup_script"]
     effective["cloud_export_script"] = _resolve_script(
         script_candidates,
         "sync_down_profiles",

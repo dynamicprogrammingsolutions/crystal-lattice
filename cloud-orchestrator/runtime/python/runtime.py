@@ -160,6 +160,22 @@ def _install_canonical_env() -> None:
     os.environ.setdefault("SESSION_DIR", str(sessions_dir()))
 
 
+def _load_script_env_overrides() -> dict[str, str]:
+    path = scripts_dir() / "runtime.env"
+    if not path.exists():
+        return {}
+    values: dict[str, str] = {}
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        if key:
+            values[key] = value
+    return values
+
+
 def _copy_workspace_from_transfer(src: Path, dst: Path) -> None:
     if not src.exists():
         return
@@ -219,6 +235,17 @@ def _bootstrap_from_transfer() -> None:
     _set_runtime_status(startup_stage="runtime_env_loading")
     _load_runtime_env(instance_dir())
     _install_canonical_env()
+    script_env_overrides = _load_script_env_overrides()
+
+    transfer_stage_dir = unpacked / ".cloud-agent" / "local-stage"
+    script_env = {
+        **os.environ,
+        **script_env_overrides,
+        "CLOUD_WORKSPACE_DIR": str(workspace_dir()),
+        "TRANSFER_DIR": str(unpacked),
+        "TRANSFER_STAGE_DIR": str(transfer_stage_dir),
+        "WORKING_DIR": str(workspace_dir()),
+    }
 
     setup_script = scripts_dir() / "setup"
     if setup_script.exists():
@@ -228,11 +255,19 @@ def _bootstrap_from_transfer() -> None:
         subprocess.run(
             [str(setup_script)],
             cwd=str(workspace_dir()),
-            env={
-                **os.environ,
-                "CLOUD_WORKSPACE_DIR": str(workspace_dir()),
-                "TRANSFER_DIR": str(unpacked),
-            },
+            env=script_env,
+            check=True,
+        )
+
+    install_script = scripts_dir() / "install"
+    if install_script.exists():
+        import subprocess
+
+        _set_runtime_status(startup_stage="cloud_install_running")
+        subprocess.run(
+            [str(install_script)],
+            cwd=str(workspace_dir()),
+            env=script_env,
             check=True,
         )
 
@@ -384,8 +419,11 @@ def export_runtime_workspace() -> Dict[str, Any]:
         cwd=str(workspace_dir()),
         env={
             **os.environ,
+            **_load_script_env_overrides(),
             "CLOUD_WORKSPACE_DIR": str(workspace_dir()),
             "TRANSFER_DIR": str(export_dir),
+            "TRANSFER_STAGE_DIR": str(export_dir / ".cloud-agent" / "local-stage"),
+            "WORKING_DIR": str(workspace_dir()),
         },
         check=True,
     )
@@ -408,7 +446,13 @@ def mark_runtime_workspace_synced() -> Dict[str, Any]:
         cwd=str(workspace_dir()),
         env={
             **os.environ,
+            **_load_script_env_overrides(),
             "CLOUD_WORKSPACE_DIR": str(workspace_dir()),
+            "TRANSFER_DIR": str(export_transfer_dir()),
+            "TRANSFER_STAGE_DIR": str(
+                export_transfer_dir() / ".cloud-agent" / "local-stage"
+            ),
+            "WORKING_DIR": str(workspace_dir()),
         },
         check=True,
     )

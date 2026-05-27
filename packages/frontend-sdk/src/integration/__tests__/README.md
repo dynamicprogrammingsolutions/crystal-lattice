@@ -245,6 +245,14 @@ Base tests enabled by `RUN_CLOUD_ORCHESTRATOR_E2E=1`:
 - `opens a cloud session through CloudTransport and syncs workspace files back down`
 - `routes two cloud sessions through one connection-scoped CloudTransport`
 
+Additional standard-profile gate:
+
+- `RUN_CLOUD_ORCHESTRATOR_PROFILE_E2E=1`
+- Runs `cloud-orchestrator.profiles.e2e.integration.test.ts`
+- Always uses the local Docker orchestrator harness
+- Verifies the shipped standard cloud profiles end to end using fixture-backed
+  repo overrides and hooks rather than handwritten test-only scripts
+
 Additional OpenRouter gate:
 
 - `RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E=1`

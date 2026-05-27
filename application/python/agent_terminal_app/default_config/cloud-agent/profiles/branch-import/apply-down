@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${LOCAL_WORKSPACE_DIR:?}"
+: "${TRANSFER_DIR:?}"
+: "${SESSION_ID:?}"
+: "${CLOUD_AGENT_IMPORTED_BRANCH_NAME:?}"
+: "${CLOUD_AGENT_CLOUD_FULL_STATE_REF:?}"
+: "${CLOUD_AGENT_LOCAL_IMPORT_STATE_REF:?}"
+
+payload_dir="${TRANSFER_DIR}/.cloud-agent"
+bundle_path="${payload_dir}/refs.bundle"
+committed_ref="$(cat "${payload_dir}/committed-ref")"
+cloud_full_ref="$(cat "${payload_dir}/cloud-full-state-ref")"
+delegated_ref=""
+if [ -f "${payload_dir}/delegated-ref" ]; then
+  delegated_ref="$(cat "${payload_dir}/delegated-ref")"
+fi
+
+cd "${LOCAL_WORKSPACE_DIR}"
+git rev-parse --show-toplevel >/dev/null
+
+index_file="${payload_dir}/local-import.index"
+rm -f "${index_file}"
+GIT_INDEX_FILE="${index_file}" git read-tree HEAD
+GIT_INDEX_FILE="${index_file}" git add -A -- . ':(exclude).cloud-agent'
+snapshot_tree="$(GIT_INDEX_FILE="${index_file}" git write-tree)"
+local_snapshot_commit="$(
+  printf 'cloud-agent local import state %s\n' "${SESSION_ID}" | \
+    git commit-tree "${snapshot_tree}" -p HEAD
+)"
+git update-ref "${CLOUD_AGENT_LOCAL_IMPORT_STATE_REF}" "${local_snapshot_commit}"
+rm -f "${index_file}"
+
+git fetch -q "${bundle_path}" "+${committed_ref}:refs/heads/${CLOUD_AGENT_IMPORTED_BRANCH_NAME}"
+git fetch -q "${bundle_path}" "+${cloud_full_ref}:${CLOUD_AGENT_CLOUD_FULL_STATE_REF}"
+if [ -n "${delegated_ref}" ]; then
+  git fetch -q "${bundle_path}" "+${delegated_ref}:${CLOUD_AGENT_DELEGATED_SNAPSHOT_REF}"
+fi

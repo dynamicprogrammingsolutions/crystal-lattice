@@ -7,6 +7,8 @@ set -euo pipefail
 payload_dir="${TRANSFER_DIR}/.cloud-agent"
 mkdir -p "${payload_dir}"
 
+git config --global --add safe.directory "${CLOUD_WORKSPACE_DIR}" >/dev/null 2>&1 || true
+
 cd "${CLOUD_WORKSPACE_DIR}"
 git add -A
 git diff --cached --binary HEAD > "${payload_dir}/cloud.patch"

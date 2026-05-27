@@ -17,7 +17,7 @@ Plan and implement cloud agent orchestration for the terminal/server application
 - [x] `tasks/20260429-cloud-agent-orchestrator/0114-cloud-transfer-endpoint-configuration.md`
 - [x] `tasks/20260429-cloud-agent-orchestrator/0115-real-tool-sync-back-e2e.md`
 - [x] `tasks/20260429-cloud-agent-orchestrator/0120-cloud-profile-config-no-behavior-change.md`
-- [ ] `tasks/20260429-cloud-agent-orchestrator/0121-default-cloud-profile-scripts.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121-default-cloud-profile-scripts.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0122-sync-profile-selection-ui.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0123-cloud-profile-user-docs.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0124-dockerfile-container-profiles.md`

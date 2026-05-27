@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${LOCAL_WORKSPACE_DIR:?}"
+: "${TRANSFER_DIR:?}"
+: "${SESSION_ID:?}"
+: "${CLOUD_AGENT_DELEGATED_SNAPSHOT_REF:?}"
+
+cd "${LOCAL_WORKSPACE_DIR}"
+payload_dir="${TRANSFER_DIR}/.cloud-agent"
+mkdir -p "${payload_dir}"
+
+git rev-parse --show-toplevel >/dev/null
+base_commit="$(git rev-parse HEAD)"
+printf '%s\n' "${base_commit}" > "${payload_dir}/base-commit"
+
+index_file="${payload_dir}/transfer.index"
+rm -f "${index_file}"
+GIT_INDEX_FILE="${index_file}" git read-tree HEAD
+GIT_INDEX_FILE="${index_file}" git add -A -- . ':(exclude).cloud-agent'
+snapshot_tree="$(GIT_INDEX_FILE="${index_file}" git write-tree)"
+snapshot_commit="$(
+  printf 'cloud-agent delegated snapshot %s\n' "${SESSION_ID}" | \
+    git commit-tree "${snapshot_tree}" -p HEAD
+)"
+git update-ref "${CLOUD_AGENT_DELEGATED_SNAPSHOT_REF}" "${snapshot_commit}"
+printf '%s\n' "${snapshot_commit}" > "${payload_dir}/delegated-snapshot-commit"
+GIT_INDEX_FILE="${index_file}" git diff --cached --binary HEAD > "${payload_dir}/working.patch"
+rm -f "${index_file}"
+
+git bundle create "${payload_dir}/repo.bundle" HEAD "${CLOUD_AGENT_DELEGATED_SNAPSHOT_REF}"

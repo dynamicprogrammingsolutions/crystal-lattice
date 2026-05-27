@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+: "${TRANSFER_DIR:?}"
+: "${TRANSFER_STAGE_DIR:?}"
+
+payload_dir="${TRANSFER_DIR}/.cloud-agent"
+archive_path="${payload_dir}/project.tar"
+patch_path="${payload_dir}/working.patch"
+
+mkdir -p "${CLOUD_WORKSPACE_DIR}"
+tar -xf "${archive_path}" -C "${CLOUD_WORKSPACE_DIR}"
+
+if [ -d "${TRANSFER_STAGE_DIR}" ]; then
+  tar -cf - -C "${TRANSFER_STAGE_DIR}" . | tar -xf - -C "${CLOUD_WORKSPACE_DIR}"
+fi
+
+git config --global --add safe.directory "${CLOUD_WORKSPACE_DIR}" >/dev/null 2>&1 || true
+
+cd "${CLOUD_WORKSPACE_DIR}"
+git init -q
+git add -A
+git -c user.name='Cloud Agent' -c user.email='cloud-agent@example.invalid' \
+  commit -q -m 'cloud-agent baseline'
+
+if [ -s "${patch_path}" ]; then
+  git apply --binary "${patch_path}"
+  git add -A
+  git -c user.name='Cloud Agent' -c user.email='cloud-agent@example.invalid' \
+    commit -q -m 'cloud-agent local input'
+fi

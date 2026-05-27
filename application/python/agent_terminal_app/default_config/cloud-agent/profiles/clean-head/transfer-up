@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${LOCAL_WORKSPACE_DIR:?}"
+: "${TRANSFER_DIR:?}"
+
+cd "${LOCAL_WORKSPACE_DIR}"
+payload_dir="${TRANSFER_DIR}/.cloud-agent"
+mkdir -p "${payload_dir}"
+
+git rev-parse --show-toplevel >/dev/null
+base_commit="$(git rev-parse HEAD)"
+printf '%s\n' "${base_commit}" > "${payload_dir}/base-commit"
+git bundle create "${payload_dir}/repo.bundle" HEAD

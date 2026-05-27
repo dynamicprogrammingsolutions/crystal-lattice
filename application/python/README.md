@@ -512,14 +512,46 @@ Config example:
       "transfer_up_profiles": {
         "working-tree-current-state": {
           "label": "Working tree current state",
+          "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/profiles/common/local-stage-hook",
           "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state/transfer-up",
-          "install_profile": "repo-install",
+          "cloud_setup_profile": "git-archive-patch-setup",
+          "install_profile": "repo-install-hook",
           "compatible_sync_down_profiles": ["working-tree-patch"]
+        },
+        "working-tree-current-state-branch": {
+          "label": "Working tree current state with branch export",
+          "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/profiles/common/local-stage-hook",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state-branch/transfer-up",
+          "cloud_setup_profile": "git-dirty-head-setup",
+          "install_profile": "repo-install-hook",
+          "compatible_sync_down_profiles": ["branch-import-snapshot"]
+        },
+        "clean-head": {
+          "label": "Clean committed HEAD",
+          "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/profiles/common/local-stage-hook",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/clean-head/transfer-up",
+          "cloud_setup_profile": "git-clean-head-setup",
+          "install_profile": "repo-install-hook",
+          "compatible_sync_down_profiles": ["branch-import"]
+        }
+      },
+      "cloud_setup_profiles": {
+        "git-archive-patch-setup": {
+          "label": "Archive plus working patch setup",
+          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/git-archive-patch-setup/setup"
+        },
+        "git-dirty-head-setup": {
+          "label": "Git dirty-head setup",
+          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/git-dirty-head-setup/setup"
+        },
+        "git-clean-head-setup": {
+          "label": "Git clean HEAD setup",
+          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/git-clean-head-setup/setup"
         }
       },
       "install_profiles": {
-        "repo-install": {
-          "label": "Repository install",
+        "repo-install-hook": {
+          "label": "Repository install hook",
           "cloud_install_script": "${env:CONFIG_DIR}/cloud-agent/profiles/repo-install/install"
         }
       },
@@ -530,6 +562,20 @@ Config example:
           "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/mark-synced",
           "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/apply-down",
           "compatible_transfer_up_profiles": ["working-tree-current-state"]
+        },
+        "branch-import-snapshot": {
+          "label": "Import committed cloud branch with safety snapshots",
+          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/export",
+          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/mark-synced",
+          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/apply-down",
+          "compatible_transfer_up_profiles": ["working-tree-current-state-branch"]
+        },
+        "branch-import": {
+          "label": "Import committed cloud branch",
+          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/export",
+          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/mark-synced",
+          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/apply-down",
+          "compatible_transfer_up_profiles": ["clean-head"]
         }
       },
       "container_profiles": {
@@ -583,15 +629,23 @@ individual profile fields. Script fields can be a string or an ordered fallback
 list; the first existing script path is used, and fallback lists in the project
 file fall back to the inherited bundled script when no project path exists.
 Relative script paths in the project file resolve from `WORKING_DIR`.
-Patch-based sync profiles can also define `cloud_mark_synced_script`; it runs
-only after the local apply step succeeds, so the cloud-side baseline advances
-without breaking retry safety.
+Patch-based and branch-based sync profiles can define
+`cloud_mark_synced_script`; it runs only after the local apply step succeeds,
+so the cloud-side baseline advances without breaking retry safety.
 
 Scripts receive stable environment variables:
 
-- Local transfer: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
-- Cloud setup/export: `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
-- Local apply: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
+- Local stage/transfer: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`,
+  `TRANSFER_DIR`, `TRANSFER_STAGE_DIR`, `SESSION_ID`
+- Cloud setup/install/export: `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`,
+  `TRANSFER_STAGE_DIR`, `WORKING_DIR`, `SESSION_ID`
+- Local apply: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`,
+  `TRANSFER_STAGE_DIR`, `WORKING_DIR`, `SESSION_ID`
+
+Branch-oriented profiles also receive explicit refs such as
+`CLOUD_AGENT_DELEGATED_SNAPSHOT_REF`, `CLOUD_AGENT_CLOUD_FULL_STATE_REF`,
+`CLOUD_AGENT_LOCAL_IMPORT_STATE_REF`, `CLOUD_AGENT_LAST_SYNCED_REF`, and
+`CLOUD_AGENT_IMPORTED_BRANCH_NAME`.
 
 The managed-SSH byte-transfer adapter is platform-owned. By default it runs the
 packaged rsync-over-SSH adapter script against the orchestrator's restricted

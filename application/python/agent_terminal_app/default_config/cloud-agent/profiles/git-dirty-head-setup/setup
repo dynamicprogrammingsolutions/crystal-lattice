@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+: "${TRANSFER_DIR:?}"
+: "${TRANSFER_STAGE_DIR:?}"
+: "${SESSION_ID:?}"
+: "${CLOUD_AGENT_DELEGATED_SNAPSHOT_REF:?}"
+
+payload_dir="${TRANSFER_DIR}/.cloud-agent"
+bundle_path="${payload_dir}/repo.bundle"
+base_commit="$(cat "${payload_dir}/base-commit")"
+patch_path="${payload_dir}/working.patch"
+tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/cloud-agent-setup.XXXXXX")"
+tmp_clone="${tmp_root}/repo-clone"
+
+trap 'rm -rf "${tmp_root}"' EXIT
+rm -rf "${tmp_clone}"
+git clone -q "${bundle_path}" "${tmp_clone}"
+mkdir -p "${CLOUD_WORKSPACE_DIR}"
+find "${CLOUD_WORKSPACE_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+tar -cf - -C "${tmp_clone}" . | tar -xf - -C "${CLOUD_WORKSPACE_DIR}"
+
+git config --global --add safe.directory "${CLOUD_WORKSPACE_DIR}" >/dev/null 2>&1 || true
+
+cd "${CLOUD_WORKSPACE_DIR}"
+git checkout -q "${base_commit}"
+if [ -s "${patch_path}" ]; then
+  git apply --binary "${patch_path}"
+fi
+if [ -d "${TRANSFER_STAGE_DIR}" ]; then
+  tar -cf - -C "${TRANSFER_STAGE_DIR}" . | tar -xf - -C "${CLOUD_WORKSPACE_DIR}"
+fi
+
+index_file="${tmp_root}/cloud-delegated.index"
+rm -f "${index_file}"
+GIT_INDEX_FILE="${index_file}" git read-tree HEAD
+GIT_INDEX_FILE="${index_file}" git add -A -- . ':(exclude).cloud-agent'
+snapshot_tree="$(GIT_INDEX_FILE="${index_file}" git write-tree)"
+snapshot_commit="$(
+  printf 'cloud-agent delegated snapshot %s\n' "${SESSION_ID}" | \
+    git -c user.name='Cloud Agent' -c user.email='cloud-agent@example.invalid' \
+      commit-tree "${snapshot_tree}" -p HEAD
+)"
+git update-ref "${CLOUD_AGENT_DELEGATED_SNAPSHOT_REF}" "${snapshot_commit}"
+rm -f "${index_file}"

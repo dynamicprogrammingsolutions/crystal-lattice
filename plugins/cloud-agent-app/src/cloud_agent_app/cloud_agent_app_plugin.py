@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import hashlib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -28,6 +29,7 @@ DEFAULT_TRANSFER_METHOD = "managed_ssh"
 RESERVED_CLOUD_AGENT_DIR = ".cloud-agent"
 CLOUD_AGENT_METADATA_KEY = "cloud_agent"
 DEFAULT_START_ACTION_TIMEOUT_SECONDS = 10.0
+DEFAULT_IMPORTED_BRANCH_PREFIX = "cloud"
 
 
 class CloudAgentAppPlugin:
@@ -184,6 +186,7 @@ class CloudAgentAppPlugin:
 
         workspace_dir = self._workspace_dir(params, state)
         cloud_workspace_dir = CLOUD_WORKSPACE_DIR
+        local_stage_script = state.get("local_stage_script")
         local_transfer_script = self._required_script_config(
             state, "local_transfer_script", legacy_key="transfer_script"
         )
@@ -192,11 +195,15 @@ class CloudAgentAppPlugin:
             prefix="cloud-agent-transfer-"
         ) as transfer_tmp:
             transfer_dir = Path(transfer_tmp)
-            transfer_env = {
-                "LOCAL_WORKSPACE_DIR": str(workspace_dir),
-                "CLOUD_WORKSPACE_DIR": cloud_workspace_dir,
-                "TRANSFER_DIR": str(transfer_dir),
-            }
+            transfer_env = self._script_env(
+                app=app,
+                state=state,
+                workspace_dir=workspace_dir,
+                cloud_workspace_dir=cloud_workspace_dir,
+                transfer_dir=transfer_dir,
+                session_id=session_id,
+            )
+            self._run_script(local_stage_script, transfer_env, cwd=workspace_dir)
             self._run_script(local_transfer_script, transfer_env, cwd=workspace_dir)
             self._write_session_export(
                 transfer_dir, session_id, core.export_session(session)
@@ -207,7 +214,12 @@ class CloudAgentAppPlugin:
                 state,
                 selected_agent_id=selected_agent_id,
             )
-            self._write_cloud_runtime_scripts(transfer_dir, state, workspace_dir)
+            self._write_cloud_runtime_scripts(
+                transfer_dir,
+                state,
+                workspace_dir,
+                session_id=session_id,
+            )
 
             key_paths = self._create_transfer_keypair(transfer_dir)
 
@@ -375,11 +387,14 @@ class CloudAgentAppPlugin:
                 )
                 self._run_script(
                     local_apply_script,
-                    {
-                        "LOCAL_WORKSPACE_DIR": str(workspace_dir),
-                        "CLOUD_WORKSPACE_DIR": cloud_workspace_dir,
-                        "TRANSFER_DIR": str(transfer_dir),
-                    },
+                    self._script_env(
+                        app=app,
+                        state=state,
+                        workspace_dir=workspace_dir,
+                        cloud_workspace_dir=cloud_workspace_dir,
+                        transfer_dir=transfer_dir,
+                        session_id=session_id,
+                    ),
                     cwd=workspace_dir,
                 )
                 if state.get("cloud_mark_synced_script"):
@@ -623,11 +638,17 @@ class CloudAgentAppPlugin:
         )
 
     def _write_cloud_runtime_scripts(
-        self, transfer_dir: Path, state: Dict[str, Any], workspace_dir: Path
+        self,
+        transfer_dir: Path,
+        state: Dict[str, Any],
+        workspace_dir: Path,
+        *,
+        session_id: str,
     ) -> None:
         scripts_dir = transfer_dir / RESERVED_CLOUD_AGENT_DIR / "scripts"
         for key, target_name in (
             ("cloud_setup_script", "setup"),
+            ("cloud_install_script", "install"),
             ("cloud_export_script", "export"),
             ("cloud_mark_synced_script", "sync-applied"),
         ):
@@ -645,6 +666,116 @@ class CloudAgentAppPlugin:
             target = scripts_dir / target_name
             shutil.copy2(source, target)
             target.chmod(target.stat().st_mode | 0o700)
+
+        runtime_env = self._cloud_runtime_script_env(
+            state=state,
+            workspace_dir=workspace_dir,
+            transfer_dir=transfer_dir,
+            session_id=session_id,
+        )
+        if runtime_env:
+            scripts_dir.mkdir(parents=True, exist_ok=True)
+            env_path = scripts_dir / "runtime.env"
+            env_path.write_text(
+                "".join(f"{key}={value}\n" for key, value in sorted(runtime_env.items())),
+                encoding="utf-8",
+            )
+            env_path.chmod(0o600)
+
+    def _resolved_env(self, app: Any) -> Dict[str, str]:
+        get_resolved_env = getattr(app, "get_resolved_env", None)
+        if not callable(get_resolved_env):
+            return {}
+        resolved = get_resolved_env()
+        return dict(resolved) if isinstance(resolved, dict) else {}
+
+    def _script_env(
+        self,
+        *,
+        app: Any,
+        state: Dict[str, Any],
+        workspace_dir: Path,
+        cloud_workspace_dir: str,
+        transfer_dir: Path,
+        session_id: str,
+    ) -> Dict[str, str]:
+        resolved_env = self._resolved_env(app)
+        ref_token = self._ref_safe_token(session_id)
+        transfer_stage_dir = (
+            transfer_dir / RESERVED_CLOUD_AGENT_DIR / "local-stage"
+        ).resolve()
+        branch_prefix = str(state.get("imported_branch_prefix") or DEFAULT_IMPORTED_BRANCH_PREFIX)
+        return {
+            **{
+                key: str(value)
+                for key, value in resolved_env.items()
+                if isinstance(key, str) and isinstance(value, str)
+            },
+            "LOCAL_WORKSPACE_DIR": str(workspace_dir),
+            "CLOUD_WORKSPACE_DIR": str(cloud_workspace_dir),
+            "TRANSFER_DIR": str(transfer_dir),
+            "TRANSFER_STAGE_DIR": str(transfer_stage_dir),
+            "WORKING_DIR": str(workspace_dir),
+            "SESSION_ID": session_id,
+            "CLOUD_AGENT_PROFILE_ID": str(
+                state.get("selected_transfer_up_profile")
+                or state.get("selected_sync_down_profile")
+                or ""
+            ),
+            "CLOUD_AGENT_TRANSFER_UP_PROFILE_ID": str(
+                state.get("selected_transfer_up_profile") or ""
+            ),
+            "CLOUD_AGENT_CLOUD_SETUP_PROFILE_ID": str(
+                state.get("selected_cloud_setup_profile") or ""
+            ),
+            "CLOUD_AGENT_SYNC_DOWN_PROFILE_ID": str(
+                state.get("selected_sync_down_profile") or ""
+            ),
+            "CLOUD_AGENT_INSTALL_PROFILE_ID": str(
+                state.get("selected_install_profile") or ""
+            ),
+            "CLOUD_AGENT_IMPORTED_BRANCH_NAME": f"{branch_prefix}/{ref_token}/committed",
+            "CLOUD_AGENT_DELEGATED_SNAPSHOT_REF": f"refs/cloud-agent/{ref_token}/delegated-snapshot",
+            "CLOUD_AGENT_CLOUD_FULL_STATE_REF": f"refs/cloud-agent/{ref_token}/cloud-full-state",
+            "CLOUD_AGENT_LOCAL_IMPORT_STATE_REF": f"refs/cloud-agent/{ref_token}/local-import-state",
+            "CLOUD_AGENT_LAST_SYNCED_REF": f"refs/cloud-agent/{ref_token}/last-synced",
+        }
+
+    def _cloud_runtime_script_env(
+        self,
+        *,
+        state: Dict[str, Any],
+        workspace_dir: Path,
+        transfer_dir: Path,
+        session_id: str,
+    ) -> Dict[str, str]:
+        env = self._script_env(
+            app=object(),
+            state=state,
+            workspace_dir=workspace_dir,
+            cloud_workspace_dir=CLOUD_WORKSPACE_DIR,
+            transfer_dir=transfer_dir,
+            session_id=session_id,
+        )
+        allowed = {
+            "SESSION_ID",
+            "CLOUD_AGENT_PROFILE_ID",
+            "CLOUD_AGENT_TRANSFER_UP_PROFILE_ID",
+            "CLOUD_AGENT_CLOUD_SETUP_PROFILE_ID",
+            "CLOUD_AGENT_SYNC_DOWN_PROFILE_ID",
+            "CLOUD_AGENT_INSTALL_PROFILE_ID",
+            "CLOUD_AGENT_IMPORTED_BRANCH_NAME",
+            "CLOUD_AGENT_DELEGATED_SNAPSHOT_REF",
+            "CLOUD_AGENT_CLOUD_FULL_STATE_REF",
+            "CLOUD_AGENT_LOCAL_IMPORT_STATE_REF",
+            "CLOUD_AGENT_LAST_SYNCED_REF",
+        }
+        return {key: value for key, value in env.items() if key in allowed}
+
+    def _ref_safe_token(self, value: str) -> str:
+        cleaned = re.sub(r"[^A-Za-z0-9._/-]+", "-", value.strip())
+        cleaned = cleaned.strip("./")
+        return cleaned or "session"
 
     def _create_transfer_keypair(self, transfer_dir: Path) -> Dict[str, Any]:
         key_path = transfer_dir / ".cloud-agent-transfer-key"

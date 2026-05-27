@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+: "${TRANSFER_DIR:?}"
+: "${TRANSFER_STAGE_DIR:?}"
+
+payload_dir="${TRANSFER_DIR}/.cloud-agent"
+bundle_path="${payload_dir}/repo.bundle"
+base_commit="$(cat "${payload_dir}/base-commit")"
+tmp_root="$(mktemp -d "${TMPDIR:-/tmp}/cloud-agent-setup.XXXXXX")"
+tmp_clone="${tmp_root}/repo-clone"
+
+trap 'rm -rf "${tmp_root}"' EXIT
+rm -rf "${tmp_clone}"
+git clone -q "${bundle_path}" "${tmp_clone}"
+mkdir -p "${CLOUD_WORKSPACE_DIR}"
+find "${CLOUD_WORKSPACE_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+tar -cf - -C "${tmp_clone}" . | tar -xf - -C "${CLOUD_WORKSPACE_DIR}"
+
+if [ -d "${TRANSFER_STAGE_DIR}" ]; then
+  tar -cf - -C "${TRANSFER_STAGE_DIR}" . | tar -xf - -C "${CLOUD_WORKSPACE_DIR}"
+fi
+
+git config --global --add safe.directory "${CLOUD_WORKSPACE_DIR}" >/dev/null 2>&1 || true
+
+cd "${CLOUD_WORKSPACE_DIR}"
+git checkout -q "${base_commit}"

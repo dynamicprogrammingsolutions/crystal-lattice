@@ -49,8 +49,14 @@ def _write_config(tmp_path: Path, transfer_script: Path) -> Path:
                 "transfer_up_profiles": {
                     "test-transfer": {
                         "local_transfer_script": str(transfer_script),
+                        "cloud_setup_profile": "test-setup",
                         "install_profile": "test-install",
                         "compatible_sync_down_profiles": ["test-sync"],
+                    }
+                },
+                "cloud_setup_profiles": {
+                    "test-setup": {
+                        "cloud_setup_script": str(transfer_script),
                     }
                 },
                 "install_profiles": {
@@ -91,15 +97,50 @@ def _write_script(path: Path, body: str = "") -> Path:
 
 
 def _run_cloud_profile_script(script: Path, env: Dict[str, str], *, cwd: Path) -> None:
-    subprocess.run(
+    result = subprocess.run(
         [str(script)],
         cwd=str(cwd),
         env={**os.environ, **env},
-        check=True,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{script} failed with {result.returncode}: "
+            f"{result.stderr or result.stdout}"
+        )
+
+
+def _branch_script_env(
+    *,
+    workspace: Path,
+    transfer_dir: Path,
+    session_id: str,
+    cloud_workspace_dir: Path | None = None,
+) -> Dict[str, str]:
+    token = session_id.replace(" ", "-")
+    return {
+        "LOCAL_WORKSPACE_DIR": str(workspace),
+        "CLOUD_WORKSPACE_DIR": str(
+            cloud_workspace_dir if cloud_workspace_dir is not None else workspace
+        ),
+        "TRANSFER_DIR": str(transfer_dir),
+        "TRANSFER_STAGE_DIR": str(transfer_dir / ".cloud-agent" / "local-stage"),
+        "WORKING_DIR": str(workspace),
+        "SESSION_ID": session_id,
+        "CLOUD_AGENT_DELEGATED_SNAPSHOT_REF": (
+            f"refs/cloud-agent/{token}/delegated-snapshot"
+        ),
+        "CLOUD_AGENT_CLOUD_FULL_STATE_REF": (
+            f"refs/cloud-agent/{token}/cloud-full-state"
+        ),
+        "CLOUD_AGENT_LOCAL_IMPORT_STATE_REF": (
+            f"refs/cloud-agent/{token}/local-import-state"
+        ),
+        "CLOUD_AGENT_LAST_SYNCED_REF": f"refs/cloud-agent/{token}/last-synced",
+        "CLOUD_AGENT_IMPORTED_BRANCH_NAME": f"cloud/{token}/committed",
+    }
 
 
 def test_cloud_start_session_ui_element_maps_current_session_id() -> None:
@@ -144,7 +185,9 @@ def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
 ) -> None:
     config_dir = tmp_path / "config"
     workspace = tmp_path / "workspace"
+    local_stage = _write_script(config_dir / "cloud-agent" / "local-stage")
     transfer = _write_script(config_dir / "cloud-agent" / "transfer-up")
+    setup = _write_script(config_dir / "cloud-agent" / "setup")
     install = _write_script(config_dir / "cloud-agent" / "install")
     export = _write_script(config_dir / "cloud-agent" / "export")
     apply_down = _write_script(config_dir / "cloud-agent" / "apply-down")
@@ -156,9 +199,16 @@ def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
             "default_container_profile": "default-runtime",
             "transfer_up_profiles": {
                 "working-tree-current-state": {
+                    "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/local-stage",
                     "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/transfer-up",
+                    "cloud_setup_profile": "git-setup",
                     "install_profile": "repo-install",
                     "compatible_sync_down_profiles": ["working-tree-patch"],
+                }
+            },
+            "cloud_setup_profiles": {
+                "git-setup": {
+                    "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/setup"
                 }
             },
             "install_profiles": {
@@ -181,11 +231,14 @@ def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
     )
 
     assert resolved["selected_transfer_up_profile"] == "working-tree-current-state"
+    assert resolved["selected_cloud_setup_profile"] == "git-setup"
     assert resolved["selected_install_profile"] == "repo-install"
     assert resolved["selected_sync_down_profile"] == "working-tree-patch"
     assert resolved["selected_container_profile"] == "default-runtime"
+    assert resolved["local_stage_script"] == str(local_stage.resolve())
     assert resolved["local_transfer_script"] == str(transfer.resolve())
-    assert resolved["cloud_setup_script"] == str(install.resolve())
+    assert resolved["cloud_setup_script"] == str(setup.resolve())
+    assert resolved["cloud_install_script"] == str(install.resolve())
     assert resolved["cloud_export_script"] == str(export.resolve())
     assert resolved["local_apply_script"] == str(apply_down.resolve())
     assert resolved["cloud_mark_synced_script"] is None
@@ -232,9 +285,11 @@ def test_profile_resolver_loads_single_project_config_and_falls_back_to_base_scr
             "transfer_up_profiles": {
                 "current": {
                     "local_transfer_script": str(base_transfer),
+                    "cloud_setup_profile": "setup",
                     "install_profile": "install",
                 }
             },
+            "cloud_setup_profiles": {"setup": {"cloud_setup_script": str(install)}},
             "install_profiles": {"install": {"cloud_install_script": str(install)}},
             "sync_down_profiles": {
                 "patch": {
@@ -266,10 +321,12 @@ def test_profile_resolver_rejects_incompatible_defaults(tmp_path: Path) -> None:
                 "transfer_up_profiles": {
                     "current": {
                         "local_transfer_script": str(transfer),
+                        "cloud_setup_profile": "setup",
                         "install_profile": "install",
                         "compatible_sync_down_profiles": ["other-patch"],
                     }
                 },
+                "cloud_setup_profiles": {"setup": {"cloud_setup_script": str(install)}},
                 "install_profiles": {"install": {"cloud_install_script": str(install)}},
                 "sync_down_profiles": {
                     "patch": {
@@ -299,10 +356,12 @@ def test_profile_resolver_rejects_requires_dependency_declarations(
                 "transfer_up_profiles": {
                     "current": {
                         "local_transfer_script": str(transfer),
+                        "cloud_setup_profile": "setup",
                         "install_profile": "install",
                         "requires": {"git": True},
                     }
                 },
+                "cloud_setup_profiles": {"setup": {"cloud_setup_script": str(transfer)}},
             },
             env={"WORKING_DIR": str(tmp_path), "CONFIG_DIR": str(tmp_path)},
         )
@@ -321,6 +380,7 @@ def test_default_patch_scripts_support_incremental_sync_after_mark_synced(
         / "profiles"
     )
     transfer_up = scripts_root / "working-tree-current-state" / "transfer-up"
+    setup = scripts_root / "git-archive-patch-setup" / "setup"
     install = scripts_root / "repo-install" / "install"
     export = scripts_root / "working-tree-patch" / "export"
     mark_synced = scripts_root / "working-tree-patch" / "mark-synced"
@@ -358,27 +418,52 @@ def test_default_patch_scripts_support_incremental_sync_after_mark_synced(
         cwd=local,
     )
     _run_cloud_profile_script(
-        install,
-        {"CLOUD_WORKSPACE_DIR": str(cloud), "TRANSFER_DIR": str(upload)},
+        setup,
+        {
+            "CLOUD_WORKSPACE_DIR": str(cloud),
+            "TRANSFER_DIR": str(upload),
+            "TRANSFER_STAGE_DIR": str(upload / ".cloud-agent" / "local-stage"),
+        },
         cwd=cloud,
     )
-
+    _run_cloud_profile_script(
+        install,
+        {
+            "CLOUD_WORKSPACE_DIR": str(cloud),
+            "TRANSFER_DIR": str(upload),
+            "TRANSFER_STAGE_DIR": str(upload / ".cloud-agent" / "local-stage"),
+        },
+        cwd=cloud,
+    )
+ 
     (cloud / "chain.txt").write_text("base\nchange1\n", encoding="utf-8")
     sync1 = tmp_path / "sync1"
     sync1.mkdir()
     _run_cloud_profile_script(
         export,
-        {"CLOUD_WORKSPACE_DIR": str(cloud), "TRANSFER_DIR": str(sync1)},
+        {
+            "CLOUD_WORKSPACE_DIR": str(cloud),
+            "TRANSFER_DIR": str(sync1),
+            "TRANSFER_STAGE_DIR": str(sync1 / ".cloud-agent" / "local-stage"),
+        },
         cwd=cloud,
     )
     _run_cloud_profile_script(
         apply_down,
-        {"LOCAL_WORKSPACE_DIR": str(local), "TRANSFER_DIR": str(sync1)},
+        {
+            "LOCAL_WORKSPACE_DIR": str(local),
+            "TRANSFER_DIR": str(sync1),
+            "TRANSFER_STAGE_DIR": str(sync1 / ".cloud-agent" / "local-stage"),
+        },
         cwd=local,
     )
     _run_cloud_profile_script(
         mark_synced,
-        {"CLOUD_WORKSPACE_DIR": str(cloud)},
+        {
+            "CLOUD_WORKSPACE_DIR": str(cloud),
+            "TRANSFER_DIR": str(sync1),
+            "TRANSFER_STAGE_DIR": str(sync1 / ".cloud-agent" / "local-stage"),
+        },
         cwd=cloud,
     )
 
@@ -387,18 +472,310 @@ def test_default_patch_scripts_support_incremental_sync_after_mark_synced(
     sync2.mkdir()
     _run_cloud_profile_script(
         export,
-        {"CLOUD_WORKSPACE_DIR": str(cloud), "TRANSFER_DIR": str(sync2)},
+        {
+            "CLOUD_WORKSPACE_DIR": str(cloud),
+            "TRANSFER_DIR": str(sync2),
+            "TRANSFER_STAGE_DIR": str(sync2 / ".cloud-agent" / "local-stage"),
+        },
         cwd=cloud,
     )
     _run_cloud_profile_script(
         apply_down,
-        {"LOCAL_WORKSPACE_DIR": str(local), "TRANSFER_DIR": str(sync2)},
+        {
+            "LOCAL_WORKSPACE_DIR": str(local),
+            "TRANSFER_DIR": str(sync2),
+            "TRANSFER_STAGE_DIR": str(sync2 / ".cloud-agent" / "local-stage"),
+        },
         cwd=local,
     )
 
     assert (local / "chain.txt").read_text(encoding="utf-8") == (
         "base\nchange1\nchange2\n"
     )
+
+
+def test_local_stage_and_repo_install_wrappers_run_repo_hooks(tmp_path: Path) -> None:
+    scripts_root = (
+        _repo_root()
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "cloud-agent"
+        / "profiles"
+    )
+    local_stage = scripts_root / "common" / "local-stage-hook"
+    install = scripts_root / "repo-install" / "install"
+
+    local = tmp_path / "local"
+    cloud = tmp_path / "cloud"
+    transfer = tmp_path / "transfer"
+    local_stage_dir = transfer / ".cloud-agent" / "local-stage"
+    local.mkdir()
+    cloud.mkdir()
+    local_stage_dir.mkdir(parents=True, exist_ok=True)
+    (local / ".cloud-agent").mkdir()
+    (cloud / ".cloud-agent").mkdir()
+
+    local_hook = _write_script(
+        local / ".cloud-agent" / "local-stage",
+        'printf staged > "${TRANSFER_STAGE_DIR}/local-stage-ran.txt"\n',
+    )
+    cloud_hook = _write_script(
+        cloud / ".cloud-agent" / "install-cloud",
+        'printf installed > "${CLOUD_WORKSPACE_DIR}/install-ran.txt"\n',
+    )
+    assert local_hook.exists()
+    assert cloud_hook.exists()
+
+    _run_cloud_profile_script(
+        local_stage,
+        {
+            "LOCAL_WORKSPACE_DIR": str(local),
+            "TRANSFER_DIR": str(transfer),
+            "TRANSFER_STAGE_DIR": str(local_stage_dir),
+        },
+        cwd=local,
+    )
+    _run_cloud_profile_script(
+        install,
+        {
+            "CLOUD_WORKSPACE_DIR": str(cloud),
+            "TRANSFER_DIR": str(transfer),
+            "TRANSFER_STAGE_DIR": str(local_stage_dir),
+        },
+        cwd=cloud,
+    )
+
+    assert (local_stage_dir / "local-stage-ran.txt").read_text(encoding="utf-8") == (
+        "staged"
+    )
+    assert (cloud / "install-ran.txt").read_text(encoding="utf-8") == "installed"
+
+
+def test_clean_head_branch_profiles_import_branch_without_touching_local_dirty_state(
+    tmp_path: Path,
+) -> None:
+    scripts_root = (
+        _repo_root()
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "cloud-agent"
+        / "profiles"
+    )
+    transfer_up = scripts_root / "clean-head" / "transfer-up"
+    setup = scripts_root / "git-clean-head-setup" / "setup"
+    export = scripts_root / "branch-import" / "export"
+    apply_down = scripts_root / "branch-import" / "apply-down"
+    mark_synced = scripts_root / "branch-import" / "mark-synced"
+
+    local = tmp_path / "local"
+    cloud = tmp_path / "cloud"
+    local.mkdir()
+    cloud.mkdir()
+    subprocess.run(["git", "init"], cwd=local, check=True, stdout=subprocess.PIPE)
+    subprocess.run(["git", "config", "user.email", "local@example.invalid"], cwd=local, check=True)
+    subprocess.run(["git", "config", "user.name", "Local Test"], cwd=local, check=True)
+    (local / "tracked.txt").write_text("base\n", encoding="utf-8")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=local, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=local, check=True, stdout=subprocess.PIPE)
+    (local / "tracked.txt").write_text("local dirty\n", encoding="utf-8")
+
+    upload = tmp_path / "upload"
+    upload.mkdir()
+    _run_cloud_profile_script(
+        transfer_up,
+        {"LOCAL_WORKSPACE_DIR": str(local), "TRANSFER_DIR": str(upload)},
+        cwd=local,
+    )
+    env = _branch_script_env(
+        workspace=local,
+        cloud_workspace_dir=cloud,
+        transfer_dir=upload,
+        session_id="clean-head",
+    )
+    _run_cloud_profile_script(setup, env, cwd=cloud)
+
+    assert (cloud / "tracked.txt").read_text(encoding="utf-8") == "base\n"
+
+    subprocess.run(["git", "config", "user.email", "cloud@example.invalid"], cwd=cloud, check=True)
+    subprocess.run(["git", "config", "user.name", "Cloud Test"], cwd=cloud, check=True)
+    (cloud / "tracked.txt").write_text("base\ncloud commit\n", encoding="utf-8")
+    subprocess.run(["git", "add", "tracked.txt"], cwd=cloud, check=True)
+    subprocess.run(["git", "commit", "-m", "cloud commit"], cwd=cloud, check=True, stdout=subprocess.PIPE)
+
+    sync1 = tmp_path / "sync1"
+    sync1.mkdir()
+    export_env = _branch_script_env(
+        workspace=local,
+        cloud_workspace_dir=cloud,
+        transfer_dir=sync1,
+        session_id="clean-head",
+    )
+    _run_cloud_profile_script(export, export_env, cwd=cloud)
+    _run_cloud_profile_script(apply_down, export_env, cwd=local)
+    _run_cloud_profile_script(mark_synced, export_env, cwd=cloud)
+
+    assert (local / "tracked.txt").read_text(encoding="utf-8") == "local dirty\n"
+    imported = subprocess.run(
+        ["git", "show", "cloud/clean-head/committed:tracked.txt"],
+        cwd=local,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    assert imported.stdout == "base\ncloud commit\n"
+    local_snapshot = subprocess.run(
+        ["git", "rev-parse", "refs/cloud-agent/clean-head/local-import-state"],
+        cwd=local,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    assert local_snapshot.stdout.strip()
+
+
+def test_dirty_branch_profiles_preserve_safety_refs_and_incremental_branch_sync(
+    tmp_path: Path,
+) -> None:
+    scripts_root = (
+        _repo_root()
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "cloud-agent"
+        / "profiles"
+    )
+    transfer_up = scripts_root / "working-tree-current-state-branch" / "transfer-up"
+    setup = scripts_root / "git-dirty-head-setup" / "setup"
+    export = scripts_root / "branch-import" / "export"
+    apply_down = scripts_root / "branch-import" / "apply-down"
+    mark_synced = scripts_root / "branch-import" / "mark-synced"
+
+    local = tmp_path / "local"
+    cloud = tmp_path / "cloud"
+    local.mkdir()
+    cloud.mkdir()
+    subprocess.run(["git", "init"], cwd=local, check=True, stdout=subprocess.PIPE)
+    subprocess.run(["git", "config", "user.email", "local@example.invalid"], cwd=local, check=True)
+    subprocess.run(["git", "config", "user.name", "Local Test"], cwd=local, check=True)
+    (local / "a.txt").write_text("base-a\n", encoding="utf-8")
+    (local / "b.txt").write_text("base-b\n", encoding="utf-8")
+    subprocess.run(["git", "add", "a.txt", "b.txt"], cwd=local, check=True)
+    subprocess.run(["git", "commit", "-m", "base"], cwd=local, check=True, stdout=subprocess.PIPE)
+    (local / "a.txt").write_text("local-a\n", encoding="utf-8")
+    (local / "b.txt").write_text("local-b\n", encoding="utf-8")
+
+    upload = tmp_path / "upload-branch"
+    upload.mkdir()
+    upload_env = _branch_script_env(
+        workspace=local,
+        cloud_workspace_dir=cloud,
+        transfer_dir=upload,
+        session_id="dirty-branch",
+    )
+    _run_cloud_profile_script(transfer_up, upload_env, cwd=local)
+    delegated_snapshot = subprocess.run(
+        ["git", "show", "refs/cloud-agent/dirty-branch/delegated-snapshot:a.txt"],
+        cwd=local,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    assert delegated_snapshot.stdout == "local-a\n"
+
+    _run_cloud_profile_script(setup, upload_env, cwd=cloud)
+    assert (cloud / "a.txt").read_text(encoding="utf-8") == "local-a\n"
+    assert (cloud / "b.txt").read_text(encoding="utf-8") == "local-b\n"
+
+    subprocess.run(["git", "config", "user.email", "cloud@example.invalid"], cwd=cloud, check=True)
+    subprocess.run(["git", "config", "user.name", "Cloud Test"], cwd=cloud, check=True)
+    (cloud / "b.txt").write_text("cloud-b1\n", encoding="utf-8")
+    subprocess.run(["git", "add", "b.txt"], cwd=cloud, check=True)
+    subprocess.run(["git", "commit", "-m", "cloud b1"], cwd=cloud, check=True, stdout=subprocess.PIPE)
+
+    sync1 = tmp_path / "branch-sync1"
+    sync1.mkdir()
+    sync1_env = _branch_script_env(
+        workspace=local,
+        cloud_workspace_dir=cloud,
+        transfer_dir=sync1,
+        session_id="dirty-branch",
+    )
+    _run_cloud_profile_script(export, sync1_env, cwd=cloud)
+    _run_cloud_profile_script(apply_down, sync1_env, cwd=local)
+    _run_cloud_profile_script(mark_synced, sync1_env, cwd=cloud)
+
+    assert (local / "a.txt").read_text(encoding="utf-8") == "local-a\n"
+    assert (local / "b.txt").read_text(encoding="utf-8") == "local-b\n"
+    committed_b1 = subprocess.run(
+        ["git", "show", "cloud/dirty-branch/committed:b.txt"],
+        cwd=local,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    assert committed_b1.stdout == "cloud-b1\n"
+    delegated_b = subprocess.run(
+        ["git", "show", "refs/cloud-agent/dirty-branch/delegated-snapshot:b.txt"],
+        cwd=local,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    assert delegated_b.stdout == "local-b\n"
+    cloud_full_b1 = subprocess.run(
+        ["git", "show", "refs/cloud-agent/dirty-branch/cloud-full-state:a.txt"],
+        cwd=local,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    assert cloud_full_b1.stdout == "local-a\n"
+    local_import_b = subprocess.run(
+        ["git", "show", "refs/cloud-agent/dirty-branch/local-import-state:b.txt"],
+        cwd=local,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    assert local_import_b.stdout == "local-b\n"
+
+    (cloud / "b.txt").write_text("cloud-b2\n", encoding="utf-8")
+    subprocess.run(["git", "add", "b.txt"], cwd=cloud, check=True)
+    subprocess.run(["git", "commit", "-m", "cloud b2"], cwd=cloud, check=True, stdout=subprocess.PIPE)
+    (cloud / "a.txt").write_text("local-a\ncloud residual\n", encoding="utf-8")
+
+    sync2 = tmp_path / "branch-sync2"
+    sync2.mkdir()
+    sync2_env = _branch_script_env(
+        workspace=local,
+        cloud_workspace_dir=cloud,
+        transfer_dir=sync2,
+        session_id="dirty-branch",
+    )
+    _run_cloud_profile_script(export, sync2_env, cwd=cloud)
+    _run_cloud_profile_script(apply_down, sync2_env, cwd=local)
+
+    committed_b2 = subprocess.run(
+        ["git", "show", "cloud/dirty-branch/committed:b.txt"],
+        cwd=local,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    assert committed_b2.stdout == "cloud-b2\n"
+    cloud_full_a2 = subprocess.run(
+        ["git", "show", "refs/cloud-agent/dirty-branch/cloud-full-state:a.txt"],
+        cwd=local,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    )
+    assert cloud_full_a2.stdout == "local-a\ncloud residual\n"
 
 
 def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
@@ -425,8 +802,14 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
         encoding="utf-8",
     )
     transfer_script.chmod(0o755)
+    adapter_script = _write_script(tmp_path / "adapter", "exit 0\n")
 
     config_path = _write_config(tmp_path, transfer_script)
+    config_data = json.loads(config_path.read_text(encoding="utf-8"))
+    cloud_agent = config_data["application"]["cloud_agent"]
+    managed_ssh = cloud_agent.setdefault("managed_ssh", {})
+    managed_ssh["adapter_script"] = str(adapter_script)
+    config_path.write_text(json.dumps(config_data), encoding="utf-8")
     app = AgentApplication(
         str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
     )
@@ -435,7 +818,6 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
     app.save_session(session)
 
     calls: List[Dict[str, Any]] = []
-    adapter_calls: List[Dict[str, Any]] = []
 
     class _Response:
         def __init__(self, payload: Dict[str, Any]) -> None:
@@ -489,28 +871,7 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
             )
         raise AssertionError(f"unexpected URL {request.full_url}")
 
-    def fake_adapter(
-        self: CloudAgentAppPlugin,
-        state: Dict[str, Any],
-        transfer: Dict[str, Any],
-        transfer_dir: Path,
-        private_key_path: Path,
-        *,
-        direction: str,
-        cwd: Path,
-    ) -> None:
-        adapter_calls.append(
-            {
-                "direction": direction,
-                "transfer_id": transfer["transfer_id"],
-                "transfer_dir": str(transfer_dir),
-                "private_key_path": str(private_key_path),
-                "cwd": str(cwd),
-            }
-        )
-
     monkeypatch.setattr("cloud_agent_app.cloud_agent_app_plugin.urlopen", fake_urlopen)
-    monkeypatch.setattr(CloudAgentAppPlugin, "_run_managed_ssh_adapter", fake_adapter)
 
     result = app.execute_application_action(
         "cloud",
@@ -532,7 +893,6 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
     assert calls[2]["body"]["connection_ref"]["connection_key"].startswith(
         "cloud-agent-app:"
     )
-    assert adapter_calls[0]["direction"] == "upload"
     assert result["mutations"]["updated_session_ids"] == [session.session_id]
     assert result["ui_effects"]["reload_session_ids"] == [session.session_id]
 
@@ -962,3 +1322,68 @@ def test_portable_config_preserves_builtin_plugin_path_reference() -> None:
         portable["plugins"][0]
         == "path:${env:BUILTIN_PLUGINS}/gemini-compaction-feature"
     )
+
+
+def test_portable_config_removes_cloud_disabled_plugin_specs_from_all_plugin_lists() -> (
+    None
+):
+    disabled_spec = "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"
+    raw = {
+        "plugins": [
+            disabled_spec,
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+        ],
+        "providers": {
+            "kept_provider": {
+                "provider": "echo",
+                "plugins": [disabled_spec, "plugins.provider_extra"],
+            }
+        },
+        "agents": {
+            "selected": {
+                "provider": "kept_provider",
+                "plugins": [disabled_spec, "plugins.agent_extra"],
+            }
+        },
+    }
+
+    portable, manifest = build_portable_config(
+        raw,
+        cloud_agent_config={"disabled_plugins": [disabled_spec]},
+        selected_agent_id="selected",
+    )
+
+    assert portable["plugins"] == ["plugins.echo_openai_like_provider.EchoOpenAILikeProvider"]
+    assert portable["providers"]["kept_provider"]["plugins"] == ["plugins.provider_extra"]
+    assert portable["agents"]["selected"]["plugins"] == ["plugins.agent_extra"]
+    assert manifest["disabled_plugins"]["requested"] == [disabled_spec]
+    assert manifest["disabled_plugins"]["removed"] == [
+        {"path": "plugins", "spec": disabled_spec},
+        {"path": "providers.kept_provider.plugins", "spec": disabled_spec},
+        {"path": "agents.selected.plugins", "spec": disabled_spec},
+    ]
+
+
+def test_portable_config_cloud_disabled_plugin_specs_do_not_mutate_local_input() -> None:
+    disabled_spec = "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"
+    raw = {
+        "plugins": [disabled_spec],
+        "agents": {"default": {"provider": "echo", "plugins": [disabled_spec]}},
+    }
+
+    portable, manifest = build_portable_config(
+        raw,
+        cloud_agent_config={"disabled_plugins": [disabled_spec, "path:${env:BUILTIN_PLUGINS}/missing"]},
+    )
+
+    assert portable["plugins"] == []
+    assert portable["agents"]["default"]["plugins"] == []
+    assert raw["plugins"] == [disabled_spec]
+    assert raw["agents"]["default"]["plugins"] == [disabled_spec]
+    assert manifest["disabled_plugins"]["requested"] == sorted(
+        [disabled_spec, "path:${env:BUILTIN_PLUGINS}/missing"]
+    )
+    assert manifest["disabled_plugins"]["removed"] == [
+        {"path": "plugins", "spec": disabled_spec},
+        {"path": "agents.default.plugins", "spec": disabled_spec},
+    ]
