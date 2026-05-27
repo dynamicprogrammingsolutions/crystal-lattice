@@ -67,6 +67,7 @@ def prepare_cloud_transfer(
 
     portable_config, config_manifest = build_portable_config(
         raw_config,
+        cloud_agent_config=cloud_agent_config,
         selected_agent_id=selected_agent_id,
     )
     (config_root / "config.json").write_text(
@@ -102,6 +103,7 @@ def prepare_cloud_transfer(
 def build_portable_config(
     raw_config: Mapping[str, Any],
     *,
+    cloud_agent_config: Mapping[str, Any] | None = None,
     selected_agent_id: Optional[str] = None,
 ) -> tuple[Dict[str, Any], Dict[str, Any]]:
     if selected_agent_id:
@@ -145,6 +147,13 @@ def build_portable_config(
         )
 
     manifest: Dict[str, Any] = {"rewrites": rewrites}
+    disabled_plugin_specs = _string_list(
+        _mapping(cloud_agent_config).get("disabled_plugins")
+    )
+    if disabled_plugin_specs:
+        manifest["disabled_plugins"] = _remove_cloud_disabled_plugin_specs(
+            config, disabled_plugin_specs
+        )
     if optimization_manifest is not None:
         manifest["optimization"] = optimization_manifest
     return config, manifest
@@ -327,6 +336,44 @@ def _string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return [item for item in value if isinstance(item, str) and item]
+
+
+def _remove_cloud_disabled_plugin_specs(
+    config: MutableMapping[str, Any], disabled_specs: Iterable[str]
+) -> Dict[str, Any]:
+    disabled_set = set(disabled_specs)
+    removed: list[Dict[str, str]] = []
+
+    def filter_plugins(container: MutableMapping[str, Any], path: str) -> None:
+        plugins = container.get("plugins")
+        if not isinstance(plugins, list):
+            return
+        kept = []
+        for item in plugins:
+            if isinstance(item, str) and item in disabled_set:
+                removed.append({"path": path, "spec": item})
+            else:
+                kept.append(item)
+        container["plugins"] = kept
+
+    filter_plugins(config, "plugins")
+
+    providers = config.get("providers")
+    if isinstance(providers, MutableMapping):
+        for provider_id, provider_cfg in providers.items():
+            if isinstance(provider_cfg, MutableMapping):
+                filter_plugins(provider_cfg, f"providers.{provider_id}.plugins")
+
+    agents = config.get("agents")
+    if isinstance(agents, MutableMapping):
+        for agent_id, agent_cfg in agents.items():
+            if isinstance(agent_cfg, MutableMapping):
+                filter_plugins(agent_cfg, f"agents.{agent_id}.plugins")
+
+    return {
+        "requested": sorted(disabled_set),
+        "removed": removed,
+    }
 
 
 def _optional_int(value: Any) -> int | None:
