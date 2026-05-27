@@ -590,6 +590,9 @@ Config example:
         "rsync_path": "rsync",
         "extra_rsync_args": []
       },
+      "disabled_plugins": [
+        "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"
+      ],
       "config_assets": {
         "include_config_dir": true,
         "exclude": [".env", ".env.*", ".plugin_cache", "logs", "sessions", "auth", "state"],
@@ -632,6 +635,16 @@ Relative script paths in the project file resolve from `WORKING_DIR`.
 Patch-based and branch-based sync profiles can define
 `cloud_mark_synced_script`; it runs only after the local apply step succeeds,
 so the cloud-side baseline advances without breaking retry safety.
+
+`application.cloud_agent.disabled_plugins` is a cloud-only plugin-spec filter
+applied during portable config generation. Each entry must match an exact
+plugin spec string from a `plugins` list, for example
+`path:${env:BUILTIN_PLUGINS}/session-asset-attachments`. Matching specs are
+removed from the generated cloud runtime config from the top-level `plugins`
+list and from any provider or agent `plugins` lists. This does not affect the
+local runtime config, and it is different from the normal config-layer
+`disabled_plugins` setting, which only disables already-loaded plugins at
+runtime.
 
 Scripts receive stable environment variables:
 
