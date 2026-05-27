@@ -67,6 +67,14 @@ defmodule CloudOrchestrator.RegistryTest do
     previous_transfer_public_host =
       Application.get_env(:cloud_orchestrator, :transfer_public_host)
 
+    previous_transfer_port_start =
+      Application.get_env(:cloud_orchestrator, :transfer_port_start)
+
+    previous_transfer_port_end =
+      Application.get_env(:cloud_orchestrator, :transfer_port_end)
+
+    previous_fake_busy_ports = System.get_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS")
+
     TransferRegistry.reset()
     InstanceRegistry.reset()
     ConnectionRegistry.reset()
@@ -75,6 +83,9 @@ defmodule CloudOrchestrator.RegistryTest do
       restore_env(:runner, previous_runner)
       restore_env(:test_async_runtime_status, previous_async_status)
       restore_env(:transfer_public_host, previous_transfer_public_host)
+      restore_env(:transfer_port_start, previous_transfer_port_start)
+      restore_env(:transfer_port_end, previous_transfer_port_end)
+      restore_system_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS", previous_fake_busy_ports)
       TransferRegistry.reset()
       InstanceRegistry.reset()
       ConnectionRegistry.reset()
@@ -144,6 +155,36 @@ defmodule CloudOrchestrator.RegistryTest do
              })
 
     assert transfer["endpoint"]["host"] == "override.example.test"
+  end
+
+  test "retries the next port when a managed SSH transfer port is already allocated" do
+    Application.put_env(:cloud_orchestrator, :transfer_port_start, 22000)
+    Application.put_env(:cloud_orchestrator, :transfer_port_end, 22002)
+    System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS", "22000")
+
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "method" => "managed_ssh",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert transfer["endpoint"]["port"] == 22001
+  end
+
+  test "returns a clear error when the managed SSH transfer port range is exhausted" do
+    Application.put_env(:cloud_orchestrator, :transfer_port_start, 22000)
+    Application.put_env(:cloud_orchestrator, :transfer_port_end, 22001)
+    System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS", "22000,22001")
+
+    assert {:error, message} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "method" => "managed_ssh",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert message =~ "no available managed SSH transfer ports in configured range 22000-22001"
   end
 
   test "refuses to start from a transfer that is not ready" do
@@ -337,6 +378,8 @@ defmodule CloudOrchestrator.RegistryTest do
 
   defp restore_env(key, nil), do: Application.delete_env(:cloud_orchestrator, key)
   defp restore_env(key, value), do: Application.put_env(:cloud_orchestrator, key, value)
+  defp restore_system_env(key, nil), do: System.delete_env(key)
+  defp restore_system_env(key, value), do: System.put_env(key, value)
 
   defp ready_transfer do
     with {:ok, transfer} <-
