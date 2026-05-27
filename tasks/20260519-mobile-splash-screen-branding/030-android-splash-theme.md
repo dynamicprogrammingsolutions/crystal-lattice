@@ -4,11 +4,11 @@ Add a native splash theme and drawable so Android cold start matches iOS brandin
 
 ## Requirements checklist
 
-- [ ] Add `res/values/colors.xml` and `res/values-night/colors.xml` with `splash_background`
-- [ ] Add `res/drawable/splash_screen.xml` layer-list (background + centered launcher icon)
-- [ ] Add `SplashTheme` with `windowBackground` and API 31+ `windowSplashScreen*` + `postSplashScreenTheme`
-- [ ] Set `MainActivity` `android:theme="@style/SplashTheme"` in `AndroidManifest.xml`
-- [ ] Keep `application` theme as `AppTheme` for post-splash UI
+- [x] Add `res/values/colors.xml` and `res/values-night/colors.xml` with `splash_background`
+- [x] Add `res/drawable/splash_screen.xml` layer-list (background + centered launcher icon)
+- [x] Add `SplashTheme` with `windowBackground` and API 31+ `windowSplashScreen*` + `postSplashScreenTheme`
+- [x] Set `MainActivity` `android:theme="@style/SplashTheme"` in `AndroidManifest.xml`
+- [x] Keep `application` theme as `AppTheme` for post-splash UI
 
 Parent Task: `tasks/20260519-mobile-splash-screen-branding/000-main.md`
 

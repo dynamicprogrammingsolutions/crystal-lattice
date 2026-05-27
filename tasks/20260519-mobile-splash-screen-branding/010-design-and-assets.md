@@ -4,11 +4,11 @@ Lock the visual spec and asset strategy for Crystal Lattice Control native launc
 
 ## Requirements checklist
 
-- [ ] Confirm layout: centered icon, title, optional subtitle; portrait only
-- [ ] Confirm colors align with `src/theme.ts` light/dark backgrounds and text
-- [ ] Confirm iOS uses `SplashIcon` imageset (launcher icon copied from Android mipmap)
-- [ ] Confirm subtitle copy: `Connect to your agent` (muted secondary)
-- [ ] Confirm no “Powered by React Native” or Bonjour-example strings on splash
+- [x] Confirm layout: centered icon, title, optional subtitle; portrait only
+- [x] Confirm colors align with `src/theme.ts` light/dark backgrounds and text
+- [x] Confirm iOS uses `SplashIcon` imageset (launcher icon copied from Android mipmap)
+- [x] Confirm subtitle copy: `Connect to your agent` (muted secondary)
+- [x] Confirm no “Powered by React Native” or Bonjour-example strings on splash
 
 Parent Task: `tasks/20260519-mobile-splash-screen-branding/000-main.md`
 

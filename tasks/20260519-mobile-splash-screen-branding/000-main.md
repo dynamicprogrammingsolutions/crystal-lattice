@@ -4,9 +4,9 @@ Replace stale Bonjour-example launch branding on the React Native mobile app wit
 
 ## Task checklist
 
-- [ ] `tasks/20260519-mobile-splash-screen-branding/010-design-and-assets.md`
-- [ ] `tasks/20260519-mobile-splash-screen-branding/020-ios-launch-screen.md`
-- [ ] `tasks/20260519-mobile-splash-screen-branding/030-android-splash-theme.md`
+- [x] `tasks/20260519-mobile-splash-screen-branding/010-design-and-assets.md`
+- [x] `tasks/20260519-mobile-splash-screen-branding/020-ios-launch-screen.md`
+- [x] `tasks/20260519-mobile-splash-screen-branding/030-android-splash-theme.md`
 - [ ] `tasks/20260519-mobile-splash-screen-branding/040-verification.md`
 
 ## Context summary
