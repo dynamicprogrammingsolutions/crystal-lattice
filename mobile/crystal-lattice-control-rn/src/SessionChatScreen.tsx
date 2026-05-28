@@ -121,6 +121,7 @@ interface SessionChatScreenProps {
     eventsCursorId: string | null,
     activeRequestId: string | null,
   ) => void;
+  onUpdateSessionSummaries?: (sessions: SessionSummary[]) => void;
   onBack: () => void;
   onNavigateToSession?: (sessionId: string) => void;
   initialComposeText: string;
@@ -695,6 +696,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   cachedEventsCursorId,
   cachedActiveRequestId,
   onUpdateCache,
+  onUpdateSessionSummaries,
   onBack,
   onNavigateToSession,
   initialComposeText,
@@ -1530,6 +1532,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     setActionResultDisplay(nextEntry);
   }, []);
 
+  const reloadSessionSummaries = useCallback(async () => {
+    if (!backend || !onUpdateSessionSummaries) {
+      return;
+    }
+    const sessions = await backend.listSessions();
+    onUpdateSessionSummaries(sessions);
+  }, [backend, onUpdateSessionSummaries]);
+
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {
       if (!backend) {
@@ -1547,6 +1557,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           effects: {
             currentSessionId: sessionId,
             navigateOnCreatedSession: true,
+            reloadSessionsListOnMutations: true,
           },
         });
         if (!ok) {
@@ -1562,6 +1573,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             return;
           }
         }
+        if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
+          await reloadSessionSummaries();
+        }
         if (effects.some((effect) => effect.type === 'reloadSession')) {
           await loadMessages({ reason: 'action_reload', refreshUiSchema: true });
         }
@@ -1572,7 +1586,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         setPluginActionInProgress(false);
       }
     },
-    [actionsById, backend, loadMessages, onNavigateToSession, presentActionDisplay, sessionId],
+    [
+      actionsById,
+      backend,
+      loadMessages,
+      onNavigateToSession,
+      presentActionDisplay,
+      reloadSessionSummaries,
+      sessionId,
+    ],
   );
 
   const handleDisplayFollowupAction = useCallback(
