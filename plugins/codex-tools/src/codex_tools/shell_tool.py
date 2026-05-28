@@ -185,7 +185,14 @@ class ShellArrayTool(BaseCodexShellTool):
                 workdir=workdir,
                 timeout_seconds=timeout_seconds,
             )
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            if workdir and not os.path.isdir(workdir):
+                return self._spawn_error_result(
+                    command=command,
+                    workdir=workdir,
+                    exc=exc,
+                    state=state,
+                )
             return {
                 "success": False,
                 "error": f"Command not found: {command[0]}",
@@ -193,14 +200,13 @@ class ShellArrayTool(BaseCodexShellTool):
                 "command": command,
                 "workdir": workdir,
             }
-        except PermissionError:
-            return {
-                "success": False,
-                "error": f"Permission denied: {command[0]}",
-                "exit_code": 126,  # Standard "permission denied" exit code
-                "command": command,
-                "workdir": workdir,
-            }
+        except Exception as exc:
+            return self._spawn_error_result(
+                command=command,
+                workdir=workdir,
+                exc=exc,
+                state=state,
+            )
 
         # Apply truncation
         output, trunc_meta = self._apply_truncation(result["output"])
@@ -210,7 +216,7 @@ class ShellArrayTool(BaseCodexShellTool):
             output = self._insert_truncation_marker(output, trunc_meta)
 
         # Build formatted result
-        formatted = self._build_result(result, output, trunc_meta)
+        formatted = self._build_result(result, output, trunc_meta, state=state)
 
         # Add additional metadata
         formatted["command"] = command
@@ -293,6 +299,7 @@ class ShellArrayTool(BaseCodexShellTool):
             command=command,
             workdir=workdir,
             timeout_seconds=timeout_seconds,
+            state=state,
             cancellation=cancellation,
         )
 
@@ -301,6 +308,7 @@ class ShellArrayTool(BaseCodexShellTool):
         command: List[str],
         workdir: str | None,
         timeout_seconds: float | None,
+        state: Dict[str, Any],
         cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Synchronous execution with line-by-line streaming.
@@ -320,11 +328,24 @@ class ShellArrayTool(BaseCodexShellTool):
                 bufsize=1,
                 **build_sync_subprocess_kwargs(),
             )
-        except FileNotFoundError:
+        except FileNotFoundError as exc:
+            if workdir and not os.path.isdir(workdir):
+                yield self._spawn_error_result(
+                    command=command,
+                    workdir=workdir,
+                    exc=exc,
+                    state=state,
+                )
+                return
             yield {"success": False, "error": f"Command not found: {command[0]}"}
             return
         except Exception as exc:
-            yield {"success": False, "error": f"Failed to execute command: {exc}"}
+            yield self._spawn_error_result(
+                command=command,
+                workdir=workdir,
+                exc=exc,
+                state=state,
+            )
             return
 
         stdout_queue: Queue[str] = Queue()
@@ -419,6 +440,7 @@ class ShellArrayTool(BaseCodexShellTool):
             },
             truncated_output,
             trunc_meta,
+            state=state,
         )
 
         result["command"] = command

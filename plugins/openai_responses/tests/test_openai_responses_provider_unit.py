@@ -1591,7 +1591,6 @@ def test_to_native_messages_converts_openai_chat_tool_result_envelope() -> None:
         {"type": "input_text", "text": "</image>"},
     ]
 
-
 def test_to_native_messages_converts_image_data_base64_to_data_url() -> None:
     provider = OpenAIResponsesProvider()
 

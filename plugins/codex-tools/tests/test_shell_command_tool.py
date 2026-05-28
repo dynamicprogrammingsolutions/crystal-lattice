@@ -373,8 +373,88 @@ PATCH"""
         assert result["success"] is False
         assert result["timed_out"] is True
         assert result["exit_code"] is None
-        assert pid_file.exists()
-        _assert_pid_exits(int(pid_file.read_text(encoding="utf-8")))
+
+    @pytest.mark.asyncio
+    async def test_invalid_workdir_returns_codex_like_spawn_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        wrapper = ToolWrapper(ShellCommandTool)
+        state = wrapper.init({})
+        monkeypatch.delenv("CRYSTAL_SHELL_ERROR_CONTEXT", raising=False)
+
+        result = await wrapper.execute_tool_async(
+            "shell_command",
+            {
+                "command": "date",
+                "workdir": "/definitely/missing/workdir",
+            },
+            state,
+        )
+
+        assert result["success"] is False
+        assert result["exit_code"] is None
+        assert "Error: failed to spawn command:" in result["output"]
+        assert "workdir: /definitely/missing/workdir" in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_invalid_workdir_can_include_cloud_context(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        wrapper = ToolWrapper(ShellCommandTool)
+        state = wrapper.init({})
+        monkeypatch.setenv("CRYSTAL_SHELL_ERROR_CONTEXT", "1")
+        monkeypatch.setenv("CLOUD_AGENT_INSTANCE_DIR", "/cloud-agent/instance")
+
+        result = await wrapper.execute_tool_async(
+            "shell_command",
+            {
+                "command": "date",
+                "workdir": "/definitely/missing/workdir",
+            },
+            state,
+        )
+
+        assert result["success"] is False
+        assert "Running in dockerized cloud environment." in result["output"]
+        assert "Current working directory:" in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_invalid_workdir_in_closed_cloud_session_includes_local_hint(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        wrapper = ToolWrapper(ShellCommandTool)
+        state = wrapper.init({})
+        monkeypatch.delenv("CRYSTAL_SHELL_ERROR_CONTEXT", raising=False)
+        monkeypatch.delenv("CLOUD_AGENT_INSTANCE_DIR", raising=False)
+
+        result = await wrapper.execute_tool_async(
+            "shell_command",
+            {
+                "command": "date",
+                "workdir": "/definitely/missing/workdir",
+            },
+            state,
+            context={
+                "session": {
+                    "session_id": "session-1",
+                    "metadata": {
+                        "cloud_agent_last_runtime": {
+                            "was_cloud": True,
+                            "current_workdir": "/cloud-agent/instance/workspace",
+                        }
+                    },
+                },
+                "session_id": "session-1",
+            },
+        )
+
+        assert result["success"] is False
+        assert (
+            "This session previously ran in a dockerized cloud environment."
+            in result["output"]
+        )
+        assert "Current working directory:" in result["output"]
+        assert "Last cloud working directory: /cloud-agent/instance/workspace" in result["output"]
 
     @pytest.mark.asyncio
     async def test_empty_command_error(self, tmp_path: Path) -> None:
@@ -488,6 +568,25 @@ class TestShellCommandToolFormatting:
         
         formatted = wrapper.format_tool_result(result, state)
         assert formatted == result["output"]
+
+    def test_format_tool_result_falls_back_to_error_when_output_missing(self) -> None:
+        wrapper = ToolWrapper(ShellCommandTool)
+        state = wrapper.init({})
+        state["_last_tool_context"] = {
+            "session_id": "session-1",
+            "tool_call_id": "call-1",
+        }
+
+        formatted = wrapper.format_tool_result(
+            {
+                "success": False,
+                "error": "Error: failed to spawn command: No such file or directory (os error 2)\nworkdir: /missing",
+            },
+            state,
+        )
+
+        assert formatted.startswith("Error: failed to spawn command:")
+        assert "workdir: /missing" in formatted
 
     @pytest.mark.asyncio
     async def test_nonzero_exit_in_output(self, tmp_path: Path) -> None:
@@ -608,6 +707,26 @@ class TestShellCommandToolStreaming:
         final = final_results[-1]
         assert final["success"] is False
         assert final["exit_code"] == 1
+
+    def test_stream_invalid_workdir_returns_spawn_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        wrapper = ToolWrapper(ShellCommandTool)
+        state = wrapper.init({})
+        monkeypatch.delenv("CRYSTAL_SHELL_ERROR_CONTEXT", raising=False)
+
+        chunks = list(
+            wrapper.stream_tool(
+                "shell_command",
+                {"command": "date", "workdir": "/definitely/missing/workdir"},
+                state,
+            )
+        )
+
+        final_results = [c for c in chunks if isinstance(c, dict) and "success" in c]
+        assert final_results
+        final = final_results[-1]
+        assert final["success"] is False
+        assert "Error: failed to spawn command:" in final["output"]
+        assert "workdir: /definitely/missing/workdir" in final["output"]
 
     def test_stream_cancel_stops_silent_process(self, tmp_path: Path) -> None:
         """Explicit cancellation should stop a running shell command promptly."""

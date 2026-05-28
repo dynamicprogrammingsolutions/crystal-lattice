@@ -1164,6 +1164,11 @@ def test_close_session_does_not_sync_before_closing_and_clears_metadata(
     assert calls == ["/instances/inst_running/close"]
     _core, _base_config, updated_session = app.load_session(session.session_id)
     assert "cloud_agent" not in updated_session.metadata
+    assert updated_session.metadata["cloud_agent_last_runtime"]["was_cloud"] is True
+    assert (
+        updated_session.metadata["cloud_agent_last_runtime"]["current_workdir"]
+        == CLOUD_WORKSPACE_DIR
+    )
 
 
 def test_sync_down_marks_cloud_synced_after_local_apply(

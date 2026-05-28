@@ -18,6 +18,10 @@ RUN pip install --no-cache-dir \
     ./plugins/web-fetch-shared
 
 ENV BUILTIN_PLUGINS=/opt/ai-agent-platform/plugins
+ENV PYTHONUNBUFFERED=1
+ENV LOG_LEVEL=INFO
+ENV LOG_POS=true
+ENV CRYSTAL_SHELL_ERROR_CONTEXT=1
 ENV CLOUD_AGENT_INSTANCE_DIR=/cloud-agent/instance
 ENV CLOUD_AGENT_WORKSPACE_DIR=/cloud-agent/instance/workspace
 ENV CLOUD_AGENT_SESSIONS_DIR=/cloud-agent/instance/sessions
@@ -32,4 +36,4 @@ WORKDIR /opt/ai-agent-platform/cloud-orchestrator/runtime/python
 
 EXPOSE 8000
 
-CMD ["uvicorn", "runtime:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "runtime:app", "--host", "0.0.0.0", "--port", "8000", "--log-level", "info", "--access-log"]

@@ -154,7 +154,7 @@ class ShellCommandTool(BaseCodexShellTool):
         tool_name: str,
         arguments: Dict[str, Any],
         state: Dict[str, Any],
-        **_: Any,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         """Execute the shell_command tool.
 
@@ -174,6 +174,7 @@ class ShellCommandTool(BaseCodexShellTool):
             return {"success": False, "error": "command must be a non-empty string"}
 
         config = state.get("config", {})
+        state["_last_tool_context"] = kwargs.get("context")
         workdir = resolve_tool_workdir(config, arguments.get("workdir"))
 
         intercepted = self._maybe_intercept_apply_patch(
@@ -199,12 +200,20 @@ class ShellCommandTool(BaseCodexShellTool):
         shell = self._get_shell(login)
 
         # Call shared engine
-        result = await run_shell_command(
-            command,
-            workdir=workdir,
-            timeout_seconds=timeout_seconds,
-            shell=shell,
-        )
+        try:
+            result = await run_shell_command(
+                command,
+                workdir=workdir,
+                timeout_seconds=timeout_seconds,
+                shell=shell,
+            )
+        except Exception as exc:
+            return self._spawn_error_result(
+                command=command,
+                workdir=workdir,
+                exc=exc,
+                state=state,
+            )
 
         # Apply truncation
         output, trunc_meta = self._apply_truncation(result["output"])
@@ -214,7 +223,7 @@ class ShellCommandTool(BaseCodexShellTool):
             output = self._insert_truncation_marker(output, trunc_meta)
 
         # Build formatted result
-        formatted = self._build_result(result, output, trunc_meta)
+        formatted = self._build_result(result, output, trunc_meta, state=state)
 
         # Add additional metadata
         formatted["command"] = command
@@ -239,6 +248,8 @@ class ShellCommandTool(BaseCodexShellTool):
         state: Dict[str, Any],
         *,
         cancellation: Any | None = None,
+        context: Any | None = None,
+        **_: Any,
     ) -> Iterator[Dict[str, Any]]:
         """Stream shell command output in real-time.
 
@@ -262,6 +273,7 @@ class ShellCommandTool(BaseCodexShellTool):
             return
 
         config = state.get("config", {})
+        state["_last_tool_context"] = context
         workdir = resolve_tool_workdir(config, arguments.get("workdir"))
 
         intercepted = self._maybe_intercept_apply_patch(
@@ -299,6 +311,7 @@ class ShellCommandTool(BaseCodexShellTool):
             workdir=workdir,
             timeout_seconds=timeout_seconds,
             login=login,
+            state=state,
             cancellation=cancellation,
         )
 
@@ -309,6 +322,7 @@ class ShellCommandTool(BaseCodexShellTool):
         workdir: str | None,
         timeout_seconds: float | None,
         login: bool,
+        state: Dict[str, Any],
         cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Run subprocess and stream output.
@@ -331,7 +345,12 @@ class ShellCommandTool(BaseCodexShellTool):
                     **build_async_subprocess_kwargs(),
                 )
             except Exception as exc:
-                yield {"success": False, "error": f"Failed to execute command: {exc}"}
+                yield self._spawn_error_result(
+                    command=command,
+                    workdir=workdir,
+                    exc=exc,
+                    state=state,
+                )
                 return
 
             combined_chunks: List[str] = []
@@ -429,6 +448,7 @@ class ShellCommandTool(BaseCodexShellTool):
                     },
                     truncated_output,
                     trunc_meta,
+                    state=state,
                 )
 
                 result["command"] = command
@@ -468,6 +488,7 @@ class ShellCommandTool(BaseCodexShellTool):
                 workdir,
                 timeout_seconds,
                 login,
+                state,
                 cancellation=cancellation,
             ):
                 yield item
@@ -490,6 +511,7 @@ class ShellCommandTool(BaseCodexShellTool):
         workdir: str | None,
         timeout_seconds: float | None,
         login: bool,
+        state: Dict[str, Any],
         cancellation: Any | None = None,
     ) -> Iterator[Dict[str, Any]]:
         """Fallback synchronous execution for streaming.
@@ -615,6 +637,7 @@ class ShellCommandTool(BaseCodexShellTool):
             },
             truncated_output,
             trunc_meta,
+            state=state,
         )
 
         result["command"] = command

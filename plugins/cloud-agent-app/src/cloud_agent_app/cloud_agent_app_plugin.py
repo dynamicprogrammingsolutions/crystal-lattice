@@ -30,6 +30,7 @@ from .cloud_agent_transfer import CLOUD_WORKSPACE_DIR, prepare_cloud_transfer
 DEFAULT_TRANSFER_METHOD = "managed_ssh"
 RESERVED_CLOUD_AGENT_DIR = ".cloud-agent"
 CLOUD_AGENT_METADATA_KEY = "cloud_agent"
+CLOUD_AGENT_LAST_RUNTIME_KEY = "cloud_agent_last_runtime"
 DEFAULT_START_ACTION_TIMEOUT_SECONDS = 10.0
 DEFAULT_IMPORTED_BRANCH_PREFIX = "cloud"
 
@@ -521,6 +522,7 @@ class CloudAgentAppPlugin:
                 core, _base_config, _old = loaded
                 app.save_session(core.import_session(session_payload))
         if isinstance(session_id, str) and session_id:
+            self._save_last_cloud_runtime_metadata(app, session_id)
             self._clear_cloud_agent_metadata(app, session_id)
         return self._with_session_reload(
             {
@@ -1094,6 +1096,22 @@ class CloudAgentAppPlugin:
             return
         next_metadata = dict(metadata)
         next_metadata.pop(CLOUD_AGENT_METADATA_KEY, None)
+        self._save_session_metadata(app, session, next_metadata)
+
+    def _save_last_cloud_runtime_metadata(self, app: Any, session_id: str) -> None:
+        if not session_id:
+            return
+        loaded = app.load_session(session_id)
+        if loaded is None:
+            return
+        _core, _base_config, session = loaded
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        next_metadata = dict(metadata)
+        next_metadata[CLOUD_AGENT_LAST_RUNTIME_KEY] = {
+            "was_cloud": True,
+            "current_workdir": CLOUD_WORKSPACE_DIR,
+            "closed_at": time.time(),
+        }
         self._save_session_metadata(app, session, next_metadata)
 
     def _save_session_metadata(

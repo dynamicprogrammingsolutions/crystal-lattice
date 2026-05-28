@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import subprocess
 import threading
 import time
 import traceback
@@ -15,11 +16,13 @@ from fastapi.responses import JSONResponse
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
 from agent_app.sessions import FilesystemSnapshotSelectionStore
+from agent_core.utils import get_logger
 from agent_terminal_app import server as server_mod
 
 
 app = server_mod.app
 _server_get_agent_app = server_mod.get_agent_app
+log = get_logger("cloud_agent_runtime")
 _runtime_status_lock = threading.Lock()
 _runtime_status: Dict[str, Any] = {
     "ready": False,
@@ -94,6 +97,14 @@ def _set_runtime_status(**updates: Any) -> None:
     with _runtime_status_lock:
         _runtime_status.update(updates)
         _runtime_status["updated_at"] = time.time()
+        snapshot = dict(_runtime_status)
+    log.info(
+        "cloud_runtime_status_update",
+        status=snapshot.get("status"),
+        ready=snapshot.get("ready"),
+        startup_stage=snapshot.get("startup_stage"),
+        startup_error=snapshot.get("startup_error"),
+    )
 
 
 def _runtime_status_snapshot() -> Dict[str, Any]:
@@ -125,7 +136,9 @@ app.dependency_overrides[_server_get_agent_app] = _get_ready_agent_app
 
 def _load_dotenv_file(path: Path) -> None:
     if not path.is_file():
+        log.debug("cloud_runtime_env_file_missing", path=str(path))
         return
+    keys: list[str] = []
     for raw_line in path.read_text(encoding="utf-8").splitlines():
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
@@ -138,15 +151,20 @@ def _load_dotenv_file(path: Path) -> None:
         if len(value) >= 2 and value[0] == value[-1] == '"':
             value = bytes(value[1:-1], "utf-8").decode("unicode_escape")
         os.environ[key] = value
+        keys.append(key)
+    log.info("cloud_runtime_env_file_loaded", path=str(path), keys=keys)
 
 
 def _load_runtime_env(root: Path) -> None:
     env_root = root / "env"
+    log.info("cloud_runtime_env_loading", env_root=str(env_root))
     _load_dotenv_file(env_root / "runtime.env")
     env_dir = env_root / "runtime.env.d"
     if env_dir.is_dir():
         for path in sorted(env_dir.glob("*.env")):
             _load_dotenv_file(path)
+    else:
+        log.debug("cloud_runtime_env_dir_missing", path=str(env_dir))
 
 
 def _install_canonical_env() -> None:
@@ -158,11 +176,20 @@ def _install_canonical_env() -> None:
     os.environ["WORKING_DIR"] = str(workspace_dir())
     os.environ.setdefault("CLOUD_WORKSPACE_DIR", str(workspace_dir()))
     os.environ.setdefault("SESSION_DIR", str(sessions_dir()))
+    log.info(
+        "cloud_runtime_canonical_env_installed",
+        instance_dir=str(instance_dir()),
+        workspace_dir=str(workspace_dir()),
+        sessions_dir=str(sessions_dir()),
+        config_path=str(config_path()),
+        config_assets_dir=str(config_assets_dir()),
+    )
 
 
 def _load_script_env_overrides() -> dict[str, str]:
     path = scripts_dir() / "runtime.env"
     if not path.exists():
+        log.debug("cloud_runtime_script_env_missing", path=str(path))
         return {}
     values: dict[str, str] = {}
     for raw_line in path.read_text(encoding="utf-8").splitlines():
@@ -173,13 +200,16 @@ def _load_script_env_overrides() -> dict[str, str]:
         key = key.strip()
         if key:
             values[key] = value
+    log.info("cloud_runtime_script_env_loaded", path=str(path), keys=sorted(values.keys()))
     return values
 
 
 def _copy_workspace_from_transfer(src: Path, dst: Path) -> None:
     if not src.exists():
+        log.warning("cloud_runtime_transfer_workspace_missing", src=str(src))
         return
     dst.mkdir(parents=True, exist_ok=True)
+    copied: list[str] = []
     for child in src.iterdir():
         if child.name == ".cloud-agent":
             continue
@@ -191,6 +221,43 @@ def _copy_workspace_from_transfer(src: Path, dst: Path) -> None:
         else:
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(child, target)
+        copied.append(child.name)
+    log.info(
+        "cloud_runtime_workspace_copied",
+        src=str(src),
+        dst=str(dst),
+        entries=copied,
+    )
+
+
+def _run_script(path: Path, *, cwd: Path, env: dict[str, str], stage: str) -> None:
+    log.info(
+        "cloud_runtime_script_start",
+        stage=stage,
+        script=str(path),
+        cwd=str(cwd),
+    )
+    started_at = time.time()
+    result = subprocess.run(
+        [str(path)],
+        cwd=str(cwd),
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    duration = round(time.time() - started_at, 3)
+    log.info(
+        "cloud_runtime_script_complete",
+        stage=stage,
+        script=str(path),
+        returncode=result.returncode,
+        duration_seconds=duration,
+        stdout_len=len(result.stdout or ""),
+        stderr_len=len(result.stderr or ""),
+        stdout_preview=(result.stdout or "")[:400],
+        stderr_preview=(result.stderr or "")[:400],
+    )
 
 
 def _bootstrap_from_transfer() -> None:
@@ -202,8 +269,18 @@ def _bootstrap_from_transfer() -> None:
     sessions_dir().mkdir(parents=True, exist_ok=True)
     config_path().parent.mkdir(parents=True, exist_ok=True)
     config_assets_dir().mkdir(parents=True, exist_ok=True)
+    log.info(
+        "cloud_runtime_bootstrap_paths_ready",
+        instance_dir=str(instance_dir()),
+        workspace_dir=str(workspace_dir()),
+        sessions_dir=str(sessions_dir()),
+        config_path=str(config_path()),
+        config_assets_dir=str(config_assets_dir()),
+        transfer_dir=str(transfer_dir()),
+    )
 
     if marker.exists():
+        log.info("cloud_runtime_marker_exists", marker=str(marker))
         _set_runtime_status(startup_stage="runtime_env_loading")
         _load_runtime_env(instance_dir())
         _install_canonical_env()
@@ -218,19 +295,38 @@ def _bootstrap_from_transfer() -> None:
     transferred_sessions = cloud_root / "sessions"
     if transferred_sessions.exists():
         _copytree_contents(transferred_sessions, sessions_dir())
+        log.info(
+            "cloud_runtime_sessions_copied",
+            src=str(transferred_sessions),
+            session_files=sorted(path.name for path in transferred_sessions.glob("*.json")),
+        )
+    else:
+        log.warning("cloud_runtime_sessions_missing", src=str(transferred_sessions))
 
     transferred_config = cloud_root / "config" / "config.json"
     if transferred_config.exists():
         shutil.copy2(transferred_config, config_path())
+        log.info("cloud_runtime_config_copied", src=str(transferred_config), dst=str(config_path()))
     transferred_assets = cloud_root / "config" / "assets"
     if transferred_assets.exists():
         _copytree_contents(transferred_assets, config_assets_dir())
+        log.info(
+            "cloud_runtime_assets_copied",
+            src=str(transferred_assets),
+            asset_entries=sorted(path.name for path in transferred_assets.iterdir()),
+        )
     transferred_env = cloud_root / "env"
     if transferred_env.exists():
         _copytree_contents(transferred_env, instance_dir() / "env")
+        log.info("cloud_runtime_env_copied", src=str(transferred_env))
     transferred_scripts = cloud_root / "scripts"
     if transferred_scripts.exists():
         _copytree_contents(transferred_scripts, scripts_dir())
+        log.info(
+            "cloud_runtime_scripts_copied",
+            src=str(transferred_scripts),
+            scripts=sorted(path.name for path in transferred_scripts.iterdir()),
+        )
 
     _set_runtime_status(startup_stage="runtime_env_loading")
     _load_runtime_env(instance_dir())
@@ -249,33 +345,31 @@ def _bootstrap_from_transfer() -> None:
 
     setup_script = scripts_dir() / "setup"
     if setup_script.exists():
-        import subprocess
-
         _set_runtime_status(startup_stage="cloud_setup_running")
-        subprocess.run(
-            [str(setup_script)],
-            cwd=str(workspace_dir()),
+        _run_script(
+            setup_script,
+            cwd=workspace_dir(),
             env=script_env,
-            check=True,
+            stage="cloud_setup_running",
         )
 
     install_script = scripts_dir() / "install"
     if install_script.exists():
-        import subprocess
-
         _set_runtime_status(startup_stage="cloud_install_running")
-        subprocess.run(
-            [str(install_script)],
-            cwd=str(workspace_dir()),
+        _run_script(
+            install_script,
+            cwd=workspace_dir(),
             env=script_env,
-            check=True,
+            stage="cloud_install_running",
         )
 
     marker.write_text(str(time.time()), encoding="utf-8")
+    log.info("cloud_runtime_bootstrap_complete", marker=str(marker))
 
 
 @app.on_event("startup")
 def startup() -> None:
+    log.info("cloud_runtime_startup_event")
     thread = threading.Thread(
         target=_initialize_runtime, name="cloud-agent-runtime-init"
     )
@@ -285,6 +379,13 @@ def startup() -> None:
 
 def _initialize_runtime() -> None:
     try:
+        log.info(
+            "cloud_runtime_initialize_begin",
+            instance_dir=str(instance_dir()),
+            workspace_dir=str(workspace_dir()),
+            sessions_dir=str(sessions_dir()),
+            config_path=str(config_path()),
+        )
         _set_runtime_status(
             ready=False,
             status="starting",
@@ -295,6 +396,7 @@ def _initialize_runtime() -> None:
         server_mod._agent_app = None
         _bootstrap_from_transfer()
         os.chdir(workspace_dir())
+        log.info("cloud_runtime_changed_cwd", cwd=str(workspace_dir()))
         _set_runtime_status(startup_stage="agent_application_initializing")
         server_mod._agent_app = AgentApplication(
             str(config_path()),
@@ -312,15 +414,25 @@ def _initialize_runtime() -> None:
             },
         )
         _set_runtime_status(ready=True, status="ready", startup_stage="ready")
+        log.info(
+            "cloud_runtime_initialize_complete",
+            session_files=sorted(path.name for path in sessions_dir().glob("*.json")),
+        )
     except Exception as exc:  # pragma: no cover - exercised through readiness API
+        detail = "".join(
+            traceback.format_exception(type(exc), exc, exc.__traceback__)
+        )
+        log.error(
+            "cloud_runtime_initialize_failed",
+            error=exc.__class__.__name__,
+            detail=detail,
+        )
         _set_runtime_status(
             ready=False,
             status="failed",
             startup_stage="failed",
             startup_error=exc.__class__.__name__,
-            startup_error_detail="".join(
-                traceback.format_exception(type(exc), exc, exc.__traceback__)
-            )[-12000:],
+            startup_error_detail=detail[-12000:],
         )
 
 
@@ -412,11 +524,9 @@ def export_runtime_workspace() -> Dict[str, Any]:
             status_code=409, detail="cloud export script is not configured"
         )
 
-    import subprocess
-
-    subprocess.run(
-        [str(export_script)],
-        cwd=str(workspace_dir()),
+    _run_script(
+        export_script,
+        cwd=workspace_dir(),
         env={
             **os.environ,
             **_load_script_env_overrides(),
@@ -425,7 +535,7 @@ def export_runtime_workspace() -> Dict[str, Any]:
             "TRANSFER_STAGE_DIR": str(export_dir / ".cloud-agent" / "local-stage"),
             "WORKING_DIR": str(workspace_dir()),
         },
-        check=True,
+        stage="cloud_export_running",
     )
     return {"status": "ok", "transfer_dir": str(export_dir)}
 
@@ -439,11 +549,9 @@ def mark_runtime_workspace_synced() -> Dict[str, Any]:
     if not mark_synced_script.exists():
         return {"status": "ok", "script": "missing"}
 
-    import subprocess
-
-    subprocess.run(
-        [str(mark_synced_script)],
-        cwd=str(workspace_dir()),
+    _run_script(
+        mark_synced_script,
+        cwd=workspace_dir(),
         env={
             **os.environ,
             **_load_script_env_overrides(),
@@ -454,7 +562,7 @@ def mark_runtime_workspace_synced() -> Dict[str, Any]:
             ),
             "WORKING_DIR": str(workspace_dir()),
         },
-        check=True,
+        stage="cloud_sync_applied_running",
     )
     return {"status": "ok", "script": "ran"}
 
