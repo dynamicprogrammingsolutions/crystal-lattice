@@ -14,10 +14,9 @@ export const AnimatedSplashScreen: React.FC = () => {
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
 
-  // Premium design palettes from the brand specifications
-  const splashBg = isDark ? '#0b172d' : '#e9ecf4';
-  const splashText = isDark ? '#FFFFFF' : '#0b162c';
-  const splashSubtext = isDark ? '#00E5FF' : '#0091FF';
+  const splashBg = isDark ? '#000000' : '#F2F2F7';
+  const splashText = isDark ? '#FFFFFF' : '#000000';
+  const splashSubtext = isDark ? '#0A84FF' : '#007AFF';
 
   // Animation values
   const floatAnim = useRef(new Animated.Value(0)).current;

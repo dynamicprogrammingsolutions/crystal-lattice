@@ -1246,8 +1246,10 @@ function App(): React.JSX.Element {
     }
   };
 
+  const splashBg = colorScheme === 'dark' ? '#000000' : '#F2F2F7';
+
   return (
-    <GestureHandlerRootView style={styles.gestureRoot}>
+    <GestureHandlerRootView style={[styles.gestureRoot, { backgroundColor: splashBg }]}>
       <SafeAreaProvider>
         <ThemeProvider theme={theme}>
           <PinnedActionsProvider>
