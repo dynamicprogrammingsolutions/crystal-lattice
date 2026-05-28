@@ -21,6 +21,8 @@ from urllib.parse import urlencode
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from agent_core.types import Session
+
 from .cloud_agent_profiles import resolve_cloud_agent_profiles
 from .cloud_agent_transfer import CLOUD_WORKSPACE_DIR, prepare_cloud_transfer
 
@@ -94,6 +96,21 @@ class CloudAgentAppPlugin:
                     "workspace_dir": {"type": "string", "required": False},
                 },
             },
+            {
+                "id": "cloud.detach_session",
+                "label": "Detach cloud instance",
+                "description": "Remove the attached cloud instance from the local session without changing the remote instance.",
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
+                },
+            },
+            {
+                "id": "cloud.clear_forked_session_attachment",
+                "label": "Clear cloud attachment on fork",
+                "description": "Internal lifecycle action that removes cloud attachment metadata from forked sessions.",
+                "inputs": {},
+                "trigger": "session_fork",
+            },
         ]
 
     def get_ui_elements(
@@ -150,6 +167,16 @@ class CloudAgentAppPlugin:
                 },
                 "condition": has_cloud_agent,
             },
+            {
+                "ui_type": "session_action",
+                "id": "cloud_detach_session",
+                "label": "Detach cloud instance",
+                "action_id": "cloud.detach_session",
+                "param_map": {
+                    "session_id": "$session.session_id",
+                },
+                "condition": has_cloud_agent,
+            },
         ]
 
     def execute_action(
@@ -168,6 +195,10 @@ class CloudAgentAppPlugin:
             return self._check_session_agent(app, params, state)
         if action_id == "cloud.close_session":
             return self._close_session(app, params, state)
+        if action_id == "cloud.detach_session":
+            return self._detach_session(app, params)
+        if action_id == "cloud.clear_forked_session_attachment":
+            return self._clear_forked_session_attachment(context)
         raise KeyError(f"Unknown cloud action {action_id!r}")
 
     def _start_session_agent(
@@ -442,7 +473,28 @@ class CloudAgentAppPlugin:
     ) -> Dict[str, Any]:
         orchestrator_url = self._required_config(state, "orchestrator_url")
         instance_id = str(params["instance_id"])
-        sync_result = self._sync_down(app, params, state)
+        session_id = (
+            str(params.get("session_id"))
+            if isinstance(params.get("session_id"), str) and params.get("session_id")
+            else ""
+        )
+        stored_cloud_agent = self._load_cloud_agent_metadata(app, session_id)
+        stored_state = (
+            str(stored_cloud_agent.get("state"))
+            if isinstance(stored_cloud_agent.get("state"), str)
+            else ""
+        )
+        sync_result: Optional[Dict[str, Any]] = None
+
+        if stored_state == "running" or not stored_state:
+            try:
+                sync_result = self._sync_down(app, params, state)
+            except RuntimeError as exc:
+                if not self._is_runtime_not_ready_error(exc):
+                    raise
+        else:
+            sync_result = None
+
         result = self._post_json(
             orchestrator_url,
             f"/instances/{instance_id}/close",
@@ -466,17 +518,60 @@ class CloudAgentAppPlugin:
             {
                 "status": "ok",
                 "instance_id": instance_id,
-                "sync_down": sync_result,
                 "close": result,
                 "display": {
                     "format": "markdown",
                     "title": "Cloud Agent Closed",
-                    "body": "Cloud workspace changes were synced and the cloud runtime was closed.",
+                    "body": (
+                        "Cloud workspace changes were synced and the cloud runtime was closed."
+                        if sync_result is not None
+                        else "The cloud runtime was closed."
+                    ),
                     "variant": "success",
                 },
+                **({"sync_down": sync_result} if sync_result is not None else {}),
             },
             session_id if isinstance(session_id, str) else "",
         )
+
+    def _detach_session(self, app: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+        session_id = str(params["session_id"])
+        self._clear_cloud_agent_metadata(app, session_id)
+        return self._with_session_reload(
+            {
+                "status": "ok",
+                "session_id": session_id,
+                "display": {
+                    "format": "markdown",
+                    "title": "Cloud Instance Detached",
+                    "body": "The local session no longer has an attached cloud instance. The remote instance was not changed.",
+                    "variant": "success",
+                },
+            },
+            session_id,
+        )
+
+    def _clear_forked_session_attachment(
+        self, context: Optional[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        if not isinstance(context, dict):
+            return {}
+        session_payload = context.get("session")
+        if not isinstance(session_payload, dict):
+            return {}
+        session = Session.from_dict(session_payload)
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        if CLOUD_AGENT_METADATA_KEY not in metadata:
+            return {}
+        next_metadata = dict(metadata)
+        next_metadata.pop(CLOUD_AGENT_METADATA_KEY, None)
+        return {
+            "session": Session(
+                session_id=session.session_id,
+                messages=session.messages,
+                metadata=next_metadata,
+            )
+        }
 
     def _required_config(self, state: Dict[str, Any], key: str) -> str:
         value = state.get(key)
@@ -959,6 +1054,17 @@ class CloudAgentAppPlugin:
                 metadata[key] = instance[key]
         return metadata
 
+    def _load_cloud_agent_metadata(self, app: Any, session_id: str) -> Dict[str, Any]:
+        if not session_id:
+            return {}
+        loaded = app.load_session(session_id)
+        if loaded is None:
+            return {}
+        _core, _base_config, session = loaded
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        cloud_agent = metadata.get(CLOUD_AGENT_METADATA_KEY)
+        return cloud_agent if isinstance(cloud_agent, dict) else {}
+
     def _save_cloud_agent_metadata(
         self, app: Any, session_id: str, cloud_agent: Dict[str, Any]
     ) -> None:
@@ -1176,6 +1282,10 @@ class CloudAgentAppPlugin:
                 detail = detail[-4000:]
             lines.extend(["", "```text", detail, "```"])
         return "\n".join(lines)
+
+    def _is_runtime_not_ready_error(self, error: RuntimeError) -> bool:
+        message = str(error)
+        return "runtime_not_ready" in message
 
     def _delete_transfer(
         self, base_url: str, transfer_id: str, *, token: Any = None

@@ -169,6 +169,9 @@ def test_cloud_start_session_ui_element_maps_current_session_id() -> None:
         "instance_id": "$session.metadata.cloud_agent.instance_id",
         "session_id": "$session.session_id",
     }
+    assert elements["cloud_detach_session"]["param_map"] == {
+        "session_id": "$session.session_id",
+    }
 
 
 def test_cloud_start_session_default_wait_timeout_is_short() -> None:
@@ -983,6 +986,151 @@ def test_cloud_check_session_action_updates_cloud_metadata(
     assert cloud_agent["state"] == "running"
     assert cloud_agent["startup_stage"] == "ready"
     assert cloud_agent["token"] == "tok_test"
+
+
+def test_session_fork_clears_cloud_agent_metadata(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    transfer_script = _write_script(tmp_path / "transfer.py")
+
+    config_path = _write_config(tmp_path, transfer_script)
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "hello cloud", {}, config=base_config)
+    app.save_session(
+        session.__class__(
+            session_id=session.session_id,
+            messages=session.messages,
+            metadata={
+                **session.metadata,
+                "cloud_agent": {
+                    "instance_id": "inst_test",
+                    "session_id": session.session_id,
+                    "state": "running",
+                },
+            },
+        )
+    )
+
+    _core, _base_config, stored = app.load_session(session.session_id)
+    _fork_core, _fork_base, forked = app.fork_session(
+        core,
+        stored,
+        base_config,
+        upto_index=len(stored.messages) - 1,
+        new_session_id="forked-session",
+    )
+
+    assert "cloud_agent" not in (forked.metadata or {})
+
+
+def test_detach_session_clears_cloud_metadata(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    transfer_script = _write_script(tmp_path / "transfer.py")
+
+    config_path = _write_config(tmp_path, transfer_script)
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "hello cloud", {}, config=base_config)
+    app.save_session(
+        session.__class__(
+            session_id=session.session_id,
+            messages=session.messages,
+            metadata={
+                **session.metadata,
+                "cloud_agent": {
+                    "instance_id": "inst_test",
+                    "session_id": session.session_id,
+                    "state": "failed",
+                },
+            },
+        )
+    )
+
+    result = app.execute_application_action(
+        "cloud",
+        "cloud.detach_session",
+        {"session_id": session.session_id},
+    )
+
+    assert result["status"] == "ok"
+    assert result["ui_effects"]["reload_session_ids"] == [session.session_id]
+    _core, _base_config, updated_session = app.load_session(session.session_id)
+    assert "cloud_agent" not in updated_session.metadata
+
+
+def test_close_session_skips_sync_for_failed_instance_and_clears_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    transfer_script = _write_script(tmp_path / "transfer.py")
+
+    config_path = _write_config(tmp_path, transfer_script)
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "hello cloud", {}, config=base_config)
+    app.save_session(
+        session.__class__(
+            session_id=session.session_id,
+            messages=session.messages,
+            metadata={
+                **session.metadata,
+                "cloud_agent": {
+                    "instance_id": "inst_failed",
+                    "session_id": session.session_id,
+                    "state": "failed",
+                },
+            },
+        )
+    )
+
+    plugin = CloudAgentAppPlugin()
+
+    monkeypatch.setattr(
+        plugin,
+        "_sync_down",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("sync_down should not run for failed instances")
+        ),
+    )
+
+    calls: List[str] = []
+
+    def fake_post_json(
+        base_url: str, path: str, payload: Dict[str, Any], *, token: Any = None
+    ) -> Dict[str, Any]:
+        calls.append(path)
+        assert path == "/instances/inst_failed/close"
+        return {
+            "instance_id": "inst_failed",
+            "session_id": session.session_id,
+            "state": "closed",
+        }
+
+    monkeypatch.setattr(plugin, "_post_json", fake_post_json)
+
+    result = plugin._close_session(
+        app,
+        {"instance_id": "inst_failed", "session_id": session.session_id},
+        {"orchestrator_url": "http://orchestrator.test"},
+    )
+
+    assert result["status"] == "ok"
+    assert "sync_down" not in result
+    assert calls == ["/instances/inst_failed/close"]
+    _core, _base_config, updated_session = app.load_session(session.session_id)
+    assert "cloud_agent" not in updated_session.metadata
 
 
 def test_sync_down_marks_cloud_synced_after_local_apply(
