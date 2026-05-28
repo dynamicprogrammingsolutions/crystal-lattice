@@ -100,6 +100,32 @@ describe('RestAgentBackend idempotency headers', () => {
     );
   });
 
+  it('adds idempotency keys to session-scoped action requests', async () => {
+    const transport: Transport = {
+      request: vi.fn(async () => ({ status: 200, data: { status: 'ok', result: {} } })),
+    };
+
+    vi.spyOn(idempotency, 'generateIdempotencyKey').mockReturnValue('generated-key');
+
+    const backend = new RestAgentBackend({ transport });
+    await backend.executeSessionAction!({
+      sessionId: 's1',
+      pluginId: 'session_title',
+      actionId: 'set_session_title',
+      inputs: { title: 'Hello' },
+    });
+
+    expect(transport.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        path: '/sessions/s1/actions',
+        headers: expect.objectContaining({
+          'Idempotency-Key': 'generated-key',
+        }),
+      }),
+    );
+  });
+
   it('forwards action_owner in executeAction payloads', async () => {
     const transport: Transport = {
       request: vi.fn(async () => ({ status: 200, data: { status: 'ok', result: {} } })),

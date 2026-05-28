@@ -19,6 +19,22 @@ function buildBackend(response: ExecuteActionResponseOk): AgentBackend {
   } as any;
 }
 
+function buildBackendWithSessionAction(response: ExecuteActionResponseOk): AgentBackend {
+  return {
+    kind: 'test',
+    getCapabilities: () => ({
+      featureCompletions: false,
+      sessionUiSchema: false,
+      sessionConfigOverrides: false,
+      sessionPlugins: false,
+      applicationActions: true,
+      applicationConfig: false,
+    }),
+    executeAction: async () => response,
+    executeSessionAction: async () => response,
+  } as any;
+}
+
 const ACTION_DEF: ApplicationActionDefinition = {
   plugin: 'session_actions',
   id: 'copy_session',
@@ -35,6 +51,107 @@ const ELEMENT: ActionUiElement = {
 };
 
 describe('runApplicationAction effect derivation', () => {
+  it('uses the session-scoped action endpoint when a session context is available', async () => {
+    const executeAction = vi.fn(async () => ({
+      status: 'ok',
+      plugin: 'session_title',
+      action_id: 'set_session_title',
+      result: { mutations: {}, ui_effects: {} },
+    }));
+    const executeSessionAction = vi.fn(async () => ({
+      status: 'ok',
+      plugin: 'session_title',
+      action_id: 'set_session_title',
+      result: { mutations: {}, ui_effects: {} },
+    }));
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction,
+      executeSessionAction,
+    } as any;
+
+    const res = await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'session_action',
+        plugin: 'session_title',
+        id: 'edit_title',
+        label: 'Edit title',
+        action_id: 'set_session_title',
+      },
+      actionsById: {},
+      context: { sessionId: 's1' },
+    });
+
+    expect(res.ok).toBe(true);
+    expect(executeSessionAction).toHaveBeenCalledWith({
+      sessionId: 's1',
+      pluginId: 'session_title',
+      actionId: 'set_session_title',
+      actionOwner: undefined,
+      inputs: {},
+    });
+    expect(executeAction).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the generic action endpoint without a session context', async () => {
+    const executeAction = vi.fn(async () => ({
+      status: 'ok',
+      plugin: 'cloud',
+      action_id: 'cloud.start_session_agent',
+      result: { mutations: {}, ui_effects: {} },
+    }));
+    const executeSessionAction = vi.fn(async () => ({
+      status: 'ok',
+      plugin: 'cloud',
+      action_id: 'cloud.start_session_agent',
+      result: { mutations: {}, ui_effects: {} },
+    }));
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction,
+      executeSessionAction,
+    } as any;
+
+    const res = await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'application_action',
+        plugin: 'cloud',
+        id: 'start_cloud',
+        label: 'Start cloud agent',
+        action_id: 'cloud.start_session_agent',
+      },
+      actionsById: {},
+      context: {},
+    });
+
+    expect(res.ok).toBe(true);
+    expect(executeAction).toHaveBeenCalledWith({
+      pluginId: 'cloud',
+      actionId: 'cloud.start_session_agent',
+      actionOwner: undefined,
+      inputs: {},
+    });
+    expect(executeSessionAction).not.toHaveBeenCalled();
+  });
+
   it('forwards action_owner to backend execution for provider-extension actions', async () => {
     const executeAction = vi.fn(async () => ({
       status: 'ok',
@@ -127,7 +244,7 @@ describe('runApplicationAction effect derivation', () => {
         },
       ],
     };
-    const backend = buildBackend({
+    const backend = buildBackendWithSessionAction({
       status: 'ok',
       plugin: 'cloud',
       action_id: 'cloud.start_session_agent',
@@ -346,7 +463,7 @@ describe('runApplicationAction input building', () => {
     expect(capturedInputs).toEqual({ session_id: 's1' });
   });
 
-  it('maps cloud instance inputs from session metadata', async () => {
+  it('maps cloud instance inputs from dialog values', async () => {
     let capturedInputs: Record<string, any> | null = null;
 
     const backend: AgentBackend = {
@@ -379,9 +496,9 @@ describe('runApplicationAction input building', () => {
         label: 'Check cloud status',
         action_id: 'cloud.check_session_agent',
         param_map: {
-          instance_id: '$session.metadata.cloud_agent.instance_id',
+          instance_id: '$dialog.instance_id',
           session_id: '$session.session_id',
-          token: '$session.metadata.cloud_agent.token',
+          token: '$dialog.token',
         },
       } as any,
       actionsById: {
@@ -409,6 +526,10 @@ describe('runApplicationAction input building', () => {
             },
           },
         },
+        dialogValues: {
+          instance_id: 'inst_test',
+          token: 'tok_test',
+        },
       },
     });
 
@@ -416,6 +537,78 @@ describe('runApplicationAction input building', () => {
       instance_id: 'inst_test',
       session_id: 's1',
       token: 'tok_test',
+    });
+  });
+
+  it('allows dialog values to supply cloud status inputs when session metadata is missing', async () => {
+    let capturedInputs: Record<string, any> | null = null;
+
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction: async ({ inputs }) => {
+        capturedInputs = inputs;
+        return {
+          status: 'ok',
+          plugin: 'cloud',
+          action_id: 'cloud.check_session_agent',
+          result: { mutations: {}, ui_effects: {} },
+        } as any;
+      },
+    } as any;
+
+    await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'session_action',
+        plugin: 'cloud',
+        id: 'cloud_check_session_agent',
+        label: 'Check cloud status',
+        action_id: 'cloud.check_session_agent',
+        param_map: {
+          instance_id: '$dialog.instance_id',
+          session_id: '$session.session_id',
+          token: '$dialog.token',
+        },
+      } as any,
+      actionsById: {
+        'cloud.check_session_agent': {
+          plugin: 'cloud',
+          id: 'cloud.check_session_agent',
+          label: 'Check cloud status',
+          inputs: {
+            instance_id: { type: 'string', required: true },
+            session_id: { type: 'string', required: false },
+            token: { type: 'string', required: false },
+          },
+        } as any,
+      },
+      context: {
+        sessionId: 's1',
+        sessionSummary: {
+          session_id: 's1',
+          modified: 1,
+          preview: '',
+          metadata: {},
+        },
+        dialogValues: {
+          instance_id: 'inst_manual',
+          token: 'tok_manual',
+        },
+      },
+    });
+
+    expect(capturedInputs).toEqual({
+      instance_id: 'inst_manual',
+      session_id: 's1',
+      token: 'tok_manual',
     });
   });
 

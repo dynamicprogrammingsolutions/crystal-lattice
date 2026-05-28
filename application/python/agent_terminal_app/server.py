@@ -3220,19 +3220,14 @@ def list_application_ui_schema(
     return {"elements": elements}
 
 
-@app.post("/actions")
-def execute_action(
+def _execute_action_request(
     payload: Dict[str, Any],
-    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
-    app_instance: AgentApplication = Depends(get_agent_app),
+    *,
+    idempotency_key: Optional[str],
+    app_instance: AgentApplication,
+    scope_prefix: str,
 ) -> Dict[str, Any]:
-    """Execute an application-level action.
-
-    The response always uses an explicit status envelope and never
-    embeds full session objects; callers should observe session
-    changes via the existing /sessions and /sessions/{id}/messages
-    endpoints.
-    """
+    """Execute an application action request and return the standard envelope."""
 
     body = payload or {}
     plugin_id = body.get("plugin")
@@ -3240,7 +3235,7 @@ def execute_action(
     action_owner = body.get("action_owner")
     raw_inputs = body.get("inputs") or {}
 
-    scope = f"POST /actions/{plugin_id}/{action_id}"
+    scope = f"{scope_prefix}/{plugin_id}/{action_id}"
     cached = _idempotency_maybe_replay(scope, idempotency_key, body)
     if cached is not None:
         return cached
@@ -3326,6 +3321,45 @@ def execute_action(
 
     _idempotency_store(scope, idempotency_key, body, response)
     return response
+
+
+@app.post("/actions")
+def execute_action(
+    payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Execute an application-level action.
+
+    The response always uses an explicit status envelope and never
+    embeds full session objects; callers should observe session
+    changes via the existing /sessions and /sessions/{id}/messages
+    endpoints.
+    """
+
+    return _execute_action_request(
+        payload,
+        idempotency_key=idempotency_key,
+        app_instance=app_instance,
+        scope_prefix="POST /actions",
+    )
+
+
+@app.post("/sessions/{session_id}/actions")
+def execute_session_action(
+    session_id: str,
+    payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Execute an application action through a session-scoped alias route."""
+
+    return _execute_action_request(
+        payload,
+        idempotency_key=idempotency_key,
+        app_instance=app_instance,
+        scope_prefix=f"POST /sessions/{session_id}/actions",
+    )
 
 
 # ---------------------------------------------------------------------------

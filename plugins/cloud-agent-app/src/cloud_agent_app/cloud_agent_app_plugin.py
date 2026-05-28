@@ -131,7 +131,6 @@ class CloudAgentAppPlugin:
                 "label": "Start cloud agent",
                 "action_id": "cloud.start_session_agent",
                 "param_map": {"session_id": "$session.session_id"},
-                "condition": {"not": has_cloud_agent},
             },
             {
                 "ui_type": "session_action",
@@ -139,11 +138,34 @@ class CloudAgentAppPlugin:
                 "label": "Check cloud status",
                 "action_id": "cloud.check_session_agent",
                 "param_map": {
-                    "instance_id": "$session.metadata.cloud_agent.instance_id",
+                    "instance_id": "$dialog.instance_id",
                     "session_id": "$session.session_id",
-                    "token": "$session.metadata.cloud_agent.token",
+                    "token": "$dialog.token",
                 },
-                "condition": has_cloud_agent,
+                "dialog": {
+                    "kind": "form",
+                    "title": "Check cloud status",
+                    "message": (
+                        "Check the status of a cloud instance. Values are "
+                        "prefilled from the local session when available."
+                    ),
+                    "inputs": [
+                        {
+                            "name": "instance_id",
+                            "type": "string",
+                            "label": "Instance ID",
+                            "required": True,
+                            "prefill_from": "$session.metadata.cloud_agent.instance_id",
+                        },
+                        {
+                            "name": "token",
+                            "type": "string",
+                            "label": "Token",
+                            "required": False,
+                            "prefill_from": "$session.metadata.cloud_agent.token",
+                        },
+                    ],
+                },
             },
             {
                 "ui_type": "session_action",
@@ -164,6 +186,14 @@ class CloudAgentAppPlugin:
                 "param_map": {
                     "instance_id": "$session.metadata.cloud_agent.instance_id",
                     "session_id": "$session.session_id",
+                },
+                "dialog": {
+                    "kind": "confirm",
+                    "title": "Close cloud agent",
+                    "message": (
+                        "Close this cloud agent now? Unsynced cloud changes "
+                        "will be lost unless you synced them previously."
+                    ),
                 },
                 "condition": has_cloud_agent,
             },
@@ -473,28 +503,6 @@ class CloudAgentAppPlugin:
     ) -> Dict[str, Any]:
         orchestrator_url = self._required_config(state, "orchestrator_url")
         instance_id = str(params["instance_id"])
-        session_id = (
-            str(params.get("session_id"))
-            if isinstance(params.get("session_id"), str) and params.get("session_id")
-            else ""
-        )
-        stored_cloud_agent = self._load_cloud_agent_metadata(app, session_id)
-        stored_state = (
-            str(stored_cloud_agent.get("state"))
-            if isinstance(stored_cloud_agent.get("state"), str)
-            else ""
-        )
-        sync_result: Optional[Dict[str, Any]] = None
-
-        if stored_state == "running" or not stored_state:
-            try:
-                sync_result = self._sync_down(app, params, state)
-            except RuntimeError as exc:
-                if not self._is_runtime_not_ready_error(exc):
-                    raise
-        else:
-            sync_result = None
-
         result = self._post_json(
             orchestrator_url,
             f"/instances/{instance_id}/close",
@@ -522,14 +530,9 @@ class CloudAgentAppPlugin:
                 "display": {
                     "format": "markdown",
                     "title": "Cloud Agent Closed",
-                    "body": (
-                        "Cloud workspace changes were synced and the cloud runtime was closed."
-                        if sync_result is not None
-                        else "The cloud runtime was closed."
-                    ),
+                    "body": "The cloud runtime was closed. Unsynced cloud changes were not copied back locally.",
                     "variant": "success",
                 },
-                **({"sync_down": sync_result} if sync_result is not None else {}),
             },
             session_id if isinstance(session_id, str) else "",
         )
@@ -1054,17 +1057,6 @@ class CloudAgentAppPlugin:
                 metadata[key] = instance[key]
         return metadata
 
-    def _load_cloud_agent_metadata(self, app: Any, session_id: str) -> Dict[str, Any]:
-        if not session_id:
-            return {}
-        loaded = app.load_session(session_id)
-        if loaded is None:
-            return {}
-        _core, _base_config, session = loaded
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        cloud_agent = metadata.get(CLOUD_AGENT_METADATA_KEY)
-        return cloud_agent if isinstance(cloud_agent, dict) else {}
-
     def _save_cloud_agent_metadata(
         self, app: Any, session_id: str, cloud_agent: Dict[str, Any]
     ) -> None:
@@ -1282,10 +1274,6 @@ class CloudAgentAppPlugin:
                 detail = detail[-4000:]
             lines.extend(["", "```text", detail, "```"])
         return "\n".join(lines)
-
-    def _is_runtime_not_ready_error(self, error: RuntimeError) -> bool:
-        message = str(error)
-        return "runtime_not_ready" in message
 
     def _delete_transfer(
         self, base_url: str, transfer_id: str, *, token: Any = None

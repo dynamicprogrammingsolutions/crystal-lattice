@@ -576,28 +576,7 @@ export class RestAgentBackend implements AgentBackend {
     return elements;
   }
 
-  async executeAction(params: {
-    pluginId: string;
-    actionId: string;
-    actionOwner?: string;
-    inputs: Record<string, any>;
-    idempotencyKey?: string;
-  }): Promise<ExecuteActionResponse> {
-    const payload = {
-      plugin: params.pluginId,
-      action_id: params.actionId,
-      action_owner: params.actionOwner,
-      inputs: params.inputs,
-    };
-    const resp = await this.transport.request<ExecuteActionResponse>({
-      method: 'POST',
-      path: '/actions',
-      headers: this.buildIdempotencyHeaders(params.idempotencyKey),
-      body: payload,
-      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
-    });
-    const data = resp.data;
-
+  private handleExecuteActionResponse(data: ExecuteActionResponse): ExecuteActionResponse {
     if (data && data.status === 'ok') {
       const result: any = data.result && typeof data.result === 'object' ? data.result : {};
       const resultStatus = typeof result.status === 'string' ? result.status : 'ok';
@@ -608,10 +587,7 @@ export class RestAgentBackend implements AgentBackend {
           result.ui_effects && typeof result.ui_effects === 'object' ? result.ui_effects : {};
 
         const invalidatedSessionIds = new Set<string>();
-        const maybeLists = [
-          mutations.updated_session_ids,
-          uiEffects.reload_session_ids,
-        ];
+        const maybeLists = [mutations.updated_session_ids, uiEffects.reload_session_ids];
         for (const rawList of maybeLists) {
           if (!Array.isArray(rawList)) continue;
           for (const id of rawList) {
@@ -629,5 +605,56 @@ export class RestAgentBackend implements AgentBackend {
     }
 
     return data;
+  }
+
+  private async executeActionRequest(
+    path: string,
+    params: {
+      pluginId: string;
+      actionId: string;
+      actionOwner?: string;
+      inputs: Record<string, any>;
+      idempotencyKey?: string;
+    },
+  ): Promise<ExecuteActionResponse> {
+    const payload = {
+      plugin: params.pluginId,
+      action_id: params.actionId,
+      action_owner: params.actionOwner,
+      inputs: params.inputs,
+    };
+    const resp = await this.transport.request<ExecuteActionResponse>({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(params.idempotencyKey),
+      body: payload,
+      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
+    });
+
+    return this.handleExecuteActionResponse(resp.data);
+  }
+
+  async executeAction(params: {
+    pluginId: string;
+    actionId: string;
+    actionOwner?: string;
+    inputs: Record<string, any>;
+    idempotencyKey?: string;
+  }): Promise<ExecuteActionResponse> {
+    return this.executeActionRequest('/actions', params);
+  }
+
+  async executeSessionAction(params: {
+    sessionId: string;
+    pluginId: string;
+    actionId: string;
+    actionOwner?: string;
+    inputs: Record<string, any>;
+    idempotencyKey?: string;
+  }): Promise<ExecuteActionResponse> {
+    return this.executeActionRequest(
+      `/sessions/${encodeURIComponent(params.sessionId)}/actions`,
+      params,
+    );
   }
 }

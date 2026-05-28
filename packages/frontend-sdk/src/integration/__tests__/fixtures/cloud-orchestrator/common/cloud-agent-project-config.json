@@ -1,0 +1,41 @@
+{
+  "default_transfer_up_profile": "working-tree-current-state",
+  "default_sync_down_profile": "working-tree-patch",
+  "default_container_profile": "default-runtime",
+  "transfer_up_profiles": {
+    "working-tree-current-state": {
+      "label": "Working tree current state",
+      "local_transfer_script": ".cloud-agent/transfer-up",
+      "cloud_setup_profile": "git-archive-patch-setup",
+      "install_profile": "noop-install",
+      "compatible_sync_down_profiles": ["working-tree-patch"]
+    }
+  },
+  "cloud_setup_profiles": {
+    "git-archive-patch-setup": {
+      "label": "Archive plus working patch setup",
+      "cloud_setup_script": ".cloud-agent/setup-cloud"
+    }
+  },
+  "install_profiles": {
+    "noop-install": {
+      "label": "No-op install",
+      "cloud_install_script": ".cloud-agent/install-cloud"
+    }
+  },
+  "sync_down_profiles": {
+    "working-tree-patch": {
+      "label": "Apply cloud patch to current worktree",
+      "cloud_export_script": ".cloud-agent/export-cloud",
+      "cloud_mark_synced_script": ".cloud-agent/mark-synced",
+      "local_apply_script": ".cloud-agent/apply-down",
+      "compatible_transfer_up_profiles": ["working-tree-current-state"]
+    }
+  },
+  "container_profiles": {
+    "default-runtime": {
+      "label": "Default cloud agent runtime",
+      "image": "cloud-agent-runtime:latest"
+    }
+  }
+}

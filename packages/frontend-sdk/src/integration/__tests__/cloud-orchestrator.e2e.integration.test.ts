@@ -90,6 +90,7 @@ function localBackendConfig(options: {
     plugins: [
       'plugins.echo_openai_like_provider.EchoOpenAILikeProvider',
       'plugins.file_writer_tool.FileWriterTool',
+      'path:${env:BUILTIN_PLUGINS}/session-title-app',
       'path:${env:BUILTIN_PLUGINS}/cloud-agent-app',
     ],
     agents: {
@@ -170,6 +171,7 @@ function openRouterBackendConfig(options: {
 function writeCloudAgentScripts(workspaceDir: string): void {
   const scriptsDir = path.join(workspaceDir, '.cloud-agent');
   fs.mkdirSync(scriptsDir, { recursive: true });
+  const repoRoot = findRepoRoot(process.cwd());
 
   const scripts: Record<string, string> = {
     'transfer-up': [
@@ -237,6 +239,11 @@ function writeCloudAgentScripts(workspaceDir: string): void {
       '  fi',
       'fi',
     ].join('\n'),
+    'install-cloud': [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'exit 0',
+    ].join('\n'),
     'mark-synced': [
       '#!/usr/bin/env bash',
       'set -euo pipefail',
@@ -253,46 +260,21 @@ function writeCloudAgentScripts(workspaceDir: string): void {
     fs.writeFileSync(scriptPath, `${content}\n`, { encoding: 'utf8', mode: 0o755 });
   }
 
+  const projectConfigFixturePath = path.join(
+    repoRoot,
+    'packages',
+    'frontend-sdk',
+    'src',
+    'integration',
+    '__tests__',
+    'fixtures',
+    'cloud-orchestrator',
+    'common',
+    'cloud-agent-project-config.json',
+  );
   fs.writeFileSync(
     path.join(scriptsDir, 'cloud-agent.json'),
-    `${JSON.stringify(
-      {
-        default_transfer_up_profile: 'working-tree-current-state',
-        default_sync_down_profile: 'working-tree-patch',
-        default_container_profile: 'default-runtime',
-        transfer_up_profiles: {
-          'working-tree-current-state': {
-            label: 'Working tree current state',
-            local_transfer_script: '.cloud-agent/transfer-up',
-            install_profile: 'repo-install',
-            compatible_sync_down_profiles: ['working-tree-patch'],
-          },
-        },
-        install_profiles: {
-          'repo-install': {
-            label: 'Repository install',
-            cloud_install_script: '.cloud-agent/setup-cloud',
-          },
-        },
-        sync_down_profiles: {
-          'working-tree-patch': {
-            label: 'Apply cloud patch to current worktree',
-            cloud_export_script: '.cloud-agent/export-cloud',
-            cloud_mark_synced_script: '.cloud-agent/mark-synced',
-            local_apply_script: '.cloud-agent/apply-down',
-            compatible_transfer_up_profiles: ['working-tree-current-state'],
-          },
-        },
-        container_profiles: {
-          'default-runtime': {
-            label: 'Default cloud agent runtime',
-            image: 'cloud-agent-runtime:latest',
-          },
-        },
-      },
-      null,
-      2,
-    )}\n`,
+    `${fs.readFileSync(projectConfigFixturePath, 'utf8').trim()}\n`,
     { encoding: 'utf8' },
   );
 }
@@ -1105,6 +1087,28 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       const messages2 = await cloudBackend.listMessages(session2);
       expect(messages1.messages[0]?.message.content).toBe('local hello one');
       expect(messages2.messages[0]?.message.content).toBe('local hello two');
+
+      const titleResult = await cloudBackend.executeSessionAction!({
+        sessionId: session2,
+        pluginId: 'session_title',
+        actionId: 'set_session_title',
+        actionOwner: 'application',
+        inputs: {
+          session_id: session2,
+          title: 'Cloud title two',
+        },
+      });
+      expect(titleResult.status).toBe('ok');
+
+      await waitForAsync(async () => {
+        const sessions = await cloudBackend.listSessions();
+        const first = sessions.find((session) => session.session_id === session1);
+        const second = sessions.find((session) => session.session_id === session2);
+        return (
+          (second?.metadata?.title as string | undefined) === 'Cloud title two' &&
+          !first?.metadata?.title
+        );
+      }, { timeoutMs: 30_000, intervalMs: 500 });
 
       await cloudBackend.send(session1);
       await cloudBackend.send(session2);

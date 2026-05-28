@@ -703,7 +703,7 @@ included in action display payloads.
 - `PATCH /sessions/{session_id}/agent` - change a session's agent.
 - `GET /sessions/{session_id}/plugins` - list session plugins.
 - `PUT /sessions/{session_id}/plugins` - update enabled session plugins.
-- `GET /application/ui-schema` and `POST /actions` - application UI/actions.
+- `GET /application/ui-schema`, `POST /actions`, and `POST /sessions/{session_id}/actions` - application UI/actions.
 
 Run the command help for the complete CLI surface:
 

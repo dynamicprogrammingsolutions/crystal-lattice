@@ -152,14 +152,36 @@ def test_cloud_start_session_ui_element_maps_current_session_id() -> None:
     assert element["id"] == "cloud_start_session_agent"
     assert element["action_id"] == "cloud.start_session_agent"
     assert element["param_map"] == {"session_id": "$session.session_id"}
-    assert element["condition"] == {
-        "not": {"path": "metadata.cloud_agent.instance_id", "exists": True}
-    }
+    assert "condition" not in element
 
     assert elements["cloud_check_session_agent"]["param_map"] == {
-        "instance_id": "$session.metadata.cloud_agent.instance_id",
+        "instance_id": "$dialog.instance_id",
         "session_id": "$session.session_id",
-        "token": "$session.metadata.cloud_agent.token",
+        "token": "$dialog.token",
+    }
+    assert elements["cloud_check_session_agent"]["dialog"] == {
+        "kind": "form",
+        "title": "Check cloud status",
+        "message": (
+            "Check the status of a cloud instance. Values are "
+            "prefilled from the local session when available."
+        ),
+        "inputs": [
+            {
+                "name": "instance_id",
+                "type": "string",
+                "label": "Instance ID",
+                "required": True,
+                "prefill_from": "$session.metadata.cloud_agent.instance_id",
+            },
+            {
+                "name": "token",
+                "type": "string",
+                "label": "Token",
+                "required": False,
+                "prefill_from": "$session.metadata.cloud_agent.token",
+            },
+        ],
     }
     assert elements["cloud_sync_down"]["param_map"] == {
         "instance_id": "$session.metadata.cloud_agent.instance_id",
@@ -168,6 +190,14 @@ def test_cloud_start_session_ui_element_maps_current_session_id() -> None:
     assert elements["cloud_close_session"]["param_map"] == {
         "instance_id": "$session.metadata.cloud_agent.instance_id",
         "session_id": "$session.session_id",
+    }
+    assert elements["cloud_close_session"]["dialog"] == {
+        "kind": "confirm",
+        "title": "Close cloud agent",
+        "message": (
+            "Close this cloud agent now? Unsynced cloud changes "
+            "will be lost unless you synced them previously."
+        ),
     }
     assert elements["cloud_detach_session"]["param_map"] == {
         "session_id": "$session.session_id",
@@ -1066,7 +1096,7 @@ def test_detach_session_clears_cloud_metadata(
     assert "cloud_agent" not in updated_session.metadata
 
 
-def test_close_session_skips_sync_for_failed_instance_and_clears_metadata(
+def test_close_session_does_not_sync_before_closing_and_clears_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1087,9 +1117,9 @@ def test_close_session_skips_sync_for_failed_instance_and_clears_metadata(
             metadata={
                 **session.metadata,
                 "cloud_agent": {
-                    "instance_id": "inst_failed",
+                    "instance_id": "inst_running",
                     "session_id": session.session_id,
-                    "state": "failed",
+                    "state": "running",
                 },
             },
         )
@@ -1111,9 +1141,9 @@ def test_close_session_skips_sync_for_failed_instance_and_clears_metadata(
         base_url: str, path: str, payload: Dict[str, Any], *, token: Any = None
     ) -> Dict[str, Any]:
         calls.append(path)
-        assert path == "/instances/inst_failed/close"
+        assert path == "/instances/inst_running/close"
         return {
-            "instance_id": "inst_failed",
+            "instance_id": "inst_running",
             "session_id": session.session_id,
             "state": "closed",
         }
@@ -1122,13 +1152,16 @@ def test_close_session_skips_sync_for_failed_instance_and_clears_metadata(
 
     result = plugin._close_session(
         app,
-        {"instance_id": "inst_failed", "session_id": session.session_id},
+        {"instance_id": "inst_running", "session_id": session.session_id},
         {"orchestrator_url": "http://orchestrator.test"},
     )
 
     assert result["status"] == "ok"
     assert "sync_down" not in result
-    assert calls == ["/instances/inst_failed/close"]
+    assert result["display"]["body"] == (
+        "The cloud runtime was closed. Unsynced cloud changes were not copied back locally."
+    )
+    assert calls == ["/instances/inst_running/close"]
     _core, _base_config, updated_session = app.load_session(session.session_id)
     assert "cloud_agent" not in updated_session.metadata
 

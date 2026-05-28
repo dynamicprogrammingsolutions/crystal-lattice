@@ -117,6 +117,44 @@ describe('RestAgentBackend session ui schema invalidation', () => {
     );
   });
 
+  it('emits invalidation after successful session-scoped action execution', async () => {
+    const transport: Transport = {
+      request: vi.fn(async () => ({
+        status: 200,
+        data: {
+          status: 'ok',
+          plugin: 'session_title',
+          action_id: 'set_session_title',
+          result: {
+            mutations: {
+              updated_session_ids: ['s1'],
+            },
+            ui_effects: {},
+          },
+        },
+      })),
+    };
+    const backend = new RestAgentBackend({ transport });
+    const onInvalidate = vi.fn();
+
+    const unsubscribe = subscribeSessionUiSchemaInvalidated(backend, 's1', onInvalidate);
+    try {
+      await backend.executeSessionAction!({
+        sessionId: 's1',
+        pluginId: 'session_title',
+        actionId: 'set_session_title',
+        inputs: { session_id: 's1', title: 'Cloud title' },
+      });
+    } finally {
+      unsubscribe();
+    }
+
+    expect(onInvalidate).toHaveBeenCalledTimes(1);
+    expect(onInvalidate).toHaveBeenCalledWith(
+      expect.objectContaining({ sessionId: 's1', reason: 'action_session_updated' }),
+    );
+  });
+
   it('does not emit invalidation after failed action execution', async () => {
     const transport: Transport = {
       request: vi.fn(async () => ({
