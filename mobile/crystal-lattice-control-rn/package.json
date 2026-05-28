@@ -4,12 +4,12 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "android": "react-native run-android",
+    "android": "react-native run-android --port 8082",
     "pod-install": "cd ios && pod install",
     "ios": "react-native run-ios",
     "ios-device": "react-native run-ios --device --port 8082",
     "lint": "eslint .",
-    "start": "react-native start --port 8081",
+    "start": "react-native start --port 8082",
     "test": "jest",
     "tsc": "tsc --noEmit"
   },
