@@ -12,7 +12,7 @@ Use this skill when a user wants to update the Crystal Lattice biweekly reportin
 The sheet has two tabs:
 
 - `Tasks`: one normalized row per ticket included in a snapshot
-- `Summary`: formula-driven aggregation for one reporting period section at a time
+- `Summary`: formula-driven aggregation rendered as three sprint blocks per reporting period
 
 Target spreadsheet:
 
@@ -28,7 +28,7 @@ This skill is designed around the current reporting rules:
 - Keep the raw YouTrack assignee in `Tasks`.
 - If unassigned issues appear to need reassignment, propose the exact ticket list and wait for explicit user approval before updating YouTrack.
 - The `Summary` tab should use formulas only. Do not manually type aggregate numbers.
-- The `Summary` tab should be period-centric: one section represents one reporting period and includes rows for all active sprints and assignees.
+- The `Summary` tab should be period-centric: one reporting period is rendered as three sprint blocks.
 
 ## When To Use
 
@@ -40,20 +40,12 @@ Activate this skill when the user asks to:
 - rebuild or repair the `Summary` tab formulas
 - identify unassigned tasks that should probably be reassigned
 
-If the user says `current snapshot`, derive it from the spreadsheet itself:
-
-1. Read `Summary!B2:B4`
-2. Interpret them as:
-   - `B2` `Snapshot Date`
-   - `B3` `Period Start`
-   - `B4` `Period End`
-3. Treat those values as the canonical active snapshot controls
-
-Fallback only if the summary controls are empty:
+If the user says `current snapshot`, derive it from `Tasks`:
 
 1. Read `Tasks`
 2. Find the latest populated `Snapshot Key`
 3. Parse that key to recover snapshot date and period
+4. Treat that snapshot key as canonical
 
 ## Workflow
 
@@ -72,7 +64,7 @@ Fallback only if the summary controls are empty:
    - any assignee changes that would need approval
 8. Stop and ask for explicit user approval before any write operation.
 9. After approval, apply spreadsheet writes and any separately approved YouTrack changes.
-10. Verify the formulas point at the expected `Tasks` columns and that each data row calculates from the visible fields in that same row.
+10. Verify the formulas point at the expected `Tasks` columns and that each sprint block calculates from its own metadata row.
 
 ## Guardrails
 
@@ -81,13 +73,13 @@ Fallback only if the summary controls are empty:
 - Never replace formula cells in `Summary` with hard-coded totals.
 - Preserve raw task rows in `Tasks`; use `Summary` for aggregation.
 - If the meaning of `Completed` versus `In Progress` is unclear for `Staging`, ask the user before changing classification rules.
-- Keep the summary section copy-friendly by using visible per-row `Snapshot Date`, `Period Start`, `Period End`, `Sprint`, and `Assignee` fields.
+- Keep the summary copy-friendly by using one metadata row per sprint block, then a header row, then three assignee rows.
 - Avoid absolute row references in summary calculation formulas.
 
 ## Expected Outputs
 
 - Updated `Tasks` rows for the requested snapshot
-- Updated `Summary` formula section for the requested reporting period
+- Updated `Summary` sprint blocks for the requested reporting period
 - If needed, a short approval request listing unassigned tickets proposed for reassignment
 
 See [references/REFERENCE.md](references/REFERENCE.md) for the exact column layout, formula pattern, and approval workflow.

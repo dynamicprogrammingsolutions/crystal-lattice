@@ -14,23 +14,15 @@ This reference defines how future agents should maintain the Crystal Lattice rep
 
 ## Current Snapshot Derivation
 
-When the user says `refresh the current snapshot`, derive the target snapshot from the sheet.
+When the user says `refresh the current snapshot`, derive the target snapshot from `Tasks`.
 
 Canonical source:
-
-- `Summary!B2` = `Snapshot Date`
-- `Summary!B3` = `Period Start`
-- `Summary!B4` = `Period End`
-
-Those three control cells define the active snapshot to refresh.
-
-Fallback only if those cells are blank:
 
 - inspect `Tasks`
 - find the latest populated `Snapshot Key`
 - derive the snapshot from that key
 
-Do not guess the current snapshot from today’s date when the sheet already contains explicit controls.
+Do not guess the current snapshot from today’s date when the sheet already contains snapshot rows.
 
 ## Approval Workflow
 
@@ -137,20 +129,23 @@ Do not manually enter aggregate counts or story-point totals.
 
 Recommended columns:
 
-1. `Snapshot Date`
-2. `Period Start`
-3. `Period End`
-4. `Sprint`
+1. `Snapshot Key`
+2. `Snapshot Date`
+3. `Period Start`
+4. `Period End`
 5. `Issue ID`
-6. `Summary`
-7. `State`
-8. `Assignee`
-9. `Story Points`
-10. `Bucket`
-11. `Completion Date`
-12. `Last Commit Datetime`
-13. `Commit Count`
-14. `Pairing Note`
+6. `Sprint`
+7. `Bucket`
+8. `State`
+9. `Summary`
+10. `Assignee`
+11. `Story Points`
+12. `Completion Date`
+13. `Completion Date Source`
+14. `Ticket Updated At`
+15. `Last Commit Datetime`
+16. `Commit Count`
+17. `Pairing Note`
 
 Notes:
 
@@ -163,89 +158,83 @@ Notes:
 
 ## Summary Tab Structure
 
-The `Summary` tab should represent one reporting period per section.
+The `Summary` tab should preserve older reports and append newer reports below them.
 
-For the current workbook, use a single active section for the current period.
+One reporting period consists of three sprint blocks in this order:
 
-Recommended control cells near the top of the section:
+1. `Sprint 3`
+2. `Release 1`
+3. `Release 2`
 
-- one cell for `Snapshot Date`
-- one cell for `Period Start`
-- one cell for `Period End`
-- three cells for sprint names:
-  - `Sprint 3`
-  - `Release 1`
-  - `Release 2`
+Each sprint block contains:
 
-Then create one data row per `(Sprint, Assignee)` pair.
+1. a single metadata row:
+   - column `A` sprint name
+   - column `B` snapshot date
+   - column `C` period start
+   - column `D` period end
+2. a header row
+3. three assignee rows:
+   - `ferenci84`
+   - `Pujan`
+   - `Unassigned`
+4. optionally one blank separator row before the next sprint block
 
-Recommended assignee rows per sprint:
+Header row columns:
 
-- `ferenci84`
-- `Pujan`
-- `Unassigned`
+1. `Assignee`
+2. `Completed Tasks`
+3. `Completed Story Points`
+4. `In Progress Tasks`
+5. `In Progress Story Points`
 
-Recommended visible data columns:
+When adding a new reporting period:
 
-1. `Snapshot Date`
-2. `Period Start`
-3. `Period End`
-4. `Sprint`
-5. `Assignee`
-6. `Completed Tasks`
-7. `Completed Story Points`
-8. `In Progress Tasks`
-9. `In Progress Story Points`
-
-Important:
-
-- repeat the period and sprint values visibly in every data row
-- calculation formulas should read the filter values from the same row
-- avoid absolute row references such as `$A$7` in aggregate formulas
+- keep the previous period blocks unchanged above
+- append the new three-block period below the existing summary content
 
 ## Formula Pattern
 
 Assume:
 
 - `Tasks` columns are arranged as recommended above
-- the summary row columns are:
-  - `A` `Snapshot Date`
-  - `B` `Period Start`
-  - `C` `Period End`
-  - `D` `Sprint`
-  - `E` `Assignee`
-  - `F` `Completed Tasks`
-  - `G` `Completed Story Points`
-  - `H` `In Progress Tasks`
-  - `I` `In Progress Story Points`
+- the current sprint block starts at row `1`
+- metadata row `1` contains:
+  - `A1` sprint
+  - `B1` snapshot date
+  - `C1` period start
+  - `D1` period end
+- assignee rows are `3:5`
 
-Example formulas for row `12`:
-
-Completed task count:
+Completed task count for row `3`:
 
 ```gs
-=COUNTIFS(Tasks!$A:$A,$A12,Tasks!$B:$B,$B12,Tasks!$C:$C,$C12,Tasks!$D:$D,$D12,Tasks!$H:$H,$E12,Tasks!$K:$K,">="&$B12,Tasks!$K:$K,"<="&$C12)
+=COUNTIFS(Tasks!$B:$B,B1,Tasks!$C:$C,C1,Tasks!$D:$D,D1,Tasks!$F:$F,A1,Tasks!$J:$J,A3,Tasks!$L:$L,">="&C1,Tasks!$L:$L,"<="&D1)
 ```
 
-Completed story points:
+Completed story points for row `3`:
 
 ```gs
-=SUMIFS(Tasks!$I:$I,Tasks!$A:$A,$A12,Tasks!$B:$B,$B12,Tasks!$C:$C,$C12,Tasks!$D:$D,$D12,Tasks!$H:$H,$E12,Tasks!$K:$K,">="&$B12,Tasks!$K:$K,"<="&$C12)
+=SUMIFS(Tasks!$K:$K,Tasks!$B:$B,B1,Tasks!$C:$C,C1,Tasks!$D:$D,D1,Tasks!$F:$F,A1,Tasks!$J:$J,A3,Tasks!$L:$L,">="&C1,Tasks!$L:$L,"<="&D1)
 ```
 
-In-progress task count:
+In-progress task count for row `3`:
 
 ```gs
-=COUNTIFS(Tasks!$A:$A,$A12,Tasks!$B:$B,$B12,Tasks!$C:$C,$C12,Tasks!$D:$D,$D12,Tasks!$H:$H,$E12,Tasks!$J:$J,"In Progress at Snapshot")
+=COUNTIFS(Tasks!$B:$B,B1,Tasks!$C:$C,C1,Tasks!$D:$D,D1,Tasks!$F:$F,A1,Tasks!$J:$J,A3,Tasks!$G:$G,"In Progress at Snapshot")
 ```
 
-In-progress story points:
+In-progress story points for row `3`:
 
 ```gs
-=SUMIFS(Tasks!$I:$I,Tasks!$A:$A,$A12,Tasks!$B:$B,$B12,Tasks!$C:$C,$C12,Tasks!$D:$D,$D12,Tasks!$H:$H,$E12,Tasks!$J:$J,"In Progress at Snapshot")
+=SUMIFS(Tasks!$K:$K,Tasks!$B:$B,B1,Tasks!$C:$C,C1,Tasks!$D:$D,D1,Tasks!$F:$F,A1,Tasks!$J:$J,A3,Tasks!$G:$G,"In Progress at Snapshot")
 ```
 
-For the `Unassigned` row, use `Unassigned` consistently in `Tasks!H:H` if the issue has no assignee at snapshot time.
+Important:
+
+- use relative references so a whole sprint block can be copied
+- when copying the entire three-block period downward, the formulas should naturally retarget their own metadata row
+- for `Unassigned`, use `Unassigned` consistently in `Tasks!J:J`
 
 ## Ticket Selection Workflow
 
@@ -260,7 +249,7 @@ For each report run:
 5. Pair those issues with commits on the current branch.
 6. Populate the `Tasks` sheet.
 7. Refresh formulas in `Summary` only if the layout needs repair or initial setup.
-8. Prefer formulas without absolute row references so a whole period section can be copied safely.
+8. Prefer formulas without absolute row references so a whole sprint block or whole period can be copied safely.
 
 ## Commit Pairing Guidance
 
