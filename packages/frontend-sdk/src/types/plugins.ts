@@ -69,10 +69,24 @@ export interface ActionDisplayRunActionAction {
   preserve_display?: boolean;
 }
 
+export interface ActionDisplayDownloadAttachmentAssetAction {
+  kind: 'download_attachment_asset';
+  id: string;
+  label: string;
+  session_id: string;
+  asset_id: string;
+  filename: string;
+  mime_type: string;
+  plugin?: string;
+  action_owner?: string;
+  behavior?: 'platform_default' | 'share' | 'save';
+}
+
 export type ActionDisplayFollowupAction =
   | ActionDisplayOpenUrlAction
   | ActionDisplayCopyTextAction
-  | ActionDisplayRunActionAction;
+  | ActionDisplayRunActionAction
+  | ActionDisplayDownloadAttachmentAssetAction;
 
 export interface ActionDisplayPayload {
   format: 'markdown' | 'text';

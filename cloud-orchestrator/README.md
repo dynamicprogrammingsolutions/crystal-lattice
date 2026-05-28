@@ -2,6 +2,13 @@
 
 Cloud Orchestrator is the control plane for cloud agent sessions. It is independent from the bridge service.
 
+In the intended deployment shape, the orchestrator complements the
+`cloud-agent-app` plugin while the bridge complements both by handling pairing
+and cross-network connectivity for local and cloud-backed clients. The Elixir
+orchestrator owns cloud session lifecycle and runtime control; the
+`cloud-agent-app` plugin exposes those capabilities through application actions,
+connection links, and local/cloud sync flows.
+
 The MVP service is an Elixir/Phoenix application with a built-in Docker runner. The Docker runner is bundled into the same release image, but it is isolated behind a runner behaviour so later AWS Fargate, Kubernetes, or remote runner implementations can replace it without changing the public API.
 
 Conceptually:
@@ -214,4 +221,18 @@ If the external orchestrator uses a control-plane token, also set `CLOUD_ORCHEST
 
 ## License
 
-This directory is available under the [GNU Affero General Public License v3.0](LICENSE).
+Crystal Lattice Cloud Orchestrator is a control plane for cloud agent sessions.
+Copyright (C) 2026 Dynamic Programming Solutions Kft.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.

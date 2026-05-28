@@ -290,6 +290,8 @@ def test_portable_default_config_is_self_contained() -> None:
     assert config_path.is_file()
     assert (DEFAULT_CONFIG_ROOT / "system_messages").is_dir()
     assert (DEFAULT_CONFIG_ROOT / "codex").is_dir()
+    claude_plugin_root = REPO_ROOT / "plugins" / "claude-tools"
+    assert claude_plugin_root.is_dir()
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
     cloud_agent = config["application"]["cloud_agent"]
@@ -329,13 +331,6 @@ def test_portable_default_config_is_self_contained() -> None:
         "TASKS_v5.md",
         "TASKS_v6.md",
         "CLAUDE_CODE_DEFAULT.md",
-        "system_messages/claude/template.md",
-        "system_messages/claude/introduction.md",
-        "system_messages/claude/workflow.md",
-        "system_messages/claude/tool-usage.md",
-        "system_messages/claude/tone-and-style.md",
-        "system_messages/claude/memory.md",
-        "system_messages/claude/context-management.md",
         "system_messages/codex/template.md",
         "system_messages/gemini/template.md",
         "system_messages/qwen/template.md",
@@ -355,3 +350,23 @@ def test_portable_default_config_is_self_contained() -> None:
 
     for relative_path in helper_paths:
         assert (DEFAULT_CONFIG_ROOT / relative_path).is_file(), relative_path
+
+    claude_variables = config["mixins"]["claude_system_message"]["system_message"][
+        "variables"
+    ]
+    for key in (
+        "INTRODUCTION",
+        "WORKFLOW",
+        "TOOL_USAGE",
+        "TONE_AND_STYLE",
+        "MEMORY",
+        "CONTEXT_MANAGEMENT",
+    ):
+        files = claude_variables[key]["files"]
+        assert len(files) == 1
+        value = files[0]
+        assert value.startswith(
+            "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/"
+        ), value
+        relative_path = value[len("${env:BUILTIN_PLUGINS}/") :]
+        assert (REPO_ROOT / "plugins" / relative_path).is_file(), relative_path
