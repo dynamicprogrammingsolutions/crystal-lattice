@@ -1,0 +1,129 @@
+---
+---
+
+<section class="download">
+  <div class="container">
+    <h2>Get the app</h2>
+    <p>
+      Free to download. Connects to any Crystal Lattice server running on your network
+      or reachable via the bridge service.
+    </p>
+
+    <div class="btns">
+      <a href="#" class="store-btn">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
+        </svg>
+        <div class="btn-text">
+          <span class="sub">Download on the</span>
+          <span class="name">App Store</span>
+        </div>
+      </a>
+
+      <a href="#" class="store-btn">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M3 20.5v-17c0-.83.94-1.3 1.6-.8l14 8.5c.6.37.6 1.23 0 1.6l-14 8.5c-.66.5-1.6.03-1.6-.8z"/>
+        </svg>
+        <div class="btn-text">
+          <span class="sub">Get it on</span>
+          <span class="name">Google Play</span>
+        </div>
+      </a>
+    </div>
+
+    <p class="note">
+      Need the server first?
+      <a href="/#quickstart">Get Crystal Lattice →</a>
+    </p>
+  </div>
+</section>
+
+<style>
+  .download {
+    padding: 5.5rem 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .container {
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.25rem;
+  }
+
+  h2 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text);
+  }
+
+  p {
+    font-size: 0.9375rem;
+    color: var(--text-4);
+    line-height: 1.65;
+  }
+
+  .btns {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 0.25rem;
+  }
+
+  .store-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.5rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    transition: border-color 0.15s, background 0.15s;
+    min-width: 160px;
+  }
+
+  .store-btn:hover {
+    border-color: var(--border-strong);
+    background: var(--bg-surface-2);
+    color: var(--text);
+  }
+
+  .btn-text {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+  }
+
+  .sub {
+    font-size: 0.6875rem;
+    color: var(--text-4);
+    line-height: 1;
+  }
+
+  .name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .note {
+    font-size: 0.875rem;
+    color: var(--text-5);
+  }
+
+  .note a {
+    color: var(--accent-soft);
+    transition: color 0.15s;
+  }
+
+  .note a:hover {
+    color: var(--accent-pale);
+  }
+</style>

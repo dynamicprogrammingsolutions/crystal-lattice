@@ -1,0 +1,67 @@
+---
+const providers = [
+  { name: "OpenAI" },
+  { name: "Anthropic" },
+  { name: "Google Gemini" },
+  { name: "OpenRouter" },
+  { name: "Ollama" },
+  { name: "Any OpenAI-compatible API" },
+];
+---
+
+<div class="providers-strip">
+  <div class="container">
+    <p class="label">Works with</p>
+    <div class="logos">
+      {providers.map(p => (
+        <span class="chip">{p.name}</span>
+      ))}
+    </div>
+  </div>
+</div>
+
+<style>
+  .providers-strip {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 1.25rem 0;
+    background: var(--bg-alt);
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1.75rem;
+    flex-wrap: wrap;
+  }
+
+  .label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-5);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .logos {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .chip {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-4);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    padding: 0.25rem 0.625rem;
+  }
+</style>

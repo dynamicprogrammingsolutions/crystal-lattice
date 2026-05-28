@@ -1,0 +1,147 @@
+---
+const methods = [
+  {
+    num: "01",
+    title: "Manual address",
+    desc: "Enter your server's IP and port directly. Works on any network as long as you can reach the host.",
+    code: "http://192.168.1.42:9000",
+  },
+  {
+    num: "02",
+    title: "Auto-discovery",
+    desc: "On the same local network, the app finds your server automatically via Bonjour/mDNS. No config needed.",
+    code: "crystal-lattice ... --enable-bonjour",
+  },
+  {
+    num: "03",
+    title: "Bridge pairing",
+    desc: "Connect from anywhere with a pairing code. Start the bridge service, tap the code in the app, and you're connected.",
+    code: "crystal-lattice ... --enable-bridge",
+  },
+];
+---
+
+<section class="connect" id="connect">
+  <div class="container">
+    <div class="header">
+      <p class="label">Connectivity</p>
+      <h2>Connect from anywhere</h2>
+      <p class="desc">
+        Three ways to link your phone to your server. Pick whatever fits your setup.
+      </p>
+    </div>
+
+    <div class="methods">
+      {methods.map(m => (
+        <div class="method">
+          <span class="num">{m.num}</span>
+          <div class="method-body">
+            <h3>{m.title}</h3>
+            <p>{m.desc}</p>
+            <pre>{m.code}</pre>
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .connect {
+    padding: 5.5rem 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .header {
+    max-width: 520px;
+    margin-bottom: 3.5rem;
+  }
+
+  .label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-soft);
+    margin-bottom: 0.75rem;
+  }
+
+  .header h2 {
+    font-size: clamp(1.5rem, 3.5vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+    line-height: 1.2;
+  }
+
+  .desc {
+    font-size: 0.9375rem;
+    color: var(--text-4);
+    line-height: 1.6;
+  }
+
+  .methods {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.5rem;
+  }
+
+  .method {
+    display: flex;
+    gap: 1rem;
+    padding: 1.5rem;
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    transition: border-color 0.15s;
+  }
+
+  .method:hover {
+    border-color: var(--border-strong);
+  }
+
+  .num {
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: ui-monospace, monospace;
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+    padding-top: 0.1rem;
+  }
+
+  .method-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+  }
+
+  .method-body h3 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-2);
+    letter-spacing: -0.01em;
+  }
+
+  .method-body p {
+    font-size: 0.875rem;
+    color: var(--text-4);
+    line-height: 1.6;
+  }
+
+  .method-body pre {
+    font-size: 0.75rem;
+    padding: 0.625rem 0.75rem;
+  }
+
+  @media (max-width: 900px) {
+    .methods { grid-template-columns: 1fr; }
+  }
+</style>

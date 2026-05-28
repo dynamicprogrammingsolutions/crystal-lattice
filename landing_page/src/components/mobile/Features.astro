@@ -1,0 +1,150 @@
+---
+const features = [
+  {
+    title: "Real-time streaming",
+    desc: "Messages stream token-by-token as they're generated. Partial messages appear instantly, replaced by the final response when complete.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>`,
+  },
+  {
+    title: "Session management",
+    desc: "Browse all your sessions, resume any conversation, and create new ones. Each has its own model, provider, and configuration.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>`,
+  },
+  {
+    title: "Provider & model switching",
+    desc: "Switch between OpenAI, Anthropic, Ollama, and others per session. Change the model mid-conversation without losing context.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line></svg>`,
+  },
+  {
+    title: "Plugin controls",
+    desc: "Enable or disable plugins from the app. Tool results and agent actions are shown inline in the conversation as they happen.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>`,
+  },
+  {
+    title: "Connection methods",
+    desc: "Connect via manual IP, zero-config Bonjour discovery on the same network, or a pairing-code bridge for remote access.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>`,
+  },
+  {
+    title: "Thinking blocks",
+    desc: "Models with reasoning traces (Ollama, OpenRouter) show their thinking inline, collapsible so the conversation stays readable.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`,
+  },
+];
+---
+
+<section class="features" id="features">
+  <div class="container">
+    <div class="header">
+      <p class="label">What you get</p>
+      <h2>A full-featured client,<br />not a thin wrapper</h2>
+      <p class="desc">
+        The mobile app exposes the complete Crystal Lattice API.
+        Anything you can do from the terminal, you can do from your phone.
+      </p>
+    </div>
+
+    <div class="grid">
+      {features.map(f => (
+        <div class="card">
+          <div class="icon" set:html={f.icon} />
+          <h3>{f.title}</h3>
+          <p>{f.desc}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .features {
+    padding: 5.5rem 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .header {
+    max-width: 520px;
+    margin-bottom: 3.5rem;
+  }
+
+  .label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-soft);
+    margin-bottom: 0.75rem;
+  }
+
+  .header h2 {
+    font-size: clamp(1.5rem, 3.5vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+    line-height: 1.2;
+  }
+
+  .desc {
+    font-size: 0.9375rem;
+    color: var(--text-4);
+    line-height: 1.6;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    overflow: hidden;
+  }
+
+  .card {
+    background: var(--bg);
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    transition: background 0.15s;
+  }
+
+  .card:hover {
+    background: var(--bg-raised);
+  }
+
+  .icon {
+    color: var(--accent-soft);
+    width: 18px;
+    height: 18px;
+    margin-bottom: 0.25rem;
+  }
+
+  .card h3 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-2);
+    letter-spacing: -0.01em;
+  }
+
+  .card p {
+    font-size: 0.875rem;
+    color: var(--text-4);
+    line-height: 1.6;
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>

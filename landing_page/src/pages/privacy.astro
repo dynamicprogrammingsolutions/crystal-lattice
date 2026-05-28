@@ -1,0 +1,207 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Layout
+  title="Privacy Policy — Crystal Lattice"
+  description="Crystal Lattice privacy policy. Local-first software — your data stays on your machine."
+>
+  <Nav />
+  <main class="prose-page">
+    <div class="container">
+      <div class="header">
+        <p class="label">Legal</p>
+        <h1>Privacy Policy</h1>
+        <p class="meta">Effective date: May 2025</p>
+      </div>
+
+      <div class="content">
+        <section>
+          <h2>The short version</h2>
+          <p>
+            Crystal Lattice is local-first software. It runs on your machine. Your conversations,
+            sessions, and agent history are stored on your own filesystem and are never sent to us.
+            We don't have servers that store your data. We don't have accounts. We don't have a cloud.
+          </p>
+        </section>
+
+        <section>
+          <h2>What Crystal Lattice collects</h2>
+          <p>The Crystal Lattice CLI and server software collect nothing on our behalf. Specifically:</p>
+          <ul>
+            <li>All session data, message history, and agent configuration is stored locally on your machine in the working directory you specify.</li>
+            <li>No telemetry, analytics, or usage data is transmitted to Crystal Lattice from the CLI or server software.</li>
+            <li>No account creation is required. We have no user database.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>AI provider requests</h2>
+          <p>
+            When you run an agent session, Crystal Lattice sends your messages to whichever
+            AI provider you have configured (OpenAI, Anthropic, Google Gemini, OpenRouter,
+            or a local model via Ollama). These requests go directly from your machine to the
+            provider's API — they do not pass through Crystal Lattice infrastructure.
+          </p>
+          <p>
+            Each provider has their own privacy policy and data handling practices. If you use
+            a local model via Ollama, no data leaves your machine at all.
+          </p>
+        </section>
+
+        <section>
+          <h2>The bridge service</h2>
+          <p>
+            Crystal Lattice includes an optional bridge service that proxies HTTP requests
+            between your phone and your local server when they are on different networks.
+            The bridge relays traffic in real time — it does not store your messages, sessions,
+            or any conversation content. Connections are identified by a pairing code that
+            you generate and your server registers. The bridge retains pairing metadata
+            (a session ID and server registration) only as long as the server session is active.
+          </p>
+        </section>
+
+        <section>
+          <h2>This website</h2>
+          <p>
+            This website (crystallattice.dev) may collect standard web server access logs
+            (IP address, browser type, pages visited, referrer) for operational purposes.
+            We do not use third-party advertising trackers. If we add any analytics in the
+            future, we will update this policy.
+          </p>
+        </section>
+
+        <section>
+          <h2>The mobile app</h2>
+          <p>
+            Crystal Lattice Control (the iOS and Android companion app) connects only to
+            the server address you provide — either a local IP, an mDNS address, or the
+            bridge service. The app does not transmit any data to us. It stores your
+            server connection preferences locally on your device.
+          </p>
+          <p>
+            App Store and Google Play distribution means that Apple and Google's platform
+            privacy policies also apply to the download and installation of the app.
+          </p>
+        </section>
+
+        <section>
+          <h2>Open source</h2>
+          <p>
+            Crystal Lattice is open source under the Apache 2.0 license. You can review
+            exactly what the software does by reading the source code on GitHub. There
+            are no hidden network calls, no obfuscated telemetry, and no proprietary
+            binary components in the core platform.
+          </p>
+        </section>
+
+        <section>
+          <h2>Changes to this policy</h2>
+          <p>
+            We may update this policy if the software or services change in ways that affect
+            privacy. Changes will be posted to this page with an updated effective date.
+          </p>
+        </section>
+
+        <section>
+          <h2>Contact</h2>
+          <p>
+            Questions about this policy can be directed to the project via GitHub Issues
+            or the contact information in the repository.
+          </p>
+        </section>
+      </div>
+    </div>
+  </main>
+  <Footer />
+</Layout>
+
+<style>
+  .prose-page {
+    padding: 5rem 0 6rem;
+  }
+
+  .container {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .header {
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-soft);
+    margin-bottom: 0.75rem;
+  }
+
+  h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+
+  .meta {
+    font-size: 0.875rem;
+    color: var(--text-5);
+  }
+
+  .content {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+
+  section h2 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--text-2);
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.01em;
+  }
+
+  section p {
+    font-size: 0.9375rem;
+    color: var(--text-4);
+    line-height: 1.7;
+    margin-bottom: 0.75rem;
+  }
+
+  section p:last-child {
+    margin-bottom: 0;
+  }
+
+  section ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+
+  section ul li {
+    font-size: 0.9375rem;
+    color: var(--text-4);
+    line-height: 1.65;
+    padding-left: 1.25rem;
+    position: relative;
+  }
+
+  section ul li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--border-strong);
+  }
+</style>

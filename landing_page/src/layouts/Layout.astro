@@ -1,0 +1,42 @@
+---
+import { ViewTransitions } from 'astro:transitions';
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+const {
+  title = "Crystal Lattice: The Open Source AI Agent Platform",
+  description = "A local-first, provider-agnostic AI agent platform. Terminal & HTTP server, mobile app, plugin ecosystem, and Python SDK. All on your own hardware.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content={description} />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <title>{title}</title>
+  <ViewTransitions />
+  <!-- Prevent flash of wrong theme -->
+  <script is:inline>
+    (function () {
+      const saved = localStorage.getItem('cl-theme');
+      const preferred = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      const theme = saved || preferred;
+      document.documentElement.setAttribute('data-theme', theme);
+      const favicon = document.querySelector('link[rel="icon"]');
+      if (favicon) favicon.setAttribute('href', theme === 'dark' ? '/icon_dark.svg' : '/icon.svg');
+    })();
+  </script>
+</head>
+<body>
+  <slot />
+</body>
+</html>
+
+<style is:global>
+  @import '../styles/global.css';
+</style>

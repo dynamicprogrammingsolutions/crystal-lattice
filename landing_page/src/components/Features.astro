@@ -1,0 +1,150 @@
+---
+const features = [
+  {
+    title: "Local-first & private",
+    desc: "Your conversations, sessions, and history live on your own machine. No data is sent anywhere except to whichever AI provider you choose. Run completely offline with local models via Ollama: no API key, no internet, no data leaving your device.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>`,
+  },
+  {
+    title: "Provider agnostic",
+    desc: "Crystal Lattice doesn't lock you into any one AI provider or model. The terminal, mobile app, and SDK all work identically regardless of which provider is configured. Switching providers is a one-line config change.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line></svg>`,
+  },
+  {
+    title: "Streaming-first",
+    desc: "Responses stream token-by-token from the model, through the server, to your terminal or phone. Partial messages display as they arrive. Final messages replace them with full metadata: tool call results, reasoning traces, and token counts.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>`,
+  },
+  {
+    title: "Persistent sessions",
+    desc: "Sessions are stored on the filesystem. Restart the server and your conversations are still there. Multiple simultaneous sessions, each with their own agent config, message history, and state. List and resume any session from the mobile app.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>`,
+  },
+  {
+    title: "Automatic tool calling",
+    desc: "Agents call tools (file reads, web search, code execution, or custom tools you define) in an automatic multi-step loop. The model requests a tool call, the app executes it, the result feeds back into the conversation, and the model continues.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>`,
+  },
+  {
+    title: "Deep plugin system",
+    desc: "Extend every layer: add providers, tools, features, UI controls, and application actions with Python or JavaScript plugins. You never need to modify the core to add a capability. Write a plugin, point your config at it, and it loads.",
+    icon: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>`,
+  },
+];
+---
+
+<section class="features" id="features">
+  <div class="container">
+    <div class="header">
+      <p class="label">Features</p>
+      <h2>Full control, zero compromises</h2>
+      <p class="desc">
+        Persistent sessions, multi-agent configs, tool calling, streaming, mobile access,
+        and a developer SDK. Full control, no vendor lock-in.
+      </p>
+    </div>
+
+    <div class="grid">
+      {features.map(f => (
+        <div class="card">
+          <div class="icon" set:html={f.icon} />
+          <h3>{f.title}</h3>
+          <p>{f.desc}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .features {
+    padding: 5.5rem 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .header {
+    max-width: 520px;
+    margin-bottom: 3.5rem;
+  }
+
+  .label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-soft);
+    margin-bottom: 0.75rem;
+  }
+
+  .header h2 {
+    font-size: clamp(1.5rem, 3.5vw, 2rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+    line-height: 1.2;
+  }
+
+  .desc {
+    font-size: 0.9375rem;
+    color: var(--text-4);
+    line-height: 1.6;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    overflow: hidden;
+  }
+
+  .card {
+    background: var(--bg);
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    transition: background 0.15s;
+  }
+
+  .card:hover {
+    background: var(--bg-raised);
+  }
+
+  .icon {
+    color: var(--accent-soft);
+    width: 18px;
+    height: 18px;
+    margin-bottom: 0.25rem;
+  }
+
+  .card h3 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-2);
+    letter-spacing: -0.01em;
+  }
+
+  .card p {
+    font-size: 0.875rem;
+    color: var(--text-4);
+    line-height: 1.6;
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
