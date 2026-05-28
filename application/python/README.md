@@ -256,6 +256,10 @@ Important layout behavior:
 - Config files, sessions, auth state, and plugin install caches are user-owned
   state and stay outside the bundle.
 
+Literal values can opt out of placeholder resolution by wrapping them as
+`{"$raw": "..."}` in JSON config. The wrapped value is passed through exactly
+as written, including `${env:...}` or `${file:...}` text.
+
 ## Provider Credentials
 
 
@@ -644,7 +648,9 @@ removed from the generated cloud runtime config from the top-level `plugins`
 list and from any provider or agent `plugins` lists. This does not affect the
 local runtime config, and it is different from the normal config-layer
 `disabled_plugins` setting, which only disables already-loaded plugins at
-runtime.
+runtime. Because these entries are identifier-like plugin specs, use raw
+literals when they contain placeholders, for example
+`{"$raw": "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"}`.
 
 Scripts receive stable environment variables:
 

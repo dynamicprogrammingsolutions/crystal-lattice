@@ -1535,3 +1535,83 @@ def test_portable_config_cloud_disabled_plugin_specs_do_not_mutate_local_input()
         {"path": "plugins", "spec": disabled_spec},
         {"path": "agents.default.plugins", "spec": disabled_spec},
     ]
+
+
+def test_agent_application_cloud_disabled_plugins_support_raw_literals(
+    tmp_path: Path,
+) -> None:
+    disabled_spec = "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"
+    cloud_plugin_path = _plugin_path()
+    config = {
+        "providers": {
+            "echo": {
+                "provider": "echo_openai_like",
+                "model": "test-model",
+            }
+        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            disabled_spec,
+            f"path:{cloud_plugin_path}",
+        ],
+        "agents": {
+            "codex-openai": {
+                "provider": "echo",
+            }
+        },
+        "application": {
+            "cloud_agent": {
+                "orchestrator_url": "http://orchestrator.test",
+                "workspace_dir": str(tmp_path / "workspace"),
+                "disabled_plugins": [{"$raw": disabled_spec}],
+                "default_transfer_up_profile": "test-transfer",
+                "default_sync_down_profile": "test-sync",
+                "default_container_profile": "test-runtime",
+                "transfer_up_profiles": {
+                    "test-transfer": {
+                        "local_transfer_script": str(_write_script(tmp_path / "transfer")),
+                        "cloud_setup_profile": "test-setup",
+                        "install_profile": "test-install",
+                    }
+                },
+                "cloud_setup_profiles": {
+                    "test-setup": {
+                        "cloud_setup_script": str(_write_script(tmp_path / "setup"))
+                    }
+                },
+                "install_profiles": {
+                    "test-install": {
+                        "cloud_install_script": str(_write_script(tmp_path / "install"))
+                    }
+                },
+                "sync_down_profiles": {
+                    "test-sync": {
+                        "cloud_export_script": str(_write_script(tmp_path / "export")),
+                        "local_apply_script": str(_write_script(tmp_path / "apply")),
+                    }
+                },
+                "container_profiles": {
+                    "test-runtime": {"image": "cloud-agent-runtime:latest"}
+                },
+            }
+        },
+    }
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    cloud_state = app._app_plugins["cloud"].state
+    portable, manifest = build_portable_config(
+        app.get_raw_config(),
+        cloud_agent_config=cloud_state,
+        selected_agent_id="codex-openai",
+    )
+
+    assert cloud_state["disabled_plugins"] == [disabled_spec]
+    assert disabled_spec not in portable["plugins"]
+    assert manifest["disabled_plugins"]["requested"] == [disabled_spec]
+    assert manifest["disabled_plugins"]["removed"] == [
+        {"path": "plugins", "spec": disabled_spec}
+    ]

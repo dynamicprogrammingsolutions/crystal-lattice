@@ -145,6 +145,8 @@ def _resolve_value(
 def _walk_and_resolve(
     obj: Any, path: str, env: Mapping[str, str], errors: List[Dict[str, Any]]
 ) -> Any:
+    if isinstance(obj, dict) and set(obj.keys()) == {"$raw"}:
+        return _copy_jsonish(obj["$raw"])
     if isinstance(obj, dict):
         out: Dict[str, Any] = {}
         for key, value in obj.items():
