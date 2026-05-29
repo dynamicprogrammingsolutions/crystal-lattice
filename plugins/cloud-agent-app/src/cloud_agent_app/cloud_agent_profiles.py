@@ -13,8 +13,6 @@ DEFAULT_RUNTIME_IMAGE = "cloud-agent-runtime:latest"
 
 PROFILE_SECTIONS = {
     "transfer_up_profiles",
-    "cloud_setup_profiles",
-    "install_profiles",
     "sync_down_profiles",
     "container_profiles",
 }
@@ -24,14 +22,23 @@ DEFAULT_PROFILE_KEYS = {
     "default_container_profile",
 }
 SCRIPT_FIELDS_BY_SECTION = {
-    "transfer_up_profiles": {"local_stage_script", "local_transfer_script"},
-    "cloud_setup_profiles": {"cloud_setup_script"},
-    "install_profiles": {"cloud_install_script"},
+    "transfer_up_profiles": {
+        "local_stage_script",
+        "local_transfer_script",
+        "cloud_setup_script",
+        "install_script",
+        "validation_script",
+    },
     "sync_down_profiles": {
         "cloud_export_script",
         "cloud_mark_synced_script",
         "local_apply_script",
     },
+}
+OPTIONAL_TRANSFER_HOOK_DEFAULTS = {
+    "local_stage_script": "${env:WORKING_DIR}/.cloud-agent/local-stage",
+    "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
+    "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
 }
 ENV_PLACEHOLDER_RE = re.compile(r"\$\{env:([^}]+)\}")
 
@@ -63,6 +70,9 @@ def resolve_cloud_agent_profiles(
             script_candidates=script_candidates,
             base_dir=project_base_dir,
         )
+    _ensure_optional_transfer_hook_candidates(
+        merged, script_candidates=script_candidates, base_dir=working_dir
+    )
 
     if not any(
         isinstance(merged.get(section), Mapping) for section in PROFILE_SECTIONS
@@ -78,22 +88,6 @@ def resolve_cloud_agent_profiles(
     sync = _profile(merged, "sync_down_profiles", sync_id)
     container = _profile(merged, "container_profiles", container_id)
 
-    setup_id = transfer.get("cloud_setup_profile")
-    if not isinstance(setup_id, str) or not setup_id.strip():
-        raise ValueError(
-            f"application.cloud_agent.transfer_up_profiles.{transfer_id}.cloud_setup_profile is required"
-        )
-    setup_id = setup_id.strip()
-    _profile(merged, "cloud_setup_profiles", setup_id)
-
-    install_id = transfer.get("install_profile")
-    if not isinstance(install_id, str) or not install_id.strip():
-        raise ValueError(
-            f"application.cloud_agent.transfer_up_profiles.{transfer_id}.install_profile is required"
-        )
-    install_id = install_id.strip()
-    _profile(merged, "install_profiles", install_id)
-
     _validate_declared_compatibility(
         merged,
         transfer_id=transfer_id,
@@ -104,8 +98,6 @@ def resolve_cloud_agent_profiles(
 
     effective = dict(merged)
     effective["selected_transfer_up_profile"] = transfer_id
-    effective["selected_cloud_setup_profile"] = setup_id
-    effective["selected_install_profile"] = install_id
     effective["selected_sync_down_profile"] = sync_id
     effective["selected_container_profile"] = container_id
     effective["local_stage_script"] = _resolve_optional_script(
@@ -114,6 +106,9 @@ def resolve_cloud_agent_profiles(
         transfer_id,
         "local_stage_script",
         env=env_map,
+        allowed_missing_paths={
+            _standard_optional_hook_path("local_stage_script", env=env_map)
+        },
     )
     effective["local_transfer_script"] = _resolve_script(
         script_candidates,
@@ -124,17 +119,30 @@ def resolve_cloud_agent_profiles(
     )
     effective["cloud_setup_script"] = _resolve_script(
         script_candidates,
-        "cloud_setup_profiles",
-        setup_id,
+        "transfer_up_profiles",
+        transfer_id,
         "cloud_setup_script",
         env=env_map,
     )
-    effective["cloud_install_script"] = _resolve_script(
+    effective["install_script"] = _resolve_optional_script(
         script_candidates,
-        "install_profiles",
-        install_id,
-        "cloud_install_script",
+        "transfer_up_profiles",
+        transfer_id,
+        "install_script",
         env=env_map,
+        allowed_missing_paths={
+            _standard_optional_hook_path("install_script", env=env_map)
+        },
+    )
+    effective["validation_script"] = _resolve_optional_script(
+        script_candidates,
+        "transfer_up_profiles",
+        transfer_id,
+        "validation_script",
+        env=env_map,
+        allowed_missing_paths={
+            _standard_optional_hook_path("validation_script", env=env_map)
+        },
     )
     effective["cloud_export_script"] = _resolve_script(
         script_candidates,
@@ -266,6 +274,25 @@ def _initial_script_candidates(
     return candidates
 
 
+def _ensure_optional_transfer_hook_candidates(
+    config: Mapping[str, Any],
+    *,
+    script_candidates: ScriptCandidates,
+    base_dir: Path,
+) -> None:
+    profiles = config.get("transfer_up_profiles")
+    if not isinstance(profiles, Mapping):
+        return
+    for profile_id, profile in profiles.items():
+        if not isinstance(profile_id, str) or not isinstance(profile, Mapping):
+            continue
+        for field, default_value in OPTIONAL_TRANSFER_HOOK_DEFAULTS.items():
+            key = ("transfer_up_profiles", profile_id, field)
+            if key in script_candidates:
+                continue
+            script_candidates[key] = _script_candidates(default_value, base_dir)
+
+
 def _script_candidates(value: Any, base_dir: Path) -> list[ScriptCandidate]:
     if isinstance(value, str):
         return [(value, base_dir)]
@@ -310,11 +337,32 @@ def _resolve_optional_script(
     field: str,
     *,
     env: Mapping[str, str],
+    allowed_missing_paths: set[Path] | None = None,
 ) -> str | None:
     key = (section, profile_id, field)
     if key not in candidates:
         return None
-    return _resolve_script(candidates, section, profile_id, field, env=env)
+    attempted: list[str] = []
+    non_optional_attempts: list[str] = []
+    for raw, base_dir in candidates.get(key, []):
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        path = Path(_expand_env(raw, env)).expanduser()
+        if not path.is_absolute():
+            path = base_dir / path
+        path = path.resolve()
+        attempted.append(str(path))
+        if path.is_file():
+            return str(path)
+        if allowed_missing_paths is None or path not in allowed_missing_paths:
+            non_optional_attempts.append(str(path))
+
+    if non_optional_attempts:
+        path_label = f"application.cloud_agent.{section}.{profile_id}.{field}"
+        raise ValueError(
+            f"{path_label} did not resolve to an existing script: {attempted}"
+        )
+    return None
 
 
 def _validate_sections(config: Mapping[str, Any]) -> None:
@@ -421,6 +469,15 @@ def _expand_env(value: str, env: Mapping[str, str]) -> str:
         return env.get(match.group(1), "")
 
     return ENV_PLACEHOLDER_RE.sub(replace, value)
+
+
+def _standard_optional_hook_path(field: str, *, env: Mapping[str, str]) -> Path:
+    raw = OPTIONAL_TRANSFER_HOOK_DEFAULTS[field]
+    working_dir = Path(env.get("WORKING_DIR") or os.getcwd()).expanduser()
+    path = Path(_expand_env(raw, env)).expanduser()
+    if not path.is_absolute():
+        path = working_dir / path
+    return path.resolve()
 
 
 __all__ = [

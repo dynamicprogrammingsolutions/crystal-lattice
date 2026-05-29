@@ -495,7 +495,7 @@ crystal-lattice \
   --cloud-orchestrator-token "$CLOUD_ORCHESTRATOR_TOKEN"
 ```
 
-Config example:
+Quick-start config:
 
 ```json
 {
@@ -507,138 +507,36 @@ Config example:
       "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
       "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
       "workspace_dir": ".",
-      "connection_key": "optional-stable-project-or-server-key",
-      "transfer_method": "managed_ssh",
       "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
       "default_transfer_up_profile": "working-tree-current-state",
       "default_sync_down_profile": "working-tree-patch",
-      "default_container_profile": "default-runtime",
-      "transfer_up_profiles": {
-        "working-tree-current-state": {
-          "label": "Working tree current state",
-          "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/profiles/common/local-stage-hook",
-          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state/transfer-up",
-          "cloud_setup_profile": "git-archive-patch-setup",
-          "install_profile": "repo-install-hook",
-          "compatible_sync_down_profiles": ["working-tree-patch"]
-        },
-        "working-tree-current-state-branch": {
-          "label": "Working tree current state with branch export",
-          "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/profiles/common/local-stage-hook",
-          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state-branch/transfer-up",
-          "cloud_setup_profile": "git-dirty-head-setup",
-          "install_profile": "repo-install-hook",
-          "compatible_sync_down_profiles": ["branch-import-snapshot"]
-        },
-        "clean-head": {
-          "label": "Clean committed HEAD",
-          "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/profiles/common/local-stage-hook",
-          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/clean-head/transfer-up",
-          "cloud_setup_profile": "git-clean-head-setup",
-          "install_profile": "repo-install-hook",
-          "compatible_sync_down_profiles": ["branch-import"]
-        }
-      },
-      "cloud_setup_profiles": {
-        "git-archive-patch-setup": {
-          "label": "Archive plus working patch setup",
-          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/git-archive-patch-setup/setup"
-        },
-        "git-dirty-head-setup": {
-          "label": "Git dirty-head setup",
-          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/git-dirty-head-setup/setup"
-        },
-        "git-clean-head-setup": {
-          "label": "Git clean HEAD setup",
-          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/git-clean-head-setup/setup"
-        }
-      },
-      "install_profiles": {
-        "repo-install-hook": {
-          "label": "Repository install hook",
-          "cloud_install_script": "${env:CONFIG_DIR}/cloud-agent/profiles/repo-install/install"
-        }
-      },
-      "sync_down_profiles": {
-        "working-tree-patch": {
-          "label": "Apply cloud patch to current worktree",
-          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/export",
-          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/mark-synced",
-          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/apply-down",
-          "compatible_transfer_up_profiles": ["working-tree-current-state"]
-        },
-        "branch-import-snapshot": {
-          "label": "Import committed cloud branch with safety snapshots",
-          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/export",
-          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/mark-synced",
-          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/apply-down",
-          "compatible_transfer_up_profiles": ["working-tree-current-state-branch"]
-        },
-        "branch-import": {
-          "label": "Import committed cloud branch",
-          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/export",
-          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/mark-synced",
-          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/apply-down",
-          "compatible_transfer_up_profiles": ["clean-head"]
-        }
-      },
-      "container_profiles": {
-        "default-runtime": {
-          "label": "Default cloud agent runtime",
-          "image": "cloud-agent-runtime:latest"
-        }
-      },
-      "managed_ssh": {
-        "adapter_script": null,
-        "ssh_path": "ssh",
-        "rsync_path": "rsync",
-        "extra_rsync_args": []
-      },
-      "disabled_plugins": [
-        "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"
-      ],
-      "config_assets": {
-        "include_config_dir": true,
-        "exclude": [".env", ".env.*", ".plugin_cache", "logs", "sessions", "auth", "state"],
-        "max_top_level_entry_bytes": 104857600
-      },
-      "runtime_env": {
-        "include_config_env": true,
-        "include": [],
-        "exclude": [
-          "CLOUD_ORCHESTRATOR_URL",
-          "CLOUD_ORCHESTRATOR_TOKEN",
-          "SERVER_HOST",
-          "SERVER_PORT",
-          "BRIDGE_URL",
-          "BRIDGE_LOCAL_HTTP_BASE",
-          "OPENAI_BASE_URL",
-          "CONFIG_DIR",
-          "BUILTIN_PLUGINS",
-          "PLUGIN_CACHE_DIR"
-        ],
-        "env_files": []
-      }
+      "default_container_profile": "default-runtime"
     }
   }
 }
 ```
 
+The default bundled profiles are selected automatically. Projects can usually
+customize cloud behavior with repo-local hooks instead of inventing project-only
+bundled profiles:
+
+- `.cloud-agent/local-stage`
+- `.cloud-agent/install-cloud`
+- `.cloud-agent/validate-cloud`
+
+The full cloud profile reference lives in
+[`plugins/cloud-agent-app/README.md`](../../plugins/cloud-agent-app/README.md),
+including:
+
+- the flattened `transfer_up_profiles` schema
+- the bundled script tree under `default_config/cloud-agent/profiles/`
+- the standard repo-local hook conventions and optional-hook behavior
+- the complete config example and field-by-field reference
+
 `connection_key` is optional. When omitted, the cloud plugin derives an opaque
 stable key from the local config/workspace context so multiple local sessions
 can share one cloud connection while still running as separate cloud instances.
 The orchestrator treats this key as plugin-owned opaque data.
-
-The configured default profiles are selected automatically. Projects can
-override the bundled defaults from a single optional workdir file at
-`.cloud-agent/cloud-agent.json`. That file may override default profile ids or
-individual profile fields. Script fields can be a string or an ordered fallback
-list; the first existing script path is used, and fallback lists in the project
-file fall back to the inherited bundled script when no project path exists.
-Relative script paths in the project file resolve from `WORKING_DIR`.
-Patch-based and branch-based sync profiles can define
-`cloud_mark_synced_script`; it runs only after the local apply step succeeds,
-so the cloud-side baseline advances without breaking retry safety.
 
 `application.cloud_agent.disabled_plugins` is a cloud-only plugin-spec filter
 applied during portable config generation. Each entry must match an exact
@@ -646,31 +544,13 @@ plugin spec string from a `plugins` list, for example
 `path:${env:BUILTIN_PLUGINS}/session-asset-attachments`. Matching specs are
 removed from the generated cloud runtime config from the top-level `plugins`
 list and from any provider or agent `plugins` lists. This does not affect the
-local runtime config, and it is different from the normal config-layer
-`disabled_plugins` setting, which only disables already-loaded plugins at
-runtime. Because these entries are identifier-like plugin specs, use raw
-literals when they contain placeholders, for example
-`{"$raw": "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"}`.
-
-Scripts receive stable environment variables:
-
-- Local stage/transfer: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`,
-  `TRANSFER_DIR`, `TRANSFER_STAGE_DIR`, `SESSION_ID`
-- Cloud setup/install/export: `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`,
-  `TRANSFER_STAGE_DIR`, `WORKING_DIR`, `SESSION_ID`
-- Local apply: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`,
-  `TRANSFER_STAGE_DIR`, `WORKING_DIR`, `SESSION_ID`
-
-Branch-oriented profiles also receive explicit refs such as
-`CLOUD_AGENT_DELEGATED_SNAPSHOT_REF`, `CLOUD_AGENT_CLOUD_FULL_STATE_REF`,
-`CLOUD_AGENT_LOCAL_IMPORT_STATE_REF`, `CLOUD_AGENT_LAST_SYNCED_REF`, and
-`CLOUD_AGENT_IMPORTED_BRANCH_NAME`.
+local runtime config.
 
 The managed-SSH byte-transfer adapter is platform-owned. By default it runs the
 packaged rsync-over-SSH adapter script against the orchestrator's restricted
 transfer slot. Projects can override `managed_ssh.adapter_script` for unusual
-transport needs, but workspace selection should stay in the project content
-scripts above.
+transport needs, but workspace selection should stay in repo-local hook and
+profile scripts.
 
 For deployments where the orchestrator HTTP endpoint and managed-SSH endpoint
 are different hosts, such as AWS CloudFront in front of an EC2 Docker host, the
@@ -685,12 +565,10 @@ under `.cloud-agent/config/config.json`, removes the local
 `application.cloud_agent` control-plane section, and copies the configured
 `CONFIG_DIR` asset tree to `.cloud-agent/config/assets/`. The cloud runtime
 sets `CONFIG_DIR` to that copied asset tree and `WORKING_DIR` to the cloud
-workspace. Plugin-owned settings such as `working_directory` and
-`allowed_paths` are preserved as configured.
+workspace. Environment variables referenced by config placeholders are
+transferred through `.cloud-agent/env/runtime.env` according to `runtime_env`.
+Values are never included in action display payloads.
 
-Environment variables referenced by config placeholders are transferred through
-`.cloud-agent/env/runtime.env` according to `runtime_env`. Values are never
-included in action display payloads.
 - `POST /sessions` - create a session.
 - `GET /sessions` - list sessions.
 - `GET /sessions/{session_id}/messages` - list session messages.

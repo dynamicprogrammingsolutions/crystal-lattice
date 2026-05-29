@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# Purpose: Export the local git base plus dirty working-tree state for the
+# branch-import family, preserving a delegated snapshot ref for safety.
+# Required env vars: LOCAL_WORKSPACE_DIR, TRANSFER_DIR, SESSION_ID,
+# CLOUD_AGENT_DELEGATED_SNAPSHOT_REF.
+# Inputs: Git worktree at LOCAL_WORKSPACE_DIR.
+# Outputs: TRANSFER_DIR/.cloud-agent/base-commit, repo.bundle, working.patch,
+# and delegated-snapshot metadata.
+# Customization: Keep this bundled script for branch-import transfer; use
+# .cloud-agent/local-stage for repo-local staged additions.
 set -euo pipefail
 
 : "${LOCAL_WORKSPACE_DIR:?}"

@@ -1,4 +1,13 @@
 #!/usr/bin/env bash
+# Purpose: Recreate the delegated dirty working state in the cloud workspace and
+# persist a delegated safety snapshot ref for later branch-import sync-down.
+# Required env vars: CLOUD_WORKSPACE_DIR, TRANSFER_DIR, TRANSFER_STAGE_DIR,
+# SESSION_ID, CLOUD_AGENT_DELEGATED_SNAPSHOT_REF.
+# Inputs: TRANSFER_DIR/.cloud-agent/base-commit, repo.bundle, working.patch, and
+# optional TRANSFER_STAGE_DIR contents.
+# Outputs: Prepared git workspace at CLOUD_WORKSPACE_DIR plus delegated snapshot ref.
+# Customization: Keep this bundled script for branch-import transfer; use
+# .cloud-agent/install-cloud for project-specific cloud bootstrap work.
 set -euo pipefail
 
 : "${CLOUD_WORKSPACE_DIR:?}"

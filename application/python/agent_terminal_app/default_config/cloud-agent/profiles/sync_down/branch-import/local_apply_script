@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# Purpose: Import the committed cloud branch plus optional safety snapshot refs
+# into the local repository without mutating the current local dirty worktree.
+# Required env vars: LOCAL_WORKSPACE_DIR, TRANSFER_DIR, SESSION_ID,
+# CLOUD_AGENT_IMPORTED_BRANCH_NAME, CLOUD_AGENT_CLOUD_FULL_STATE_REF,
+# CLOUD_AGENT_LOCAL_IMPORT_STATE_REF.
+# Inputs: TRANSFER_DIR/.cloud-agent/refs.bundle and ref metadata files.
+# Outputs: Updated local branch/import refs in LOCAL_WORKSPACE_DIR.
+# Customization: Keep this bundled script for branch-import sync-down.
 set -euo pipefail
 
 : "${LOCAL_WORKSPACE_DIR:?}"

@@ -49,19 +49,9 @@ def _write_config(tmp_path: Path, transfer_script: Path) -> Path:
                 "transfer_up_profiles": {
                     "test-transfer": {
                         "local_transfer_script": str(transfer_script),
-                        "cloud_setup_profile": "test-setup",
-                        "install_profile": "test-install",
-                        "compatible_sync_down_profiles": ["test-sync"],
-                    }
-                },
-                "cloud_setup_profiles": {
-                    "test-setup": {
                         "cloud_setup_script": str(transfer_script),
-                    }
-                },
-                "install_profiles": {
-                    "test-install": {
-                        "cloud_install_script": str(transfer_script),
+                        "install_script": str(transfer_script),
+                        "compatible_sync_down_profiles": ["test-sync"],
                     }
                 },
                 "sync_down_profiles": {
@@ -213,6 +203,57 @@ def test_cloud_start_session_default_wait_timeout_is_short() -> None:
     )
 
 
+def test_write_cloud_runtime_scripts_copies_optional_validation_script(
+    tmp_path: Path,
+) -> None:
+    plugin = CloudAgentAppPlugin()
+    workspace = tmp_path / "workspace"
+    transfer_dir = tmp_path / "transfer"
+    workspace.mkdir()
+    transfer_dir.mkdir()
+
+    setup = _write_script(tmp_path / "setup", 'printf setup > /dev/null\n')
+    install = _write_script(tmp_path / "install", 'printf install > /dev/null\n')
+    validate = _write_script(tmp_path / "validate", 'printf validate > /dev/null\n')
+    export = _write_script(tmp_path / "export", 'printf export > /dev/null\n')
+    sync_applied = _write_script(tmp_path / "sync-applied", 'printf sync > /dev/null\n')
+
+    plugin._write_cloud_runtime_scripts(
+        transfer_dir,
+        {
+            "cloud_setup_script": str(setup),
+            "install_script": str(install),
+            "validation_script": str(validate),
+            "cloud_export_script": str(export),
+            "cloud_mark_synced_script": str(sync_applied),
+            "selected_transfer_up_profile": "working-tree-current-state",
+            "selected_sync_down_profile": "working-tree-patch",
+        },
+        workspace,
+        session_id="session-1",
+    )
+
+    scripts_dir = transfer_dir / ".cloud-agent" / "scripts"
+    assert (scripts_dir / "setup").read_text(encoding="utf-8") == setup.read_text(
+        encoding="utf-8"
+    )
+    assert (scripts_dir / "install").read_text(encoding="utf-8") == install.read_text(
+        encoding="utf-8"
+    )
+    assert (scripts_dir / "validate").read_text(
+        encoding="utf-8"
+    ) == validate.read_text(encoding="utf-8")
+    assert (scripts_dir / "export").read_text(encoding="utf-8") == export.read_text(
+        encoding="utf-8"
+    )
+    assert (scripts_dir / "sync-applied").read_text(
+        encoding="utf-8"
+    ) == sync_applied.read_text(encoding="utf-8")
+    runtime_env = (scripts_dir / "runtime.env").read_text(encoding="utf-8")
+    assert "CLOUD_AGENT_TRANSFER_UP_PROFILE_ID=working-tree-current-state" in runtime_env
+    assert "CLOUD_AGENT_SYNC_DOWN_PROFILE_ID=working-tree-patch" in runtime_env
+
+
 def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
     tmp_path: Path,
 ) -> None:
@@ -222,6 +263,7 @@ def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
     transfer = _write_script(config_dir / "cloud-agent" / "transfer-up")
     setup = _write_script(config_dir / "cloud-agent" / "setup")
     install = _write_script(config_dir / "cloud-agent" / "install")
+    validate = _write_script(config_dir / "cloud-agent" / "validate")
     export = _write_script(config_dir / "cloud-agent" / "export")
     apply_down = _write_script(config_dir / "cloud-agent" / "apply-down")
 
@@ -234,19 +276,10 @@ def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
                 "working-tree-current-state": {
                     "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/local-stage",
                     "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/transfer-up",
-                    "cloud_setup_profile": "git-setup",
-                    "install_profile": "repo-install",
+                    "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/setup",
+                    "install_script": "${env:CONFIG_DIR}/cloud-agent/install",
+                    "validation_script": "${env:CONFIG_DIR}/cloud-agent/validate",
                     "compatible_sync_down_profiles": ["working-tree-patch"],
-                }
-            },
-            "cloud_setup_profiles": {
-                "git-setup": {
-                    "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/setup"
-                }
-            },
-            "install_profiles": {
-                "repo-install": {
-                    "cloud_install_script": "${env:CONFIG_DIR}/cloud-agent/install"
                 }
             },
             "sync_down_profiles": {
@@ -264,14 +297,13 @@ def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
     )
 
     assert resolved["selected_transfer_up_profile"] == "working-tree-current-state"
-    assert resolved["selected_cloud_setup_profile"] == "git-setup"
-    assert resolved["selected_install_profile"] == "repo-install"
     assert resolved["selected_sync_down_profile"] == "working-tree-patch"
     assert resolved["selected_container_profile"] == "default-runtime"
     assert resolved["local_stage_script"] == str(local_stage.resolve())
     assert resolved["local_transfer_script"] == str(transfer.resolve())
     assert resolved["cloud_setup_script"] == str(setup.resolve())
-    assert resolved["cloud_install_script"] == str(install.resolve())
+    assert resolved["install_script"] == str(install.resolve())
+    assert resolved["validation_script"] == str(validate.resolve())
     assert resolved["cloud_export_script"] == str(export.resolve())
     assert resolved["local_apply_script"] == str(apply_down.resolve())
     assert resolved["cloud_mark_synced_script"] is None
@@ -318,12 +350,10 @@ def test_profile_resolver_loads_single_project_config_and_falls_back_to_base_scr
             "transfer_up_profiles": {
                 "current": {
                     "local_transfer_script": str(base_transfer),
-                    "cloud_setup_profile": "setup",
-                    "install_profile": "install",
+                    "cloud_setup_script": str(install),
+                    "install_script": str(install),
                 }
             },
-            "cloud_setup_profiles": {"setup": {"cloud_setup_script": str(install)}},
-            "install_profiles": {"install": {"cloud_install_script": str(install)}},
             "sync_down_profiles": {
                 "patch": {
                     "cloud_export_script": str(export),
@@ -354,13 +384,11 @@ def test_profile_resolver_rejects_incompatible_defaults(tmp_path: Path) -> None:
                 "transfer_up_profiles": {
                     "current": {
                         "local_transfer_script": str(transfer),
-                        "cloud_setup_profile": "setup",
-                        "install_profile": "install",
+                        "cloud_setup_script": str(install),
+                        "install_script": str(install),
                         "compatible_sync_down_profiles": ["other-patch"],
                     }
                 },
-                "cloud_setup_profiles": {"setup": {"cloud_setup_script": str(install)}},
-                "install_profiles": {"install": {"cloud_install_script": str(install)}},
                 "sync_down_profiles": {
                     "patch": {
                         "cloud_export_script": str(export),
@@ -389,12 +417,11 @@ def test_profile_resolver_rejects_requires_dependency_declarations(
                 "transfer_up_profiles": {
                     "current": {
                         "local_transfer_script": str(transfer),
-                        "cloud_setup_profile": "setup",
-                        "install_profile": "install",
+                        "cloud_setup_script": str(transfer),
+                        "install_script": str(transfer),
                         "requires": {"git": True},
                     }
                 },
-                "cloud_setup_profiles": {"setup": {"cloud_setup_script": str(transfer)}},
             },
             env={"WORKING_DIR": str(tmp_path), "CONFIG_DIR": str(tmp_path)},
         )
@@ -412,12 +439,30 @@ def test_default_patch_scripts_support_incremental_sync_after_mark_synced(
         / "cloud-agent"
         / "profiles"
     )
-    transfer_up = scripts_root / "working-tree-current-state" / "transfer-up"
-    setup = scripts_root / "git-archive-patch-setup" / "setup"
-    install = scripts_root / "repo-install" / "install"
-    export = scripts_root / "working-tree-patch" / "export"
-    mark_synced = scripts_root / "working-tree-patch" / "mark-synced"
-    apply_down = scripts_root / "working-tree-patch" / "apply-down"
+    transfer_up = (
+        scripts_root
+        / "transfer_up"
+        / "working-tree-current-state"
+        / "local_transfer_script"
+    )
+    setup = (
+        scripts_root
+        / "transfer_up"
+        / "working-tree-current-state"
+        / "cloud_setup_script"
+    )
+    export = (
+        scripts_root / "sync_down" / "working-tree-patch" / "cloud_export_script"
+    )
+    mark_synced = (
+        scripts_root
+        / "sync_down"
+        / "working-tree-patch"
+        / "cloud_mark_synced_script"
+    )
+    apply_down = (
+        scripts_root / "sync_down" / "working-tree-patch" / "local_apply_script"
+    )
 
     local = tmp_path / "local"
     cloud = tmp_path / "cloud"
@@ -459,16 +504,6 @@ def test_default_patch_scripts_support_incremental_sync_after_mark_synced(
         },
         cwd=cloud,
     )
-    _run_cloud_profile_script(
-        install,
-        {
-            "CLOUD_WORKSPACE_DIR": str(cloud),
-            "TRANSFER_DIR": str(upload),
-            "TRANSFER_STAGE_DIR": str(upload / ".cloud-agent" / "local-stage"),
-        },
-        cwd=cloud,
-    )
- 
     (cloud / "chain.txt").write_text("base\nchange1\n", encoding="utf-8")
     sync1 = tmp_path / "sync1"
     sync1.mkdir()
@@ -527,63 +562,72 @@ def test_default_patch_scripts_support_incremental_sync_after_mark_synced(
     )
 
 
-def test_local_stage_and_repo_install_wrappers_run_repo_hooks(tmp_path: Path) -> None:
-    scripts_root = (
-        _repo_root()
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "cloud-agent"
-        / "profiles"
-    )
-    local_stage = scripts_root / "common" / "local-stage-hook"
-    install = scripts_root / "repo-install" / "install"
+def test_profile_resolver_treats_missing_standard_repo_hooks_as_noops(
+    tmp_path: Path,
+) -> None:
+    transfer = _write_script(tmp_path / "transfer")
+    setup = _write_script(tmp_path / "setup")
+    export = _write_script(tmp_path / "export")
+    apply_down = _write_script(tmp_path / "apply-down")
 
-    local = tmp_path / "local"
-    cloud = tmp_path / "cloud"
-    transfer = tmp_path / "transfer"
-    local_stage_dir = transfer / ".cloud-agent" / "local-stage"
-    local.mkdir()
-    cloud.mkdir()
-    local_stage_dir.mkdir(parents=True, exist_ok=True)
-    (local / ".cloud-agent").mkdir()
-    (cloud / ".cloud-agent").mkdir()
-
-    local_hook = _write_script(
-        local / ".cloud-agent" / "local-stage",
-        'printf staged > "${TRANSFER_STAGE_DIR}/local-stage-ran.txt"\n',
-    )
-    cloud_hook = _write_script(
-        cloud / ".cloud-agent" / "install-cloud",
-        'printf installed > "${CLOUD_WORKSPACE_DIR}/install-ran.txt"\n',
-    )
-    assert local_hook.exists()
-    assert cloud_hook.exists()
-
-    _run_cloud_profile_script(
-        local_stage,
+    resolved = resolve_cloud_agent_profiles(
         {
-            "LOCAL_WORKSPACE_DIR": str(local),
-            "TRANSFER_DIR": str(transfer),
-            "TRANSFER_STAGE_DIR": str(local_stage_dir),
+            "default_transfer_up_profile": "current",
+            "default_sync_down_profile": "patch",
+            "default_container_profile": "runtime",
+            "transfer_up_profiles": {
+                "current": {
+                    "local_transfer_script": str(transfer),
+                    "cloud_setup_script": str(setup),
+                }
+            },
+            "sync_down_profiles": {
+                "patch": {
+                    "cloud_export_script": str(export),
+                    "local_apply_script": str(apply_down),
+                }
+            },
+            "container_profiles": {"runtime": {"image": "runtime:test"}},
         },
-        cwd=local,
-    )
-    _run_cloud_profile_script(
-        install,
-        {
-            "CLOUD_WORKSPACE_DIR": str(cloud),
-            "TRANSFER_DIR": str(transfer),
-            "TRANSFER_STAGE_DIR": str(local_stage_dir),
-        },
-        cwd=cloud,
+        env={"WORKING_DIR": str(tmp_path / "workspace"), "CONFIG_DIR": str(tmp_path)},
     )
 
-    assert (local_stage_dir / "local-stage-ran.txt").read_text(encoding="utf-8") == (
-        "staged"
-    )
-    assert (cloud / "install-ran.txt").read_text(encoding="utf-8") == "installed"
+    assert resolved["local_stage_script"] is None
+    assert resolved["install_script"] is None
+    assert resolved["validation_script"] is None
+
+
+def test_profile_resolver_rejects_missing_nonstandard_optional_hook_paths(
+    tmp_path: Path,
+) -> None:
+    transfer = _write_script(tmp_path / "transfer")
+    setup = _write_script(tmp_path / "setup")
+    export = _write_script(tmp_path / "export")
+    apply_down = _write_script(tmp_path / "apply-down")
+
+    with pytest.raises(ValueError, match="install_script did not resolve"):
+        resolve_cloud_agent_profiles(
+            {
+                "default_transfer_up_profile": "current",
+                "default_sync_down_profile": "patch",
+                "default_container_profile": "runtime",
+                "transfer_up_profiles": {
+                    "current": {
+                        "local_transfer_script": str(transfer),
+                        "cloud_setup_script": str(setup),
+                        "install_script": str(tmp_path / "missing-install"),
+                    }
+                },
+                "sync_down_profiles": {
+                    "patch": {
+                        "cloud_export_script": str(export),
+                        "local_apply_script": str(apply_down),
+                    }
+                },
+                "container_profiles": {"runtime": {"image": "runtime:test"}},
+            },
+            env={"WORKING_DIR": str(tmp_path), "CONFIG_DIR": str(tmp_path)},
+        )
 
 
 def test_clean_head_branch_profiles_import_branch_without_touching_local_dirty_state(
@@ -598,11 +642,15 @@ def test_clean_head_branch_profiles_import_branch_without_touching_local_dirty_s
         / "cloud-agent"
         / "profiles"
     )
-    transfer_up = scripts_root / "clean-head" / "transfer-up"
-    setup = scripts_root / "git-clean-head-setup" / "setup"
-    export = scripts_root / "branch-import" / "export"
-    apply_down = scripts_root / "branch-import" / "apply-down"
-    mark_synced = scripts_root / "branch-import" / "mark-synced"
+    transfer_up = (
+        scripts_root / "transfer_up" / "clean-head" / "local_transfer_script"
+    )
+    setup = scripts_root / "transfer_up" / "clean-head" / "cloud_setup_script"
+    export = scripts_root / "sync_down" / "branch-import" / "cloud_export_script"
+    apply_down = scripts_root / "sync_down" / "branch-import" / "local_apply_script"
+    mark_synced = (
+        scripts_root / "sync_down" / "branch-import" / "cloud_mark_synced_script"
+    )
 
     local = tmp_path / "local"
     cloud = tmp_path / "cloud"
@@ -682,11 +730,23 @@ def test_dirty_branch_profiles_preserve_safety_refs_and_incremental_branch_sync(
         / "cloud-agent"
         / "profiles"
     )
-    transfer_up = scripts_root / "working-tree-current-state-branch" / "transfer-up"
-    setup = scripts_root / "git-dirty-head-setup" / "setup"
-    export = scripts_root / "branch-import" / "export"
-    apply_down = scripts_root / "branch-import" / "apply-down"
-    mark_synced = scripts_root / "branch-import" / "mark-synced"
+    transfer_up = (
+        scripts_root
+        / "transfer_up"
+        / "working-tree-current-state-branch"
+        / "local_transfer_script"
+    )
+    setup = (
+        scripts_root
+        / "transfer_up"
+        / "working-tree-current-state-branch"
+        / "cloud_setup_script"
+    )
+    export = scripts_root / "sync_down" / "branch-import" / "cloud_export_script"
+    apply_down = scripts_root / "sync_down" / "branch-import" / "local_apply_script"
+    mark_synced = (
+        scripts_root / "sync_down" / "branch-import" / "cloud_mark_synced_script"
+    )
 
     local = tmp_path / "local"
     cloud = tmp_path / "cloud"
@@ -1608,18 +1668,8 @@ def test_agent_application_cloud_disabled_plugins_support_raw_literals(
                 "transfer_up_profiles": {
                     "test-transfer": {
                         "local_transfer_script": str(_write_script(tmp_path / "transfer")),
-                        "cloud_setup_profile": "test-setup",
-                        "install_profile": "test-install",
-                    }
-                },
-                "cloud_setup_profiles": {
-                    "test-setup": {
-                        "cloud_setup_script": str(_write_script(tmp_path / "setup"))
-                    }
-                },
-                "install_profiles": {
-                    "test-install": {
-                        "cloud_install_script": str(_write_script(tmp_path / "install"))
+                        "cloud_setup_script": str(_write_script(tmp_path / "setup")),
+                        "install_script": str(_write_script(tmp_path / "install")),
                     }
                 },
                 "sync_down_profiles": {

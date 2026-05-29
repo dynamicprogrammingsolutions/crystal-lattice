@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Purpose: Export the committed cloud branch plus optional delegated and cloud
+# full-state safety refs for branch-import sync-down.
+# Required env vars: CLOUD_WORKSPACE_DIR, TRANSFER_DIR, SESSION_ID,
+# CLOUD_AGENT_CLOUD_FULL_STATE_REF, CLOUD_AGENT_LAST_SYNCED_REF.
+# Inputs: Prepared git workspace at CLOUD_WORKSPACE_DIR.
+# Outputs: TRANSFER_DIR/.cloud-agent/refs.bundle and ref metadata files.
+# Customization: Keep this bundled script for branch-import sync-down.
 set -euo pipefail
 
 : "${CLOUD_WORKSPACE_DIR:?}"

@@ -23,70 +23,46 @@
       "transfer_up_profiles": {
         "working-tree-current-state": {
           "label": "Working tree current state",
-          "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/profiles/common/local-stage-hook",
-          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state/transfer-up",
-          "cloud_setup_profile": "git-archive-patch-setup",
-          "install_profile": "repo-install-hook",
+          "local_stage_script": "${env:WORKING_DIR}/.cloud-agent/local-stage",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/local_transfer_script",
+          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/cloud_setup_script",
+          "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
+          "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
           "compatible_sync_down_profiles": ["working-tree-patch"]
         },
         "working-tree-current-state-branch": {
           "label": "Working tree current state with branch export",
-          "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/profiles/common/local-stage-hook",
-          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state-branch/transfer-up",
-          "cloud_setup_profile": "git-dirty-head-setup",
-          "install_profile": "repo-install-hook",
-          "compatible_sync_down_profiles": ["branch-import-snapshot"]
+          "local_stage_script": "${env:WORKING_DIR}/.cloud-agent/local-stage",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state-branch/local_transfer_script",
+          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state-branch/cloud_setup_script",
+          "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
+          "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
+          "compatible_sync_down_profiles": ["branch-import"]
         },
         "clean-head": {
           "label": "Clean committed HEAD",
-          "local_stage_script": "${env:CONFIG_DIR}/cloud-agent/profiles/common/local-stage-hook",
-          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/clean-head/transfer-up",
-          "cloud_setup_profile": "git-clean-head-setup",
-          "install_profile": "repo-install-hook",
+          "local_stage_script": "${env:WORKING_DIR}/.cloud-agent/local-stage",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/local_transfer_script",
+          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/cloud_setup_script",
+          "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
+          "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
           "compatible_sync_down_profiles": ["branch-import"]
-        }
-      },
-      "cloud_setup_profiles": {
-        "git-archive-patch-setup": {
-          "label": "Archive plus working patch setup",
-          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/git-archive-patch-setup/setup"
-        },
-        "git-dirty-head-setup": {
-          "label": "Git dirty-head setup",
-          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/git-dirty-head-setup/setup"
-        },
-        "git-clean-head-setup": {
-          "label": "Git clean HEAD setup",
-          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/git-clean-head-setup/setup"
-        }
-      },
-      "install_profiles": {
-        "repo-install-hook": {
-          "label": "Repository install hook",
-          "cloud_install_script": "${env:CONFIG_DIR}/cloud-agent/profiles/repo-install/install"
         }
       },
       "sync_down_profiles": {
         "working-tree-patch": {
           "label": "Apply cloud patch to current worktree",
-          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/export",
-          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/mark-synced",
-          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/apply-down",
+          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_export_script",
+          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_mark_synced_script",
+          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/local_apply_script",
           "compatible_transfer_up_profiles": ["working-tree-current-state"]
         },
-        "branch-import-snapshot": {
-          "label": "Import committed cloud branch with safety snapshots",
-          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/export",
-          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/mark-synced",
-          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/apply-down",
-          "compatible_transfer_up_profiles": ["working-tree-current-state-branch"]
-        },
         "branch-import": {
-          "label": "Import committed cloud branch",
-          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/export",
-          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/mark-synced",
-          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/branch-import/apply-down",
-          "compatible_transfer_up_profiles": ["clean-head"]
+          "label": "Import committed cloud branch with optional safety snapshots",
+          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_export_script",
+          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_mark_synced_script",
+          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/local_apply_script",
+          "compatible_transfer_up_profiles": ["working-tree-current-state-branch", "clean-head"]
         }
       },
       "container_profiles": {

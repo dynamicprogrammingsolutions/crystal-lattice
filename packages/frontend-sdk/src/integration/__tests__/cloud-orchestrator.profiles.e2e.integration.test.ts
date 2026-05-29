@@ -153,6 +153,7 @@ function prepareWorkspaceFixture(scenario: string, workspaceDir: string): void {
   copyFixtureTree(fixturePath(scenario, 'workspace'), workspaceDir);
   ensureExecutable(path.join(workspaceDir, '.cloud-agent', 'local-stage'));
   ensureExecutable(path.join(workspaceDir, '.cloud-agent', 'install-cloud'));
+  ensureExecutable(path.join(workspaceDir, '.cloud-agent', 'validate-cloud'));
 }
 
 type ProfileScenarioContext = {
@@ -487,6 +488,17 @@ describeIf(
 
         await context.localBackend.executeAction({
           pluginId: 'cloud',
+          actionId: 'cloud.sync_down',
+          actionOwner: 'application',
+          inputs: {
+            instance_id: requireCloudInstanceId(cloudLink),
+            session_id: sessionId,
+            workspace_dir: context.workspaceDir,
+          },
+        });
+
+        await context.localBackend.executeAction({
+          pluginId: 'cloud',
           actionId: 'cloud.close_session',
           actionOwner: 'application',
           inputs: {
@@ -584,7 +596,7 @@ describeIf(
     );
 
     it(
-      'runs the dirty-snapshot branch-import-snapshot profile through the real orchestrator flow',
+      'runs the dirty-snapshot branch-import profile through the real orchestrator flow',
       async () => {
         orchestrator = orchestrator || (await startCloudOrchestratorLocal());
         const context = await startProfileScenario({

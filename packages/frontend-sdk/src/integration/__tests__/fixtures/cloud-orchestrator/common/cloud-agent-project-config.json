@@ -6,21 +6,10 @@
     "working-tree-current-state": {
       "label": "Working tree current state",
       "local_transfer_script": ".cloud-agent/transfer-up",
-      "cloud_setup_profile": "git-archive-patch-setup",
-      "install_profile": "noop-install",
+      "cloud_setup_script": ".cloud-agent/setup-cloud",
+      "install_script": ".cloud-agent/install-cloud",
+      "validation_script": ".cloud-agent/validate-cloud",
       "compatible_sync_down_profiles": ["working-tree-patch"]
-    }
-  },
-  "cloud_setup_profiles": {
-    "git-archive-patch-setup": {
-      "label": "Archive plus working patch setup",
-      "cloud_setup_script": ".cloud-agent/setup-cloud"
-    }
-  },
-  "install_profiles": {
-    "noop-install": {
-      "label": "No-op install",
-      "cloud_install_script": ".cloud-agent/install-cloud"
     }
   },
   "sync_down_profiles": {

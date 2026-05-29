@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Purpose: Export the local committed HEAD plus staged, unstaged, and untracked
+# changes as a tar archive and binary patch for the default patch round-trip flow.
+# Required env vars: LOCAL_WORKSPACE_DIR, TRANSFER_DIR.
+# Inputs: Git worktree at LOCAL_WORKSPACE_DIR.
+# Outputs: TRANSFER_DIR/.cloud-agent/project.tar and working.patch.
+# Customization: Keep this bundled script for standard git patch transfer; use
+# .cloud-agent/local-stage for repo-local additions such as .env files.
 set -euo pipefail
 
 : "${LOCAL_WORKSPACE_DIR:?}"

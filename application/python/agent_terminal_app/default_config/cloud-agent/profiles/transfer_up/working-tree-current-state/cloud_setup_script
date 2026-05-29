@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+# Purpose: Materialize the default patch round-trip workspace from the uploaded
+# archive, optional staged repo-local files, and the binary working patch.
+# Required env vars: CLOUD_WORKSPACE_DIR, TRANSFER_DIR, TRANSFER_STAGE_DIR.
+# Inputs: TRANSFER_DIR/.cloud-agent/project.tar, working.patch, optional
+# TRANSFER_STAGE_DIR contents.
+# Outputs: Prepared git workspace at CLOUD_WORKSPACE_DIR.
+# Customization: Keep this bundled script for the standard git patch flow; use
+# .cloud-agent/install-cloud for project-specific cloud bootstrap work.
 set -euo pipefail
 
 : "${CLOUD_WORKSPACE_DIR:?}"

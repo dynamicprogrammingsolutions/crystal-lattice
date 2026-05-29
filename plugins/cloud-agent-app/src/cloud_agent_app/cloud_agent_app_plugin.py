@@ -748,7 +748,8 @@ class CloudAgentAppPlugin:
         scripts_dir = transfer_dir / RESERVED_CLOUD_AGENT_DIR / "scripts"
         for key, target_name in (
             ("cloud_setup_script", "setup"),
-            ("cloud_install_script", "install"),
+            ("install_script", "install"),
+            ("validation_script", "validate"),
             ("cloud_export_script", "export"),
             ("cloud_mark_synced_script", "sync-applied"),
         ):
@@ -825,14 +826,8 @@ class CloudAgentAppPlugin:
             "CLOUD_AGENT_TRANSFER_UP_PROFILE_ID": str(
                 state.get("selected_transfer_up_profile") or ""
             ),
-            "CLOUD_AGENT_CLOUD_SETUP_PROFILE_ID": str(
-                state.get("selected_cloud_setup_profile") or ""
-            ),
             "CLOUD_AGENT_SYNC_DOWN_PROFILE_ID": str(
                 state.get("selected_sync_down_profile") or ""
-            ),
-            "CLOUD_AGENT_INSTALL_PROFILE_ID": str(
-                state.get("selected_install_profile") or ""
             ),
             "CLOUD_AGENT_IMPORTED_BRANCH_NAME": f"{branch_prefix}/{ref_token}/committed",
             "CLOUD_AGENT_DELEGATED_SNAPSHOT_REF": f"refs/cloud-agent/{ref_token}/delegated-snapshot",
@@ -861,9 +856,7 @@ class CloudAgentAppPlugin:
             "SESSION_ID",
             "CLOUD_AGENT_PROFILE_ID",
             "CLOUD_AGENT_TRANSFER_UP_PROFILE_ID",
-            "CLOUD_AGENT_CLOUD_SETUP_PROFILE_ID",
             "CLOUD_AGENT_SYNC_DOWN_PROFILE_ID",
-            "CLOUD_AGENT_INSTALL_PROFILE_ID",
             "CLOUD_AGENT_IMPORTED_BRANCH_NAME",
             "CLOUD_AGENT_DELEGATED_SNAPSHOT_REF",
             "CLOUD_AGENT_CLOUD_FULL_STATE_REF",
