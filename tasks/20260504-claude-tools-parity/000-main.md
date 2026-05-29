@@ -7,7 +7,7 @@ Create Claude Code-compatible system message, standard tools, and compaction sup
 - [x] `tasks/20260504-claude-tools-parity/010-investigate-claude-code-behavior.md` - completed for the standard-tool scope: repeatable harnesses and normalized fixtures now exist for `Read`, `Write`, `Edit`, `Glob`, `Grep`, `Bash`, `WebFetch`, `WebSearch`, plus system-message coverage.
 - [ ] `tasks/20260504-claude-tools-parity/020-implement-claude-tools.md` - partial: all standard Claude tools plus `TaskStop` are implemented; remaining follow-up is shared interop/formatting cleanup and broader validation/docs work.
 - [x] `tasks/20260504-claude-tools-parity/030-implement-claude-system-message-and-config.md` - completed for the current Claude `Read` slice: the primary `claude` default-config agent now uses `claude-tools`, the structured Claude system message is wired in, and focused rendering/config tests pass.
-- [ ] `tasks/20260504-claude-tools-parity/040-investigate-and-implement-claude-compaction.md`
+- [x] `tasks/20260504-claude-tools-parity/040-investigate-and-implement-claude-compaction.md` - completed: deterministic compaction investigation fixtures were normalized by script, a Claude-specific compaction feature was added inside `plugins/claude-tools`, and focused fixture-driven/unit/application tests now cover the action path.
 - [ ] `tasks/20260504-claude-tools-parity/050-validation-and-docs.md`
 
 ## Background

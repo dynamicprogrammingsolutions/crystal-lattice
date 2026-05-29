@@ -16,6 +16,10 @@ This package is being built from behavior-driven investigations of Claude Code's
 - `WebFetch`: Claude Code-compatible URL fetch tool with Anthropic-native schemas, prompt-based page analysis, redirect handling, and timeout behavior.
 - `WebSearch`: Claude Code-compatible web search tool with Anthropic-native schemas and Claude-shaped result formatting backed by Gemini or Tavily providers.
 
+## Implemented Session Actions
+
+- `Compact conversation`: Claude Code-compatible compaction session action that captures the observed Claude `/compact` prompt contract, validates the Claude-style numbered summary output, and rewrites session history into the investigated compact-summary shape.
+
 `Read` currently supports text files, images, PDF status/page rendering through Poppler, simple Jupyter notebooks, and observed Claude Code error formatting. OpenAI Chat Completions-compatible providers consume the Anthropic-native result through a narrow temporary bridge until first-class tool-result interop lands.
 
 `Write` currently supports new-file creation, full overwrites after a prior `Read`, and the observed Claude error payload when attempting to overwrite an unread existing file.
@@ -33,6 +37,8 @@ This package is being built from behavior-driven investigations of Claude Code's
 `WebFetch` currently supports public HTTP(S) fetches, `http` to `https` upgrade, the observed cross-host redirect message shape, and Claude-compatible invalid-URL and timeout strings for the investigated cases.
 
 `WebSearch` currently supports the Claude `WebSearch` schema and Claude-shaped text results while letting the app choose either `gemini_api` or `tavily` as the backend provider through config.
+
+`Compact conversation` currently supports the observed Claude `/compact` behavior investigated under `investigation/fixtures/compaction/`, including the appended compaction prompt, Claude-style numbered summary validation, transcript fallback guidance, and session-history rewrite through the core/native rebuild path so provider-native formatting remains owned by the core pipeline.
 
 ## License
 

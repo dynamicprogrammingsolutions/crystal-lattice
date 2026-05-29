@@ -2,6 +2,7 @@
   "module": "claude_tools",
   "subdirectory": ".",
   "entries": [
+    "claude_tools.claude_compaction_feature.ClaudeCompactionFeature",
     "claude_tools.claude_bash_tool.ClaudeBashTool",
     "claude_tools.claude_read_tool.ClaudeReadTool",
     "claude_tools.claude_task_stop_tool.ClaudeTaskStopTool",
@@ -13,6 +14,7 @@
     "claude_tools.claude_web_search_tool.ClaudeWebSearchTool"
   ],
   "kinds": {
+    "claude_tools.claude_compaction_feature.ClaudeCompactionFeature": "features",
     "claude_tools.claude_bash_tool.ClaudeBashTool": "tools",
     "claude_tools.claude_read_tool.ClaudeReadTool": "tools",
     "claude_tools.claude_task_stop_tool.ClaudeTaskStopTool": "tools",
