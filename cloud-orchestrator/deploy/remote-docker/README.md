@@ -43,6 +43,11 @@ The Python runtime image is built from the repository root with
 generic: user config, secrets, sessions, and workspace files are supplied only
 through per-instance transfer/storage at runtime.
 
+The standard CLI also ships a bundled local-validation runtime asset copy under
+`plugins/cloud-agent-app`. Keep the orchestrator-owned Dockerfile and the
+bundled validation Dockerfile aligned in base image, installed toolchain, and
+runtime behavior.
+
 On Linux Docker hosts, the deploy script defaults runtime port binding to `172.17.0.1` and runtime proxying to `host.docker.internal`. That keeps runtime containers reachable from the orchestrator container without publishing per-session runtime ports on all public interfaces. Override both values if your Docker bridge gateway differs.
 
 The deploy script auto-selects:

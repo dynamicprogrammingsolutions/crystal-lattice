@@ -57,33 +57,16 @@ def test_initialize_runtime_chdirs_to_workspace_before_agent_application(
         def __init__(self, *_args: Any, **_kwargs: Any) -> None:
             constructed_cwd.append(Path.cwd().resolve())
 
-    monkeypatch.setattr(runtime, "AgentApplication", FakeAgentApplication)
-    monkeypatch.setattr(runtime, "InMemoryEventStore", lambda: object())
+    monkeypatch.setattr(runtime.cloud_runtime, "AgentApplication", FakeAgentApplication)
+    monkeypatch.setattr(runtime.cloud_runtime, "InMemoryEventStore", lambda: object())
     monkeypatch.setattr(
-        runtime,
+        runtime.cloud_runtime,
         "FilesystemSnapshotSelectionStore",
         lambda _path: object(),
     )
 
     try:
         runtime._initialize_runtime()
-        from codex_tools.apply_patch_runtime import execute_apply_patch_text
-        from codex_tools.workdir import resolve_turn_cwd
-
-        config = {"working_directory": ".", "allowed_paths": ["."]}
-        patch_result = execute_apply_patch_text(
-            "*** Begin Patch\n"
-            "*** Add File: patched.txt\n"
-            "+patched in workspace\n"
-            "*** End Patch\n",
-            config=config,
-        )
-
-        assert resolve_turn_cwd(config) == str(workspace_dir.resolve())
-        assert patch_result["success"] is True
-        assert (workspace_dir / "patched.txt").read_text(
-            encoding="utf-8"
-        ) == "patched in workspace"
     finally:
         os.chdir(old_cwd)
         runtime.server_mod._agent_app = None

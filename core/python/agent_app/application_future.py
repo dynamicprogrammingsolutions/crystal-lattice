@@ -1990,6 +1990,27 @@ class AgentApplication:
                     elements.append(element)
         return elements
 
+    def get_application_commands(self) -> List[Dict[str, Any]]:
+        """Return flattened command bindings from application plugins.
+
+        Each returned command dictionary includes a ``"plugin"`` field naming
+        the contributing plugin. Commands are frontend-facing bindings onto
+        existing application actions rather than a second executable surface.
+        """
+
+        commands: List[Dict[str, Any]] = []
+        for plugin_id, wrapper in self._app_plugins.items():
+            for raw_command in wrapper.get_commands():
+                if not isinstance(raw_command, dict):
+                    continue
+                if "plugin" in raw_command and isinstance(raw_command["plugin"], str):
+                    commands.append(raw_command)
+                else:
+                    command = dict(raw_command)
+                    command["plugin"] = plugin_id
+                    commands.append(command)
+        return commands
+
     # Internal helpers for action validation ---------------------------------
 
     class _ApplicationActionValidationError(Exception):

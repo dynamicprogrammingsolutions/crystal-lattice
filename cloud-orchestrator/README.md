@@ -115,6 +115,27 @@ Patch-based sync profiles may include a cloud-side mark-synced script that runs
 only after local apply succeeds, advancing the cloud git baseline for
 incremental syncs while preserving retry safety.
 
+For local hook validation without the orchestrator service, use the standard
+CLI command:
+
+```bash
+crystal-lattice validate-cloud
+```
+
+That command runs the same configured cloud runtime image locally. When the
+image is the default `cloud-agent-runtime:latest` and it is not already present
+on the machine, the CLI builds it from
+`cloud-orchestrator/runtime/python/Dockerfile` before starting validation.
+
+```bash
+crystal-lattice validate-cloud
+```
+
+That command uses a bundled local-Docker runtime asset copy owned by
+`cloud-agent-app`, but the orchestrator-owned runtime files under
+`cloud-orchestrator/runtime/python/` must stay behaviorally in sync with the
+bundled copy until runtime ownership is fully plugin-driven.
+
 ## Runtime Config, Assets, And Env
 
 When `cloud.start_session_agent` runs, the local application writes a portable

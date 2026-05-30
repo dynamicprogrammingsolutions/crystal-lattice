@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+
+cd "${CLOUD_WORKSPACE_DIR}"
+
+test -f .env
+test -f .cloud-agent-install.ok
+test -d .venv
+test -x .venv/bin/python
+
+. .venv/bin/activate
+pytest -o addopts='' core/python/tests/test_ui_condition.py -q
+pytest -o addopts='' plugins/openrouter/tests/test_openrouter_basic_integration.py::test_openrouter_basic_non_streaming -q -m "integration and openrouter and api"

@@ -51,9 +51,41 @@ Behavior:
   file does not exist, the hook is treated as a no-op.
 - If you point one of those fields at some other path and that file does not
   exist, resolution fails with a clear error.
-- `validation_script` is part of the config and transfer contract now, but this
-  task does not implement the validation command or orchestrated execution of
-  that hook yet.
+- `validation_script` is executed by `crystal-lattice validate-cloud` after the
+  shared transfer/setup/install/runtime smoke passes.
+
+## Validation Command
+
+Run local cloud validation from the main CLI:
+
+```bash
+crystal-lattice validate-cloud
+```
+
+Optional flags:
+
+```bash
+crystal-lattice validate-cloud --workspace-dir /path/to/project
+crystal-lattice validate-cloud --keep-temp-dir
+crystal-lattice validate-cloud --cache-dir /path/to/stable/cache
+```
+
+Behavior:
+
+- resolves the configured standard cloud profiles for the current workspace
+- runs the normal local-stage and transfer-up flow
+- writes the portable config/assets/env/runtime script bundle
+- builds and starts the packaged local-Docker validation runtime without the
+  orchestrator service
+- waits for runtime readiness
+- runs a deterministic built-in smoke check
+- runs the optional `validation_script` hook when present
+- bind-mounts `--cache-dir` at `/cloud-agent/cache` when provided so plugin and
+  pip caches survive between validation runs
+
+The command is contributed by `cloud-agent-app` as a CLI binding onto the
+application action `cloud.validate_cloud`. The action remains the executable
+contract; the command only defines the CLI shape.
 
 ## Bundled Script Layout
 
@@ -171,7 +203,7 @@ Rules:
         "extra_rsync_args": []
       },
       "disabled_plugins": [
-        "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"
+        {"$raw": "path:${env:BUILTIN_PLUGINS}/session-asset-attachments},
       ],
       "config_assets": {
         "include_config_dir": true,
@@ -254,7 +286,8 @@ Each profile describes one complete upload/setup/install/validation family.
 ### Portable runtime config settings
 
 - `disabled_plugins`: Exact plugin-spec strings to remove only from the cloud
-  runtime config during portable config generation.
+  runtime config during portable config generation. It works by string comparison, so most of the time you need to use
+  the formula `{"$raw": "path:${env:BUILTIN_PLUGINS}/session-asset-attachments}`.
 - `config_assets`: Policy for copying the local `CONFIG_DIR` asset tree into the
   transfer bundle.
 - `runtime_env`: Policy for copying selected environment variables and env files
@@ -309,8 +342,58 @@ When a cloud session starts, the local action:
 - copies `validation_script` into `.cloud-agent/scripts/validate` when present
 
 The current cloud runtime bootstrap executes setup and install during normal
-cloud startup. The validation hook is packaged as part of the contract but is
-not executed by the orchestrated runtime flow yet.
+cloud startup. The local validation command then calls a runtime validation
+endpoint that runs:
+
+- a built-in smoke check proving the prepared runtime/workspace/session bundle
+  is coherent
+- the optional packaged `validation_script`
+
+## Runtime Image Parity
+
+`crystal-lattice validate-cloud` runs the same `container_profiles.<id>.image`
+selected by the resolved cloud profile. In other words, local validation
+reuses the same runtime image contract that `cloud.start_session_agent` sends
+to the orchestrator.
+
+When the configured image is already present locally, validation runs it
+directly. When the configured image is the standard default
+`cloud-agent-runtime:latest` and it is missing locally, validation builds that
+image from the canonical orchestrator runtime Dockerfile:
+
+```text
+cloud-orchestrator/runtime/python/Dockerfile
+```
+
+For any other runtime image name, validation expects you to pull or build that
+image locally ahead of time.
+or service. The orchestrator-owned runtime files under
+`cloud-orchestrator/runtime/python/` must stay behaviorally in sync with these
+bundled assets until runtime ownership becomes fully plugin-driven.
+
+## Testing Guidance
+
+Validation coverage is intentionally layered:
+
+- unit tests in `plugins/cloud-agent-app/tests`
+- runtime endpoint tests in `application/python/tests/test_cloud_agent_runtime.py`
+- Docker-backed command tests in
+  `application/python/tests/test_cloud_validation_command_docker.py`
+- bundled binary smoke in `application/python/tests/test_binary_distribution_docker.py`
+- fixture-backed frontend/orchestrator profile e2e in
+  `packages/frontend-sdk/src/integration/__tests__/cloud-orchestrator.profiles.e2e.integration.test.ts`
+
+This repository is the first real adopter of the shared validation flow through
+its repo-local hooks:
+
+- `.cloud-agent/local-stage`
+- `.cloud-agent/install-cloud`
+- `.cloud-agent/validate-cloud`
+
+For the standard working-tree transfer profile, files staged into
+`TRANSFER_STAGE_DIR` are copied directly into the cloud workspace root by the
+bundled `cloud_setup_script`. A minimal `.env` handoff can therefore stay as
+simple as copying `.env` into `TRANSFER_STAGE_DIR/.env`.
 
 ## License
 

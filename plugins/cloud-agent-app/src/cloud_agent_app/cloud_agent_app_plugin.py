@@ -21,10 +21,21 @@ from urllib.parse import urlencode
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from agent_core.utils import get_logger
 from agent_core.types import Session
+from agent_terminal_app.runtime_layout import load_runtime_layout
 
 from .cloud_agent_profiles import resolve_cloud_agent_profiles
-from .cloud_agent_transfer import CLOUD_WORKSPACE_DIR, prepare_cloud_transfer
+from .cloud_agent_transfer import (
+    CLOUD_CACHE_DIR,
+    CLOUD_WORKSPACE_DIR,
+    prepare_cloud_transfer,
+)
+from .cloud_agent_validation import (
+    ensure_local_runtime_image,
+    reserve_local_port,
+    run_command,
+)
 
 
 DEFAULT_TRANSFER_METHOD = "managed_ssh"
@@ -33,6 +44,7 @@ CLOUD_AGENT_METADATA_KEY = "cloud_agent"
 CLOUD_AGENT_LAST_RUNTIME_KEY = "cloud_agent_last_runtime"
 DEFAULT_START_ACTION_TIMEOUT_SECONDS = 10.0
 DEFAULT_IMPORTED_BRANCH_PREFIX = "cloud"
+_log = get_logger("cloud_agent_app")
 
 
 class CloudAgentAppPlugin:
@@ -106,12 +118,48 @@ class CloudAgentAppPlugin:
                 },
             },
             {
+                "id": "cloud.validate_cloud",
+                "label": "Validate cloud workspace",
+                "description": "Run the local-Docker cloud validation flow for the current workspace.",
+                "inputs": {
+                    "workspace_dir": {"type": "string", "required": False},
+                    "keep_temp_dir": {"type": "boolean", "required": False, "default": False},
+                    "cache_dir": {"type": "string", "required": False},
+                },
+            },
+            {
                 "id": "cloud.clear_forked_session_attachment",
                 "label": "Clear cloud attachment on fork",
                 "description": "Internal lifecycle action that removes cloud attachment metadata from forked sessions.",
                 "inputs": {},
                 "trigger": "session_fork",
             },
+        ]
+
+    def get_commands(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [
+            {
+                "name": "validate-cloud",
+                "description": "Validate the current workspace through the shared local-Docker cloud flow.",
+                "action_id": "cloud.validate_cloud",
+                "args": [
+                    {
+                        "name": "workspace_dir",
+                        "flags": ["--workspace-dir"],
+                        "help": "Override the local workspace directory for validation.",
+                    },
+                    {
+                        "name": "keep_temp_dir",
+                        "flags": ["--keep-temp-dir"],
+                        "help": "Keep the generated transfer, instance, and build-context directories for debugging.",
+                    },
+                    {
+                        "name": "cache_dir",
+                        "flags": ["--cache-dir"],
+                        "help": "Bind-mount a stable local cache directory into the validation runtime.",
+                    },
+                ],
+            }
         ]
 
     def get_ui_elements(
@@ -228,6 +276,8 @@ class CloudAgentAppPlugin:
             return self._close_session(app, params, state)
         if action_id == "cloud.detach_session":
             return self._detach_session(app, params)
+        if action_id == "cloud.validate_cloud":
+            return self._validate_cloud(app, params, state)
         if action_id == "cloud.clear_forked_session_attachment":
             return self._clear_forked_session_attachment(context)
         raise KeyError(f"Unknown cloud action {action_id!r}")
@@ -257,6 +307,7 @@ class CloudAgentAppPlugin:
             prefix="cloud-agent-transfer-"
         ) as transfer_tmp:
             transfer_dir = Path(transfer_tmp)
+            self._transfer_stage_dir(transfer_dir).mkdir(parents=True, exist_ok=True)
             transfer_env = self._script_env(
                 app=app,
                 state=state,
@@ -601,6 +652,17 @@ class CloudAgentAppPlugin:
         raw = params.get("workspace_dir") or state.get("workspace_dir") or os.getcwd()
         return Path(str(raw)).expanduser().resolve()
 
+    def _validation_cache_dir(
+        self, params: Dict[str, Any], *, workspace_dir: Path
+    ) -> Path | None:
+        raw = params.get("cache_dir")
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        path = Path(raw).expanduser()
+        if not path.is_absolute():
+            path = workspace_dir / path
+        return path.resolve()
+
     def _run_managed_ssh_adapter(
         self,
         state: Dict[str, Any],
@@ -686,6 +748,12 @@ class CloudAgentAppPlugin:
         script = Path(raw_path).expanduser()
         if not script.is_absolute():
             script = cwd / script
+        _log.info(
+            "cloud_script_start",
+            script=str(script),
+            cwd=str(cwd),
+        )
+        started_at = time.monotonic()
         result = subprocess.run(
             [str(script)],
             cwd=str(cwd),
@@ -693,6 +761,16 @@ class CloudAgentAppPlugin:
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+        )
+        duration = round(time.monotonic() - started_at, 3)
+        _log.info(
+            "cloud_script_complete",
+            script=str(script),
+            cwd=str(cwd),
+            returncode=result.returncode,
+            duration_seconds=duration,
+            stdout_preview=(result.stdout or "")[:400],
+            stderr_preview=(result.stderr or "")[:400],
         )
         if result.returncode != 0:
             raise RuntimeError(
@@ -783,6 +861,228 @@ class CloudAgentAppPlugin:
             )
             env_path.chmod(0o600)
 
+    def _build_validation_session(self, app: Any) -> tuple[Any, str, Session]:
+        list_agents = getattr(app, "list_agents", None)
+        create_session_ephemeral = getattr(app, "create_session_ephemeral", None)
+        if not callable(list_agents) or not callable(create_session_ephemeral):
+            raise RuntimeError("Cloud validation requires an AgentApplication instance")
+        agents = list_agents()
+        if not isinstance(agents, list) or not agents:
+            raise RuntimeError("Cloud validation requires at least one configured agent")
+        agent_id = str(agents[0])
+        core, _base_config, session = create_session_ephemeral(agent_id)
+        return core, agent_id, session
+
+    def _validate_cloud(
+        self, app: Any, params: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        if shutil.which("docker") is None:
+            raise RuntimeError("Docker is required for cloud validation but was not found")
+
+        workspace_dir = self._workspace_dir(params, state)
+        keep_temp_dir = bool(params.get("keep_temp_dir"))
+        cache_dir = self._validation_cache_dir(params, workspace_dir=workspace_dir)
+        runtime_layout = load_runtime_layout()
+        runtime_image = str(state.get("runtime_image") or "").strip()
+        if not runtime_image:
+            raise RuntimeError("Cloud validation requires a configured runtime image")
+        local_stage_script = state.get("local_stage_script")
+        local_transfer_script = self._required_script_config(
+            state, "local_transfer_script", legacy_key="transfer_script"
+        )
+
+        core, selected_agent_id, validation_session = self._build_validation_session(app)
+        validation_state = {
+            **state,
+            "validation_session_id": validation_session.session_id,
+        }
+        _log.info(
+            "cloud_validation_start",
+            workspace_dir=str(workspace_dir),
+            keep_temp_dir=keep_temp_dir,
+            validation_session_id=validation_session.session_id,
+            selected_agent_id=selected_agent_id,
+            runtime_image=runtime_image,
+            cache_dir=str(cache_dir) if cache_dir is not None else None,
+        )
+
+        temp_root = Path(tempfile.mkdtemp(prefix="cloud-agent-validate-")).resolve()
+        transfer_dir = temp_root / "transfer"
+        instance_dir = temp_root / "instance"
+        transfer_dir.mkdir(parents=True, exist_ok=True)
+        instance_dir.mkdir(parents=True, exist_ok=True)
+        port = reserve_local_port()
+        container_name = (
+            f"cloud-agent-validate-{int(time.time())}-{os.getpid()}".replace("_", "-")
+        )
+        try:
+            _log.info(
+                "cloud_validation_prepare_paths",
+                temp_root=str(temp_root),
+                transfer_dir=str(transfer_dir),
+                instance_dir=str(instance_dir),
+                local_runtime_port=port,
+            )
+            self._transfer_stage_dir(transfer_dir).mkdir(parents=True, exist_ok=True)
+            if cache_dir is not None:
+                cache_dir.mkdir(parents=True, exist_ok=True)
+            transfer_env = self._script_env(
+                app=app,
+                state=validation_state,
+                workspace_dir=workspace_dir,
+                cloud_workspace_dir=CLOUD_WORKSPACE_DIR,
+                transfer_dir=transfer_dir,
+                session_id=validation_session.session_id,
+            )
+            _log.info("cloud_validation_stage_begin", step="local_stage")
+            self._run_script(local_stage_script, transfer_env, cwd=workspace_dir)
+            _log.info("cloud_validation_stage_begin", step="local_transfer")
+            self._run_script(local_transfer_script, transfer_env, cwd=workspace_dir)
+            _log.info("cloud_validation_stage_begin", step="session_export")
+            self._write_session_export(
+                transfer_dir,
+                validation_session.session_id,
+                core.export_session(validation_session),
+            )
+            _log.info("cloud_validation_stage_begin", step="runtime_config_transfer")
+            self._write_runtime_config_transfer(
+                app,
+                transfer_dir,
+                validation_state,
+                selected_agent_id=selected_agent_id,
+            )
+            _log.info("cloud_validation_stage_begin", step="runtime_script_packaging")
+            self._write_cloud_runtime_scripts(
+                transfer_dir,
+                validation_state,
+                workspace_dir,
+                session_id=validation_session.session_id,
+            )
+
+            image_details = ensure_local_runtime_image(
+                runtime_image,
+                runtime_layout=runtime_layout,
+                logger=_log,
+            )
+            _log.info(
+                "cloud_validation_runtime_image_ready",
+                runtime_image=runtime_image,
+                image_source=image_details.get("source"),
+                build_root=image_details.get("build_root"),
+            )
+            docker_run_command = [
+                "docker",
+                "run",
+                "-d",
+                "--name",
+                container_name,
+                "-p",
+                f"127.0.0.1:{port}:8000",
+                "-v",
+                f"{transfer_dir}:/transfer",
+                "-v",
+                f"{instance_dir}:/cloud-agent/instance",
+            ]
+            if cache_dir is not None:
+                docker_run_command.extend(
+                    [
+                        "-v",
+                        f"{cache_dir}:{CLOUD_CACHE_DIR}",
+                        "-e",
+                        f"CLOUD_AGENT_CACHE_DIR={CLOUD_CACHE_DIR}",
+                        "-e",
+                        f"PIP_CACHE_DIR={CLOUD_CACHE_DIR}/pip",
+                        "-e",
+                        f"XDG_CACHE_HOME={CLOUD_CACHE_DIR}/xdg",
+                    ]
+                )
+            docker_run_command.append(runtime_image)
+            run_result = run_command(
+                docker_run_command,
+                cwd=workspace_dir,
+                logger=_log,
+                event_name="cloud_validation_docker_run",
+            )
+            if run_result.returncode != 0:
+                raise RuntimeError(
+                    "Failed to start local cloud validation container:\n"
+                    + (run_result.stdout or "")
+                )
+
+            _log.info(
+                "cloud_validation_stage_begin",
+                step="runtime_readiness",
+                runtime_url=f"http://127.0.0.1:{port}",
+                container_name=container_name,
+            )
+            ready_payload = self._wait_for_local_runtime_ready(port, validation_state)
+            _log.info(
+                "cloud_validation_stage_begin",
+                step="runtime_validate",
+                runtime_url=f"http://127.0.0.1:{port}",
+            )
+            status, validation_payload = self._local_runtime_request(
+                "POST",
+                port,
+                "/cloud-agent/runtime/validate",
+                payload={},
+            )
+            if status != 200:
+                raise RuntimeError(self._format_runtime_failure(validation_payload))
+            _log.info(
+                "cloud_validation_complete",
+                workspace_dir=str(workspace_dir),
+                runtime_url=f"http://127.0.0.1:{port}",
+                validation_status=validation_payload.get("status"),
+                validate_step=validation_payload.get("validate"),
+            )
+
+            kept_note = ""
+            if keep_temp_dir:
+                kept_note = f"\nArtifacts kept at `{temp_root}`."
+
+            return {
+                "status": "ok",
+                "workspace_dir": str(workspace_dir),
+                "artifacts_dir": str(temp_root),
+                "runtime_url": f"http://127.0.0.1:{port}",
+                "runtime_image": runtime_image,
+                "cache_dir": str(cache_dir) if cache_dir is not None else None,
+                "runtime_ready": ready_payload,
+                "validation": validation_payload,
+                "display": {
+                    "format": "markdown",
+                    "title": "Cloud Validation Passed",
+                    "body": (
+                        f"Cloud validation passed for `{workspace_dir}` using local Docker."
+                        f"{kept_note}"
+                    ),
+                    "variant": "success",
+                },
+            }
+        except Exception as exc:
+            detail = str(exc)
+            try:
+                logs = self._docker_logs(container_name)
+            except Exception:
+                logs = ""
+            if logs:
+                detail += f"\n\nContainer logs:\n{logs}"
+            raise RuntimeError(detail) from exc
+        finally:
+            try:
+                _log.info(
+                    "cloud_validation_cleanup",
+                    container_name=container_name,
+                    keep_temp_dir=keep_temp_dir,
+                    temp_root=str(temp_root),
+                )
+                self._remove_container(container_name)
+            except Exception:
+                pass
+            if not keep_temp_dir:
+                shutil.rmtree(temp_root, ignore_errors=True)
+
     def _resolved_env(self, app: Any) -> Dict[str, str]:
         get_resolved_env = getattr(app, "get_resolved_env", None)
         if not callable(get_resolved_env):
@@ -802,9 +1102,7 @@ class CloudAgentAppPlugin:
     ) -> Dict[str, str]:
         resolved_env = self._resolved_env(app)
         ref_token = self._ref_safe_token(session_id)
-        transfer_stage_dir = (
-            transfer_dir / RESERVED_CLOUD_AGENT_DIR / "local-stage"
-        ).resolve()
+        transfer_stage_dir = self._transfer_stage_dir(transfer_dir)
         branch_prefix = str(state.get("imported_branch_prefix") or DEFAULT_IMPORTED_BRANCH_PREFIX)
         return {
             **{
@@ -834,7 +1132,13 @@ class CloudAgentAppPlugin:
             "CLOUD_AGENT_CLOUD_FULL_STATE_REF": f"refs/cloud-agent/{ref_token}/cloud-full-state",
             "CLOUD_AGENT_LOCAL_IMPORT_STATE_REF": f"refs/cloud-agent/{ref_token}/local-import-state",
             "CLOUD_AGENT_LAST_SYNCED_REF": f"refs/cloud-agent/{ref_token}/last-synced",
+            "CLOUD_AGENT_VALIDATION_SESSION_ID": str(
+                state.get("validation_session_id") or ""
+            ),
         }
+
+    def _transfer_stage_dir(self, transfer_dir: Path) -> Path:
+        return (transfer_dir / RESERVED_CLOUD_AGENT_DIR / "local-stage").resolve()
 
     def _cloud_runtime_script_env(
         self,
@@ -857,6 +1161,7 @@ class CloudAgentAppPlugin:
             "CLOUD_AGENT_PROFILE_ID",
             "CLOUD_AGENT_TRANSFER_UP_PROFILE_ID",
             "CLOUD_AGENT_SYNC_DOWN_PROFILE_ID",
+            "CLOUD_AGENT_VALIDATION_SESSION_ID",
             "CLOUD_AGENT_IMPORTED_BRANCH_NAME",
             "CLOUD_AGENT_DELEGATED_SNAPSHOT_REF",
             "CLOUD_AGENT_CLOUD_FULL_STATE_REF",
@@ -928,6 +1233,125 @@ class CloudAgentAppPlugin:
                 f"GET {path} failed with HTTP {exc.code}: {detail}"
             ) from exc
         return parsed if isinstance(parsed, dict) else {}
+
+    def _local_runtime_request(
+        self,
+        method: str,
+        port: int,
+        path: str,
+        *,
+        payload: Dict[str, Any] | None = None,
+    ) -> tuple[int, Dict[str, Any]]:
+        body = (
+            json.dumps({k: v for k, v in payload.items() if v is not None}).encode("utf-8")
+            if isinstance(payload, dict)
+            else None
+        )
+        headers = {"content-type": "application/json"} if body is not None else {}
+        request = Request(
+            f"http://127.0.0.1:{port}{path}",
+            data=body,
+            headers=headers,
+            method=method,
+        )
+        try:
+            with urlopen(request, timeout=5) as response:
+                parsed = json.loads(response.read().decode("utf-8"))
+                return int(getattr(response, "status", 200)), parsed if isinstance(parsed, dict) else {}
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            try:
+                parsed = json.loads(detail)
+            except Exception:
+                parsed = {"raw": detail}
+            return int(exc.code), parsed if isinstance(parsed, dict) else {"raw": detail}
+
+    def _format_runtime_failure(self, payload: Dict[str, Any]) -> str:
+        detail = payload.get("detail")
+        if isinstance(detail, dict):
+            payload = detail
+        if payload.get("error") == "script_failed":
+            stage = payload.get("stage") or "unknown stage"
+            script = payload.get("script") or "unknown script"
+            returncode = payload.get("returncode")
+            stderr = str(payload.get("stderr") or payload.get("stdout") or "").strip()
+            return (
+                f"{stage} failed with exit code {returncode} for {script}: "
+                f"{stderr or 'no output'}"
+            )
+        startup_stage = payload.get("startup_stage")
+        startup_error = payload.get("startup_error")
+        startup_detail = payload.get("startup_error_detail")
+        if isinstance(startup_detail, str) and startup_detail.strip():
+            try:
+                parsed = json.loads(startup_detail)
+            except Exception:
+                parsed = None
+            if isinstance(parsed, dict):
+                return self._format_runtime_failure(parsed)
+        if startup_stage or startup_error:
+            return (
+                f"runtime failed during {startup_stage or 'startup'}: "
+                f"{startup_detail or startup_error or payload}"
+            )
+        return str(payload)
+
+    def _wait_for_local_runtime_ready(
+        self,
+        port: int,
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        timeout = self._startup_poll_timeout_seconds(state)
+        interval = self._startup_poll_interval_seconds(state)
+        deadline = time.monotonic() + timeout
+        last_payload: Dict[str, Any] = {}
+        last_stage = None
+        last_heartbeat = 0.0
+        while time.monotonic() < deadline:
+            try:
+                status, payload = self._local_runtime_request(
+                    "GET", port, "/cloud-agent/runtime/ready"
+                )
+            except Exception:
+                time.sleep(interval)
+                continue
+            last_payload = payload
+            stage = payload.get("startup_stage")
+            if stage != last_stage:
+                _log.info(
+                    "cloud_validation_runtime_progress",
+                    runtime_url=f"http://127.0.0.1:{port}",
+                    startup_stage=stage,
+                    status=payload.get("status"),
+                )
+                last_stage = stage
+            now = time.monotonic()
+            if now - last_heartbeat >= 5.0:
+                _log.info(
+                    "cloud_validation_runtime_waiting",
+                    runtime_url=f"http://127.0.0.1:{port}",
+                    startup_stage=stage,
+                    status=payload.get("status"),
+                    timeout_seconds=timeout,
+                    seconds_remaining=max(0.0, round(deadline - now, 1)),
+                )
+                last_heartbeat = now
+            if status == 200 and payload.get("ready") is True:
+                return payload
+            if payload.get("status") == "failed" or payload.get("startup_stage") == "failed":
+                raise RuntimeError(self._format_runtime_failure(payload))
+            time.sleep(interval)
+        raise RuntimeError(
+            "Timed out waiting for local cloud runtime readiness: "
+            f"{self._format_runtime_failure(last_payload) if last_payload else 'no response'}"
+        )
+
+    def _docker_logs(self, container_name: str) -> str:
+        result = run_command(["docker", "logs", container_name], cwd=Path.cwd())
+        return (result.stdout or "").strip()
+
+    def _remove_container(self, container_name: str) -> None:
+        run_command(["docker", "rm", "-f", container_name], cwd=Path.cwd())
 
     def _wait_for_instance_ready(
         self,

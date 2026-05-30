@@ -159,10 +159,66 @@ function prepareWorkspaceFixture(scenario: string, workspaceDir: string): void {
 type ProfileScenarioContext = {
   workspaceDir: string;
   configRoot: string;
+  configPath: string;
   localBackend: RestAgentBackend;
   localServer: Awaited<ReturnType<typeof startBackendServer>>;
   cleanup: () => Promise<void>;
 };
+
+function validationCommandEnv(repoRoot: string, options: {
+  workspaceDir: string;
+  configPath: string;
+}): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PYTHONPATH: [
+      path.join(repoRoot, 'core', 'python'),
+      path.join(repoRoot, 'application', 'python'),
+      path.join(repoRoot, 'plugins', 'cloud-agent-app', 'src'),
+    ].join(path.delimiter),
+    BUILTIN_PLUGINS: path.join(repoRoot, 'plugins'),
+    WORKING_DIR: options.workspaceDir,
+    CONFIG_DIR: path.dirname(options.configPath),
+  };
+}
+
+function runValidateCloudCommand(options: {
+  configPath: string;
+  workspaceDir: string;
+}): string {
+  const repoRoot = findRepoRoot(process.cwd());
+  const python = process.env.PYTHON || 'python';
+  return execFileSync(
+    python,
+    [
+      '-m',
+      'agent_terminal_app',
+      '--config',
+      options.configPath,
+      'validate-cloud',
+      '--workspace-dir',
+      options.workspaceDir,
+    ],
+    {
+      cwd: repoRoot,
+      env: validationCommandEnv(repoRoot, options),
+      encoding: 'utf8',
+    },
+  );
+}
+
+function runValidateCloudCommandExpectFailure(options: {
+  configPath: string;
+  workspaceDir: string;
+}): string {
+  try {
+    runValidateCloudCommand(options);
+  } catch (error) {
+    const output = error as { stdout?: string; stderr?: string };
+    return `${output.stdout || ''}${output.stderr || ''}`;
+  }
+  throw new Error('validate-cloud unexpectedly succeeded');
+}
 
 async function startProfileScenario(options: {
   scenario: string;
@@ -196,6 +252,7 @@ async function startProfileScenario(options: {
   return {
     workspaceDir,
     configRoot,
+    configPath,
     localServer,
     localBackend: new RestAgentBackend({
       transport: new FetchTransport({ baseUrl: localServer.baseUrl }),
@@ -421,6 +478,11 @@ describeIf(
           'should not transfer\n',
           'utf8',
         );
+        const validationOutput = runValidateCloudCommand({
+          configPath: context.configPath,
+          workspaceDir: context.workspaceDir,
+        });
+        expect(validationOutput).toContain('Cloud Validation Passed');
 
         const created = await context.localBackend.createSession({ agentId: 'default' });
         const sessionId = created.session.session_id;
@@ -536,6 +598,11 @@ describeIf(
           'local dirty\n',
           'utf8',
         );
+        const validationOutput = runValidateCloudCommand({
+          configPath: context.configPath,
+          workspaceDir: context.workspaceDir,
+        });
+        expect(validationOutput).toContain('Cloud Validation Passed');
 
         const created = await context.localBackend.createSession({ agentId: 'default' });
         const sessionId = created.session.session_id;
@@ -613,6 +680,11 @@ describeIf(
         );
         fs.writeFileSync(path.join(context.workspaceDir, 'a.txt'), 'local-a\n', 'utf8');
         fs.writeFileSync(path.join(context.workspaceDir, 'b.txt'), 'local-b\n', 'utf8');
+        const validationOutput = runValidateCloudCommand({
+          configPath: context.configPath,
+          workspaceDir: context.workspaceDir,
+        });
+        expect(validationOutput).toContain('Cloud Validation Passed');
 
         const created = await context.localBackend.createSession({ agentId: 'default' });
         const sessionId = created.session.session_id;
@@ -716,6 +788,73 @@ describeIf(
             { cwd: context.workspaceDir, encoding: 'utf8' },
           ),
         ).toBe('local-a\ncloud residual\n');
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
+      'fails local cloud validation when fixture local-stage does not stage the required env file',
+      async () => {
+        orchestrator = orchestrator || (await startCloudOrchestratorLocal());
+        const context = await startProfileScenario({
+          scenario: 'working-tree-patch-broken-local-stage',
+          orchestrator,
+        });
+        cleanupFns.push(context.cleanup);
+
+        initializeGitWorkspace(context.workspaceDir);
+        commitFiles(
+          context.workspaceDir,
+          [
+            '.gitignore',
+            'local.txt',
+            '.cloud-agent/cloud-agent.json',
+            '.cloud-agent/local-stage',
+            '.cloud-agent/install-cloud',
+            '.cloud-agent/validate-cloud',
+          ],
+          'initial workspace',
+        );
+
+        const output = runValidateCloudCommandExpectFailure({
+          configPath: context.configPath,
+          workspaceDir: context.workspaceDir,
+        });
+        expect(output).toContain('cloud_install_running failed');
+      },
+      TEST_TIMEOUT_MS,
+    );
+
+    it(
+      'fails local cloud validation when the fixture validate hook exits non-zero',
+      async () => {
+        orchestrator = orchestrator || (await startCloudOrchestratorLocal());
+        const context = await startProfileScenario({
+          scenario: 'working-tree-patch-invalid-validate',
+          orchestrator,
+        });
+        cleanupFns.push(context.cleanup);
+
+        initializeGitWorkspace(context.workspaceDir);
+        commitFiles(
+          context.workspaceDir,
+          [
+            '.gitignore',
+            'local.txt',
+            '.cloud-agent/cloud-agent.json',
+            '.cloud-agent/local-stage',
+            '.cloud-agent/install-cloud',
+            '.cloud-agent/validate-cloud',
+          ],
+          'initial workspace',
+        );
+
+        const output = runValidateCloudCommandExpectFailure({
+          configPath: context.configPath,
+          workspaceDir: context.workspaceDir,
+        });
+        expect(output).toContain('cloud_validation_running failed');
+        expect(output).toContain('intentional fixture validation failure');
       },
       TEST_TIMEOUT_MS,
     );

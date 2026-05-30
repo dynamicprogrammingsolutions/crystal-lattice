@@ -55,7 +55,15 @@ def resolve_cloud_agent_profiles(
     """Resolve cloud profile defaults into the existing plugin state shape."""
 
     env_map = dict(os.environ if env is None else env)
-    working_dir = Path(env_map.get("WORKING_DIR") or os.getcwd()).expanduser()
+    configured_workspace = cloud_agent_config.get("workspace_dir")
+    workspace_hint = (
+        str(configured_workspace).strip()
+        if isinstance(configured_workspace, str) and configured_workspace.strip()
+        else ""
+    )
+    working_dir = Path(
+        env_map.get("WORKING_DIR") or workspace_hint or os.getcwd()
+    ).expanduser()
     merged = copy.deepcopy(dict(cloud_agent_config))
     _reject_requires(merged, path="application.cloud_agent")
 

@@ -81,6 +81,14 @@ def test_get_application_actions_and_ui_schema_attach_plugin_id(tmp_path: Path) 
     assert element["ui_type"] == "session_action"
     assert element["action_id"] == "do_dummy"
 
+    commands = app.get_application_commands()
+    assert len(commands) == 1
+    command = commands[0]
+    assert command["plugin"] == "dummy_app_plugin"
+    assert command["name"] == "dummy-command"
+    assert command["action_id"] == "do_dummy"
+    assert command["args"][0]["name"] == "value"
+
 
 def test_execute_application_action_invokes_plugin(tmp_path: Path) -> None:
     config_path = _make_config_with_app_plugin(tmp_path)

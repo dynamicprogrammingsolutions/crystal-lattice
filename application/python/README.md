@@ -524,10 +524,34 @@ bundled profiles:
 - `.cloud-agent/install-cloud`
 - `.cloud-agent/validate-cloud`
 
+Local hook validation does not require the orchestrator service. Run the shared
+local-Docker validation flow directly from the main CLI:
+
+```bash
+crystal-lattice validate-cloud
+```
+
+Useful flags:
+
+```bash
+crystal-lattice validate-cloud --workspace-dir /path/to/project
+crystal-lattice validate-cloud --keep-temp-dir
+crystal-lattice validate-cloud --cache-dir /path/to/stable/cache
+```
+
+The command runs the runtime image selected by the active
+`application.cloud_agent.container_profiles` configuration. If that image is
+the default `cloud-agent-runtime:latest` and it is missing locally, the command
+builds it from `cloud-orchestrator/runtime/python/Dockerfile` before starting
+the local validation container.
+When `--cache-dir` is provided, it is bind-mounted to `/cloud-agent/cache` so
+plugin and pip caches persist across validation runs.
+
 The full cloud profile reference lives in
 [`plugins/cloud-agent-app/README.md`](../../plugins/cloud-agent-app/README.md),
 including:
 
+- the `validate-cloud` command and its built-in smoke contract
 - the flattened `transfer_up_profiles` schema
 - the bundled script tree under `default_config/cloud-agent/profiles/`
 - the standard repo-local hook conventions and optional-hook behavior

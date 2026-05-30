@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
@@ -194,6 +195,42 @@ def test_cloud_start_session_ui_element_maps_current_session_id() -> None:
     }
 
 
+def test_cloud_plugin_exposes_validate_cloud_command_binding() -> None:
+    plugin = CloudAgentAppPlugin()
+
+    actions = {action["id"]: action for action in plugin.get_actions({})}
+    commands = {command["name"]: command for command in plugin.get_commands({})}
+
+    assert "cloud.validate_cloud" in actions
+    assert actions["cloud.validate_cloud"]["inputs"] == {
+        "workspace_dir": {"type": "string", "required": False},
+        "keep_temp_dir": {"type": "boolean", "required": False, "default": False},
+        "cache_dir": {"type": "string", "required": False},
+    }
+    assert commands["validate-cloud"] == {
+        "name": "validate-cloud",
+        "description": "Validate the current workspace through the shared local-Docker cloud flow.",
+        "action_id": "cloud.validate_cloud",
+        "args": [
+            {
+                "name": "workspace_dir",
+                "flags": ["--workspace-dir"],
+                "help": "Override the local workspace directory for validation.",
+            },
+            {
+                "name": "keep_temp_dir",
+                "flags": ["--keep-temp-dir"],
+                "help": "Keep the generated transfer, instance, and build-context directories for debugging.",
+            },
+            {
+                "name": "cache_dir",
+                "flags": ["--cache-dir"],
+                "help": "Bind-mount a stable local cache directory into the validation runtime.",
+            },
+        ],
+    }
+
+
 def test_cloud_start_session_default_wait_timeout_is_short() -> None:
     plugin = CloudAgentAppPlugin()
 
@@ -252,6 +289,105 @@ def test_write_cloud_runtime_scripts_copies_optional_validation_script(
     runtime_env = (scripts_dir / "runtime.env").read_text(encoding="utf-8")
     assert "CLOUD_AGENT_TRANSFER_UP_PROFILE_ID=working-tree-current-state" in runtime_env
     assert "CLOUD_AGENT_SYNC_DOWN_PROFILE_ID=working-tree-patch" in runtime_env
+
+
+def test_validate_cloud_action_packages_runtime_and_returns_success(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "sample.txt").write_text("payload\n", encoding="utf-8")
+    validate_hook = _write_script(
+        workspace / ".cloud-agent" / "validate-cloud",
+        'printf "validate hook" > /dev/null\n',
+    )
+    _write_script(workspace / ".cloud-agent" / "install-cloud")
+    transfer_script = _write_script(
+        tmp_path / "transfer.py",
+        'mkdir -p "${TRANSFER_DIR}"\ncp "${LOCAL_WORKSPACE_DIR}/sample.txt" "${TRANSFER_DIR}/sample.txt"\n',
+    )
+
+    config_path = _write_config(tmp_path, transfer_script)
+    config_data = json.loads(config_path.read_text(encoding="utf-8"))
+    config_data["application"]["cloud_agent"]["transfer_up_profiles"]["test-transfer"][
+        "validation_script"
+    ] = str(validate_hook)
+    config_path.write_text(json.dumps(config_data), encoding="utf-8")
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    plugin = app._app_plugins["cloud"].plugin
+    captured_commands: List[list[str]] = []
+    cache_dir = tmp_path / "cache"
+
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.ensure_local_runtime_image",
+        lambda runtime_image, runtime_layout, logger=None: {
+            "runtime_image": runtime_image,
+            "source": "existing",
+        },
+    )
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.reserve_local_port",
+        lambda: 18123,
+    )
+
+    def fake_run_command(
+        command: list[str],
+        *,
+        cwd: Path,
+        logger=None,
+        event_name: str = "cloud_validation_command",
+    ):
+        captured_commands.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="ok",
+            stderr="",
+        )
+
+    monkeypatch.setattr("cloud_agent_app.cloud_agent_app_plugin.run_command", fake_run_command)
+    monkeypatch.setattr(plugin, "_wait_for_local_runtime_ready", lambda port, state: {"ready": True})
+    monkeypatch.setattr(
+        plugin,
+        "_local_runtime_request",
+        lambda method, port, path, payload=None: (
+            200,
+            {"status": "ok", "smoke": {"workspace_exists": True}, "validate": {"status": "ran"}},
+        ),
+    )
+    monkeypatch.setattr(plugin, "_docker_logs", lambda container_name: "")
+    monkeypatch.setattr(plugin, "_remove_container", lambda container_name: None)
+
+    result = app.execute_application_action(
+        "cloud",
+        "cloud.validate_cloud",
+        {
+            "workspace_dir": str(workspace),
+            "keep_temp_dir": True,
+            "cache_dir": str(cache_dir),
+        },
+    )
+
+    assert result["status"] == "ok"
+    assert result["display"]["title"] == "Cloud Validation Passed"
+    assert result["runtime_image"] == "cloud-agent-runtime:latest"
+    assert result["cache_dir"] == str(cache_dir.resolve())
+    assert captured_commands[0][:3] == ["docker", "run", "-d"]
+    assert captured_commands[0][-1] == "cloud-agent-runtime:latest"
+    assert f"{cache_dir.resolve()}:/cloud-agent/cache" in captured_commands[0]
+
+    artifacts_dir = Path(result["artifacts_dir"])
+    runtime_env = (
+        artifacts_dir / "transfer" / ".cloud-agent" / "scripts" / "runtime.env"
+    ).read_text(encoding="utf-8")
+    assert "CLOUD_AGENT_VALIDATION_SESSION_ID=" in runtime_env
+    assert (
+        artifacts_dir / "transfer" / ".cloud-agent" / "scripts" / "validate"
+    ).read_text(encoding="utf-8") == validate_hook.read_text(encoding="utf-8")
+    shutil.rmtree(artifacts_dir, ignore_errors=True)
 
 
 def test_profile_resolver_selects_default_profiles_and_expands_env_paths(

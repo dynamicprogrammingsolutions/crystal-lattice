@@ -1,0 +1,5 @@
+{
+  "default_transfer_up_profile": "working-tree-current-state",
+  "default_sync_down_profile": "working-tree-patch",
+  "default_container_profile": "default-runtime"
+}

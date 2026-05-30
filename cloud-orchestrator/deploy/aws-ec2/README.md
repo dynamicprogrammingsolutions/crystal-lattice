@@ -66,6 +66,11 @@ runtime image is built from the repository root with
 `cloud-orchestrator/runtime/python/Dockerfile` so it can include `core/python`,
 `application/python`, and repo-root built-in plugins.
 
+The main CLI now also ships a bundled local-validation runtime asset copy in
+`plugins/cloud-agent-app`. Keep the orchestrator-owned runtime Dockerfile and
+the bundled validation Dockerfile aligned when changing the runtime base image,
+installed utilities, or bootstrap behavior.
+
 Build explicitly before running deploys or AWS E2E tests:
 
 ```bash

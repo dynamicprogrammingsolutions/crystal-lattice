@@ -8,8 +8,10 @@ from typing import Any
 
 from agent_terminal_app import server as server_mod
 from agent_terminal_app.__main__ import (
+    _application_action_map,
     _build_server_integration_config,
     _collect_additional_dotenv_values,
+    _parse_contributed_command,
 )
 
 
@@ -205,3 +207,50 @@ def test_server_startup_direct_env_bridge_fallback_still_works(monkeypatch) -> N
     finally:
         asyncio.run(server_mod._on_shutdown())
         server_mod.clear_configured_integrations()
+
+
+def test_parse_contributed_command_uses_action_input_contract() -> None:
+    command = {
+        "name": "validate-cloud",
+        "description": "Validate cloud workspace.",
+        "action_id": "cloud.validate_cloud",
+        "args": [
+            {"name": "workspace_dir", "flags": ["--workspace-dir"]},
+            {"name": "keep_temp_dir", "flags": ["--keep-temp-dir"]},
+        ],
+    }
+    action = {
+        "plugin": "cloud",
+        "id": "cloud.validate_cloud",
+        "inputs": {
+            "workspace_dir": {"type": "string", "required": False},
+            "keep_temp_dir": {"type": "boolean", "required": False, "default": False},
+        },
+    }
+
+    parsed = _parse_contributed_command(
+        command,
+        action,
+        ["--workspace-dir", "/tmp/project", "--keep-temp-dir"],
+    )
+
+    assert parsed == {
+        "workspace_dir": "/tmp/project",
+        "keep_temp_dir": True,
+    }
+
+
+def test_application_action_map_indexes_plugin_actions() -> None:
+    class _FakeApp:
+        def get_application_actions(self):
+            return [
+                {"plugin": "cloud", "id": "cloud.validate_cloud"},
+                {"plugin": "dummy", "id": "dummy.do_it"},
+            ]
+
+    mapped = _application_action_map(_FakeApp())
+
+    assert set(mapped) == {
+        ("cloud", "cloud.validate_cloud"),
+        ("dummy", "dummy.do_it"),
+    }

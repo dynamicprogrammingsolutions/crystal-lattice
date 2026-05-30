@@ -16,4 +16,8 @@ dev = ["pytest"]
 where = ["src"]
 
 [tool.setuptools.package-data]
-cloud_agent_app = ["managed_ssh_rsync.sh"]
+cloud_agent_app = [
+    "managed_ssh_rsync.sh",
+    "bundled_runtime/python/Dockerfile",
+    "bundled_runtime/python/runtime.py",
+]

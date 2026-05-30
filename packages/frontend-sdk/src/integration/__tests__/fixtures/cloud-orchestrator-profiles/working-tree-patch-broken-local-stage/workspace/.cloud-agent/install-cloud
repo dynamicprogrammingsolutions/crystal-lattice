@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+: "${TRANSFER_STAGE_DIR:?}"
+
+test -f "${TRANSFER_STAGE_DIR}/root.env"
+cp "${TRANSFER_STAGE_DIR}/root.env" "${CLOUD_WORKSPACE_DIR}/staged.env"
