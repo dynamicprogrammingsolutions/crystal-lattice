@@ -7,6 +7,11 @@ Feature plugin providing configurable system-message templating for request-time
 This plugin lets application config define a default system-message template plus named variables.
 The template is rendered for each request without mutating the stored core session history.
 
+Earlier features may also contribute request-scoped template variables by writing
+`state["system_message_variables"] = {"NAME": "value"}` during
+`initialize_request()`. Those values are merged just before template rendering and
+override config-defined variables with the same name for that request only.
+
 Supported variable sources:
 
 - string: direct replacement text
@@ -189,6 +194,10 @@ Variable-level `runtime_code` helpers may also export `get_ui_elements()`. The f
 - Use `condition` for whole-section inclusion.
 - Use `inline_code` for short dynamic strings.
 - Use `code` for moderately complex dynamic sections such as optional local-instructions blocks.
+- When another feature needs request-scoped prompt sections, write
+  `state["system_message_variables"]` and, if needed, pre-populate
+  `state["request"]["messages"]`; this feature preserves existing request message
+  overrides while rendering the final system message.
 
 See [application/python/agent_terminal_app/default_config/config.json](application/python/agent_terminal_app/default_config/config.json) for a multi-vendor example that follows this pattern.
 

@@ -32,6 +32,13 @@
     },
     "codex_developer_message": {
       "codex_personality": "default",
+      "skills_enabled": true,
+      "skills_roots": [
+        ".agents/skills"
+      ],
+      "skills_follow_symlinks": false,
+      "skills_max_scan_depth": 6,
+      "skills_max_dirs_per_root": 2000,
       "system_message_enabled": true,
       "codex_developer_messages": [
         {
@@ -126,6 +133,9 @@
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
+            "CODEX_SKILLS_SECTION": {
+              "text": ""
+            },
           "CODEX_ENVIRONMENT_CONTEXT": {
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"

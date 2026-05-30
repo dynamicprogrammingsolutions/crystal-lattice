@@ -61,6 +61,8 @@ def test_default_config_effective_agent_configs_stay_intact(
             "provider": "openai_responses",
             "auth_mode": "api",
             "shell_tool_mode": "auto",
+            "skills_enabled": True,
+            "skills_roots": [".agents/skills"],
         },
         "glm": {
             "provider": "openrouter",

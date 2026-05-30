@@ -8,6 +8,7 @@
     "codex_tools.apply_patch_tool.ApplyPatchTool",
     "codex_tools.mcp_tool.CodexMCPTool",
     "codex_tools.view_image_tool.ViewImageTool",
+    "codex_tools.codex_skills_feature.CodexSkillsFeature",
     "codex_tools.codex_variant_feature.CodexVariantFeature"
   ],
   "kinds": {
@@ -17,6 +18,7 @@
     "codex_tools.apply_patch_tool.ApplyPatchTool": "tools",
     "codex_tools.mcp_tool.CodexMCPTool": "tools",
     "codex_tools.view_image_tool.ViewImageTool": "tools",
+    "codex_tools.codex_skills_feature.CodexSkillsFeature": "features",
     "codex_tools.codex_variant_feature.CodexVariantFeature": "features"
   }
 }

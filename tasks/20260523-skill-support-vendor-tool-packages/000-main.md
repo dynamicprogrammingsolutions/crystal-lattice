@@ -4,7 +4,7 @@ Add Agent Skills support to the vendor tool packages using one abstract shared s
 
 ## Task checklist
 
-- [ ] `tasks/20260523-skill-support-vendor-tool-packages/010-codex-skills-implementation.md`
+- [x] `tasks/20260523-skill-support-vendor-tool-packages/010-codex-skills-implementation.md`
 - [ ] `tasks/20260523-skill-support-vendor-tool-packages/020-kimi-skills-implementation.md`
 - [ ] `tasks/20260523-skill-support-vendor-tool-packages/030-gemini-skills-implementation.md`
 - [ ] `tasks/20260523-skill-support-vendor-tool-packages/040-qwen-skills-implementation.md`

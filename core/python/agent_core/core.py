@@ -2025,6 +2025,33 @@ class AgentCore:
             )
         return native_messages
 
+    def core_messages_to_native(
+        self,
+        core_messages: List[Dict[str, Any]],
+        config: Dict[str, Any],
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Convert core-shaped messages into provider-native messages.
+
+        This is a thin public wrapper around the normal provider/extension/
+        feature conversion path. It is intended for request-time features and
+        actions that need to synthesize a core message and append its
+        provider-native form to an in-flight request without re-implementing
+        provider-specific message shaping.
+        """
+
+        if not isinstance(core_messages, list):
+            raise TypeError("core_messages must be a list")
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+
+        return self._core_messages_to_native_for_config(
+            core_messages,
+            config,
+            context=context,
+        )
+
     def _rebuild_core_from_native(
         self,
         native_messages: List[Dict[str, Any]],

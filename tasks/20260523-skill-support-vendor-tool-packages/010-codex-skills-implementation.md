@@ -4,12 +4,12 @@ Implement the first production slice of skills support for Codex-family agents, 
 
 ## Requirements checklist
 
-- [ ] Add the initial abstract shared skill package with explicit-root discovery and loading.
-- [ ] Extend `feature-system-message` so earlier features can contribute request-scoped template variables from shared state.
-- [ ] Add a Codex-owned feature plugin that computes the Codex skills placeholder content.
-- [ ] Wire explicit Codex skill roots into shipped default config.
-- [ ] Decide and implement how Codex reads selected `SKILL.md` content in this platform's current tool surface.
-- [ ] Add targeted tests and docs for the Codex slice.
+- [x] Add the initial abstract shared skill package with explicit-root discovery and loading.
+- [x] Extend `feature-system-message` so earlier features can contribute request-scoped template variables from shared state.
+- [x] Add a Codex-owned feature plugin that computes the Codex available-skills developer block using upstream Codex wording.
+- [x] Wire explicit Codex skill roots into shipped default config.
+- [x] Implement manual skill activation by mention (for example `$skillname`) and inject selected `SKILL.md` content request-scoped as a synthetic user message.
+- [x] Add targeted tests and docs for the Codex slice.
 
 Parent Task: `tasks/20260523-skill-support-vendor-tool-packages/000-main.md`
 
@@ -52,10 +52,7 @@ That means a vendor feature can run before system-message rendering and stash co
 - `docs/codex-tools/README.md:56-57`
 - `docs/codex-tools/README.md:107`
 
-This is useful because we can either:
-
-- add the minimum skill-reading path now, or
-- explicitly document a temporary shell-based reading strategy if we do not yet want to add a full Codex `read_file` tool.
+This is useful because Codex's effective file-reading surface in this platform is the shell tool, which aligns with upstream Codex behavior closely enough for the first slice without adding a dedicated read-file tool here.
 
 ## Proposed Codex slice scope
 
@@ -108,22 +105,25 @@ Responsibilities:
 
 - read generic config like `skills_enabled` / `skills_roots`;
 - call `skill-shared`;
-- compute a Codex-specific rendered placeholder string;
+- compute the Codex available-skills developer block using upstream Codex wording from `../codex/codex-rs/core/src/context/available_skills_instructions.rs`;
 - store it in request state for system-message rendering;
+- detect manual `$skillname` mentions in the current request and inject matching `SKILL.md` contents as request-scoped synthetic user messages, mirroring upstream Codex's `<skill>` injection shape;
 - keep all Codex prompt wording local to `codex-tools`.
 
-### D. Decide Codex skill activation/reading path
+### D. Codex activation path for this slice
 
-This subtask should choose one of these approaches and document the tradeoff:
+Implement the two upstream-inspired behaviors:
 
-1. Prompt-only selection in v1:
-   - Codex sees available skills in the system message.
-   - Codex reads the chosen `SKILL.md` using existing tools, likely `shell_command`.
+1. Available-skills developer block:
+   - render the available-skills section into the Codex system-message template using the exact upstream wording for the instructional text.
 
-2. Add a dedicated Codex read/skill path:
-   - add a Codex `read_file` and/or dedicated skill tool support in our bundle.
+2. Manual activation by mention:
+   - detect explicit skill mentions like `$skillname` during request initialization;
+   - resolve matching discovered skills;
+   - read the selected `SKILL.md`;
+   - inject each selected skill into the request as a synthetic user message shaped like upstream Codex `<skill>` context.
 
-The repo context today suggests prompt-only + existing tools may be the smallest first slice, but the task owner should decide based on fidelity and implementation cost.
+This avoids adding a dedicated skill-activation tool while still preserving the key upstream Codex activation flow.
 
 ## Suggested tests
 
@@ -145,6 +145,41 @@ The repo context today suggests prompt-only + existing tools may be the smallest
   - `application/python/agent_terminal_app/system_messages/...`
   - possibly docs under `docs/default-system-instructions/codex/`
 
+## Execution plan
+
+Added during completion after user approval.
+
+1. Add a neutral shared `skill-shared` library package with explicit-root discovery, `SKILL.md` parsing, YAML frontmatter extraction, and optional sidecar YAML loading helpers. Keep it mechanical only: no vendor-specific defaults, prompt text, or activation rules.
+2. Extend `feature-system-message` with a generic request-scoped variable bridge via `state["system_message_variables"]`, merged into template variables just before render so earlier features can contribute placeholders without adding config-only descriptors.
+3. Add Codex-owned skill interpretation in `plugins/codex-tools`, mapping parsed shared documents into a Codex skill model using current upstream `../codex` behavior: `name` fallback to directory name, required `description`, support for `metadata.short-description`, and fail-open optional `agents/openai.yaml`.
+4. Implement `CodexSkillsFeature` as a request-time feature plugin that:
+   - discovers configured skills from explicit roots;
+   - renders `CODEX_SKILLS_SECTION` using the exact instructional wording from upstream `AvailableSkillsInstructions`;
+   - detects manual `$skillname` mentions in request messages;
+   - injects selected `SKILL.md` contents as synthetic user messages with upstream-style `<skill><name>...<path>...` wrappers, on-the-fly for the current request only.
+5. Update the Codex system-message template and default config so Codex agents expose `CODEX_SKILLS_SECTION` and explicit generic `skills_*` config keys rooted at `.agents/skills`, while keeping all wording and activation behavior local to `codex-tools`.
+6. Add tests for shared discovery/parsing, request-scoped system-message variable merging, Codex developer-block rendering, explicit mention activation/injection, and default-config integration. Update README/docs for `feature-system-message`, `skill-shared`, and `codex-tools`.
+
 ## Completion Notes
 
-To be added during implementation.
+Added during completion.
+
+- Implemented `plugins/skill-shared/` as a neutral discovery/parsing library using `yaml.safe_load`, explicit-root traversal, frontmatter extraction, and optional sidecar YAML mapping helpers.
+- Extended `feature-system-message` so request-scoped variables supplied through `state["system_message_variables"]` override config variables for that request and existing `state["request"]["messages"]` overrides are preserved when rendering the final system message.
+- Added `CodexSkillsFeature` and `codex_skill_loader.py` in `plugins/codex-tools`:
+  - renders the available-skills developer block using the upstream Codex wording from `../codex/codex-rs/core/src/context/available_skills_instructions.rs`
+  - supports manual `$skillname` activation
+  - injects selected `SKILL.md` contents as upstream-style synthetic `<skill>` user messages
+  - converts those synthetic core messages to provider-native form through a new public `AgentCore.core_messages_to_native(...)` helper, so activation is no longer tied to a specific provider message shape
+  - returns updated `native_messages` from `initialize_request`, making the injected skill durable in retained native history
+- Wired `CODEX_SKILLS_SECTION` into the Codex template and added generic `skills_*` config keys to the shared Codex mixin, using relative `.agents/skills` roots so resolution happens against the working directory at request time.
+- Updated docs in `plugins/feature-system-message/README.md` and `plugins/codex-tools/README.md`.
+- Added a real-provider application-level integration test in `application/python/tests/test_codex_skill_activation_real_api.py` that creates a temp workspace with a skill, sends a user message containing `$skillname`, and verifies both the assistant response and the retained provider-native request payload contain the injected skill text.
+- Added a duplicate-injection guard so a skill already injected into retained native history is not re-activated on later request/tool-loop phases. The synthetic skill message now carries metadata (`codex_skill_injected`, `codex_skill_name`, `codex_skill_path`) and the Codex feature checks for an existing injected skill before appending another copy.
+- Strengthened the real-provider integration test to force a tool-loop phase and assert that the retained native history contains exactly one injected `<skill>` message, catching the repeated-activation regression from interactive use.
+- Verification run:
+  - `pytest plugins/skill-shared/tests/test_skill_shared.py -q`
+  - `pytest plugins/feature-system-message/tests/test_system_message_feature.py -q`
+  - `pytest plugins/codex-tools/tests/test_codex_skills_feature.py plugins/codex-tools/tests/test_codex_tools_imports.py -q`
+  - `pytest application/python/tests/test_codex_skill_activation_real_api.py -q -m 'integration and api and openrouter'`
+  - `pytest application/python/tests/test_default_config_effective_agent_configs.py -q -m integration`
