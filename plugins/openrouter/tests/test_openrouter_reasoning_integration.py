@@ -46,7 +46,7 @@ pytestmark = pytest.mark.api
 # Models that support reasoning (using cheap versions)
 MODELS = {
     "gemini": "google/gemini-2.5-flash-lite",
-    "grok": "x-ai/grok-4.1-fast",
+    "grok": "x-ai/grok-4.20",
     "gpt": "openai/gpt-5-mini",
     # Note: Claude models may have different reasoning support
 }
