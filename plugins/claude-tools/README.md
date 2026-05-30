@@ -38,7 +38,13 @@ This package is being built from behavior-driven investigations of Claude Code's
 
 `WebSearch` currently supports the Claude `WebSearch` schema and Claude-shaped text results while letting the app choose either `gemini_api` or `tavily` as the backend provider through config.
 
-`Compact conversation` currently supports the observed Claude `/compact` behavior investigated under `investigation/fixtures/compaction/`, including the appended compaction prompt, Claude-style numbered summary validation, transcript fallback guidance, and session-history rewrite through the core/native rebuild path so provider-native formatting remains owned by the core pipeline.
+`Compact conversation` currently supports the observed Claude `/compact` behavior investigated under `investigation/fixtures/compaction/`, including the appended compaction prompt, Claude-style numbered summary validation, transcript fallback guidance, and session-history rewrite through the core/native rebuild path so provider-native formatting remains owned by the core pipeline. The action now supports full-history compaction, prefix compaction, arbitrary selected ranges, and a message-level "Compact messages up to here" UI action. When a conversation has a leading system message, that system message is preserved in the visible transcript and included in subrange compaction requests as request context.
+
+Claude compaction configuration keys:
+
+- `compaction_model`: optional model id dedicated to compaction; leave empty to use the normal `model`
+- `claude_compaction_prompt`: optional full prompt override for the captured Claude-style compaction prompt
+- `claude_compaction_settings_overrides`: optional advanced request overrides applied only to the internal compaction request
 
 ## License
 

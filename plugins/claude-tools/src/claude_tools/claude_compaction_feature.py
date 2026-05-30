@@ -165,10 +165,11 @@ _LOCAL_COMMAND_ARTIFACT = (
 )
 _NO_RESPONSE_REQUESTED = "No response requested."
 _COMPACTION_METADATA_KEY = "claude_compaction"
+_COMPACTION_MODEL_KEY = "compaction_model"
 _PROMPT_KEY = "claude_compaction_prompt"
 _SETTINGS_OVERRIDES_KEY = "claude_compaction_settings_overrides"
 _TRANSCRIPT_FALLBACK = "<PROJECT_TRANSCRIPT>"
-_MIN_MESSAGE_COUNT = 3
+_MIN_COMPACTABLE_MESSAGE_COUNT = 3
 _REQUIRED_SUMMARY_SECTIONS = [
     "1. Primary Request and Intent:",
     "2. Key Technical Concepts:",
@@ -196,6 +197,9 @@ def _merge_request_config(config: Dict[str, Any]) -> Dict[str, Any]:
     overrides = config.get(_SETTINGS_OVERRIDES_KEY)
     if isinstance(overrides, dict):
         merged.update(overrides)
+    compaction_model = config.get(_COMPACTION_MODEL_KEY)
+    if isinstance(compaction_model, str) and compaction_model.strip():
+        merged["model"] = compaction_model.strip()
     return merged
 
 
@@ -255,6 +259,90 @@ def build_compaction_session(
         session_id=session.session_id,
         messages=messages,
         metadata=_strip_native_history(session.metadata),
+    )
+
+
+def _normalize_slice_bounds(
+    message_count: int,
+    start: int | None,
+    end: int | None,
+    *,
+    end_inclusive: bool = False,
+) -> tuple[int, int]:
+    def _bound(value: int | None, default: int) -> int:
+        if value is None:
+            return default
+        idx = value
+        if idx < 0:
+            idx = message_count + idx
+        if idx < 0:
+            return 0
+        if idx > message_count:
+            return message_count
+        return idx
+
+    start_idx = _bound(start, 0)
+    end_idx = _bound(end, message_count)
+    if end_inclusive and end is not None:
+        end_idx = min(end_idx + 1, message_count)
+    if start_idx >= end_idx:
+        raise ValueError("range selects no messages")
+    return start_idx, end_idx
+
+
+def _has_leading_system_message(session: Session) -> bool:
+    return bool(session.messages) and session.messages[0].role == "system"
+
+
+def _resolve_compaction_indices(
+    session: Session,
+    *,
+    start: int | None,
+    end: int | None,
+    end_inclusive: bool = False,
+) -> tuple[List[int], List[int]]:
+    start_idx, end_idx = _normalize_slice_bounds(
+        len(session.messages),
+        start,
+        end,
+        end_inclusive=end_inclusive,
+    )
+    has_leading_system = _has_leading_system_message(session)
+    selected_indices = list(range(start_idx, end_idx))
+    target_indices = [
+        idx for idx in selected_indices if not (has_leading_system and idx == 0)
+    ]
+    if not target_indices:
+        raise ValueError("range selects no compactable messages")
+    request_indices = list(target_indices)
+    if has_leading_system and 0 not in request_indices:
+        request_indices = [0, *request_indices]
+    return target_indices, request_indices
+
+
+def build_compaction_request_session(
+    session: Session,
+    *,
+    prompt_text: str,
+    start: int | None = None,
+    end: int | None = None,
+    end_inclusive: bool = False,
+) -> tuple[Session, List[int], List[int]]:
+    target_indices, request_indices = _resolve_compaction_indices(
+        session,
+        start=start,
+        end=end,
+        end_inclusive=end_inclusive,
+    )
+    request_session = Session(
+        session_id=session.session_id,
+        messages=[session.messages[idx] for idx in request_indices],
+        metadata=_strip_native_history(session.metadata),
+    )
+    return (
+        build_compaction_session(request_session, prompt_text=prompt_text),
+        target_indices,
+        request_indices,
     )
 
 
@@ -388,24 +476,44 @@ def _native_messages_from_session(session: Session) -> List[Dict[str, Any]]:
     return [item for item in native if isinstance(item, dict)]
 
 
+def _rebuild_context(context: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not isinstance(context, dict):
+        return context
+    return {
+        key: value for key, value in context.items() if key not in {"core", "config"}
+    }
+
+
 def build_compacted_session(
     core: Any,
     session: Session,
     config: Dict[str, Any],
     summary_text: str,
     *,
+    start: int | None = None,
+    end: int | None = None,
+    end_inclusive: bool = False,
     context: Optional[Dict[str, Any]] = None,
 ) -> Session:
-    rebuilt = core.rebuild_native_history(session, config, context=context)
-    system_prefix_end = _leading_system_message_count(rebuilt)
-    remove_indices = list(range(system_prefix_end, len(rebuilt.messages)))
+    rebuilt = core.rebuild_native_history(
+        session,
+        config,
+        context=_rebuild_context(context),
+    )
+    target_indices, _request_indices = _resolve_compaction_indices(
+        rebuilt,
+        start=start,
+        end=end,
+        end_inclusive=end_inclusive,
+    )
+    remove_indices = list(target_indices)
     session_after_delete = core.slice_session(
         rebuilt,
         config,
         remove_indices=remove_indices,
     )
 
-    insert_after = system_prefix_end - 1
+    insert_after = target_indices[0] - 1
     compacted = core.add_message(
         session_after_delete,
         "user",
@@ -421,6 +529,7 @@ def build_compacted_session(
         _LOCAL_COMMAND_ARTIFACT,
         metadata=_local_command_message_metadata(),
         config=config,
+        after_index=insert_after + 1,
         context=context,
     )
     compacted = core.add_message(
@@ -429,6 +538,7 @@ def build_compacted_session(
         _NO_RESPONSE_REQUESTED,
         metadata=_local_command_result_metadata(),
         config=config,
+        after_index=insert_after + 2,
         context=context,
     )
     return compacted
@@ -464,6 +574,15 @@ class ClaudeCompactionFeature:
 
     def get_config_schema(self) -> Dict[str, Any]:
         return {
+            _COMPACTION_MODEL_KEY: {
+                "type": "string",
+                "required": False,
+                "default": "",
+                "description": (
+                    "Optional model used for Claude compaction. Leave empty to use "
+                    "the normal request model."
+                ),
+            },
             _PROMPT_KEY: {
                 "type": "string",
                 "required": False,
@@ -486,9 +605,40 @@ class ClaudeCompactionFeature:
     ) -> Dict[str, Any]:
         return state
 
-    def get_ui_elements(self, *args: Any, **kwargs: Any) -> List[Dict[str, Any]]:
-        _ = args, kwargs
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
+        _ = config, tags
+        model_options: List[Dict[str, str]] = []
+        for model in models or []:
+            if not isinstance(model, dict):
+                continue
+            model_id = model.get("id")
+            if model_id is None:
+                continue
+            model_name = model.get("name")
+            model_options.append(
+                {
+                    "label": (
+                        str(model_name) if model_name is not None else str(model_id)
+                    ),
+                    "value": str(model_id),
+                }
+            )
+
+        use_dropdown = len(model_options) > 0
         return [
+            {
+                "ui_type": "config",
+                "type": "dropdown" if use_dropdown else "text",
+                "key": _COMPACTION_MODEL_KEY,
+                "label": "Compaction model",
+                "placeholder": "Use current model",
+                **({"options": model_options} if use_dropdown else {}),
+            },
             {
                 "ui_type": "session_action",
                 "id": "compact_conversation",
@@ -500,13 +650,61 @@ class ClaudeCompactionFeature:
                 "fixed_params": {},
                 "param_map": {
                     "session_id": "$session.session_id",
+                    "start": "$dialog.start",
+                    "end": "$dialog.end",
                     "instructions": "$dialog.instructions",
                 },
                 "dialog": {
                     "kind": "form",
                     "title": "Compact conversation",
                     "message": (
-                        "Summarize the current conversation into a Claude-style compact summary."
+                        "Python-style range (start:end). The selected messages "
+                        "will be compacted into a Claude-style compact summary."
+                    ),
+                    "inputs": [
+                        {
+                            "name": "start",
+                            "type": "integer",
+                            "label": "Start index",
+                            "required": False,
+                            "placeholder": "e.g. 0 or -10 (leave blank for start)",
+                        },
+                        {
+                            "name": "end",
+                            "type": "integer",
+                            "label": "End index",
+                            "required": False,
+                            "placeholder": "e.g. 10 or -1 (leave blank for end)",
+                        },
+                        {
+                            "name": "instructions",
+                            "type": "multiline",
+                            "label": "Instructions",
+                            "required": False,
+                            "placeholder": "Optional extra instructions for the compaction summary",
+                        },
+                    ],
+                },
+            },
+            {
+                "ui_type": "message_action",
+                "id": "compact_up_to_here",
+                "label": "Compact messages up to here",
+                "icon": "archive",
+                "order": 25,
+                "action_id": "compact_conversation",
+                "action_owner": "feature",
+                "fixed_params": {"start": 0, "end_inclusive": True},
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "end": "$message.index",
+                    "instructions": "$dialog.instructions",
+                },
+                "dialog": {
+                    "kind": "form",
+                    "title": "Compact messages up to here",
+                    "message": (
+                        "The messages up to here will be compacted into a Claude-style compact summary."
                     ),
                     "inputs": [
                         {
@@ -518,7 +716,7 @@ class ClaudeCompactionFeature:
                         }
                     ],
                 },
-            }
+            },
         ]
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -527,8 +725,11 @@ class ClaudeCompactionFeature:
             {
                 "id": "compact_conversation",
                 "label": "Compact conversation",
-                "description": "Compact the full conversation into a Claude-style summary.",
+                "description": "Compact a selected conversation range into a Claude-style summary.",
                 "inputs": {
+                    "start": {"type": "integer", "required": False},
+                    "end": {"type": "integer", "required": False},
+                    "end_inclusive": {"type": "boolean", "required": False},
                     "instructions": {"type": "string", "required": False},
                 },
             }
@@ -592,7 +793,7 @@ class ClaudeCompactionFeature:
                 },
             }
 
-        if len(session.messages) < _MIN_MESSAGE_COUNT:
+        if len(session.messages) < _MIN_COMPACTABLE_MESSAGE_COUNT:
             return {
                 "native_messages": list(native_messages),
                 "error": {
@@ -615,6 +816,40 @@ class ClaudeCompactionFeature:
             request_config = (
                 state.get("config") if isinstance(state.get("config"), dict) else {}
             )
+        prepared_session = context["core"].rebuild_native_history(
+            session,
+            request_config,
+            context=_rebuild_context(context),
+        )
+
+        start_raw = params.get("start")
+        end_raw = params.get("end")
+        end_inclusive = params.get("end_inclusive", False)
+        start_int = start_raw if isinstance(start_raw, int) else None
+        end_int = end_raw if isinstance(end_raw, int) else None
+        try:
+            target_indices, _request_indices = _resolve_compaction_indices(
+                prepared_session,
+                start=start_int,
+                end=end_int,
+                end_inclusive=bool(end_inclusive),
+            )
+        except ValueError as exc:
+            return {
+                "native_messages": list(native_messages),
+                "error": {
+                    "type": "invalid_range",
+                    "message": str(exc),
+                },
+            }
+        if len(target_indices) < _MIN_COMPACTABLE_MESSAGE_COUNT:
+            return {
+                "native_messages": list(native_messages),
+                "error": {
+                    "type": "not_enough_messages",
+                    "message": "Not enough messages to compact.",
+                },
+            }
 
         instructions = params.get("instructions")
         instructions_text = (
@@ -627,7 +862,15 @@ class ClaudeCompactionFeature:
                 prompt_override if isinstance(prompt_override, str) else None
             ),
         )
-        compaction_session = build_compaction_session(session, prompt_text=prompt_text)
+        compaction_session, _target_indices, _request_indices = (
+            build_compaction_request_session(
+                prepared_session,
+                prompt_text=prompt_text,
+                start=start_int,
+                end=end_int,
+                end_inclusive=bool(end_inclusive),
+            )
+        )
         compaction_response = _run_compaction_request(
             context["core"],
             compaction_session,
@@ -641,9 +884,12 @@ class ClaudeCompactionFeature:
         )
         compacted_session = build_compacted_session(
             context["core"],
-            session,
+            prepared_session,
             request_config,
             summary_text,
+            start=start_int,
+            end=end_int,
+            end_inclusive=bool(end_inclusive),
             context=context,
         )
         compacted_native = _native_messages_from_session(compacted_session)
@@ -667,6 +913,7 @@ __all__ = [
     "build_compact_summary_text",
     "build_compacted_session",
     "build_compaction_prompt",
+    "build_compaction_request_session",
     "build_compaction_session",
     "extract_prompt_sections",
     "extract_summary_sections",

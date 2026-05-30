@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict
 
+import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -20,11 +21,17 @@ if str(CORE_PY) not in sys.path:
 CLAUDE_PLUGIN_SRC = ROOT / "plugins/claude-tools/src"
 if str(CLAUDE_PLUGIN_SRC) not in sys.path:
     sys.path.insert(0, str(CLAUDE_PLUGIN_SRC))
+SYSTEM_MESSAGE_PLUGIN_SRC = ROOT / "plugins/feature-system-message/src"
+if str(SYSTEM_MESSAGE_PLUGIN_SRC) not in sys.path:
+    sys.path.insert(0, str(SYSTEM_MESSAGE_PLUGIN_SRC))
 
 from agent_app.application_future import AgentApplication  # noqa: E402
 from agent_app.events import InMemoryEventStore  # noqa: E402
 from agent_core import Session  # noqa: E402
 from claude_tools.claude_compaction_feature import (  # noqa: E402
+    _COMPACTION_MODEL_KEY,
+    _LOCAL_COMMAND_ARTIFACT,
+    _NO_RESPONSE_REQUESTED,
     build_compact_summary_text,
 )
 
@@ -46,16 +53,27 @@ def _summary_body_from_fixture(fixture: dict) -> str:
     return summary_body
 
 
-def _make_config(tmp_path: Path) -> Path:
+def _make_config(tmp_path: Path, *, include_system_feature: bool = False) -> Path:
+    plugins = [
+        "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+        "claude_tools.claude_compaction_feature.ClaudeCompactionFeature",
+    ]
+    agent_cfg: Dict[str, Any] = {"provider": "echo"}
+    if include_system_feature:
+        plugins.insert(
+            1,
+            "feature_system_message.system_message_feature.SystemMessageFeature",
+        )
+        agent_cfg.update(
+            {
+                "system_message_enabled": True,
+                "system_message": {"template": "Synthetic system prompt"},
+            }
+        )
     cfg: Dict[str, Any] = {
         "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
-        "plugins": [
-            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            "claude_tools.claude_compaction_feature.ClaudeCompactionFeature",
-        ],
-        "agents": {
-            "default": {"provider": "echo"},
-        },
+        "plugins": plugins,
+        "agents": {"default": agent_cfg},
         "application": {},
     }
     path = tmp_path / "config_claude_compaction_feature.json"
@@ -63,14 +81,16 @@ def _make_config(tmp_path: Path) -> Path:
     return path
 
 
-def _build_app(tmp_path: Path) -> AgentApplication:
+def _build_app(
+    tmp_path: Path, *, include_system_feature: bool = False
+) -> AgentApplication:
     from agent_terminal_app import server as server_mod
 
     previous = getattr(server_mod, "_agent_app", None)
     if previous is not None:
         previous.close()
     app = AgentApplication(
-        str(_make_config(tmp_path)),
+        str(_make_config(tmp_path, include_system_feature=include_system_feature)),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
     )
@@ -78,7 +98,27 @@ def _build_app(tmp_path: Path) -> AgentApplication:
     return app
 
 
-def test_session_ui_schema_includes_claude_compaction_action(tmp_path: Path) -> None:
+def _seed_session(app: AgentApplication) -> Session:
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(
+        session, "user", "Answer exactly ONE.", config=base_config
+    )
+    session = core.add_message(session, "assistant", "ONE", config=base_config)
+    session = core.add_message(
+        session, "user", "Answer exactly TWO.", config=base_config
+    )
+    session = core.add_message(session, "assistant", "TWO", config=base_config)
+    session = core.add_message(
+        session, "user", "Answer exactly THREE.", config=base_config
+    )
+    session = core.add_message(session, "assistant", "THREE", config=base_config)
+    app.save_session(session)
+    return session
+
+
+def test_session_ui_schema_includes_claude_compaction_fields_and_actions(
+    tmp_path: Path,
+) -> None:
     from agent_terminal_app import server as server_mod
 
     app = _build_app(tmp_path)
@@ -87,24 +127,126 @@ def test_session_ui_schema_includes_claude_compaction_action(tmp_path: Path) -> 
     resp = server_mod.get_session_ui_schema(session.session_id, app_instance=app)
 
     matches = [el for el in resp["elements"] if el.get("plugin") == "claude_compaction"]
-    assert len(matches) == 1
-    assert matches[0]["action_id"] == "compact_conversation"
-    assert matches[0]["action_owner"] == "feature"
+    action_ids = {element.get("id") for element in matches}
+    assert "compact_conversation" in action_ids
+    assert "compact_up_to_here" in action_ids
+    compaction_model = next(
+        element for element in matches if element.get("key") == _COMPACTION_MODEL_KEY
+    )
+    assert compaction_model["ui_type"] == "config"
 
 
-def test_claude_compaction_action_rewrites_session_history(
-    tmp_path: Path, monkeypatch
+def test_session_config_schema_includes_claude_compaction_model_key(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_app(tmp_path)
+    _core, _base_config, session = app.create_session("default")
+
+    resp = server_mod.get_session_config_schema(session.session_id, app_instance=app)
+    keys = {entry.get("key") for entry in resp["schema"] if isinstance(entry, dict)}
+
+    assert _COMPACTION_MODEL_KEY in keys
+    assert "claude_compaction_prompt" in keys
+    assert "claude_compaction_settings_overrides" in keys
+
+
+def _assert_rewrite_shape(
+    loaded: Session,
+    expected_summary: str,
+    *,
+    expect_system: bool,
+    expected_leading_contents: list[str],
+    expected_trailing_contents: list[str],
+) -> None:
+    if expect_system:
+        assert loaded.messages[0].role == "system"
+        assert loaded.messages[0].content == "Synthetic system prompt"
+        assert sum(1 for message in loaded.messages if message.role == "system") == 1
+    else:
+        assert all(message.role != "system" for message in loaded.messages)
+    summary_index = next(
+        idx
+        for idx, message in enumerate(loaded.messages)
+        if message.content == expected_summary
+    )
+
+    assert [
+        message.role for message in loaded.messages[summary_index : summary_index + 3]
+    ] == [
+        "user",
+        "user",
+        "assistant",
+    ]
+    assert [
+        message.content
+        for message in loaded.messages[summary_index : summary_index + 3]
+    ] == [
+        expected_summary,
+        _LOCAL_COMMAND_ARTIFACT,
+        _NO_RESPONSE_REQUESTED,
+    ]
+    assert [message.content for message in loaded.messages[:summary_index]] == (
+        expected_leading_contents
+    )
+    assert [message.content for message in loaded.messages[summary_index + 3 :]] == (
+        expected_trailing_contents
+    )
+
+
+@pytest.mark.parametrize(
+    (
+        "include_system_feature",
+        "inputs",
+        "expected_leading_contents",
+        "expected_trailing_contents",
+    ),
+    [
+        (False, {}, [], []),
+        (False, {"start": 0, "end": 3}, [], ["TWO", "Answer exactly THREE.", "THREE"]),
+        (
+            False,
+            {"start": 1, "end": 4},
+            ["Answer exactly ONE."],
+            ["Answer exactly THREE.", "THREE"],
+        ),
+        (True, {}, ["Synthetic system prompt"], []),
+        (
+            True,
+            {"start": 0, "end": 4},
+            ["Synthetic system prompt"],
+            ["TWO", "Answer exactly THREE.", "THREE"],
+        ),
+        (
+            True,
+            {"start": 2, "end": 5},
+            ["Synthetic system prompt", "Answer exactly ONE."],
+            ["Answer exactly THREE.", "THREE"],
+        ),
+    ],
+)
+def test_claude_compaction_action_rewrites_selected_range(
+    tmp_path: Path,
+    monkeypatch,
+    include_system_feature: bool,
+    inputs: Dict[str, Any],
+    expected_leading_contents: list[str],
+    expected_trailing_contents: list[str],
 ) -> None:
     from agent_terminal_app import server as server_mod
     from claude_tools import claude_compaction_feature as feature_mod
 
     fixture = _fixture("success-basic")
     summary_body = _summary_body_from_fixture(fixture)
+    captured: Dict[str, Any] = {}
 
     def _fake_run_compaction_request(
         core: Any, session: Session, config: Dict[str, Any]
     ) -> str:
-        _ = core, session, config
+        captured["session"] = session
+        captured["config"] = dict(config)
+        _ = core
         return f"<analysis>ok</analysis>\n<summary>\n{summary_body}\n</summary>"
 
     monkeypatch.setattr(
@@ -114,18 +256,8 @@ def test_claude_compaction_action_rewrites_session_history(
         raising=True,
     )
 
-    app = _build_app(tmp_path)
-    core, base_config, session = app.create_session("default")
-    session = core.add_message(
-        session, "user", "Answer exactly ONE.", config=base_config
-    )
-    session = core.add_message(
-        session, "assistant", "Need more context.", config=base_config
-    )
-    session = core.add_message(
-        session, "user", "Answer exactly THREE.", config=base_config
-    )
-    app.save_session(session)
+    app = _build_app(tmp_path, include_system_feature=include_system_feature)
+    session = _seed_session(app)
 
     resp = server_mod.execute_action(
         {
@@ -134,6 +266,7 @@ def test_claude_compaction_action_rewrites_session_history(
             "action_owner": "feature",
             "inputs": {
                 "session_id": session.session_id,
+                **inputs,
             },
         },
         app_instance=app,
@@ -149,15 +282,17 @@ def test_claude_compaction_action_rewrites_session_history(
         summary_body,
         transcript_path=str(tmp_path / "sessions" / f"{session.session_id}.json"),
     )
-    assert [message.role for message in loaded.messages] == [
-        "user",
-        "user",
-        "assistant",
-    ]
-    assert [message.content for message in loaded.messages] == [
+    _assert_rewrite_shape(
+        loaded,
         expected_summary,
-        feature_mod._LOCAL_COMMAND_ARTIFACT,
-        feature_mod._NO_RESPONSE_REQUESTED,
-    ]
-    summary_metadata = loaded.messages[0].metadata or {}
-    assert summary_metadata["claude_compaction"]["is_compact_summary"] is True
+        expect_system=include_system_feature,
+        expected_leading_contents=expected_leading_contents,
+        expected_trailing_contents=expected_trailing_contents,
+    )
+
+    request_session = captured["session"]
+    if include_system_feature:
+        assert request_session.messages[0].role == "system"
+    else:
+        assert all(message.role != "system" for message in request_session.messages)
+    assert captured["config"]["model"] == "test-model"

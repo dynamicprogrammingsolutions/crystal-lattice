@@ -154,13 +154,19 @@ Added during completion after implementation and verification.
   - `plugins/claude-tools/tests/test_claude_compaction_feature_ollama_integration.py`
   - `application/python/tests/test_claude_default_config_compaction_integration.py`
 - Current Claude compaction config surface is:
+  - `compaction_model`
   - `claude_compaction_prompt`
   - `claude_compaction_settings_overrides`
-  - `claude_compaction_settings_overrides.model` can be used to select a dedicated compaction model.
+  - `compaction_model` is the primary dedicated-model knob; advanced request-only tuning remains available through `claude_compaction_settings_overrides`.
 - The compaction rewrite path now follows the `summarize-range-app` pattern more closely:
   - the feature builds a compacted `Session` via `AgentCore.rebuild_native_history`, `slice_session`, and `add_message`
   - provider-native history is then read back from the rebuilt session metadata
   - hardcoded provider-native message assembly is no longer used for the final action result
+- Claude compaction now supports:
+  - config/UI exposure for `compaction_model`
+  - session-action range selection (`start`, `end`, `end_inclusive`)
+  - a message-level `Compact messages up to here` UI action
+  - preservation of a leading system message in the visible transcript for every compaction mode, while still including that system message in subrange compaction requests as context
 - Focused verification completed:
   - `pytest plugins/claude-tools/tests/test_claude_compaction_feature.py -q`
   - `pytest application/python/tests/test_claude_compaction_feature_action.py -q`

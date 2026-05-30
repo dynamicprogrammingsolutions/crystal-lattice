@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Any, Dict
 
 import pytest
 
@@ -18,8 +19,15 @@ if str(APP_PY) not in sys.path:
 CORE_PY = ROOT / "core/python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
+CLAUDE_PLUGIN_SRC = ROOT / "plugins/claude-tools/src"
+if str(CLAUDE_PLUGIN_SRC) not in sys.path:
+    sys.path.insert(0, str(CLAUDE_PLUGIN_SRC))
 
 from agent_core import Message, Session  # noqa: E402
+from claude_tools.claude_compaction_feature import (  # noqa: E402
+    _LOCAL_COMMAND_ARTIFACT,
+    _NO_RESPONSE_REQUESTED,
+)
 
 
 def _build_default_config_app(
@@ -82,9 +90,28 @@ def _build_default_config_app(
 @pytest.mark.integration
 @pytest.mark.api
 @pytest.mark.openrouter
+@pytest.mark.parametrize(
+    ("inputs", "expected_leading_non_system", "expected_trailing_contents"),
+    [
+        ({}, [], []),
+        (
+            {"start": 0, "end": 4},
+            [],
+            ["TWO", "Answer exactly THREE.", "THREE"],
+        ),
+        (
+            {"start": 2, "end": 5},
+            ["Answer exactly ONE."],
+            ["Answer exactly THREE.", "THREE"],
+        ),
+    ],
+)
 def test_default_claude_agent_compaction_action_rewrites_history(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    inputs: Dict[str, Any],
+    expected_leading_non_system: list[str],
+    expected_trailing_contents: list[str],
 ) -> None:
     from agent_terminal_app import server as server_mod
 
@@ -114,9 +141,7 @@ def test_default_claude_agent_compaction_action_rewrites_history(
         metadata={
             **(session.metadata or {}),
             "overrides": {
-                "claude_compaction_settings_overrides": {
-                    "model": compaction_model,
-                }
+                "compaction_model": compaction_model,
             },
         },
     )
@@ -129,6 +154,7 @@ def test_default_claude_agent_compaction_action_rewrites_history(
             "action_owner": "feature",
             "inputs": {
                 "session_id": seeded.session_id,
+                **inputs,
             },
         },
         app_instance=app,
@@ -139,12 +165,25 @@ def test_default_claude_agent_compaction_action_rewrites_history(
 
     compacted = app.load_session_record(seeded.session_id)
     assert compacted is not None
-    assert [message.role for message in compacted.messages[-3:]] == [
+    assert compacted.messages[0].role == "system"
+    assert sum(1 for message in compacted.messages if message.role == "system") == 1
+    summary_index = next(
+        idx
+        for idx, message in enumerate(compacted.messages)
+        if isinstance(message.content, str)
+        and "This session is being continued from a previous conversation"
+        in message.content
+    )
+    assert [
+        message.role
+        for message in compacted.messages[summary_index : summary_index + 3]
+    ] == [
         "user",
         "user",
         "assistant",
     ]
-    summary_text = compacted.messages[-3].content
+
+    summary_text = compacted.messages[summary_index].content
     assert isinstance(summary_text, str)
     assert (
         "This session is being continued from a previous conversation" in summary_text
@@ -152,11 +191,18 @@ def test_default_claude_agent_compaction_action_rewrites_history(
     assert "1. Primary Request and Intent:" in summary_text
     assert "9. Optional Next Step:" in summary_text
     assert "Resume directly" in summary_text
-    metadata = compacted.messages[-3].metadata or {}
+    assert compacted.messages[summary_index + 1].content == _LOCAL_COMMAND_ARTIFACT
+    assert compacted.messages[summary_index + 2].content == _NO_RESPONSE_REQUESTED
+    leading_contents = [
+        message.content for message in compacted.messages[:summary_index]
+    ]
+    assert leading_contents[0] is not None
+    assert leading_contents[1:] == expected_leading_non_system
+    assert [message.content for message in compacted.messages[summary_index + 3 :]] == (
+        expected_trailing_contents
+    )
+    metadata = compacted.messages[summary_index].metadata or {}
     assert metadata["claude_compaction"]["is_compact_summary"] is True
     session_meta = compacted.metadata or {}
     assert session_meta["claude_compaction"]["compacted"] is True
-
-    # Configuration note: the action currently inherits the normal agent model,
-    # but callers can override it explicitly with this existing feature config key.
     assert compaction_model

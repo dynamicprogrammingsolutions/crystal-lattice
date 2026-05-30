@@ -18,6 +18,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[3]
 CORE_PY = ROOT / "core/python"
 PLUGIN_SRC = ROOT / "plugins/claude-tools/src"
@@ -29,12 +31,14 @@ if str(PLUGIN_SRC) not in sys.path:
 from agent_core import AgentCore, Message, Session  # noqa: E402
 from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: E402
 from claude_tools.claude_compaction_feature import (  # noqa: E402
+    _COMPACTION_MODEL_KEY,
     _LOCAL_COMMAND_ARTIFACT,
     _NO_RESPONSE_REQUESTED,
+    ClaudeCompactionFeature,
     build_compact_summary_text,
     build_compacted_session,
     build_compaction_prompt,
-    build_compaction_session,
+    build_compaction_request_session,
     extract_prompt_sections,
     extract_summary_sections,
     validate_summary_text,
@@ -62,6 +66,28 @@ def _summary_body_from_fixture(fixture: dict) -> str:
     return summary_body
 
 
+def _make_session(has_system: bool) -> Session:
+    messages = [
+        Message(role="user", content="Answer exactly ONE."),
+        Message(role="assistant", content="ONE"),
+        Message(role="user", content="Answer exactly TWO."),
+        Message(role="assistant", content="TWO"),
+        Message(role="user", content="Answer exactly THREE."),
+        Message(role="assistant", content="THREE"),
+    ]
+    if has_system:
+        messages = [Message(role="system", content="System prompt")] + messages
+    return Session(
+        session_id=f"session-{'system' if has_system else 'plain'}", messages=messages
+    )
+
+
+def _core_and_config() -> tuple[AgentCore, dict]:
+    core = AgentCore()
+    core.register_provider(EchoOpenAILikeProvider)
+    return core, {"provider": "echo_openai_like", "model": "test-model"}
+
+
 def test_prompt_matches_observed_fixture() -> None:
     fixture = _fixture("success-basic")
 
@@ -69,31 +95,6 @@ def test_prompt_matches_observed_fixture() -> None:
     assert (
         extract_prompt_sections(build_compaction_prompt())
         == fixture["compact_request_prompt_sections"]
-    )
-
-
-def test_build_compaction_session_appends_prompt_to_last_user_message() -> None:
-    fixture = _fixture("success-basic")
-    session = Session(
-        session_id="session-1",
-        messages=[
-            Message(role="user", content="Answer exactly ONE."),
-            Message(role="assistant", content="Need more context."),
-            Message(role="user", content="Answer exactly TWO."),
-            Message(role="assistant", content="Still need more context."),
-            Message(role="user", content="Answer exactly THREE."),
-        ],
-        metadata={"native_messages": [{"role": "user", "content": "old"}]},
-    )
-
-    compacted = build_compaction_session(
-        session,
-        prompt_text=fixture["compact_request_prompt_text"],
-    )
-
-    assert "native_messages" not in (compacted.metadata or {})
-    assert compacted.messages[-1].content == (
-        "Answer exactly THREE.\n" + fixture["compact_request_prompt_text"]
     )
 
 
@@ -120,45 +121,238 @@ def test_fixture_summaries_pass_validation_for_basic_and_tool_history_cases() ->
         )
 
 
-def test_compacted_session_rebuilds_native_history_with_claude_style_artifacts() -> (
-    None
-):
-    fixture = _fixture("success-basic")
-    core = AgentCore()
-    core.register_provider(EchoOpenAILikeProvider)
+def test_feature_schema_includes_compaction_model_and_existing_keys() -> None:
+    feature = ClaudeCompactionFeature()
 
-    config = {"provider": "echo_openai_like", "model": "test-model"}
-    session = core.create_session("compaction-test")
-    session = core.add_message(session, "user", "Answer exactly ONE.", config=config)
-    session = core.add_message(session, "assistant", "ONE", config=config)
-    session = core.add_message(session, "user", "Answer exactly TWO.", config=config)
+    schema = feature.get_config_schema()
+
+    assert _COMPACTION_MODEL_KEY in schema
+    assert "claude_compaction_prompt" in schema
+    assert "claude_compaction_settings_overrides" in schema
+
+
+def test_feature_ui_elements_include_compaction_model_and_message_action() -> None:
+    feature = ClaudeCompactionFeature()
+
+    elements = feature.get_ui_elements(
+        models=[{"id": "claude-sonnet", "name": "Claude Sonnet"}]
+    )
+
+    compaction_model = next(
+        element
+        for element in elements
+        if element.get("ui_type") == "config"
+        and element.get("key") == _COMPACTION_MODEL_KEY
+    )
+    assert compaction_model["type"] == "dropdown"
+    assert compaction_model["options"] == [
+        {"label": "Claude Sonnet", "value": "claude-sonnet"}
+    ]
+
+    message_action = next(
+        element
+        for element in elements
+        if element.get("ui_type") == "message_action"
+        and element.get("id") == "compact_up_to_here"
+    )
+    assert message_action["action_id"] == "compact_conversation"
+    assert message_action["fixed_params"] == {"start": 0, "end_inclusive": True}
+
+
+def test_feature_ui_elements_fall_back_to_text_when_models_are_unavailable() -> None:
+    feature = ClaudeCompactionFeature()
+
+    elements = feature.get_ui_elements(models=[])
+
+    compaction_model = next(
+        element
+        for element in elements
+        if element.get("ui_type") == "config"
+        and element.get("key") == _COMPACTION_MODEL_KEY
+    )
+    assert compaction_model["type"] == "text"
+    assert "options" not in compaction_model
+
+
+@pytest.mark.parametrize(
+    ("has_system", "start", "end", "end_inclusive", "expected_roles"),
+    [
+        (
+            False,
+            None,
+            None,
+            False,
+            ["user", "assistant", "user", "assistant", "user", "assistant", "user"],
+        ),
+        (False, 0, 3, False, ["user", "assistant", "user"]),
+        (False, 1, 4, False, ["assistant", "user", "assistant", "user"]),
+        (
+            True,
+            None,
+            None,
+            False,
+            [
+                "system",
+                "user",
+                "assistant",
+                "user",
+                "assistant",
+                "user",
+                "assistant",
+                "user",
+            ],
+        ),
+        (True, 0, 4, False, ["system", "user", "assistant", "user"]),
+        (True, 2, 5, False, ["system", "assistant", "user", "assistant", "user"]),
+    ],
+)
+def test_build_compaction_request_session_handles_system_and_no_system_cases(
+    has_system: bool,
+    start: int | None,
+    end: int | None,
+    end_inclusive: bool,
+    expected_roles: list[str],
+) -> None:
+    fixture = _fixture("success-basic")
+    session = _make_session(has_system)
+
+    request_session, target_indices, _request_indices = (
+        build_compaction_request_session(
+            session,
+            prompt_text=fixture["compact_request_prompt_text"],
+            start=start,
+            end=end,
+            end_inclusive=end_inclusive,
+        )
+    )
+
+    assert [message.role for message in request_session.messages] == expected_roles
+    assert request_session.messages[-1].content.endswith(
+        fixture["compact_request_prompt_text"]
+    )
+    if has_system:
+        assert request_session.messages[0].role == "system"
+        assert 0 not in target_indices
+    else:
+        assert all(message.role != "system" for message in request_session.messages)
+
+
+@pytest.mark.parametrize(
+    (
+        "has_system",
+        "start",
+        "end",
+        "end_inclusive",
+        "expected_roles",
+        "expected_leading_contents",
+        "expected_trailing_contents",
+    ),
+    [
+        (
+            False,
+            None,
+            None,
+            False,
+            ["user", "user", "assistant"],
+            [],
+            [],
+        ),
+        (
+            False,
+            0,
+            3,
+            False,
+            ["user", "user", "assistant", "assistant", "user", "assistant"],
+            [],
+            ["TWO", "Answer exactly THREE.", "THREE"],
+        ),
+        (
+            False,
+            1,
+            4,
+            False,
+            ["user", "user", "user", "assistant", "user", "assistant"],
+            ["Answer exactly ONE."],
+            ["Answer exactly THREE.", "THREE"],
+        ),
+        (
+            True,
+            None,
+            None,
+            False,
+            ["system", "user", "user", "assistant"],
+            ["System prompt"],
+            [],
+        ),
+        (
+            True,
+            0,
+            4,
+            False,
+            ["system", "user", "user", "assistant", "assistant", "user", "assistant"],
+            ["System prompt"],
+            ["TWO", "Answer exactly THREE.", "THREE"],
+        ),
+        (
+            True,
+            2,
+            5,
+            False,
+            ["system", "user", "user", "user", "assistant", "user", "assistant"],
+            ["System prompt", "Answer exactly ONE."],
+            ["Answer exactly THREE.", "THREE"],
+        ),
+    ],
+)
+def test_compacted_session_replaces_only_selected_range_and_preserves_system_invariant(
+    has_system: bool,
+    start: int | None,
+    end: int | None,
+    end_inclusive: bool,
+    expected_roles: list[str],
+    expected_leading_contents: list[str],
+    expected_trailing_contents: list[str],
+) -> None:
+    fixture = _fixture("success-basic")
+    core, config = _core_and_config()
+    session = _make_session(has_system)
 
     compacted = build_compacted_session(
         core,
         session,
         config,
         fixture["compact_summary_text"],
+        start=start,
+        end=end,
+        end_inclusive=end_inclusive,
     )
-    native_messages = compacted.metadata["native_messages"]
 
-    assert [message.role for message in compacted.messages] == [
-        "user",
-        "user",
-        "assistant",
-    ]
-    assert [message["role"] for message in native_messages] == [
-        "user",
-        "user",
-        "assistant",
-    ]
-    assert compacted.messages[0].content == fixture["compact_summary_text"]
-    assert native_messages[1]["content"] == _LOCAL_COMMAND_ARTIFACT
-    assert native_messages[2]["content"] == _NO_RESPONSE_REQUESTED
-    summary_metadata = compacted.messages[0].metadata or {}
-    assert summary_metadata["claude_compaction"]["is_compact_summary"] is True
-    assert (
-        summary_metadata["claude_compaction"]["is_visible_in_transcript_only"] is True
+    assert [message.role for message in compacted.messages] == expected_roles
+    if has_system:
+        assert compacted.messages[0].role == "system"
+        assert compacted.messages[0].content == "System prompt"
+        assert sum(1 for message in compacted.messages if message.role == "system") == 1
+    else:
+        assert all(message.role != "system" for message in compacted.messages)
+
+    summary_index = next(
+        idx
+        for idx, message in enumerate(compacted.messages)
+        if message.content == fixture["compact_summary_text"]
     )
+    assert compacted.messages[summary_index].content == fixture["compact_summary_text"]
+    assert compacted.messages[summary_index + 1].content == _LOCAL_COMMAND_ARTIFACT
+    assert compacted.messages[summary_index + 2].content == _NO_RESPONSE_REQUESTED
+    assert [message.content for message in compacted.messages[:summary_index]] == (
+        expected_leading_contents
+    )
+    trailing = compacted.messages[summary_index + 3 :]
+    assert [message.content for message in trailing] == expected_trailing_contents
+
+    native_messages = compacted.metadata["native_messages"]
+    assert native_messages[summary_index + 1]["content"] == _LOCAL_COMMAND_ARTIFACT
+    summary_metadata = compacted.messages[summary_index].metadata or {}
+    assert summary_metadata["claude_compaction"]["is_compact_summary"] is True
 
 
 def test_agent_plugin_bundle_registers_claude_compaction_as_feature() -> None:
