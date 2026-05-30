@@ -68,6 +68,7 @@ Optional flags:
 crystal-lattice validate-cloud --workspace-dir /path/to/project
 crystal-lattice validate-cloud --keep-temp-dir
 crystal-lattice validate-cloud --cache-dir /path/to/stable/cache
+crystal-lattice validate-cloud --runtime-build-context /path/to/context --runtime-dockerfile /path/to/Dockerfile
 ```
 
 Behavior:
@@ -75,8 +76,9 @@ Behavior:
 - resolves the configured standard cloud profiles for the current workspace
 - runs the normal local-stage and transfer-up flow
 - writes the portable config/assets/env/runtime script bundle
-- builds and starts the packaged local-Docker validation runtime without the
-  orchestrator service
+- builds or reuses the configured local-Docker validation runtime without the
+  orchestrator service, using explicit runtime-layout build metadata when a
+  default/local image needs to be built
 - waits for runtime readiness
 - runs a deterministic built-in smoke check
 - runs the optional `validation_script` hook when present
@@ -356,20 +358,31 @@ selected by the resolved cloud profile. In other words, local validation
 reuses the same runtime image contract that `cloud.start_session_agent` sends
 to the orchestrator.
 
-When the configured image is already present locally, validation runs it
-directly. When the configured image is the standard default
-`cloud-agent-runtime:latest` and it is missing locally, validation builds that
-image from the canonical orchestrator runtime Dockerfile:
+The source and bundled CLI layouts both declare explicit runtime image build
+metadata:
 
 ```text
-cloud-orchestrator/runtime/python/Dockerfile
+cloud_runtime_build_context
+cloud_runtime_dockerfile
 ```
 
-For any other runtime image name, validation expects you to pull or build that
-image locally ahead of time.
-or service. The orchestrator-owned runtime files under
-`cloud-orchestrator/runtime/python/` must stay behaviorally in sync with these
-bundled assets until runtime ownership becomes fully plugin-driven.
+For the standard default `cloud-agent-runtime:latest`, validation computes a
+digest from those declared build inputs, compares it with the Docker image label
+`org.crystal-lattice.cloud-runtime.digest`, and rebuilds only when the image is
+missing or stale. Builds also tag an immutable digest image such as
+`cloud-agent-runtime:sha-<digest>`.
+
+Custom runtime image names are treated as user-owned. If a custom image is
+already present locally, validation trusts it. If it is missing, validation
+fails clearly unless you pass explicit `--runtime-build-context` and
+`--runtime-dockerfile` overrides for that command run.
+
+In source installs, the runtime layout points at the repository root and the
+canonical orchestrator Dockerfile. In bundled installs, the binary includes a
+Docker-buildable `_internal/cloud_runtime` context and points the generated
+runtime layout at that packaged context. The orchestrator-owned runtime files
+under `cloud-orchestrator/runtime/python/` must stay behaviorally in sync with
+the bundled runtime assets until runtime ownership becomes fully plugin-driven.
 
 ## Testing Guidance
 

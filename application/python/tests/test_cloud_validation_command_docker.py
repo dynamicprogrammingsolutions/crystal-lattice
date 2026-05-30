@@ -106,20 +106,32 @@ def _validation_config(
                 "default_container_profile": "default-runtime",
                 "transfer_up_profiles": {
                     "working-tree-current-state": {
-                        "local_stage_script": str(workspace_dir / ".cloud-agent" / "local-stage"),
-                        "local_transfer_script": str(transfer_up / "local_transfer_script"),
+                        "local_stage_script": str(
+                            workspace_dir / ".cloud-agent" / "local-stage"
+                        ),
+                        "local_transfer_script": str(
+                            transfer_up / "local_transfer_script"
+                        ),
                         "cloud_setup_script": str(transfer_up / "cloud_setup_script"),
-                        "install_script": str(workspace_dir / ".cloud-agent" / "install-cloud"),
-                        "validation_script": str(workspace_dir / ".cloud-agent" / "validate-cloud"),
+                        "install_script": str(
+                            workspace_dir / ".cloud-agent" / "install-cloud"
+                        ),
+                        "validation_script": str(
+                            workspace_dir / ".cloud-agent" / "validate-cloud"
+                        ),
                         "compatible_sync_down_profiles": ["working-tree-patch"],
                     }
                 },
                 "sync_down_profiles": {
                     "working-tree-patch": {
                         "cloud_export_script": str(sync_down / "cloud_export_script"),
-                        "cloud_mark_synced_script": str(sync_down / "cloud_mark_synced_script"),
+                        "cloud_mark_synced_script": str(
+                            sync_down / "cloud_mark_synced_script"
+                        ),
                         "local_apply_script": str(sync_down / "local_apply_script"),
-                        "compatible_transfer_up_profiles": ["working-tree-current-state"],
+                        "compatible_transfer_up_profiles": [
+                            "working-tree-current-state"
+                        ],
                     }
                 },
                 "container_profiles": {
@@ -148,7 +160,9 @@ def _write_validation_config(
 ) -> Path:
     config_path = tmp_path / "config.json"
     config_path.write_text(
-        json.dumps(_validation_config(workspace_dir, runtime_image=runtime_image), indent=2),
+        json.dumps(
+            _validation_config(workspace_dir, runtime_image=runtime_image), indent=2
+        ),
         encoding="utf-8",
     )
     return config_path
@@ -156,7 +170,10 @@ def _write_validation_config(
 
 def _initialize_git_workspace(workspace_dir: Path) -> None:
     _run(["git", "init"], cwd=workspace_dir)
-    _run(["git", "config", "user.email", "cloud-validation@example.invalid"], cwd=workspace_dir)
+    _run(
+        ["git", "config", "user.email", "cloud-validation@example.invalid"],
+        cwd=workspace_dir,
+    )
     _run(["git", "config", "user.name", "Cloud Validation"], cwd=workspace_dir)
 
 
@@ -165,8 +182,13 @@ def _commit_all(workspace_dir: Path, message: str) -> None:
     _run(["git", "commit", "-m", message], cwd=workspace_dir)
 
 
-def _remove_docker_image(image_name: str) -> None:
-    _run(["docker", "rmi", "-f", image_name], cwd=ROOT, expect_success=False)
+def _runtime_image_build_args() -> list[str]:
+    return [
+        "--runtime-build-context",
+        str(ROOT),
+        "--runtime-dockerfile",
+        str(ROOT / "cloud-orchestrator" / "runtime" / "python" / "Dockerfile"),
+    ]
 
 
 def _write_script(path: Path, body: str) -> None:
@@ -196,10 +218,11 @@ def _copy_repo_worktree(source: Path, destination: Path) -> None:
     )
 
 
-def test_validate_cloud_command_succeeds_for_this_repository_hooks(tmp_path: Path) -> None:
+def test_validate_cloud_command_succeeds_for_this_repository_hooks(
+    tmp_path: Path,
+) -> None:
     _ensure_docker()
-    runtime_image = "cloud-agent-runtime:latest"
-    _remove_docker_image(runtime_image)
+    runtime_image = "cloud-agent-runtime-validation-test:latest"
     cache_dir = tmp_path / "cache"
     workspace = tmp_path / "workspace"
     _copy_repo_worktree(ROOT, workspace)
@@ -221,6 +244,7 @@ def test_validate_cloud_command_succeeds_for_this_repository_hooks(tmp_path: Pat
             str(workspace),
             "--cache-dir",
             str(cache_dir),
+            *_runtime_image_build_args(),
         ],
         cwd=ROOT,
         env=_pythonpath_env(),
@@ -234,8 +258,7 @@ def test_validate_cloud_command_fails_when_local_stage_does_not_stage_required_e
     tmp_path: Path,
 ) -> None:
     _ensure_docker()
-    runtime_image = "cloud-agent-runtime:latest"
-    _remove_docker_image(runtime_image)
+    runtime_image = "cloud-agent-runtime-validation-test:latest"
     cache_dir = tmp_path / "cache"
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -271,6 +294,7 @@ def test_validate_cloud_command_fails_when_local_stage_does_not_stage_required_e
             str(workspace),
             "--cache-dir",
             str(cache_dir),
+            *_runtime_image_build_args(),
         ],
         cwd=ROOT,
         env=_pythonpath_env(),
@@ -285,8 +309,7 @@ def test_validate_cloud_command_fails_when_validate_hook_exits_non_zero(
     tmp_path: Path,
 ) -> None:
     _ensure_docker()
-    runtime_image = "cloud-agent-runtime:latest"
-    _remove_docker_image(runtime_image)
+    runtime_image = "cloud-agent-runtime-validation-test:latest"
     cache_dir = tmp_path / "cache"
     workspace = tmp_path / "workspace"
     workspace.mkdir()
@@ -321,6 +344,7 @@ def test_validate_cloud_command_fails_when_validate_hook_exits_non_zero(
             str(workspace),
             "--cache-dir",
             str(cache_dir),
+            *_runtime_image_build_args(),
         ],
         cwd=ROOT,
         env=_pythonpath_env(),

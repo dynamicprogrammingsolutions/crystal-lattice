@@ -25,6 +25,7 @@ APP_PACKAGE_DIR = APP_DIR / "agent_terminal_app"
 CORE_DIR = ROOT / "core" / "python"
 PLUGINS_DIR = ROOT / "plugins"
 BUNDLED_PLUGINS_DIRNAME = "bundled_plugins"
+CLOUD_RUNTIME_DIRNAME = "cloud_runtime"
 PYPROJECT = APP_DIR / "pyproject.toml"
 BUILD_DIR = ROOT / "build" / "crystal-lattice-binary"
 PYINSTALLER_WORK_DIR = BUILD_DIR / "pyinstaller-work"
@@ -156,11 +157,17 @@ def prepare_staged_assets() -> None:
             continue
         shutil.copy2(source, staged_app / source.name)
 
+    bundled_plugins_dir = ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME
+    copytree_sanitized(PLUGINS_DIR, bundled_plugins_dir)
+    prepare_cloud_runtime_build_context(ASSET_STAGE_DIR / CLOUD_RUNTIME_DIRNAME)
+
     bundled_manifest = {
         "schema_version": 1,
         "layout": "bundled",
         "bundle_paths": {
             "builtin_plugins": f"../{BUNDLED_PLUGINS_DIRNAME}",
+            "cloud_runtime_build_context": f"../{CLOUD_RUNTIME_DIRNAME}",
+            "cloud_runtime_dockerfile": f"../{CLOUD_RUNTIME_DIRNAME}/Dockerfile",
             "default_config_template": "default_config",
             "config_examples": ".",
             "root_system_messages": "system_messages",
@@ -177,8 +184,6 @@ def prepare_staged_assets() -> None:
         encoding="utf-8",
     )
 
-    copytree_sanitized(PLUGINS_DIR, ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME)
-
     entrypoint = ASSET_STAGE_DIR / "crystal_lattice_pyinstaller_entry.py"
     entrypoint.write_text(
         "from agent_terminal_app.__main__ import main\n\n"
@@ -186,6 +191,28 @@ def prepare_staged_assets() -> None:
         "    main()\n",
         encoding="utf-8",
     )
+
+
+def prepare_cloud_runtime_build_context(destination: Path) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    runtime_assets = (
+        PLUGINS_DIR
+        / "cloud-agent-app"
+        / "src"
+        / "cloud_agent_app"
+        / "bundled_runtime"
+        / "python"
+    )
+    shutil.copy2(runtime_assets / "Dockerfile", destination / "Dockerfile")
+    shutil.copy2(runtime_assets / "runtime.py", destination / "runtime.py")
+
+    python_lib = destination / "python_lib"
+    copytree_sanitized(CORE_DIR / "agent_core", python_lib / "agent_core")
+    copytree_sanitized(CORE_DIR / "agent_app", python_lib / "agent_app")
+    copytree_sanitized(CORE_DIR / "plugins", python_lib / "plugins")
+    shutil.copy2(CORE_DIR / "sitecustomize.py", python_lib / "sitecustomize.py")
+    copytree_sanitized(APP_PACKAGE_DIR, python_lib / "agent_terminal_app")
+    copytree_sanitized(PLUGINS_DIR, destination / "plugins")
 
 
 def copytree_sanitized(
@@ -247,6 +274,8 @@ def run_pyinstaller() -> None:
         add_data_arg(
             ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME, BUNDLED_PLUGINS_DIRNAME
         ),
+        "--add-data",
+        add_data_arg(ASSET_STAGE_DIR / CLOUD_RUNTIME_DIRNAME, CLOUD_RUNTIME_DIRNAME),
     ]
     for path in bundled_python_paths:
         command.extend(["--paths", str(path)])
@@ -315,6 +344,13 @@ def verify_output_tree(output_dir: Path) -> None:
     required_paths = [
         internal_dir / "agent_terminal_app" / "runtime_layout.json",
         internal_dir / "agent_terminal_app" / "default_config" / "config.json",
+        internal_dir / CLOUD_RUNTIME_DIRNAME / "Dockerfile",
+        internal_dir / CLOUD_RUNTIME_DIRNAME / "runtime.py",
+        internal_dir / CLOUD_RUNTIME_DIRNAME / "python_lib" / "agent_core",
+        internal_dir / CLOUD_RUNTIME_DIRNAME / "python_lib" / "agent_app",
+        internal_dir / CLOUD_RUNTIME_DIRNAME / "python_lib" / "agent_terminal_app",
+        internal_dir / CLOUD_RUNTIME_DIRNAME / "python_lib" / "plugins",
+        internal_dir / CLOUD_RUNTIME_DIRNAME / "plugins" / "cloud-agent-app",
         internal_dir / BUNDLED_PLUGINS_DIRNAME / "openrouter" / "agent_plugin.json",
         internal_dir / BUNDLED_PLUGINS_DIRNAME / "codex-tools" / "agent_plugin.json",
         internal_dir

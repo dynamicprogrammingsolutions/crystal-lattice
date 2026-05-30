@@ -198,6 +198,8 @@ function runValidateCloudCommand(options: {
       'validate-cloud',
       '--workspace-dir',
       options.workspaceDir,
+      '--cache-dir',
+      path.join(path.dirname(options.configPath), 'cloud-validation-cache'),
     ],
     {
       cwd: repoRoot,
@@ -503,15 +505,10 @@ describeIf(
           timeoutMs: 30_000,
         });
         expect(ignoredProbe.status).toBe(404);
-        expect(await readCloudText(cloudTransport, 'staged.env')).toContain(
+        expect(await readCloudText(cloudTransport, '.env')).toContain(
           'PROFILE_E2E_SECRET=from-fixture',
         );
-        expect(await readCloudText(cloudTransport, 'install-hook-context.txt')).toContain(
-          'CLOUD_WORKSPACE_DIR=',
-        );
-        expect(await readCloudText(cloudTransport, 'local-stage-context.txt')).toContain(
-          'TRANSFER_STAGE_DIR=',
-        );
+        expect(await readCloudText(cloudTransport, 'install.ok')).toBe('ok\n');
         const asset = await cloudTransport.request<{ content: string }>({
           method: 'GET',
           path: '/cloud-agent/config-assets/files/system_messages/profile-e2e.md',

@@ -4,5 +4,4 @@ set -euo pipefail
 : "${LOCAL_WORKSPACE_DIR:?}"
 : "${TRANSFER_STAGE_DIR:?}"
 
-mkdir -p "${TRANSFER_STAGE_DIR}"
-cp "${LOCAL_WORKSPACE_DIR}/.env" "${TRANSFER_STAGE_DIR}/.env"
+test ! -f "${LOCAL_WORKSPACE_DIR}/.env" || cp "${LOCAL_WORKSPACE_DIR}/.env" "${TRANSFER_STAGE_DIR}/.env"

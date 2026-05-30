@@ -39,8 +39,22 @@ class RuntimeLayout:
     def root_system_messages(self) -> Path:
         return self.bundle_path("root_system_messages")
 
+    @property
+    def cloud_runtime_build_context(self) -> Path | None:
+        return self.optional_bundle_path("cloud_runtime_build_context")
+
+    @property
+    def cloud_runtime_dockerfile(self) -> Path | None:
+        return self.optional_bundle_path("cloud_runtime_dockerfile")
+
     def bundle_path(self, name: str) -> Path:
         return _resolve_bundle_path(self.manifest_dir, self.bundle_paths[name])
+
+    def optional_bundle_path(self, name: str) -> Path | None:
+        raw_path = self.bundle_paths.get(name)
+        if not isinstance(raw_path, str) or not raw_path:
+            return None
+        return _resolve_bundle_path(self.manifest_dir, raw_path)
 
     def user_path(self, name: str) -> Path:
         return _resolve_user_path(self.user_paths[name])

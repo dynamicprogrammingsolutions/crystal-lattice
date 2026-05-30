@@ -3,6 +3,8 @@
   "layout": "source",
   "bundle_paths": {
     "builtin_plugins": "../../../plugins",
+    "cloud_runtime_build_context": "../../..",
+    "cloud_runtime_dockerfile": "../../../cloud-orchestrator/runtime/python/Dockerfile",
     "default_config_template": "default_config",
     "config_examples": ".",
     "root_system_messages": "system_messages"

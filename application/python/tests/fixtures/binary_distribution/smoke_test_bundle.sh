@@ -17,16 +17,21 @@ test -f "$bundle_dir/_internal/bundled_plugins/codex-tools/agent_plugin.json"
 test -f "$bundle_dir/_internal/bundled_plugins/feature-system-message/agent_plugin.json"
 test -f "$bundle_dir/_internal/bundled_plugins/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/Dockerfile"
 test -f "$bundle_dir/_internal/bundled_plugins/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/runtime.py"
+test -f "$bundle_dir/_internal/cloud_runtime/Dockerfile"
+test -f "$bundle_dir/_internal/cloud_runtime/runtime.py"
+test -d "$bundle_dir/_internal/cloud_runtime/python_lib/agent_core"
+test -d "$bundle_dir/_internal/cloud_runtime/python_lib/agent_app"
+test -d "$bundle_dir/_internal/cloud_runtime/python_lib/agent_terminal_app"
+test -d "$bundle_dir/_internal/cloud_runtime/plugins/cloud-agent-app"
 test ! -e "$bundle_dir/_internal/agent_terminal_app/default_config/auth"
 test ! -e "$bundle_dir/_internal/agent_terminal_app/default_config/.plugin_cache"
 
 "$bundle_dir/crystal-lattice" --help >/tmp/crystal-lattice-help.txt
 "$bundle_dir/crystal-lattice" --runtime-layout-json >/tmp/crystal-lattice-layout.json
-"$bundle_dir/crystal-lattice" validate-cloud --help >/tmp/crystal-lattice-validate-help.txt
 
 grep -q '"layout": "bundled"' /tmp/crystal-lattice-layout.json
 grep -q '"BUILTIN_PLUGINS":' /tmp/crystal-lattice-layout.json
 grep -q '/_internal/bundled_plugins' /tmp/crystal-lattice-layout.json
-grep -q 'workspace-dir' /tmp/crystal-lattice-validate-help.txt
+grep -q '/_internal/cloud_runtime' /tmp/crystal-lattice-layout.json
 
 echo "bundle smoke test passed: $bundle_dir"

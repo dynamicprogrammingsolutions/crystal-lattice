@@ -537,13 +537,16 @@ Useful flags:
 crystal-lattice validate-cloud --workspace-dir /path/to/project
 crystal-lattice validate-cloud --keep-temp-dir
 crystal-lattice validate-cloud --cache-dir /path/to/stable/cache
+crystal-lattice validate-cloud --runtime-build-context /path/to/context --runtime-dockerfile /path/to/Dockerfile
 ```
 
 The command runs the runtime image selected by the active
 `application.cloud_agent.container_profiles` configuration. If that image is
-the default `cloud-agent-runtime:latest` and it is missing locally, the command
-builds it from `cloud-orchestrator/runtime/python/Dockerfile` before starting
-the local validation container.
+the default `cloud-agent-runtime:latest`, the command uses explicit
+runtime-layout build metadata to compute a build-input digest and rebuilds only
+when the local image is missing or stale. Custom image names are treated as
+user-owned: validation trusts them when present and fails clearly when they are
+missing unless explicit runtime build overrides are provided.
 When `--cache-dir` is provided, it is bind-mounted to `/cloud-agent/cache` so
 plugin and pip caches persist across validation runs.
 

@@ -3,6 +3,5 @@ set -euo pipefail
 
 : "${CLOUD_WORKSPACE_DIR:?}"
 
-test -f "${CLOUD_WORKSPACE_DIR}/staged.env"
-test -f "${CLOUD_WORKSPACE_DIR}/install-hook-context.txt"
-test -f "${CLOUD_WORKSPACE_DIR}/local-stage-context.txt"
+test -f "${CLOUD_WORKSPACE_DIR}/.env"
+test -f "${CLOUD_WORKSPACE_DIR}/install.ok"

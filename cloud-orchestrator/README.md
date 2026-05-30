@@ -122,19 +122,14 @@ CLI command:
 crystal-lattice validate-cloud
 ```
 
-That command runs the same configured cloud runtime image locally. When the
-image is the default `cloud-agent-runtime:latest` and it is not already present
-on the machine, the CLI builds it from
-`cloud-orchestrator/runtime/python/Dockerfile` before starting validation.
-
-```bash
-crystal-lattice validate-cloud
-```
-
-That command uses a bundled local-Docker runtime asset copy owned by
-`cloud-agent-app`, but the orchestrator-owned runtime files under
-`cloud-orchestrator/runtime/python/` must stay behaviorally in sync with the
-bundled copy until runtime ownership is fully plugin-driven.
+That command runs the same configured cloud runtime image locally. For the
+default `cloud-agent-runtime:latest` image, the CLI uses explicit runtime-layout
+build metadata to compute a build-input digest and rebuilds only when the local
+image is missing or stale. Source installs point at this orchestrator Dockerfile;
+bundled installs point at a packaged Docker-buildable runtime context. The
+orchestrator-owned runtime files under `cloud-orchestrator/runtime/python/` must
+stay behaviorally in sync with the bundled copy until runtime ownership is fully
+plugin-driven.
 
 ## Runtime Config, Assets, And Env
 

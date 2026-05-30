@@ -4,9 +4,4 @@ set -euo pipefail
 : "${LOCAL_WORKSPACE_DIR:?}"
 : "${TRANSFER_STAGE_DIR:?}"
 
-mkdir -p "${TRANSFER_STAGE_DIR}"
-cp "${LOCAL_WORKSPACE_DIR}/.env" "${TRANSFER_STAGE_DIR}/.env"
-printf 'LOCAL_WORKSPACE_DIR=%s\nTRANSFER_STAGE_DIR=%s\n' \
-  "${LOCAL_WORKSPACE_DIR}" \
-  "${TRANSFER_STAGE_DIR}" \
-  > "${TRANSFER_STAGE_DIR}/local-stage-context.txt"
+test ! -f "${LOCAL_WORKSPACE_DIR}/.env" || cp "${LOCAL_WORKSPACE_DIR}/.env" "${TRANSFER_STAGE_DIR}/.env"

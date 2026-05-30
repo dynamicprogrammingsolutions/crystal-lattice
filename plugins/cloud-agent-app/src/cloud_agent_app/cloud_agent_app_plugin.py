@@ -123,8 +123,14 @@ class CloudAgentAppPlugin:
                 "description": "Run the local-Docker cloud validation flow for the current workspace.",
                 "inputs": {
                     "workspace_dir": {"type": "string", "required": False},
-                    "keep_temp_dir": {"type": "boolean", "required": False, "default": False},
+                    "keep_temp_dir": {
+                        "type": "boolean",
+                        "required": False,
+                        "default": False,
+                    },
                     "cache_dir": {"type": "string", "required": False},
+                    "runtime_build_context": {"type": "string", "required": False},
+                    "runtime_dockerfile": {"type": "string", "required": False},
                 },
             },
             {
@@ -157,6 +163,16 @@ class CloudAgentAppPlugin:
                         "name": "cache_dir",
                         "flags": ["--cache-dir"],
                         "help": "Bind-mount a stable local cache directory into the validation runtime.",
+                    },
+                    {
+                        "name": "runtime_build_context",
+                        "flags": ["--runtime-build-context"],
+                        "help": "Override the Docker build context used when the validation runtime image must be built.",
+                    },
+                    {
+                        "name": "runtime_dockerfile",
+                        "flags": ["--runtime-dockerfile"],
+                        "help": "Override the Dockerfile used when the validation runtime image must be built.",
                     },
                 ],
             }
@@ -656,6 +672,11 @@ class CloudAgentAppPlugin:
         self, params: Dict[str, Any], *, workspace_dir: Path
     ) -> Path | None:
         raw = params.get("cache_dir")
+        return self._optional_validation_path(raw, workspace_dir=workspace_dir)
+
+    def _optional_validation_path(
+        self, raw: Any, *, workspace_dir: Path
+    ) -> Path | None:
         if not isinstance(raw, str) or not raw.strip():
             return None
         path = Path(raw).expanduser()
@@ -856,7 +877,9 @@ class CloudAgentAppPlugin:
             scripts_dir.mkdir(parents=True, exist_ok=True)
             env_path = scripts_dir / "runtime.env"
             env_path.write_text(
-                "".join(f"{key}={value}\n" for key, value in sorted(runtime_env.items())),
+                "".join(
+                    f"{key}={value}\n" for key, value in sorted(runtime_env.items())
+                ),
                 encoding="utf-8",
             )
             env_path.chmod(0o600)
@@ -868,7 +891,9 @@ class CloudAgentAppPlugin:
             raise RuntimeError("Cloud validation requires an AgentApplication instance")
         agents = list_agents()
         if not isinstance(agents, list) or not agents:
-            raise RuntimeError("Cloud validation requires at least one configured agent")
+            raise RuntimeError(
+                "Cloud validation requires at least one configured agent"
+            )
         agent_id = str(agents[0])
         core, _base_config, session = create_session_ephemeral(agent_id)
         return core, agent_id, session
@@ -877,11 +902,19 @@ class CloudAgentAppPlugin:
         self, app: Any, params: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         if shutil.which("docker") is None:
-            raise RuntimeError("Docker is required for cloud validation but was not found")
+            raise RuntimeError(
+                "Docker is required for cloud validation but was not found"
+            )
 
         workspace_dir = self._workspace_dir(params, state)
         keep_temp_dir = bool(params.get("keep_temp_dir"))
         cache_dir = self._validation_cache_dir(params, workspace_dir=workspace_dir)
+        runtime_build_context = self._optional_validation_path(
+            params.get("runtime_build_context"), workspace_dir=workspace_dir
+        )
+        runtime_dockerfile = self._optional_validation_path(
+            params.get("runtime_dockerfile"), workspace_dir=workspace_dir
+        )
         runtime_layout = load_runtime_layout()
         runtime_image = str(state.get("runtime_image") or "").strip()
         if not runtime_image:
@@ -891,7 +924,9 @@ class CloudAgentAppPlugin:
             state, "local_transfer_script", legacy_key="transfer_script"
         )
 
-        core, selected_agent_id, validation_session = self._build_validation_session(app)
+        core, selected_agent_id, validation_session = self._build_validation_session(
+            app
+        )
         validation_state = {
             **state,
             "validation_session_id": validation_session.session_id,
@@ -904,6 +939,14 @@ class CloudAgentAppPlugin:
             selected_agent_id=selected_agent_id,
             runtime_image=runtime_image,
             cache_dir=str(cache_dir) if cache_dir is not None else None,
+            runtime_build_context=(
+                str(runtime_build_context)
+                if runtime_build_context is not None
+                else None
+            ),
+            runtime_dockerfile=(
+                str(runtime_dockerfile) if runtime_dockerfile is not None else None
+            ),
         )
 
         temp_root = Path(tempfile.mkdtemp(prefix="cloud-agent-validate-")).resolve()
@@ -962,13 +1005,18 @@ class CloudAgentAppPlugin:
             image_details = ensure_local_runtime_image(
                 runtime_image,
                 runtime_layout=runtime_layout,
+                build_context=runtime_build_context,
+                dockerfile=runtime_dockerfile,
                 logger=_log,
             )
             _log.info(
                 "cloud_validation_runtime_image_ready",
                 runtime_image=runtime_image,
                 image_source=image_details.get("source"),
-                build_root=image_details.get("build_root"),
+                build_context=image_details.get("build_context"),
+                dockerfile=image_details.get("dockerfile"),
+                digest=image_details.get("digest"),
+                digest_tag=image_details.get("digest_tag"),
             )
             docker_run_command = [
                 "docker",
@@ -1103,7 +1151,9 @@ class CloudAgentAppPlugin:
         resolved_env = self._resolved_env(app)
         ref_token = self._ref_safe_token(session_id)
         transfer_stage_dir = self._transfer_stage_dir(transfer_dir)
-        branch_prefix = str(state.get("imported_branch_prefix") or DEFAULT_IMPORTED_BRANCH_PREFIX)
+        branch_prefix = str(
+            state.get("imported_branch_prefix") or DEFAULT_IMPORTED_BRANCH_PREFIX
+        )
         return {
             **{
                 key: str(value)
@@ -1243,7 +1293,9 @@ class CloudAgentAppPlugin:
         payload: Dict[str, Any] | None = None,
     ) -> tuple[int, Dict[str, Any]]:
         body = (
-            json.dumps({k: v for k, v in payload.items() if v is not None}).encode("utf-8")
+            json.dumps({k: v for k, v in payload.items() if v is not None}).encode(
+                "utf-8"
+            )
             if isinstance(payload, dict)
             else None
         )
@@ -1257,14 +1309,18 @@ class CloudAgentAppPlugin:
         try:
             with urlopen(request, timeout=5) as response:
                 parsed = json.loads(response.read().decode("utf-8"))
-                return int(getattr(response, "status", 200)), parsed if isinstance(parsed, dict) else {}
+                return int(getattr(response, "status", 200)), (
+                    parsed if isinstance(parsed, dict) else {}
+                )
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             try:
                 parsed = json.loads(detail)
             except Exception:
                 parsed = {"raw": detail}
-            return int(exc.code), parsed if isinstance(parsed, dict) else {"raw": detail}
+            return int(exc.code), (
+                parsed if isinstance(parsed, dict) else {"raw": detail}
+            )
 
     def _format_runtime_failure(self, payload: Dict[str, Any]) -> str:
         detail = payload.get("detail")
@@ -1338,7 +1394,10 @@ class CloudAgentAppPlugin:
                 last_heartbeat = now
             if status == 200 and payload.get("ready") is True:
                 return payload
-            if payload.get("status") == "failed" or payload.get("startup_stage") == "failed":
+            if (
+                payload.get("status") == "failed"
+                or payload.get("startup_stage") == "failed"
+            ):
                 raise RuntimeError(self._format_runtime_failure(payload))
             time.sleep(interval)
         raise RuntimeError(

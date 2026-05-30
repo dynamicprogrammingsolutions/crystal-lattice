@@ -5,14 +5,17 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, List
 
 import pytest
 
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
+from cloud_agent_app import cloud_agent_validation
 from cloud_agent_app.cloud_agent_app_plugin import CloudAgentAppPlugin
 from cloud_agent_app.cloud_agent_profiles import resolve_cloud_agent_profiles
+from cloud_agent_app.cloud_agent_validation import RuntimeImageBuildSpec
 from cloud_agent_app.cloud_agent_transfer import (
     CLOUD_WORKSPACE_DIR,
     CLOUD_PLUGIN_CACHE_DIR,
@@ -206,6 +209,8 @@ def test_cloud_plugin_exposes_validate_cloud_command_binding() -> None:
         "workspace_dir": {"type": "string", "required": False},
         "keep_temp_dir": {"type": "boolean", "required": False, "default": False},
         "cache_dir": {"type": "string", "required": False},
+        "runtime_build_context": {"type": "string", "required": False},
+        "runtime_dockerfile": {"type": "string", "required": False},
     }
     assert commands["validate-cloud"] == {
         "name": "validate-cloud",
@@ -226,6 +231,16 @@ def test_cloud_plugin_exposes_validate_cloud_command_binding() -> None:
                 "name": "cache_dir",
                 "flags": ["--cache-dir"],
                 "help": "Bind-mount a stable local cache directory into the validation runtime.",
+            },
+            {
+                "name": "runtime_build_context",
+                "flags": ["--runtime-build-context"],
+                "help": "Override the Docker build context used when the validation runtime image must be built.",
+            },
+            {
+                "name": "runtime_dockerfile",
+                "flags": ["--runtime-dockerfile"],
+                "help": "Override the Dockerfile used when the validation runtime image must be built.",
             },
         ],
     }
@@ -249,11 +264,11 @@ def test_write_cloud_runtime_scripts_copies_optional_validation_script(
     workspace.mkdir()
     transfer_dir.mkdir()
 
-    setup = _write_script(tmp_path / "setup", 'printf setup > /dev/null\n')
-    install = _write_script(tmp_path / "install", 'printf install > /dev/null\n')
-    validate = _write_script(tmp_path / "validate", 'printf validate > /dev/null\n')
-    export = _write_script(tmp_path / "export", 'printf export > /dev/null\n')
-    sync_applied = _write_script(tmp_path / "sync-applied", 'printf sync > /dev/null\n')
+    setup = _write_script(tmp_path / "setup", "printf setup > /dev/null\n")
+    install = _write_script(tmp_path / "install", "printf install > /dev/null\n")
+    validate = _write_script(tmp_path / "validate", "printf validate > /dev/null\n")
+    export = _write_script(tmp_path / "export", "printf export > /dev/null\n")
+    sync_applied = _write_script(tmp_path / "sync-applied", "printf sync > /dev/null\n")
 
     plugin._write_cloud_runtime_scripts(
         transfer_dir,
@@ -277,9 +292,9 @@ def test_write_cloud_runtime_scripts_copies_optional_validation_script(
     assert (scripts_dir / "install").read_text(encoding="utf-8") == install.read_text(
         encoding="utf-8"
     )
-    assert (scripts_dir / "validate").read_text(
+    assert (scripts_dir / "validate").read_text(encoding="utf-8") == validate.read_text(
         encoding="utf-8"
-    ) == validate.read_text(encoding="utf-8")
+    )
     assert (scripts_dir / "export").read_text(encoding="utf-8") == export.read_text(
         encoding="utf-8"
     )
@@ -287,7 +302,9 @@ def test_write_cloud_runtime_scripts_copies_optional_validation_script(
         encoding="utf-8"
     ) == sync_applied.read_text(encoding="utf-8")
     runtime_env = (scripts_dir / "runtime.env").read_text(encoding="utf-8")
-    assert "CLOUD_AGENT_TRANSFER_UP_PROFILE_ID=working-tree-current-state" in runtime_env
+    assert (
+        "CLOUD_AGENT_TRANSFER_UP_PROFILE_ID=working-tree-current-state" in runtime_env
+    )
     assert "CLOUD_AGENT_SYNC_DOWN_PROFILE_ID=working-tree-patch" in runtime_env
 
 
@@ -323,7 +340,7 @@ def test_validate_cloud_action_packages_runtime_and_returns_success(
 
     monkeypatch.setattr(
         "cloud_agent_app.cloud_agent_app_plugin.ensure_local_runtime_image",
-        lambda runtime_image, runtime_layout, logger=None: {
+        lambda runtime_image, runtime_layout, build_context=None, dockerfile=None, logger=None: {
             "runtime_image": runtime_image,
             "source": "existing",
         },
@@ -348,14 +365,22 @@ def test_validate_cloud_action_packages_runtime_and_returns_success(
             stderr="",
         )
 
-    monkeypatch.setattr("cloud_agent_app.cloud_agent_app_plugin.run_command", fake_run_command)
-    monkeypatch.setattr(plugin, "_wait_for_local_runtime_ready", lambda port, state: {"ready": True})
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.run_command", fake_run_command
+    )
+    monkeypatch.setattr(
+        plugin, "_wait_for_local_runtime_ready", lambda port, state: {"ready": True}
+    )
     monkeypatch.setattr(
         plugin,
         "_local_runtime_request",
         lambda method, port, path, payload=None: (
             200,
-            {"status": "ok", "smoke": {"workspace_exists": True}, "validate": {"status": "ran"}},
+            {
+                "status": "ok",
+                "smoke": {"workspace_exists": True},
+                "validate": {"status": "ran"},
+            },
         ),
     )
     monkeypatch.setattr(plugin, "_docker_logs", lambda container_name: "")
@@ -388,6 +413,174 @@ def test_validate_cloud_action_packages_runtime_and_returns_success(
         artifacts_dir / "transfer" / ".cloud-agent" / "scripts" / "validate"
     ).read_text(encoding="utf-8") == validate_hook.read_text(encoding="utf-8")
     shutil.rmtree(artifacts_dir, ignore_errors=True)
+
+
+def test_runtime_image_builds_default_when_digest_label_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = tmp_path / "context"
+    context.mkdir()
+    dockerfile = context / "Dockerfile"
+    dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+    (context / "runtime.py").write_text("print('runtime')\n", encoding="utf-8")
+    layout = SimpleNamespace(
+        cloud_runtime_build_context=context,
+        cloud_runtime_dockerfile=dockerfile,
+    )
+    calls: list[list[str]] = []
+
+    def fake_run_command(
+        command: list[str],
+        *,
+        cwd: Path,
+        logger=None,
+        event_name: str = "cloud_validation_command",
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if command[:3] == ["docker", "image", "inspect"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="built", stderr="")
+
+    monkeypatch.setattr(cloud_agent_validation, "run_command", fake_run_command)
+
+    result = cloud_agent_validation.ensure_local_runtime_image(
+        "cloud-agent-runtime:latest",
+        runtime_layout=layout,
+    )
+
+    build_command = next(
+        command for command in calls if command[:2] == ["docker", "build"]
+    )
+    assert result["source"] == "built"
+    assert result["digest"]
+    assert result["digest_tag"].startswith("cloud-agent-runtime:sha-")
+    assert "-t" in build_command
+    assert "cloud-agent-runtime:latest" in build_command
+    assert result["digest_tag"] in build_command
+    assert (
+        f"{cloud_agent_validation.RUNTIME_DIGEST_LABEL}={result['digest']}"
+        in build_command
+    )
+
+
+def test_runtime_image_reuses_default_when_digest_label_matches(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = tmp_path / "context"
+    context.mkdir()
+    dockerfile = context / "Dockerfile"
+    dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+    (context / "runtime.py").write_text("print('runtime')\n", encoding="utf-8")
+    spec = RuntimeImageBuildSpec(context_dir=context, dockerfile=dockerfile)
+    digest = cloud_agent_validation.runtime_build_digest(spec)
+    layout = SimpleNamespace(
+        cloud_runtime_build_context=context,
+        cloud_runtime_dockerfile=dockerfile,
+    )
+    calls: list[list[str]] = []
+
+    def fake_run_command(
+        command: list[str],
+        *,
+        cwd: Path,
+        logger=None,
+        event_name: str = "cloud_validation_command",
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        payload = [
+            {
+                "Config": {
+                    "Labels": {cloud_agent_validation.RUNTIME_DIGEST_LABEL: digest}
+                }
+            }
+        ]
+        return subprocess.CompletedProcess(
+            command, 0, stdout=json.dumps(payload), stderr=""
+        )
+
+    monkeypatch.setattr(cloud_agent_validation, "run_command", fake_run_command)
+
+    result = cloud_agent_validation.ensure_local_runtime_image(
+        "cloud-agent-runtime:latest",
+        runtime_layout=layout,
+    )
+
+    assert result["source"] == "existing"
+    assert result["digest"] == digest
+    assert not any(command[:2] == ["docker", "build"] for command in calls)
+
+
+def test_runtime_image_missing_custom_without_explicit_build_metadata_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = tmp_path / "context"
+    context.mkdir()
+    dockerfile = context / "Dockerfile"
+    dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+    layout = SimpleNamespace(
+        cloud_runtime_build_context=context,
+        cloud_runtime_dockerfile=dockerfile,
+    )
+
+    def fake_run_command(
+        command: list[str],
+        *,
+        cwd: Path,
+        logger=None,
+        event_name: str = "cloud_validation_command",
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+
+    monkeypatch.setattr(cloud_agent_validation, "run_command", fake_run_command)
+
+    with pytest.raises(RuntimeError, match="custom-runtime:latest.*not available"):
+        cloud_agent_validation.ensure_local_runtime_image(
+            "custom-runtime:latest",
+            runtime_layout=layout,
+        )
+
+
+def test_runtime_image_builds_custom_with_explicit_build_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = tmp_path / "context"
+    context.mkdir()
+    dockerfile = context / "Dockerfile"
+    dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+    layout = SimpleNamespace(
+        cloud_runtime_build_context=None,
+        cloud_runtime_dockerfile=None,
+    )
+    calls: list[list[str]] = []
+
+    def fake_run_command(
+        command: list[str],
+        *,
+        cwd: Path,
+        logger=None,
+        event_name: str = "cloud_validation_command",
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        if command[:3] == ["docker", "image", "inspect"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="built", stderr="")
+
+    monkeypatch.setattr(cloud_agent_validation, "run_command", fake_run_command)
+
+    result = cloud_agent_validation.ensure_local_runtime_image(
+        "custom-runtime:latest",
+        runtime_layout=layout,
+        build_context=context,
+        dockerfile=dockerfile,
+    )
+
+    assert result["source"] == "built"
+    assert result["digest_tag"].startswith("custom-runtime:sha-")
+    assert any(command[:2] == ["docker", "build"] for command in calls)
 
 
 def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
@@ -587,14 +780,9 @@ def test_default_patch_scripts_support_incremental_sync_after_mark_synced(
         / "working-tree-current-state"
         / "cloud_setup_script"
     )
-    export = (
-        scripts_root / "sync_down" / "working-tree-patch" / "cloud_export_script"
-    )
+    export = scripts_root / "sync_down" / "working-tree-patch" / "cloud_export_script"
     mark_synced = (
-        scripts_root
-        / "sync_down"
-        / "working-tree-patch"
-        / "cloud_mark_synced_script"
+        scripts_root / "sync_down" / "working-tree-patch" / "cloud_mark_synced_script"
     )
     apply_down = (
         scripts_root / "sync_down" / "working-tree-patch" / "local_apply_script"
@@ -778,9 +966,7 @@ def test_clean_head_branch_profiles_import_branch_without_touching_local_dirty_s
         / "cloud-agent"
         / "profiles"
     )
-    transfer_up = (
-        scripts_root / "transfer_up" / "clean-head" / "local_transfer_script"
-    )
+    transfer_up = scripts_root / "transfer_up" / "clean-head" / "local_transfer_script"
     setup = scripts_root / "transfer_up" / "clean-head" / "cloud_setup_script"
     export = scripts_root / "sync_down" / "branch-import" / "cloud_export_script"
     apply_down = scripts_root / "sync_down" / "branch-import" / "local_apply_script"
@@ -793,11 +979,15 @@ def test_clean_head_branch_profiles_import_branch_without_touching_local_dirty_s
     local.mkdir()
     cloud.mkdir()
     subprocess.run(["git", "init"], cwd=local, check=True, stdout=subprocess.PIPE)
-    subprocess.run(["git", "config", "user.email", "local@example.invalid"], cwd=local, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "local@example.invalid"], cwd=local, check=True
+    )
     subprocess.run(["git", "config", "user.name", "Local Test"], cwd=local, check=True)
     (local / "tracked.txt").write_text("base\n", encoding="utf-8")
     subprocess.run(["git", "add", "tracked.txt"], cwd=local, check=True)
-    subprocess.run(["git", "commit", "-m", "base"], cwd=local, check=True, stdout=subprocess.PIPE)
+    subprocess.run(
+        ["git", "commit", "-m", "base"], cwd=local, check=True, stdout=subprocess.PIPE
+    )
     (local / "tracked.txt").write_text("local dirty\n", encoding="utf-8")
 
     upload = tmp_path / "upload"
@@ -817,11 +1007,18 @@ def test_clean_head_branch_profiles_import_branch_without_touching_local_dirty_s
 
     assert (cloud / "tracked.txt").read_text(encoding="utf-8") == "base\n"
 
-    subprocess.run(["git", "config", "user.email", "cloud@example.invalid"], cwd=cloud, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "cloud@example.invalid"], cwd=cloud, check=True
+    )
     subprocess.run(["git", "config", "user.name", "Cloud Test"], cwd=cloud, check=True)
     (cloud / "tracked.txt").write_text("base\ncloud commit\n", encoding="utf-8")
     subprocess.run(["git", "add", "tracked.txt"], cwd=cloud, check=True)
-    subprocess.run(["git", "commit", "-m", "cloud commit"], cwd=cloud, check=True, stdout=subprocess.PIPE)
+    subprocess.run(
+        ["git", "commit", "-m", "cloud commit"],
+        cwd=cloud,
+        check=True,
+        stdout=subprocess.PIPE,
+    )
 
     sync1 = tmp_path / "sync1"
     sync1.mkdir()
@@ -889,12 +1086,16 @@ def test_dirty_branch_profiles_preserve_safety_refs_and_incremental_branch_sync(
     local.mkdir()
     cloud.mkdir()
     subprocess.run(["git", "init"], cwd=local, check=True, stdout=subprocess.PIPE)
-    subprocess.run(["git", "config", "user.email", "local@example.invalid"], cwd=local, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "local@example.invalid"], cwd=local, check=True
+    )
     subprocess.run(["git", "config", "user.name", "Local Test"], cwd=local, check=True)
     (local / "a.txt").write_text("base-a\n", encoding="utf-8")
     (local / "b.txt").write_text("base-b\n", encoding="utf-8")
     subprocess.run(["git", "add", "a.txt", "b.txt"], cwd=local, check=True)
-    subprocess.run(["git", "commit", "-m", "base"], cwd=local, check=True, stdout=subprocess.PIPE)
+    subprocess.run(
+        ["git", "commit", "-m", "base"], cwd=local, check=True, stdout=subprocess.PIPE
+    )
     (local / "a.txt").write_text("local-a\n", encoding="utf-8")
     (local / "b.txt").write_text("local-b\n", encoding="utf-8")
 
@@ -920,11 +1121,18 @@ def test_dirty_branch_profiles_preserve_safety_refs_and_incremental_branch_sync(
     assert (cloud / "a.txt").read_text(encoding="utf-8") == "local-a\n"
     assert (cloud / "b.txt").read_text(encoding="utf-8") == "local-b\n"
 
-    subprocess.run(["git", "config", "user.email", "cloud@example.invalid"], cwd=cloud, check=True)
+    subprocess.run(
+        ["git", "config", "user.email", "cloud@example.invalid"], cwd=cloud, check=True
+    )
     subprocess.run(["git", "config", "user.name", "Cloud Test"], cwd=cloud, check=True)
     (cloud / "b.txt").write_text("cloud-b1\n", encoding="utf-8")
     subprocess.run(["git", "add", "b.txt"], cwd=cloud, check=True)
-    subprocess.run(["git", "commit", "-m", "cloud b1"], cwd=cloud, check=True, stdout=subprocess.PIPE)
+    subprocess.run(
+        ["git", "commit", "-m", "cloud b1"],
+        cwd=cloud,
+        check=True,
+        stdout=subprocess.PIPE,
+    )
 
     sync1 = tmp_path / "branch-sync1"
     sync1.mkdir()
@@ -975,7 +1183,12 @@ def test_dirty_branch_profiles_preserve_safety_refs_and_incremental_branch_sync(
 
     (cloud / "b.txt").write_text("cloud-b2\n", encoding="utf-8")
     subprocess.run(["git", "add", "b.txt"], cwd=cloud, check=True)
-    subprocess.run(["git", "commit", "-m", "cloud b2"], cwd=cloud, check=True, stdout=subprocess.PIPE)
+    subprocess.run(
+        ["git", "commit", "-m", "cloud b2"],
+        cwd=cloud,
+        check=True,
+        stdout=subprocess.PIPE,
+    )
     (cloud / "a.txt").write_text("local-a\ncloud residual\n", encoding="utf-8")
 
     sync2 = tmp_path / "branch-sync2"
@@ -1735,8 +1948,12 @@ def test_portable_config_removes_cloud_disabled_plugin_specs_from_all_plugin_lis
         selected_agent_id="selected",
     )
 
-    assert portable["plugins"] == ["plugins.echo_openai_like_provider.EchoOpenAILikeProvider"]
-    assert portable["providers"]["kept_provider"]["plugins"] == ["plugins.provider_extra"]
+    assert portable["plugins"] == [
+        "plugins.echo_openai_like_provider.EchoOpenAILikeProvider"
+    ]
+    assert portable["providers"]["kept_provider"]["plugins"] == [
+        "plugins.provider_extra"
+    ]
     assert portable["agents"]["selected"]["plugins"] == ["plugins.agent_extra"]
     assert manifest["disabled_plugins"]["requested"] == [disabled_spec]
     assert manifest["disabled_plugins"]["removed"] == [
@@ -1746,7 +1963,9 @@ def test_portable_config_removes_cloud_disabled_plugin_specs_from_all_plugin_lis
     ]
 
 
-def test_portable_config_cloud_disabled_plugin_specs_do_not_mutate_local_input() -> None:
+def test_portable_config_cloud_disabled_plugin_specs_do_not_mutate_local_input() -> (
+    None
+):
     disabled_spec = "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"
     raw = {
         "plugins": [disabled_spec],
@@ -1755,7 +1974,9 @@ def test_portable_config_cloud_disabled_plugin_specs_do_not_mutate_local_input()
 
     portable, manifest = build_portable_config(
         raw,
-        cloud_agent_config={"disabled_plugins": [disabled_spec, "path:${env:BUILTIN_PLUGINS}/missing"]},
+        cloud_agent_config={
+            "disabled_plugins": [disabled_spec, "path:${env:BUILTIN_PLUGINS}/missing"]
+        },
     )
 
     assert portable["plugins"] == []
@@ -1803,7 +2024,9 @@ def test_agent_application_cloud_disabled_plugins_support_raw_literals(
                 "default_container_profile": "test-runtime",
                 "transfer_up_profiles": {
                     "test-transfer": {
-                        "local_transfer_script": str(_write_script(tmp_path / "transfer")),
+                        "local_transfer_script": str(
+                            _write_script(tmp_path / "transfer")
+                        ),
                         "cloud_setup_script": str(_write_script(tmp_path / "setup")),
                         "install_script": str(_write_script(tmp_path / "install")),
                     }

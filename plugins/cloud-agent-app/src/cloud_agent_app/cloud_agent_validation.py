@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import os
 import socket
 import subprocess
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from agent_core.utils import get_logger
@@ -13,13 +17,46 @@ from .cloud_agent_profiles import DEFAULT_RUNTIME_IMAGE
 
 _log = get_logger("cloud_agent_validation")
 
-_RUNTIME_DOCKERFILE_RELATIVE = Path("cloud-orchestrator") / "runtime" / "python" / "Dockerfile"
-_REQUIRED_RUNTIME_ROOT_PATHS = (
-    Path("core") / "python",
-    Path("application") / "python",
+RUNTIME_DIGEST_LABEL = "org.crystal-lattice.cloud-runtime.digest"
+_DIGEST_IGNORE_DIRS = {
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    "__pycache__",
+    ".crystal",
+    ".plugin_cache",
+    ".venv",
+    "artifacts",
+    "build",
+    "dist",
+    "htmlcov",
+    "node_modules",
+    "site",
+}
+_DIGEST_IGNORE_SUFFIXES = {".pyc", ".pyo", ".log"}
+_SOURCE_RUNTIME_DIGEST_PATHS = (
+    Path("core") / "python" / "agent_core",
+    Path("core") / "python" / "agent_app",
+    Path("core") / "python" / "plugins",
+    Path("core") / "python" / "sitecustomize.py",
+    Path("application") / "python" / "agent_terminal_app",
     Path("plugins"),
-    _RUNTIME_DOCKERFILE_RELATIVE,
+    Path("cloud-orchestrator") / "runtime" / "python" / "Dockerfile",
+    Path("cloud-orchestrator") / "runtime" / "python" / "runtime.py",
 )
+
+
+@dataclass(frozen=True)
+class RuntimeImageBuildSpec:
+    context_dir: Path
+    dockerfile: Path
+
+    def resolved(self) -> "RuntimeImageBuildSpec":
+        return RuntimeImageBuildSpec(
+            context_dir=self.context_dir.expanduser().resolve(),
+            dockerfile=self.dockerfile.expanduser().resolve(),
+        )
 
 
 def reserve_local_port() -> int:
@@ -62,61 +99,106 @@ def run_command(
     return result
 
 
-def find_runtime_build_root(runtime_layout: RuntimeLayout) -> Path | None:
-    candidates: list[Path] = []
-    builtin_plugins = runtime_layout.builtin_plugins.resolve()
-    candidates.append(builtin_plugins.parent)
-    manifest_dir = runtime_layout.manifest_dir.resolve()
-    candidates.extend(manifest_dir.parents)
-
-    seen: set[Path] = set()
-    for candidate in candidates:
-        resolved = candidate.resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        if _is_runtime_build_root(resolved):
-            return resolved
-    return None
+def resolve_runtime_build_spec(
+    runtime_layout: RuntimeLayout,
+    *,
+    build_context: Path | None = None,
+    dockerfile: Path | None = None,
+) -> RuntimeImageBuildSpec | None:
+    context = build_context or runtime_layout.cloud_runtime_build_context
+    dockerfile_path = dockerfile or runtime_layout.cloud_runtime_dockerfile
+    if context is None and dockerfile_path is None:
+        return None
+    if context is None or dockerfile_path is None:
+        raise RuntimeError(
+            "Cloud runtime image build metadata must include both a build "
+            "context and a Dockerfile."
+        )
+    spec = RuntimeImageBuildSpec(
+        context_dir=context, dockerfile=dockerfile_path
+    ).resolved()
+    if not spec.context_dir.is_dir():
+        raise RuntimeError(
+            f"Cloud runtime image build context does not exist: {spec.context_dir}"
+        )
+    if not spec.dockerfile.is_file():
+        raise RuntimeError(
+            f"Cloud runtime image Dockerfile does not exist: {spec.dockerfile}"
+        )
+    return spec
 
 
 def ensure_local_runtime_image(
     runtime_image: str,
     *,
     runtime_layout: RuntimeLayout,
+    build_context: Path | None = None,
+    dockerfile: Path | None = None,
     logger=None,
 ) -> dict[str, str]:
     active_logger = logger or _log
-    inspect_result = run_command(
-        ["docker", "image", "inspect", runtime_image],
-        cwd=Path.cwd(),
+    inspect_payload = inspect_runtime_image(
+        runtime_image,
         logger=active_logger,
-        event_name="cloud_validation_runtime_image_inspect",
     )
-    if inspect_result.returncode == 0:
-        return {"runtime_image": runtime_image, "source": "existing"}
-
-    if runtime_image != DEFAULT_RUNTIME_IMAGE:
+    explicit_build_metadata = build_context is not None or dockerfile is not None
+    if runtime_image != DEFAULT_RUNTIME_IMAGE and not explicit_build_metadata:
+        if inspect_payload is not None:
+            return {"runtime_image": runtime_image, "source": "existing_custom"}
         raise RuntimeError(
             "Configured runtime image "
             f"`{runtime_image}` is not available locally. Pull or build that image "
-            "before running `validate-cloud`."
+            "before running `validate-cloud`, or provide explicit runtime build metadata."
         )
 
-    build_root = find_runtime_build_root(runtime_layout)
-    if build_root is None:
+    build_spec = resolve_runtime_build_spec(
+        runtime_layout,
+        build_context=build_context,
+        dockerfile=dockerfile,
+    )
+
+    if build_spec is None:
+        if inspect_payload is not None:
+            return {"runtime_image": runtime_image, "source": "existing"}
         raise RuntimeError(
             "Configured runtime image "
-            f"`{runtime_image}` is not available locally, and no canonical "
-            "cloud runtime source tree was found for building it."
+            f"`{runtime_image}` is not available locally. Pull or build that image "
+            "before running `validate-cloud`, or provide explicit runtime build metadata."
         )
 
-    dockerfile = (build_root / _RUNTIME_DOCKERFILE_RELATIVE).resolve()
+    digest = runtime_build_digest(build_spec)
+    existing_digest = runtime_image_digest_label(inspect_payload)
+    if inspect_payload is not None and existing_digest == digest:
+        return {
+            "runtime_image": runtime_image,
+            "source": "existing",
+            "build_context": str(build_spec.context_dir),
+            "dockerfile": str(build_spec.dockerfile),
+            "digest": digest,
+        }
+    if (
+        inspect_payload is not None
+        and runtime_image != DEFAULT_RUNTIME_IMAGE
+        and not explicit_build_metadata
+    ):
+        return {
+            "runtime_image": runtime_image,
+            "source": "existing_custom",
+            "build_context": str(build_spec.context_dir),
+            "dockerfile": str(build_spec.dockerfile),
+            "digest": digest,
+            "existing_digest": existing_digest or "",
+        }
+
+    digest_tag = runtime_digest_tag(runtime_image, digest)
     active_logger.info(
         "cloud_validation_runtime_image_building",
         runtime_image=runtime_image,
-        build_root=str(build_root),
-        dockerfile=str(dockerfile),
+        digest_tag=digest_tag,
+        existing_digest=existing_digest,
+        expected_digest=digest,
+        build_context=str(build_spec.context_dir),
+        dockerfile=str(build_spec.dockerfile),
     )
     build_result = run_command(
         [
@@ -124,11 +206,15 @@ def ensure_local_runtime_image(
             "build",
             "-t",
             runtime_image,
+            "-t",
+            digest_tag,
+            "--label",
+            f"{RUNTIME_DIGEST_LABEL}={digest}",
             "-f",
-            str(dockerfile),
-            str(build_root),
+            str(build_spec.dockerfile),
+            str(build_spec.context_dir),
         ],
-        cwd=build_root,
+        cwd=build_spec.context_dir,
         logger=active_logger,
         event_name="cloud_validation_runtime_image_build",
     )
@@ -139,19 +225,125 @@ def ensure_local_runtime_image(
         )
     return {
         "runtime_image": runtime_image,
+        "digest_tag": digest_tag,
         "source": "built",
-        "build_root": str(build_root),
+        "build_context": str(build_spec.context_dir),
+        "dockerfile": str(build_spec.dockerfile),
+        "digest": digest,
+        "existing_digest": existing_digest or "",
     }
 
 
-def _is_runtime_build_root(root: Path) -> bool:
-    return all((root / path).exists() for path in _REQUIRED_RUNTIME_ROOT_PATHS)
+def inspect_runtime_image(runtime_image: str, *, logger=None) -> dict | None:
+    result = run_command(
+        ["docker", "image", "inspect", runtime_image],
+        cwd=Path.cwd(),
+        logger=logger or _log,
+        event_name="cloud_validation_runtime_image_inspect",
+    )
+    if result.returncode != 0:
+        return None
+    try:
+        parsed = json.loads(result.stdout or "[]")
+    except json.JSONDecodeError:
+        return {}
+    if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
+        return parsed[0]
+    return {}
+
+
+def runtime_image_digest_label(inspect_payload: dict | None) -> str | None:
+    if not isinstance(inspect_payload, dict):
+        return None
+    config = inspect_payload.get("Config")
+    labels = config.get("Labels") if isinstance(config, dict) else None
+    if not isinstance(labels, dict):
+        return None
+    raw = labels.get(RUNTIME_DIGEST_LABEL)
+    return raw if isinstance(raw, str) and raw else None
+
+
+def runtime_build_digest(build_spec: RuntimeImageBuildSpec) -> str:
+    spec = build_spec.resolved()
+    digest = hashlib.sha256()
+    digest.update(b"crystal-cloud-runtime-v1\n")
+    for path in iter_runtime_build_files(spec):
+        relative = _digest_relative_path(spec, path)
+        digest.update(relative.as_posix().encode("utf-8", errors="surrogateescape"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def iter_runtime_build_files(build_spec: RuntimeImageBuildSpec) -> list[Path]:
+    spec = build_spec.resolved()
+    files: set[Path] = set()
+    if spec.dockerfile.is_file():
+        files.add(spec.dockerfile)
+
+    source_paths = [spec.context_dir / path for path in _SOURCE_RUNTIME_DIGEST_PATHS]
+    if all(path.exists() for path in source_paths):
+        roots = source_paths
+    else:
+        roots = [spec.context_dir]
+
+    for candidate in roots:
+        if candidate.is_file():
+            files.add(candidate.resolve())
+            continue
+        if not candidate.is_dir():
+            continue
+        files.update(_iter_digest_files_under(candidate))
+    return sorted(files, key=lambda path: _digest_relative_path(spec, path).as_posix())
+
+
+def _iter_digest_files_under(root_dir: Path) -> list[Path]:
+    files: list[Path] = []
+    for root, dirs, names in os.walk(root_dir):
+        root_path = Path(root)
+        dirs[:] = [
+            name
+            for name in sorted(dirs)
+            if name not in _DIGEST_IGNORE_DIRS and not name.endswith(".egg-info")
+        ]
+        for name in sorted(names):
+            path = root_path / name
+            if path.suffix in _DIGEST_IGNORE_SUFFIXES:
+                continue
+            if name in {".coverage", ".DS_Store"}:
+                continue
+            if path.is_file():
+                files.append(path.resolve())
+    return files
+
+
+def _digest_relative_path(build_spec: RuntimeImageBuildSpec, path: Path) -> Path:
+    try:
+        return path.resolve().relative_to(build_spec.context_dir)
+    except ValueError:
+        return Path("__dockerfile__") / path.name
+
+
+def runtime_digest_tag(runtime_image: str, digest: str) -> str:
+    short = digest[:16]
+    last_segment = runtime_image.rsplit("/", 1)[-1]
+    if ":" in last_segment:
+        base = runtime_image.rsplit(":", 1)[0]
+    else:
+        base = runtime_image
+    return f"{base}:sha-{short}"
 
 
 __all__ = [
     "DEFAULT_RUNTIME_IMAGE",
     "ensure_local_runtime_image",
-    "find_runtime_build_root",
+    "inspect_runtime_image",
+    "iter_runtime_build_files",
     "reserve_local_port",
+    "resolve_runtime_build_spec",
+    "runtime_build_digest",
+    "runtime_digest_tag",
+    "runtime_image_digest_label",
     "run_command",
 ]

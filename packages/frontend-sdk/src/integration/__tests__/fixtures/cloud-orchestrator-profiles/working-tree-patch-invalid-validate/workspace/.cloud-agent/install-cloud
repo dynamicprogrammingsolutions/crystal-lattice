@@ -2,6 +2,6 @@
 set -euo pipefail
 
 : "${CLOUD_WORKSPACE_DIR:?}"
-: "${TRANSFER_STAGE_DIR:?}"
 
-cp "${TRANSFER_STAGE_DIR}/.env" "${CLOUD_WORKSPACE_DIR}/staged.env"
+test -f "${CLOUD_WORKSPACE_DIR}/.env"
+printf 'ok\n' > "${CLOUD_WORKSPACE_DIR}/install.ok"
