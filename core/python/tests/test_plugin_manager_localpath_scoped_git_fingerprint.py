@@ -203,6 +203,17 @@ def test_localpath_git_fingerprint_includes_declared_sibling_dependency(
         ).lstrip(),
         encoding="utf-8",
     )
+    (plugin_dir / "agent_plugin.json").write_text(
+        json.dumps(
+            {
+                "entries": [f"{pkg_name}.tool_mod.MyTool"],
+                "local_workspace_dependencies": [
+                    {"name": "tool-compat-shared", "path": "../tool-compat-shared"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     (shared_dir / "pyproject.toml").write_text(
         textwrap.dedent(
             """
@@ -244,8 +255,17 @@ def test_localpath_git_fingerprint_includes_declared_sibling_dependency(
 
         res1 = mgr.resolve_all([spec])
         assert res1.errors == []
+        assert len(installer.requests) == 2
+        assert installer.requests[-2].safe_id == "tool-compat-shared"
+        assert installer.requests[-1].safe_id == "qwen-tools"
         rev1 = installer.requests[-1].revision
         assert "tool-compat-shared" in installer.requests[-1].metadata["local_dependencies"]
+        assert (
+            installer.requests[-1]
+            .metadata["local_workspace_dependencies"]["tool-compat-shared"]["revision"]
+            == installer.requests[-2].revision
+        )
+        assert "local_dependency_versions" not in installer.requests[-1].metadata
         assert installer.requests[-1].policy["pip_cache_dir"] == str(cache_dir / "pip")
         assert "--no-cache-dir" not in installer.requests[-1].policy.get("pip_args", [])
 
@@ -257,3 +277,71 @@ def test_localpath_git_fingerprint_includes_declared_sibling_dependency(
         assert rev2 != rev1
     finally:
         installer.cleanup()
+
+
+def test_localpath_file_dependency_requires_descriptor_metadata(tmp_path: Path) -> None:
+    repo_root = tmp_path / "repo"
+    plugin_dir = repo_root / "qwen-tools"
+    shared_dir = repo_root / "tool-compat-shared"
+    pkg_name = "missing_dep_metadata_plugin"
+    plugin_pkg = plugin_dir / pkg_name
+    shared_pkg = shared_dir / "src" / "tool_compat_shared"
+    plugin_pkg.mkdir(parents=True, exist_ok=True)
+    shared_pkg.mkdir(parents=True, exist_ok=True)
+    (plugin_pkg / "__init__.py").write_text("", encoding="utf-8")
+    (plugin_pkg / "tool_mod.py").write_text(
+        textwrap.dedent(
+            """
+            class MyTool:
+                name = "my_tool"
+            """
+        ).lstrip(),
+        encoding="utf-8",
+    )
+    (plugin_dir / "setup.py").write_text(
+        textwrap.dedent(
+            """
+            from pathlib import Path
+            from setuptools import setup
+
+            sibling = (Path(__file__).resolve().parents[1] / "tool-compat-shared").resolve()
+
+            setup(
+                name="qwen-tools",
+                version="0.0.1",
+                packages=["missing_dep_metadata_plugin"],
+                install_requires=[f"tool-compat-shared @ file://{sibling}"],
+            )
+            """
+        ).lstrip(),
+        encoding="utf-8",
+    )
+    (plugin_dir / "agent_plugin.json").write_text(
+        json.dumps({"entries": [f"{pkg_name}.tool_mod.MyTool"]}),
+        encoding="utf-8",
+    )
+    (shared_dir / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """
+            [build-system]
+            requires = ["setuptools>=61.0", "wheel"]
+            build-backend = "setuptools.build_meta"
+
+            [project]
+            name = "tool-compat-shared"
+            version = "0.0.1"
+            """
+        ).lstrip(),
+        encoding="utf-8",
+    )
+
+    mgr = PluginManager(
+        cache_dir=tmp_path / "cache",
+        sources=[LocalPathRepoSource()],
+    )
+    res = mgr.resolve_all([{"path": str(plugin_dir), "entry": f"{pkg_name}.tool_mod.MyTool"}])
+
+    assert res.classes == []
+    assert res.errors
+    assert res.errors[0]["type"] == "plugin_descriptor_invalid"
+    assert "local_workspace_dependencies" in res.errors[0]["detail"]

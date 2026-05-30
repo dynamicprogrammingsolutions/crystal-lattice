@@ -6,6 +6,7 @@ Local path repos are installed into the plugin cache via
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import importlib
 import subprocess
@@ -13,6 +14,7 @@ import sys
 import textwrap
 
 from agent_app.plugin_sources.install import InstallRequest, PipTargetInstallStrategy
+from agent_app.plugin_sources.descriptor import read_descriptor
 from agent_app.plugin_manager import PluginManager
 
 
@@ -59,6 +61,50 @@ def test_localpath_source_loads_provider(tmp_path: Path) -> None:
     res = mgr.resolve_all([spec])
     assert res.errors == []
     assert [getattr(cls, "__name__", "") for cls in res.classes] == ["DevProvider"]
+
+
+def test_descriptor_reads_local_workspace_dependencies(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / "agent_plugin.json").write_text(
+        json.dumps(
+            {
+                "entries": ["pkg.mod.Plugin"],
+                "local_workspace_dependencies": [
+                    {"name": "sharedpkg", "path": "../sharedpkg"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    descriptor, error = read_descriptor(repo)
+
+    assert error is None
+    assert descriptor is not None
+    assert descriptor.local_workspace_dependencies[0].name == "sharedpkg"
+    assert descriptor.local_workspace_dependencies[0].path == "../sharedpkg"
+
+
+def test_descriptor_rejects_malformed_local_workspace_dependencies(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / "agent_plugin.json").write_text(
+        json.dumps(
+            {
+                "entries": ["pkg.mod.Plugin"],
+                "local_workspace_dependencies": [{"name": "sharedpkg"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    descriptor, error = read_descriptor(repo)
+
+    assert descriptor is None
+    assert error is not None
+    assert error["type"] == "plugin_descriptor_invalid"
+    assert "local_workspace_dependencies" in error["detail"]
 
 
 def test_manager_loads_mixed_dotted_and_localpath(tmp_path: Path) -> None:
@@ -146,6 +192,17 @@ def test_localpath_source_can_install_sibling_dependency(tmp_path: Path) -> None
                 install_requires=[f"sharedpkg @ file://{sibling}"],
             )
             """
+        ),
+        encoding="utf-8",
+    )
+    (plugin / "agent_plugin.json").write_text(
+        json.dumps(
+            {
+                "entries": ["pluginrepo.tool_mod.DependentTool"],
+                "local_workspace_dependencies": [
+                    {"name": "sharedpkg", "path": "../sharedpkg"},
+                ],
+            }
         ),
         encoding="utf-8",
     )
@@ -346,6 +403,40 @@ def test_pip_target_installer_uses_configured_pip_cache_dir(tmp_path: Path, monk
                 project_dir=project_dir,
                 policy={"pip_cache_dir": str(pip_cache_dir)},
                 metadata={},
+            )
+        )
+    finally:
+        sys.path[:] = original_sys_path
+
+    assert commands
+    assert "--cache-dir" in commands[0]
+    assert commands[0][commands[0].index("--cache-dir") + 1] == str(pip_cache_dir)
+    assert "--no-cache-dir" not in commands[0]
+
+
+def test_pip_target_installer_uses_cache_for_local_dependency_metadata(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project_dir = _make_dev_repo(tmp_path)
+    cache_dir = tmp_path / ".plugin_cache" / "plugins"
+    pip_cache_dir = tmp_path / ".plugin_cache" / "pip"
+    commands: list[list[str]] = []
+    original_sys_path = list(sys.path)
+
+    def fake_check_call(cmd):  # type: ignore[no-untyped-def]
+        commands.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    try:
+        PipTargetInstallStrategy().ensure_installed(
+            InstallRequest(
+                cache_dir=cache_dir,
+                safe_id="repo",
+                revision="rev",
+                project_dir=project_dir,
+                policy={"pip_cache_dir": str(pip_cache_dir)},
+                metadata={"local_dependencies": {"sharedpkg": "fingerprint"}},
             )
         )
     finally:

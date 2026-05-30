@@ -8,10 +8,17 @@ import json
 
 
 @dataclass(frozen=True)
+class LocalWorkspaceDependency:
+    name: str
+    path: str
+
+
+@dataclass(frozen=True)
 class PluginDescriptor:
     entries: List[str]
     subdirectory: Optional[str]
     kinds: Dict[str, str]
+    local_workspace_dependencies: List[LocalWorkspaceDependency]
 
 
 def read_descriptor(path: Path) -> Tuple[Optional[PluginDescriptor], Optional[Dict[str, Any]]]:
@@ -53,4 +60,56 @@ def read_descriptor(path: Path) -> Tuple[Optional[PluginDescriptor], Optional[Di
             if isinstance(k, str) and isinstance(v, str) and k.strip() and v.strip():
                 kinds[k] = v
 
-    return PluginDescriptor(entries=entries, subdirectory=subdir_val, kinds=kinds), None
+    dependencies_raw = raw.get("local_workspace_dependencies", [])
+    if dependencies_raw is None:
+        dependencies_raw = []
+    local_workspace_dependencies: List[LocalWorkspaceDependency] = []
+    if not isinstance(dependencies_raw, list):
+        return None, {
+            "type": "plugin_descriptor_invalid",
+            "detail": "agent_plugin.json field 'local_workspace_dependencies' must be a list",
+            "path": str(desc_path),
+        }
+    for index, item in enumerate(dependencies_raw):
+        if not isinstance(item, dict):
+            return None, {
+                "type": "plugin_descriptor_invalid",
+                "detail": (
+                    "agent_plugin.json field 'local_workspace_dependencies' "
+                    f"item {index} must be an object"
+                ),
+                "path": str(desc_path),
+            }
+        name = item.get("name")
+        dep_path = item.get("path")
+        if not isinstance(name, str) or not name.strip():
+            return None, {
+                "type": "plugin_descriptor_invalid",
+                "detail": (
+                    "agent_plugin.json field 'local_workspace_dependencies' "
+                    f"item {index} must include a non-empty 'name'"
+                ),
+                "path": str(desc_path),
+            }
+        if not isinstance(dep_path, str) or not dep_path.strip():
+            return None, {
+                "type": "plugin_descriptor_invalid",
+                "detail": (
+                    "agent_plugin.json field 'local_workspace_dependencies' "
+                    f"item {index} must include a non-empty 'path'"
+                ),
+                "path": str(desc_path),
+            }
+        local_workspace_dependencies.append(
+            LocalWorkspaceDependency(name=name.strip(), path=dep_path.strip())
+        )
+
+    return (
+        PluginDescriptor(
+            entries=entries,
+            subdirectory=subdir_val,
+            kinds=kinds,
+            local_workspace_dependencies=local_workspace_dependencies,
+        ),
+        None,
+    )

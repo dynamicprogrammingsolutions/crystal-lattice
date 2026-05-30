@@ -20,5 +20,19 @@
     "codex_tools.view_image_tool.ViewImageTool": "tools",
     "codex_tools.codex_skills_feature.CodexSkillsFeature": "features",
     "codex_tools.codex_variant_feature.CodexVariantFeature": "features"
-  }
+  },
+  "local_workspace_dependencies": [
+    {
+      "name": "tool-compat-shared",
+      "path": "../tool-compat-shared"
+    },
+    {
+      "name": "mcp-shared",
+      "path": "../mcp-shared"
+    },
+    {
+      "name": "skill-shared",
+      "path": "../skill-shared"
+    }
+  ]
 }

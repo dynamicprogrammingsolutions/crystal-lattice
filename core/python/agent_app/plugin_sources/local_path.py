@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
 import hashlib
 import os
+import re
 import subprocess
 try:
     import tomllib
@@ -13,7 +15,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
 
 from agent_core.utils import get_logger
 
-from .descriptor import read_descriptor
+from .descriptor import LocalWorkspaceDependency, read_descriptor
 from .importing import import_dotted_class
 from .install import (
     InstallRequest,
@@ -24,13 +26,14 @@ from .install import (
 from .types import PluginContext, PluginResolution
 
 
-_LOCAL_PATH_DEPENDENCY_NAMES = (
-    "tool-compat-shared",
-    "web-fetch-shared",
-    "mcp-shared",
-    "skill-shared",
-    "gemini-compaction-app",
-)
+@dataclass(frozen=True)
+class _LocalWorkspaceDependencyInfo:
+    name: str
+    path: Path
+    project_dir: Path
+    fingerprint: str
+    revision: str
+    version: Optional[str]
 
 
 class LocalPathRepoSource:
@@ -117,7 +120,8 @@ class LocalPathRepoSource:
 
         descriptor = None
         descriptor_err = None
-        if explicit_entry is None:
+        descriptor_path = base / "agent_plugin.json"
+        if explicit_entry is None or descriptor_path.is_file():
             descriptor, descriptor_err = read_descriptor(base)
             if descriptor_err is not None or descriptor is None:
                 return PluginResolution(
@@ -164,9 +168,36 @@ class LocalPathRepoSource:
         cache_dir = ctx.cache_dir
         cache_dir.mkdir(parents=True, exist_ok=True)
 
+        declared_dependencies = (
+            list(descriptor.local_workspace_dependencies) if descriptor is not None else []
+        )
+        undeclared_dependency_err = self._undeclared_local_file_dependency_error(
+            base,
+            project_dir,
+            declared_dependencies,
+        )
+        if undeclared_dependency_err is not None:
+            return PluginResolution(classes=[], errors=[undeclared_dependency_err])
+
+        dependency_infos, dependency_err = self._local_workspace_dependency_infos(
+            base,
+            declared_dependencies,
+        )
+        if dependency_err is not None:
+            return PluginResolution(classes=[], errors=[dependency_err])
+
         git_fp = self._fingerprint_git(base, project_dir)
-        dependency_fps = self._fingerprint_local_path_dependencies(base, project_dir)
-        dependency_versions = self._local_dependency_versions(base, dependency_fps)
+        dependency_fps = {info.name: info.fingerprint for info in dependency_infos}
+        dependency_metadata = {
+            info.name: {
+                "path": str(info.path),
+                "project_dir": str(info.project_dir),
+                "fingerprint": info.fingerprint,
+                "revision": info.revision,
+                **({"version": info.version} if info.version is not None else {}),
+            }
+            for info in dependency_infos
+        }
         fp = self._combine_fingerprints(
             git_fp or self._fingerprint_files(project_dir), dependency_fps
         )
@@ -190,12 +221,32 @@ class LocalPathRepoSource:
                 metadata["scope"] = parts[3]
         if dependency_fps:
             metadata["local_dependencies"] = dependency_fps
-        if dependency_versions:
-            metadata["local_dependency_versions"] = dependency_versions
+            metadata["local_workspace_dependencies"] = dependency_metadata
 
         src_root = cache_dir / "src"
         src_root.mkdir(parents=True, exist_ok=True)
         try:
+            dependency_install_dirs = [
+                self._installer.ensure_installed(
+                    InstallRequest(
+                        cache_dir=cache_dir,
+                        safe_id=info.name,
+                        revision=info.revision,
+                        project_dir=info.project_dir,
+                        policy=ctx.policy,
+                        metadata={
+                            "id": info.name,
+                            "name": info.name,
+                            "path": str(info.path),
+                            "project_dir": str(info.project_dir),
+                            "fingerprint": info.fingerprint,
+                            "local_workspace_dependency": True,
+                            **({"version": info.version} if info.version is not None else {}),
+                        },
+                    )
+                )
+                for info in dependency_infos
+            ]
             install_dir = self._installer.ensure_installed(
                 InstallRequest(
                     cache_dir=cache_dir,
@@ -206,6 +257,7 @@ class LocalPathRepoSource:
                     metadata=metadata,
                 )
             )
+            self._reactivate_dependency_install_dirs(dependency_install_dirs)
         except PluginInstallError as exc:
             return PluginResolution(
                 classes=[],
@@ -267,27 +319,60 @@ class LocalPathRepoSource:
         )
         return f"{primary}\nlocal-dependencies:\n{dependency_payload}"
 
-    def _fingerprint_local_path_dependencies(
+    def _local_workspace_dependency_infos(
         self,
         base: Path,
-        project_dir: Path,
-    ) -> Dict[str, str]:
-        declared_text = self._project_declaration_text(project_dir)
-        if not declared_text:
-            return {}
-
-        fingerprints: Dict[str, str] = {}
-        for dependency_name in _LOCAL_PATH_DEPENDENCY_NAMES:
-            if dependency_name not in declared_text:
-                continue
-            dependency_dir = (base.parent / dependency_name).resolve()
-            if not dependency_dir.is_dir() or not self._is_installable_project(dependency_dir):
-                continue
-            fingerprints[dependency_name] = self._fingerprint_git(
+        dependencies: List[LocalWorkspaceDependency],
+    ) -> tuple[List[_LocalWorkspaceDependencyInfo], Optional[Dict[str, Any]]]:
+        infos: List[_LocalWorkspaceDependencyInfo] = []
+        seen: set[str] = set()
+        for dependency in dependencies:
+            if dependency.name in seen:
+                return [], {
+                    "type": "plugin_descriptor_invalid",
+                    "detail": (
+                        "agent_plugin.json field 'local_workspace_dependencies' "
+                        f"declares duplicate dependency {dependency.name!r}"
+                    ),
+                    "path": str(base / "agent_plugin.json"),
+                }
+            seen.add(dependency.name)
+            dependency_dir = (base / dependency.path).resolve()
+            if not dependency_dir.is_dir():
+                return [], {
+                    "type": "plugin_path_invalid",
+                    "detail": (
+                        "Local workspace dependency "
+                        f"{dependency.name!r} path {str(dependency_dir)!r} does not exist"
+                    ),
+                    "path": str(dependency_dir),
+                }
+            if not self._is_installable_project(dependency_dir):
+                return [], {
+                    "type": "plugin_install_error",
+                    "detail": (
+                        "Local workspace dependencies must be pip-installable "
+                        "(pyproject.toml or setup.py)"
+                    ),
+                    "path": str(dependency_dir),
+                }
+            fingerprint = self._fingerprint_git(
                 dependency_dir,
                 dependency_dir,
             ) or self._fingerprint_files(dependency_dir)
-        return fingerprints
+            infos.append(
+                _LocalWorkspaceDependencyInfo(
+                    name=dependency.name,
+                    path=dependency_dir,
+                    project_dir=dependency_dir,
+                    fingerprint=fingerprint,
+                    revision=hashlib.sha256(
+                        fingerprint.encode("utf-8", errors="ignore")
+                    ).hexdigest(),
+                    version=self._project_version(dependency_dir),
+                )
+            )
+        return infos, None
 
     def _project_declaration_text(self, project_dir: Path) -> str:
         chunks: list[str] = []
@@ -300,18 +385,50 @@ class LocalPathRepoSource:
                     continue
         return "\n".join(chunks)
 
-    def _local_dependency_versions(
+    def _undeclared_local_file_dependency_error(
         self,
         base: Path,
-        dependency_fps: Mapping[str, str],
-    ) -> Dict[str, str]:
-        versions: Dict[str, str] = {}
-        for dependency_name in dependency_fps.keys():
-            dependency_dir = (base.parent / dependency_name).resolve()
-            version = self._project_version(dependency_dir)
-            if isinstance(version, str) and version:
-                versions[dependency_name] = version
-        return versions
+        project_dir: Path,
+        dependencies: List[LocalWorkspaceDependency],
+    ) -> Optional[Dict[str, Any]]:
+        declared_text = self._project_declaration_text(project_dir)
+        if "file://" not in declared_text:
+            return None
+
+        declared_names = {dependency.name for dependency in dependencies}
+        direct_url_names = set(
+            match.group(1)
+            for match in re.finditer(
+                r"([A-Za-z0-9_.-]+)\s*@\s*file://",
+                declared_text,
+            )
+        )
+        if direct_url_names:
+            missing = sorted(direct_url_names - declared_names)
+            if not missing:
+                return None
+            detail = (
+                "Local path plugin declares sibling file:// dependencies that are missing "
+                f"from agent_plugin.json local_workspace_dependencies: {', '.join(missing)}"
+            )
+        elif dependencies:
+            return None
+        else:
+            detail = (
+                "Local path plugin declares file:// dependencies but agent_plugin.json does "
+                "not declare local_workspace_dependencies"
+            )
+        return {
+            "type": "plugin_descriptor_invalid",
+            "detail": detail,
+            "path": str(base / "agent_plugin.json"),
+        }
+
+    def _reactivate_dependency_install_dirs(self, install_dirs: List[Path]) -> None:
+        if not install_dirs or not isinstance(self._installer, PipTargetInstallStrategy):
+            return
+        for install_dir in install_dirs:
+            self._installer._activate_sys_path(install_dir)
 
     def _project_version(self, project_dir: Path) -> Optional[str]:
         pyproject_path = project_dir / "pyproject.toml"
