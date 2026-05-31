@@ -95,6 +95,25 @@ def validate_bundle(bundle_dir: Path) -> None:
         / "config.json",
         bundle_dir
         / "_internal"
+        / "cloud_runtime"
+        / "Dockerfile",
+        bundle_dir
+        / "_internal"
+        / "cloud_runtime"
+        / "runtime.py",
+        bundle_dir
+        / "_internal"
+        / "cloud_runtime"
+        / "python_lib"
+        / "agent_core",
+        bundle_dir
+        / "_internal"
+        / "bundled_plugins"
+        / "cloud-agent-app"
+        / "docs"
+        / "cloud-script-authoring.md",
+        bundle_dir
+        / "_internal"
         / "bundled_plugins"
         / "openrouter"
         / "agent_plugin.json",
