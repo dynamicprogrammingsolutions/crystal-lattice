@@ -185,8 +185,6 @@ class PipTargetInstallStrategy:
         return discovered
 
     def _pip_cache_args(self, request: InstallRequest, pip_args: List[str]) -> List[str]:
-        if request.metadata.get("local_dependencies"):
-            return ["--no-cache-dir"]
         if "--no-cache-dir" in pip_args:
             return []
         if any(arg == "--cache-dir" or arg.startswith("--cache-dir=") for arg in pip_args):

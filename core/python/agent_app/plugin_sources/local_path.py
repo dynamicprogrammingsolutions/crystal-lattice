@@ -400,7 +400,6 @@ class LocalPathRepoSource:
                 )
             )
         return infos, None
-
     def _undeclared_local_file_dependency_error(
         self,
         base: Path,
