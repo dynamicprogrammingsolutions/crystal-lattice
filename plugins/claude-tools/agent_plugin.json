@@ -24,5 +24,15 @@
     "claude_tools.claude_grep_tool.ClaudeGrepTool": "tools",
     "claude_tools.claude_web_fetch_tool.ClaudeWebFetchTool": "tools",
     "claude_tools.claude_web_search_tool.ClaudeWebSearchTool": "tools"
-  }
+  },
+  "local_workspace_dependencies": [
+    {
+      "name": "tool-compat-shared",
+      "path": "../tool-compat-shared"
+    },
+    {
+      "name": "web-fetch-shared",
+      "path": "../web-fetch-shared"
+    }
+  ]
 }

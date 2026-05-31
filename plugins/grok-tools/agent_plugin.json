@@ -12,5 +12,11 @@
     "grok_tools.grok_create_file_tool.GrokCreateFileTool": "tools",
     "grok_tools.grok_str_replace_editor_tool.GrokStrReplaceEditorTool": "tools",
     "grok_tools.grok_shell_tool.GrokShellTool": "tools"
-  }
+  },
+  "local_workspace_dependencies": [
+    {
+      "name": "tool-compat-shared",
+      "path": "../tool-compat-shared"
+    }
+  ]
 }

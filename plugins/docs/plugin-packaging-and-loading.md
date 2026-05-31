@@ -45,8 +45,46 @@ Notes:
 - `entries` is required.
 - `subdirectory` is optional (useful for monorepos).
 - A `kinds` map is optional; the application can also classify plugins by duck-typing.
+- `local_workspace_dependencies` is optional; use it for sibling local Python
+  packages in the same workspace.
 
 Runtime reference: `core/python/agent_app/plugin_sources/descriptor.py`.
+
+### Local workspace dependencies
+
+Some local path plugin repos depend on sibling local packages in the same
+workspace, for example a tool plugin depending on `../tool-compat-shared`.
+Declare those packages explicitly in `agent_plugin.json`:
+
+```json
+{
+  "entries": [
+    "my_tools.my_tool.MyTool"
+  ],
+  "local_workspace_dependencies": [
+    {
+      "name": "tool-compat-shared",
+      "path": "../tool-compat-shared"
+    }
+  ]
+}
+```
+
+Rules:
+
+- `name` is the distribution/project name.
+- `path` is resolved relative to the plugin descriptor directory.
+- The dependency target must be pip-installable (`pyproject.toml` or `setup.py`).
+- Declared local workspace dependencies are fingerprinted with the parent
+  plugin, so a sibling dependency change invalidates the parent plugin cache
+  entry.
+- The loader installs declared local workspace dependencies explicitly and keeps
+  normal pip cache behavior enabled.
+
+If a plugin package declares sibling `file://` dependencies in packaging
+metadata, it must also declare them in `local_workspace_dependencies`. This
+keeps local plugin cache invalidation explicit and avoids core hardcoding
+workspace package names.
 
 ## Installing `agent_plugin.json` as a data file
 

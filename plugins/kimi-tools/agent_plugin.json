@@ -22,5 +22,15 @@
     "kimi_tools.kimi_fetch_url_tool.KimiFetchURLTool": "tools",
     "kimi_tools.kimi_read_media_file_tool.KimiReadMediaFileTool": "tools",
     "kimi_tools.kimi_web_search_tool.KimiWebSearchTool": "tools"
-  }
+  },
+  "local_workspace_dependencies": [
+    {
+      "name": "tool-compat-shared",
+      "path": "../tool-compat-shared"
+    },
+    {
+      "name": "web-fetch-shared",
+      "path": "../web-fetch-shared"
+    }
+  ]
 }

@@ -6,6 +6,7 @@ Local path repos are installed into the plugin cache via
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import importlib
 import subprocess
@@ -13,6 +14,7 @@ import sys
 import textwrap
 
 from agent_app.plugin_sources.install import InstallRequest, PipTargetInstallStrategy
+from agent_app.plugin_sources.descriptor import read_descriptor
 from agent_app.plugin_manager import PluginManager
 
 
@@ -59,6 +61,52 @@ def test_localpath_source_loads_provider(tmp_path: Path) -> None:
     res = mgr.resolve_all([spec])
     assert res.errors == []
     assert [getattr(cls, "__name__", "") for cls in res.classes] == ["DevProvider"]
+
+
+def test_descriptor_reads_local_workspace_dependencies(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / "agent_plugin.json").write_text(
+        json.dumps(
+            {
+                "entries": ["pkg.mod.Plugin"],
+                "local_workspace_dependencies": [
+                    {"name": "sharedpkg", "path": "../sharedpkg"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    descriptor, error = read_descriptor(repo)
+
+    assert error is None
+    assert descriptor is not None
+    assert descriptor.local_workspace_dependencies[0].name == "sharedpkg"
+    assert descriptor.local_workspace_dependencies[0].path == "../sharedpkg"
+
+
+def test_descriptor_rejects_malformed_local_workspace_dependencies(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir(parents=True, exist_ok=True)
+    (repo / "agent_plugin.json").write_text(
+        json.dumps(
+            {
+                "entries": ["pkg.mod.Plugin"],
+                "local_workspace_dependencies": [{"name": "sharedpkg"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    descriptor, error = read_descriptor(repo)
+
+    assert descriptor is None
+    assert error is not None
+    assert error["type"] == "plugin_descriptor_invalid"
+    assert "local_workspace_dependencies" in error["detail"]
 
 
 def test_manager_loads_mixed_dotted_and_localpath(tmp_path: Path) -> None:
@@ -149,6 +197,17 @@ def test_localpath_source_can_install_sibling_dependency(tmp_path: Path) -> None
         ),
         encoding="utf-8",
     )
+    (plugin / "agent_plugin.json").write_text(
+        json.dumps(
+            {
+                "entries": ["pluginrepo.tool_mod.DependentTool"],
+                "local_workspace_dependencies": [
+                    {"name": "sharedpkg", "path": "../sharedpkg"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
     (plugin_pkg / "__init__.py").write_text("", encoding="utf-8")
     (plugin_pkg / "tool_mod.py").write_text(
         textwrap.dedent(
@@ -177,7 +236,7 @@ def test_localpath_source_can_install_sibling_dependency(tmp_path: Path) -> None
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir(parents=True)
 
-    spec = {"path": str(plugin), "entry": "pluginrepo.tool_mod.DependentTool"}
+    spec = f"path:{plugin}"
     mgr = PluginManager(cache_dir=cache_dir)
     res = mgr.resolve_all([spec])
 
@@ -317,6 +376,57 @@ def test_non_bundled_builtin_plugins_path_still_installs_to_cache(
 
     assert res.errors == []
     assert next(cache_dir.glob("repo@*")).is_dir()
+
+
+def test_preinstalled_descriptor_imports_without_source_tree(
+    tmp_path: Path,
+) -> None:
+    installed = tmp_path / "installed"
+    pkg = installed / "preinstalledpkg"
+    pkg.mkdir(parents=True, exist_ok=True)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "tool_mod.py").write_text(
+        textwrap.dedent(
+            """
+            class PreinstalledTool:
+                name = "preinstalled_tool"
+
+                def init(self, config):
+                    return {}
+
+                def get_tool_schemas(self, state):
+                    return []
+            """
+        ),
+        encoding="utf-8",
+    )
+
+    bundled_root = tmp_path / "bundled_plugins"
+    plugin = bundled_root / "pluginrepo"
+    plugin.mkdir(parents=True, exist_ok=True)
+    (plugin / "agent_plugin.json").write_text(
+        json.dumps(
+            {
+                "entries": ["preinstalledpkg.tool_mod.PreinstalledTool"],
+                "preinstalled": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    original_sys_path = list(sys.path)
+    try:
+        sys.path.insert(0, str(installed))
+        mgr = PluginManager(cache_dir=tmp_path / "cache")
+        res = mgr.resolve_all([f"path:{plugin}"])
+    finally:
+        sys.path[:] = original_sys_path
+
+    assert res.errors == []
+    assert [getattr(cls, "__name__", "") for cls in res.classes] == [
+        "PreinstalledTool"
+    ]
+    assert not (tmp_path / "cache").exists()
 
 
 def test_plugin_manager_defaults_pip_cache_next_to_plugins_cache(tmp_path: Path) -> None:
