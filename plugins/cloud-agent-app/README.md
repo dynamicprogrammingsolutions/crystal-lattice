@@ -31,6 +31,12 @@ These three hooks are the standard repo-local extension points:
 - `.cloud-agent/install-cloud`
 - `.cloud-agent/validate-cloud`
 
+For a model-oriented authoring guide with examples, see
+[`docs/cloud-script-authoring.md`](docs/cloud-script-authoring.md). The default
+`cloud-script-author` agent points at this guide through
+`${env:BUILTIN_PLUGINS}/cloud-agent-app/docs/cloud-script-authoring.md` so the
+same path works from source checkouts and bundled CLI installs.
+
 They are addressed in config through:
 
 - `local_stage_script`

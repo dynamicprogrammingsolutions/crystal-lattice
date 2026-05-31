@@ -57,6 +57,22 @@ def test_default_config_effective_agent_configs_stay_intact(
     assert app.get_config_errors() == []
 
     cases = {
+        "cloud-script-author": {
+            "provider": "openrouter",
+            "model": "openai/gpt-5.4-mini",
+            "allowed_paths": [
+                ".",
+                "..",
+                str(
+                    Path(__file__).resolve().parents[3]
+                    / "plugins"
+                    / "cloud-agent-app"
+                ),
+            ],
+            "shell_tool_mode": "auto",
+            "system_message_enabled": True,
+            "skills_enabled": True,
+        },
         "codex-openai-api": {
             "provider": "openai_responses",
             "auth_mode": "api",

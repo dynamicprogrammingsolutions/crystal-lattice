@@ -377,3 +377,16 @@ def test_portable_default_config_is_self_contained() -> None:
         ), value
         relative_path = value[len("${env:BUILTIN_PLUGINS}/") :]
         assert (REPO_ROOT / "plugins" / relative_path).is_file(), relative_path
+
+    cloud_author_variables = config["mixins"]["cloud_script_author_codex_message"][
+        "system_message"
+    ]["variables"]
+    authoring_path = cloud_author_variables["CLOUD_SCRIPT_AUTHORING_GUIDE_PATH"][
+        "text"
+    ]
+    assert (
+        authoring_path
+        == "${env:BUILTIN_PLUGINS}/cloud-agent-app/docs/cloud-script-authoring.md"
+    )
+    relative_path = authoring_path[len("${env:BUILTIN_PLUGINS}/") :]
+    assert (REPO_ROOT / "plugins" / relative_path).is_file(), relative_path

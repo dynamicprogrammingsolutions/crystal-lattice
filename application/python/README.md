@@ -550,6 +550,15 @@ missing unless explicit runtime build overrides are provided.
 When `--cache-dir` is provided, it is bind-mounted to `/cloud-agent/cache` so
 plugin and pip caches persist across validation runs.
 
+The default config also includes a `cloud-script-author` agent for creating
+these hooks from ordinary project guidance. It uses the project's normal
+`AGENTS.md`/README setup instructions and points directly at the bundled
+authoring guide, which is in the agent's allowed read paths:
+
+```text
+${env:BUILTIN_PLUGINS}/cloud-agent-app/docs/cloud-script-authoring.md
+```
+
 The full cloud profile reference lives in
 [`plugins/cloud-agent-app/README.md`](../../plugins/cloud-agent-app/README.md),
 including:
@@ -629,9 +638,9 @@ package.
 ### Binary Builds
 
 The binary release format is a PyInstaller `--onedir` bundle. It keeps the
-executable, bundled Python runtime, app assets, and built-in plugin source
-projects as separate files so release artifacts are easier to inspect and
-debug.
+executable, bundled Python runtime, app assets, selected preinstalled plugin
+packages, and lightweight built-in plugin metadata as separate files so release
+artifacts are easier to inspect and debug.
 
 Build the current platform:
 
@@ -663,10 +672,13 @@ crystal-lattice-cli-v0.1.0-windows-amd64.zip
 PyInstaller does not cross-compile. Build Linux, macOS, and Windows binaries on
 matching hosts or CI runners.
 
-The bundle includes sanitized built-in plugin project directories from the
-repo-root `plugins/` directory. User-owned state stays outside the bundle:
-config files, sessions, auth state, and plugin install caches belong under the
-selected `.crystal` directory.
+The bundle preinstalls default-config plugin projects and their Python
+dependencies during the binary build. It still exposes lightweight metadata and
+referenced resource files under `_internal/bundled_plugins`, so default config
+paths such as `path:${env:BUILTIN_PLUGINS}/codex-tools` continue to resolve
+without copying selected plugin source trees into that directory. User-owned
+state stays outside the bundle: config files, sessions, auth state, and plugin
+install caches belong under the selected `.crystal` directory.
 
 ### Local Nox Scripts
 
@@ -836,6 +848,32 @@ pytest application/python/tests/test_binary_distribution_docker.py -q
 
 This test is marked `integration` and `docker`. Docker validates Linux bundles
 only; macOS and Windows bundles still need native runners.
+
+The deeper installed-bundle E2E test runs the extracted current-platform bundle
+directly, uses Ollama with Qwen 0.6B, sends a real model request, and verifies a
+tool-call flow without hosted API calls:
+
+```bash
+RUN_CRYSTAL_BUNDLE_OLLAMA_E2E=1 \
+CRYSTAL_LATTICE_BUNDLE_ARCHIVE=/path/to/crystal-lattice-cli-...-<platform>-<arch>.tar.gz \
+pytest application/python/tests/test_binary_distribution_bundle_e2e_ollama.py -q -m "integration and ollama"
+```
+
+Use `BUNDLE_E2E_OLLAMA_MODEL` to override the default `qwen3:0.6b` model.
+
+The real-model installed-bundle cloud-script-author validation is separately
+gated because it needs a compatible bundle archive, Docker, and hosted provider
+credentials:
+
+```bash
+RUN_CLOUD_SCRIPT_AUTHOR_BUNDLE_E2E=1 \
+CRYSTAL_LATTICE_BUNDLE_ARCHIVE=/path/to/crystal-lattice-cli-...-<platform>-<arch>.tar.gz \
+OPENROUTER_API_KEY=... \
+pytest application/python/tests/test_cloud_script_author_installed_bundle_real_api.py -q -m "integration and api and docker"
+```
+
+The validation uses the default `openai/gpt-5.4-mini` model with high reasoning.
+Use `CLOUD_SCRIPT_AUTHOR_TEST_MODEL` to override the model for local runs.
 
 ## License
 
