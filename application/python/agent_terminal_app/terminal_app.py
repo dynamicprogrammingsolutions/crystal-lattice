@@ -57,6 +57,8 @@ class TerminalApplication:
         self._core: Any | None = None
         self._base_config: Any | None = None
         self._last_event_id: str | None = None
+        self._ui_schema_cache_key: Tuple[int, str] | None = None
+        self._ui_schema_cache: List[Dict[str, object]] | None = None
 
     # ------------------------------------------------------------------
     # Accessors
@@ -88,6 +90,52 @@ class TerminalApplication:
         if core is None or base_config is None:
             raise RuntimeError("No active core; create a session first")
         return core, base_config, session
+
+    @staticmethod
+    def _stable_config_cache_key(config: Dict[str, Any]) -> str:
+        """Return a stable representation for UI-schema cache keys."""
+
+        try:
+            return json.dumps(
+                config,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=False,
+            )
+        except TypeError:
+            try:
+                return repr(sorted(config.items()))
+            except Exception:
+                return repr(config)
+
+    def _ui_schema_for_current_effective_config(self) -> List[Dict[str, object]]:
+        """Return cached UI schema for the active core and effective config."""
+
+        core, base_config, session = self.require_session()
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        raw = metadata.get("overrides")
+        overrides = raw if isinstance(raw, dict) else {}
+        effective_config = resolve_request_config(base_config, overrides)
+
+        cache_key = (
+            id(core),
+            self._stable_config_cache_key(effective_config),
+        )
+        if (
+            cache_key == self._ui_schema_cache_key
+            and self._ui_schema_cache is not None
+        ):
+            return self._ui_schema_cache
+
+        try:
+            ui_schema = core.get_ui_schema(config=effective_config)
+        except Exception:
+            return []
+
+        result = [el for el in ui_schema or [] if isinstance(el, dict)]
+        self._ui_schema_cache_key = cache_key
+        self._ui_schema_cache = result
+        return result
 
     # ------------------------------------------------------------------
     # Session lifecycle
@@ -904,16 +952,7 @@ class TerminalApplication:
         return new_session
 
     def session_ui_elements(self) -> list[dict[str, object]]:
-        core, base_config, session = self.require_session()
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        raw = metadata.get("overrides")
-        overrides = raw if isinstance(raw, dict) else {}
-        effective_config = resolve_request_config(base_config, overrides)
-
-        try:
-            ui_schema = core.get_ui_schema(config=effective_config)
-        except Exception:
-            return []
+        ui_schema = self._ui_schema_for_current_effective_config()
 
         def _is_config_element(el: object) -> bool:
             match el:
@@ -934,16 +973,7 @@ class TerminalApplication:
         footer area.
         """
 
-        core, base_config, session = self.require_session()
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        raw = metadata.get("overrides")
-        overrides = raw if isinstance(raw, dict) else {}
-        effective_config = resolve_request_config(base_config, overrides)
-
-        try:
-            ui_schema = core.get_ui_schema(config=effective_config)
-        except Exception:
-            return []
+        ui_schema = self._ui_schema_for_current_effective_config()
 
         result: list[dict[str, object]] = []
         for el in ui_schema or []:
@@ -961,16 +991,7 @@ class TerminalApplication:
         reference JSON paths within messages. These are extracted from the
         last assistant message and displayed in the terminal's bottom toolbar.
         """
-        core, base_config, session = self.require_session()
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        raw = metadata.get("overrides")
-        overrides = raw if isinstance(raw, dict) else {}
-        effective_config = resolve_request_config(base_config, overrides)
-
-        try:
-            ui_schema = core.get_ui_schema(config=effective_config)
-        except Exception:
-            return []
+        ui_schema = self._ui_schema_for_current_effective_config()
 
         result: list[dict[str, object]] = []
         for el in ui_schema or []:
