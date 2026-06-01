@@ -16,4 +16,5 @@ Start here for the current shared plugin documentation set.
 - [Configuration schema (`get_config_schema`)](config-schema.md)
 - [UI elements (`get_ui_elements` and `ui_type`)](ui-elements.md)
 - [Testing & validation](testing-and-validation.md)
+- [Specialized task agents and real-model validation](specialized-task-agents.md)
 - [Older/general plugin overview](../../docs/plugins/development.md)

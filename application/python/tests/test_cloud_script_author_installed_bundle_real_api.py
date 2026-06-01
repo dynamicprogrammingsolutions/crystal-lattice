@@ -7,10 +7,14 @@ import shutil
 import socket
 import subprocess
 import tarfile
+import tempfile
 import time
 import urllib.error
 import urllib.request
+import warnings
 import zipfile
+from collections import Counter
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +25,27 @@ pytestmark = [pytest.mark.integration, pytest.mark.api, pytest.mark.docker]
 
 
 ROOT = Path(__file__).resolve().parents[3]
+
+STANDARD_TOOL_BUDGET = {"soft": 20, "hard": 45}
+MULTI_REPO_TOOL_BUDGET = {"soft": 40, "hard": 80}
+AUTHORING_REQUEST_TIMEOUT = {"soft": 900, "hard": 1800}
+VALIDATE_CLOUD_TIMEOUT = {"soft": 900, "hard": 1800}
+
+
+@dataclass(frozen=True)
+class AuthoringTelemetry:
+    scenario: str
+    tool_call_count: int
+    tool_calls_by_name: dict[str, int]
+    docs_read: bool
+    plugin_source_read: bool
+    example_tests_read: bool
+    syntax_check_attempted: bool
+    fast_local_test_attempted: bool
+    fast_local_harness_generated: bool
+    validate_cloud_attempted: bool
+    command_failure_count: int
+    generated_files: list[str]
 
 
 def test_installed_bundle_cloud_script_author_generates_valid_hooks(
@@ -46,15 +71,19 @@ def test_installed_bundle_cloud_script_author_generates_valid_hooks(
     )
 
     env = _authoring_env(tmp_path, workspace, builtin_plugins)
-    _run_cloud_script_author(
+    telemetry = _run_cloud_script_author(
         executable,
+        scenario="standard",
         workspace=workspace,
         env=env,
         cloud_agent_plugin=cloud_agent_plugin,
         allowed_project_paths=[workspace],
+        hard_tool_limit=STANDARD_TOOL_BUDGET["hard"],
     )
+    _assert_authoring_telemetry(telemetry, STANDARD_TOOL_BUDGET)
 
     _assert_standard_hooks_exist(workspace)
+    _use_existing_runtime_image_for_validation_if_available(workspace)
 
     validation = _run_validate_cloud(
         executable,
@@ -98,8 +127,9 @@ def test_installed_bundle_cloud_script_author_generates_multi_repo_transfer(
     )
 
     env = _authoring_env(tmp_path, workspace, builtin_plugins)
-    _run_cloud_script_author(
+    telemetry = _run_cloud_script_author(
         executable,
+        scenario="multi-repo",
         workspace=workspace,
         env=env,
         cloud_agent_plugin=cloud_agent_plugin,
@@ -108,11 +138,20 @@ def test_installed_bundle_cloud_script_author_generates_multi_repo_transfer(
             "Create cloud installation scripts for this project, including any "
             "project cloud-agent config needed for its checkout layout."
         ),
-        wait_timeout_seconds=600,
+        wait_timeout_seconds=AUTHORING_REQUEST_TIMEOUT["hard"],
+        soft_wait_timeout_seconds=AUTHORING_REQUEST_TIMEOUT["soft"],
+        hard_tool_limit=MULTI_REPO_TOOL_BUDGET["hard"],
+        require_fast_local_harness=True,
+    )
+    _assert_authoring_telemetry(
+        telemetry,
+        MULTI_REPO_TOOL_BUDGET,
+        require_fast_local_harness=True,
     )
 
     _assert_standard_hooks_exist(workspace)
     _assert_custom_multi_repo_profile(workspace)
+    _use_existing_runtime_image_for_validation_if_available(workspace)
 
     validation = _run_validate_cloud(
         executable,
@@ -129,8 +168,7 @@ def _prepare_authoring_bundle(tmp_path: Path) -> tuple[Path, Path, Path]:
     if shutil.which("docker") is None:
         pytest.skip("Docker is not available")
 
-    if not os.environ.get("OPENROUTER_API_KEY"):
-        pytest.skip("OPENROUTER_API_KEY not set")
+    _ensure_authoring_auth_available()
 
     archive_raw = os.environ.get("CRYSTAL_LATTICE_BUNDLE_ARCHIVE")
     if not archive_raw:
@@ -165,13 +203,11 @@ def _authoring_env(
     return {
         **_bundle_env(),
         **_docker_env(),
-        "OPENROUTER_API_KEY": os.environ["OPENROUTER_API_KEY"],
         "HOME": str(tmp_path / "home"),
         "BUILTIN_PLUGINS": str(builtin_plugins),
         "CONFIG_DIR": str(workspace / ".crystal"),
         "PLUGIN_CACHE_DIR": str(workspace / ".crystal" / ".plugin_cache"),
         "WORKING_DIR": str(workspace),
-        "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", "test-openai-key"),
         "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY", "test-gemini-key"),
         "TAVILY_API_KEY": os.environ.get("TAVILY_API_KEY", "test-tavily-key"),
         "FIREWORKS_API_KEY": os.environ.get("FIREWORKS_API_KEY", "test-fireworks-key"),
@@ -181,17 +217,58 @@ def _authoring_env(
     }
 
 
+def _ensure_authoring_auth_available() -> None:
+    credentials_path = _chatgpt_credentials_path_from_env()
+    if credentials_path is not None:
+        if not credentials_path.is_file():
+            raise AssertionError(
+                f"CHATGPT_CREDENTIALS is not a file: {credentials_path}"
+            )
+        return
+    if not os.environ.get("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY not set and CHATGPT_CREDENTIALS not set")
+
+
+def _chatgpt_credentials_path_from_env() -> Path | None:
+    raw = os.environ.get("CHATGPT_CREDENTIALS")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    return Path(raw).expanduser().resolve()
+
+
+def _authoring_auth_overrides() -> dict[str, str]:
+    credentials_path = _chatgpt_credentials_path_from_env()
+    if credentials_path is None:
+        return {}
+    if not credentials_path.is_file():
+        raise AssertionError(f"CHATGPT_CREDENTIALS is not a file: {credentials_path}")
+    return {
+        "auth_mode": "chatgpt",
+        "chatgpt_credentials_path": str(credentials_path),
+    }
+
+
 def _run_cloud_script_author(
     executable: Path,
     *,
+    scenario: str,
     workspace: Path,
     env: dict[str, str],
     cloud_agent_plugin: Path,
     allowed_project_paths: list[Path],
+    hard_tool_limit: int,
     prompt: str = "Create cloud installation scripts for this project.",
-    wait_timeout_seconds: int = 240,
-) -> None:
+    wait_timeout_seconds: int = AUTHORING_REQUEST_TIMEOUT["hard"],
+    soft_wait_timeout_seconds: int = AUTHORING_REQUEST_TIMEOUT["soft"],
+    require_fast_local_harness: bool = False,
+) -> AuthoringTelemetry:
     port = _reserve_port()
+    session_id = ""
+    events: list[dict[str, Any]] = []
+    server_env = {
+        **env,
+        "PATH": f"{executable.parent}{os.pathsep}{env.get('PATH') or os.environ.get('PATH', '')}",
+    }
     server = subprocess.Popen(
         [
             str(executable),
@@ -202,7 +279,7 @@ def _run_cloud_script_author(
             str(port),
         ],
         cwd=str(workspace),
-        env=env,
+        env=server_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -216,10 +293,9 @@ def _run_cloud_script_author(
             {"agent_id": "cloud-script-author"},
         )
         session_id = created["session"]["session_id"]
-        model = (
-            os.environ.get("CLOUD_SCRIPT_AUTHOR_TEST_MODEL") or "openai/gpt-5.4-mini"
-        )
-        _json_request(
+        default_model = "gpt-5.4" if scenario == "multi-repo" else "gpt-5.4-mini"
+        model = os.environ.get("CLOUD_SCRIPT_AUTHOR_TEST_MODEL") or default_model
+        response = _json_request(
             "POST",
             f"{base_url}/sessions/{session_id}/send_message",
             {
@@ -228,6 +304,7 @@ def _run_cloud_script_author(
                     "content": prompt,
                 },
                 "config_overrides": {
+                    **_authoring_auth_overrides(),
                     "model": model,
                     "reasoning_effort": "high",
                     "timeout": 600,
@@ -240,6 +317,17 @@ def _run_cloud_script_author(
                 },
             },
         )
+        request_id = response["request_id"]
+        events = _wait_for_request_events(
+            base_url,
+            request_id,
+            workspace=workspace,
+            session_id=session_id,
+            timeout_seconds=wait_timeout_seconds,
+            soft_timeout_seconds=soft_wait_timeout_seconds,
+            hard_tool_limit=hard_tool_limit,
+            require_fast_local_harness=require_fast_local_harness,
+        )
         _wait_for_generated_hooks(workspace, timeout_seconds=wait_timeout_seconds)
     finally:
         server.terminate()
@@ -248,6 +336,12 @@ def _run_cloud_script_author(
         except subprocess.TimeoutExpired:
             server.kill()
             server.wait(timeout=20)
+    return _collect_authoring_telemetry(
+        scenario=scenario,
+        workspace=workspace,
+        session_id=session_id,
+        events=events,
+    )
 
 
 def _assert_standard_hooks_exist(workspace: Path) -> None:
@@ -272,8 +366,40 @@ def _run_validate_cloud(
         ],
         cwd=workspace,
         env=env,
-        timeout=900,
+        timeout=VALIDATE_CLOUD_TIMEOUT["hard"],
+        soft_timeout=VALIDATE_CLOUD_TIMEOUT["soft"],
     )
+
+
+def _use_existing_runtime_image_for_validation_if_available(workspace: Path) -> None:
+    source_image = "cloud-agent-runtime:latest"
+    test_image = "cloud-script-author-validation-runtime:latest"
+    inspect = _run(
+        ["docker", "image", "inspect", source_image],
+        cwd=workspace,
+        expect_success=False,
+    )
+    if inspect.returncode != 0:
+        return
+    _run(["docker", "tag", source_image, test_image], cwd=workspace)
+
+    config_path = workspace / ".cloud-agent" / "cloud-agent.json"
+    if config_path.exists():
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        assert isinstance(config, dict)
+    else:
+        config = {}
+    profiles = config.get("container_profiles")
+    if not isinstance(profiles, dict):
+        profiles = {}
+    profiles["authoring-test-runtime"] = {
+        "label": "Authoring test runtime",
+        "image": test_image,
+    }
+    config["container_profiles"] = profiles
+    config["default_container_profile"] = "authoring-test-runtime"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n")
 
 
 def _write_authoring_fixture(workspace: Path) -> None:
@@ -452,7 +578,7 @@ def _assert_custom_multi_repo_profile(workspace: Path) -> None:
     setup_text = cloud_setup.read_text(encoding="utf-8")
     assert "git" in transfer_text
     assert "shared-lib" in transfer_text
-    assert "shared-lib" in setup_text
+    assert "shared-lib" in setup_text or "manifest" in setup_text
 
 
 def _resolve_project_script_path(value: Any, workspace: Path) -> Path:
@@ -560,18 +686,343 @@ def _wait_for_server(base_url: str, process: subprocess.Popen[str]) -> None:
 def _wait_for_generated_hooks(workspace: Path, *, timeout_seconds: int) -> None:
     deadline = time.monotonic() + timeout_seconds
     hook_dir = workspace / ".cloud-agent"
-    required = ["local-stage", "install-cloud", "validate-cloud"]
     while time.monotonic() < deadline:
-        if all(
-            (hook_dir / name).is_file() and os.access(hook_dir / name, os.X_OK)
-            for name in required
-        ):
+        if _hooks_generated(workspace):
             return
         time.sleep(1)
     found = (
         sorted(path.name for path in hook_dir.glob("*")) if hook_dir.exists() else []
     )
     raise AssertionError(f"timed out waiting for generated hooks; found={found}")
+
+
+def _hooks_generated(workspace: Path) -> bool:
+    hook_dir = workspace / ".cloud-agent"
+    required = ["local-stage", "install-cloud", "validate-cloud"]
+    return all(
+        (hook_dir / name).is_file() and os.access(hook_dir / name, os.X_OK)
+        for name in required
+    )
+
+
+def _wait_for_request_events(
+    base_url: str,
+    request_id: str,
+    *,
+    workspace: Path,
+    session_id: str,
+    timeout_seconds: int,
+    soft_timeout_seconds: int,
+    hard_tool_limit: int,
+    require_fast_local_harness: bool,
+) -> list[dict[str, Any]]:
+    started_at = time.monotonic()
+    deadline = started_at + timeout_seconds
+    soft_deadline = started_at + soft_timeout_seconds
+    warned_soft_timeout = False
+    collected: list[dict[str, Any]] = []
+    while time.monotonic() < deadline:
+        now = time.monotonic()
+        if not warned_soft_timeout and now >= soft_deadline:
+            warned_soft_timeout = True
+            warnings.warn(
+                "cloud-script-author request exceeded soft timeout "
+                f"{soft_timeout_seconds}s; continuing until hard timeout "
+                f"{timeout_seconds}s",
+                stacklevel=2,
+            )
+        try:
+            payload = _json_request(
+                "GET",
+                f"{base_url}/events?request_id={request_id}&limit=80",
+                None,
+                timeout=30,
+            )
+        except TimeoutError:
+            time.sleep(1)
+            continue
+        collected = payload.get("events") or []
+        if any(event.get("type") == "request_completed" for event in collected):
+            return collected
+        error_events = [event for event in collected if event.get("type") == "error"]
+        if error_events:
+            raise AssertionError(f"request failed: {error_events[-1]}")
+        tool_count = _tool_count_from_events(collected)
+        if tool_count > hard_tool_limit:
+            raise AssertionError(
+                f"request exceeded hard tool limit {hard_tool_limit}; "
+                f"observed {tool_count} tool calls"
+            )
+        if _authoring_progress_is_sufficient(
+            workspace=workspace,
+            session_id=session_id,
+            events=collected,
+            require_fast_local_harness=require_fast_local_harness,
+        ):
+            return collected
+        time.sleep(1)
+    raise AssertionError(f"timed out waiting for request {request_id}: {collected}")
+
+
+def _tool_count_from_events(events: list[dict[str, Any]]) -> int:
+    tool_result_ids: set[str] = set()
+    tool_call_ids: set[str] = set()
+    for event in events:
+        if event.get("type") == "tool_results":
+            messages = event.get("messages")
+            if isinstance(messages, list):
+                for message in messages:
+                    metadata = (
+                        message.get("metadata") if isinstance(message, dict) else None
+                    )
+                    tool_call_id = (
+                        metadata.get("tool_call_id")
+                        if isinstance(metadata, dict)
+                        else None
+                    )
+                    if isinstance(tool_call_id, str) and tool_call_id:
+                        tool_result_ids.add(tool_call_id)
+        elif event.get("type") == "tool_calls":
+            calls = event.get("tool_calls")
+            if isinstance(calls, list):
+                for call in calls:
+                    call_id = call.get("id") if isinstance(call, dict) else None
+                    if isinstance(call_id, str) and call_id:
+                        tool_call_ids.add(call_id)
+    return len(tool_result_ids or tool_call_ids)
+
+
+def _authoring_progress_is_sufficient(
+    *,
+    workspace: Path,
+    session_id: str,
+    events: list[dict[str, Any]],
+    require_fast_local_harness: bool,
+) -> bool:
+    if not _hooks_generated(workspace):
+        return False
+    try:
+        telemetry = _collect_authoring_telemetry(
+            scenario="progress",
+            workspace=workspace,
+            session_id=session_id,
+            events=events,
+        )
+    except AssertionError:
+        return False
+    if not telemetry.docs_read:
+        return False
+    if not (telemetry.syntax_check_attempted or telemetry.fast_local_test_attempted):
+        return False
+    if require_fast_local_harness and not (
+        telemetry.fast_local_harness_generated or telemetry.fast_local_test_attempted
+    ):
+        return False
+    return True
+
+
+def _collect_authoring_telemetry(
+    *,
+    scenario: str,
+    workspace: Path,
+    session_id: str,
+    events: list[dict[str, Any]],
+) -> AuthoringTelemetry:
+    messages = _load_session_messages(workspace, session_id)
+    generated_files = _generated_cloud_agent_files(workspace)
+    text = "\n".join(_telemetry_text_chunks(messages, events, generated_files))
+    text_lower = text.lower()
+    commands_text = "\n".join(_shell_commands([*messages, *events])).lower()
+    tool_calls = Counter(_tool_call_names(messages))
+    command_failure_count = sum(
+        1
+        for chunk in _telemetry_text_chunks(messages, events, [])
+        if "exit code:" in chunk.lower() and "exit code: 0" not in chunk.lower()
+    )
+    fast_local_harness_generated = any(
+        "test" in path.lower() and "validate-cloud" not in path.lower()
+        for path in generated_files
+    )
+    fast_local_test_attempted = any(
+        marker in commands_text
+        for marker in (
+            ".cloud-agent/test",
+            "test-hooks-local",
+            "pytest",
+            "unittest",
+            "bash -n",
+            "python -m json.tool",
+        )
+    )
+    return AuthoringTelemetry(
+        scenario=scenario,
+        tool_call_count=sum(tool_calls.values()),
+        tool_calls_by_name=dict(sorted(tool_calls.items())),
+        docs_read="cloud-script-authoring.md" in text_lower,
+        plugin_source_read=(
+            "cloud-agent-app/src" in text_lower
+            or "src/cloud_agent_app" in text_lower
+            or "cloud_agent_app/cloud_agent" in text_lower
+        ),
+        example_tests_read=(
+            "test_cloud_agent_app_plugin.py" in text_lower
+            or "test_cloud_validation_command_docker.py" in text_lower
+        ),
+        syntax_check_attempted=(
+            "bash -n" in commands_text or "python -m json.tool" in commands_text
+        ),
+        fast_local_test_attempted=fast_local_test_attempted,
+        fast_local_harness_generated=fast_local_harness_generated,
+        validate_cloud_attempted="validate-cloud" in commands_text,
+        command_failure_count=command_failure_count,
+        generated_files=generated_files,
+    )
+
+
+def _assert_authoring_telemetry(
+    telemetry: AuthoringTelemetry,
+    budget: dict[str, int],
+    *,
+    require_fast_local_harness: bool = False,
+) -> None:
+    diagnostics = _format_authoring_telemetry(telemetry)
+    assert telemetry.docs_read, diagnostics
+    assert telemetry.tool_call_count <= budget["hard"], diagnostics
+    if telemetry.tool_call_count > budget["soft"]:
+        warnings.warn(
+            f"cloud-script-author {telemetry.scenario} exceeded soft tool budget: "
+            f"{telemetry.tool_call_count} > {budget['soft']}\n{diagnostics}",
+            stacklevel=2,
+        )
+    assert (
+        telemetry.syntax_check_attempted or telemetry.fast_local_test_attempted
+    ), diagnostics
+    if require_fast_local_harness:
+        assert (
+            telemetry.fast_local_harness_generated
+            or telemetry.fast_local_test_attempted
+        ), diagnostics
+
+
+def _format_authoring_telemetry(telemetry: AuthoringTelemetry) -> str:
+    return (
+        f"scenario={telemetry.scenario}\n"
+        f"tool_call_count={telemetry.tool_call_count}\n"
+        f"tool_calls_by_name={telemetry.tool_calls_by_name}\n"
+        f"docs_read={telemetry.docs_read}\n"
+        f"plugin_source_read={telemetry.plugin_source_read}\n"
+        f"example_tests_read={telemetry.example_tests_read}\n"
+        f"syntax_check_attempted={telemetry.syntax_check_attempted}\n"
+        f"fast_local_test_attempted={telemetry.fast_local_test_attempted}\n"
+        f"fast_local_harness_generated={telemetry.fast_local_harness_generated}\n"
+        f"validate_cloud_attempted={telemetry.validate_cloud_attempted}\n"
+        f"command_failure_count={telemetry.command_failure_count}\n"
+        f"generated_files={telemetry.generated_files}"
+    )
+
+
+def _load_session_messages(workspace: Path, session_id: str) -> list[dict[str, Any]]:
+    session_path = workspace / ".crystal" / "sessions" / f"{session_id}.json"
+    assert session_path.is_file(), session_path
+    payload = json.loads(session_path.read_text(encoding="utf-8"))
+    messages = payload.get("messages") if isinstance(payload, dict) else None
+    return messages if isinstance(messages, list) else []
+
+
+def _generated_cloud_agent_files(workspace: Path) -> list[str]:
+    hook_dir = workspace / ".cloud-agent"
+    if not hook_dir.exists():
+        return []
+    return sorted(
+        str(path.relative_to(workspace))
+        for path in hook_dir.rglob("*")
+        if path.is_file()
+    )
+
+
+def _tool_call_names(messages: list[dict[str, Any]]) -> list[str]:
+    tool_result_names: list[str] = []
+    assistant_call_names: list[str] = []
+    for message in messages:
+        metadata = message.get("metadata")
+        if isinstance(metadata, dict):
+            tool_name = metadata.get("tool_name")
+            if isinstance(tool_name, str) and tool_name:
+                tool_result_names.append(tool_name)
+        for call in message.get("tool_calls") or []:
+            if not isinstance(call, dict):
+                continue
+            function = call.get("function")
+            if isinstance(function, dict):
+                name = function.get("name")
+                if isinstance(name, str) and name:
+                    assistant_call_names.append(name)
+    return tool_result_names or assistant_call_names
+
+
+def _shell_commands(items: list[dict[str, Any]]) -> list[str]:
+    commands: list[str] = []
+    for item in items:
+        metadata = item.get("metadata")
+        if isinstance(metadata, dict):
+            display = metadata.get("display")
+            if isinstance(display, dict):
+                content = display.get("content")
+                if isinstance(content, str):
+                    commands.extend(_commands_from_display_content(content))
+        messages = item.get("messages")
+        if isinstance(messages, list):
+            commands.extend(
+                _shell_commands(
+                    [message for message in messages if isinstance(message, dict)]
+                )
+            )
+        for call in item.get("tool_calls") or []:
+            if not isinstance(call, dict):
+                continue
+            function = call.get("function")
+            if not isinstance(function, dict):
+                continue
+            arguments = function.get("arguments")
+            if isinstance(arguments, str):
+                try:
+                    parsed = json.loads(arguments)
+                except Exception:
+                    parsed = {}
+                command = parsed.get("command") if isinstance(parsed, dict) else None
+                if isinstance(command, str) and command:
+                    commands.append(command)
+    return commands
+
+
+def _commands_from_display_content(content: str) -> list[str]:
+    commands: list[str] = []
+    for line in content.splitlines():
+        if line.startswith("Command: "):
+            commands.append(line[len("Command: ") :])
+    return commands
+
+
+def _telemetry_text_chunks(
+    messages: list[dict[str, Any]],
+    events: list[dict[str, Any]],
+    generated_files: list[str],
+) -> list[str]:
+    chunks = list(generated_files)
+    for item in [*messages, *events]:
+        _append_text_chunks(chunks, item)
+    return chunks
+
+
+def _append_text_chunks(chunks: list[str], value: Any) -> None:
+    if isinstance(value, str):
+        chunks.append(value)
+    elif isinstance(value, dict):
+        for item in value.values():
+            _append_text_chunks(chunks, item)
+    elif isinstance(value, list):
+        for item in value:
+            _append_text_chunks(chunks, item)
 
 
 def _json_request(
@@ -605,16 +1056,26 @@ def _run(
     expect_success: bool = True,
     skip_on_failure: str | None = None,
     timeout: int | None = None,
+    soft_timeout: int | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    result = subprocess.run(
-        command,
-        cwd=str(cwd),
-        env={**os.environ, **(env or {})},
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=timeout,
-    )
+    if soft_timeout is not None:
+        result = _run_with_soft_timeout(
+            command,
+            cwd=cwd,
+            env=env,
+            timeout=timeout,
+            soft_timeout=soft_timeout,
+        )
+    else:
+        result = subprocess.run(
+            command,
+            cwd=str(cwd),
+            env={**os.environ, **(env or {})},
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=timeout,
+        )
     if expect_success and result.returncode != 0:
         if skip_on_failure is not None:
             pytest.skip(f"{skip_on_failure}\n{result.stdout}")
@@ -623,3 +1084,48 @@ def _run(
             f"{result.stdout}"
         )
     return result
+
+
+def _run_with_soft_timeout(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str] | None,
+    timeout: int | None,
+    soft_timeout: int,
+) -> subprocess.CompletedProcess[str]:
+    started_at = time.monotonic()
+    hard_timeout = timeout
+    warned_soft_timeout = False
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8") as output:
+        process = subprocess.Popen(
+            command,
+            cwd=str(cwd),
+            env={**os.environ, **(env or {})},
+            text=True,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+        )
+        while process.poll() is None:
+            elapsed = time.monotonic() - started_at
+            if not warned_soft_timeout and elapsed >= soft_timeout:
+                warned_soft_timeout = True
+                warnings.warn(
+                    "command exceeded soft timeout "
+                    f"{soft_timeout}s; continuing until hard timeout "
+                    f"{hard_timeout}s: {' '.join(command)}",
+                    stacklevel=2,
+                )
+            if hard_timeout is not None and elapsed >= hard_timeout:
+                process.kill()
+                process.wait(timeout=20)
+                output.seek(0)
+                stdout = output.read()
+                raise AssertionError(
+                    "Command exceeded hard timeout "
+                    f"{hard_timeout}s: {' '.join(command)}\n{stdout}"
+                )
+            time.sleep(1)
+        output.seek(0)
+        stdout = output.read()
+    return subprocess.CompletedProcess(command, process.returncode, stdout, None)

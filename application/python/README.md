@@ -863,17 +863,34 @@ Use `BUNDLE_E2E_OLLAMA_MODEL` to override the default `qwen3:0.6b` model.
 
 The real-model installed-bundle cloud-script-author validation is separately
 gated because it needs a compatible bundle archive, Docker, and hosted provider
-credentials:
+credentials. By default it uses the normal OpenAI provider config and API-key
+auth; the root `.env` is loaded by the test suite, so `OPENAI_API_KEY` can live
+there:
 
 ```bash
 RUN_CLOUD_SCRIPT_AUTHOR_BUNDLE_E2E=1 \
 CRYSTAL_LATTICE_BUNDLE_ARCHIVE=/path/to/crystal-lattice-cli-...-<platform>-<arch>.tar.gz \
-OPENROUTER_API_KEY=... \
 pytest application/python/tests/test_cloud_script_author_installed_bundle_real_api.py -q -m "integration and api and docker"
 ```
 
-The validation uses the default `openai/gpt-5.4-mini` model with high reasoning.
-Use `CLOUD_SCRIPT_AUTHOR_TEST_MODEL` to override the model for local runs.
+To force ChatGPT login auth for a local run, set `CHATGPT_CREDENTIALS`
+explicitly. In this mode the test sends `auth_mode: "chatgpt"` and does not
+fall back to API-key auth:
+
+```bash
+RUN_CLOUD_SCRIPT_AUTHOR_BUNDLE_E2E=1 \
+CHATGPT_CREDENTIALS="$HOME/.crystal/auth/chatgpt-auth.json" \
+CRYSTAL_LATTICE_BUNDLE_ARCHIVE=/path/to/crystal-lattice-cli-...-<platform>-<arch>.tar.gz \
+pytest application/python/tests/test_cloud_script_author_installed_bundle_real_api.py -q -m "integration and api and docker"
+```
+
+The standard authoring validation uses the default `gpt-5.4-mini` model with
+high reasoning. The harder multi-repo validation defaults to `gpt-5.4`. Use
+`CLOUD_SCRIPT_AUTHOR_TEST_MODEL` to override the model for local runs. The
+real-model request and final `validate-cloud` subprocess both warn after a
+15-minute soft timeout and fail only at the 30-minute hard timeout; soft-timeout
+warnings are a signal to inspect runtime startup or model/tool-loop behavior
+rather than treating the longer run as fully healthy.
 
 ## License
 

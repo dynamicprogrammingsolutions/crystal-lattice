@@ -58,8 +58,9 @@ def test_default_config_effective_agent_configs_stay_intact(
 
     cases = {
         "cloud-script-author": {
-            "provider": "openrouter",
-            "model": "openai/gpt-5.4-mini",
+            "provider": "openai_responses",
+            "model": "gpt-5.4-mini",
+            "auth_mode": "auto",
             "allowed_paths": [
                 ".",
                 "..",

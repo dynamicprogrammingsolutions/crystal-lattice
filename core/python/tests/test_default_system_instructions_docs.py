@@ -381,6 +381,15 @@ def test_portable_default_config_is_self_contained() -> None:
     cloud_author_variables = config["mixins"]["cloud_script_author_codex_message"][
         "system_message"
     ]["variables"]
+    cloud_author_template = config["mixins"]["cloud_script_author_codex_message"][
+        "system_message"
+    ]["template"]
+    assert "cloud-script-authoring.md" not in cloud_author_template
+    assert "Read the bundled authoring guide" in cloud_author_template
+    assert "before your final response" in cloud_author_template.lower()
+    assert "bash -n" in cloud_author_template
+    assert "no-Docker local harness" in cloud_author_template
+    assert "Do not print secrets" in cloud_author_template
     authoring_path = cloud_author_variables["CLOUD_SCRIPT_AUTHORING_GUIDE_PATH"][
         "text"
     ]

@@ -37,6 +37,28 @@ local validation. Prefer explicit checks over silent best-effort behavior.
 
 Do not print secrets. Do not commit `.env` files or generated credentials.
 
+After writing or modifying hook, harness, or profile shell scripts, run
+`chmod +x` on them before finishing.
+
+## Authoring Workflow
+
+Use this order when creating or changing cloud-agent hooks:
+
+1. Read the project guidance and package/test files.
+2. Read this guide.
+3. Decide whether the standard hooks are enough, or whether the project needs a
+   custom `.cloud-agent/cloud-agent.json` transfer profile.
+4. Write the hooks and any project config.
+5. Make generated shell scripts executable.
+6. Run cheap local checks first: shell syntax checks, JSON validation, and a
+   no-Docker local harness for custom transfer/setup behavior.
+7. Run `crystal-lattice validate-cloud --workspace-dir /path/to/project` as the
+   final acceptance check when Docker is available.
+
+Inspect cloud-agent plugin source only when this guide is unclear or
+incomplete. If source inspection was necessary, report what was missing from
+the guide.
+
 ## Local Stage Hook
 
 `.cloud-agent/local-stage` runs on the local machine before the normal transfer
@@ -208,6 +230,37 @@ compatible too. Either define a matching custom sync-down profile, or override
 `working-tree-patch` / `branch-import` with a `compatible_transfer_up_profiles`
 list that includes the custom transfer profile id.
 
+Minimal custom transfer profile shape:
+
+```json
+{
+  "default_transfer_up_profile": "multi-repo-working-tree-current-state",
+  "sync_down_profiles": {
+    "working-tree-patch": {
+      "compatible_transfer_up_profiles": [
+        "working-tree-current-state",
+        "multi-repo-working-tree-current-state"
+      ]
+    }
+  },
+  "transfer_up_profiles": {
+    "multi-repo-working-tree-current-state": {
+      "label": "Working tree current state with sibling repositories",
+      "local_stage_script": ".cloud-agent/local-stage",
+      "local_transfer_script": ".cloud-agent/profiles/transfer_up/multi-repo-working-tree-current-state/local_transfer_script",
+      "cloud_setup_script": ".cloud-agent/profiles/transfer_up/multi-repo-working-tree-current-state/cloud_setup_script",
+      "install_script": ".cloud-agent/install-cloud",
+      "validation_script": ".cloud-agent/validate-cloud",
+      "compatible_sync_down_profiles": ["working-tree-patch"]
+    }
+  }
+}
+```
+
+The profile id and script paths can be project-specific. Keep script paths
+relative to the project root when the config file lives at
+`.cloud-agent/cloud-agent.json`.
+
 When adding custom profile scripts, document:
 
 - what each script expects as input
@@ -215,6 +268,12 @@ When adding custom profile scripts, document:
 - what files it writes into `TRANSFER_DIR`, `TRANSFER_STAGE_DIR`, or
   `CLOUD_WORKSPACE_DIR`
 - how `crystal-lattice validate-cloud` proves the custom path works
+
+Custom `cloud_setup_script` runs with the current working directory set to the
+cloud workspace. Do not remove that directory while the script is running
+inside it. If a setup script needs to replace `CLOUD_WORKSPACE_DIR`, first
+change directory to its parent or clone/materialize into a temporary sibling
+and move it into place.
 
 For sibling git repositories, base the custom transfer scripts on the bundled
 `working-tree-current-state` profile:
@@ -229,6 +288,68 @@ For sibling git repositories, base the custom transfer scripts on the bundled
 Keep the normal `.cloud-agent/install-cloud` and `.cloud-agent/validate-cloud`
 hooks focused on dependency installation and tests. The multi-repo checkout
 layout belongs in the custom transfer profile.
+
+## Fast Local Tests
+
+Before running Docker validation, create and run a fast local harness when you
+generate non-trivial hooks or a custom transfer profile. The harness should run
+without Docker and should use temporary directories so it does not mutate the
+developer's working tree.
+
+A useful harness usually does this:
+
+1. Create temporary local workspace, transfer, stage, and cloud workspace
+   directories.
+2. Initialize any required git repositories in the temporary local workspace.
+3. Execute `.cloud-agent/local-stage` with `LOCAL_WORKSPACE_DIR`,
+   `TRANSFER_DIR`, and `TRANSFER_STAGE_DIR`.
+4. Execute the selected `local_transfer_script` with `LOCAL_WORKSPACE_DIR` and
+   `TRANSFER_DIR`.
+5. Execute the selected `cloud_setup_script` with `CLOUD_WORKSPACE_DIR`,
+   `TRANSFER_DIR`, and `TRANSFER_STAGE_DIR`, and set the command's current
+   working directory to `CLOUD_WORKSPACE_DIR` to match the real runtime.
+6. Assert the resulting cloud workspace layout, copied local-only files,
+   sibling repository placement, and preserved git working-tree state.
+
+For simple standard hooks, cheap checks may be enough:
+
+```bash
+bash -n .cloud-agent/local-stage
+bash -n .cloud-agent/install-cloud
+bash -n .cloud-agent/validate-cloud
+```
+
+When `.cloud-agent/cloud-agent.json` is generated, validate it too:
+
+```bash
+python -m json.tool .cloud-agent/cloud-agent.json >/dev/null
+```
+
+For custom transfer profiles, prefer adding a project-local harness such as:
+
+```text
+.cloud-agent/test-hooks-local
+```
+
+Keep this harness under `.cloud-agent/` by default. Do not put local hook
+harnesses in the project's normal test suite, because `.cloud-agent/validate-cloud`
+usually runs that suite inside the cloud workspace, where local-only hook
+scripts may not be present. Only add hook tests to the normal project test suite
+when they are explicitly safe to run inside the cloud workspace.
+
+The harness should execute the generated scripts directly with the documented
+environment variables and assert the exact files, directories, and git state
+expected in the cloud workspace.
+
+Existing project tests in the Crystal Lattice source tree can be useful
+examples when the installed source is available:
+
+- `plugins/cloud-agent-app/tests/test_cloud_agent_app_plugin.py` has fast tests
+  that execute bundled transfer/setup/sync scripts directly against temporary
+  git repositories.
+- `application/python/tests/test_cloud_validation_command_docker.py` has
+  slower Docker-backed `validate-cloud` examples. Treat these as final
+  validation examples, not as the inner loop.
 
 ## Local Validation
 

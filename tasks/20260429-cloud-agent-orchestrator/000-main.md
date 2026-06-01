@@ -24,6 +24,8 @@ Plan and implement cloud agent orchestration for the terminal/server application
 - [x] `tasks/20260429-cloud-agent-orchestrator/0121.4-cloud-validation-runtime-image-build-cleanup.md`
 - [x] `tasks/20260429-cloud-agent-orchestrator/0121.5-cloud-script-author-agent-and-installed-bundle-authoring-validation.md`
 - [x] `tasks/20260429-cloud-agent-orchestrator/0121.6-selected-bundled-plugin-preinstall-and-bundle-e2e.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.7-cloud-script-author-testing-guidance-and-telemetry.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/0121.8-cloud-runtime-plugin-bundle-staged-build.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0122-sync-profile-selection-ui.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0123-cloud-profile-user-docs.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0124-dockerfile-container-profiles.md`
