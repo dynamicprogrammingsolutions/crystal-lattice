@@ -26,5 +26,6 @@ create_cloud_orchestrator_source_bundle() {
     cloud-orchestrator \
     core/python \
     application/python \
-    plugins
+    plugins \
+    scripts/build_cloud_runtime_plugin_bundle.py
 }
