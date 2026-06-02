@@ -3,6 +3,9 @@ from __future__ import annotations
 import nox
 
 
+nox.options.sessions = ["build_bundle", "install_prod_local"]
+
+
 def _build_runtime_package(session: nox.Session) -> None:
     session.run(
         "python",
