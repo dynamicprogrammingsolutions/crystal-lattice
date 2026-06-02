@@ -28,6 +28,9 @@ Parameters:
   TokenSecret:
     Type: String
     NoEcho: true
+  RuntimeReadyTimeoutMs:
+    Type: String
+    Default: "1800000"
 
 Conditions:
   HasKeyName: !Not [!Equals [!Ref KeyName, ""]]
@@ -193,6 +196,7 @@ Resources:
             -e CLOUD_ORCHESTRATOR_HOST_DATA_DIR=/var/lib/cloud-orchestrator \
             -e CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=host.docker.internal \
             -e CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=172.17.0.1 \
+            -e CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS=${RuntimeReadyTimeoutMs} \
             cloud-orchestrator:latest
 
 Outputs:

@@ -26,7 +26,8 @@ deploy_stack "$origin_stack" "$SCRIPT_DIR/secure-origin.yaml" \
   CpuArchitecture="$CPU_ARCHITECTURE" \
   KeyName="$KEY_NAME" \
   ControlToken="$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" \
-  TokenSecret="$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE"
+  TokenSecret="$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE" \
+  RuntimeReadyTimeoutMs="$CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS"
 
 CLOUD_ORCHESTRATOR_EC2_URL="$(stack_output "$origin_stack" Ec2HttpUrl)"
 CLOUD_ORCHESTRATOR_INSTANCE_ID="$(stack_output "$origin_stack" InstanceId)"
@@ -45,11 +46,11 @@ save_state
 wait_http_health "${CLOUD_ORCHESTRATOR_EC2_URL%/}/health"
 
 ssm_params="$(mktemp -t cloud-orchestrator-ssm.XXXXXX.json)"
-python3 - "$ssm_params" "$CLOUD_ORCHESTRATOR_URL" "$CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST" "$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" "$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE" "$ORCHESTRATOR_IMAGE_URI" "$RUNTIME_IMAGE_URI" "$TRANSFER_SSH_IMAGE_URI" <<'PY'
+python3 - "$ssm_params" "$CLOUD_ORCHESTRATOR_URL" "$CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST" "$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" "$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE" "$ORCHESTRATOR_IMAGE_URI" "$RUNTIME_IMAGE_URI" "$TRANSFER_SSH_IMAGE_URI" "$CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS" <<'PY'
 import json
 import sys
 
-path, public_url, transfer_public_host, control_token, token_secret, orchestrator_image, runtime_image, transfer_ssh_image = sys.argv[1:9]
+path, public_url, transfer_public_host, control_token, token_secret, orchestrator_image, runtime_image, transfer_ssh_image, runtime_ready_timeout_ms = sys.argv[1:10]
 commands = [
     f"docker pull {runtime_image}",
     f"docker pull {transfer_ssh_image}",
@@ -76,6 +77,7 @@ commands = [
         "-e CLOUD_ORCHESTRATOR_HOST_DATA_DIR=/var/lib/cloud-orchestrator "
         "-e CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=host.docker.internal "
         "-e CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=172.17.0.1 "
+        f"-e CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS={runtime_ready_timeout_ms} "
         "cloud-orchestrator:latest"
     ),
 ]

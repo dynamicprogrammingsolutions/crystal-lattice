@@ -17,6 +17,8 @@ Optional environment:
   CLOUD_ORCHESTRATOR_PORT              Published HTTP port (default: 4100)
   CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST Hostname the orchestrator uses to reach runtime ports
   CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST  Host IP for runtime port binding (default: 172.17.0.1)
+  CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS
+                                      Runtime readiness timeout in milliseconds (default: 1800000)
   SSH_OPTS                             Extra ssh options
   RSYNC_OPTS                           Extra rsync options
 
@@ -63,6 +65,7 @@ port="${CLOUD_ORCHESTRATOR_PORT:-4100}"
 runner="${CLOUD_ORCHESTRATOR_RUNNER:-docker}"
 docker_proxy_host="${CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST:-host.docker.internal}"
 docker_bind_host="${CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST:-172.17.0.1}"
+runtime_ready_timeout_ms="${CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS:-1800000}"
 secret_key_base="${SECRET_KEY_BASE:-$(openssl rand -hex 64)}"
 transfer_port_start="${TRANSFER_PORT_START:-22000}"
 transfer_port_end="${TRANSFER_PORT_END:-22099}"
@@ -129,6 +132,7 @@ CLOUD_ORCHESTRATOR_HOST_DATA_DIR=$(quote "${host_data_dir}") \\
 CLOUD_ORCHESTRATOR_RUNNER=$(quote "${runner}") \\
 CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=$(quote "${docker_proxy_host}") \\
 CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=$(quote "${docker_bind_host}") \\
+CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS=$(quote "${runtime_ready_timeout_ms}") \\
 SECRET_KEY_BASE=$(quote "${secret_key_base}") \\
 TRANSFER_PORT_START=$(quote "${transfer_port_start}") \\
 TRANSFER_PORT_END=$(quote "${transfer_port_end}") \\
@@ -142,6 +146,7 @@ CLOUD_ORCHESTRATOR_HOST_DATA_DIR=$(quote "${host_data_dir}") \\
 CLOUD_ORCHESTRATOR_RUNNER=$(quote "${runner}") \\
 CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=$(quote "${docker_proxy_host}") \\
 CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=$(quote "${docker_bind_host}") \\
+CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS=$(quote "${runtime_ready_timeout_ms}") \\
 SECRET_KEY_BASE=$(quote "${secret_key_base}") \\
 TRANSFER_PORT_START=$(quote "${transfer_port_start}") \\
 TRANSFER_PORT_END=$(quote "${transfer_port_end}") \\
