@@ -605,6 +605,12 @@ workspace. Environment variables referenced by config placeholders are
 transferred through `.cloud-agent/env/runtime.env` according to `runtime_env`.
 Values are never included in action display payloads.
 
+The default `config_assets.exclude` keeps `.env`, `.env.*`, `auth`, `state`,
+logs, sessions, and plugin caches out of the copied config assets. To opt in a
+specific excluded config file, use `config_assets.include_excluded`, for example
+`auth/chatgpt-auth.json`. To load an env file as runtime environment variables,
+prefer `runtime_env.env_files`, for example `.env.cloud`.
+
 - `POST /sessions` - create a session.
 - `GET /sessions` - list sessions.
 - `GET /sessions/{session_id}/messages` - list session messages.

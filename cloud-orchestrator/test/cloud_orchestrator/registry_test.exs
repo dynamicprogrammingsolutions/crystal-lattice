@@ -85,7 +85,12 @@ defmodule CloudOrchestrator.RegistryTest do
       restore_env(:transfer_public_host, previous_transfer_public_host)
       restore_env(:transfer_port_start, previous_transfer_port_start)
       restore_env(:transfer_port_end, previous_transfer_port_end)
-      restore_system_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS", previous_fake_busy_ports)
+
+      restore_system_env(
+        "CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS",
+        previous_fake_busy_ports
+      )
+
       TransferRegistry.reset()
       InstanceRegistry.reset()
       ConnectionRegistry.reset()
@@ -246,6 +251,70 @@ defmodule CloudOrchestrator.RegistryTest do
     assert {:ok, claims} = Token.verify(instance_1["token"])
     assert claims["connection_id"] == instance_1["connection_id"]
     assert claims["instance_id"] == instance_1["instance_id"]
+  end
+
+  test "connection default falls back to newer running instance when old default failed" do
+    assert {:ok, transfer_1} = ready_transfer()
+    assert {:ok, transfer_2} = ready_transfer()
+
+    assert {:ok, instance_1} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{"connection_key" => "default-fallback", "reuse" => true},
+               "session_id" => "session-1",
+               "transfer_ref" => %{"transfer_id" => transfer_1["transfer_id"]}
+             })
+
+    InstanceRegistry.mark_failed(instance_1["instance_id"], %{"startup_error" => "test_failure"})
+
+    assert eventually(fn ->
+             {:ok, failed} = InstanceRegistry.get(instance_1["instance_id"])
+             failed["state"] == "failed"
+           end)
+
+    assert {:ok, instance_2} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{"connection_key" => "default-fallback", "reuse" => true},
+               "session_id" => "session-2",
+               "transfer_ref" => %{"transfer_id" => transfer_2["transfer_id"]}
+             })
+
+    assert {:ok, connection} = ConnectionRegistry.get(instance_1["connection_id"])
+    assert connection["default_instance_id"] == instance_2["instance_id"]
+
+    assert {:ok, default} = ConnectionRegistry.default_instance(instance_1["connection_id"])
+    assert default["instance_id"] == instance_2["instance_id"]
+  end
+
+  test "connection default lookup bypasses stored default when it fails later" do
+    assert {:ok, transfer_1} = ready_transfer()
+    assert {:ok, transfer_2} = ready_transfer()
+
+    assert {:ok, instance_1} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{"connection_key" => "default-late-fallback", "reuse" => true},
+               "session_id" => "session-1",
+               "transfer_ref" => %{"transfer_id" => transfer_1["transfer_id"]}
+             })
+
+    assert {:ok, instance_2} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{"connection_key" => "default-late-fallback", "reuse" => true},
+               "session_id" => "session-2",
+               "transfer_ref" => %{"transfer_id" => transfer_2["transfer_id"]}
+             })
+
+    assert {:ok, connection} = ConnectionRegistry.get(instance_1["connection_id"])
+    assert connection["default_instance_id"] == instance_1["instance_id"]
+
+    InstanceRegistry.mark_failed(instance_1["instance_id"], %{"startup_error" => "test_failure"})
+
+    assert eventually(fn ->
+             {:ok, failed} = InstanceRegistry.get(instance_1["instance_id"])
+             failed["state"] == "failed"
+           end)
+
+    assert {:ok, default} = ConnectionRegistry.default_instance(instance_1["connection_id"])
+    assert default["instance_id"] == instance_2["instance_id"]
   end
 
   test "registers routes for sessions created through an existing connection instance" do
