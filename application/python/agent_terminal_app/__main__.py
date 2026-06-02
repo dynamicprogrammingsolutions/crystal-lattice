@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import socket
+import subprocess
 import sys
 import threading
 import uuid
@@ -508,6 +509,84 @@ def _render_command_result(result: dict[str, Any]) -> None:
     print(json.dumps(result, indent=2, sort_keys=True))
 
 
+def _run_builtin_bundle_command(
+    args: argparse.Namespace,
+    runtime_layout: RuntimeLayout,
+    parser: argparse.ArgumentParser,
+) -> None:
+    bundle_parser = argparse.ArgumentParser(
+        prog=f"{Path(sys.argv[0]).name} bundle",
+        description="Build an optimized config-specific Crystal Lattice bundle.",
+    )
+    bundle_parser.add_argument(
+        "--config",
+        type=str,
+        default=args.config,
+        required=args.config is None,
+        help="config file used to select preinstalled plugins",
+    )
+    bundle_parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="directory where the optimized bundle archive is written",
+    )
+    bundle_parser.add_argument(
+        "--version",
+        type=str,
+        default=None,
+        help="override version used in artifact names",
+    )
+    bundle_parser.add_argument(
+        "--no-archive",
+        action="store_true",
+        help="build the optimized bundle directory but do not create an archive",
+    )
+
+    bundle_args = bundle_parser.parse_args(list(args.command_args or []))
+    bundle_script = runtime_layout.bundle_script
+    if runtime_layout.layout != "python-runtime" or bundle_script is None:
+        parser.error(
+            "the bundle command is only supported from the full bundled-Python "
+            "Crystal Lattice package"
+        )
+    if not bundle_script.is_file():
+        parser.error(f"bundle builder script is missing: {bundle_script}")
+
+    config_path = Path(bundle_args.config).expanduser().resolve()
+    if not config_path.is_file():
+        parser.error(f"bundle config does not exist: {config_path}")
+
+    command = [
+        sys.executable,
+        str(bundle_script),
+        "--config",
+        str(config_path),
+    ]
+    if bundle_args.output:
+        command.extend(["--output", str(Path(bundle_args.output).expanduser())])
+    if bundle_args.version:
+        command.extend(["--version", bundle_args.version])
+    if bundle_args.no_archive:
+        command.append("--no-archive")
+
+    env = os.environ.copy()
+    runtime_root = runtime_layout.manifest_dir.parent.parent.parent
+    python_paths = [
+        runtime_root / "core" / "python",
+        runtime_root / "application" / "python",
+    ]
+    existing_pythonpath = env.get("PYTHONPATH")
+    values = [*(str(path) for path in python_paths)]
+    if existing_pythonpath:
+        values.append(existing_pythonpath)
+    env["PYTHONPATH"] = os.pathsep.join(values)
+    try:
+        subprocess.run(command, cwd=str(bundle_script.parents[1]), env=env, check=True)
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(exc.returncode) from exc
+
+
 def main() -> None:  # pragma: no cover - manual execution only
     parser = argparse.ArgumentParser(
         description="Agent Terminal App: FastAPI API + prompt_toolkit console",
@@ -703,6 +782,10 @@ def main() -> None:  # pragma: no cover - manual execution only
     args = parser.parse_args()
     runtime_layout = load_runtime_layout()
 
+    if args.command == "bundle":
+        _run_builtin_bundle_command(args, runtime_layout, parser)
+        return
+
     if args.runtime_layout_json:
         print(json.dumps(runtime_layout.to_resolved_dict(), indent=2, sort_keys=True))
         return
@@ -824,7 +907,9 @@ def main() -> None:  # pragma: no cover - manual execution only
     print(f"[agent_terminal_app] Using config: {config_path}")
     print(f"[agent_terminal_app] Using sessions dir: {session_root}")
 
-    contributed_command = args.command if isinstance(args.command, str) and args.command else ""
+    contributed_command = (
+        args.command if isinstance(args.command, str) and args.command else ""
+    )
 
     if contributed_command:
         command_app = AgentApplication(

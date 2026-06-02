@@ -635,20 +635,58 @@ dependency. When a CLI release needs newer core behavior, bump the `agent-core`
 dependency floor and release the core package first or alongside the CLI
 package.
 
-### Binary Builds
+### Runtime Packages And Optimized Bundles
 
-The binary release format is a PyInstaller `--onedir` bundle. It keeps the
-executable, bundled Python runtime, app assets, selected preinstalled plugin
-packages, and lightweight built-in plugin metadata as separate files so release
-artifacts are easier to inspect and debug.
+The general distribution format is a bundled-Python runtime package. It ships a
+normal Python runtime, repo-shaped application sources, built-in plugin sources,
+and launcher scripts. This is the package shape intended for desktop/local use
+because arbitrary plugins and their Python dependencies install through normal
+`python -m pip` behavior.
 
-Build the current platform:
+Build the current-platform bundled-Python package:
+
+```bash
+python scripts/build_crystal_lattice_python_runtime_package.py
+```
+
+The script creates a package directory under:
+
+```text
+build/crystal-lattice-python-runtime/
+```
+
+and a release archive under:
+
+```text
+dist/crystal-lattice-python-runtime/
+```
+
+Bundled-Python archive names look like:
+
+```text
+crystal-lattice-python-runtime-v0.1.0-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.0-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.0-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.0-windows-amd64.zip
+```
+
+From that full package, users can create optimized config-specific PyInstaller
+artifacts:
+
+```bash
+crystal-lattice bundle --config path/to/config.json --output dist/
+```
+
+Optimized artifacts are runtime-only outputs. They preinstall the plugins
+selected by the supplied config and do not support creating further bundles.
+
+Maintainer builds can still call the PyInstaller builder directly:
 
 ```bash
 python scripts/build_crystal_lattice_binary.py
 ```
 
-The script creates a PyInstaller app directory under:
+That script creates a PyInstaller app directory under:
 
 ```text
 application/python/dist/crystal-lattice/
@@ -660,7 +698,7 @@ and a release archive under:
 dist/crystal-lattice/
 ```
 
-Archive names look like:
+Optimized PyInstaller archive names look like:
 
 ```text
 crystal-lattice-cli-v0.1.0-linux-amd64.tar.gz
@@ -669,8 +707,8 @@ crystal-lattice-cli-v0.1.0-darwin-arm64.tar.gz
 crystal-lattice-cli-v0.1.0-windows-amd64.zip
 ```
 
-PyInstaller does not cross-compile. Build Linux, macOS, and Windows binaries on
-matching hosts or CI runners.
+PyInstaller does not cross-compile. Build Linux, macOS, and Windows optimized
+artifacts on matching hosts or CI runners.
 
 The bundle preinstalls default-config plugin projects and their Python
 dependencies during the binary build. It still exposes lightweight metadata and
@@ -679,6 +717,30 @@ paths such as `path:${env:BUILTIN_PLUGINS}/codex-tools` continue to resolve
 without copying selected plugin source trees into that directory. User-owned
 state stays outside the bundle: config files, sessions, auth state, and plugin
 install caches belong under the selected `.crystal` directory.
+
+In the bundled-Python package, optional built-in plugins remain as source trees
+under `plugins/`. When user config references one of them, the app installs it
+into the configured plugin cache using the packaged Python interpreter.
+
+In optimized PyInstaller artifacts, optional built-in plugins that are not
+selected by the build config remain as source trees under
+`_internal/bundled_plugins`, but PyInstaller/frozen artifacts are
+config-specific packages and do not support arbitrary dynamic plugin
+installation by default. Dynamic plugin installation belongs to the full
+bundled-Python package, where `CRYSTAL_PLUGIN_PYTHON` or
+`plugin_policy.python_executable` can select the interpreter used for
+`python -m pip install --target ...`.
+
+The bundled cloud runtime Docker context uses the same selected-plugin metadata
+model, but builds Linux wheels inside Docker. The installed archive carries
+selected plugin source inputs under `_internal/cloud_runtime/plugin_sources`
+only so the Docker builder can create runtime-compatible wheels. The final cloud
+runtime image installs those wheels at image build time and sets
+`BUILTIN_PLUGINS` to
+`/opt/ai-agent-platform/cloud-runtime-plugin-bundle/bundled_plugins`, which
+contains only preinstalled descriptors and resources. Runtime startup should not
+install bundled/default plugins into `/cloud-agent/cache/plugin_cache/plugins`;
+that cache remains for non-bundled or user-provided plugins.
 
 ### Local Nox Scripts
 
@@ -689,10 +751,16 @@ Install `nox` once if needed:
 python -m pip install nox
 ```
 
-Build the current-platform bundle:
+Build the current-platform bundled-Python runtime package:
 
 ```bash
 nox -s build_bundle
+```
+
+Build the current-platform optimized PyInstaller artifact directly:
+
+```bash
+nox -s build_optimized_bundle
 ```
 
 Run a local production install rehearsal from the generated archive:
@@ -701,10 +769,11 @@ Run a local production install rehearsal from the generated archive:
 nox -s install_prod_local
 ```
 
-Together these commands intentionally follow the release installer shape:
+`build_bundle` and `install_prod_local` intentionally follow the release
+installer shape:
 
 1. install local build dependencies
-2. run `scripts/build_crystal_lattice_binary.py`
+2. run `scripts/build_crystal_lattice_python_runtime_package.py`
 3. smoke-test the generated release archive
 4. install from the archive, not from editable source
 5. link `crystal-lattice` into `~/.local/bin`
@@ -753,7 +822,7 @@ s3://crystal-lattice-downloads-874087778966/crystal-lattice-cli/*
 Manual republish:
 
 ```bash
-python scripts/publish_crystal_lattice_s3.py --assets-dir dist/crystal-lattice
+python scripts/publish_crystal_lattice_s3.py --assets-dir dist/crystal-lattice-python-runtime
 ```
 
 Turn off public S3 downloads quickly:

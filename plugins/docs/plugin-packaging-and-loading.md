@@ -86,6 +86,15 @@ metadata, it must also declare them in `local_workspace_dependencies`. This
 keeps local plugin cache invalidation explicit and avoids core hardcoding
 workspace package names.
 
+Release and cloud-runtime bundles also use this metadata. Selected default
+plugins are preinstalled at bundle or image build time, and the bundled
+descriptor is rewritten with `"preinstalled": true`. The cloud runtime Docker
+build uses declared local workspace dependencies to copy the selected source
+closure into the build stage, create Linux-compatible wheels, and install them
+into the final image. At runtime, `path:${env:BUILTIN_PLUGINS}/<plugin>` points
+at preinstalled descriptor/resource metadata and should not trigger a plugin
+cache install for those bundled/default plugins.
+
 ## Installing `agent_plugin.json` as a data file
 
 If using setuptools via `pyproject.toml`:
@@ -164,6 +173,14 @@ Applications support multiple ways to reference plugins:
 - Prefer pinned refs (tag/commit) and host allowlists.
 - Remote git URLs are typically disabled by default; enable explicitly with `plugin_policy.allow_remote`.
 - Python dependency installs use `plugin_policy.pip_cache_dir` as pip's cache. When omitted, it defaults to a sibling `pip` directory next to the plugin install cache, for example `~/.crystal/cache/pip` when `plugin_cache_dir` is `~/.crystal/cache/plugins`.
+- The bundled-Python runtime package is the supported distribution for
+  plugin-rich installs. It uses a normal packaged Python interpreter for
+  dynamic plugin installation. PyInstaller/frozen artifacts are
+  config-specific optimized outputs and do not support arbitrary dynamic plugin
+  installation by default.
+- In runtimes that support dynamic plugin installation, set
+  `CRYSTAL_PLUGIN_PYTHON` or `plugin_policy.python_executable` to choose the
+  interpreter used for `python -m pip install --target ...`.
 
 ## Reference configs
 

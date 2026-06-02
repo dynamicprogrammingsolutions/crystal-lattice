@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PACKAGE_NAME="crystal-lattice-cli"
+ARCHIVE_PACKAGE_NAME="crystal-lattice-python-runtime"
 COMMAND_NAME="${COMMAND_NAME:-crystal-lattice}"
 DEFAULT_DOWNLOAD_BASE_URL="https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli"
 DOWNLOAD_BASE_URL="${CRYSTAL_LATTICE_DOWNLOAD_BASE_URL:-${DOWNLOAD_BASE_URL:-$DEFAULT_DOWNLOAD_BASE_URL}}"
@@ -83,7 +84,7 @@ install_bundle() {
 
   local extracted_bundle="$extract_dir/$archive_stem"
   [ -d "$extracted_bundle" ] || fail "archive did not contain expected directory: $archive_stem"
-  [ -x "$extracted_bundle/crystal-lattice" ] || fail "archive did not contain executable crystal-lattice"
+  [ -x "$extracted_bundle/bin/crystal-lattice" ] || fail "archive did not contain launcher bin/crystal-lattice"
 
   mkdir -p "$INSTALL_ROOT"
   rm -rf "$staging_bundle"
@@ -92,7 +93,11 @@ install_bundle() {
   mv "$staging_bundle" "$target_bundle"
 
   mkdir -p "$BIN_DIR"
-  ln -sfn "$target_bundle/crystal-lattice" "$BIN_DIR/$COMMAND_NAME"
+  cat > "$BIN_DIR/$COMMAND_NAME" <<EOF
+#!/usr/bin/env sh
+exec "$target_bundle/bin/crystal-lattice" "\$@"
+EOF
+  chmod +x "$BIN_DIR/$COMMAND_NAME"
   printf '%s\n' "$target_bundle"
 }
 
@@ -101,10 +106,10 @@ verify_install() {
   "$command_path" --help >/dev/null
   local layout
   layout="$("$command_path" --runtime-layout-json)"
-  printf '%s\n' "$layout" | grep -q '"layout": "bundled"' \
-    || fail "installed command did not report bundled runtime layout"
-  printf '%s\n' "$layout" | grep -q '/_internal/bundled_plugins' \
-    || fail "installed command did not report bundled plugin path"
+  printf '%s\n' "$layout" | grep -q '"layout": "python-runtime"' \
+    || fail "installed command did not report python-runtime layout"
+  printf '%s\n' "$layout" | grep -q '/plugins' \
+    || fail "installed command did not report bundled plugin source path"
 }
 
 main() {
@@ -124,7 +129,7 @@ main() {
   target="$(detect_target)"
 
   local version="${tag#crystal-lattice-cli-v}"
-  local archive_stem="$PACKAGE_NAME-v$version-$target"
+  local archive_stem="$ARCHIVE_PACKAGE_NAME-v$version-$target"
   local archive_name="$archive_stem.tar.gz"
   local archive_url="$DOWNLOAD_BASE_URL/$archive_name"
   local temp_dir

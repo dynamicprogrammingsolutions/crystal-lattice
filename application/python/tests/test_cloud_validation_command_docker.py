@@ -226,6 +226,7 @@ def test_validate_cloud_command_succeeds_for_this_repository_hooks(
     cache_dir = tmp_path / "cache"
     workspace = tmp_path / "workspace"
     _copy_repo_worktree(ROOT, workspace)
+    (workspace / ".env").touch(exist_ok=True)
     _initialize_git_workspace(workspace)
     _commit_all(workspace, "snapshot")
     config_path = _write_validation_config(
@@ -252,6 +253,17 @@ def test_validate_cloud_command_succeeds_for_this_repository_hooks(
 
     assert "Cloud Validation Passed" in result.stdout
     assert "using local Docker" in result.stdout
+    _assert_bundled_plugins_not_installed_to_runtime_cache(cache_dir)
+
+
+def _assert_bundled_plugins_not_installed_to_runtime_cache(cache_dir: Path) -> None:
+    plugin_cache = cache_dir / "plugin_cache" / "plugins"
+    if not plugin_cache.exists():
+        return
+    installed_names = sorted(
+        path.name for path in plugin_cache.iterdir() if path.is_dir()
+    )
+    assert installed_names == []
 
 
 def test_validate_cloud_command_fails_when_local_stage_does_not_stage_required_env(

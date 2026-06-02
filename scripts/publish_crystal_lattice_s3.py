@@ -30,7 +30,7 @@ def main() -> None:
     parser.add_argument(
         "--assets-dir",
         type=Path,
-        default=ROOT / "dist" / "crystal-lattice",
+        default=ROOT / "dist" / "crystal-lattice-python-runtime",
         help="directory containing release archives",
     )
     parser.add_argument("--version", default=None, help="version without tag prefix")
@@ -72,10 +72,10 @@ def read_project_version() -> str:
 
 def expected_assets(assets_dir: Path, version: str) -> list[Path]:
     names = [
-        f"crystal-lattice-cli-v{version}-darwin-amd64.tar.gz",
-        f"crystal-lattice-cli-v{version}-darwin-arm64.tar.gz",
-        f"crystal-lattice-cli-v{version}-linux-amd64.tar.gz",
-        f"crystal-lattice-cli-v{version}-windows-amd64.zip",
+        f"crystal-lattice-python-runtime-v{version}-darwin-amd64.tar.gz",
+        f"crystal-lattice-python-runtime-v{version}-darwin-arm64.tar.gz",
+        f"crystal-lattice-python-runtime-v{version}-linux-amd64.tar.gz",
+        f"crystal-lattice-python-runtime-v{version}-windows-amd64.zip",
     ]
     assets = [assets_dir / name for name in names]
     missing = [path for path in assets if not path.is_file()]

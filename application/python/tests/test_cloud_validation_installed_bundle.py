@@ -29,11 +29,15 @@ def test_installed_bundle_validate_cloud_builds_runtime_from_bundle(
     if not archive_path.is_file():
         pytest.skip(f"CRYSTAL_LATTICE_BUNDLE_ARCHIVE is not a file: {archive_path}")
     if not _archive_matches_current_platform(archive_path):
-        pytest.skip(f"Bundle archive does not match current platform: {archive_path.name}")
+        pytest.skip(
+            f"Bundle archive does not match current platform: {archive_path.name}"
+        )
     _ensure_docker()
 
     bundle_dir = _extract_bundle_archive(archive_path, tmp_path / "bundle")
-    executable = bundle_dir / ("crystal-lattice.exe" if os.name == "nt" else "crystal-lattice")
+    executable = bundle_dir / (
+        "crystal-lattice.exe" if os.name == "nt" else "crystal-lattice"
+    )
     assert executable.is_file()
 
     layout_result = _run([str(executable), "--runtime-layout-json"], cwd=tmp_path)
@@ -47,10 +51,27 @@ def test_installed_bundle_validate_cloud_builds_runtime_from_bundle(
     assert "_internal/cloud_runtime" in str(runtime_context)
     assert runtime_context.is_dir()
     assert runtime_dockerfile.is_file()
+    assert (
+        runtime_context
+        / "cloud-runtime-plugin-bundle"
+        / "bundled_plugins"
+        / "cloud-agent-app"
+        / "agent_plugin.json"
+    ).is_file()
+    assert (
+        runtime_context
+        / "cloud-runtime-plugin-bundle"
+        / "bundled_plugins"
+        / "cloud-agent-app"
+        / "docs"
+        / "cloud-script-authoring.md"
+    ).is_file()
+    assert (runtime_context / "plugin_sources" / "cloud-agent-app").is_dir()
+    assert not (runtime_context / "plugins").exists()
 
     workspace = tmp_path / "workspace"
     _write_validation_fixture(workspace)
-    runtime_image = f"cloud-agent-runtime-validation-{os.getpid()}:01215"
+    runtime_image = f"cloud-agent-runtime-validation-{os.getpid()}:01218"
     _write_project_cloud_config(workspace, runtime_image=runtime_image)
     _initialize_git_workspace(workspace)
 
@@ -82,6 +103,7 @@ def test_installed_bundle_validate_cloud_builds_runtime_from_bundle(
             timeout=900,
         )
         assert "Cloud Validation Passed" in result.stdout
+        _assert_bundled_plugins_not_installed_to_runtime_cache(tmp_path / "cloud-cache")
 
         inspect = _run(
             [
@@ -90,7 +112,7 @@ def test_installed_bundle_validate_cloud_builds_runtime_from_bundle(
                 "inspect",
                 runtime_image,
                 "--format",
-                "{{ index .Config.Labels \"org.crystal-lattice.cloud-runtime.digest\" }}",
+                '{{ index .Config.Labels "org.crystal-lattice.cloud-runtime.digest" }}',
             ],
             cwd=ROOT,
         )
@@ -99,6 +121,16 @@ def test_installed_bundle_validate_cloud_builds_runtime_from_bundle(
         assert digest != "<no value>"
     finally:
         _run(["docker", "rmi", "-f", runtime_image], cwd=ROOT, expect_success=False)
+
+
+def _assert_bundled_plugins_not_installed_to_runtime_cache(cache_dir: Path) -> None:
+    plugin_cache = cache_dir / "plugin_cache" / "plugins"
+    if not plugin_cache.exists():
+        return
+    installed_names = sorted(
+        path.name for path in plugin_cache.iterdir() if path.is_dir()
+    )
+    assert installed_names == []
 
 
 def _write_validation_fixture(workspace: Path) -> None:
@@ -197,7 +229,11 @@ def _archive_matches_current_platform(path: Path) -> bool:
     name = path.name.lower()
     system = platform.system().lower()
     machine = platform.machine().lower()
-    expected_platform = "darwin" if system == "darwin" else "windows" if system == "windows" else "linux"
+    expected_platform = (
+        "darwin"
+        if system == "darwin"
+        else "windows" if system == "windows" else "linux"
+    )
     expected_arch = "arm64" if machine in {"arm64", "aarch64"} else "amd64"
     return f"-{expected_platform}-{expected_arch}" in name
 
@@ -221,7 +257,9 @@ def _bundle_env() -> dict[str, str]:
         env.pop(key, None)
     return {
         **env,
-        "OPENROUTER_API_KEY": os.environ.get("OPENROUTER_API_KEY", "test-openrouter-key"),
+        "OPENROUTER_API_KEY": os.environ.get(
+            "OPENROUTER_API_KEY", "test-openrouter-key"
+        ),
         "OPENAI_API_KEY": os.environ.get("OPENAI_API_KEY", "test-openai-key"),
         "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY", "test-gemini-key"),
         "TAVILY_API_KEY": os.environ.get("TAVILY_API_KEY", "test-tavily-key"),
