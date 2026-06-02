@@ -68,6 +68,7 @@ export interface AgentBackend {
     idempotencyKey?: string;
   }): Promise<{ session: { session_id: string; [key: string]: any } }>;
   listSessions(params?: { limit?: number }): Promise<SessionSummary[]>;
+  getSessionSummary(sessionId: string): Promise<SessionSummary>;
   forkSession(
     sessionId: string,
     params?: { index?: number; idempotencyKey?: string },

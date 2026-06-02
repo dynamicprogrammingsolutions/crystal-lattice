@@ -14,6 +14,7 @@ export interface SessionActionsBarProps {
   pinned: SessionActionKey[];
   onChangePinned: (pinned: SessionActionKey[]) => void;
   onAction: (action: SessionActionKey) => void;
+  onOpenMenu?: () => void;
   isActionDisabled?: (action: SessionActionKey) => boolean;
   extraActions?: SessionActionDefinition[];
   availableActions?: SessionActionKey[];
@@ -35,6 +36,7 @@ export function SessionActionsBar({
   pinned,
   onChangePinned,
   onAction,
+  onOpenMenu,
   isActionDisabled,
   extraActions,
   availableActions,
@@ -60,6 +62,7 @@ export function SessionActionsBar({
       pinned={pinned}
       onChangePinned={onChangePinned}
       onAction={onAction}
+      onOpenMenu={onOpenMenu}
       isActionDisabled={isActionDisabled}
       isActive={isActive}
     />

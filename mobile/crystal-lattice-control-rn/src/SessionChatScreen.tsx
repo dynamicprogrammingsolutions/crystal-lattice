@@ -52,6 +52,7 @@ import {
 import { useChatController, useAgentsController } from '@crystal-lattice/frontend-sdk-react';
 import {
   useHydrateControllerFromCache,
+  useSessionContextController,
   useSessionSettingsController,
   useSessionUiSchemaController,
   useSessionApplicationUiSchemaController,
@@ -1070,16 +1071,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [agentsController, backend]);
 
   useEffect(() => {
-    const md = sessionSummary?.metadata;
-    const raw = (md as any)?.agent_id;
-    if (typeof raw === 'string' && raw.trim()) {
-      setSessionAgentId(raw.trim());
-    } else {
-      setSessionAgentId(null);
-    }
-  }, [sessionId, sessionSummary]);
-
-  useEffect(() => {
     const loadPinnedFromStorage = async () => {
       try {
         const messageRaw = await AsyncStorage.getItem(STORAGE_KEY_MESSAGE_ACTIONS);
@@ -1121,13 +1112,32 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     sessionId,
     enabled: !!(backend && isActive),
   });
+  const { state: sessionContextState, controller: sessionContextController } =
+    useSessionContextController({
+      backend,
+      cacheKey: connectionId ?? 'default',
+      sessionId,
+      initialSummary: sessionSummary,
+      enabled: !!(backend && isActive),
+    });
   const { controller: sessionSettingsController } = useSessionSettingsController({
     backend,
     cacheKey: connectionId ?? 'default',
     sessionId,
     enabled: !!(backend && isActive),
   });
+  const currentSessionSummary = sessionContextState?.summary ?? sessionSummary ?? null;
   const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
+
+  useEffect(() => {
+    const md = currentSessionSummary?.metadata;
+    const raw = (md as any)?.agent_id;
+    if (typeof raw === 'string' && raw.trim()) {
+      setSessionAgentId(raw.trim());
+    } else {
+      setSessionAgentId(null);
+    }
+  }, [currentSessionSummary, sessionId]);
 
   // Session-scoped application UI elements (from /sessions/{id}/application/ui-schema)
   // These are config-aware and filter based on the session's agent config.
@@ -1144,9 +1154,9 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         ),
         uiSchemaElements,
         uiType: 'session_action',
-        context: sessionSummary ?? { session_id: sessionId, metadata: {} },
+        context: currentSessionSummary ?? { session_id: sessionId, metadata: {} },
       }),
-    [sessionAppUiElements, sessionId, sessionSummary, uiSchemaElements],
+    [currentSessionSummary, sessionAppUiElements, sessionId, uiSchemaElements],
   );
 
   const visibleMessageActions = useMemo(
@@ -1540,6 +1550,37 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     onUpdateSessionSummaries(sessions);
   }, [backend, onUpdateSessionSummaries]);
 
+  const refreshSessionContextInBackground = useCallback(() => {
+    if (!sessionContextController) {
+      return;
+    }
+    void sessionContextController
+      .refresh()
+      .then(async (summary) => {
+        if (!summary || !backend || !onUpdateSessionSummaries) {
+          return;
+        }
+        try {
+          const sessions = await backend.listSessions();
+          onUpdateSessionSummaries(sessions);
+        } catch {
+          // Keep the refreshed local context even if the parent list cache cannot be updated.
+        }
+      })
+      .catch(() => {
+        // The controller state captures refresh errors while keeping old context usable.
+      });
+  }, [backend, onUpdateSessionSummaries, sessionContextController]);
+
+  useEffect(() => {
+    if (!isActive || !isAppActive || !sessionContextController) {
+      return;
+    }
+    void sessionContextController.loadIfStale({ staleMs: 10000 }).catch(() => {
+      // The controller state captures refresh errors while keeping old context usable.
+    });
+  }, [isActive, isAppActive, sessionContextController]);
+
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {
       if (!backend) {
@@ -1759,14 +1800,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         const isMessage = context.kind === 'message';
         await executePluginAction(element, {
           sessionId,
-          sessionSummary: context.sessionSummary || undefined,
+          sessionSummary: context.sessionSummary || currentSessionSummary || undefined,
           messageContext: isMessage
             ? { index: (context as any).index, message: (context as any).message }
             : undefined,
           dialogValues,
         });
       },
-      [executePluginAction, sessionId],
+      [currentSessionSummary, executePluginAction, sessionId],
     ),
   );
 
@@ -3055,7 +3096,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
     const pluginEl = visibleSessionActions.find((el) => el.id === action);
     if (pluginEl) {
-      openPluginDialogForElement(pluginEl, { kind: 'session', sessionSummary });
+      refreshSessionContextInBackground();
+      openPluginDialogForElement(pluginEl, { kind: 'session', sessionSummary: currentSessionSummary });
     }
   };
 
@@ -3163,7 +3205,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         kind: 'message',
         index,
         message,
-        sessionSummary,
+        sessionSummary: currentSessionSummary,
       });
     }
   };
@@ -3177,11 +3219,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
 
 	  const sessionHeaderTitle = useMemo(() => {
-	    if (!sessionSummary) {
+	    if (!currentSessionSummary) {
 	      return sessionLabel;
 	    }
-	    return deriveSessionListPresentationFromGroups(sessionSummary, sessionListFieldGroups).title;
-	  }, [sessionSummary, sessionListFieldGroups, sessionLabel]);
+	    return deriveSessionListPresentationFromGroups(currentSessionSummary, sessionListFieldGroups).title;
+	  }, [currentSessionSummary, sessionListFieldGroups, sessionLabel]);
 
 	  const footerElements = useMemo(
 	    () => filterFooterElements(uiSchemaElements),
@@ -3387,6 +3429,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               pinned={pinnedSessionActions}
               onChangePinned={setPinnedSessionActions}
               onAction={handleSessionAction}
+              onOpenMenu={refreshSessionContextInBackground}
               isActionDisabled={(action) =>
                 pluginActionInProgress ||
                 ((sendInProgress || resumeRecoveryInProgress) && action === 'reload')
@@ -3489,7 +3532,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           inlineActionDisplaysContent={inlineActionDisplaysContent}
           footerElements={footerElements}
           pluginMessageActionDefs={pluginMessageActionDefs}
-          sessionSummary={sessionSummary}
+          sessionSummary={currentSessionSummary}
           pinnedMessageActionsByRole={pinnedMessageActionsByRole}
           messageViewModeByIndex={messageViewModeByIndex}
           editingIndex={editingIndex}
@@ -4057,7 +4100,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	        prefillContext={{
 	          session:
 	            activePluginDialogContext && 'sessionSummary' in activePluginDialogContext
-	              ? activePluginDialogContext.sessionSummary || undefined
+	              ? activePluginDialogContext.sessionSummary || currentSessionSummary || undefined
 	              : undefined,
 	          message:
 	            activePluginDialogContext && activePluginDialogContext.kind === 'message'
@@ -4337,6 +4380,33 @@ const createStyles = (theme: Theme) =>
       fontSize: 12,
       color: theme.textSecondary,
       marginBottom: 12,
+    },
+    settingsScroll: {
+      maxHeight: 320,
+      marginBottom: 12,
+    },
+    pluginRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      borderBottomWidth: 1,
+      borderBottomColor: theme.divider,
+      paddingVertical: 10,
+      gap: 8,
+    },
+    pluginRowContent: {
+      flex: 1,
+      minWidth: 0,
+    },
+    pluginName: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    pluginMeta: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginTop: 2,
     },
     modalInput: {
       backgroundColor: theme.surface,

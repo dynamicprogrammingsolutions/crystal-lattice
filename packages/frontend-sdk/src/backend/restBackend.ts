@@ -140,6 +140,19 @@ export class RestAgentBackend implements AgentBackend {
     return sessions;
   }
 
+  async getSessionSummary(sessionId: string): Promise<SessionSummary> {
+    const resp = await this.transport.request<{ session?: SessionSummary } | SessionSummary>({
+      method: 'GET',
+      path: `/sessions/${encodeURIComponent(sessionId)}/summary`,
+    });
+    const data: any = resp.data as any;
+    const session = data && typeof data.session === 'object' ? data.session : data;
+    if (!session || typeof session.session_id !== 'string') {
+      throw new Error('Server did not return a session summary');
+    }
+    return session as SessionSummary;
+  }
+
   async listMessages(
     sessionId: string,
     params: { start?: number; end?: number } = {},
@@ -150,6 +163,8 @@ export class RestAgentBackend implements AgentBackend {
       messages: IndexedMessage[];
       cursor_event_id?: string | null;
       active_request_id?: string | null;
+      readonly?: boolean;
+      snapshot_id?: string | null;
     }>({ method: 'GET', path });
 
     const messages = Array.isArray(resp.data?.messages) ? resp.data.messages : [];

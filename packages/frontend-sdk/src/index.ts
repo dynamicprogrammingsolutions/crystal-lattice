@@ -138,6 +138,9 @@ export {
 export type { SessionsControllerState } from './sessions/sessionsController';
 export { SessionsController } from './sessions/sessionsController';
 
+export type { SessionContextControllerState } from './sessions/sessionContextController';
+export { SessionContextController } from './sessions/sessionContextController';
+
 export type {
   SessionListFieldGroups,
   SessionListPresentation,

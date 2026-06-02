@@ -14,7 +14,9 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
@@ -42,9 +44,46 @@ DEFAULT_TRANSFER_METHOD = "managed_ssh"
 RESERVED_CLOUD_AGENT_DIR = ".cloud-agent"
 CLOUD_AGENT_METADATA_KEY = "cloud_agent"
 CLOUD_AGENT_LAST_RUNTIME_KEY = "cloud_agent_last_runtime"
-DEFAULT_START_ACTION_TIMEOUT_SECONDS = 10.0
+DEFAULT_START_ACTION_TIMEOUT_SECONDS = 0.0
 DEFAULT_IMPORTED_BRANCH_PREFIX = "cloud"
+CLOUD_AGENT_OPERATION_STORE_KEY = "cloud_agent_operations"
 _log = get_logger("cloud_agent_app")
+
+
+class CloudAgentOperationRegistry:
+    """Process-local registry for cloud startup operations."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._operations: Dict[str, Dict[str, Any]] = {}
+
+    def create(self, *, session_id: str) -> Dict[str, Any]:
+        operation_ref = f"cloud-start:{session_id}:{uuid.uuid4().hex}"
+        operation = {
+            "operation_ref": operation_ref,
+            "session_id": session_id,
+            "state": "starting",
+            "startup_stage": "queued",
+            "created_at": time.time(),
+            "updated_at": time.time(),
+        }
+        with self._lock:
+            self._operations[operation_ref] = operation
+        return dict(operation)
+
+    def update(self, operation_ref: str, **updates: Any) -> Dict[str, Any]:
+        with self._lock:
+            current = dict(self._operations.get(operation_ref) or {})
+            current.update(updates)
+            current["operation_ref"] = operation_ref
+            current["updated_at"] = time.time()
+            self._operations[operation_ref] = current
+            return dict(current)
+
+    def get(self, operation_ref: str) -> Dict[str, Any] | None:
+        with self._lock:
+            operation = self._operations.get(operation_ref)
+            return dict(operation) if isinstance(operation, dict) else None
 
 
 class CloudAgentAppPlugin:
@@ -94,8 +133,8 @@ class CloudAgentAppPlugin:
                 "label": "Check cloud agent status",
                 "description": "Check whether a cloud agent runtime is ready.",
                 "inputs": {
-                    "instance_id": {"type": "string", "required": True},
-                    "session_id": {"type": "string", "required": False},
+                    "instance_id": {"type": "string", "required": False},
+                    "session_id": {"type": "string", "required": True},
                     "token": {"type": "string", "required": False},
                 },
             },
@@ -186,6 +225,18 @@ class CloudAgentAppPlugin:
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         has_cloud_agent = {
+            "any": [
+                {
+                    "path": f"metadata.{CLOUD_AGENT_METADATA_KEY}.instance_id",
+                    "exists": True,
+                },
+                {
+                    "path": f"metadata.{CLOUD_AGENT_METADATA_KEY}.operation_ref",
+                    "exists": True,
+                },
+            ]
+        }
+        has_cloud_instance = {
             "path": f"metadata.{CLOUD_AGENT_METADATA_KEY}.instance_id",
             "exists": True,
         }
@@ -203,34 +254,9 @@ class CloudAgentAppPlugin:
                 "label": "Check cloud status",
                 "action_id": "cloud.check_session_agent",
                 "param_map": {
-                    "instance_id": "$dialog.instance_id",
                     "session_id": "$session.session_id",
-                    "token": "$dialog.token",
                 },
-                "dialog": {
-                    "kind": "form",
-                    "title": "Check cloud status",
-                    "message": (
-                        "Check the status of a cloud instance. Values are "
-                        "prefilled from the local session when available."
-                    ),
-                    "inputs": [
-                        {
-                            "name": "instance_id",
-                            "type": "string",
-                            "label": "Instance ID",
-                            "required": True,
-                            "prefill_from": "$session.metadata.cloud_agent.instance_id",
-                        },
-                        {
-                            "name": "token",
-                            "type": "string",
-                            "label": "Token",
-                            "required": False,
-                            "prefill_from": "$session.metadata.cloud_agent.token",
-                        },
-                    ],
-                },
+                "condition": has_cloud_agent,
             },
             {
                 "ui_type": "session_action",
@@ -241,7 +267,7 @@ class CloudAgentAppPlugin:
                     "instance_id": "$session.metadata.cloud_agent.instance_id",
                     "session_id": "$session.session_id",
                 },
-                "condition": has_cloud_agent,
+                "condition": has_cloud_instance,
             },
             {
                 "ui_type": "session_action",
@@ -260,7 +286,7 @@ class CloudAgentAppPlugin:
                         "will be lost unless you synced them previously."
                     ),
                 },
-                "condition": has_cloud_agent,
+                "condition": has_cloud_instance,
             },
             {
                 "ui_type": "session_action",
@@ -306,140 +332,338 @@ class CloudAgentAppPlugin:
         loaded = app.load_session(session_id)
         if loaded is None:
             raise KeyError(f"Session {session_id!r} not found")
-        core, _base_config, session = loaded
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        selected_agent_id = metadata.get("agent_id")
-        if not isinstance(selected_agent_id, str) or not selected_agent_id.strip():
-            selected_agent_id = None
-
-        workspace_dir = self._workspace_dir(params, state)
-        cloud_workspace_dir = CLOUD_WORKSPACE_DIR
-        local_stage_script = state.get("local_stage_script")
-        local_transfer_script = self._required_script_config(
+        self._workspace_dir(params, state)
+        self._required_script_config(
             state, "local_transfer_script", legacy_key="transfer_script"
         )
 
-        with tempfile.TemporaryDirectory(
-            prefix="cloud-agent-transfer-"
-        ) as transfer_tmp:
-            transfer_dir = Path(transfer_tmp)
-            self._transfer_stage_dir(transfer_dir).mkdir(parents=True, exist_ok=True)
-            transfer_env = self._script_env(
-                app=app,
-                state=state,
-                workspace_dir=workspace_dir,
-                cloud_workspace_dir=cloud_workspace_dir,
-                transfer_dir=transfer_dir,
-                session_id=session_id,
-            )
-            self._run_script(local_stage_script, transfer_env, cwd=workspace_dir)
-            self._run_script(local_transfer_script, transfer_env, cwd=workspace_dir)
-            self._write_session_export(
-                transfer_dir, session_id, core.export_session(session)
-            )
-            self._write_runtime_config_transfer(
-                app,
-                transfer_dir,
-                state,
-                selected_agent_id=selected_agent_id,
-            )
-            self._write_cloud_runtime_scripts(
-                transfer_dir,
-                state,
-                workspace_dir,
-                session_id=session_id,
-            )
-
-            key_paths = self._create_transfer_keypair(transfer_dir)
-
-            transfer = self._post_json(
-                orchestrator_url,
-                "/transfers",
-                self._transfer_create_payload(
-                    state, direction="upload", public_key=key_paths["public_key"]
-                ),
-                token=state.get("orchestrator_token"),
-            )
-
-            transfer_id = str(transfer["transfer_id"])
-            self._run_managed_ssh_adapter(
-                state,
-                transfer,
-                transfer_dir,
-                key_paths["private_key_path"],
-                direction="upload",
-                cwd=workspace_dir,
-            )
-            self._post_json(
-                orchestrator_url,
-                f"/transfers/{transfer_id}/ready",
-                {},
-                token=state.get("orchestrator_token"),
-            )
-
-            instance = self._post_json(
-                orchestrator_url,
-                "/instances",
-                {
-                    "connection_ref": {
-                        "connection_key": self._connection_key(
-                            app, state, workspace_dir=workspace_dir
-                        ),
-                        "reuse": True,
-                        "metadata": {"source": "cloud-agent-app"},
-                    },
-                    "session_id": session_id,
-                    "transfer_ref": {"transfer_id": transfer_id},
-                    "runtime_image": state.get("runtime_image"),
-                },
-                token=state.get("orchestrator_token"),
-            )
-
-        instance = self._wait_for_instance_ready(
-            orchestrator_url,
-            instance,
-            state,
-            timeout_seconds=self._start_action_timeout_seconds(state),
-        )
-        link = self._cloud_link(
-            orchestrator_url=orchestrator_url,
-            connection_id=instance.get("connection_id"),
-            instance_id=str(instance["instance_id"]),
-            session_id=session_id,
-            token=str(instance["token"]),
-        )
-        result = self._cloud_connection_result(
-            orchestrator_url=orchestrator_url,
-            instance=instance,
-            session_id=session_id,
-            token=str(instance["token"]),
-            link=link,
-        )
+        registry = self._cloud_operation_registry(app)
+        operation = registry.create(session_id=session_id)
+        operation_ref = str(operation["operation_ref"])
         self._save_cloud_agent_metadata(
             app,
             session_id,
-            self._cloud_agent_metadata(
-                orchestrator_url=orchestrator_url,
-                instance=instance,
-                session_id=session_id,
-                token=str(instance["token"]),
-                link=link,
-            ),
+            {
+                "operation_ref": operation_ref,
+                "orchestrator_url": orchestrator_url,
+                "session_id": session_id,
+                "state": "starting",
+                "startup_stage": "queued",
+                "operation_started_at": operation["created_at"],
+            },
         )
-        return self._with_session_reload(result, session_id)
+
+        worker = threading.Thread(
+            target=self._run_start_session_agent_operation,
+            name=f"cloud-agent-start-{session_id}",
+            args=(app, dict(params), dict(state), operation_ref),
+            daemon=True,
+        )
+        worker.start()
+        return self._with_session_reload(
+            self._cloud_operation_result(
+                orchestrator_url=orchestrator_url,
+                session_id=session_id,
+                operation_ref=operation_ref,
+                state="starting",
+                startup_stage="queued",
+            ),
+            session_id,
+        )
+
+    def _run_start_session_agent_operation(
+        self,
+        app: Any,
+        params: Dict[str, Any],
+        state: Dict[str, Any],
+        operation_ref: str,
+    ) -> None:
+        session_id = str(params["session_id"])
+        orchestrator_url = self._required_config(state, "orchestrator_url")
+        registry = self._cloud_operation_registry(app)
+        try:
+            self._update_cloud_operation(
+                app,
+                session_id,
+                operation_ref,
+                state="starting",
+                startup_stage="preparing_transfer",
+            )
+            loaded = app.load_session(session_id)
+            if loaded is None:
+                raise KeyError(f"Session {session_id!r} not found")
+            core, _base_config, session = loaded
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            selected_agent_id = metadata.get("agent_id")
+            if not isinstance(selected_agent_id, str) or not selected_agent_id.strip():
+                selected_agent_id = None
+
+            workspace_dir = self._workspace_dir(params, state)
+            cloud_workspace_dir = CLOUD_WORKSPACE_DIR
+            local_stage_script = state.get("local_stage_script")
+            local_transfer_script = self._required_script_config(
+                state, "local_transfer_script", legacy_key="transfer_script"
+            )
+
+            with tempfile.TemporaryDirectory(
+                prefix="cloud-agent-transfer-"
+            ) as transfer_tmp:
+                transfer_dir = Path(transfer_tmp)
+                self._transfer_stage_dir(transfer_dir).mkdir(
+                    parents=True, exist_ok=True
+                )
+                transfer_env = self._script_env(
+                    app=app,
+                    state=state,
+                    workspace_dir=workspace_dir,
+                    cloud_workspace_dir=cloud_workspace_dir,
+                    transfer_dir=transfer_dir,
+                    session_id=session_id,
+                )
+                self._update_cloud_operation(
+                    app,
+                    session_id,
+                    operation_ref,
+                    state="starting",
+                    startup_stage="local_stage",
+                )
+                self._run_script(local_stage_script, transfer_env, cwd=workspace_dir)
+                self._update_cloud_operation(
+                    app,
+                    session_id,
+                    operation_ref,
+                    state="starting",
+                    startup_stage="local_transfer",
+                )
+                self._run_script(local_transfer_script, transfer_env, cwd=workspace_dir)
+                self._write_session_export(
+                    transfer_dir, session_id, core.export_session(session)
+                )
+                self._write_runtime_config_transfer(
+                    app,
+                    transfer_dir,
+                    state,
+                    selected_agent_id=selected_agent_id,
+                )
+                self._write_cloud_runtime_scripts(
+                    transfer_dir,
+                    state,
+                    workspace_dir,
+                    session_id=session_id,
+                )
+
+                key_paths = self._create_transfer_keypair(transfer_dir)
+
+                self._update_cloud_operation(
+                    app,
+                    session_id,
+                    operation_ref,
+                    state="starting",
+                    startup_stage="creating_transfer",
+                )
+                transfer = self._post_json(
+                    orchestrator_url,
+                    "/transfers",
+                    self._transfer_create_payload(
+                        state, direction="upload", public_key=key_paths["public_key"]
+                    ),
+                    token=state.get("orchestrator_token"),
+                )
+
+                transfer_id = str(transfer["transfer_id"])
+                self._update_cloud_operation(
+                    app,
+                    session_id,
+                    operation_ref,
+                    state="starting",
+                    startup_stage="uploading_transfer",
+                    transfer_id=transfer_id,
+                )
+                self._run_managed_ssh_adapter(
+                    state,
+                    transfer,
+                    transfer_dir,
+                    key_paths["private_key_path"],
+                    direction="upload",
+                    cwd=workspace_dir,
+                )
+                self._post_json(
+                    orchestrator_url,
+                    f"/transfers/{transfer_id}/ready",
+                    {},
+                    token=state.get("orchestrator_token"),
+                )
+
+                self._update_cloud_operation(
+                    app,
+                    session_id,
+                    operation_ref,
+                    state="starting",
+                    startup_stage="creating_instance",
+                    transfer_id=transfer_id,
+                )
+                instance = self._post_json(
+                    orchestrator_url,
+                    "/instances",
+                    {
+                        "connection_ref": {
+                            "connection_key": self._connection_key(
+                                app, state, workspace_dir=workspace_dir
+                            ),
+                            "reuse": True,
+                            "metadata": {"source": "cloud-agent-app"},
+                        },
+                        "session_id": session_id,
+                        "transfer_ref": {"transfer_id": transfer_id},
+                        "runtime_image": state.get("runtime_image"),
+                    },
+                    token=state.get("orchestrator_token"),
+                )
+
+            if "token" not in instance and registry.get(operation_ref):
+                operation = registry.get(operation_ref) or {}
+                if "token" in operation:
+                    instance["token"] = operation["token"]
+            token = str(instance.get("token") or "")
+            link = self._cloud_link(
+                orchestrator_url=orchestrator_url,
+                connection_id=instance.get("connection_id"),
+                instance_id=str(instance["instance_id"]),
+                session_id=session_id,
+                token=token,
+            )
+            self._update_cloud_operation(
+                app,
+                session_id,
+                operation_ref,
+                state=str(instance.get("state") or "starting"),
+                startup_stage=str(instance.get("startup_stage") or "instance_created"),
+                instance_id=str(instance["instance_id"]),
+                connection_id=instance.get("connection_id"),
+                token=token,
+                connection_link=link,
+            )
+            self._save_cloud_agent_metadata(
+                app,
+                session_id,
+                self._cloud_agent_metadata(
+                    orchestrator_url=orchestrator_url,
+                    instance={**instance, "token": token},
+                    session_id=session_id,
+                    token=token,
+                    link=link,
+                    operation_ref=operation_ref,
+                ),
+            )
+
+            instance = self._wait_for_instance_ready(
+                orchestrator_url,
+                {**instance, "token": token},
+                state,
+                timeout_seconds=self._startup_poll_timeout_seconds(state),
+            )
+            token = str(instance.get("token") or token)
+            link = self._cloud_link(
+                orchestrator_url=orchestrator_url,
+                connection_id=instance.get("connection_id"),
+                instance_id=str(instance["instance_id"]),
+                session_id=session_id,
+                token=token,
+            )
+            self._update_cloud_operation(
+                app,
+                session_id,
+                operation_ref,
+                state=str(instance.get("state") or "starting"),
+                startup_stage=str(instance.get("startup_stage") or "ready"),
+                instance_id=str(instance["instance_id"]),
+                connection_id=instance.get("connection_id"),
+                token=token,
+                connection_link=link,
+            )
+            self._save_cloud_agent_metadata(
+                app,
+                session_id,
+                self._cloud_agent_metadata(
+                    orchestrator_url=orchestrator_url,
+                    instance={**instance, "token": token},
+                    session_id=session_id,
+                    token=token,
+                    link=link,
+                    operation_ref=operation_ref,
+                ),
+            )
+        except Exception as exc:
+            _log.exception(
+                "cloud_start_operation_failed",
+                session_id=session_id,
+                operation_ref=operation_ref,
+            )
+            self._update_cloud_operation(
+                app,
+                session_id,
+                operation_ref,
+                state="failed",
+                startup_stage="failed",
+                startup_error=exc.__class__.__name__,
+                startup_error_detail=str(exc),
+            )
 
     def _check_session_agent(
         self, app: Any, params: Dict[str, Any], state: Dict[str, Any]
     ) -> Dict[str, Any]:
         orchestrator_url = self._required_config(state, "orchestrator_url")
-        instance_id = str(params["instance_id"])
+        session_id = str(params.get("session_id") or "")
+        loaded = app.load_session(session_id) if session_id else None
+        session_metadata: Dict[str, Any] = {}
+        cloud_agent: Dict[str, Any] = {}
+        if loaded is not None:
+            _core, _base_config, session = loaded
+            session_metadata = (
+                session.metadata if isinstance(session.metadata, dict) else {}
+            )
+            cloud_agent = session_metadata.get(CLOUD_AGENT_METADATA_KEY)
+            cloud_agent = cloud_agent if isinstance(cloud_agent, dict) else {}
+        instance_id = str(
+            params.get("instance_id") or cloud_agent.get("instance_id") or ""
+        )
+        if not instance_id:
+            operation_ref = str(cloud_agent.get("operation_ref") or "")
+            registry = self._cloud_operation_registry(app)
+            operation = registry.get(operation_ref) if operation_ref else None
+            result = self._cloud_operation_result(
+                orchestrator_url=orchestrator_url,
+                session_id=session_id,
+                operation_ref=operation_ref,
+                state=str(
+                    (operation or {}).get("state")
+                    or cloud_agent.get("state")
+                    or "starting"
+                ),
+                startup_stage=str(
+                    (operation or {}).get("startup_stage")
+                    or cloud_agent.get("startup_stage")
+                    or "queued"
+                ),
+                startup_error=(operation or {}).get("startup_error")
+                or cloud_agent.get("startup_error"),
+                startup_error_detail=(operation or {}).get("startup_error_detail")
+                or cloud_agent.get("startup_error_detail"),
+            )
+            return self._with_session_reload(result, session_id)
+
         instance = self._get_json(
             orchestrator_url,
             f"/instances/{instance_id}",
             token=state.get("orchestrator_token"),
         )
-        session_id = str(params.get("session_id") or instance.get("session_id") or "")
-        token = str(params.get("token") or instance.get("token") or "")
+        session_id = session_id or str(instance.get("session_id") or "")
+        token = str(
+            cloud_agent.get("token")
+            or params.get("token")
+            or instance.get("token")
+            or ""
+        )
         link = (
             self._cloud_link(
                 orchestrator_url=orchestrator_url,
@@ -468,6 +692,11 @@ class CloudAgentAppPlugin:
                     session_id=session_id,
                     token=token,
                     link=link,
+                    operation_ref=(
+                        str(cloud_agent.get("operation_ref"))
+                        if cloud_agent.get("operation_ref")
+                        else None
+                    ),
                 ),
             )
         return self._with_session_reload(result, session_id)
@@ -644,6 +873,58 @@ class CloudAgentAppPlugin:
                 metadata=next_metadata,
             )
         }
+
+    def _cloud_operation_registry(self, app: Any) -> CloudAgentOperationRegistry:
+        get_runtime_store = getattr(app, "get_runtime_store", None)
+        if not callable(get_runtime_store):
+            return CloudAgentOperationRegistry()
+        store = get_runtime_store()
+        get_or_create = getattr(store, "get_or_create", None)
+        if callable(get_or_create):
+            return get_or_create(
+                CLOUD_AGENT_OPERATION_STORE_KEY, CloudAgentOperationRegistry
+            )
+        existing = (
+            store.get(CLOUD_AGENT_OPERATION_STORE_KEY)
+            if hasattr(store, "get")
+            else None
+        )
+        if isinstance(existing, CloudAgentOperationRegistry):
+            return existing
+        registry = CloudAgentOperationRegistry()
+        if hasattr(store, "set"):
+            store.set(CLOUD_AGENT_OPERATION_STORE_KEY, registry)
+        return registry
+
+    def _update_cloud_operation(
+        self,
+        app: Any,
+        session_id: str,
+        operation_ref: str,
+        **updates: Any,
+    ) -> Dict[str, Any]:
+        registry = self._cloud_operation_registry(app)
+        operation = registry.update(operation_ref, session_id=session_id, **updates)
+        metadata_update = {
+            key: value
+            for key, value in operation.items()
+            if key
+            in {
+                "operation_ref",
+                "session_id",
+                "state",
+                "startup_stage",
+                "startup_error",
+                "startup_error_detail",
+                "transfer_id",
+                "instance_id",
+                "connection_id",
+                "connection_link",
+            }
+            and value is not None
+        }
+        self._save_cloud_agent_metadata(app, session_id, metadata_update)
+        return operation
 
     def _required_config(self, state: Dict[str, Any], key: str) -> str:
         value = state.get(key)
@@ -1508,6 +1789,7 @@ class CloudAgentAppPlugin:
         session_id: str,
         token: str,
         link: Optional[str],
+        operation_ref: Optional[str] = None,
     ) -> Dict[str, Any]:
         instance_id = str(instance["instance_id"])
         connection_id = instance.get("connection_id")
@@ -1524,6 +1806,8 @@ class CloudAgentAppPlugin:
             metadata["token"] = token
         if link:
             metadata["connection_link"] = link
+        if operation_ref:
+            metadata["operation_ref"] = operation_ref
         for key in (
             "startup_stage",
             "startup_error",
@@ -1641,6 +1925,59 @@ class CloudAgentAppPlugin:
         next_result["ui_effects"] = ui_effects
         return next_result
 
+    def _cloud_operation_result(
+        self,
+        *,
+        orchestrator_url: str,
+        session_id: str,
+        operation_ref: str,
+        state: str,
+        startup_stage: str,
+        startup_error: Any = None,
+        startup_error_detail: Any = None,
+    ) -> Dict[str, Any]:
+        if state == "failed":
+            title = "Cloud Agent Startup Failed"
+            variant = "error"
+            body = self._failure_body(
+                startup_stage, startup_error, startup_error_detail
+            )
+        else:
+            title = "Cloud Agent Starting"
+            variant = "warning"
+            body = (
+                f"The cloud startup operation is in progress. Current stage: "
+                f"`{startup_stage or 'queued'}`."
+            )
+        if operation_ref:
+            body += f"\n\nOperation ref: `{operation_ref}`."
+
+        return {
+            "status": "ok",
+            "state": state,
+            "session_id": session_id,
+            "operation_ref": operation_ref,
+            "display": {
+                "format": "markdown",
+                "title": title,
+                "body": body,
+                "variant": variant,
+                "actions": [
+                    {
+                        "kind": "run_action",
+                        "id": "refresh-cloud-agent-status",
+                        "label": "Refresh status",
+                        "plugin": "cloud",
+                        "action_id": "cloud.check_session_agent",
+                        "action_owner": "application",
+                        "fixed_params": {
+                            "session_id": session_id,
+                        },
+                    }
+                ],
+            },
+        }
+
     def _cloud_connection_result(
         self,
         *,
@@ -1662,15 +1999,20 @@ class CloudAgentAppPlugin:
         if state == "running":
             title = "Cloud Agent Ready"
             variant = "success"
-            body = "The cloud session is ready."
+            body = f"The cloud session is ready.\n\nInstance ID: `{instance['instance_id']}`."
         elif state == "failed":
             title = "Cloud Agent Startup Failed"
             variant = "error"
             body = self._failure_body(startup_stage, startup_error, startup_detail)
+            body += f"\n\nInstance ID: `{instance['instance_id']}`."
         else:
             title = "Cloud Agent Starting"
             variant = "warning"
-            body = f"The cloud runtime is starting. Current stage: `{startup_stage or 'starting'}`."
+            body = (
+                f"The cloud runtime is starting. Current stage: "
+                f"`{startup_stage or 'starting'}`.\n\n"
+                f"Instance ID: `{instance['instance_id']}`."
+            )
 
         actions: List[Dict[str, Any]] = []
         if link:
@@ -1699,9 +2041,7 @@ class CloudAgentAppPlugin:
                 "action_id": "cloud.check_session_agent",
                 "action_owner": "application",
                 "fixed_params": {
-                    "instance_id": instance["instance_id"],
                     "session_id": session_id,
-                    "token": token,
                 },
             }
         )
