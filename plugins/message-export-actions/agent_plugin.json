@@ -3,10 +3,12 @@
   "subdirectory": ".",
   "entries": [
     "message_export_actions.MessageSendToKindleAppPlugin",
-    "message_export_actions.MessageShareAsPdfAppPlugin"
+    "message_export_actions.MessageShareAsPdfAppPlugin",
+    "message_export_actions.MessageShareAsMarkdownAppPlugin"
   ],
   "kinds": {
     "message_export_actions.MessageSendToKindleAppPlugin": "application",
-    "message_export_actions.MessageShareAsPdfAppPlugin": "application"
+    "message_export_actions.MessageShareAsPdfAppPlugin": "application",
+    "message_export_actions.MessageShareAsMarkdownAppPlugin": "application"
   }
 }

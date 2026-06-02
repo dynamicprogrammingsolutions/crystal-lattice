@@ -9,12 +9,14 @@ from .export_utils import (
     DEFAULT_LUA_FILTER_PATH,
     DEFAULT_TOC_DEPTH,
     PDF_ENGINE_AUTO,
+    PDF_STYLE_WEB,
     build_message_export_context,
     build_session_export_context,
     convert_markdown_to_epub,
     convert_markdown_to_pdf,
     ensure_suffix,
     normalize_pdf_engine,
+    normalize_pdf_style,
     render_message_markdown,
     render_session_markdown,
     slugify_filename_stem,
@@ -97,6 +99,157 @@ def _read_session_title(session: Any, state: Dict[str, Any]) -> str | None:
     return None
 
 
+def _download_attachment(
+    app: "AgentApplication",
+    *,
+    session_id: str,
+    asset_id: str,
+) -> Dict[str, Any]:
+    if not session_id or not asset_id:
+        return _error("Missing required download parameters.")
+    try:
+        asset_store = app.get_session_asset_store()
+        record = asset_store.load(session_id, asset_id)
+        payload = asset_store.load_bytes(session_id, asset_id)
+    except Exception as exc:
+        return _error(str(exc))
+    return {
+        "status": "ok",
+        "attachment_asset": record.public_descriptor(),
+        "data_base64": base64.b64encode(payload).decode("ascii"),
+        "message": f"Downloaded attachment {asset_id}",
+    }
+
+
+def _store_generated_file(
+    app: "AgentApplication",
+    *,
+    plugin_name: str,
+    session_id: str,
+    filename: str,
+    mime_type: str,
+    payload: bytes,
+    metadata: Dict[str, Any],
+) -> Any:
+    return app.get_session_asset_store().store_base64(
+        session_id=session_id,
+        attachment_type=metadata.get("attachment_type", "generated_file"),
+        filename=filename,
+        mime_type=mime_type,
+        data_base64=base64.b64encode(payload).decode("ascii"),
+        metadata={"generated_by": plugin_name, **metadata},
+    )
+
+
+def _download_display(
+    *,
+    plugin_name: str,
+    session_id: str,
+    asset_id: str,
+    filename: str,
+    mime_type: str,
+    title: str,
+    body: str,
+    action_id: str,
+    action_label: str,
+) -> Dict[str, Any]:
+    return {
+        "format": "text",
+        "title": title,
+        "body": body,
+        "variant": "success",
+        "presentation": "modal",
+        "dismissible": True,
+        "actions": [
+            {
+                "kind": "download_attachment_asset",
+                "id": action_id,
+                "label": action_label,
+                "session_id": session_id,
+                "asset_id": asset_id,
+                "filename": filename,
+                "mime_type": mime_type,
+                "plugin": plugin_name,
+                "action_owner": "application",
+                "behavior": "platform_default",
+            }
+        ],
+    }
+
+
+def _message_export_inputs() -> List[Dict[str, Any]]:
+    return [
+        {
+            "name": "title",
+            "type": "string",
+            "label": "Title",
+            "required": False,
+            "submit_empty": True,
+            "placeholder": "Optional document title",
+        },
+        {
+            "name": "filename",
+            "type": "string",
+            "label": "Filename",
+            "required": False,
+            "submit_empty": True,
+            "placeholder": "Optional filename",
+        },
+    ]
+
+
+def _render_export_markdown(
+    app: "AgentApplication",
+    *,
+    session_id: str,
+    state: Dict[str, Any],
+    raw_title: str,
+    action_id: str,
+    message_index: Any = None,
+) -> tuple[str, str, str, str, Dict[str, Any], Dict[str, Any]]:
+    if action_id.endswith("_session_as_pdf") or action_id.endswith("_session_as_markdown"):
+        session, effective_config, _base_config = _load_session(app, session_id=session_id)
+        session_title = _read_session_title(session, state)
+        export_context = build_session_export_context(
+            session_id=session_id,
+            session_title=session_title,
+            messages=list(getattr(session, "messages", []) or []),
+        )
+        title = raw_title or export_context.default_title
+        markdown_text = render_session_markdown(export_context, title=title)
+        return (
+            title,
+            markdown_text,
+            export_context.default_filename_stem,
+            "session",
+            effective_config,
+            {"scope": "session"},
+        )
+
+    if not isinstance(message_index, int):
+        raise ValueError("Missing required message export parameters.")
+    _session, effective_config, message, _base_config = _load_session_message(
+        app,
+        session_id=session_id,
+        message_index=message_index,
+    )
+    export_context = build_message_export_context(
+        session_id=session_id,
+        message_index=message_index,
+        message=message,
+    )
+    title = raw_title or export_context.default_title
+    markdown_text = render_message_markdown(export_context, title=title)
+    return (
+        title,
+        markdown_text,
+        export_context.default_filename_stem,
+        f"message {message_index}",
+        effective_config,
+        {"message_index": message_index},
+    )
+
+
 class MessageSendToKindleAppPlugin:
     name = "message_send_to_kindle"
     version = "0.1.0"
@@ -108,7 +261,13 @@ class MessageSendToKindleAppPlugin:
                 "required": False,
                 "default": "title",
                 "description": "Metadata key used for reading a session title when building session exports.",
-            }
+            },
+            "message_export_pdf_style": {
+                "type": "string",
+                "required": False,
+                "default": "web",
+                "description": "PDF visual style. Supported values: web, classic.",
+            },
         }
 
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -474,17 +633,9 @@ class MessageShareAsPdfAppPlugin:
             if not session_id or not asset_id:
                 return _error("Missing required download parameters.")
             try:
-                asset_store = app.get_session_asset_store()
-                record = asset_store.load(session_id, asset_id)
-                payload = asset_store.load_bytes(session_id, asset_id)
+                return _download_attachment(app, session_id=session_id, asset_id=asset_id)
             except Exception as exc:
                 return _error(str(exc))
-            return {
-                "status": "ok",
-                "attachment_asset": record.public_descriptor(),
-                "data_base64": base64.b64encode(payload).decode("ascii"),
-                "message": f"Downloaded attachment {asset_id}",
-            }
         if action_id not in {"share_as_pdf", "share_session_as_pdf"}:
             return _error(f"Unknown action_id {action_id!r}")
 
@@ -495,36 +646,14 @@ class MessageShareAsPdfAppPlugin:
             return _error("Missing required PDF export parameters.")
 
         try:
-            if action_id == "share_as_pdf":
-                message_index = params.get("message_index")
-                if not isinstance(message_index, int):
-                    return _error("Missing required PDF export parameters.")
-                _session, effective_config, message, _base_config = _load_session_message(
-                    app,
-                    session_id=session_id,
-                    message_index=message_index,
-                )
-                export_context = build_message_export_context(
-                    session_id=session_id,
-                    message_index=message_index,
-                    message=message,
-                )
-                title = raw_title or export_context.default_title
-                markdown_text = render_message_markdown(export_context, title=title)
-                default_filename_stem = export_context.default_filename_stem
-                body_message_target = f"message {message_index}"
-            else:
-                session, effective_config, _base_config = _load_session(app, session_id=session_id)
-                session_title = _read_session_title(session, state)
-                export_context = build_session_export_context(
-                    session_id=session_id,
-                    session_title=session_title,
-                    messages=list(getattr(session, "messages", []) or []),
-                )
-                title = raw_title or export_context.default_title
-                markdown_text = render_session_markdown(export_context, title=title)
-                default_filename_stem = export_context.default_filename_stem
-                body_message_target = "session"
+            title, markdown_text, default_filename_stem, body_message_target, effective_config, asset_metadata = _render_export_markdown(
+                app,
+                session_id=session_id,
+                state=state,
+                raw_title=raw_title,
+                action_id=action_id,
+                message_index=params.get("message_index"),
+            )
             if raw_filename:
                 filename = ensure_suffix(raw_filename, ".pdf")
             elif raw_title:
@@ -545,18 +674,18 @@ class MessageShareAsPdfAppPlugin:
                 engine_setting=normalize_pdf_engine(
                     effective_config.get("message_export_pdf_engine", PDF_ENGINE_AUTO)
                 ),
+                style_setting=normalize_pdf_style(
+                    effective_config.get("message_export_pdf_style", PDF_STYLE_WEB)
+                ),
             )
-            record = app.get_session_asset_store().store_base64(
+            record = _store_generated_file(
+                app,
                 session_id=session_id,
-                attachment_type="pdf",
+                plugin_name=self.name,
                 filename=filename,
                 mime_type="application/pdf",
-                data_base64=base64.b64encode(output_path.read_bytes()).decode("ascii"),
-                metadata=(
-                    {"generated_by": self.name, "message_index": message_index}
-                    if action_id == "share_as_pdf"
-                    else {"generated_by": self.name, "scope": "session"}
-                ),
+                payload=output_path.read_bytes(),
+                metadata={"attachment_type": "pdf", **asset_metadata},
             )
         except Exception as exc:
             return _error(str(exc))
@@ -572,32 +701,200 @@ class MessageShareAsPdfAppPlugin:
             "status": "ok",
             "attachment_asset": record.public_descriptor(),
             "engine": engine_used,
-            "display": {
-                "format": "text",
-                "title": "PDF ready",
-                "body": f"Generated {filename} from {body_message_target} using {engine_used}.",
-                "variant": "success",
-                "presentation": "modal",
-                "dismissible": True,
-                "actions": [
-                    {
-                        "kind": "download_attachment_asset",
-                        "id": "open_generated_pdf",
-                        "label": "Open PDF",
-                        "session_id": session_id,
-                        "asset_id": record.asset_id,
-                        "filename": filename,
-                        "mime_type": "application/pdf",
-                        "plugin": self.name,
-                        "action_owner": "application",
-                        "behavior": "platform_default",
-                    }
-                ],
+            "display": _download_display(
+                plugin_name=self.name,
+                session_id=session_id,
+                asset_id=record.asset_id,
+                filename=filename,
+                mime_type="application/pdf",
+                title="PDF ready",
+                body=f"Generated {filename} from {body_message_target} using {engine_used}.",
+                action_id="open_generated_pdf",
+                action_label="Open PDF",
+            ),
+        }
+
+
+class MessageShareAsMarkdownAppPlugin:
+    name = "message_share_as_markdown"
+    version = "0.1.0"
+
+    def get_config_schema(self) -> Dict[str, Any]:
+        return {
+            "session_title_metadata_key": {
+                "type": "string",
+                "required": False,
+                "default": "title",
+                "description": "Metadata key used for reading a session title when building session exports.",
+            }
+        }
+
+    def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
+        application_cfg = app_config.get("application")
+        if not isinstance(application_cfg, dict):
+            application_cfg = {}
+        raw_key = application_cfg.get("session_title_metadata_key")
+        metadata_key = raw_key.strip() if isinstance(raw_key, str) and raw_key.strip() else "title"
+        return {"session_title_metadata_key": metadata_key}
+
+    def get_ui_elements(
+        self,
+        state: Dict[str, Any],
+        config: Optional[Dict[str, Any]] = None,
+        tags: Optional[List[str]] = None,
+        models: Optional[List[Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
+        _ = state, config, tags, models
+        return [
+            {
+                "ui_type": "message_action",
+                "id": "message_share_as_markdown",
+                "label": "Share as Markdown",
+                "icon": "file-text",
+                "action_id": "share_as_markdown",
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "message_index": "$message.index",
+                    "title": "$dialog.title",
+                    "filename": "$dialog.filename",
+                },
+                "dialog": {
+                    "kind": "form",
+                    "title": "Share as Markdown",
+                    "message": "Optionally customize the document title and filename.",
+                    "inputs": _message_export_inputs(),
+                },
             },
+            {
+                "ui_type": "session_action",
+                "id": "session_share_as_markdown",
+                "label": "Share Session as Markdown",
+                "icon": "file-text",
+                "action_id": "share_session_as_markdown",
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "title": "$dialog.title",
+                    "filename": "$dialog.filename",
+                },
+                "dialog": {
+                    "kind": "form",
+                    "title": "Share Session as Markdown",
+                    "message": "Optionally customize the document title and filename.",
+                    "inputs": _message_export_inputs(),
+                },
+            },
+        ]
+
+    def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        _ = state
+        return [
+            {
+                "id": "share_as_markdown",
+                "label": "Share as Markdown",
+                "description": "Export one message as Markdown and return a follow-up action for save/share.",
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
+                    "message_index": {"type": "integer", "required": True},
+                    "title": {"type": "string", "required": False, "default": ""},
+                    "filename": {"type": "string", "required": False, "default": ""},
+                },
+            },
+            {
+                "id": "share_session_as_markdown",
+                "label": "Share Session as Markdown",
+                "description": "Export user and assistant session messages as Markdown and return a follow-up action for save/share.",
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
+                    "title": {"type": "string", "required": False, "default": ""},
+                    "filename": {"type": "string", "required": False, "default": ""},
+                },
+            },
+            {
+                "id": "download_attachment",
+                "label": "Download generated Markdown",
+                "description": "Download a generated Markdown file stored as a session asset.",
+                "inputs": {
+                    "session_id": {"type": "string", "required": True},
+                    "asset_id": {"type": "string", "required": True},
+                },
+            },
+        ]
+
+    def execute_action(
+        self,
+        app: "AgentApplication",
+        action_id: str,
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+        state: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        _ = context
+        if action_id == "download_attachment":
+            return _download_attachment(
+                app,
+                session_id=str(params.get("session_id") or ""),
+                asset_id=str(params.get("asset_id") or ""),
+            )
+        if action_id not in {"share_as_markdown", "share_session_as_markdown"}:
+            return _error(f"Unknown action_id {action_id!r}")
+
+        session_id = str(params.get("session_id") or "")
+        raw_title = str(params.get("title") or "").strip()
+        raw_filename = str(params.get("filename") or "").strip()
+        if not session_id:
+            return _error("Missing required Markdown export parameters.")
+
+        try:
+            title, markdown_text, default_filename_stem, body_message_target, _effective_config, asset_metadata = _render_export_markdown(
+                app,
+                session_id=session_id,
+                state=state,
+                raw_title=raw_title,
+                action_id=action_id,
+                message_index=params.get("message_index"),
+            )
+            if raw_filename:
+                filename = ensure_suffix(raw_filename, ".md")
+            elif raw_title:
+                filename = ensure_suffix(
+                    slugify_filename_stem(raw_title, fallback=default_filename_stem),
+                    ".md",
+                )
+            else:
+                filename = f"{default_filename_stem}.md"
+
+            payload = markdown_text.encode("utf-8")
+            record = _store_generated_file(
+                app,
+                plugin_name=self.name,
+                session_id=session_id,
+                filename=filename,
+                mime_type="text/markdown",
+                payload=payload,
+                metadata={"attachment_type": "markdown", **asset_metadata},
+            )
+        except Exception as exc:
+            return _error(str(exc))
+
+        return {
+            "status": "ok",
+            "attachment_asset": record.public_descriptor(),
+            "display": _download_display(
+                plugin_name=self.name,
+                session_id=session_id,
+                asset_id=record.asset_id,
+                filename=filename,
+                mime_type="text/markdown",
+                title="Markdown ready",
+                body=f"Generated {filename} from {body_message_target}.",
+                action_id="open_generated_markdown",
+                action_label="Open Markdown",
+            ),
         }
 
 
 __all__ = [
     "MessageSendToKindleAppPlugin",
     "MessageShareAsPdfAppPlugin",
+    "MessageShareAsMarkdownAppPlugin",
 ]
