@@ -13,7 +13,11 @@ import subprocess
 import sys
 import textwrap
 
-from agent_app.plugin_sources.install import InstallRequest, PipTargetInstallStrategy
+from agent_app.plugin_sources.install import (
+    InstallRequest,
+    PipTargetInstallStrategy,
+    PluginInstallError,
+)
 from agent_app.plugin_sources.descriptor import read_descriptor
 from agent_app.plugin_manager import PluginManager
 
@@ -323,29 +327,94 @@ def test_activate_sys_path_evicts_stale_imported_modules(tmp_path: Path) -> None
             sys.modules.pop("shadowpkg.sub", None)
 
 
-def test_bundled_localpath_source_activates_source_tree_without_pip(
+def test_non_preinstalled_bundled_localpath_source_installs_to_cache(
     tmp_path: Path, monkeypatch
 ) -> None:
     bundled_root = tmp_path / "bundled_plugins"
     plugin = bundled_root / "pluginrepo"
-    shared = bundled_root / "sharedpkg"
     plugin_pkg = plugin / "src" / "pluginrepo"
-    shared_pkg = shared / "src" / "sharedpkg"
     plugin_pkg.mkdir(parents=True, exist_ok=True)
-    shared_pkg.mkdir(parents=True, exist_ok=True)
-    (plugin / "pyproject.toml").write_text("", encoding="utf-8")
-    (shared / "pyproject.toml").write_text("", encoding="utf-8")
-    (plugin_pkg / "__init__.py").write_text("", encoding="utf-8")
-    (shared_pkg / "__init__.py").write_text("VALUE = 11\n", encoding="utf-8")
+    (plugin / "pyproject.toml").write_text(
+        textwrap.dedent(
+            """
+            [build-system]
+            requires = ["setuptools>=61.0", "wheel"]
+            build-backend = "setuptools.build_meta"
 
-    installer = PipTargetInstallStrategy()
+            [project]
+            name = "pluginrepo"
+            version = "0.0.1"
+
+            [tool.setuptools]
+            package-dir = {"" = "src"}
+
+            [tool.setuptools.packages.find]
+            where = ["src"]
+            """
+        ),
+        encoding="utf-8",
+    )
+    (plugin_pkg / "__init__.py").write_text("", encoding="utf-8")
+    (plugin_pkg / "tool_mod.py").write_text(
+        textwrap.dedent(
+            """
+            class BundledTool:
+                name = "bundled_tool"
+
+                def init(self, config):
+                    return {}
+
+                def get_tool_schemas(self, state):
+                    return []
+            """
+        ),
+        encoding="utf-8",
+    )
+    (plugin / "agent_plugin.json").write_text(
+        json.dumps({"entries": ["pluginrepo.tool_mod.BundledTool"]}),
+        encoding="utf-8",
+    )
+
     original_sys_path = list(sys.path)
     monkeypatch.setenv("BUILTIN_PLUGINS", str(bundled_root))
 
     try:
-        install_dir = installer.ensure_installed(
+        mgr = PluginManager(cache_dir=tmp_path / "cache")
+        res = mgr.resolve_all([f"path:{plugin}"])
+
+        assert res.errors == []
+        assert [getattr(cls, "__name__", "") for cls in res.classes] == ["BundledTool"]
+        assert next((tmp_path / "cache").glob("pluginrepo@*")).is_dir()
+    finally:
+        sys.path[:] = original_sys_path
+
+
+def test_non_preinstalled_bundled_installer_uses_pip_with_dependencies(
+    tmp_path: Path, monkeypatch
+) -> None:
+    bundled_root = tmp_path / "bundled_plugins"
+    plugin = bundled_root / "pluginrepo"
+    plugin.mkdir(parents=True)
+    (plugin / "pyproject.toml").write_text("", encoding="utf-8")
+
+    cache_dir = tmp_path / "cache"
+    commands: list[list[str]] = []
+    original_sys_path = list(sys.path)
+    monkeypatch.setenv("BUILTIN_PLUGINS", str(bundled_root))
+
+    def fake_check_call(cmd):  # type: ignore[no-untyped-def]
+        commands.append(list(cmd))
+        target = Path(cmd[cmd.index("--target") + 1])
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "plugin_metadata.json").write_text("{}", encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+
+    try:
+        install_dir = PipTargetInstallStrategy().ensure_installed(
             InstallRequest(
-                cache_dir=tmp_path / "cache",
+                cache_dir=cache_dir,
                 safe_id="pluginrepo",
                 revision="rev",
                 project_dir=plugin,
@@ -353,13 +422,13 @@ def test_bundled_localpath_source_activates_source_tree_without_pip(
                 metadata={},
             )
         )
-
-        assert install_dir == plugin.resolve()
-        assert str(plugin / "src") in sys.path
-        assert str(shared / "src") in sys.path
-        assert not (tmp_path / "cache").exists()
     finally:
         sys.path[:] = original_sys_path
+
+    assert commands
+    assert commands[0][-1] == str(plugin)
+    assert "--no-deps" not in commands[0]
+    assert install_dir == cache_dir / "pluginrepo@rev"
 
 
 def test_non_bundled_builtin_plugins_path_still_installs_to_cache(
@@ -423,13 +492,13 @@ def test_preinstalled_descriptor_imports_without_source_tree(
         sys.path[:] = original_sys_path
 
     assert res.errors == []
-    assert [getattr(cls, "__name__", "") for cls in res.classes] == [
-        "PreinstalledTool"
-    ]
+    assert [getattr(cls, "__name__", "") for cls in res.classes] == ["PreinstalledTool"]
     assert not (tmp_path / "cache").exists()
 
 
-def test_plugin_manager_defaults_pip_cache_next_to_plugins_cache(tmp_path: Path) -> None:
+def test_plugin_manager_defaults_pip_cache_next_to_plugins_cache(
+    tmp_path: Path,
+) -> None:
     mgr = PluginManager(cache_dir=tmp_path / ".plugin_cache" / "plugins")
 
     assert mgr.policy["pip_cache_dir"] == str(tmp_path / ".plugin_cache" / "pip")
@@ -465,6 +534,62 @@ def test_pip_target_installer_uses_configured_pip_cache_dir(tmp_path: Path, monk
     assert "--cache-dir" in commands[0]
     assert commands[0][commands[0].index("--cache-dir") + 1] == str(pip_cache_dir)
     assert "--no-cache-dir" not in commands[0]
+
+
+def test_pip_target_installer_uses_plugin_python_override_when_frozen(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project_dir = _make_dev_repo(tmp_path)
+    cache_dir = tmp_path / ".plugin_cache" / "plugins"
+    commands: list[list[str]] = []
+    original_sys_path = list(sys.path)
+
+    def fake_check_call(cmd):  # type: ignore[no-untyped-def]
+        commands.append(list(cmd))
+        return 0
+
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setenv("CRYSTAL_PLUGIN_PYTHON", "/custom/python")
+    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
+    try:
+        PipTargetInstallStrategy().ensure_installed(
+            InstallRequest(
+                cache_dir=cache_dir,
+                safe_id="repo",
+                revision="rev",
+                project_dir=project_dir,
+                policy={"allow_dynamic_plugin_install": True},
+                metadata={},
+            )
+        )
+    finally:
+        sys.path[:] = original_sys_path
+
+    assert commands
+    assert commands[0][:3] == ["/custom/python", "-m", "pip"]
+
+
+def test_pip_target_installer_rejects_dynamic_install_in_frozen_runtime(
+    tmp_path: Path, monkeypatch
+) -> None:
+    project_dir = _make_dev_repo(tmp_path)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+
+    try:
+        PipTargetInstallStrategy().ensure_installed(
+            InstallRequest(
+                cache_dir=tmp_path / ".plugin_cache" / "plugins",
+                safe_id="repo",
+                revision="rev",
+                project_dir=project_dir,
+                policy={},
+                metadata={},
+            )
+        )
+    except PluginInstallError as exc:
+        assert "Dynamic plugin installation is not supported" in str(exc)
+    else:  # pragma: no cover - assertion guard
+        raise AssertionError("expected frozen runtime dynamic plugin install rejection")
 
 
 def test_pip_target_installer_uses_cache_for_local_dependency_metadata(

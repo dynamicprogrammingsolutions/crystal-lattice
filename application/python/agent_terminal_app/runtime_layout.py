@@ -47,6 +47,14 @@ class RuntimeLayout:
     def cloud_runtime_dockerfile(self) -> Path | None:
         return self.optional_bundle_path("cloud_runtime_dockerfile")
 
+    @property
+    def python_executable(self) -> Path | None:
+        return self.optional_bundle_path("python_executable")
+
+    @property
+    def bundle_script(self) -> Path | None:
+        return self.optional_bundle_path("bundle_script")
+
     def bundle_path(self, name: str) -> Path:
         return _resolve_bundle_path(self.manifest_dir, self.bundle_paths[name])
 
@@ -60,9 +68,13 @@ class RuntimeLayout:
         return _resolve_user_path(self.user_paths[name])
 
     def env_overrides(self) -> dict[str, str]:
-        return {
+        values = {
             "BUILTIN_PLUGINS": str(self.builtin_plugins),
         }
+        python_executable = self.python_executable
+        if python_executable is not None:
+            values["CRYSTAL_PLUGIN_PYTHON"] = str(python_executable)
+        return values
 
     def to_resolved_dict(self) -> dict[str, Any]:
         return {

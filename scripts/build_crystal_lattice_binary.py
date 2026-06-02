@@ -6,13 +6,21 @@ import json
 import os
 from pathlib import Path
 import platform
-import re
 import shutil
 import subprocess
 import sys
 import tarfile
-from typing import Iterable
 import zipfile
+
+from build_cloud_runtime_plugin_bundle import (
+    copy_local_project_sources,
+    copytree_sanitized,
+    discover_builtin_plugin_resource_paths as discover_builtin_plugin_resource_paths_for_config,
+    discover_selected_bundled_plugin_names as discover_selected_bundled_plugin_names_for_config,
+    resolve_local_project_names,
+    stage_cloud_runtime_plugin_bundle,
+    stage_preinstalled_plugin_metadata,
+)
 
 try:
     import tomllib
@@ -35,26 +43,6 @@ ASSET_STAGE_DIR = BUILD_DIR / "assets"
 RELEASES_DIR = ROOT / "dist" / "crystal-lattice"
 
 
-EXCLUDED_DIR_NAMES = {
-    ".git",
-    ".mypy_cache",
-    ".pytest_cache",
-    ".ruff_cache",
-    "__pycache__",
-    "build",
-    "dist",
-    "htmlcov",
-    "node_modules",
-    "tests",
-}
-EXCLUDED_FILE_SUFFIXES = {
-    ".log",
-    ".pyc",
-    ".pyo",
-}
-EXCLUDED_FILE_NAMES = {
-    ".coverage",
-}
 APP_DEFAULT_CONFIG_EXCLUDED_DIRS = {
     ".plugin_cache",
     "auth",
@@ -83,30 +71,78 @@ def main() -> None:
         action="store_true",
         help="build the onedir output but do not create a release archive",
     )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=None,
+        help=(
+            "config file used to select preinstalled plugins and bundled "
+            "config template files"
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="directory where release archives are written",
+    )
     args = parser.parse_args()
 
-    version = args.version or read_project_version()
-    platform_name = normalize_platform(args.platform_name or platform.system())
-    arch = normalize_arch(args.arch or platform.machine())
+    build_crystal_lattice_binary(
+        version=args.version,
+        platform_name=args.platform_name,
+        arch=args.arch,
+        skip_pyinstaller=args.skip_pyinstaller,
+        no_archive=args.no_archive,
+        config_path=args.config,
+        release_dir=args.output,
+    )
+
+
+def build_crystal_lattice_binary(
+    *,
+    version: str | None = None,
+    platform_name: str | None = None,
+    arch: str | None = None,
+    skip_pyinstaller: bool = False,
+    no_archive: bool = False,
+    config_path: Path | None = None,
+    release_dir: Path | None = None,
+) -> Path:
+    version = version or read_project_version()
+    platform_name = normalize_platform(platform_name or platform.system())
+    arch = normalize_arch(arch or platform.machine())
     target_id = f"{platform_name}-{arch}"
     archive_stem = f"crystal-lattice-cli-v{version}-{target_id}"
+    selected_config = (config_path or default_config_path()).expanduser().resolve()
 
-    selected_plugin_names = discover_selected_bundled_plugin_names()
-    builtin_resource_paths = discover_builtin_plugin_resource_paths()
-    prepare_staged_assets(selected_plugin_names, builtin_resource_paths)
+    selected_plugin_names = discover_selected_bundled_plugin_names(selected_config)
+    builtin_resource_paths = discover_builtin_plugin_resource_paths(selected_config)
+    prepare_staged_assets(
+        selected_plugin_names,
+        builtin_resource_paths,
+        selected_config=selected_config,
+    )
 
-    if not args.skip_pyinstaller:
+    if not skip_pyinstaller:
         install_selected_bundled_plugins(selected_plugin_names)
         run_pyinstaller()
 
     output_dir = APP_DIR / "dist" / "crystal-lattice"
     verify_output_tree(output_dir)
 
-    if not args.no_archive:
-        archive_path = create_archive(output_dir, archive_stem, platform_name)
+    if not no_archive:
+        archive_path = create_archive(
+            output_dir,
+            archive_stem,
+            platform_name,
+            release_dir=release_dir,
+        )
         print(f"Created release archive: {archive_path}")
+        return archive_path
     else:
         print(f"Built PyInstaller output: {output_dir}")
+        return output_dir
 
 
 def read_project_version() -> str:
@@ -139,9 +175,29 @@ def normalize_arch(raw: str) -> str:
     raise RuntimeError(f"Unsupported architecture: {raw}")
 
 
+def default_config_path() -> Path:
+    return APP_PACKAGE_DIR / "default_config" / "config.json"
+
+
+def discover_selected_bundled_plugin_names(config_path: Path | None = None) -> set[str]:
+    return discover_selected_bundled_plugin_names_for_config(
+        config_path or default_config_path(), PLUGINS_DIR
+    )
+
+
+def discover_builtin_plugin_resource_paths(
+    config_path: Path | None = None,
+) -> set[Path]:
+    return discover_builtin_plugin_resource_paths_for_config(
+        config_path or default_config_path(), PLUGINS_DIR
+    )
+
+
 def prepare_staged_assets(
     selected_plugin_names: set[str],
     builtin_resource_paths: set[Path],
+    *,
+    selected_config: Path | None = None,
 ) -> None:
     if ASSET_STAGE_DIR.exists():
         shutil.rmtree(ASSET_STAGE_DIR)
@@ -150,8 +206,13 @@ def prepare_staged_assets(
     staged_app = ASSET_STAGE_DIR / "agent_terminal_app"
     staged_app.mkdir(parents=True, exist_ok=True)
 
+    config_template_dir = (
+        selected_config.expanduser().resolve().parent
+        if selected_config is not None
+        else APP_PACKAGE_DIR / "default_config"
+    )
     copytree_sanitized(
-        APP_PACKAGE_DIR / "default_config",
+        config_template_dir,
         staged_app / "default_config",
         excluded_dir_names=APP_DEFAULT_CONFIG_EXCLUDED_DIRS,
     )
@@ -170,7 +231,10 @@ def prepare_staged_assets(
         selected_plugin_names=selected_plugin_names,
         builtin_resource_paths=builtin_resource_paths,
     )
-    prepare_cloud_runtime_build_context(ASSET_STAGE_DIR / CLOUD_RUNTIME_DIRNAME)
+    prepare_cloud_runtime_build_context(
+        ASSET_STAGE_DIR / CLOUD_RUNTIME_DIRNAME,
+        selected_config=selected_config,
+    )
 
     bundled_manifest = {
         "schema_version": 1,
@@ -204,49 +268,6 @@ def prepare_staged_assets(
     )
 
 
-def discover_selected_bundled_plugin_names() -> set[str]:
-    config_path = APP_PACKAGE_DIR / "default_config" / "config.json"
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    names: set[str] = set()
-    for value in iter_json_strings(config):
-        if not value.startswith("path:${env:BUILTIN_PLUGINS}/"):
-            continue
-        relative = value.removeprefix("path:${env:BUILTIN_PLUGINS}/")
-        name = relative.split("/", 1)[0]
-        if (PLUGINS_DIR / name / "agent_plugin.json").is_file():
-            names.add(name)
-    return names
-
-
-def discover_builtin_plugin_resource_paths() -> set[Path]:
-    config_path = APP_PACKAGE_DIR / "default_config" / "config.json"
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    paths: set[Path] = set()
-    pattern = re.compile(r"\$\{env:BUILTIN_PLUGINS\}/([^}\" ]+)")
-    for value in iter_json_strings(config):
-        for match in pattern.finditer(value):
-            relative = Path(match.group(1))
-            source = (PLUGINS_DIR / relative).resolve()
-            try:
-                source.relative_to(PLUGINS_DIR.resolve())
-            except ValueError:
-                continue
-            if source.is_file():
-                paths.add(source)
-    return paths
-
-
-def iter_json_strings(value: object) -> Iterable[str]:
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for child in value.values():
-            yield from iter_json_strings(child)
-    elif isinstance(value, list):
-        for child in value:
-            yield from iter_json_strings(child)
-
-
 def stage_bundled_plugins(
     destination: Path,
     *,
@@ -277,45 +298,15 @@ def stage_bundled_plugins(
     )
 
 
-def stage_preinstalled_plugin_metadata(
-    source: Path,
-    target: Path,
-    *,
-    builtin_resource_paths: set[Path],
-) -> None:
-    target.mkdir(parents=True, exist_ok=True)
-    descriptor_path = source / "agent_plugin.json"
-    descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
-    descriptor["preinstalled"] = True
-    (target / "agent_plugin.json").write_text(
-        json.dumps(descriptor, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
-
-    for resource in sorted(builtin_resource_paths):
-        try:
-            relative = resource.relative_to(source)
-        except ValueError:
-            continue
-        destination = target / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(resource, destination)
-
-
 def install_selected_bundled_plugins(selected_plugin_names: set[str]) -> None:
-    for plugin_name in sorted(selected_plugin_names):
+    for plugin_name in sorted(
+        resolve_local_project_names(selected_plugin_names, PLUGINS_DIR)
+    ):
         plugin_dir = PLUGINS_DIR / plugin_name
-        descriptor = json.loads((plugin_dir / "agent_plugin.json").read_text(encoding="utf-8"))
-        for dependency in descriptor.get("local_workspace_dependencies") or []:
-            if not isinstance(dependency, dict):
-                continue
-            dep_path_raw = dependency.get("path")
-            if not isinstance(dep_path_raw, str) or not dep_path_raw.strip():
-                continue
-            dependency_dir = (plugin_dir / dep_path_raw).resolve()
-            if dependency_dir.is_dir():
-                run_pip_install(dependency_dir)
-        run_pip_install(plugin_dir)
+        if (plugin_dir / "pyproject.toml").is_file() or (
+            plugin_dir / "setup.py"
+        ).is_file():
+            run_pip_install(plugin_dir)
 
 
 def run_pip_install(project_dir: Path) -> None:
@@ -326,7 +317,11 @@ def run_pip_install(project_dir: Path) -> None:
     )
 
 
-def prepare_cloud_runtime_build_context(destination: Path) -> None:
+def prepare_cloud_runtime_build_context(
+    destination: Path,
+    *,
+    selected_config: Path | None = None,
+) -> None:
     destination.mkdir(parents=True, exist_ok=True)
     runtime_assets = (
         PLUGINS_DIR
@@ -345,30 +340,21 @@ def prepare_cloud_runtime_build_context(destination: Path) -> None:
     copytree_sanitized(CORE_DIR / "plugins", python_lib / "plugins")
     shutil.copy2(CORE_DIR / "sitecustomize.py", python_lib / "sitecustomize.py")
     copytree_sanitized(APP_PACKAGE_DIR, python_lib / "agent_terminal_app")
-    copytree_sanitized(PLUGINS_DIR, destination / "plugins")
-
-
-def copytree_sanitized(
-    source: Path,
-    destination: Path,
-    *,
-    excluded_dir_names: Iterable[str] = (),
-) -> None:
-    excluded_dirs = set(excluded_dir_names).union(EXCLUDED_DIR_NAMES)
-
-    def ignore(_directory: str, names: list[str]) -> set[str]:
-        ignored: set[str] = set()
-        for name in names:
-            path = Path(name)
-            if name in excluded_dirs or name.endswith(".egg-info"):
-                ignored.add(name)
-            elif name in EXCLUDED_FILE_NAMES:
-                ignored.add(name)
-            elif path.suffix in EXCLUDED_FILE_SUFFIXES:
-                ignored.add(name)
-        return ignored
-
-    shutil.copytree(source, destination, ignore=ignore)
+    stage_cloud_runtime_plugin_bundle(
+        plugins_root=PLUGINS_DIR,
+        default_config=selected_config or default_config_path(),
+        output=destination / "cloud-runtime-plugin-bundle",
+        local_project_prefix="./plugin_sources",
+    )
+    local_project_names = resolve_local_project_names(
+        discover_selected_bundled_plugin_names(selected_config),
+        PLUGINS_DIR,
+    )
+    copy_local_project_sources(
+        destination / "plugin_sources",
+        plugins_root=PLUGINS_DIR,
+        local_project_names=local_project_names,
+    )
 
 
 def run_pyinstaller() -> None:
@@ -412,7 +398,9 @@ def run_pyinstaller() -> None:
     ]
     for path in bundled_python_paths:
         command.extend(["--paths", str(path)])
-    for module in discover_plugin_data_modules(ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME):
+    for module in discover_plugin_data_modules(
+        ASSET_STAGE_DIR / BUNDLED_PLUGINS_DIRNAME
+    ):
         command.extend(["--collect-data", module])
     for module in hidden_imports:
         command.extend(["--hidden-import", module])
@@ -448,6 +436,8 @@ def discover_plugin_hidden_imports(plugin_root: Path) -> list[str]:
         try:
             descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
         except Exception:
+            continue
+        if not descriptor.get("preinstalled"):
             continue
         module = descriptor.get("module")
         if isinstance(module, str) and module.strip():
@@ -500,7 +490,24 @@ def verify_output_tree(output_dir: Path) -> None:
         internal_dir / CLOUD_RUNTIME_DIRNAME / "python_lib" / "agent_app",
         internal_dir / CLOUD_RUNTIME_DIRNAME / "python_lib" / "agent_terminal_app",
         internal_dir / CLOUD_RUNTIME_DIRNAME / "python_lib" / "plugins",
-        internal_dir / CLOUD_RUNTIME_DIRNAME / "plugins" / "cloud-agent-app",
+        internal_dir
+        / CLOUD_RUNTIME_DIRNAME
+        / "cloud-runtime-plugin-bundle"
+        / "bundled_plugins"
+        / "cloud-agent-app"
+        / "agent_plugin.json",
+        internal_dir
+        / CLOUD_RUNTIME_DIRNAME
+        / "cloud-runtime-plugin-bundle"
+        / "bundled_plugins"
+        / "cloud-agent-app"
+        / "docs"
+        / "cloud-script-authoring.md",
+        internal_dir / CLOUD_RUNTIME_DIRNAME / "plugin_sources" / "cloud-agent-app",
+        internal_dir
+        / CLOUD_RUNTIME_DIRNAME
+        / "cloud-runtime-plugin-bundle"
+        / "local-projects.txt",
         internal_dir
         / BUNDLED_PLUGINS_DIRNAME
         / "cloud-agent-app"
@@ -534,10 +541,17 @@ def executable_name() -> str:
     )
 
 
-def create_archive(output_dir: Path, archive_stem: str, platform_name: str) -> Path:
-    RELEASES_DIR.mkdir(parents=True, exist_ok=True)
+def create_archive(
+    output_dir: Path,
+    archive_stem: str,
+    platform_name: str,
+    *,
+    release_dir: Path | None = None,
+) -> Path:
+    releases_dir = (release_dir or RELEASES_DIR).expanduser().resolve()
+    releases_dir.mkdir(parents=True, exist_ok=True)
     if platform_name == "windows":
-        archive_path = RELEASES_DIR / f"{archive_stem}.zip"
+        archive_path = releases_dir / f"{archive_stem}.zip"
         if archive_path.exists():
             archive_path.unlink()
         with zipfile.ZipFile(
@@ -547,7 +561,7 @@ def create_archive(output_dir: Path, archive_stem: str, platform_name: str) -> P
                 archive.write(path, Path(archive_stem) / path.relative_to(output_dir))
         return archive_path
 
-    archive_path = RELEASES_DIR / f"{archive_stem}.tar.gz"
+    archive_path = releases_dir / f"{archive_stem}.tar.gz"
     if archive_path.exists():
         archive_path.unlink()
     with tarfile.open(archive_path, "w:gz") as archive:

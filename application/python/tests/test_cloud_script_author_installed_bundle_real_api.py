@@ -85,13 +85,15 @@ def test_installed_bundle_cloud_script_author_generates_valid_hooks(
     _assert_standard_hooks_exist(workspace)
     _use_existing_runtime_image_for_validation_if_available(workspace)
 
+    validation_cache = tmp_path / "cloud-validation-cache"
     validation = _run_validate_cloud(
         executable,
         workspace=workspace,
-        cache_dir=tmp_path / "cloud-validation-cache",
+        cache_dir=validation_cache,
         env=env,
     )
     assert "Cloud Validation Passed" in validation.stdout
+    _assert_bundled_plugins_not_installed_to_runtime_cache(validation_cache)
 
 
 def test_installed_bundle_cloud_script_author_generates_multi_repo_transfer(
@@ -153,13 +155,15 @@ def test_installed_bundle_cloud_script_author_generates_multi_repo_transfer(
     _assert_custom_multi_repo_profile(workspace)
     _use_existing_runtime_image_for_validation_if_available(workspace)
 
+    validation_cache = tmp_path / "multi-repo-cloud-validation-cache"
     validation = _run_validate_cloud(
         executable,
         workspace=workspace,
-        cache_dir=tmp_path / "multi-repo-cloud-validation-cache",
+        cache_dir=validation_cache,
         env=env,
     )
     assert "Cloud Validation Passed" in validation.stdout
+    _assert_bundled_plugins_not_installed_to_runtime_cache(validation_cache)
 
 
 def _prepare_authoring_bundle(tmp_path: Path) -> tuple[Path, Path, Path]:
@@ -269,6 +273,7 @@ def _run_cloud_script_author(
         **env,
         "PATH": f"{executable.parent}{os.pathsep}{env.get('PATH') or os.environ.get('PATH', '')}",
     }
+    _prepare_authoring_config(executable, workspace, env=server_env)
     server = subprocess.Popen(
         [
             str(executable),
@@ -344,6 +349,36 @@ def _run_cloud_script_author(
     )
 
 
+def _prepare_authoring_config(
+    executable: Path, workspace: Path, *, env: dict[str, str]
+) -> None:
+    auth_overrides = _authoring_auth_overrides()
+    if not auth_overrides:
+        return
+
+    layout = json.loads(
+        _run([str(executable), "--runtime-layout-json"], cwd=workspace, env=env).stdout
+    )
+    default_config_template = Path(layout["bundle_paths"]["default_config_template"])
+    config_dir = workspace / ".crystal"
+    if config_dir.exists():
+        shutil.rmtree(config_dir)
+    shutil.copytree(
+        default_config_template,
+        config_dir,
+        ignore=shutil.ignore_patterns("auth", ".plugin_cache", "__pycache__"),
+    )
+
+    config_path = config_dir / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    providers = config.get("providers")
+    assert isinstance(providers, dict)
+    openai = providers.get("openai")
+    assert isinstance(openai, dict)
+    openai.update(auth_overrides)
+    config_path.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n")
+
+
 def _assert_standard_hooks_exist(workspace: Path) -> None:
     for name in ("local-stage", "install-cloud", "validate-cloud"):
         path = workspace / ".cloud-agent" / name
@@ -371,6 +406,16 @@ def _run_validate_cloud(
     )
 
 
+def _assert_bundled_plugins_not_installed_to_runtime_cache(cache_dir: Path) -> None:
+    plugin_cache = cache_dir / "plugin_cache" / "plugins"
+    if not plugin_cache.exists():
+        return
+    installed_names = sorted(
+        path.name for path in plugin_cache.iterdir() if path.is_dir()
+    )
+    assert installed_names == []
+
+
 def _use_existing_runtime_image_for_validation_if_available(workspace: Path) -> None:
     source_image = "cloud-agent-runtime:latest"
     test_image = "cloud-script-author-validation-runtime:latest"
@@ -380,6 +425,11 @@ def _use_existing_runtime_image_for_validation_if_available(workspace: Path) -> 
         expect_success=False,
     )
     if inspect.returncode != 0:
+        return
+    image_env = _docker_image_env(source_image, cwd=workspace)
+    if image_env.get("BUILTIN_PLUGINS") != (
+        "/opt/ai-agent-platform/cloud-runtime-plugin-bundle/bundled_plugins"
+    ):
         return
     _run(["docker", "tag", source_image, test_image], cwd=workspace)
 
@@ -400,6 +450,29 @@ def _use_existing_runtime_image_for_validation_if_available(workspace: Path) -> 
     config["default_container_profile"] = "authoring-test-runtime"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(json.dumps(config, indent=2, sort_keys=True) + "\n")
+
+
+def _docker_image_env(image: str, *, cwd: Path) -> dict[str, str]:
+    result = _run(
+        ["docker", "image", "inspect", image, "--format", "{{json .Config.Env}}"],
+        cwd=cwd,
+        expect_success=False,
+    )
+    if result.returncode != 0:
+        return {}
+    try:
+        values = json.loads(result.stdout)
+    except Exception:
+        return {}
+    if not isinstance(values, list):
+        return {}
+    env: dict[str, str] = {}
+    for value in values:
+        if not isinstance(value, str) or "=" not in value:
+            continue
+        key, raw = value.split("=", 1)
+        env[key] = raw
+    return env
 
 
 def _write_authoring_fixture(workspace: Path) -> None:

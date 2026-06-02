@@ -108,6 +108,31 @@ def validate_bundle(bundle_dir: Path) -> None:
         / "agent_core",
         bundle_dir
         / "_internal"
+        / "cloud_runtime"
+        / "cloud-runtime-plugin-bundle"
+        / "bundled_plugins"
+        / "cloud-agent-app"
+        / "agent_plugin.json",
+        bundle_dir
+        / "_internal"
+        / "cloud_runtime"
+        / "cloud-runtime-plugin-bundle"
+        / "bundled_plugins"
+        / "cloud-agent-app"
+        / "docs"
+        / "cloud-script-authoring.md",
+        bundle_dir
+        / "_internal"
+        / "cloud_runtime"
+        / "plugin_sources"
+        / "cloud-agent-app",
+        bundle_dir
+        / "_internal"
+        / "cloud_runtime"
+        / "cloud-runtime-plugin-bundle"
+        / "local-projects.txt",
+        bundle_dir
+        / "_internal"
         / "bundled_plugins"
         / "cloud-agent-app"
         / "docs"

@@ -42,6 +42,7 @@ _SOURCE_RUNTIME_DIGEST_PATHS = (
     Path("core") / "python" / "sitecustomize.py",
     Path("application") / "python" / "agent_terminal_app",
     Path("plugins"),
+    Path("scripts") / "build_cloud_runtime_plugin_bundle.py",
     Path("cloud-orchestrator") / "runtime" / "python" / "Dockerfile",
     Path("cloud-orchestrator") / "runtime" / "python" / "runtime.py",
 )

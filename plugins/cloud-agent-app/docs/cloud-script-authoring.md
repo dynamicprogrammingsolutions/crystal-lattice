@@ -105,11 +105,16 @@ Important environment variables:
 
 ```text
 CLOUD_WORKSPACE_DIR  cloud project workspace
-TRANSFER_STAGE_DIR   staged local-only files copied by local-stage
 TRANSFER_DIR         whole transfer bundle directory
 WORKING_DIR          cloud working directory
 SESSION_ID           validation or cloud session id
 ```
+
+`TRANSFER_STAGE_DIR` is a local-stage-only variable. Do not reference it from
+`install-cloud` or `validate-cloud`. With the standard transfer profiles, files
+that `local-stage` writes into `TRANSFER_STAGE_DIR` are copied into the cloud
+workspace root, so a staged `.env` should be checked as
+`${CLOUD_WORKSPACE_DIR}/.env` or simply `.env` after `cd "${CLOUD_WORKSPACE_DIR}"`.
 
 Python venv pattern:
 
@@ -305,9 +310,9 @@ A useful harness usually does this:
    `TRANSFER_DIR`, and `TRANSFER_STAGE_DIR`.
 4. Execute the selected `local_transfer_script` with `LOCAL_WORKSPACE_DIR` and
    `TRANSFER_DIR`.
-5. Execute the selected `cloud_setup_script` with `CLOUD_WORKSPACE_DIR`,
-   `TRANSFER_DIR`, and `TRANSFER_STAGE_DIR`, and set the command's current
-   working directory to `CLOUD_WORKSPACE_DIR` to match the real runtime.
+5. Execute the selected `cloud_setup_script` with `CLOUD_WORKSPACE_DIR` and
+   `TRANSFER_DIR`, and set the command's current working directory to
+   `CLOUD_WORKSPACE_DIR` to match the real runtime.
 6. Assert the resulting cloud workspace layout, copied local-only files,
    sibling repository placement, and preserved git working-tree state.
 
