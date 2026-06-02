@@ -36,7 +36,9 @@ after `--`.
 | `npm run integration:cloud:openrouter` | Cloud orchestrator local e2e plus real OpenRouter tool-call flow. |
 | `npm run integration:cloud:codex` | Cloud orchestrator local default-config Codex OpenRouter/OpenAI flows. |
 | `npm run integration:cloud:aws` | Cloud orchestrator e2e against AWS EC2 + CloudFront. |
+| `npm run integration:cloud:aws:fresh` | Cloud orchestrator AWS EC2 + CloudFront e2e after building fresh images from the current source bundle. |
 | `npm run integration:cloud:aws:codex` | AWS EC2 + CloudFront default-config Codex OpenRouter/OpenAI flows. |
+| `npm run integration:cloud:remote-docker` | Gated remote Docker deploy smoke, then external-mode cloud orchestrator e2e. |
 
 Examples:
 
@@ -78,9 +80,13 @@ These variables are consumed by `src/integration/harness.ts`.
 | `CLOUD_ORCHESTRATOR_E2E_MODE` | Cloud orchestrator harness | `local` (default), `external`, or `aws-ec2-cloudfront`. |
 | `CLOUD_ORCHESTRATOR_E2E_URL` | Cloud orchestrator external mode | Existing orchestrator URL when `CLOUD_ORCHESTRATOR_E2E_MODE=external`. |
 | `RUN_AWS_CLOUD_ORCHESTRATOR_TESTS` | Cloud orchestrator AWS mode | Must be `1` before the harness creates AWS resources. |
+| `CLOUD_ORCHESTRATOR_E2E_BUILD_IMAGES` | Cloud orchestrator AWS mode | Set to `1` to run `deploy/aws-ec2/build.sh` before `up.sh` and avoid validating stale images. |
 | `AWS_STACK_NAME` | AWS cloud/bridge harnesses | Optional fixed stack name. Use the same value for a prior cloud-orchestrator image build and e2e deploy. |
 | `AWS_REGION` | AWS cloud/bridge harnesses | AWS region. Defaults to `us-east-1`. |
 | `CLOUD_ORCHESTRATOR_E2E_CONTROL_TOKEN` | Cloud orchestrator tests | Optional control token to include in generated local app cloud-agent config. AWS deploy sets this after parsing deploy output. |
+| `RUN_CLOUD_ORCHESTRATOR_REMOTE_DOCKER_E2E` | Remote Docker cloud smoke | Must be `1` before the remote Docker deploy smoke runs. |
+| `CLOUD_ORCHESTRATOR_REMOTE` | Remote Docker cloud smoke | SSH target passed to `deploy/remote-docker/deploy.sh`. |
+| `CLOUD_ORCHESTRATOR_PUBLIC_URL` | Remote Docker cloud smoke | Public URL used by deploy and then by external-mode e2e. |
 | `BRIDGE_E2E_MODE` | Bridge harness | `docker` (default), `external`, `aws-public-task`, `aws-secure`, or `aws-ec2-secure`. |
 | `BRIDGE_E2E_URL` | Bridge external mode | Existing bridge URL when `BRIDGE_E2E_MODE=external`. |
 | `RUN_AWS_BRIDGE_TESTS` | Bridge AWS modes | Must be `1` before the harness creates AWS bridge resources. |
@@ -227,9 +233,16 @@ runtimes, and verifies connection-scoped `CloudTransport` behavior.
 
 Modes:
 
-- `CLOUD_ORCHESTRATOR_E2E_MODE=local` by default. Requires Docker.
+- `CLOUD_ORCHESTRATOR_E2E_MODE=local` by default. Requires Docker. The
+  harness builds runtime images from an extracted deploy source bundle produced
+  by `create_cloud_orchestrator_source_bundle`, so missing files in the reduced
+  deploy build context fail the local e2e image build.
 - `CLOUD_ORCHESTRATOR_E2E_MODE=external` requires `CLOUD_ORCHESTRATOR_E2E_URL`.
-- `CLOUD_ORCHESTRATOR_E2E_MODE=aws-ec2-cloudfront` requires `RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1`. Build images first from `cloud-orchestrator` with a fixed `AWS_STACK_NAME`, then run the e2e with the same `AWS_STACK_NAME`.
+- `CLOUD_ORCHESTRATOR_E2E_MODE=aws-ec2-cloudfront` requires
+  `RUN_AWS_CLOUD_ORCHESTRATOR_TESTS=1`. By default it validates prebuilt images
+  from the AWS deploy state. Set `CLOUD_ORCHESTRATOR_E2E_BUILD_IMAGES=1` or use
+  `npm run integration:cloud:aws:fresh` to build fresh images from the current
+  source bundle before `up.sh`.
 
 Provider credentials:
 
@@ -285,6 +298,25 @@ AWS example:
 AWS_STACK_NAME=crystal-lattice-cloud-orchestrator-e2e-manual npm run integration:cloud:aws:build
 AWS_STACK_NAME=crystal-lattice-cloud-orchestrator-e2e-manual npm run integration:cloud:aws
 ```
+
+AWS fresh-build example:
+
+```bash
+AWS_STACK_NAME=crystal-lattice-cloud-orchestrator-e2e-manual npm run integration:cloud:aws:fresh
+```
+
+Remote Docker deploy smoke:
+
+```bash
+RUN_CLOUD_ORCHESTRATOR_REMOTE_DOCKER_E2E=1 \
+CLOUD_ORCHESTRATOR_REMOTE=user@example-host \
+CLOUD_ORCHESTRATOR_PUBLIC_URL=https://cloud.example.com \
+npm run integration:cloud:remote-docker -- -t "opens a cloud session"
+```
+
+The remote Docker smoke calls
+`cloud-orchestrator/deploy/remote-docker/deploy.sh` directly, then runs this
+same e2e file in external mode. It leaves the remote deployment running.
 
 Run one long cloud test at a time while debugging:
 

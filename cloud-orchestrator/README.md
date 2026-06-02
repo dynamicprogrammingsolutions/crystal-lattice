@@ -212,6 +212,13 @@ Local orchestrator mode:
 RUN_CLOUD_ORCHESTRATOR_E2E=1 npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e
 ```
 
+The local E2E harness builds `cloud-agent-runtime:latest` and
+`cloud-agent-transfer-ssh:latest` from an extracted deploy source bundle created
+by `create_cloud_orchestrator_source_bundle`. This intentionally differs from
+manual local Docker commands that build from the checkout root: the E2E should
+fail if a runtime Dockerfile depends on a file omitted from the reduced deploy
+bundle.
+
 Real OpenRouter tool-loop E2E is opt-in:
 
 ```bash
@@ -220,6 +227,36 @@ RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E=1 \
 OPENROUTER_API_KEY=... \
 npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e
 ```
+
+AWS EC2 + CloudFront E2E can validate existing images from deploy state, or
+force a fresh build from the current source bundle:
+
+```bash
+AWS_STACK_NAME=crystal-lattice-cloud-orchestrator-e2e-manual \
+npm run --prefix packages/frontend-sdk integration:cloud:aws
+
+AWS_STACK_NAME=crystal-lattice-cloud-orchestrator-e2e-manual \
+npm run --prefix packages/frontend-sdk integration:cloud:aws:fresh
+```
+
+Use the fresh mode when the test must prove the current checkout can build and
+deploy. The non-fresh mode is useful for validating known prebuilt images, but
+it can validate stale images if the build step was not run for the current
+source and stack/tag.
+
+Remote Docker deploy smoke is separately gated because it needs an explicit SSH
+target and leaves the deployment running:
+
+```bash
+RUN_CLOUD_ORCHESTRATOR_REMOTE_DOCKER_E2E=1 \
+CLOUD_ORCHESTRATOR_REMOTE=user@example-host \
+CLOUD_ORCHESTRATOR_PUBLIC_URL=https://cloud.example.com \
+npm run --prefix packages/frontend-sdk integration:cloud:remote-docker
+```
+
+That smoke invokes `cloud-orchestrator/deploy/remote-docker/deploy.sh`
+directly, then runs the frontend SDK cloud orchestrator E2E in external mode
+against `CLOUD_ORCHESTRATOR_PUBLIC_URL`.
 
 Set `CLOUD_ORCHESTRATOR_OPENROUTER_MODEL` to choose the model; the test uses a
 cheap tool-capable fallback when unset.
