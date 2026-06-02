@@ -116,7 +116,7 @@ class Issue:
 def main() -> int:
     args = parse_args()
     load_dotenv(ENV_FILE)
-    config = load_config(args.config)
+    config = with_sheet_id(load_config(args.config), args.sheet_id)
     snapshot_date = (
         args.snapshot_date
         or config.snapshot_date
@@ -133,6 +133,7 @@ def main() -> int:
     sheets = SheetsClient(config.sheet_id)
 
     existing_rows = read_task_rows(sheets)
+    existing_summary = sheets.get_values(SUMMARY_RANGE)
     issues = fetch_filtered_issues(youtrack, config)
     expected_rows = build_expected_rows(
         youtrack=youtrack,
@@ -149,7 +150,15 @@ def main() -> int:
         replace_same_period=args.replace_same_period,
     )
 
-    print_plan(args.mode, config, snapshot, warnings, diff, args.replace_same_period)
+    print_plan(
+        args.mode,
+        config,
+        snapshot,
+        warnings,
+        diff,
+        args.replace_same_period,
+        summary_exists=summary_contains_snapshot(existing_summary, snapshot.key),
+    )
     if args.mode == "write":
         write_snapshot(
             sheets,
@@ -157,6 +166,7 @@ def main() -> int:
             snapshot,
             existing_rows,
             expected_rows,
+            existing_summary,
             replace_same_period=args.replace_same_period,
         )
         print("\nWrote snapshot rows and summary blocks.")
@@ -180,6 +190,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--snapshot-date",
         help="Override snapshot date from config. Defaults to config value or system date.",
+    )
+    parser.add_argument(
+        "--sheet-id",
+        help="Override sheet ID from config. Useful for testing against a copy.",
     )
     parser.add_argument(
         "--replace-same-period",
@@ -223,6 +237,29 @@ def load_config(path_arg: str) -> Config:
         assignee_order=list(ordering.get("assignee", [])),
         summary_assignees=list(data.get("summary_assignees", [])),
         timezone=ZoneInfo(data.get("timezone", "UTC")),
+    )
+
+
+def with_sheet_id(config: Config, sheet_id: str | None) -> Config:
+    if not sheet_id:
+        return config
+    return Config(
+        sheet_id=sheet_id,
+        youtrack_base_url=config.youtrack_base_url,
+        project=config.project,
+        period_start=config.period_start,
+        period_end=config.period_end,
+        snapshot_date=config.snapshot_date,
+        watched_sprints=config.watched_sprints,
+        states=config.states,
+        completed_states=config.completed_states,
+        exclude_types=config.exclude_types,
+        exclude_grouping=config.exclude_grouping,
+        sprint_order=config.sprint_order,
+        state_order=config.state_order,
+        assignee_order=config.assignee_order,
+        summary_assignees=config.summary_assignees,
+        timezone=config.timezone,
     )
 
 
@@ -493,11 +530,25 @@ def normalize_existing_row(row: dict[str, str]) -> dict[str, str]:
     for old_column, new_column in LEGACY_COLUMN_MAP.items():
         if not normalized.get(new_column) and row.get(old_column):
             normalized[new_column] = row[old_column]
+    normalized["Ticket Updated At"] = normalize_datetime_text(
+        normalized["Ticket Updated At"]
+    )
     normalized["Effective Completion Date"] = (
         normalized["Manual Completion Date"]
         or normalized["Derived Completion Date"]
     )
     return normalized
+
+
+def normalize_datetime_text(value: str) -> str:
+    if not value:
+        return ""
+    for pattern in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(value, pattern).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            continue
+    return value
 
 
 def build_expected_rows(
@@ -675,6 +726,7 @@ def print_plan(
     warnings: list[str],
     diff: dict[str, Any],
     replace_same_period: bool,
+    summary_exists: bool,
 ) -> None:
     print(f"Mode: {mode}")
     print(f"Sheet: {config.sheet_id}")
@@ -682,6 +734,11 @@ def print_plan(
     print(f"Watched sprints: {', '.join(config.watched_sprints)}")
     if replace_same_period:
         print("Replace same period: enabled")
+    print(
+        "Summary: already exists; leaving unchanged"
+        if summary_exists
+        else "Summary: will append new snapshot blocks"
+    )
     for warning in warnings:
         print(f"WARNING: {warning}")
     print()
@@ -731,6 +788,7 @@ def write_snapshot(
     snapshot: Snapshot,
     existing_rows: list[dict[str, str]],
     expected_rows: list[dict[str, str]],
+    existing_summary: list[list[str]],
     *,
     replace_same_period: bool = False,
 ) -> None:
@@ -758,17 +816,11 @@ def write_snapshot(
     sheets.update_values(f"{TASKS_SHEET}!A1:Q{len(task_values)}", task_values)
     clear_trailing_rows(sheets, TASKS_SHEET, len(task_values), old_task_row_count)
 
-    existing_summary = sheets.get_values(SUMMARY_RANGE)
-    summary_values = build_summary_values(
-        existing_summary, config, snapshot, start_row=1
-    )
-    old_summary_row_count = len(existing_summary)
-    sheets.update_values(
-        f"{SUMMARY_SHEET}!A1:E{len(summary_values)}", summary_values
-    )
-    clear_trailing_rows(
-        sheets, SUMMARY_SHEET, len(summary_values), old_summary_row_count, end_col="E"
-    )
+    summary_values = build_summary_values(existing_summary, config, snapshot)
+    if summary_values != existing_summary:
+        sheets.update_values(
+            f"{SUMMARY_SHEET}!A1:F{len(summary_values)}", summary_values
+        )
 
 
 def is_protected_manual_row(row: dict[str, str]) -> bool:
@@ -840,43 +892,26 @@ def build_summary_values(
     existing_summary: list[list[str]],
     config: Config,
     snapshot: Snapshot,
-    *,
-    start_row: int,
 ) -> list[list[str]]:
-    preserved = remove_matching_summary_blocks(existing_summary, config, snapshot)
-    while preserved and not any(cell.strip() for cell in preserved[-1]):
+    if summary_contains_snapshot(existing_summary, snapshot.key):
+        return existing_summary
+    preserved = [list(row) for row in existing_summary]
+    while preserved and not any(str(cell).strip() for cell in preserved[-1]):
         preserved.pop()
+    first_new_row = len(preserved) + 1
     if preserved:
         preserved.append([])
+        first_new_row += 1
     new_blocks = build_summary_blocks(
         config,
         snapshot,
-        first_row=start_row + len(preserved),
+        first_row=first_new_row,
     )
     return preserved + new_blocks
 
 
-def remove_matching_summary_blocks(
-    rows: list[list[str]], config: Config, snapshot: Snapshot
-) -> list[list[str]]:
-    output: list[list[str]] = []
-    index = 0
-    while index < len(rows):
-        row = pad_row(rows[index], 5)
-        is_matching_metadata = (
-            row[0] in config.watched_sprints
-            and row[1] == snapshot.snapshot_date
-            and row[2] == snapshot.period_start
-            and row[3] == snapshot.period_end
-        )
-        if is_matching_metadata:
-            index += 5
-            if index < len(rows) and not any(cell.strip() for cell in rows[index]):
-                index += 1
-            continue
-        output.append(rows[index])
-        index += 1
-    return output
+def summary_contains_snapshot(rows: list[list[str]], snapshot_key: str) -> bool:
+    return any(row and str(row[0]) == snapshot_key for row in rows)
 
 
 def build_summary_blocks(
@@ -886,7 +921,16 @@ def build_summary_blocks(
     current_row = first_row
     for sprint_index, sprint in enumerate(config.watched_sprints):
         metadata_row = current_row
-        blocks.append([sprint, snapshot.snapshot_date, snapshot.period_start, snapshot.period_end, ""])
+        blocks.append(
+            [
+                snapshot.key,
+                sprint,
+                snapshot.snapshot_date,
+                snapshot.period_start,
+                snapshot.period_end,
+                "",
+            ]
+        )
         blocks.append(
             [
                 "Assignee",
@@ -917,35 +961,35 @@ def build_summary_blocks(
 
 def completed_count_formula(metadata_row: int, row_number: int) -> str:
     return (
-        f'=COUNTIFS(Tasks!$B:$B,$B${metadata_row},Tasks!$C:$C,$C${metadata_row},'
-        f'Tasks!$D:$D,$D${metadata_row},Tasks!$F:$F,$A${metadata_row},'
-        f'Tasks!$I:$I,$A${row_number},Tasks!$M:$M,">="&$C${metadata_row},'
-        f'Tasks!$M:$M,"<="&$D${metadata_row})'
+        f'=COUNTIFS(Tasks!$B:$B,$C${metadata_row},Tasks!$C:$C,$D${metadata_row},'
+        f'Tasks!$D:$D,$E${metadata_row},Tasks!$F:$F,$B${metadata_row},'
+        f'Tasks!$I:$I,$A${row_number},Tasks!$M:$M,">="&$D${metadata_row},'
+        f'Tasks!$M:$M,"<="&$E${metadata_row})'
     )
 
 
 def completed_points_formula(metadata_row: int, row_number: int) -> str:
     return (
-        f'=SUMIFS(Tasks!$J:$J,Tasks!$B:$B,$B${metadata_row},'
-        f'Tasks!$C:$C,$C${metadata_row},Tasks!$D:$D,$D${metadata_row},'
-        f'Tasks!$F:$F,$A${metadata_row},Tasks!$I:$I,$A${row_number},'
-        f'Tasks!$M:$M,">="&$C${metadata_row},Tasks!$M:$M,"<="&$D${metadata_row})'
+        f'=SUMIFS(Tasks!$J:$J,Tasks!$B:$B,$C${metadata_row},'
+        f'Tasks!$C:$C,$D${metadata_row},Tasks!$D:$D,$E${metadata_row},'
+        f'Tasks!$F:$F,$B${metadata_row},Tasks!$I:$I,$A${row_number},'
+        f'Tasks!$M:$M,">="&$D${metadata_row},Tasks!$M:$M,"<="&$E${metadata_row})'
     )
 
 
 def in_progress_count_formula(metadata_row: int, row_number: int) -> str:
     return (
-        f'=COUNTIFS(Tasks!$B:$B,$B${metadata_row},Tasks!$C:$C,$C${metadata_row},'
-        f'Tasks!$D:$D,$D${metadata_row},Tasks!$F:$F,$A${metadata_row},'
+        f'=COUNTIFS(Tasks!$B:$B,$C${metadata_row},Tasks!$C:$C,$D${metadata_row},'
+        f'Tasks!$D:$D,$E${metadata_row},Tasks!$F:$F,$B${metadata_row},'
         f'Tasks!$I:$I,$A${row_number},Tasks!$G:$G,"In Progress")'
     )
 
 
 def in_progress_points_formula(metadata_row: int, row_number: int) -> str:
     return (
-        f'=SUMIFS(Tasks!$J:$J,Tasks!$B:$B,$B${metadata_row},'
-        f'Tasks!$C:$C,$C${metadata_row},Tasks!$D:$D,$D${metadata_row},'
-        f'Tasks!$F:$F,$A${metadata_row},Tasks!$I:$I,$A${row_number},'
+        f'=SUMIFS(Tasks!$J:$J,Tasks!$B:$B,$C${metadata_row},'
+        f'Tasks!$C:$C,$D${metadata_row},Tasks!$D:$D,$E${metadata_row},'
+        f'Tasks!$F:$F,$B${metadata_row},Tasks!$I:$I,$A${row_number},'
         f'Tasks!$G:$G,"In Progress")'
     )
 

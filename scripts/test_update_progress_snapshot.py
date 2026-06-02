@@ -50,6 +50,17 @@ def test_manual_completion_date_overrides_existing_effective_completion_date():
     assert normalized["Effective Completion Date"] == "2026-05-14"
 
 
+def test_normalizes_sheet_datetime_without_leading_zero_hour():
+    row = {
+        "Issue ID": "CL-304",
+        "Ticket Updated At": "2026-06-02 7:30:37",
+    }
+
+    normalized = normalize_existing_row(row)
+
+    assert normalized["Ticket Updated At"] == "2026-06-02 07:30:37"
+
+
 def test_diff_snapshot_rows_detects_add_update_and_remove():
     class Config:
         sprint_order = ["Sprint 3"]
@@ -168,13 +179,35 @@ def test_build_summary_values_appends_new_period_after_existing_report():
         snapshot_date="2026-06-01",
     )
 
-    values = build_summary_values(existing_summary, Config(), snapshot, start_row=1)
+    values = build_summary_values(existing_summary, Config(), snapshot)
 
     assert values[:3] == existing_summary
     assert values[3] == []
-    assert values[4][:4] == ["Sprint 3", "2026-06-01", "2026-05-20", "2026-05-31"]
+    assert values[4][:5] == [
+        "2026-05-20..2026-05-31@2026-06-01",
+        "Sprint 3",
+        "2026-06-01",
+        "2026-05-20",
+        "2026-05-31",
+    ]
     assert "Tasks!$I:$I" in values[6][1]
     assert "SUMIFS(Tasks!$J:$J" in values[6][2]
+
+
+def test_build_summary_values_does_not_modify_existing_snapshot_summary():
+    class Config:
+        watched_sprints = ["Sprint 3"]
+        summary_assignees = ["ferenci84", "Pujan", "Unassigned"]
+
+    existing_summary = [
+        ["2026-05-20..2026-05-31@2026-06-01", "Sprint 3", "2026-06-01"],
+        ["Assignee", "Completed Tasks", "Completed Story Points"],
+        ["ferenci84", "1", "3"],
+        ["Sum", "=SUM(B2:B3)", "=SUM(C2:C3)"],
+    ]
+    snapshot = Snapshot("2026-05-20", "2026-05-31", "2026-06-01")
+
+    assert build_summary_values(existing_summary, Config(), snapshot) == existing_summary
 
 
 def test_order_task_rows_preserves_snapshot_group_order_and_sorts_within_group():
