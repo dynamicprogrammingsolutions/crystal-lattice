@@ -69,6 +69,13 @@ def test_default_config_effective_agent_configs_stay_intact(
                     / "plugins"
                     / "cloud-agent-app"
                 ),
+                str(
+                    Path(__file__).resolve().parents[1]
+                    / "agent_terminal_app"
+                    / "default_config"
+                    / "cloud-agent"
+                    / "profiles"
+                ),
             ],
             "shell_tool_mode": "auto",
             "system_message_enabled": True,

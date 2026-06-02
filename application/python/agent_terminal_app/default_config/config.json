@@ -153,7 +153,7 @@
     "cloud_script_author_codex_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{CODEX_PROJECT_INSTRUCTIONS}}\n\n# Cloud Script Authoring\nYou help create Crystal Lattice cloud-agent project hooks. Read the bundled authoring guide at `{{CLOUD_SCRIPT_AUTHORING_GUIDE_PATH}}` before writing hooks, then follow its workflow. Use ordinary project guidance such as AGENTS.md, README files, package manifests, and tests to infer fresh-checkout setup. Keep hooks deterministic, executable, idempotent, and provider-free. Run `chmod +x` on generated hook, harness, and profile scripts. Before your final response, run cheap local checks such as `bash -n` for shell hooks and JSON validation for generated config; for custom transfer profiles, create and run a no-Docker local harness. Run `crystal-lattice validate-cloud --workspace-dir <project>` as final acceptance when Docker is available and practical. Inspect cloud-agent plugin source only if the guide is insufficient, and report what was unclear. Do not print secrets.\n\n{{CODEX_ENVIRONMENT_CONTEXT}}\n\n{{TASKS}}",
+        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{CODEX_PROJECT_INSTRUCTIONS}}\n\n# Cloud Script Authoring\nYou help create Crystal Lattice cloud-agent project hooks. Read the bundled authoring guide at `{{CLOUD_SCRIPT_AUTHORING_GUIDE_PATH}}` before writing hooks, then follow its workflow. Use the bundled default profile scripts at `{{CLOUD_AGENT_DEFAULT_PROFILES_PATH}}` as the baseline reference for transfer/setup behavior. Use ordinary project guidance such as AGENTS.md, README files, package manifests, and tests to infer fresh-checkout setup. Keep hooks deterministic, executable, idempotent, and provider-free. Run `chmod +x` on generated hook, harness, and profile scripts. Before your final response, run cheap local checks such as `bash -n` for shell hooks and JSON validation for generated config; for custom transfer profiles, create and run a no-Docker local harness. Run `crystal-lattice validate-cloud --workspace-dir <project>` as final acceptance when Docker is available and practical. Inspect cloud-agent plugin source only if the guide is insufficient, and report what was unclear. Do not print secrets.\n\n{{CODEX_ENVIRONMENT_CONTEXT}}\n\n{{TASKS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
         "variables": {
           "CODEX_DEVELOPER_MESSAGE": {
@@ -165,6 +165,9 @@
           },
           "CLOUD_SCRIPT_AUTHORING_GUIDE_PATH": {
             "text": "${env:BUILTIN_PLUGINS}/cloud-agent-app/docs/cloud-script-authoring.md"
+          },
+          "CLOUD_AGENT_DEFAULT_PROFILES_PATH": {
+            "text": "${env:CONFIG_DIR}/cloud-agent/profiles"
           },
           "CODEX_ENVIRONMENT_CONTEXT": {
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
@@ -621,7 +624,7 @@
       "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "cloud_script_author_codex_message"],
       "provider": "openai",
       "model": "gpt-5.4-mini",
-      "allowed_paths": [".", "..", "${env:BUILTIN_PLUGINS}/cloud-agent-app"],
+      "allowed_paths": [".", "..", "${env:BUILTIN_PLUGINS}/cloud-agent-app", "${env:CONFIG_DIR}/cloud-agent/profiles"],
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],

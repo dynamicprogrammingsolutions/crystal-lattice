@@ -317,6 +317,7 @@ def _run_cloud_script_author(
                     "allowed_paths": [
                         *(str(path) for path in allowed_project_paths),
                         str(cloud_agent_plugin),
+                        str(workspace / ".crystal" / "cloud-agent" / "profiles"),
                     ],
                     "max_output_chars": 20000,
                 },

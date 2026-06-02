@@ -46,18 +46,57 @@ Use this order when creating or changing cloud-agent hooks:
 
 1. Read the project guidance and package/test files.
 2. Read this guide.
-3. Decide whether the standard hooks are enough, or whether the project needs a
+3. Read the bundled default profile scripts as the baseline for the normal
+   transfer/setup behavior.
+4. Decide whether the standard hooks are enough, or whether the project needs a
    custom `.cloud-agent/cloud-agent.json` transfer profile.
-4. Write the hooks and any project config.
-5. Make generated shell scripts executable.
-6. Run cheap local checks first: shell syntax checks, JSON validation, and a
+5. Write the hooks and any project config.
+6. Make generated shell scripts executable.
+7. Run cheap local checks first: shell syntax checks, JSON validation, and a
    no-Docker local harness for custom transfer/setup behavior.
-7. Run `crystal-lattice validate-cloud --workspace-dir /path/to/project` as the
+8. Run `crystal-lattice validate-cloud --workspace-dir /path/to/project` as the
    final acceptance check when Docker is available.
 
 Inspect cloud-agent plugin source only when this guide is unclear or
 incomplete. If source inspection was necessary, report what was missing from
 the guide.
+
+## Default Profile Baseline
+
+The default profile scripts are the reference implementation for the normal
+cloud-agent transfer flow. Read them before creating custom transfer profiles,
+and use them as the baseline when writing only the simple project hooks.
+
+In a normal installed or local runtime, the default scripts are copied into:
+
+```text
+${CONFIG_DIR}/cloud-agent/profiles
+```
+
+Important baseline scripts:
+
+```text
+${CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/local_transfer_script
+${CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/cloud_setup_script
+${CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/local_transfer_script
+${CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/cloud_setup_script
+${CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_export_script
+${CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/local_apply_script
+```
+
+For ordinary projects, keep those default transfer/setup scripts and create only
+the three project hooks:
+
+```text
+.cloud-agent/local-stage
+.cloud-agent/install-cloud
+.cloud-agent/validate-cloud
+```
+
+For multi-repository or otherwise non-standard transfers, copy the relevant
+default profile script logic into project-local custom profile scripts and
+change only the parts needed for the project layout. Do not invent transfer
+semantics without comparing against the default scripts.
 
 ## Local Stage Hook
 
