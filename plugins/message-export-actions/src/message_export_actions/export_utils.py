@@ -16,10 +16,12 @@ from xhtml2pdf import pisa
 
 PDF_ENGINE_AUTO = "auto"
 PDF_ENGINE_PANDOC = "pandoc"
+PDF_ENGINE_PLAYWRIGHT = "playwright"
 PDF_ENGINE_XHTML2PDF = "xhtml2pdf"
 SUPPORTED_PDF_ENGINES = {
     PDF_ENGINE_AUTO,
     PDF_ENGINE_PANDOC,
+    PDF_ENGINE_PLAYWRIGHT,
     PDF_ENGINE_XHTML2PDF,
 }
 PDF_STYLE_WEB = "web"
@@ -246,6 +248,8 @@ def select_pdf_runtime_engine(engine_setting: str) -> Tuple[str, str | None]:
     normalized = normalize_pdf_engine(engine_setting)
     if normalized == PDF_ENGINE_XHTML2PDF:
         return PDF_ENGINE_XHTML2PDF, None
+    if normalized == PDF_ENGINE_PLAYWRIGHT:
+        return PDF_ENGINE_PLAYWRIGHT, None
     if normalized == PDF_ENGINE_PANDOC:
         pdf_engine = _pandoc_pdf_engine_name()
         if not pandoc_available():
@@ -256,8 +260,6 @@ def select_pdf_runtime_engine(engine_setting: str) -> Tuple[str, str | None]:
                 "Install xelatex or pdflatex."
             )
         return PDF_ENGINE_PANDOC, pdf_engine
-    if _pandoc_pdf_usable():
-        return PDF_ENGINE_PANDOC, _pandoc_pdf_engine_name()
     return PDF_ENGINE_XHTML2PDF, None
 
 
@@ -514,6 +516,21 @@ def _convert_markdown_to_pdf_pandoc(
                 + "\n",
                 encoding="utf-8",
             )
+            font_args: List[str]
+            if pdf_engine == "xelatex":
+                font_args = [
+                    "--variable",
+                    "mainfont=Helvetica Neue",
+                    "--variable",
+                    "sansfont=Helvetica Neue",
+                    "--variable",
+                    "monofont=Menlo",
+                ]
+            else:
+                font_args = [
+                    "--variable",
+                    "fontfamily=helvet",
+                ]
             style_args = [
                 "--variable",
                 "documentclass=article",
@@ -523,8 +540,7 @@ def _convert_markdown_to_pdf_pandoc(
                 "fontsize=11pt",
                 "--variable",
                 "linestretch=1.08",
-                "--variable",
-                "fontfamily=helvet",
+                *font_args,
                 "--variable",
                 "colorlinks=true",
                 "--variable",
@@ -568,6 +584,43 @@ def _convert_markdown_to_pdf_xhtml2pdf(
         raise RuntimeError("xhtml2pdf conversion failed.")
 
 
+def _convert_markdown_to_pdf_playwright(
+    *,
+    markdown_text: str,
+    title: str,
+    output_path: Path,
+    style: str,
+) -> None:
+    document = _html_document(title=title, markdown_text=markdown_text, style=style)
+    try:
+        from playwright.sync_api import Error as PlaywrightError
+        from playwright.sync_api import sync_playwright
+    except ImportError as exc:
+        raise RuntimeError(
+            "PDF export is configured to use Playwright, but the playwright package is not installed."
+        ) from exc
+
+    try:
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.set_content(document, wait_until="load")
+                page.pdf(
+                    path=str(output_path),
+                    format="Letter",
+                    print_background=True,
+                    prefer_css_page_size=True,
+                )
+            finally:
+                browser.close()
+    except PlaywrightError as exc:
+        raise RuntimeError(
+            "Playwright PDF conversion failed. If Chromium is not installed, run "
+            "`python -m playwright install chromium` in the plugin/runtime environment."
+        ) from exc
+
+
 def convert_markdown_to_pdf(
     *,
     markdown_text: str,
@@ -587,6 +640,14 @@ def convert_markdown_to_pdf(
             style=normalized_style,
         )
         return PDF_ENGINE_PANDOC
+    if runtime_engine == PDF_ENGINE_PLAYWRIGHT:
+        _convert_markdown_to_pdf_playwright(
+            markdown_text=markdown_text,
+            title=title,
+            output_path=output_path,
+            style=normalized_style,
+        )
+        return PDF_ENGINE_PLAYWRIGHT
 
     _convert_markdown_to_pdf_xhtml2pdf(
         markdown_text=markdown_text,

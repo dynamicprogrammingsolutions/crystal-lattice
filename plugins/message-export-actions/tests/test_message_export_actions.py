@@ -500,12 +500,12 @@ def test_share_session_as_markdown_filters_roles_and_uses_default_filename(
     assert "### User heading" in decoded
 
 
-def test_select_pdf_runtime_engine_prefers_xhtml2pdf_when_pandoc_pdf_path_unavailable(
+def test_select_pdf_runtime_engine_auto_defaults_to_xhtml2pdf_even_when_pandoc_is_available(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _fake_which(name: str) -> str | None:
-        if name == "pandoc":
-            return "/usr/local/bin/pandoc"
+        if name in {"pandoc", "xelatex"}:
+            return f"/usr/local/bin/{name}"
         return None
 
     monkeypatch.setattr(export_utils.shutil, "which", _fake_which)
@@ -514,6 +514,29 @@ def test_select_pdf_runtime_engine_prefers_xhtml2pdf_when_pandoc_pdf_path_unavai
 
     assert runtime_engine == "xhtml2pdf"
     assert pandoc_engine is None
+
+
+def test_select_pdf_runtime_engine_accepts_explicit_playwright() -> None:
+    runtime_engine, pandoc_engine = export_utils.select_pdf_runtime_engine("playwright")
+
+    assert runtime_engine == "playwright"
+    assert pandoc_engine is None
+
+
+def test_select_pdf_runtime_engine_accepts_explicit_pandoc_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _fake_which(name: str) -> str | None:
+        if name in {"pandoc", "xelatex"}:
+            return f"/usr/local/bin/{name}"
+        return None
+
+    monkeypatch.setattr(export_utils.shutil, "which", _fake_which)
+
+    runtime_engine, pandoc_engine = export_utils.select_pdf_runtime_engine("pandoc")
+
+    assert runtime_engine == "pandoc"
+    assert pandoc_engine == "xelatex"
 
 
 def test_plugin_classes_keep_expected_ids() -> None:

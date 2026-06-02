@@ -58,12 +58,14 @@ Recommended `message_export_pdf_engine` values:
 
 - `auto`
 - `pandoc`
+- `playwright`
 - `xhtml2pdf`
 
 Behavior:
 
-- `auto`: prefer `pandoc` when available, otherwise use `xhtml2pdf`
+- `auto`: use `xhtml2pdf`
 - `pandoc`: require `pandoc`
+- `playwright`: require Playwright and its Chromium browser
 - `xhtml2pdf`: always use the Python fallback engine
 
 Recommended `message_export_pdf_style` values:
@@ -92,15 +94,23 @@ Kindle title behavior:
 Python dependencies installed with the plugin:
 
 - `markdown`
+- `playwright`
 - `xhtml2pdf`
 
-Optional preferred system dependency:
+Optional system dependencies:
 
 - `pandoc`
 
 Optional `pandoc` PDF engine dependencies:
 
 - `xelatex` or `pdflatex`
+
+Optional `playwright` PDF engine dependency:
+
+- Chromium browser installed for the Python environment:
+  ```bash
+  python -m playwright install chromium
+  ```
 
 Kindle sending is specifically implemented for macOS + iCloud Mail and expects:
 
