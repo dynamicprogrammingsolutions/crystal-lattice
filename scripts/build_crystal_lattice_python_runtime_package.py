@@ -14,6 +14,11 @@ import venv
 import zipfile
 
 from build_cloud_runtime_plugin_bundle import copytree_sanitized
+from build_cloud_runtime_plugin_bundle import (
+    discover_selected_bundled_plugin_names,
+    is_python_project,
+    resolve_local_project_names,
+)
 from build_crystal_lattice_binary import (
     normalize_arch,
     normalize_platform,
@@ -30,6 +35,7 @@ SCRIPTS_DIR = ROOT / "scripts"
 CLOUD_RUNTIME_DOCKERFILE = ROOT / "cloud-orchestrator" / "runtime" / "python"
 BUILD_DIR = ROOT / "build" / "crystal-lattice-python-runtime"
 RELEASES_DIR = ROOT / "dist" / "crystal-lattice-python-runtime"
+PREINSTALLED_PLUGIN_MANIFEST = "preinstalled-plugins.json"
 
 
 def main() -> None:
@@ -106,11 +112,13 @@ def build_python_runtime_package(
 
     stage_python_runtime(package_dir / "python", python_runtime=python_runtime)
     stage_repo_like_runtime(package_dir)
+    write_preinstalled_plugins_manifest(package_dir, set())
     write_launchers(package_dir, platform_name=platform_name)
     write_manifest(package_dir, platform_name=platform_name, arch=arch, version=version)
 
     if install_dependencies:
         install_app_dependencies(package_dir)
+        install_preinstalled_default_plugins(package_dir)
 
     verify_package_tree(package_dir)
 
@@ -172,6 +180,7 @@ def write_runtime_layout(package_dir: Path) -> None:
             "cloud_runtime_dockerfile": "../../../cloud-orchestrator/runtime/python/Dockerfile",
             "config_examples": ".",
             "default_config_template": "default_config",
+            "preinstalled_plugin_manifest": f"../../../{PREINSTALLED_PLUGIN_MANIFEST}",
             "python_executable": python_executable,
             "root_system_messages": "system_messages",
         },
@@ -232,6 +241,63 @@ def install_app_dependencies(package_dir: Path) -> None:
     )
 
 
+def install_preinstalled_default_plugins(package_dir: Path) -> None:
+    plugins_root = package_dir / "plugins"
+    default_config = (
+        package_dir
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    selected_plugin_names = discover_selected_bundled_plugin_names(
+        default_config, plugins_root
+    )
+    local_project_names = resolve_local_project_names(
+        selected_plugin_names, plugins_root
+    )
+    projects = [
+        plugins_root / name
+        for name in sorted(local_project_names)
+        if is_python_project(plugins_root / name)
+    ]
+    if projects:
+        subprocess.run(
+            [
+                str(package_python(package_dir)),
+                "-m",
+                "pip",
+                "install",
+                "--upgrade",
+                *map(str, projects),
+            ],
+            cwd=str(package_dir),
+            check=True,
+        )
+    write_preinstalled_plugins_manifest(package_dir, local_project_names)
+
+
+def write_preinstalled_plugins_manifest(
+    package_dir: Path, plugin_names: set[str]
+) -> Path:
+    plugins = [
+        {"name": name, "path": f"plugins/{name}"}
+        for name in sorted(plugin_names)
+        if (package_dir / "plugins" / name).is_dir()
+    ]
+    manifest = {
+        "schema_version": 1,
+        "plugin_paths": [plugin["path"] for plugin in plugins],
+        "plugins": plugins,
+    }
+    path = package_dir / PREINSTALLED_PLUGIN_MANIFEST
+    path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return path
+
+
 def package_python(package_dir: Path) -> Path:
     windows_python = package_dir / "python" / "python.exe"
     if windows_python.is_file():
@@ -268,6 +334,7 @@ def verify_package_tree(package_dir: Path) -> None:
         package_dir / "core" / "python" / "agent_app",
         package_dir / "core" / "python" / "agent_core",
         package_dir / "plugins" / "message-export-actions" / "agent_plugin.json",
+        package_dir / PREINSTALLED_PLUGIN_MANIFEST,
         package_dir / "scripts" / "build_crystal_lattice_binary.py",
         package_dir / "scripts" / "build_cloud_runtime_plugin_bundle.py",
         package_dir / "runtime-package.json",

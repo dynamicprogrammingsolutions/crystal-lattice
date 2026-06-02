@@ -86,13 +86,17 @@ metadata, it must also declare them in `local_workspace_dependencies`. This
 keeps local plugin cache invalidation explicit and avoids core hardcoding
 workspace package names.
 
-Release and cloud-runtime bundles also use this metadata. Selected default
-plugins are preinstalled at bundle or image build time, and the bundled
-descriptor is rewritten with `"preinstalled": true`. The cloud runtime Docker
-build uses declared local workspace dependencies to copy the selected source
-closure into the build stage, create Linux-compatible wheels, and install them
-into the final image. At runtime, `path:${env:BUILTIN_PLUGINS}/<plugin>` points
-at preinstalled descriptor/resource metadata and should not trigger a plugin
+Release and cloud-runtime bundles also use this metadata. In the full
+bundled-Python package, the default-config plugin closure is installed into the
+packaged Python runtime and recorded in the package-owned
+`preinstalled-plugins.json` manifest. The visible copied plugin source
+descriptors remain unchanged, so copied/forked plugins behave like normal local
+path plugins outside the installed package. Optimized PyInstaller and cloud
+runtime images still use selected preinstalled descriptor/resource metadata
+with `"preinstalled": true`. The cloud runtime Docker build uses declared local
+workspace dependencies to copy the selected source closure into the build
+stage, create Linux-compatible wheels, and install them into the final image.
+At runtime, `path:${env:BUILTIN_PLUGINS}/<plugin>` should not trigger a plugin
 cache install for those bundled/default plugins.
 
 ## Installing `agent_plugin.json` as a data file

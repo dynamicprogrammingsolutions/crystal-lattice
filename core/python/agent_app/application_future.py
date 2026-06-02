@@ -359,6 +359,13 @@ class AgentApplication:
             dict(plugin_policy_in) if isinstance(plugin_policy_in, dict) else {}
         )
         plugin_policy.setdefault("base_dir", config_base_dir)
+        preinstalled_manifest = self._resolved_env.get(
+            "CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST"
+        )
+        if preinstalled_manifest:
+            plugin_policy.setdefault(
+                "preinstalled_plugin_manifest", preinstalled_manifest
+            )
 
         mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
 

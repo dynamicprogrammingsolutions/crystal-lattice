@@ -90,6 +90,53 @@ def test_descriptor_reads_local_workspace_dependencies(tmp_path: Path) -> None:
     assert descriptor.local_workspace_dependencies[0].path == "../sharedpkg"
 
 
+def test_localpath_manifest_preinstalled_imports_without_cache_install(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "runtime" / "plugins" / "pluginrepo"
+    pkg = tmp_path / "site" / "pluginrepo"
+    repo.mkdir(parents=True, exist_ok=True)
+    pkg.mkdir(parents=True, exist_ok=True)
+    (repo / "agent_plugin.json").write_text(
+        json.dumps({"entries": ["pluginrepo.tool_mod.ManifestTool"]}),
+        encoding="utf-8",
+    )
+    (repo / "pyproject.toml").write_text(
+        "from setuptools import setup\n", encoding="utf-8"
+    )
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "tool_mod.py").write_text(
+        "class ManifestTool:\n    pass\n",
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "runtime" / "preinstalled-plugins.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "plugins": [{"name": "pluginrepo", "path": "plugins/pluginrepo"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    sys.path.insert(0, str(tmp_path / "site"))
+    try:
+        mgr = PluginManager(
+            cache_dir=tmp_path / "cache",
+            policy={"preinstalled_plugin_manifest": str(manifest)},
+        )
+        res = mgr.resolve_all([f"path:{repo}"])
+    finally:
+        sys.path.remove(str(tmp_path / "site"))
+        sys.modules.pop("pluginrepo", None)
+        sys.modules.pop("pluginrepo.tool_mod", None)
+
+    assert res.errors == []
+    assert [getattr(cls, "__name__", "") for cls in res.classes] == ["ManifestTool"]
+    assert not any((tmp_path / "cache").glob("pluginrepo@*"))
+
+
 def test_descriptor_rejects_malformed_local_workspace_dependencies(
     tmp_path: Path,
 ) -> None:
@@ -504,7 +551,9 @@ def test_plugin_manager_defaults_pip_cache_next_to_plugins_cache(
     assert mgr.policy["pip_cache_dir"] == str(tmp_path / ".plugin_cache" / "pip")
 
 
-def test_pip_target_installer_uses_configured_pip_cache_dir(tmp_path: Path, monkeypatch) -> None:
+def test_pip_target_installer_uses_configured_pip_cache_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
     project_dir = _make_dev_repo(tmp_path)
     cache_dir = tmp_path / ".plugin_cache" / "plugins"
     pip_cache_dir = tmp_path / ".plugin_cache" / "pip"

@@ -50,6 +50,7 @@ def validate_package(package_dir: Path) -> None:
     required = [
         launcher,
         python_path(package_dir),
+        package_dir / "preinstalled-plugins.json",
         package_dir / "runtime-package.json",
         package_dir / "application" / "python" / "agent_terminal_app" / "__main__.py",
         package_dir
@@ -90,6 +91,14 @@ def validate_package(package_dir: Path) -> None:
     ):
         raise RuntimeError(
             "Runtime layout does not point CRYSTAL_PLUGIN_PYTHON at packaged Python"
+        )
+    if (
+        Path(env_overrides.get("CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST", "")).resolve()
+        != (package_dir / "preinstalled-plugins.json").resolve()
+    ):
+        raise RuntimeError(
+            "Runtime layout does not point "
+            "CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST at preinstalled-plugins.json"
         )
 
 

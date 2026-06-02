@@ -5,9 +5,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional
 
 import hashlib
+import json
 import os
 import re
 import subprocess
+
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
@@ -141,7 +143,9 @@ class LocalPathRepoSource:
         if subdir is None and descriptor is not None:
             subdir = descriptor.subdirectory
 
-        if descriptor is not None and descriptor.preinstalled:
+        if descriptor is not None and (
+            descriptor.preinstalled or self._is_manifest_preinstalled(base, ctx.policy)
+        ):
             return self._resolve_preinstalled_descriptor(base, entries, logger)
 
         project_dir = (base / subdir).resolve() if isinstance(subdir, str) else base
@@ -328,6 +332,43 @@ class LocalPathRepoSource:
             classes.append(cls)
         return PluginResolution(classes=classes, errors=errors)
 
+    def _is_manifest_preinstalled(self, base: Path, policy: Mapping[str, Any]) -> bool:
+        manifest_path = self._preinstalled_manifest_path(policy)
+        if manifest_path is None or not manifest_path.is_file():
+            return False
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            return False
+        paths = manifest.get("plugin_paths")
+        if not isinstance(paths, list):
+            raw_plugins = manifest.get("plugins")
+            if isinstance(raw_plugins, list):
+                paths = [
+                    item.get("path") for item in raw_plugins if isinstance(item, dict)
+                ] + [item for item in raw_plugins if isinstance(item, str)]
+            else:
+                paths = []
+
+        manifest_dir = manifest_path.parent
+        preinstalled: set[Path] = set()
+        for raw_path in paths:
+            if not isinstance(raw_path, str) or not raw_path.strip():
+                continue
+            path = Path(os.path.expanduser(raw_path))
+            if not path.is_absolute():
+                path = manifest_dir / path
+            preinstalled.add(path.resolve())
+        return base.resolve() in preinstalled
+
+    def _preinstalled_manifest_path(self, policy: Mapping[str, Any]) -> Path | None:
+        raw = policy.get("preinstalled_plugin_manifest") or os.environ.get(
+            "CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST"
+        )
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        return Path(os.path.expanduser(raw)).resolve()
+
     def _resolve_base_dir(self, path: str, policy: Mapping[str, Any]) -> Path:
         base_dir = policy.get("base_dir")
         base_path = Path(os.path.expanduser(path))
@@ -400,6 +441,7 @@ class LocalPathRepoSource:
                 )
             )
         return infos, None
+
     def _undeclared_local_file_dependency_error(
         self,
         base: Path,

@@ -718,9 +718,15 @@ without copying selected plugin source trees into that directory. User-owned
 state stays outside the bundle: config files, sessions, auth state, and plugin
 install caches belong under the selected `.crystal` directory.
 
-In the bundled-Python package, optional built-in plugins remain as source trees
-under `plugins/`. When user config references one of them, the app installs it
-into the configured plugin cache using the packaged Python interpreter.
+In the bundled-Python package, built-in plugin source trees remain under
+`plugins/`. The default-config plugin closure is also installed into the
+packaged Python runtime and recorded in the package-owned
+`preinstalled-plugins.json` manifest. Startup uses that manifest to import
+default plugins without installing them into the user plugin cache, while
+leaving the copied plugin source descriptors unchanged. When user config
+references a built-in plugin that is not in the default closure, the app
+installs it lazily into the configured plugin cache using the packaged Python
+interpreter.
 
 In optimized PyInstaller artifacts, optional built-in plugins that are not
 selected by the build config remain as source trees under

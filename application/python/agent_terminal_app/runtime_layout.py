@@ -55,6 +55,10 @@ class RuntimeLayout:
     def bundle_script(self) -> Path | None:
         return self.optional_bundle_path("bundle_script")
 
+    @property
+    def preinstalled_plugin_manifest(self) -> Path | None:
+        return self.optional_bundle_path("preinstalled_plugin_manifest")
+
     def bundle_path(self, name: str) -> Path:
         return _resolve_bundle_path(self.manifest_dir, self.bundle_paths[name])
 
@@ -74,6 +78,11 @@ class RuntimeLayout:
         python_executable = self.python_executable
         if python_executable is not None:
             values["CRYSTAL_PLUGIN_PYTHON"] = str(python_executable)
+        preinstalled_plugin_manifest = self.preinstalled_plugin_manifest
+        if preinstalled_plugin_manifest is not None:
+            values["CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST"] = str(
+                preinstalled_plugin_manifest
+            )
         return values
 
     def to_resolved_dict(self) -> dict[str, Any]:
