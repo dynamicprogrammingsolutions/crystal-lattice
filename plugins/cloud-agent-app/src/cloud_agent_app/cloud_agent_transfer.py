@@ -208,17 +208,27 @@ def copy_config_assets(
 ) -> Dict[str, Any]:
     include = bool(policy.get("include_config_dir", True))
     excludes = _string_list(policy.get("exclude"))
+    include_excluded = _string_list(policy.get("include_excluded"))
     max_bytes = _optional_int(policy.get("max_top_level_entry_bytes"))
     copied = []
     excluded = []
+    explicitly_included = []
 
     if not include:
-        return {"copied": copied, "excluded": [{"path": ".", "reason": "disabled"}]}
+        return {
+            "copied": copied,
+            "excluded": [{"path": ".", "reason": "disabled"}],
+            "included_excluded": explicitly_included,
+        }
 
     config_dir = config_dir.expanduser().resolve()
     target_dir.mkdir(parents=True, exist_ok=True)
     if not config_dir.exists():
-        return {"copied": copied, "excluded": [{"path": ".", "reason": "missing"}]}
+        return {
+            "copied": copied,
+            "excluded": [{"path": ".", "reason": "missing"}],
+            "included_excluded": explicitly_included,
+        }
 
     for entry in sorted(config_dir.iterdir(), key=lambda path: path.name):
         rel = entry.name
@@ -258,7 +268,20 @@ def copy_config_assets(
             shutil.copy2(entry, target)
         copied.append({"path": rel, "bytes": size})
 
-    return {"copied": copied, "excluded": excluded}
+    explicitly_included.extend(
+        _copy_include_excluded_assets(
+            config_dir=config_dir,
+            target_dir=target_dir,
+            patterns=include_excluded,
+            max_bytes=max_bytes,
+        )
+    )
+
+    return {
+        "copied": copied,
+        "excluded": excluded,
+        "included_excluded": explicitly_included,
+    }
 
 
 def write_runtime_env(
@@ -389,6 +412,114 @@ def _optional_int(value: Any) -> int | None:
 def _matches_any(path: str, patterns: Iterable[str]) -> bool:
     normalized = path.replace(os.sep, "/")
     return any(fnmatch.fnmatch(normalized, pattern) for pattern in patterns)
+
+
+def _copy_include_excluded_assets(
+    *,
+    config_dir: Path,
+    target_dir: Path,
+    patterns: Iterable[str],
+    max_bytes: int | None,
+) -> list[Dict[str, Any]]:
+    included = []
+    for pattern in patterns:
+        normalized = _normalize_include_excluded_pattern(pattern)
+        if normalized is None:
+            included.append(
+                {"path": pattern, "status": "rejected", "reason": "unsafe_path"}
+            )
+            continue
+
+        matches = _include_excluded_matches(config_dir, normalized)
+        if not matches:
+            included.append({"path": pattern, "status": "missing"})
+            continue
+
+        for source in matches:
+            try:
+                rel = source.relative_to(config_dir).as_posix()
+            except ValueError:
+                included.append(
+                    {"path": pattern, "status": "rejected", "reason": "unsafe_path"}
+                )
+                continue
+
+            included.append(
+                _copy_included_excluded_asset(
+                    config_dir=config_dir,
+                    target_dir=target_dir,
+                    source=source,
+                    rel=rel,
+                    max_bytes=max_bytes,
+                )
+            )
+    return included
+
+
+def _normalize_include_excluded_pattern(pattern: str) -> str | None:
+    normalized = pattern.replace("\\", "/").strip()
+    if (
+        not normalized
+        or normalized.startswith("/")
+        or normalized.startswith("~")
+        or os.path.isabs(normalized)
+    ):
+        return None
+    parts = [part for part in normalized.split("/") if part]
+    if any(part == ".." for part in parts):
+        return None
+    return "/".join(parts)
+
+
+def _include_excluded_matches(config_dir: Path, pattern: str) -> list[Path]:
+    if any(char in pattern for char in "*?["):
+        return sorted(
+            (path for path in config_dir.glob(pattern) if path.exists()),
+            key=lambda path: path.as_posix(),
+        )
+    source = config_dir / pattern
+    return [source] if source.exists() else []
+
+
+def _copy_included_excluded_asset(
+    *, config_dir: Path, target_dir: Path, source: Path, rel: str, max_bytes: int | None
+) -> Dict[str, Any]:
+    if source.is_symlink():
+        return {"path": rel, "status": "skipped", "reason": "symlink"}
+    try:
+        size = _top_level_size(source)
+    except OSError:
+        return {"path": rel, "status": "skipped", "reason": "unreadable"}
+    if max_bytes is not None and size > max_bytes:
+        return {"path": rel, "status": "skipped", "reason": "size_limit", "bytes": size}
+
+    target = target_dir / rel
+    if target.exists():
+        return {"path": rel, "status": "already_copied", "bytes": size}
+    if source.is_dir():
+        shutil.copytree(
+            source,
+            target,
+            symlinks=False,
+            ignore=lambda current, names: [
+                name
+                for name in names
+                if Path(current, name).is_symlink()
+                or not _path_stays_under_config_dir(config_dir, Path(current, name))
+            ],
+        )
+    else:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    return {"path": rel, "status": "copied", "bytes": size}
+
+
+def _path_stays_under_config_dir(config_dir: Path, path: Path) -> bool:
+    try:
+        path.resolve().relative_to(config_dir)
+    except (OSError, ValueError):
+        return False
+    return True
 
 
 def _top_level_size(path: Path) -> int:

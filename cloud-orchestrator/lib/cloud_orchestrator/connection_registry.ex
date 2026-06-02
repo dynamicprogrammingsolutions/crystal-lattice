@@ -105,8 +105,7 @@ defmodule CloudOrchestrator.ConnectionRegistry do
   def handle_call({:default_instance, connection_id}, _from, state) do
     reply =
       with {:ok, connection} <- fetch_connection(state, connection_id),
-           {:ok, instance_id} <- default_instance_id(connection),
-           {:ok, instance} <- InstanceRegistry.get_internal(instance_id) do
+           {:ok, instance} <- default_instance_for_connection(connection) do
         {:ok, instance}
       end
 
@@ -206,7 +205,7 @@ defmodule CloudOrchestrator.ConnectionRegistry do
     instance_ids = connection["instance_ids"] || []
 
     connection
-    |> Map.put("default_instance_id", connection["default_instance_id"] || instance_id)
+    |> Map.put("default_instance_id", next_default_instance_id(connection, instance_id))
     |> Map.put("instance_ids", Enum.uniq(instance_ids ++ [instance_id]))
     |> Map.put("updated_at", now())
   end
@@ -255,6 +254,57 @@ defmodule CloudOrchestrator.ConnectionRegistry do
   defp default_instance_id(%{"default_instance_id" => id}) when is_binary(id), do: {:ok, id}
   defp default_instance_id(%{"instance_ids" => [id | _]}) when is_binary(id), do: {:ok, id}
   defp default_instance_id(_connection), do: {:error, :not_found}
+
+  defp next_default_instance_id(connection, new_instance_id) do
+    case default_instance_id(connection) do
+      {:ok, current_id} ->
+        case InstanceRegistry.get_internal(current_id) do
+          {:ok, instance} ->
+            if InstanceRegistry.proxyable?(instance), do: current_id, else: new_instance_id
+
+          {:error, _reason} ->
+            new_instance_id
+        end
+
+      {:error, _reason} ->
+        new_instance_id
+    end
+  end
+
+  defp default_instance_for_connection(connection) do
+    case fetch_default_instance(connection) do
+      {:ok, instance} ->
+        if InstanceRegistry.proxyable?(instance) do
+          {:ok, instance}
+        else
+          first_proxyable_instance(connection) || {:ok, instance}
+        end
+
+      {:error, _reason} = error ->
+        first_proxyable_instance(connection) || error
+    end
+  end
+
+  defp fetch_default_instance(connection) do
+    with {:ok, instance_id} <- default_instance_id(connection),
+         {:ok, instance} <- InstanceRegistry.get_internal(instance_id) do
+      {:ok, instance}
+    end
+  end
+
+  defp first_proxyable_instance(connection) do
+    connection["instance_ids"]
+    |> List.wrap()
+    |> Enum.find_value(fn instance_id ->
+      case InstanceRegistry.get_internal(instance_id) do
+        {:ok, instance} ->
+          if InstanceRegistry.proxyable?(instance), do: {:ok, instance}, else: nil
+
+        {:error, _reason} ->
+          nil
+      end
+    end)
+  end
 
   defp validate_session_id(session_id) when is_binary(session_id) and session_id != "", do: :ok
   defp validate_session_id(_session_id), do: {:error, :invalid_session_id}

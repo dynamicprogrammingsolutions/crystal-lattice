@@ -157,13 +157,20 @@ tool paths, provider settings, and plugin path descriptors are preserved.
 in `application.cloud_agent.config_assets`, including exclude patterns and a
 per-top-level-entry size limit. This lets projects exclude `.env`,
 `.plugin_cache`, logs, or other bulky/private entries without the runtime
-hardcoding project-specific paths.
+hardcoding project-specific paths. Use `config_assets.include_excluded` for
+narrow opt-ins such as `auth/chatgpt-auth.json` when a normally excluded file
+must keep its `CONFIG_DIR`-relative path in the cloud runtime.
 
 Runtime env values are written through `application.cloud_agent.runtime_env`.
 By default, env placeholders referenced by config can be transferred by name,
 with explicit excludes for local control-plane and runtime-owned variables.
 Secret values are written only into runtime env files, never into action display
 payloads.
+
+Connection-scoped proxy routes prefer session-specific routes when the request
+identifies a session. Unscoped connection proxy requests use the connection
+default instance, but the registry falls back to a newer running instance when
+the recorded default is failed, closed, or otherwise not proxyable.
 
 The Docker runner mounts each instance at:
 

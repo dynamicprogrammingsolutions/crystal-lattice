@@ -247,6 +247,47 @@ defmodule CloudOrchestrator.RouterTest do
     assert legacy.status == 501
   end
 
+  test "connection proxy falls back from failed default to newer running instance" do
+    transfer_1 = create_ready_transfer()
+    transfer_2 = create_ready_transfer()
+
+    instance_1 =
+      create_instance(%{
+        "connection_ref" => %{"connection_key" => "router-default-fallback", "reuse" => true},
+        "session_id" => "session-failed-default",
+        "transfer_ref" => %{"transfer_id" => transfer_1["transfer_id"]}
+      })
+
+    CloudOrchestrator.InstanceRegistry.mark_failed(instance_1["instance_id"], %{
+      "startup_error" => "test_failure"
+    })
+
+    assert eventually(fn ->
+             {:ok, failed} =
+               CloudOrchestrator.InstanceRegistry.get(instance_1["instance_id"])
+
+             failed["state"] == "failed"
+           end)
+
+    instance_2 =
+      create_instance(%{
+        "connection_ref" => %{"connection_key" => "router-default-fallback", "reuse" => true},
+        "session_id" => "session-running",
+        "transfer_ref" => %{"transfer_id" => transfer_2["transfer_id"]}
+      })
+
+    assert instance_1["connection_id"] == instance_2["connection_id"]
+
+    proxied =
+      conn(:post, "/connections/#{instance_1["connection_id"]}/proxy/actions", Jason.encode!(%{}))
+      |> put_req_header("authorization", "Bearer #{instance_1["token"]}")
+      |> put_req_header("content-type", "application/json")
+      |> CloudOrchestrator.Endpoint.call(@opts)
+
+    assert proxied.status == 501
+    assert %{"error" => "memory_runner_not_proxyable"} = Jason.decode!(proxied.resp_body)
+  end
+
   test "connection proxy registers sessions created by proxied POST sessions" do
     base_url = start_test_session_runtime!()
     Application.put_env(:cloud_orchestrator, :runner, CloudOrchestrator.TestSessionCreateRunner)
@@ -408,4 +449,22 @@ defmodule CloudOrchestrator.RouterTest do
 
   defp restore_env(key, nil), do: Application.delete_env(:cloud_orchestrator, key)
   defp restore_env(key, value), do: Application.put_env(:cloud_orchestrator, key, value)
+
+  defp eventually(predicate) do
+    deadline = System.monotonic_time(:millisecond) + 2_000
+    eventually(predicate, deadline)
+  end
+
+  defp eventually(predicate, deadline) do
+    if predicate.() do
+      true
+    else
+      if System.monotonic_time(:millisecond) < deadline do
+        Process.sleep(25)
+        eventually(predicate, deadline)
+      else
+        false
+      end
+    end
+  end
 end

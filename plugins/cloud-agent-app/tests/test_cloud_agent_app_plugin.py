@@ -1900,6 +1900,104 @@ def test_config_assets_copy_uses_configured_excludes_and_top_level_size_limit(
     assert (".env", "exclude_pattern") in excluded
     assert (".plugin_cache", "exclude_pattern") in excluded
     assert ("large_dir", "size_limit") in excluded
+    assert manifest["included_excluded"] == []
+
+
+def test_config_assets_copy_can_explicitly_include_excluded_files(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / ".env").write_text("SECRET=1\n", encoding="utf-8")
+    auth_dir = config_dir / "auth"
+    auth_dir.mkdir()
+    (auth_dir / "chatgpt-auth.json").write_text(
+        '{"access_token":"test"}', encoding="utf-8"
+    )
+    (auth_dir / "do-not-copy.json").write_text('{"secret":"other"}', encoding="utf-8")
+    state_dir = config_dir / "state"
+    state_dir.mkdir()
+    (state_dir / "state.json").write_text("{}", encoding="utf-8")
+
+    target = tmp_path / "assets"
+    manifest = copy_config_assets(
+        config_dir=config_dir,
+        target_dir=target,
+        policy={
+            "include_config_dir": True,
+            "exclude": [".env", "auth", "state"],
+            "include_excluded": [".env", "auth/chatgpt-auth.json"],
+            "max_top_level_entry_bytes": 1024,
+        },
+    )
+
+    assert (target / ".env").read_text(encoding="utf-8") == "SECRET=1\n"
+    assert (target / "auth" / "chatgpt-auth.json").read_text(
+        encoding="utf-8"
+    ) == '{"access_token":"test"}'
+    assert not (target / "auth" / "do-not-copy.json").exists()
+    assert not (target / "state").exists()
+
+    included = {
+        (entry["path"], entry["status"]) for entry in manifest["included_excluded"]
+    }
+    assert (".env", "copied") in included
+    assert ("auth/chatgpt-auth.json", "copied") in included
+
+    excluded = {(entry["path"], entry["reason"]) for entry in manifest["excluded"]}
+    assert (".env", "exclude_pattern") in excluded
+    assert ("auth", "exclude_pattern") in excluded
+    assert ("state", "exclude_pattern") in excluded
+
+
+def test_config_assets_include_excluded_reports_missing_unsafe_and_size_limit(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    (config_dir / ".env").write_text("SECRET=1\n", encoding="utf-8")
+    (config_dir / ".env.large").write_text("x" * 20, encoding="utf-8")
+
+    target = tmp_path / "assets"
+    manifest = copy_config_assets(
+        config_dir=config_dir,
+        target_dir=target,
+        policy={
+            "include_config_dir": True,
+            "exclude": [".env", ".env.*"],
+            "include_excluded": [
+                ".env",
+                ".env.large",
+                ".env.missing",
+                "../outside",
+                "/absolute",
+            ],
+            "max_top_level_entry_bytes": 10,
+        },
+    )
+
+    assert (target / ".env").exists()
+    assert not (target / ".env.large").exists()
+
+    included = manifest["included_excluded"]
+    assert {"path": ".env", "status": "copied", "bytes": 9} in included
+    assert any(
+        entry["path"] == ".env.large"
+        and entry["status"] == "skipped"
+        and entry["reason"] == "size_limit"
+        for entry in included
+    )
+    assert {"path": ".env.missing", "status": "missing"} in included
+    assert {
+        "path": "../outside",
+        "status": "rejected",
+        "reason": "unsafe_path",
+    } in included
+    assert {
+        "path": "/absolute",
+        "status": "rejected",
+        "reason": "unsafe_path",
+    } in included
 
 
 def test_portable_config_preserves_builtin_plugin_path_reference() -> None:

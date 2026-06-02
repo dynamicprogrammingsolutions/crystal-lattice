@@ -211,11 +211,12 @@ Rules:
         "extra_rsync_args": []
       },
       "disabled_plugins": [
-        {"$raw": "path:${env:BUILTIN_PLUGINS}/session-asset-attachments},
+        {"$raw": "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"}
       ],
       "config_assets": {
         "include_config_dir": true,
         "exclude": [".env", ".env.*", ".plugin_cache", "logs", "sessions", "auth", "state"],
+        "include_excluded": [],
         "max_top_level_entry_bytes": 104857600
       },
       "runtime_env": {
@@ -300,6 +301,38 @@ Each profile describes one complete upload/setup/install/validation family.
   transfer bundle.
 - `runtime_env`: Policy for copying selected environment variables and env files
   into `.cloud-agent/env/runtime.env`.
+
+`config_assets.exclude` keeps broad local-only config and secret directories out
+of the transfer by default. Use `config_assets.include_excluded` for narrow,
+intentional exceptions that should keep their config-relative path in the cloud
+runtime. For example, to copy only saved ChatGPT credentials without copying the
+whole `auth` directory:
+
+```json
+{
+  "config_assets": {
+    "include_excluded": [
+      "auth/chatgpt-auth.json",
+      "auth/chatgpt-rate-limits.json"
+    ]
+  }
+}
+```
+
+For env files, prefer `runtime_env.env_files` when the file should be loaded as
+runtime environment variables:
+
+```json
+{
+  "runtime_env": {
+    "env_files": [".env.cloud"]
+  }
+}
+```
+
+Use `config_assets.include_excluded` for `.env` or `.env.cloud` only when the
+file itself must exist under the cloud runtime `CONFIG_DIR`; otherwise
+`runtime_env.env_files` is usually the tighter transfer.
 
 ## Project Overrides
 
