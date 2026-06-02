@@ -21,6 +21,8 @@ import {
 const RUN = process.env.RUN_CLOUD_ORCHESTRATOR_E2E === '1';
 const describeIf = RUN ? describe : describe.skip;
 const CLOUD_ORCHESTRATOR_E2E_MODE = process.env.CLOUD_ORCHESTRATOR_E2E_MODE || '';
+const IS_LOCAL_CLOUD_ORCHESTRATOR_E2E =
+  CLOUD_ORCHESTRATOR_E2E_MODE === '' || CLOUD_ORCHESTRATOR_E2E_MODE === 'local';
 const IS_AWS_E2E = CLOUD_ORCHESTRATOR_E2E_MODE.startsWith('aws-');
 // Keep provider-gated suites gated only by explicit test flags. The backend
 // application loads dotenv values from the config directory, .crystal dirs, and
@@ -243,6 +245,12 @@ function writeCloudAgentScripts(workspaceDir: string): void {
       '#!/usr/bin/env bash',
       'set -euo pipefail',
       'exit 0',
+    ].join('\n'),
+    'validate-cloud': [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      ': "${CLOUD_WORKSPACE_DIR:?}"',
+      'test -d "${CLOUD_WORKSPACE_DIR}"',
     ].join('\n'),
     'mark-synced': [
       '#!/usr/bin/env bash',
@@ -562,6 +570,67 @@ function requireCloudInstanceId(cloudLink: ReturnType<typeof parseCloudConnectio
   return cloudLink.instanceId;
 }
 
+function expectRuntimeImagePreinstalledPlugins(): void {
+  if (!IS_LOCAL_CLOUD_ORCHESTRATOR_E2E) {
+    return;
+  }
+
+  const script = `
+import importlib.util
+import json
+from pathlib import Path
+
+root = Path("/opt/ai-agent-platform/cloud-runtime-plugin-bundle")
+manifest = json.loads((root / "manifest.json").read_text())
+preinstalled = set(manifest.get("preinstalled_plugins", []))
+expected = ["cloud-agent-app", "codex-tools", "session-title-app"]
+
+missing = [name for name in expected if name not in preinstalled]
+if missing:
+    raise AssertionError(f"missing preinstalled plugins: {missing}; manifest={manifest}")
+
+for name in expected:
+    descriptor_path = root / "bundled_plugins" / name / "agent_plugin.json"
+    descriptor = json.loads(descriptor_path.read_text())
+    if descriptor.get("preinstalled") is not True:
+        raise AssertionError(f"{name} descriptor is not marked preinstalled: {descriptor}")
+
+for module in ["cloud_agent_app", "codex_tools", "session_title_app"]:
+    if importlib.util.find_spec(module) is None:
+        raise AssertionError(f"module is not importable: {module}")
+`;
+
+  execFileSync(
+    'docker',
+    ['run', '--rm', 'cloud-agent-runtime:latest', 'python3', '-c', script],
+    { stdio: 'pipe' },
+  );
+}
+
+function expectCloudRuntimePluginCacheEmpty(orchestrator: StartedCloudOrchestrator): void {
+  if (!IS_LOCAL_CLOUD_ORCHESTRATOR_E2E) {
+    return;
+  }
+
+  const pluginCache = path.join(
+    orchestrator.dataDir,
+    'runtime-cache',
+    'plugin_cache',
+    'plugins',
+  );
+  if (!fs.existsSync(pluginCache)) {
+    return;
+  }
+
+  const entries = fs
+    .readdirSync(pluginCache, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+
+  expect(entries).toEqual([]);
+}
+
 async function runDefaultConfigCodexChain(options: {
   orchestrator: StartedCloudOrchestrator;
   agentId: 'codex-openrouter' | 'codex-openai';
@@ -803,6 +872,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
     async () => {
       const orchestrator = await startCloudOrchestratorForE2E();
       stopAll.push(orchestrator.stop);
+      expectRuntimeImagePreinstalledPlugins();
 
       const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-workspace-'));
       initializeGitWorkspace(workspaceDir);
@@ -886,6 +956,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       const cloudSessions = await cloudBackend.listSessions();
       expect(cloudSessions.some((session) => session.session_id === sessionId)).toBe(true);
       await expect(cloudBackend.listAgents()).resolves.toContain('default');
+      expectCloudRuntimePluginCacheEmpty(orchestrator);
 
       const cloudMessages = await cloudBackend.listMessages(sessionId);
       expect(cloudMessages.messages[0]?.message.content).toBe('local hello');
@@ -954,7 +1025,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         { timeoutMs: 30_000, intervalMs: 500 },
       );
 
-      await localBackend.executeAction({
+      const syncDownResult = await localBackend.executeAction({
         pluginId: 'cloud',
         actionId: 'cloud.sync_down',
         actionOwner: 'application',
@@ -963,6 +1034,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
           workspace_dir: workspaceDir,
         },
       });
+      expect(syncDownResult.status, JSON.stringify(syncDownResult, null, 2)).toBe('ok');
 
       expect(fs.readFileSync(path.join(workspaceDir, 'from-cloud.txt'), 'utf8')).toBe(
         'synced from cloud\n',
@@ -986,19 +1058,34 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         { timeoutMs: 30_000, intervalMs: 500 },
       );
 
-      await localBackend.executeAction({
+      const secondSyncDownResult = await localBackend.executeAction({
+        pluginId: 'cloud',
+        actionId: 'cloud.sync_down',
+        actionOwner: 'application',
+        inputs: {
+          instance_id: requireCloudInstanceId(cloudLink),
+          workspace_dir: workspaceDir,
+        },
+      });
+      expect(
+        secondSyncDownResult.status,
+        JSON.stringify(secondSyncDownResult, null, 2),
+      ).toBe('ok');
+      expect(fs.readFileSync(path.join(workspaceDir, 'from-cloud-2.txt'), 'utf8')).toBe(
+        'second sync from cloud\n',
+      );
+
+      const closeResult = await localBackend.executeAction({
         pluginId: 'cloud',
         actionId: 'cloud.close_session',
         actionOwner: 'application',
         inputs: {
           instance_id: requireCloudInstanceId(cloudLink),
           session_id: sessionId,
+          workspace_dir: workspaceDir,
         },
       });
-
-      expect(fs.readFileSync(path.join(workspaceDir, 'from-cloud-2.txt'), 'utf8')).toBe(
-        'second sync from cloud\n',
-      );
+      expect(closeResult.status, JSON.stringify(closeResult, null, 2)).toBe('ok');
       const localMessages = await localBackend.listMessages(sessionId);
       expect(localMessages.messages.length).toBeGreaterThanOrEqual(2);
     },

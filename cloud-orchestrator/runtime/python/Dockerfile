@@ -1,4 +1,4 @@
-FROM ubuntu:22.04 AS runtime-base
+FROM public.ecr.aws/docker/library/ubuntu:22.04 AS runtime-base
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \

@@ -218,6 +218,8 @@ export interface StartedCloudOrchestrator {
   stop: () => Promise<void>;
 }
 
+let awsCloudOrchestratorForE2E: Promise<StartedCloudOrchestrator> | null = null;
+
 async function commandExists(cmd: string, args: string[]): Promise<boolean> {
   return await new Promise<boolean>((resolve) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'ignore', 'ignore'] });
@@ -226,11 +228,17 @@ async function commandExists(cmd: string, args: string[]): Promise<boolean> {
   });
 }
 
-async function runCommand(options: { cmd: string; args: string[]; cwd: string }): Promise<string> {
+async function runCommand(options: {
+  cmd: string;
+  args: string[];
+  cwd: string;
+  env?: Record<string, string | undefined>;
+}): Promise<string> {
   return await new Promise<string>((resolve, reject) => {
     const child = spawn(options.cmd, options.args, {
       cwd: options.cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
+      env: options.env ? { ...process.env, ...options.env } : process.env,
     });
     let out = '';
     child.stdout.on('data', (buf) => {
@@ -250,23 +258,84 @@ async function runCommand(options: { cmd: string; args: string[]; cwd: string })
   });
 }
 
+async function createCloudOrchestratorSourceBuildContext(repoRoot: string): Promise<string> {
+  const buildRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-orchestrator-source-'));
+  const bundlePath = path.join(buildRoot, 'source.tar.gz');
+
+  try {
+    await runCommand({
+      cmd: 'bash',
+      args: [
+        '-lc',
+        [
+          'source cloud-orchestrator/deploy/lib/source_bundle.sh',
+          'create_cloud_orchestrator_source_bundle "$1" "$2"',
+        ].join(' && '),
+        'bash',
+        bundlePath,
+        repoRoot,
+      ],
+      cwd: repoRoot,
+    });
+    await runCommand({
+      cmd: 'tar',
+      args: ['-xzf', bundlePath, '-C', buildRoot],
+      cwd: repoRoot,
+    });
+    fs.rmSync(bundlePath, { force: true });
+  } catch (error) {
+    fs.rmSync(buildRoot, { recursive: true, force: true });
+    throw error;
+  }
+
+  return buildRoot;
+}
+
+async function defaultE2EImageTag(repoRoot: string): Promise<string> {
+  let sha = 'nogit';
+  try {
+    sha = (await runCommand({
+      cmd: 'git',
+      args: ['rev-parse', '--short=12', 'HEAD'],
+      cwd: repoRoot,
+    })).trim();
+  } catch {
+    // Fall back to a timestamp-only tag outside a git checkout.
+  }
+  return `e2e-${sha}-${Date.now()}`;
+}
+
 export async function startCloudOrchestratorLocal(): Promise<StartedCloudOrchestrator> {
   const repoRoot = findRepoRoot(process.cwd());
   const cwd = path.join(repoRoot, 'cloud-orchestrator');
   const port = await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-orchestrator-'));
+  let sourceBuildRoot: string;
+  try {
+    sourceBuildRoot = await createCloudOrchestratorSourceBuildContext(repoRoot);
+  } catch (error) {
+    fs.rmSync(dataDir, { recursive: true, force: true });
+    throw error;
+  }
 
-  await runCommand({
-    cmd: 'docker',
-    args: ['build', '-t', 'cloud-agent-runtime:latest', '-f', 'cloud-orchestrator/runtime/python/Dockerfile', '.'],
-    cwd: repoRoot,
-  });
-  await runCommand({
-    cmd: 'docker',
-    args: ['build', '-t', 'cloud-agent-transfer-ssh:latest', 'cloud-orchestrator/transfer/managed-ssh'],
-    cwd: repoRoot,
-  });
+  try {
+    await runCommand({
+      cmd: 'docker',
+      args: ['build', '-t', 'cloud-agent-runtime:latest', '-f', 'cloud-orchestrator/runtime/python/Dockerfile', '.'],
+      cwd: sourceBuildRoot,
+    });
+    await runCommand({
+      cmd: 'docker',
+      args: ['build', '-t', 'cloud-agent-transfer-ssh:latest', 'cloud-orchestrator/transfer/managed-ssh'],
+      cwd: sourceBuildRoot,
+    });
+  } catch (error) {
+    fs.rmSync(sourceBuildRoot, { recursive: true, force: true });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+    throw error;
+  }
+
   try {
     const ids = await runCommand({
       cmd: 'docker',
@@ -300,14 +369,30 @@ export async function startCloudOrchestratorLocal(): Promise<StartedCloudOrchest
   child.stderr.on('data', (buf) => stderr.push(String(buf)));
   child.stdout.on('data', (buf) => stderr.push(String(buf)));
 
-  await waitForAsync(async () => {
-    try {
-      const resp = await fetch(`${baseUrl}/health`);
-      return resp.ok;
-    } catch {
-      return false;
+  try {
+    await waitForAsync(async () => {
+      try {
+        const resp = await fetch(`${baseUrl}/health`);
+        return resp.ok;
+      } catch {
+        return false;
+      }
+    }, { timeoutMs: 60_000, intervalMs: 250 });
+  } catch (error) {
+    if (!child.killed) {
+      child.kill('SIGTERM');
     }
-  }, { timeoutMs: 60_000, intervalMs: 250 });
+    fs.rmSync(dataDir, { recursive: true, force: true });
+    fs.rmSync(sourceBuildRoot, { recursive: true, force: true });
+    throw new Error(
+      [
+        'Cloud orchestrator did not become healthy before timeout.',
+        `Base URL: ${baseUrl}`,
+        `Output:\n${stderr.join('')}`,
+        `Cause: ${error instanceof Error ? error.message : String(error)}`,
+      ].join('\n'),
+    );
+  }
 
   async function stop(): Promise<void> {
     if (!child.killed) {
@@ -339,6 +424,7 @@ export async function startCloudOrchestratorLocal(): Promise<StartedCloudOrchest
     }
 
     fs.rmSync(dataDir, { recursive: true, force: true });
+    fs.rmSync(sourceBuildRoot, { recursive: true, force: true });
   }
 
   child.on('exit', (code) => {
@@ -382,7 +468,8 @@ export async function startCloudOrchestratorForE2E(): Promise<StartedCloudOrches
   }
 
   if (mode === 'aws-ec2-cloudfront') {
-    return await startCloudOrchestratorAwsEc2();
+    awsCloudOrchestratorForE2E ??= startCloudOrchestratorAwsEc2();
+    return await awsCloudOrchestratorForE2E;
   }
 
   throw new Error(`Unsupported CLOUD_ORCHESTRATOR_E2E_MODE=${mode}`);
@@ -401,6 +488,26 @@ async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator>
     `crystal-lattice-cloud-orchestrator-e2e-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
   const region = process.env.AWS_REGION || 'us-east-1';
   const deployDir = path.join(cwd, 'deploy', 'aws-ec2');
+  const freshBuild = process.env.CLOUD_ORCHESTRATOR_E2E_BUILD_IMAGES === '1';
+  const imageTag = process.env.CLOUD_ORCHESTRATOR_IMAGE_TAG || await defaultE2EImageTag(repoRoot);
+
+  if (freshBuild) {
+    await runCommand({
+      cmd: path.join(deployDir, 'build.sh'),
+      args: [
+        '--profile',
+        'secure',
+        '--stack-name',
+        stackName,
+        '--region',
+        region,
+        '--image-tag',
+        imageTag,
+        '--json',
+      ],
+      cwd,
+    });
+  }
 
   const upOutput = await runCommand({
     cmd: path.join(deployDir, 'up.sh'),
@@ -411,6 +518,7 @@ async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator>
       stackName,
       '--region',
       region,
+      ...(freshBuild ? ['--image-tag', imageTag] : []),
       '--json',
     ],
     cwd,
@@ -420,7 +528,12 @@ async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator>
     process.env.CLOUD_ORCHESTRATOR_E2E_CONTROL_TOKEN = parsed.controlToken;
   }
 
+  let stopped = false;
   async function stop(): Promise<void> {
+    if (stopped) {
+      return;
+    }
+    stopped = true;
     await runCommand({
       cmd: path.join(deployDir, 'down.sh'),
       args: ['--profile', 'secure', '--stack-name', stackName, '--region', region],
