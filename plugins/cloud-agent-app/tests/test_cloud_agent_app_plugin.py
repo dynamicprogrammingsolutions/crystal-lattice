@@ -4,14 +4,20 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List
 
 import pytest
 
+PLUGIN_SRC = Path(__file__).resolve().parents[1] / "src"
+if str(PLUGIN_SRC) not in sys.path:
+    sys.path.insert(0, str(PLUGIN_SRC))
+
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
+from agent_core import Session
 from cloud_agent_app import cloud_agent_validation
 from cloud_agent_app.cloud_agent_app_plugin import CloudAgentAppPlugin
 from cloud_agent_app.cloud_agent_profiles import resolve_cloud_agent_profiles
@@ -149,33 +155,14 @@ def test_cloud_start_session_ui_element_maps_current_session_id() -> None:
     assert "condition" not in element
 
     assert elements["cloud_check_session_agent"]["param_map"] == {
-        "instance_id": "$dialog.instance_id",
         "session_id": "$session.session_id",
-        "token": "$dialog.token",
     }
-    assert elements["cloud_check_session_agent"]["dialog"] == {
-        "kind": "form",
-        "title": "Check cloud status",
-        "message": (
-            "Check the status of a cloud instance. Values are "
-            "prefilled from the local session when available."
-        ),
-        "inputs": [
-            {
-                "name": "instance_id",
-                "type": "string",
-                "label": "Instance ID",
-                "required": True,
-                "prefill_from": "$session.metadata.cloud_agent.instance_id",
-            },
-            {
-                "name": "token",
-                "type": "string",
-                "label": "Token",
-                "required": False,
-                "prefill_from": "$session.metadata.cloud_agent.token",
-            },
-        ],
+    assert "dialog" not in elements["cloud_check_session_agent"]
+    assert elements["cloud_check_session_agent"]["condition"] == {
+        "any": [
+            {"path": "metadata.cloud_agent.instance_id", "exists": True},
+            {"path": "metadata.cloud_agent.operation_ref", "exists": True},
+        ]
     }
     assert elements["cloud_sync_down"]["param_map"] == {
         "instance_id": "$session.metadata.cloud_agent.instance_id",
@@ -249,10 +236,232 @@ def test_cloud_plugin_exposes_validate_cloud_command_binding() -> None:
 def test_cloud_start_session_default_wait_timeout_is_short() -> None:
     plugin = CloudAgentAppPlugin()
 
-    assert plugin._start_action_timeout_seconds({}) == 10.0
+    assert plugin._start_action_timeout_seconds({}) == 0.0
     assert (
         plugin._start_action_timeout_seconds({"start_action_timeout_seconds": 1}) == 1.0
     )
+
+
+def test_cloud_start_session_returns_operation_ref_before_background_work(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    transfer_script = _write_script(tmp_path / "transfer.sh")
+    config_path = _write_config(tmp_path, transfer_script)
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    _core, _base_config, session = app.create_session("default")
+    plugin = app._app_plugins["cloud"].plugin
+    started_threads: list[Any] = []
+
+    class FakeThread:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self.args = args
+            self.kwargs = kwargs
+
+        def start(self) -> None:
+            started_threads.append(self)
+
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.threading.Thread", FakeThread
+    )
+    monkeypatch.setattr(
+        plugin,
+        "_post_json",
+        lambda *args, **kwargs: pytest.fail("orchestrator called synchronously"),
+    )
+
+    result = app.execute_application_action(
+        "cloud",
+        "cloud.start_session_agent",
+        {"session_id": session.session_id},
+    )
+
+    assert started_threads
+    assert result["state"] == "starting"
+    assert result["operation_ref"].startswith(f"cloud-start:{session.session_id}:")
+    assert result["display"]["title"] == "Cloud Agent Starting"
+    loaded = app.load_session(session.session_id)
+    assert loaded is not None
+    cloud_agent = (loaded[2].metadata or {})["cloud_agent"]
+    assert cloud_agent["operation_ref"] == result["operation_ref"]
+    assert cloud_agent["startup_stage"] == "queued"
+    assert cloud_agent["state"] == "starting"
+
+
+def test_cloud_check_status_uses_operation_ref_without_manual_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    transfer_script = _write_script(tmp_path / "transfer.sh")
+    config_path = _write_config(tmp_path, transfer_script)
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    _core, _base_config, session = app.create_session("default")
+    plugin = app._app_plugins["cloud"].plugin
+
+    class FakeThread:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        def start(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.threading.Thread", FakeThread
+    )
+    start_result = app.execute_application_action(
+        "cloud",
+        "cloud.start_session_agent",
+        {"session_id": session.session_id},
+    )
+
+    status = app.execute_application_action(
+        "cloud",
+        "cloud.check_session_agent",
+        {"session_id": session.session_id},
+    )
+
+    assert status["operation_ref"] == start_result["operation_ref"]
+    assert start_result["operation_ref"] in status["display"]["body"]
+    assert "token" not in json.dumps(status["display"]["actions"])
+
+
+def test_cloud_check_status_reads_instance_from_session_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    transfer_script = _write_script(tmp_path / "transfer.sh")
+    config_path = _write_config(tmp_path, transfer_script)
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    _core, _base_config, session = app.create_session("default")
+    plugin = app._app_plugins["cloud"].plugin
+    metadata = dict(session.metadata or {})
+    metadata["cloud_agent"] = {
+        "operation_ref": "cloud-start:s1:test",
+        "instance_id": "inst_test",
+        "token": "secret-token",
+        "state": "starting",
+    }
+    app.save_session(
+        Session(
+            session_id=session.session_id,
+            messages=session.messages,
+            metadata=metadata,
+        )
+    )
+
+    monkeypatch.setattr(
+        plugin,
+        "_get_json",
+        lambda base_url, path, token=None: {
+            "instance_id": "inst_test",
+            "session_id": session.session_id,
+            "token": "secret-token",
+            "state": "running",
+            "startup_stage": "ready",
+            "connection_id": "conn_test",
+        },
+    )
+
+    status = app.execute_application_action(
+        "cloud",
+        "cloud.check_session_agent",
+        {"session_id": session.session_id},
+    )
+
+    assert status["instance_id"] == "inst_test"
+    assert "Instance ID: `inst_test`" in status["display"]["body"]
+    assert "secret-token" not in status["display"]["body"]
+    refresh = next(
+        action
+        for action in status["display"]["actions"]
+        if action["id"] == "refresh-cloud-agent-status"
+    )
+    assert refresh["fixed_params"] == {"session_id": session.session_id}
+
+
+def test_cloud_start_background_operation_updates_session_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    transfer_script = _write_script(tmp_path / "transfer.sh")
+    config_path = _write_config(tmp_path, transfer_script)
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    _core, _base_config, session = app.create_session("default")
+    wrapper = app._app_plugins["cloud"]
+    plugin = wrapper.plugin
+    operation = plugin._cloud_operation_registry(app).create(
+        session_id=session.session_id
+    )
+    operation_ref = operation["operation_ref"]
+
+    monkeypatch.setattr(
+        plugin,
+        "_create_transfer_keypair",
+        lambda transfer_dir: {
+            "public_key": "ssh-ed25519 test",
+            "private_key_path": transfer_dir / "id_ed25519",
+        },
+    )
+    monkeypatch.setattr(
+        plugin, "_run_managed_ssh_adapter", lambda *args, **kwargs: None
+    )
+
+    def fake_post_json(base_url, path, payload, token=None):
+        if path == "/transfers":
+            return {"transfer_id": "transfer_test"}
+        if path == "/transfers/transfer_test/ready":
+            return {}
+        if path == "/instances":
+            return {
+                "instance_id": "inst_test",
+                "session_id": session.session_id,
+                "token": "secret-token",
+                "state": "starting",
+                "startup_stage": "runtime_starting",
+                "connection_id": "conn_test",
+            }
+        raise AssertionError(path)
+
+    monkeypatch.setattr(plugin, "_post_json", fake_post_json)
+    monkeypatch.setattr(
+        plugin,
+        "_wait_for_instance_ready",
+        lambda orchestrator_url, instance, state, timeout_seconds=None: {
+            **instance,
+            "state": "running",
+            "startup_stage": "ready",
+        },
+    )
+
+    plugin._run_start_session_agent_operation(
+        app,
+        {"session_id": session.session_id},
+        wrapper.state,
+        operation_ref,
+    )
+
+    loaded = app.load_session(session.session_id)
+    assert loaded is not None
+    cloud_agent = (loaded[2].metadata or {})["cloud_agent"]
+    assert cloud_agent["operation_ref"] == operation_ref
+    assert cloud_agent["instance_id"] == "inst_test"
+    assert cloud_agent["state"] == "running"
+    assert cloud_agent["startup_stage"] == "ready"
+    assert cloud_agent["connection_id"] == "conn_test"
 
 
 def test_write_cloud_runtime_scripts_copies_optional_validation_script(
@@ -1314,6 +1523,22 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
         raise AssertionError(f"unexpected URL {request.full_url}")
 
     monkeypatch.setattr("cloud_agent_app.cloud_agent_app_plugin.urlopen", fake_urlopen)
+    plugin = app._app_plugins["cloud"].plugin
+    monkeypatch.setattr(
+        plugin, "_write_runtime_config_transfer", lambda *args, **kwargs: {}
+    )
+
+    class _InlineThread:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self._target = kwargs["target"]
+            self._args = kwargs.get("args", ())
+
+        def start(self) -> None:
+            self._target(*self._args)
+
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.threading.Thread", _InlineThread
+    )
 
     result = app.execute_application_action(
         "cloud",
@@ -1321,10 +1546,9 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
         {"session_id": session.session_id},
     )
 
-    assert result["connection_link"].startswith("crystal-lattice-cloud://connect?")
+    assert result["operation_ref"].startswith(f"cloud-start:{session.session_id}:")
     display = result["display"]
-    assert display["actions"][0]["kind"] == "copy_text"
-    assert "inst_test" in display["actions"][0]["text"]
+    assert display["title"] == "Cloud Agent Starting"
     assert calls[0]["url"] == "http://orchestrator.test/transfers"
     assert "public_key" in calls[0]["body"]
     assert "public_host" not in calls[0]["body"]
@@ -1345,12 +1569,13 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
     assert cloud_agent["session_id"] == session.session_id
     assert cloud_agent["state"] == "running"
     assert cloud_agent["token"] == "tok_test"
-    assert cloud_agent["connection_link"] == result["connection_link"]
+    assert cloud_agent["connection_link"].startswith("crystal-lattice-cloud://connect?")
 
     captured = json.loads(env_capture.read_text(encoding="utf-8"))
     assert captured["LOCAL_WORKSPACE_DIR"] == str(workspace.resolve())
     assert captured["CLOUD_WORKSPACE_DIR"] == CLOUD_WORKSPACE_DIR
     assert captured["TRANSFER_DIR"]
+    app.close()
 
 
 def test_cloud_check_session_action_updates_cloud_metadata(

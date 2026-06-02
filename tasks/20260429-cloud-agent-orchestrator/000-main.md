@@ -31,6 +31,8 @@ Plan and implement cloud agent orchestration for the terminal/server application
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0121.11-cloud-config-assets-include-excluded.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0121.12-cloud-runtime-preinstalled-plugin-e2e-assertions.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0121.13-cloud-orchestrator-deploy-e2e-source-bundle-coverage.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.14-cloud-start-background-operation-and-status-refresh.md`
+  - DEPENDS ON `tasks/20260602-generic-session-context-refresh-for-ui-actions.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0122-sync-profile-selection-ui.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0123-cloud-profile-user-docs.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0124-dockerfile-container-profiles.md`
