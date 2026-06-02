@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Sequence, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 
 from markdown import markdown as markdown_to_html
 from xhtml2pdf import pisa
@@ -21,6 +21,12 @@ SUPPORTED_PDF_ENGINES = {
     PDF_ENGINE_AUTO,
     PDF_ENGINE_PANDOC,
     PDF_ENGINE_XHTML2PDF,
+}
+PDF_STYLE_WEB = "web"
+PDF_STYLE_CLASSIC = "classic"
+SUPPORTED_PDF_STYLES = {
+    PDF_STYLE_WEB,
+    PDF_STYLE_CLASSIC,
 }
 DEFAULT_LANGUAGE = "en-US"
 DEFAULT_TOC_DEPTH = 2
@@ -58,6 +64,15 @@ def normalize_pdf_engine(raw_value: Any) -> str:
     if normalized in SUPPORTED_PDF_ENGINES:
         return normalized
     return PDF_ENGINE_AUTO
+
+
+def normalize_pdf_style(raw_value: Any) -> str:
+    if not isinstance(raw_value, str):
+        return PDF_STYLE_WEB
+    normalized = raw_value.strip().lower()
+    if normalized in SUPPORTED_PDF_STYLES:
+        return normalized
+    return PDF_STYLE_WEB
 
 
 def slugify_filename_stem(value: str, *, fallback: str) -> str:
@@ -315,50 +330,159 @@ def convert_markdown_to_epub(
             raise RuntimeError(f"pandoc EPUB conversion failed: {detail}")
 
 
-def _html_document(*, title: str, markdown_text: str) -> str:
+def _classic_html_css() -> str:
+    return """
+      body {
+        font-family: Helvetica, Arial, sans-serif;
+        font-size: 11pt;
+        line-height: 1.45;
+        color: #111827;
+        margin: 24pt 30pt;
+      }
+      h1, h2, h3, h4, h5, h6 {
+        color: #111827;
+        margin-top: 1.1em;
+        margin-bottom: 0.4em;
+      }
+      p, li {
+        margin: 0.35em 0;
+      }
+      code, pre {
+        font-family: Courier, monospace;
+        background: #f3f4f6;
+      }
+      pre {
+        padding: 8pt;
+        border: 1px solid #d1d5db;
+        white-space: pre-wrap;
+      }
+      hr {
+        border: none;
+        border-top: 1px solid #d1d5db;
+        margin: 1em 0;
+      }
+    """
+
+
+def _web_html_css() -> str:
+    return """
+      @page {
+        margin: 24pt 30pt;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        font-size: 10.5pt;
+        line-height: 1.55;
+        color: #172033;
+        margin: 0;
+      }
+      .document {
+        max-width: 720pt;
+      }
+      h1 {
+        font-size: 23pt;
+        line-height: 1.15;
+        font-weight: 700;
+        color: #0f172a;
+        margin: 0 0 18pt;
+        padding-bottom: 10pt;
+        border-bottom: 1pt solid #d8dee8;
+      }
+      h2 {
+        font-size: 16pt;
+        line-height: 1.25;
+        font-weight: 700;
+        color: #1e293b;
+        margin: 22pt 0 8pt;
+      }
+      h3, h4, h5, h6 {
+        color: #334155;
+        font-weight: 650;
+        margin: 14pt 0 5pt;
+      }
+      h3 {
+        font-size: 13pt;
+      }
+      p {
+        margin: 0 0 8pt;
+      }
+      ul, ol {
+        margin: 0 0 10pt 18pt;
+        padding: 0;
+      }
+      li {
+        margin: 2pt 0 4pt;
+      }
+      a {
+        color: #2563eb;
+        text-decoration: none;
+      }
+      blockquote {
+        color: #475569;
+        border-left: 3pt solid #cbd5e1;
+        margin: 10pt 0;
+        padding: 2pt 0 2pt 10pt;
+      }
+      code {
+        font-family: "SFMono-Regular", Menlo, Consolas, Courier, monospace;
+        font-size: 9.5pt;
+        color: #0f172a;
+        background: #f1f5f9;
+      }
+      pre {
+        font-family: "SFMono-Regular", Menlo, Consolas, Courier, monospace;
+        font-size: 9.5pt;
+        line-height: 1.4;
+        color: #0f172a;
+        background: #f8fafc;
+        border: 1pt solid #d8dee8;
+        padding: 9pt 10pt;
+        white-space: pre-wrap;
+      }
+      pre code {
+        background: transparent;
+      }
+      hr {
+        border: none;
+        border-top: 1pt solid #d8dee8;
+        margin: 16pt 0;
+      }
+      table {
+        border-collapse: collapse;
+        margin: 10pt 0;
+        width: 100%;
+      }
+      th, td {
+        border: 1pt solid #d8dee8;
+        padding: 5pt 7pt;
+      }
+      th {
+        background: #f8fafc;
+        color: #334155;
+        font-weight: 700;
+      }
+    """
+
+
+def _html_document(*, title: str, markdown_text: str, style: str = PDF_STYLE_WEB) -> str:
     body_html = markdown_to_html(
         markdown_text,
         extensions=["extra", "fenced_code", "tables", "sane_lists", "nl2br"],
     )
+    css = _classic_html_css() if normalize_pdf_style(style) == PDF_STYLE_CLASSIC else _web_html_css()
     return f"""<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <title>{html.escape(title)}</title>
     <style>
-      body {{
-        font-family: Helvetica, Arial, sans-serif;
-        font-size: 11pt;
-        line-height: 1.45;
-        color: #111827;
-        margin: 24pt 30pt;
-      }}
-      h1, h2, h3, h4, h5, h6 {{
-        color: #111827;
-        margin-top: 1.1em;
-        margin-bottom: 0.4em;
-      }}
-      p, li {{
-        margin: 0.35em 0;
-      }}
-      code, pre {{
-        font-family: Courier, monospace;
-        background: #f3f4f6;
-      }}
-      pre {{
-        padding: 8pt;
-        border: 1px solid #d1d5db;
-        white-space: pre-wrap;
-      }}
-      hr {{
-        border: none;
-        border-top: 1px solid #d1d5db;
-        margin: 1em 0;
-      }}
+{css}
     </style>
   </head>
   <body>
-    {body_html}
+    <main class="document">
+      {body_html}
+    </main>
   </body>
 </html>
 """
@@ -370,11 +494,46 @@ def _convert_markdown_to_pdf_pandoc(
     title: str,
     output_path: Path,
     pdf_engine: str,
+    style: str,
 ) -> None:
     with tempfile.TemporaryDirectory(prefix="message-export-pdf-pandoc-") as tmpdir:
         work_dir = Path(tmpdir)
         markdown_path = work_dir / "document.md"
         markdown_path.write_text(markdown_text, encoding="utf-8")
+        header_path = work_dir / "web-style.tex"
+        style_args: List[str] = []
+        if normalize_pdf_style(style) == PDF_STYLE_WEB:
+            header_path.write_text(
+                "\n".join(
+                    [
+                        r"\renewcommand{\familydefault}{\sfdefault}",
+                        r"\setlength{\parindent}{0pt}",
+                        r"\setlength{\parskip}{0.55em}",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            style_args = [
+                "--variable",
+                "documentclass=article",
+                "--variable",
+                "geometry:margin=0.72in",
+                "--variable",
+                "fontsize=11pt",
+                "--variable",
+                "linestretch=1.08",
+                "--variable",
+                "fontfamily=helvet",
+                "--variable",
+                "colorlinks=true",
+                "--variable",
+                "linkcolor=2563EB",
+                "--variable",
+                "urlcolor=2563EB",
+                "--include-in-header",
+                str(header_path),
+            ]
 
         cmd = [
             "pandoc",
@@ -384,6 +543,7 @@ def _convert_markdown_to_pdf_pandoc(
             f"title={title}",
             "--pdf-engine",
             pdf_engine,
+            *style_args,
             "-o",
             str(output_path),
             str(markdown_path),
@@ -399,8 +559,9 @@ def _convert_markdown_to_pdf_xhtml2pdf(
     markdown_text: str,
     title: str,
     output_path: Path,
+    style: str,
 ) -> None:
-    document = _html_document(title=title, markdown_text=markdown_text)
+    document = _html_document(title=title, markdown_text=markdown_text, style=style)
     with output_path.open("wb") as stream:
         result = pisa.CreatePDF(document, dest=stream, encoding="utf-8")
     if getattr(result, "err", 0):
@@ -413,14 +574,17 @@ def convert_markdown_to_pdf(
     title: str,
     output_path: Path,
     engine_setting: str,
+    style_setting: str = PDF_STYLE_WEB,
 ) -> str:
     runtime_engine, pandoc_pdf_engine = select_pdf_runtime_engine(engine_setting)
+    normalized_style = normalize_pdf_style(style_setting)
     if runtime_engine == PDF_ENGINE_PANDOC:
         _convert_markdown_to_pdf_pandoc(
             markdown_text=markdown_text,
             title=title,
             output_path=output_path,
             pdf_engine=str(pandoc_pdf_engine),
+            style=normalized_style,
         )
         return PDF_ENGINE_PANDOC
 
@@ -428,6 +592,7 @@ def convert_markdown_to_pdf(
         markdown_text=markdown_text,
         title=title,
         output_path=output_path,
+        style=normalized_style,
     )
     return PDF_ENGINE_XHTML2PDF
 

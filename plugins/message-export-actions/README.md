@@ -4,6 +4,7 @@ Application plugins that add two message actions to the chat UI:
 
 - `Send to Kindle`
 - `Share as PDF`
+- `Share as Markdown`
 
 These plugins now expose both:
 
@@ -25,6 +26,13 @@ These plugins now expose both:
   - stores the PDF as a session asset
   - returns a follow-up action so clients can share on mobile or save on desktop
   - includes its own download action, so it does not rely on a separate attachment-download plugin being loaded
+  - defaults to a more web-like PDF style with sans-serif fonts, cleaner heading spacing, softer code blocks, and tighter margins
+
+- `Share as Markdown`
+  - prompts for optional title and optional filename
+  - writes the same rendered export document used before PDF conversion directly to a `.md` file
+  - stores the Markdown file as a session asset
+  - returns the same generated-file follow-up action used by PDF exports
 
 Session export behavior:
 
@@ -44,6 +52,7 @@ This plugin reads resolved agent/session config keys at runtime:
 - `send_to_kindle_default_to`
 - `send_to_kindle_keychain_service`
 - `message_export_pdf_engine`
+- `message_export_pdf_style`
 
 Recommended `message_export_pdf_engine` values:
 
@@ -56,6 +65,18 @@ Behavior:
 - `auto`: prefer `pandoc` when available, otherwise use `xhtml2pdf`
 - `pandoc`: require `pandoc`
 - `xhtml2pdf`: always use the Python fallback engine
+
+Recommended `message_export_pdf_style` values:
+
+- `web`
+- `classic`
+
+Behavior:
+
+- `web`: default. Uses a cleaner exported-web-page style, including sans-serif typography, lighter dividers, improved heading rhythm, and softer code/table styling.
+- `classic`: keeps the older simpler styling.
+
+The PDF engine controls the conversion backend. The PDF style controls appearance.
 
 Kindle title behavior:
 
@@ -185,7 +206,8 @@ Add the plugin repo to your config:
       "send_to_kindle_from_addr": "${env:ICLOUD_KINDLE_FROM_ADDR}",
       "send_to_kindle_default_to": "${env:ICLOUD_KINDLE_DEFAULT_TO}",
       "send_to_kindle_keychain_service": "${env:ICLOUD_KINDLE_KEYCHAIN_SERVICE}",
-      "message_export_pdf_engine": "${env:MESSAGE_EXPORT_PDF_ENGINE}"
+      "message_export_pdf_engine": "${env:MESSAGE_EXPORT_PDF_ENGINE}",
+      "message_export_pdf_style": "${env:MESSAGE_EXPORT_PDF_STYLE}"
     }
   },
   "plugins": [
@@ -208,6 +230,7 @@ ICLOUD_KINDLE_FROM_ADDR=your-icloud-address@icloud.com
 ICLOUD_KINDLE_DEFAULT_TO=your-kindle-address@kindle.com
 ICLOUD_KINDLE_KEYCHAIN_SERVICE=kindle-smtp
 MESSAGE_EXPORT_PDF_ENGINE=auto
+MESSAGE_EXPORT_PDF_STYLE=web
 ```
 
 If you prefer a fully inline config instead of `.env` placeholders:
@@ -220,7 +243,8 @@ If you prefer a fully inline config instead of `.env` placeholders:
       "send_to_kindle_from_addr": "your-icloud-address@icloud.com",
       "send_to_kindle_default_to": "your-kindle-address@kindle.com",
       "send_to_kindle_keychain_service": "kindle-smtp",
-      "message_export_pdf_engine": "auto"
+      "message_export_pdf_engine": "auto",
+      "message_export_pdf_style": "web"
     }
   },
   "plugins": [
@@ -242,6 +266,7 @@ You can also load it from the built-in plugins directory if your install layout 
 - `Send to Kindle` does not currently fall back when `pandoc` is unavailable. It returns a clear error instead.
 - Export scope is intentionally limited to message text plus lightweight metadata.
 - Multipart attachments are not rendered into the exported document in this version.
+- Markdown exports reuse the same message/session rendering pipeline as PDF exports, but skip the PDF conversion step.
 - EPUB generation uses the same general metadata defaults as the bash Kindle tools:
   - language defaults to `en-US`
   - TOC is enabled
