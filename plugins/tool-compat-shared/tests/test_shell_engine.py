@@ -15,6 +15,7 @@ from tool_compat_shared import (
     BACKGROUND_MAX_LINES,
     BACKGROUND_READ_TIMEOUT,
     ShellInfo,
+    accumulate_truncated_lines,
     approx_token_count,
     build_shell_args,
     detect_shell,
@@ -437,6 +438,69 @@ class TestApproxTokenCount:
         """Newlines count as characters."""
         # 8 chars including 1 newline = 2 tokens
         assert approx_token_count("abcd\nefgh") == 2
+
+
+class TestAccumulateTruncatedLines:
+    """Tests for bounded line accumulation with per-line truncation."""
+
+    def test_no_truncation_when_under_limits(self) -> None:
+        output, meta = accumulate_truncated_lines(
+            ["line1\n", "line2\n"],
+            max_chars=100,
+            max_line_length=50,
+            marker="[cut]",
+        )
+        assert output == "line1\nline2\n"
+        assert meta["truncated"] is False
+        assert meta["chars_written"] == len(output)
+        assert meta["lines_seen"] == 2
+        assert meta["lines_written"] == 2
+
+    def test_per_line_truncation_uses_marker(self) -> None:
+        output, meta = accumulate_truncated_lines(
+            ["abcdefghij\n"],
+            max_chars=100,
+            max_line_length=8,
+            marker="...",
+        )
+        assert output == "abcd...\n"
+        assert meta["truncated"] is True
+        assert meta["lines_written"] == 1
+
+    def test_total_char_budget_stops_later_lines(self) -> None:
+        output, meta = accumulate_truncated_lines(
+            ["1234\n", "5678\n", "90ab\n"],
+            max_chars=10,
+            max_line_length=None,
+            marker="[cut]",
+        )
+        assert output == "1234\n5678\n"
+        assert meta["truncated"] is True
+        assert meta["lines_seen"] == 3
+        assert meta["lines_written"] == 2
+
+    def test_final_line_is_truncated_to_remaining_budget(self) -> None:
+        output, meta = accumulate_truncated_lines(
+            ["1234\n", "abcdef\n"],
+            max_chars=10,
+            max_line_length=None,
+            marker="...",
+        )
+        assert output == "1234\na...\n"
+        assert meta["truncated"] is True
+        assert meta["chars_written"] == len(output)
+
+    def test_combines_per_line_and_total_budget(self) -> None:
+        output, meta = accumulate_truncated_lines(
+            ["abcdefghij\n", "klmnop\n"],
+            max_chars=12,
+            max_line_length=8,
+            marker="...",
+        )
+        assert output == "abcd...\n...\n"
+        assert meta["truncated"] is True
+        assert meta["lines_seen"] == 2
+        assert meta["lines_written"] == 2
 
 
 class TestTruncateOutput:

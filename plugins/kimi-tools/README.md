@@ -63,7 +63,7 @@ Execute shell commands with clean environment support.
 - **Timeout**: In seconds; default 60s, max 300s
 - **Clean environment**: Removes PyInstaller/frozen-executable variables when running as frozen
 - **Output format**: Raw output + success/failure message
-- **No truncation**: Full output returned
+- **Truncation**: Per-line truncation with `"[...truncated]"` marker, capped to 2000 chars/line and 50000 chars total
 
 ### WriteFile
 Write content to a file with overwrite or append mode.

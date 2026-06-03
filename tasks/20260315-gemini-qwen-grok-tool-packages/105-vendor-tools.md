@@ -391,7 +391,7 @@ Each vendor tool should have tests for:
    - Parameters: `command`, `timeout` (seconds)
    - Timeout: 60s default, 300s max
    - Clean environment via `get_clean_env()` (removes PyInstaller variables)
-   - No truncation
+   - Output truncated to 2000 chars per line and 50000 chars total
 
 ### Files modified:
 
