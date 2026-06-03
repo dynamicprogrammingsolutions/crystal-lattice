@@ -98,6 +98,25 @@ def test_binary_asset_staging_keeps_selected_preinstalled_and_optional_installab
     assert "message_export_actions" not in hidden_imports
 
 
+def test_bundled_cloud_runtime_includes_python_headers_for_native_wheels() -> None:
+    dockerfile = (
+        ROOT
+        / "plugins"
+        / "cloud-agent-app"
+        / "src"
+        / "cloud_agent_app"
+        / "bundled_runtime"
+        / "python"
+        / "Dockerfile"
+    )
+
+    text = dockerfile.read_text(encoding="utf-8")
+
+    assert "build-essential" in text
+    assert "python3-dev" in text
+    assert "python3-venv" in text
+
+
 def test_optional_bundled_source_plugin_installs_and_loads_from_staged_assets(
     tmp_path: Path, monkeypatch
 ) -> None:
