@@ -90,8 +90,23 @@ trap cleanup EXIT
 
 create_cloud_orchestrator_source_bundle "${bundle_path}" "${repo_root}"
 
+remote_cleanup_command="
+# Temporary development cleanup: stop old runtime and transfer containers
+# and remove previous images to free disk space before rebuilding.
+# TODO: Replace this deploy-time cleanup with continuous cleanup and
+# persistent storage. This is a temporary development workaround,
+# not a final solution.
+runtime_container_ids=\$(docker ps -aq --format '{{.ID}} {{.Names}}' 2>/dev/null | awk '\$2 ~ /^cloud-agent-/ || \$2 ~ /^cloud-transfer-/ { print \$1 }')
+if [[ -n \"\${runtime_container_ids}\" ]]; then
+  printf '%s\n' \"\${runtime_container_ids}\" | xargs -r docker rm -f >/dev/null 2>&1 || true
+fi
+docker rmi cloud-agent-runtime:latest cloud-agent-transfer-ssh:latest >/dev/null 2>&1 || true
+docker image prune -f >/dev/null 2>&1 || true
+"
+
 ssh_setup_command="
 set -euo pipefail
+${remote_cleanup_command}
 mkdir -p $(quote "${remote_dir}")/.deploy
 "
 
@@ -116,6 +131,7 @@ cd $(quote "${remote_dir}")
 find . -mindepth 1 -maxdepth 1 ! -name .deploy -exec rm -rf {} +
 tar -xzf .deploy/source.tar.gz -C .
 mkdir -p $(quote "${host_data_dir}")
+
 if docker compose version >/dev/null 2>&1; then
   compose_cmd='docker compose'
   compose_file='cloud-orchestrator/docker-compose.single-node.yml'

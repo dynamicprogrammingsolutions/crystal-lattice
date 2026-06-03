@@ -54,3 +54,9 @@ The deploy script auto-selects:
 
 - `docker compose` with `docker-compose.single-node.yml` on modern Docker
 - `docker-compose` with `docker-compose.single-node-v2.yml` on older hosts
+
+For the current development deployment flow, the script also removes existing
+`cloud-agent-*` and `cloud-transfer-*` containers and prunes dangling Docker
+images before uploading the new bundle so the host can recover disk space. This
+is a temporary development workaround, not the final long-term cleanup/storage
+strategy.
