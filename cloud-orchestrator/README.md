@@ -22,7 +22,10 @@ Conceptually:
 ```bash
 cd cloud-orchestrator
 cd ..
-docker build -t cloud-agent-runtime:latest -f cloud-orchestrator/runtime/python/Dockerfile .
+python3 scripts/prepare_cloud_runtime_build_context.py \
+  --output build/cloud-runtime \
+  --config application/python/agent_terminal_app/default_config/config.json
+docker build -t cloud-agent-runtime:latest build/cloud-runtime
 cd cloud-orchestrator
 docker compose -f docker-compose.single-node.yml up --build
 curl http://127.0.0.1:4100/health
@@ -35,7 +38,10 @@ Set `CLOUD_ORCHESTRATOR_CONTROL_TOKEN` in remote deployments. Control-plane call
 For a host-local manual smoke without Compose:
 
 ```bash
-docker build -t cloud-agent-runtime:latest -f cloud-orchestrator/runtime/python/Dockerfile .
+python3 scripts/prepare_cloud_runtime_build_context.py \
+  --output build/cloud-runtime \
+  --config application/python/agent_terminal_app/default_config/config.json
+docker build -t cloud-agent-runtime:latest build/cloud-runtime
 docker build -t cloud-agent-transfer-ssh:latest cloud-orchestrator/transfer/managed-ssh
 
 PORT=4105 \
@@ -122,14 +128,11 @@ CLI command:
 crystal-lattice validate-cloud
 ```
 
-That command runs the same configured cloud runtime image locally. For the
-default `cloud-agent-runtime:latest` image, the CLI uses explicit runtime-layout
-build metadata to compute a build-input digest and rebuilds only when the local
-image is missing or stale. Source installs point at this orchestrator Dockerfile;
-bundled installs point at a packaged Docker-buildable runtime context. The
-orchestrator-owned runtime files under `cloud-orchestrator/runtime/python/` must
-stay behaviorally in sync with the bundled copy until runtime ownership is fully
-plugin-driven.
+That command runs the configured container profile locally. For Dockerfile
+profiles, the cloud-agent plugin stages a Docker-buildable runtime context and
+uses a digest label to rebuild only when the context is missing or stale. The
+default packaged runtime Dockerfile and runtime app live in the
+`cloud-agent-app` plugin.
 
 ## Runtime Config, Assets, And Env
 

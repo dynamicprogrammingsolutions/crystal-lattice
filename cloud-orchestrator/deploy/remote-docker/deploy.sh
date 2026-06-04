@@ -139,7 +139,10 @@ else
   compose_cmd='docker-compose'
   compose_file='cloud-orchestrator/docker-compose.single-node-v2.yml'
 fi
-docker build -t cloud-agent-runtime:latest -f cloud-orchestrator/runtime/python/Dockerfile .
+python3 scripts/prepare_cloud_runtime_build_context.py \
+  --output build/cloud-runtime \
+  --config application/python/agent_terminal_app/default_config/config.json
+docker build -t cloud-agent-runtime:latest build/cloud-runtime
 docker build -t cloud-agent-transfer-ssh:latest cloud-orchestrator/transfer/managed-ssh
 CLOUD_ORCHESTRATOR_PUBLIC_URL=$(quote "${CLOUD_ORCHESTRATOR_PUBLIC_URL}") \\
 CLOUD_ORCHESTRATOR_TOKEN_SECRET=$(quote "${token_secret}") \\

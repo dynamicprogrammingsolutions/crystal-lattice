@@ -13,10 +13,8 @@ def test_source_runtime_layout_resolves_bundle_paths() -> None:
 
     assert layout.layout == "source"
     assert layout.builtin_plugins == repo_root / "plugins"
-    assert layout.cloud_runtime_build_context == repo_root
-    assert layout.cloud_runtime_dockerfile == (
-        repo_root / "cloud-orchestrator" / "runtime" / "python" / "Dockerfile"
-    )
+    assert layout.cloud_runtime_build_context is None
+    assert layout.cloud_runtime_dockerfile is None
     assert layout.default_config_template.name == "default_config"
     assert (layout.default_config_template / "config.json").is_file()
 

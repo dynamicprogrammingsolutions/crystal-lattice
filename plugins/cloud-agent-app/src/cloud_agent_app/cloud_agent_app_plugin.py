@@ -19,7 +19,7 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -27,14 +27,17 @@ from agent_core.utils import get_logger
 from agent_core.types import Session
 from agent_terminal_app.runtime_layout import load_runtime_layout
 
-from .cloud_agent_profiles import resolve_cloud_agent_profiles
+from .cloud_agent_profiles import DEFAULT_RUNTIME_IMAGE, resolve_cloud_agent_profiles
+from .cloud_agent_container import stage_container_build_context
 from .cloud_agent_transfer import (
     CLOUD_CACHE_DIR,
     CLOUD_WORKSPACE_DIR,
     prepare_cloud_transfer,
 )
 from .cloud_agent_validation import (
+    ensure_local_staged_container_image,
     ensure_local_runtime_image,
+    prepare_source_cloud_runtime_build_context,
     reserve_local_port,
     run_command,
 )
@@ -105,7 +108,65 @@ class CloudAgentAppPlugin:
         cloud = application.get("cloud_agent") if isinstance(application, dict) else {}
         if not isinstance(cloud, dict):
             return {}
-        return resolve_cloud_agent_profiles(cloud)
+        return resolve_cloud_agent_profiles(self._with_plugin_defaults(cloud))
+
+    def _with_plugin_defaults(self, cloud: Dict[str, Any]) -> Dict[str, Any]:
+        configured_profiles = cloud.get("container_profiles")
+        has_profiles = isinstance(configured_profiles, dict)
+        has_default_profile = has_profiles and "default-runtime" in configured_profiles
+        has_default_id = isinstance(
+            cloud.get("default_container_profile"), str
+        ) and bool(str(cloud.get("default_container_profile")).strip())
+        if (
+            has_profiles
+            and has_default_id
+            and (
+                cloud.get("default_container_profile") != "default-runtime"
+                or has_default_profile
+            )
+        ):
+            return dict(cloud)
+
+        defaults: Dict[str, Any] = {
+            "default_container_profile": "default-runtime",
+            "container_profiles": {
+                "default-runtime": self._default_runtime_container_profile()
+            },
+        }
+        merged = {**defaults, **cloud}
+        default_profiles = defaults["container_profiles"]
+        if isinstance(configured_profiles, dict):
+            merged["container_profiles"] = {
+                **default_profiles,
+                **configured_profiles,
+            }
+        return merged
+
+    def _default_runtime_container_profile(self) -> Dict[str, Any]:
+        runtime_layout = load_runtime_layout()
+        if runtime_layout.layout == "source":
+            repo_root = (
+                runtime_layout.cloud_runtime_build_context
+                or runtime_layout.manifest_path.parents[3]
+            )
+            context = repo_root / "build" / f"cloud-runtime-validation-{os.getpid()}"
+            return {
+                "label": "Default cloud agent runtime",
+                "image": DEFAULT_RUNTIME_IMAGE,
+                "dockerfile": str(context / "Dockerfile"),
+                "context": str(context),
+                "_prepare_source_runtime_context": True,
+            }
+        context = runtime_layout.cloud_runtime_build_context
+        dockerfile = runtime_layout.cloud_runtime_dockerfile
+        if context is None or dockerfile is None:
+            raise RuntimeError("Cloud runtime build context is not available")
+        return {
+            "label": "Default cloud agent runtime",
+            "image": DEFAULT_RUNTIME_IMAGE,
+            "dockerfile": str(dockerfile),
+            "context": str(context),
+        }
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [
@@ -451,6 +512,11 @@ class CloudAgentAppPlugin:
                     workspace_dir,
                     session_id=session_id,
                 )
+                container = self._prepare_container_for_orchestrator(
+                    state,
+                    orchestrator_url=orchestrator_url,
+                    workspace_dir=workspace_dir,
+                )
 
                 key_paths = self._create_transfer_keypair(transfer_dir)
 
@@ -515,7 +581,7 @@ class CloudAgentAppPlugin:
                         },
                         "session_id": session_id,
                         "transfer_ref": {"transfer_id": transfer_id},
-                        "runtime_image": state.get("runtime_image"),
+                        "container": container,
                     },
                     token=state.get("orchestrator_token"),
                 )
@@ -949,6 +1015,27 @@ class CloudAgentAppPlugin:
         raw = params.get("workspace_dir") or state.get("workspace_dir") or os.getcwd()
         return Path(str(raw)).expanduser().resolve()
 
+    def _resolved_container(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        container = state.get("container")
+        if isinstance(container, dict):
+            return dict(container)
+        raise RuntimeError("Cloud agent requires a resolved container profile")
+
+    def _prepare_container_build_sources(
+        self, container: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        if (
+            container.get("mode") == "dockerfile"
+            and container.get("_prepare_source_runtime_context") is True
+        ):
+            raw_context = container.get("context_path") or container.get("context")
+            if not isinstance(raw_context, str) or not raw_context.strip():
+                raise RuntimeError("Default cloud runtime context path is missing")
+            prepare_source_cloud_runtime_build_context(
+                load_runtime_layout(), destination=Path(raw_context)
+            )
+        return container
+
     def _validation_cache_dir(
         self, params: Dict[str, Any], *, workspace_dir: Path
     ) -> Path | None:
@@ -1038,6 +1125,90 @@ class CloudAgentAppPlugin:
         if isinstance(public_host, str) and public_host.strip():
             payload["public_host"] = public_host
         return payload
+
+    def _prepare_container_for_orchestrator(
+        self,
+        state: Dict[str, Any],
+        *,
+        orchestrator_url: str,
+        workspace_dir: Path,
+    ) -> Dict[str, Any]:
+        container = self._resolved_container(state)
+        if container.get("mode") != "dockerfile":
+            return container
+        container = self._prepare_container_build_sources(container)
+
+        build_root = Path(tempfile.mkdtemp(prefix="cloud-agent-build-context-"))
+        try:
+            staged = stage_container_build_context(
+                container,
+                workspace_dir=workspace_dir,
+                destination_dir=build_root / "staged",
+            )
+            digest = staged.digest
+            container = {
+                **container,
+                "dockerfile": staged.dockerfile_relative_path,
+                "build_context_digest": digest,
+                "build_context_ref": {"digest": digest},
+            }
+            if self._build_context_exists(orchestrator_url, digest, state):
+                return container
+
+            build_transfer_dir = build_root / "transfer"
+            shutil.copytree(staged.context_dir, build_transfer_dir / "context")
+            key_paths = self._create_transfer_keypair(build_transfer_dir)
+            transfer = self._post_json(
+                orchestrator_url,
+                "/transfers",
+                self._transfer_create_payload(
+                    state, direction="upload", public_key=key_paths["public_key"]
+                ),
+                token=state.get("orchestrator_token"),
+            )
+            transfer_id = str(transfer["transfer_id"])
+            self._run_managed_ssh_adapter(
+                state,
+                transfer,
+                build_transfer_dir,
+                key_paths["private_key_path"],
+                direction="upload",
+                cwd=workspace_dir,
+            )
+            self._post_json(
+                orchestrator_url,
+                f"/transfers/{transfer_id}/ready",
+                {},
+                token=state.get("orchestrator_token"),
+            )
+            self._post_json(
+                orchestrator_url,
+                "/build-contexts",
+                {
+                    "digest": digest,
+                    "transfer_ref": {"transfer_id": transfer_id},
+                    "path": "context",
+                },
+                token=state.get("orchestrator_token"),
+            )
+            return container
+        finally:
+            shutil.rmtree(build_root, ignore_errors=True)
+
+    def _build_context_exists(
+        self, orchestrator_url: str, digest: str, state: Dict[str, Any]
+    ) -> bool:
+        try:
+            self._get_json(
+                orchestrator_url,
+                f"/build-contexts/{quote(digest, safe='')}",
+                token=state.get("orchestrator_token"),
+            )
+            return True
+        except RuntimeError as exc:
+            if "HTTP 404" in str(exc):
+                return False
+            raise
 
     def _join_shell_args(self, value: Any) -> str:
         if not isinstance(value, list):
@@ -1197,7 +1368,9 @@ class CloudAgentAppPlugin:
             params.get("runtime_dockerfile"), workspace_dir=workspace_dir
         )
         runtime_layout = load_runtime_layout()
-        runtime_image = str(state.get("runtime_image") or "").strip()
+        container = self._resolved_container(state)
+        container = self._prepare_container_build_sources(container)
+        runtime_image = str(container.get("image") or "").strip()
         if not runtime_image:
             raise RuntimeError("Cloud validation requires a configured runtime image")
         local_stage_script = state.get("local_stage_script")
@@ -1283,13 +1456,25 @@ class CloudAgentAppPlugin:
                 session_id=validation_session.session_id,
             )
 
-            image_details = ensure_local_runtime_image(
-                runtime_image,
-                runtime_layout=runtime_layout,
-                build_context=runtime_build_context,
-                dockerfile=runtime_dockerfile,
-                logger=_log,
-            )
+            if container.get("mode") == "dockerfile":
+                staged_context = stage_container_build_context(
+                    container,
+                    workspace_dir=workspace_dir,
+                    destination_dir=temp_root / "container-build",
+                )
+                image_details = ensure_local_staged_container_image(
+                    container,
+                    staged_context=staged_context,
+                    logger=_log,
+                )
+            else:
+                image_details = ensure_local_runtime_image(
+                    runtime_image,
+                    runtime_layout=runtime_layout,
+                    build_context=runtime_build_context,
+                    dockerfile=runtime_dockerfile,
+                    logger=_log,
+                )
             _log.info(
                 "cloud_validation_runtime_image_ready",
                 runtime_image=runtime_image,
@@ -1325,7 +1510,9 @@ class CloudAgentAppPlugin:
                         f"XDG_CACHE_HOME={CLOUD_CACHE_DIR}/xdg",
                     ]
                 )
-            docker_run_command.append(runtime_image)
+            docker_run_command.append(
+                str(image_details.get("runtime_image") or runtime_image)
+            )
             run_result = run_command(
                 docker_run_command,
                 cwd=workspace_dir,

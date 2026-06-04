@@ -30,4 +30,9 @@ def test_cloud_orchestrator_source_bundle_includes_runtime_build_helper(
         names = set(archive.getnames())
 
     assert "scripts/build_cloud_runtime_plugin_bundle.py" in names
-    assert "cloud-orchestrator/runtime/python/Dockerfile" in names
+    assert "scripts/build_crystal_lattice_binary.py" in names
+    assert "scripts/prepare_cloud_runtime_build_context.py" in names
+    assert (
+        "plugins/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/Dockerfile"
+        in names
+    )

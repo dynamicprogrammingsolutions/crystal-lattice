@@ -5,6 +5,7 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +13,7 @@ from pathlib import Path
 from agent_core.utils import get_logger
 from agent_terminal_app.runtime_layout import RuntimeLayout
 
+from .cloud_agent_container import StagedContainerBuildContext
 from .cloud_agent_profiles import DEFAULT_RUNTIME_IMAGE
 
 
@@ -108,6 +110,14 @@ def resolve_runtime_build_spec(
 ) -> RuntimeImageBuildSpec | None:
     context = build_context or runtime_layout.cloud_runtime_build_context
     dockerfile_path = dockerfile or runtime_layout.cloud_runtime_dockerfile
+    if (
+        build_context is None
+        and dockerfile is None
+        and getattr(runtime_layout, "layout", "") == "source"
+    ):
+        context, dockerfile_path = prepare_source_cloud_runtime_build_context(
+            runtime_layout
+        )
     if context is None and dockerfile_path is None:
         return None
     if context is None or dockerfile_path is None:
@@ -127,6 +137,51 @@ def resolve_runtime_build_spec(
             f"Cloud runtime image Dockerfile does not exist: {spec.dockerfile}"
         )
     return spec
+
+
+def prepare_source_cloud_runtime_build_context(
+    runtime_layout: RuntimeLayout,
+    *,
+    destination: Path | None = None,
+) -> tuple[Path, Path]:
+    repo_root = runtime_layout.cloud_runtime_build_context
+    if repo_root is None and runtime_layout.layout == "source":
+        repo_root = runtime_layout.manifest_path.parents[3]
+    if repo_root is None:
+        raise RuntimeError("Source runtime layout is missing cloud runtime context")
+    context = destination or repo_root / "build" / "cloud-runtime-validation"
+    script = repo_root / "scripts" / "prepare_cloud_runtime_build_context.py"
+    config = (
+        repo_root
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    if not script.is_file():
+        raise RuntimeError(f"Cloud runtime context preparer is missing: {script}")
+    command = [
+        sys.executable,
+        str(script),
+        "--output",
+        str(context),
+        "--config",
+        str(config),
+    ]
+    result = subprocess.run(
+        command,
+        cwd=str(repo_root),
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Failed to prepare source cloud runtime build context:\n"
+            + (result.stdout or "")
+        )
+    return context, context / "Dockerfile"
 
 
 def ensure_local_runtime_image(
@@ -230,6 +285,83 @@ def ensure_local_runtime_image(
         "source": "built",
         "build_context": str(build_spec.context_dir),
         "dockerfile": str(build_spec.dockerfile),
+        "digest": digest,
+        "existing_digest": existing_digest or "",
+    }
+
+
+def ensure_local_staged_container_image(
+    container: dict,
+    *,
+    staged_context: StagedContainerBuildContext,
+    logger=None,
+) -> dict[str, str]:
+    active_logger = logger or _log
+    runtime_image = str(container.get("image") or "").strip()
+    if not runtime_image:
+        raise RuntimeError("Dockerfile container image is required")
+    inspect_payload = inspect_runtime_image(runtime_image, logger=active_logger)
+    existing_digest = runtime_image_digest_label(inspect_payload)
+    digest = staged_context.digest
+    if inspect_payload is not None and existing_digest == digest:
+        return {
+            "runtime_image": runtime_image,
+            "source": "existing",
+            "build_context": str(staged_context.context_dir),
+            "dockerfile": str(staged_context.dockerfile),
+            "digest": digest,
+        }
+
+    digest_tag = runtime_digest_tag(runtime_image, digest)
+    command = [
+        "docker",
+        "build",
+        "-t",
+        runtime_image,
+        "-t",
+        digest_tag,
+        "--label",
+        f"{RUNTIME_DIGEST_LABEL}={digest}",
+    ]
+    target = container.get("target")
+    if isinstance(target, str) and target.strip():
+        command.extend(["--target", target.strip()])
+    build_args = container.get("build_args")
+    if isinstance(build_args, dict):
+        for key in sorted(build_args):
+            value = build_args[key]
+            if isinstance(key, str) and isinstance(value, str):
+                command.extend(["--build-arg", f"{key}={value}"])
+    command.extend(
+        ["-f", str(staged_context.dockerfile), str(staged_context.context_dir)]
+    )
+
+    active_logger.info(
+        "cloud_validation_container_image_building",
+        runtime_image=runtime_image,
+        digest_tag=digest_tag,
+        existing_digest=existing_digest,
+        expected_digest=digest,
+        build_context=str(staged_context.context_dir),
+        dockerfile=str(staged_context.dockerfile),
+    )
+    build_result = run_command(
+        command,
+        cwd=staged_context.context_dir,
+        logger=active_logger,
+        event_name="cloud_validation_container_image_build",
+    )
+    if build_result.returncode != 0:
+        raise RuntimeError(
+            "Failed to build configured container image "
+            f"`{runtime_image}` locally.\n{build_result.stdout or ''}".rstrip()
+        )
+    return {
+        "runtime_image": runtime_image,
+        "digest_tag": digest_tag,
+        "source": "built",
+        "build_context": str(staged_context.context_dir),
+        "dockerfile": str(staged_context.dockerfile),
         "digest": digest,
         "existing_digest": existing_digest or "",
     }
@@ -339,8 +471,10 @@ def runtime_digest_tag(runtime_image: str, digest: str) -> str:
 __all__ = [
     "DEFAULT_RUNTIME_IMAGE",
     "ensure_local_runtime_image",
+    "ensure_local_staged_container_image",
     "inspect_runtime_image",
     "iter_runtime_build_files",
+    "prepare_source_cloud_runtime_build_context",
     "reserve_local_port",
     "resolve_runtime_build_spec",
     "runtime_build_digest",

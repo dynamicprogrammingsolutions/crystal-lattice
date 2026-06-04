@@ -291,7 +291,7 @@ def copytree_sanitized(
                 ignored.add(name)
         return ignored
 
-    shutil.copytree(source, destination, ignore=ignore)
+    shutil.copytree(source, destination, ignore=ignore, ignore_dangling_symlinks=True)
 
 
 if __name__ == "__main__":

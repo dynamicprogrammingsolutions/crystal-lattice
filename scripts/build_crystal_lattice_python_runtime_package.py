@@ -22,6 +22,7 @@ from build_cloud_runtime_plugin_bundle import (
 from build_crystal_lattice_binary import (
     normalize_arch,
     normalize_platform,
+    prepare_cloud_runtime_build_context,
     read_project_version,
 )
 
@@ -32,7 +33,6 @@ APP_PACKAGE_DIR = APP_DIR / "agent_terminal_app"
 CORE_DIR = ROOT / "core" / "python"
 PLUGINS_DIR = ROOT / "plugins"
 SCRIPTS_DIR = ROOT / "scripts"
-CLOUD_RUNTIME_DOCKERFILE = ROOT / "cloud-orchestrator" / "runtime" / "python"
 BUILD_DIR = ROOT / "build" / "crystal-lattice-python-runtime"
 RELEASES_DIR = ROOT / "dist" / "crystal-lattice-python-runtime"
 PREINSTALLED_PLUGIN_MANIFEST = "preinstalled-plugins.json"
@@ -145,14 +145,11 @@ def stage_repo_like_runtime(package_dir: Path) -> None:
     for script_name in (
         "build_cloud_runtime_plugin_bundle.py",
         "build_crystal_lattice_binary.py",
+        "prepare_cloud_runtime_build_context.py",
     ):
         shutil.copy2(SCRIPTS_DIR / script_name, scripts_target / script_name)
 
-    dockerfile_target = package_dir / "cloud-orchestrator" / "runtime" / "python"
-    dockerfile_target.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(
-        CLOUD_RUNTIME_DOCKERFILE / "Dockerfile", dockerfile_target / "Dockerfile"
-    )
+    prepare_cloud_runtime_build_context(package_dir / "cloud_runtime")
 
     write_runtime_layout(package_dir)
 
@@ -176,8 +173,8 @@ def write_runtime_layout(package_dir: Path) -> None:
         "bundle_paths": {
             "builtin_plugins": "../../../plugins",
             "bundle_script": "../../../scripts/build_crystal_lattice_binary.py",
-            "cloud_runtime_build_context": "../../..",
-            "cloud_runtime_dockerfile": "../../../cloud-orchestrator/runtime/python/Dockerfile",
+            "cloud_runtime_build_context": "../../../cloud_runtime",
+            "cloud_runtime_dockerfile": "../../../cloud_runtime/Dockerfile",
             "config_examples": ".",
             "default_config_template": "default_config",
             "preinstalled_plugin_manifest": f"../../../{PREINSTALLED_PLUGIN_MANIFEST}",
@@ -337,6 +334,9 @@ def verify_package_tree(package_dir: Path) -> None:
         package_dir / PREINSTALLED_PLUGIN_MANIFEST,
         package_dir / "scripts" / "build_crystal_lattice_binary.py",
         package_dir / "scripts" / "build_cloud_runtime_plugin_bundle.py",
+        package_dir / "scripts" / "prepare_cloud_runtime_build_context.py",
+        package_dir / "cloud_runtime" / "Dockerfile",
+        package_dir / "cloud_runtime" / "runtime.py",
         package_dir / "runtime-package.json",
     ]
     if os.name == "nt":

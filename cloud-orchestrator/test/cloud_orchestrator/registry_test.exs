@@ -57,12 +57,27 @@ end
 defmodule CloudOrchestrator.RegistryTest do
   use ExUnit.Case
 
-  alias CloudOrchestrator.{ConnectionRegistry, InstanceRegistry, Token, TransferRegistry}
+  alias CloudOrchestrator.{
+    BuildContextStore,
+    ConnectionRegistry,
+    InstanceRegistry,
+    Token,
+    TransferRegistry
+  }
 
   setup do
     System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH", "1")
     previous_runner = Application.get_env(:cloud_orchestrator, :runner)
+    previous_data_dir = Application.get_env(:cloud_orchestrator, :data_dir)
+    previous_host_data_dir = Application.get_env(:cloud_orchestrator, :host_data_dir)
     previous_async_status = Application.get_env(:cloud_orchestrator, :test_async_runtime_status)
+
+    data_dir =
+      System.tmp_dir!()
+      |> Path.join("cloud-orchestrator-registry-test-#{System.unique_integer([:positive])}")
+
+    Application.put_env(:cloud_orchestrator, :data_dir, data_dir)
+    Application.put_env(:cloud_orchestrator, :host_data_dir, data_dir)
 
     previous_transfer_public_host =
       Application.get_env(:cloud_orchestrator, :transfer_public_host)
@@ -81,6 +96,8 @@ defmodule CloudOrchestrator.RegistryTest do
 
     on_exit(fn ->
       restore_env(:runner, previous_runner)
+      restore_env(:data_dir, previous_data_dir)
+      restore_env(:host_data_dir, previous_host_data_dir)
       restore_env(:test_async_runtime_status, previous_async_status)
       restore_env(:transfer_public_host, previous_transfer_public_host)
       restore_env(:transfer_port_start, previous_transfer_port_start)
@@ -95,9 +112,62 @@ defmodule CloudOrchestrator.RegistryTest do
       InstanceRegistry.reset()
       ConnectionRegistry.reset()
       System.delete_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH")
+      File.rm_rf!(data_dir)
     end)
 
     :ok
+  end
+
+  test "build contexts are stored once by digest from ready transfers" do
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "method" => "managed_ssh",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert {:ok, internal_transfer} = TransferRegistry.get(transfer["transfer_id"])
+    context_dir = Path.join(internal_transfer["slot_path"], "context")
+    File.mkdir_p!(context_dir)
+    File.write!(Path.join(context_dir, "Dockerfile"), "FROM scratch\n")
+    assert {:ok, _ready} = TransferRegistry.mark_ready(transfer["transfer_id"])
+
+    assert {:ok, first} =
+             BuildContextStore.create(%{
+               "digest" => "sha256:test",
+               "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]},
+               "path" => "context"
+             })
+
+    assert {:ok, second} =
+             BuildContextStore.create(%{
+               "digest" => "sha256:test",
+               "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]},
+               "path" => "context"
+             })
+
+    assert first["digest"] == "sha256:test"
+    assert second["path"] == first["path"]
+    assert {:ok, stored} = BuildContextStore.get("sha256:test")
+    assert File.read!(Path.join(stored["path"], "Dockerfile")) == "FROM scratch\n"
+  end
+
+  test "build context store rejects paths outside transfer slot" do
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "method" => "managed_ssh",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert {:ok, _ready} = TransferRegistry.mark_ready(transfer["transfer_id"])
+
+    assert {:error, :unsafe_path} =
+             BuildContextStore.create(%{
+               "digest" => "sha256:unsafe",
+               "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]},
+               "path" => "../outside"
+             })
   end
 
   test "creates opaque transfer slots and starts instances from ready transfer refs" do

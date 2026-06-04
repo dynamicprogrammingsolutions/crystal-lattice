@@ -321,8 +321,19 @@ export async function startCloudOrchestratorLocal(): Promise<StartedCloudOrchest
 
   try {
     await runCommand({
+      cmd: 'python3',
+      args: [
+        'scripts/prepare_cloud_runtime_build_context.py',
+        '--output',
+        'build/cloud-runtime',
+        '--config',
+        'application/python/agent_terminal_app/default_config/config.json',
+      ],
+      cwd: sourceBuildRoot,
+    });
+    await runCommand({
       cmd: 'docker',
-      args: ['build', '-t', 'cloud-agent-runtime:latest', '-f', 'cloud-orchestrator/runtime/python/Dockerfile', '.'],
+      args: ['build', '-t', 'cloud-agent-runtime:latest', 'build/cloud-runtime'],
       cwd: sourceBuildRoot,
     });
     await runCommand({
@@ -534,11 +545,15 @@ async function startCloudOrchestratorAwsEc2(): Promise<StartedCloudOrchestrator>
       return;
     }
     stopped = true;
-    await runCommand({
-      cmd: path.join(deployDir, 'down.sh'),
-      args: ['--profile', 'secure', '--stack-name', stackName, '--region', region],
-      cwd,
-    });
+    try {
+      await runCommand({
+        cmd: path.join(deployDir, 'down.sh'),
+        args: ['--profile', 'secure', '--stack-name', stackName, '--region', region],
+        cwd,
+      });
+    } finally {
+      awsCloudOrchestratorForE2E = null;
+    }
   }
 
   return {

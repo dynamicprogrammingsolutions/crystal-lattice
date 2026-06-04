@@ -202,6 +202,7 @@ def _write_project_cloud_config(workspace: Path, *, runtime_image: str) -> None:
             {
                 "container_profiles": {
                     "default-runtime": {
+                        "mode": "image",
                         "image": runtime_image,
                     }
                 }

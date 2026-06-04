@@ -136,6 +136,7 @@ def _validation_config(
                 },
                 "container_profiles": {
                     "default-runtime": {
+                        "mode": "image",
                         "image": runtime_image,
                     }
                 },

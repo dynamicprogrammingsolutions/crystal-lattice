@@ -570,6 +570,53 @@ function requireCloudInstanceId(cloudLink: ReturnType<typeof parseCloudConnectio
   return cloudLink.instanceId;
 }
 
+async function startCloudSessionAgentAndWaitForLink(
+  localBackend: RestAgentBackend,
+  sessionId: string,
+  timeoutMs = 420_000,
+): Promise<ReturnType<typeof parseCloudConnectionLink>> {
+  const startResult = await localBackend.executeAction({
+    pluginId: 'cloud',
+    actionId: 'cloud.start_session_agent',
+    actionOwner: 'application',
+    inputs: { session_id: sessionId },
+  });
+  expect(startResult.status, JSON.stringify(startResult, null, 2)).toBe('ok');
+
+  let rawLink =
+    typeof (startResult.result as any).connection_link === 'string'
+      ? ((startResult.result as any).connection_link as string)
+      : '';
+
+  if (!rawLink) {
+    await waitForAsync(
+      async () => {
+        const checkResult = await localBackend.executeAction({
+          pluginId: 'cloud',
+          actionId: 'cloud.check_session_agent',
+          actionOwner: 'application',
+          inputs: { session_id: sessionId },
+        });
+        if (checkResult.status !== 'ok') {
+          throw new Error(`cloud.check_session_agent failed: ${JSON.stringify(checkResult, null, 2)}`);
+        }
+        const result = checkResult.result as any;
+        if (result.state === 'failed') {
+          throw new Error(`cloud startup failed: ${JSON.stringify(result, null, 2)}`);
+        }
+        if (typeof result.connection_link === 'string' && result.connection_link) {
+          rawLink = result.connection_link;
+          return true;
+        }
+        return false;
+      },
+      { timeoutMs, intervalMs: 2_000 },
+    );
+  }
+
+  return parseCloudConnectionLink(rawLink);
+}
+
 function expectRuntimeImagePreinstalledPlugins(): void {
   if (!IS_LOCAL_CLOUD_ORCHESTRATOR_E2E) {
     return;
@@ -723,14 +770,7 @@ async function runDefaultConfigCodexChain(options: {
       `${options.agentId} local first turn`,
     );
 
-    const startResult = await localBackend.executeAction({
-      pluginId: 'cloud',
-      actionId: 'cloud.start_session_agent',
-      actionOwner: 'application',
-      inputs: { session_id: sessionId },
-    });
-    expect(startResult.status, JSON.stringify(startResult, null, 2)).toBe('ok');
-    const cloudLink = parseCloudConnectionLink((startResult.result as any).connection_link as string);
+    const cloudLink = await startCloudSessionAgentAndWaitForLink(localBackend, sessionId);
     expect(cloudLink.connectionId).toBeTruthy();
     await waitForCloudInstanceRunning(cloudLink, 300_000);
     const cloudTransport = cloudTransportFromLink(cloudLink, 180_000);
@@ -784,6 +824,21 @@ async function runDefaultConfigCodexChain(options: {
       `${options.agentId} cloud turn`,
     );
 
+    const syncDownResult = await localBackend.executeAction({
+      pluginId: 'cloud',
+      actionId: 'cloud.sync_down',
+      actionOwner: 'application',
+      inputs: {
+        instance_id: requireCloudInstanceId(cloudLink),
+        session_id: sessionId,
+        workspace_dir: workspaceDir,
+      },
+    });
+    expect(syncDownResult.status, JSON.stringify(syncDownResult, null, 2)).toBe('ok');
+    expect(fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim()).toBe(
+      'local1=alpha\ncloud2=alpha-bravo',
+    );
+
     const closeResult = await localBackend.executeAction({
       pluginId: 'cloud',
       actionId: 'cloud.close_session',
@@ -795,9 +850,6 @@ async function runDefaultConfigCodexChain(options: {
       },
     });
     expect(closeResult.status, JSON.stringify(closeResult, null, 2)).toBe('ok');
-    expect(fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim()).toBe(
-      'local1=alpha\ncloud2=alpha-bravo',
-    );
 
     const localFinalStartCount = (await localBackend.listMessages(sessionId)).messages.length;
     const localFinalSend = await localBackend.sendMessage(sessionId, {
@@ -914,6 +966,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       const localServer = await startBackendServer({
         config: {},
         configPath,
+        startupTimeoutMs: 240_000,
         env: {
           CONFIG_DIR: configRoot,
           WORKING_DIR: workspaceDir,
@@ -936,16 +989,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         content: 'local hello',
       });
 
-      const startResult = await localBackend.executeAction({
-        pluginId: 'cloud',
-        actionId: 'cloud.start_session_agent',
-        actionOwner: 'application',
-        inputs: { session_id: sessionId },
-      });
-
-      expect(startResult.status).toBe('ok');
-      const link = (startResult.result as any).connection_link as string;
-      const cloudLink = parseCloudConnectionLink(link);
+      const cloudLink = await startCloudSessionAgentAndWaitForLink(localBackend, sessionId);
       expect(cloudLink.sessionId).toBe(sessionId);
       expect(cloudLink.connectionId).toBeTruthy();
       await waitForCloudInstanceRunning(cloudLink);
@@ -1123,6 +1167,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       const localServer = await startBackendServer({
         config: {},
         configPath,
+        startupTimeoutMs: 240_000,
         env: {
           CONFIG_DIR: configRoot,
           WORKING_DIR: workspaceDir,
@@ -1143,23 +1188,11 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       await localBackend.appendMessage(session1, { role: 'user', content: 'local hello one' });
       await localBackend.appendMessage(session2, { role: 'user', content: 'local hello two' });
 
-      const start1 = await localBackend.executeAction({
-        pluginId: 'cloud',
-        actionId: 'cloud.start_session_agent',
-        actionOwner: 'application',
-        inputs: { session_id: session1 },
-      });
-      const link1 = parseCloudConnectionLink((start1.result as any).connection_link as string);
+      const link1 = await startCloudSessionAgentAndWaitForLink(localBackend, session1);
       expect(link1.connectionId).toBeTruthy();
       await waitForCloudInstanceRunning(link1);
 
-      const start2 = await localBackend.executeAction({
-        pluginId: 'cloud',
-        actionId: 'cloud.start_session_agent',
-        actionOwner: 'application',
-        inputs: { session_id: session2 },
-      });
-      const link2 = parseCloudConnectionLink((start2.result as any).connection_link as string);
+      const link2 = await startCloudSessionAgentAndWaitForLink(localBackend, session2);
       expect(link2.connectionId).toBe(link1.connectionId);
       expect(requireCloudInstanceId(link2)).not.toBe(requireCloudInstanceId(link1));
       await waitForCloudInstanceRunning(link2);
@@ -1316,6 +1349,7 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
       const localServer = await startBackendServer({
         config: {},
         configPath,
+        startupTimeoutMs: 240_000,
         env: {
           CONFIG_DIR: configRoot,
           WORKING_DIR: workspaceDir,
@@ -1348,14 +1382,7 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
       );
       expect(fs.readFileSync(path.join(workspaceDir, 'local-openrouter.txt'), 'utf8')).toBe('local ok\n');
 
-      const startResult = await localBackend.executeAction({
-        pluginId: 'cloud',
-        actionId: 'cloud.start_session_agent',
-        actionOwner: 'application',
-        inputs: { session_id: sessionId },
-      });
-
-      const cloudLink = parseCloudConnectionLink((startResult.result as any).connection_link as string);
+      const cloudLink = await startCloudSessionAgentAndWaitForLink(localBackend, sessionId);
       expect(cloudLink.connectionId).toBeTruthy();
       await waitForCloudInstanceRunning(cloudLink, 300_000);
       const cloudTransport = cloudTransportFromLink(cloudLink, 120_000);

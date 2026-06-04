@@ -410,9 +410,38 @@ async function startCloudSession(options: {
     },
   });
   expect(startResult.status, JSON.stringify(startResult, null, 2)).toBe('ok');
-  const cloudLink = parseCloudConnectionLink(
-    (startResult.result as any).connection_link as string,
-  );
+
+  let rawLink =
+    typeof (startResult.result as any).connection_link === 'string'
+      ? ((startResult.result as any).connection_link as string)
+      : '';
+  if (!rawLink) {
+    await waitForAsync(
+      async () => {
+        const checkResult = await options.backend.executeAction({
+          pluginId: 'cloud',
+          actionId: 'cloud.check_session_agent',
+          actionOwner: 'application',
+          inputs: { session_id: options.sessionId },
+        });
+        if (checkResult.status !== 'ok') {
+          throw new Error(`cloud.check_session_agent failed: ${JSON.stringify(checkResult, null, 2)}`);
+        }
+        const result = checkResult.result as any;
+        if (result.state === 'failed') {
+          throw new Error(`cloud startup failed: ${JSON.stringify(result, null, 2)}`);
+        }
+        if (typeof result.connection_link === 'string' && result.connection_link) {
+          rawLink = result.connection_link;
+          return true;
+        }
+        return false;
+      },
+      { timeoutMs: 420_000, intervalMs: 2_000 },
+    );
+  }
+
+  const cloudLink = parseCloudConnectionLink(rawLink);
   await waitForCloudInstanceRunning(cloudLink, 300_000);
   const cloudTransport = cloudTransportFromLink(cloudLink, 120_000);
   return {

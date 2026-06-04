@@ -24,6 +24,7 @@
   "container_profiles": {
     "default-runtime": {
       "label": "Default cloud agent runtime",
+      "mode": "image",
       "image": "cloud-agent-runtime:latest"
     }
   }

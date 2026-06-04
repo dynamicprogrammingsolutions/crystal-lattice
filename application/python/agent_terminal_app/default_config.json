@@ -19,7 +19,6 @@
       "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
       "default_transfer_up_profile": "working-tree-current-state",
       "default_sync_down_profile": "working-tree-patch",
-      "default_container_profile": "default-runtime",
       "transfer_up_profiles": {
         "working-tree-current-state": {
           "label": "Working tree current state",
@@ -63,12 +62,6 @@
           "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_mark_synced_script",
           "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/local_apply_script",
           "compatible_transfer_up_profiles": ["working-tree-current-state-branch", "clean-head"]
-        }
-      },
-      "container_profiles": {
-        "default-runtime": {
-          "label": "Default cloud agent runtime",
-          "image": "cloud-agent-runtime:latest"
         }
       },
       "managed_ssh": {

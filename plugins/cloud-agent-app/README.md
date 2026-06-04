@@ -149,7 +149,6 @@ Rules:
       "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
       "default_transfer_up_profile": "working-tree-current-state",
       "default_sync_down_profile": "working-tree-patch",
-      "default_container_profile": "default-runtime",
       "transfer_up_profiles": {
         "working-tree-current-state": {
           "label": "Working tree current state",
@@ -196,12 +195,6 @@ Rules:
             "working-tree-current-state-branch",
             "clean-head"
           ]
-        }
-      },
-      "container_profiles": {
-        "default-runtime": {
-          "label": "Default cloud agent runtime",
-          "image": "cloud-agent-runtime:latest"
         }
       },
       "managed_ssh": {
@@ -254,8 +247,10 @@ Rules:
 - `transfer_method`: Currently `managed_ssh`.
 - `project_config_path`: Optional project-level override file. The default is
   `${env:WORKING_DIR}/.cloud-agent/cloud-agent.json`.
-- `default_transfer_up_profile`, `default_sync_down_profile`,
-  `default_container_profile`: Selected bundled or project-defined defaults.
+- `default_transfer_up_profile`, `default_sync_down_profile`: Selected bundled
+  or project-defined transfer/sync defaults.
+- `default_container_profile`: Optional selected container profile. When omitted,
+  the cloud-agent plugin supplies `default-runtime`.
 
 ### `transfer_up_profiles`
 
@@ -283,8 +278,34 @@ Each profile describes one complete upload/setup/install/validation family.
 ### `container_profiles`
 
 - `label`: Human-readable label.
-- `image`: Runtime image name. If empty, the resolver falls back to
-  `cloud-agent-runtime:latest`.
+- `mode`: Optional `image` or `dockerfile`. When omitted, the resolver infers
+  `dockerfile` if `dockerfile` is present, otherwise `image`.
+- `image`: Required runtime image name. In Dockerfile mode this is the image
+  name the deployment-wired builder produces and the runner starts.
+- `dockerfile`: Dockerfile source path. Required for Dockerfile mode. Env
+  placeholders are expanded; relative paths resolve relative to the
+  current/project directory. The Dockerfile is copied into the staged context
+  and sent to the builder as a staged relative path.
+- `context`: Source directory copied into a sanitized staged build context.
+  Required for Dockerfile mode. Env placeholders are expanded; relative paths
+  resolve relative to the current/project directory. The staged copy, not the
+  live workspace directory, is used as the Docker build context.
+- `target`: Optional Docker build target. Included in the build digest.
+- `build_args`: Optional string build arguments. Included in the build digest.
+  Do not use build args for secrets.
+- `build_assets`: Optional list of file or directory assets copied into the
+  staged build context before digesting/building. Each entry has `source` and
+  `target`. `source` follows the same env-placeholder and relative-path rules.
+  `target` is a safe relative path inside the staged context. Lockfiles and
+  package manifests are ideal assets. Generated files, large directories,
+  frequently changing source trees, and secret-containing paths are allowed by
+  the parser but will cause rebuilds, larger artifact uploads, or unsafe images.
+- `cache_mounts`: Optional persistent runtime mounts shared between instances.
+  Each entry has `id`, `target`, and optional `scope` (`profile`, `connection`,
+  `global`, or `instance`; default `profile`).
+- `mounts`: Optional persistent runtime mounts for large mutable data that
+  should not live in Docker image layers. Entries have the same shape as
+  `cache_mounts`.
 
 ### Managed SSH adapter settings
 
@@ -392,13 +413,13 @@ endpoint that runs:
 
 ## Runtime Image Parity
 
-`crystal-lattice validate-cloud` runs the same `container_profiles.<id>.image`
-selected by the resolved cloud profile. In other words, local validation
-reuses the same runtime image contract that `cloud.start_session_agent` sends
-to the orchestrator.
+`crystal-lattice validate-cloud` runs the same resolved
+`container_profiles.<id>` selected by the cloud profile. In image mode, local
+validation reuses the selected runtime image. In Dockerfile mode, validation
+stages the configured build context and declared build assets, computes the
+digest, builds/reuses the local image, and then runs the same runtime contract.
 
-The source and bundled CLI layouts both declare explicit runtime image build
-metadata:
+Image-mode validation still supports explicit runtime image build metadata:
 
 ```text
 cloud_runtime_build_context
@@ -416,12 +437,9 @@ already present locally, validation trusts it. If it is missing, validation
 fails clearly unless you pass explicit `--runtime-build-context` and
 `--runtime-dockerfile` overrides for that command run.
 
-In source installs, the runtime layout points at the repository root and the
-canonical orchestrator Dockerfile. In bundled installs, the binary includes a
-Docker-buildable `_internal/cloud_runtime` context and points the generated
-runtime layout at that packaged context. The orchestrator-owned runtime files
-under `cloud-orchestrator/runtime/python/` must stay behaviorally in sync with
-the bundled runtime assets until runtime ownership becomes fully plugin-driven.
+Dockerfile-mode validation stages the selected container profile context and
+build assets directly. The default packaged runtime Dockerfile and runtime app
+are owned by this plugin under `cloud_agent_app/bundled_runtime`.
 
 ## Testing Guidance
 

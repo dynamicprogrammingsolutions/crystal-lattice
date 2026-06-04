@@ -322,6 +322,8 @@ def prepare_cloud_runtime_build_context(
     *,
     selected_config: Path | None = None,
 ) -> None:
+    if destination.exists():
+        shutil.rmtree(destination)
     destination.mkdir(parents=True, exist_ok=True)
     runtime_assets = (
         PLUGINS_DIR

@@ -19,6 +19,7 @@ from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
 from agent_core import Session
 from cloud_agent_app import cloud_agent_validation
+from cloud_agent_app.cloud_agent_container import stage_container_build_context
 from cloud_agent_app.cloud_agent_app_plugin import CloudAgentAppPlugin
 from cloud_agent_app.cloud_agent_profiles import resolve_cloud_agent_profiles
 from cloud_agent_app.cloud_agent_validation import RuntimeImageBuildSpec
@@ -73,6 +74,7 @@ def _write_config(tmp_path: Path, transfer_script: Path) -> Path:
                 },
                 "container_profiles": {
                     "test-runtime": {
+                        "mode": "image",
                         "image": "cloud-agent-runtime:latest",
                     }
                 },
@@ -828,7 +830,9 @@ def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
                 }
             },
             "container_profiles": {
-                "default-runtime": {"image": "cloud-agent-runtime:latest"}
+                "default-runtime": {
+                    "image": "cloud-agent-runtime:latest",
+                }
             },
         },
         env={"CONFIG_DIR": str(config_dir), "WORKING_DIR": str(workspace)},
@@ -845,7 +849,253 @@ def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
     assert resolved["cloud_export_script"] == str(export.resolve())
     assert resolved["local_apply_script"] == str(apply_down.resolve())
     assert resolved["cloud_mark_synced_script"] is None
-    assert resolved["runtime_image"] == "cloud-agent-runtime:latest"
+    assert resolved["container"] == {
+        "profile_id": "default-runtime",
+        "mode": "image",
+        "image": "cloud-agent-runtime:latest",
+        "cache_mounts": [],
+        "mounts": [],
+    }
+
+
+def test_profile_resolver_exposes_dockerfile_container_spec(tmp_path: Path) -> None:
+    transfer = _write_script(tmp_path / "transfer")
+    setup = _write_script(tmp_path / "setup")
+    export = _write_script(tmp_path / "export")
+    apply_down = _write_script(tmp_path / "apply-down")
+
+    resolved = resolve_cloud_agent_profiles(
+        {
+            "default_transfer_up_profile": "current",
+            "default_sync_down_profile": "patch",
+            "default_container_profile": "runtime",
+            "transfer_up_profiles": {
+                "current": {
+                    "local_transfer_script": str(transfer),
+                    "cloud_setup_script": str(setup),
+                }
+            },
+            "sync_down_profiles": {
+                "patch": {
+                    "cloud_export_script": str(export),
+                    "local_apply_script": str(apply_down),
+                }
+            },
+            "container_profiles": {
+                "runtime": {
+                    "image": "runtime:test",
+                    "dockerfile": "runtime/Dockerfile",
+                    "context": "runtime",
+                    "target": "cloud-agent",
+                    "build_args": {"PYTHON_VERSION": "3.12"},
+                    "build_assets": [
+                        {
+                            "source": "frontend/package.json",
+                            "target": "assets/frontend/package.json",
+                        }
+                    ],
+                    "cache_mounts": [
+                        {
+                            "id": "frontend-node-modules",
+                            "target": "/cloud-agent/instance/workspace/frontend/node_modules",
+                            "scope": "connection",
+                        }
+                    ],
+                    "mounts": [
+                        {
+                            "id": "ollama-models",
+                            "target": "/cloud-agent/cache/ollama",
+                            "scope": "profile",
+                        }
+                    ],
+                }
+            },
+        },
+        env={"WORKING_DIR": str(tmp_path), "CONFIG_DIR": str(tmp_path)},
+    )
+
+    assert resolved["container"] == {
+        "profile_id": "runtime",
+        "mode": "dockerfile",
+        "image": "runtime:test",
+        "dockerfile": "runtime/Dockerfile",
+        "dockerfile_path": str((tmp_path / "runtime" / "Dockerfile").resolve()),
+        "context": "runtime",
+        "context_path": str((tmp_path / "runtime").resolve()),
+        "target": "cloud-agent",
+        "build_args": {"PYTHON_VERSION": "3.12"},
+        "build_assets": [
+            {
+                "source": "frontend/package.json",
+                "source_path": str((tmp_path / "frontend" / "package.json").resolve()),
+                "target": "assets/frontend/package.json",
+            }
+        ],
+        "cache_mounts": [
+            {
+                "id": "frontend-node-modules",
+                "target": "/cloud-agent/instance/workspace/frontend/node_modules",
+                "scope": "connection",
+            }
+        ],
+        "mounts": [
+            {
+                "id": "ollama-models",
+                "target": "/cloud-agent/cache/ollama",
+                "scope": "profile",
+            }
+        ],
+    }
+
+
+def test_profile_resolver_expands_container_env_paths(tmp_path: Path) -> None:
+    transfer = _write_script(tmp_path / "transfer")
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    dockerfile = runtime / "Dockerfile"
+    dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+    asset = tmp_path / "frontend" / "package.json"
+    asset.parent.mkdir()
+    asset.write_text("{}", encoding="utf-8")
+
+    resolved = resolve_cloud_agent_profiles(
+        {
+            "default_transfer_up_profile": "current",
+            "default_sync_down_profile": "patch",
+            "default_container_profile": "runtime",
+            "transfer_up_profiles": {
+                "current": {
+                    "local_transfer_script": str(transfer),
+                    "cloud_setup_script": str(transfer),
+                }
+            },
+            "sync_down_profiles": {
+                "patch": {
+                    "cloud_export_script": str(transfer),
+                    "local_apply_script": str(transfer),
+                }
+            },
+            "container_profiles": {
+                "runtime": {
+                    "image": "runtime:test",
+                    "dockerfile": "${env:WORKING_DIR}/runtime/Dockerfile",
+                    "context": "${env:WORKING_DIR}/runtime",
+                    "build_assets": [
+                        {
+                            "source": "${env:WORKING_DIR}/frontend/package.json",
+                            "target": "assets/package.json",
+                        }
+                    ],
+                }
+            },
+        },
+        env={"WORKING_DIR": str(tmp_path), "CONFIG_DIR": str(tmp_path)},
+    )
+
+    container = resolved["container"]
+    assert container["mode"] == "dockerfile"
+    assert container["dockerfile_path"] == str(dockerfile.resolve())
+    assert container["context_path"] == str(runtime.resolve())
+    assert container["build_assets"][0]["source_path"] == str(asset.resolve())
+
+
+def test_cloud_plugin_supplies_default_dockerfile_container_profile(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    context = tmp_path / "runtime"
+    context.mkdir()
+    dockerfile = context / "Dockerfile"
+    dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+    plugin = CloudAgentAppPlugin()
+    monkeypatch.setattr(
+        plugin,
+        "_default_runtime_container_profile",
+        lambda: {
+            "label": "Default cloud agent runtime",
+            "image": "cloud-agent-runtime:latest",
+            "dockerfile": str(dockerfile),
+            "context": str(context),
+        },
+    )
+
+    resolved = plugin.init(
+        {
+            "application": {
+                "cloud_agent": {
+                    "default_transfer_up_profile": "current",
+                    "default_sync_down_profile": "patch",
+                    "transfer_up_profiles": {
+                        "current": {
+                            "local_transfer_script": str(
+                                _write_script(tmp_path / "transfer")
+                            ),
+                            "cloud_setup_script": str(
+                                _write_script(tmp_path / "setup")
+                            ),
+                        }
+                    },
+                    "sync_down_profiles": {
+                        "patch": {
+                            "cloud_export_script": str(
+                                _write_script(tmp_path / "export")
+                            ),
+                            "local_apply_script": str(
+                                _write_script(tmp_path / "apply")
+                            ),
+                        }
+                    },
+                }
+            }
+        }
+    )
+
+    assert resolved["selected_container_profile"] == "default-runtime"
+    assert resolved["container"]["mode"] == "dockerfile"
+    assert resolved["container"]["image"] == "cloud-agent-runtime:latest"
+    assert resolved["container"]["context_path"] == str(context.resolve())
+    assert resolved["container"]["dockerfile_path"] == str(dockerfile.resolve())
+
+
+def test_container_build_context_digest_includes_declared_assets(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    runtime = workspace / "runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "Dockerfile").write_text("FROM scratch\n", encoding="utf-8")
+    (runtime / "runtime.txt").write_text("runtime\n", encoding="utf-8")
+    (workspace / "frontend").mkdir()
+    package_json = workspace / "frontend" / "package.json"
+    package_json.write_text('{"name":"one"}\n', encoding="utf-8")
+
+    container = {
+        "image": "runtime:test",
+        "dockerfile": "runtime/Dockerfile",
+        "context": "runtime",
+        "build_assets": [
+            {
+                "source": "frontend/package.json",
+                "target": "assets/frontend/package.json",
+            }
+        ],
+    }
+
+    first = stage_container_build_context(
+        container,
+        workspace_dir=workspace,
+        destination_dir=tmp_path / "first",
+    )
+    package_json.write_text('{"name":"two"}\n', encoding="utf-8")
+    second = stage_container_build_context(
+        container,
+        workspace_dir=workspace,
+        destination_dir=tmp_path / "second",
+    )
+
+    assert first.digest != second.digest
+    assert (first.context_dir / "assets" / "frontend" / "package.json").read_text(
+        encoding="utf-8"
+    ) == '{"name":"one"}\n'
 
 
 def test_profile_resolver_loads_single_project_config_and_falls_back_to_base_script(
@@ -898,7 +1148,9 @@ def test_profile_resolver_loads_single_project_config_and_falls_back_to_base_scr
                     "local_apply_script": str(base_apply),
                 }
             },
-            "container_profiles": {"runtime": {"image": "runtime:test"}},
+            "container_profiles": {
+                "runtime": {"mode": "image", "image": "runtime:test"}
+            },
         },
         env={"WORKING_DIR": str(workspace), "CONFIG_DIR": str(tmp_path / "config")},
     )
@@ -937,7 +1189,9 @@ def test_profile_resolver_rejects_incompatible_defaults(tmp_path: Path) -> None:
                         "local_apply_script": str(apply_down),
                     },
                 },
-                "container_profiles": {"runtime": {"image": "runtime:test"}},
+                "container_profiles": {
+                    "runtime": {"mode": "image", "image": "runtime:test"}
+                },
             },
             env={"WORKING_DIR": str(tmp_path), "CONFIG_DIR": str(tmp_path)},
         )
@@ -1120,7 +1374,9 @@ def test_profile_resolver_treats_missing_standard_repo_hooks_as_noops(
                     "local_apply_script": str(apply_down),
                 }
             },
-            "container_profiles": {"runtime": {"image": "runtime:test"}},
+            "container_profiles": {
+                "runtime": {"mode": "image", "image": "runtime:test"}
+            },
         },
         env={"WORKING_DIR": str(tmp_path / "workspace"), "CONFIG_DIR": str(tmp_path)},
     )
@@ -1157,7 +1413,9 @@ def test_profile_resolver_rejects_missing_nonstandard_optional_hook_paths(
                         "local_apply_script": str(apply_down),
                     }
                 },
-                "container_profiles": {"runtime": {"image": "runtime:test"}},
+                "container_profiles": {
+                    "runtime": {"mode": "image", "image": "runtime:test"}
+                },
             },
             env={"WORKING_DIR": str(tmp_path), "CONFIG_DIR": str(tmp_path)},
         )
@@ -1554,7 +1812,13 @@ def test_cloud_start_session_action_runs_transfer_script_and_returns_copy_link(
     assert "public_host" not in calls[0]["body"]
     assert calls[2]["body"]["session_id"] == session.session_id
     assert calls[2]["body"]["transfer_ref"] == {"transfer_id": "tr_test"}
-    assert calls[2]["body"]["runtime_image"] == "cloud-agent-runtime:latest"
+    assert calls[2]["body"]["container"] == {
+        "profile_id": "test-runtime",
+        "mode": "image",
+        "image": "cloud-agent-runtime:latest",
+        "cache_mounts": [],
+        "mounts": [],
+    }
     assert calls[2]["body"]["connection_ref"]["reuse"] is True
     assert calls[2]["body"]["connection_ref"]["connection_key"].startswith(
         "cloud-agent-app:"
@@ -2361,7 +2625,10 @@ def test_agent_application_cloud_disabled_plugins_support_raw_literals(
                     }
                 },
                 "container_profiles": {
-                    "test-runtime": {"image": "cloud-agent-runtime:latest"}
+                    "test-runtime": {
+                        "mode": "image",
+                        "image": "cloud-agent-runtime:latest",
+                    }
                 },
             }
         },

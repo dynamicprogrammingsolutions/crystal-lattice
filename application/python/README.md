@@ -509,8 +509,7 @@ Quick-start config:
       "workspace_dir": ".",
       "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
       "default_transfer_up_profile": "working-tree-current-state",
-      "default_sync_down_profile": "working-tree-patch",
-      "default_container_profile": "default-runtime"
+      "default_sync_down_profile": "working-tree-patch"
     }
   }
 }
@@ -540,13 +539,14 @@ crystal-lattice validate-cloud --cache-dir /path/to/stable/cache
 crystal-lattice validate-cloud --runtime-build-context /path/to/context --runtime-dockerfile /path/to/Dockerfile
 ```
 
-The command runs the runtime image selected by the active
-`application.cloud_agent.container_profiles` configuration. If that image is
-the default `cloud-agent-runtime:latest`, the command uses explicit
-runtime-layout build metadata to compute a build-input digest and rebuilds only
-when the local image is missing or stale. Custom image names are treated as
-user-owned: validation trusts them when present and fails clearly when they are
-missing unless explicit runtime build overrides are provided.
+The command runs the selected container profile. When config omits
+`application.cloud_agent.container_profiles`, the cloud-agent plugin supplies
+the default Dockerfile runtime profile. Image-mode profiles run the configured
+image, and Dockerfile-mode profiles stage the configured context plus build
+assets, compute a digest, and build/reuse the local image.
+Custom image names are treated as user-owned: validation trusts them when
+present and fails clearly when they are missing unless explicit runtime build
+overrides or Dockerfile profile metadata are provided.
 When `--cache-dir` is provided, it is bind-mounted to `/cloud-agent/cache` so
 plugin and pip caches persist across validation runs.
 
