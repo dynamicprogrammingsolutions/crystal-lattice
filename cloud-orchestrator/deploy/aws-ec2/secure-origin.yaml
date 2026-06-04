@@ -13,6 +13,10 @@ Parameters:
   InstanceType:
     Type: String
     Default: t3.micro
+  DataVolumeSizeGiB:
+    Type: Number
+    Default: 64
+    MinValue: 8
   CpuArchitecture:
     Type: String
     Default: X86_64
@@ -138,6 +142,24 @@ Resources:
       Roles:
         - !Ref InstanceRole
 
+  DataVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Size: !Ref DataVolumeSizeGiB
+      VolumeType: gp3
+      Encrypted: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${StackName}-orchestrator-data
+
+  DataVolumeAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      Device: /dev/sdf
+      InstanceId: !Ref Instance
+      VolumeId: !Ref DataVolume
+
   Instance:
     Type: AWS::EC2::Instance
     Properties:
@@ -167,9 +189,31 @@ Resources:
         Fn::Base64: !Sub |
           #!/bin/bash
           set -euxo pipefail
-          dnf install -y docker awscli
+          dnf install -y docker awscli xfsprogs
           systemctl enable --now docker
           mkdir -p /var/lib/cloud-orchestrator
+          DATA_VOLUME_ID="${DataVolume}"
+          DATA_VOLUME_ID_NO_DASH="$(echo "$DATA_VOLUME_ID" | tr -d '-')"
+          DATA_DEVICE=""
+          for attempt in $(seq 1 60); do
+            for candidate in /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_$DATA_VOLUME_ID_NO_DASH /dev/xvdf /dev/sdf; do
+              if [ -e "$candidate" ]; then
+                DATA_DEVICE="$(readlink -f "$candidate")"
+                break
+              fi
+            done
+            if [ -n "$DATA_DEVICE" ]; then
+              break
+            fi
+            sleep 2
+          done
+          test -n "$DATA_DEVICE"
+          if ! blkid "$DATA_DEVICE" >/dev/null 2>&1; then
+            mkfs.xfs -f "$DATA_DEVICE"
+          fi
+          DATA_UUID="$(blkid -s UUID -o value "$DATA_DEVICE")"
+          grep -q "$DATA_UUID" /etc/fstab || echo "UUID=$DATA_UUID /var/lib/cloud-orchestrator xfs defaults,nofail 0 2" >> /etc/fstab
+          mount /var/lib/cloud-orchestrator || mount -a
           aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
           docker pull ${RuntimeImageUri}
           docker pull ${TransferSshImageUri}
@@ -202,6 +246,8 @@ Resources:
 Outputs:
   InstanceId:
     Value: !Ref Instance
+  DataVolumeId:
+    Value: !Ref DataVolume
   Ec2PublicDnsName:
     Value: !GetAtt Instance.PublicDnsName
   Ec2HttpUrl:

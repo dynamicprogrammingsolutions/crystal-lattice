@@ -26,8 +26,8 @@ sanitized build context and included in the digest.
 - [x] Add profile-defined runtime mounts for large mutable directories that should not live in Docker image layers.
 - [x] Keep project workspace data mounted at runtime.
 - [x] Ensure the orchestrator data directory is a durable mounted directory in Docker deployments.
-- [ ] Set up durable EBS-backed orchestrator data storage for the Ireland server.
-- [ ] Update the AWS stack to provision and mount EBS for the orchestrator data directory.
+- [x] Set up durable EBS-backed orchestrator data storage for the Ireland server.
+- [x] Update the AWS stack to provision and mount EBS for the orchestrator data directory.
 - [x] Preserve current default runtime image behavior.
 - [x] Add unit tests for config parsing and Docker command construction.
 - [ ] Add gated integration tests for Dockerfile build/run behavior if practical.
@@ -161,11 +161,11 @@ instances, runtime caches, build artifacts, and shared mount data. Docker
 Compose deployments should mount this directory into the orchestrator container.
 Remote deployments must provision durable storage for it.
 
-Follow-up deployment work in this task:
+Follow-up deployment work completed in this task:
 
-- Ireland server: create and mount EBS-backed storage for the orchestrator data
-  directory.
-- AWS stack: provision, attach, format if needed, and mount EBS for the
+- Ireland server: created and mounted 64 GiB gp3 EBS-backed storage for the
+  orchestrator data directory.
+- AWS stack: provisions, attaches, formats if needed, and mounts EBS for the
   orchestrator data directory before starting the orchestrator.
 
 ## Documentation Notes
@@ -255,9 +255,10 @@ Added during task completion.
 
 Added during task completion.
 
-Completed this stage except for the explicitly deferred EBS and gated Docker
-integration work. The cloud-agent plugin now supplies the default Dockerfile
-container profile, so app default config no longer needs to declare
+Completed the container-profile and durable data storage stage except for the
+remaining gated Docker integration expansion. The cloud-agent plugin now
+supplies the default Dockerfile container profile, so app default config no
+longer needs to declare
 `container_profiles`. Container profile `mode` is optional and inferred from
 shape. Dockerfile/context/build asset source paths are expanded through env
 placeholders and resolved to absolute paths before staging, while staged
@@ -265,10 +266,8 @@ Dockerfile and build asset targets remain safe relative paths inside the staged
 context. The orchestrator-owned default runtime Dockerfile and runtime.py were
 removed.
 
-Remaining open items:
+Remaining open item:
 
-- Ireland server EBS-backed orchestrator data storage.
-- AWS stack EBS provisioning/mounting for the orchestrator data directory.
 - Gated Docker integration coverage for tiny image mode, tiny Dockerfile mode,
   nested Dockerfile/context layouts, and the default plugin Dockerfile build.
 
@@ -299,6 +298,12 @@ Regression commands completed successfully after those fixes:
 - `npm run integration:cloud:openrouter`
 - `npm run integration:cloud:codex`
 - `npm run integration:cloud:aws:fresh`
+- `aws cloudformation validate-template --template-body file://cloud-orchestrator/deploy/aws-ec2/secure-origin.yaml --region us-east-1`
+- `npm run integration:cloud:aws` with explicit prebuilt image URI env vars
+  after adding the AWS EBS data-volume path.
+- `.crystal/deploy-cloud-orchestrator-ireland.sh` after mounting the Ireland
+  server data directory on EBS.
+- `RUN_CLOUD_ORCHESTRATOR_REMOTE_DOCKER_E2E=1 CLOUD_ORCHESTRATOR_REMOTE=irelandsrv@ireland-s1.dynamicprogrammingsolutions.com CLOUD_ORCHESTRATOR_PUBLIC_URL=https://crystal-lattice-cloud.dynamicprogrammingsolutions.com CLOUD_ORCHESTRATOR_HOST_DATA_DIR=/home/irelandsrv/cloud-orchestrator-data SSH_OPTS='-i ~/.ssh/srv-ireland.pem -o BatchMode=yes' npm run integration:cloud:remote-docker`
 - `npm run integration:cloud:aws:codex` with explicit image URI env vars from
   the successful fresh build reached the EC2 default-config Codex provider flow;
   the `codex-openrouter` chain passed. The `codex-openai` case timed out waiting
@@ -311,6 +316,16 @@ Commands not completed:
   harness path creates a new stack and requires prebuilt image URI metadata for
   that same stack. It can be run by providing `CLOUD_ORCHESTRATOR_IMAGE_URI`,
   `CLOUD_AGENT_RUNTIME_IMAGE_URI`, and `CLOUD_AGENT_TRANSFER_SSH_IMAGE_URI`.
-- `npm run integration:cloud:remote-docker`: not run because the private remote
-  deploy environment was missing `CLOUD_ORCHESTRATOR_REMOTE` and
-  `CLOUD_ORCHESTRATOR_PUBLIC_URL`.
+
+Ireland EBS deployment notes:
+
+- EC2 instance: `i-0d675c4913029c747` in `eu-west-1c`.
+- New volume: `vol-08d736561dbdda564`, 64 GiB gp3 encrypted EBS.
+- Mounted at `/home/irelandsrv/cloud-orchestrator-data` as ext4 via `/etc/fstab`.
+- Root disk went from about 94% used before migration to about 54% used after
+  migration and redeploy.
+- Public health check after migration/redeploy:
+  `https://crystal-lattice-cloud.dynamicprogrammingsolutions.com/health`.
+- The remote Docker smoke left two runtime containers running; they were removed
+  after the passing test. The health endpoint remained healthy but still reported
+  stale registry counts (`instances: 2`, `transfers: 3`) after container cleanup.

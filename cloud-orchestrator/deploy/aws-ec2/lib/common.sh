@@ -17,6 +17,7 @@ JSON_OUTPUT=0
 KEEP_ON_FAILURE=0
 INSTANCE_TYPE="${CLOUD_ORCHESTRATOR_AWS_INSTANCE_TYPE:-}"
 BUILDER_INSTANCE_TYPE="${CLOUD_ORCHESTRATOR_AWS_BUILDER_INSTANCE_TYPE:-t3.large}"
+DATA_VOLUME_SIZE_GIB="${CLOUD_ORCHESTRATOR_AWS_DATA_VOLUME_SIZE_GIB:-64}"
 KEY_NAME="${CLOUD_ORCHESTRATOR_AWS_KEY_NAME:-}"
 SOURCE_BUCKET="${CLOUD_ORCHESTRATOR_SOURCE_BUCKET:-}"
 SOURCE_BUNDLE_KEY="${CLOUD_ORCHESTRATOR_SOURCE_BUNDLE_KEY:-}"
@@ -42,6 +43,7 @@ Common options:
   --region REGION
   --instance-type INSTANCE_TYPE
   --builder-instance-type INSTANCE_TYPE
+  --data-volume-size-gib SIZE
   --key-name EC2_KEY_PAIR_NAME
   --source-bucket BUCKET
   --source-bundle-key KEY
@@ -82,6 +84,10 @@ parse_common_args() {
         ;;
       --builder-instance-type)
         BUILDER_INSTANCE_TYPE="$2"
+        shift 2
+        ;;
+      --data-volume-size-gib)
+        DATA_VOLUME_SIZE_GIB="$2"
         shift 2
         ;;
       --key-name)

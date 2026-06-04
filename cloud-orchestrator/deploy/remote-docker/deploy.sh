@@ -83,12 +83,20 @@ if [[ -n "${SSH_OPTS:-}" ]]; then
 fi
 
 bundle_path="$(mktemp -t cloud-orchestrator-source.XXXXXX.tar.gz)"
+runtime_context_dir="$(mktemp -d -t cloud-runtime-context.XXXXXX)"
+runtime_bundle_path="$(mktemp -t cloud-runtime-context.XXXXXX.tar.gz)"
 cleanup() {
   rm -f "${bundle_path}"
+  rm -f "${runtime_bundle_path}"
+  rm -rf "${runtime_context_dir}"
 }
 trap cleanup EXIT
 
 create_cloud_orchestrator_source_bundle "${bundle_path}" "${repo_root}"
+python3 "${repo_root}/scripts/prepare_cloud_runtime_build_context.py" \
+  --output "${runtime_context_dir}" \
+  --config "${repo_root}/application/python/agent_terminal_app/default_config/config.json"
+COPYFILE_DISABLE=1 tar -czf "${runtime_bundle_path}" -C "${runtime_context_dir}" .
 
 remote_cleanup_command="
 # Temporary development cleanup: stop old runtime and transfer containers
@@ -120,9 +128,8 @@ rsync_args=(-az)
 if [[ ${#rsync_extra[@]} -gt 0 ]]; then
   rsync_args+=("${rsync_extra[@]}")
 fi
-rsync_args+=("${bundle_path}" "${remote}:${remote_dir}/.deploy/source.tar.gz")
-
-rsync "${rsync_args[@]}"
+rsync "${rsync_args[@]}" "${bundle_path}" "${remote}:${remote_dir}/.deploy/source.tar.gz"
+rsync "${rsync_args[@]}" "${runtime_bundle_path}" "${remote}:${remote_dir}/.deploy/cloud-runtime.tar.gz"
 
 remote_command="
 set -euo pipefail
@@ -139,9 +146,9 @@ else
   compose_cmd='docker-compose'
   compose_file='cloud-orchestrator/docker-compose.single-node-v2.yml'
 fi
-python3 scripts/prepare_cloud_runtime_build_context.py \
-  --output build/cloud-runtime \
-  --config application/python/agent_terminal_app/default_config/config.json
+rm -rf build/cloud-runtime
+mkdir -p build/cloud-runtime
+tar -xzf .deploy/cloud-runtime.tar.gz -C build/cloud-runtime
 docker build -t cloud-agent-runtime:latest build/cloud-runtime
 docker build -t cloud-agent-transfer-ssh:latest cloud-orchestrator/transfer/managed-ssh
 CLOUD_ORCHESTRATOR_PUBLIC_URL=$(quote "${CLOUD_ORCHESTRATOR_PUBLIC_URL}") \\

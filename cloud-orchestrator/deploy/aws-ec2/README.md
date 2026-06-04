@@ -37,6 +37,7 @@ The default secure profile creates:
 - a generated control-plane bearer token
 - a generated runtime token-signing secret
 - prebuilt Docker images pushed to ECR before EC2 provisioning
+- a separate gp3 EBS data volume mounted at `/var/lib/cloud-orchestrator`
 
 The script prints:
 
@@ -69,6 +70,27 @@ ownership lives with `cloud-agent-app`.
 The main CLI and deploy builders use the cloud runtime assets shipped by
 `plugins/cloud-agent-app`. Change the runtime base image, installed utilities,
 or bootstrap behavior there.
+
+## Data Volume
+
+The secure profile creates a separate encrypted gp3 EBS volume for
+`/var/lib/cloud-orchestrator`, which is also mounted into the orchestrator
+container and sibling runtime containers. The default size is 64 GiB. Override
+it with either:
+
+```bash
+CLOUD_ORCHESTRATOR_AWS_DATA_VOLUME_SIZE_GIB=128
+```
+
+or:
+
+```bash
+deploy/aws-ec2/up.sh --data-volume-size-gib 128 ...
+```
+
+The volume is a CloudFormation resource separate from the EC2 instance, so it
+survives instance replacement within the stack. It is deleted when the stack is
+deleted.
 
 Build explicitly before running deploys or AWS E2E tests:
 
