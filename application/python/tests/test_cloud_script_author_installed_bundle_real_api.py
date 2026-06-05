@@ -25,10 +25,14 @@ pytestmark = [pytest.mark.integration, pytest.mark.api, pytest.mark.docker]
 
 
 ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_CHATGPT_CREDENTIALS = Path.home() / ".crystal" / "auth" / "chatgpt-auth.json"
 
 STANDARD_TOOL_BUDGET = {"soft": 20, "hard": 45}
 MULTI_REPO_TOOL_BUDGET = {"soft": 40, "hard": 80}
 AUTHORING_REQUEST_TIMEOUT = {"soft": 900, "hard": 1800}
+AUTHORING_NO_PROGRESS_TIMEOUT_SECONDS = int(
+    os.environ.get("CLOUD_SCRIPT_AUTHOR_NO_PROGRESS_TIMEOUT", "900")
+)
 VALIDATE_CLOUD_TIMEOUT = {"soft": 900, "hard": 1800}
 
 
@@ -188,16 +192,15 @@ def _prepare_authoring_bundle(tmp_path: Path) -> tuple[Path, Path, Path]:
     _run(["docker", "info"], cwd=ROOT, skip_on_failure="Docker daemon is not available")
 
     bundle_dir = _extract_bundle_archive(archive_path, tmp_path / "bundle")
-    executable = bundle_dir / (
-        "crystal-lattice.exe" if os.name == "nt" else "crystal-lattice"
-    )
-    assert executable.is_file()
+    executable = _bundle_executable(bundle_dir)
     layout = json.loads(
         _run([str(executable), "--runtime-layout-json"], cwd=tmp_path).stdout
     )
     builtin_plugins = Path(layout["env_overrides"]["BUILTIN_PLUGINS"])
     cloud_agent_plugin = builtin_plugins / "cloud-agent-app"
-    assert (cloud_agent_plugin / "docs" / "cloud-script-authoring.md").is_file()
+    guide_path = cloud_agent_plugin / "docs" / "cloud-script-authoring.md"
+    assert guide_path.is_file()
+    _assert_bundled_authoring_guide_has_container_profile_contract(guide_path)
     return executable, builtin_plugins, cloud_agent_plugin
 
 
@@ -235,9 +238,11 @@ def _ensure_authoring_auth_available() -> None:
 
 def _chatgpt_credentials_path_from_env() -> Path | None:
     raw = os.environ.get("CHATGPT_CREDENTIALS")
-    if not isinstance(raw, str) or not raw.strip():
-        return None
-    return Path(raw).expanduser().resolve()
+    if isinstance(raw, str) and raw.strip():
+        return Path(raw).expanduser().resolve()
+    if DEFAULT_CHATGPT_CREDENTIALS.is_file():
+        return DEFAULT_CHATGPT_CREDENTIALS.resolve()
+    return None
 
 
 def _authoring_auth_overrides() -> dict[str, str]:
@@ -250,6 +255,23 @@ def _authoring_auth_overrides() -> dict[str, str]:
         "auth_mode": "chatgpt",
         "chatgpt_credentials_path": str(credentials_path),
     }
+
+
+def _assert_bundled_authoring_guide_has_container_profile_contract(path: Path) -> None:
+    text = path.read_text(encoding="utf-8")
+    normalized = " ".join(text.split()).lower()
+    for required in (
+        "container_profiles",
+        "default_container_profile",
+        "dockerfile mode",
+        "build_assets",
+        "cache_mounts",
+        "mounts",
+        "hard project boundary",
+        "cannot use project files implicitly",
+        "runtime workspace mount",
+    ):
+        assert required in normalized, f"{required!r} missing from {path}"
 
 
 def _run_cloud_script_author(
@@ -274,6 +296,8 @@ def _run_cloud_script_author(
         "PATH": f"{executable.parent}{os.pathsep}{env.get('PATH') or os.environ.get('PATH', '')}",
     }
     _prepare_authoring_config(executable, workspace, env=server_env)
+    server_log_path = workspace / ".cloud-agent-authoring-server.log"
+    server_log = server_log_path.open("w", encoding="utf-8")
     server = subprocess.Popen(
         [
             str(executable),
@@ -285,13 +309,23 @@ def _run_cloud_script_author(
         ],
         cwd=str(workspace),
         env=server_env,
-        stdout=subprocess.PIPE,
+        stdout=server_log,
         stderr=subprocess.STDOUT,
         text=True,
     )
     try:
         base_url = f"http://127.0.0.1:{port}"
-        _wait_for_server(base_url, server)
+        _write_authoring_diagnostic(
+            workspace,
+            {
+                "type": "server_started",
+                "scenario": scenario,
+                "pid": server.pid,
+                "port": port,
+                "server_log": str(server_log_path),
+            },
+        )
+        _wait_for_server(base_url, server, server_log_path=server_log_path)
         created = _json_request(
             "POST",
             f"{base_url}/sessions",
@@ -300,6 +334,17 @@ def _run_cloud_script_author(
         session_id = created["session"]["session_id"]
         default_model = "gpt-5.4" if scenario == "multi-repo" else "gpt-5.4-mini"
         model = os.environ.get("CLOUD_SCRIPT_AUTHOR_TEST_MODEL") or default_model
+        auth_overrides = _authoring_auth_overrides()
+        _write_authoring_diagnostic(
+            workspace,
+            {
+                "type": "request_starting",
+                "scenario": scenario,
+                "session_id": session_id,
+                "model": model,
+                "auth_mode": auth_overrides.get("auth_mode") or "default",
+            },
+        )
         response = _json_request(
             "POST",
             f"{base_url}/sessions/{session_id}/send_message",
@@ -309,7 +354,7 @@ def _run_cloud_script_author(
                     "content": prompt,
                 },
                 "config_overrides": {
-                    **_authoring_auth_overrides(),
+                    **auth_overrides,
                     "model": model,
                     "reasoning_effort": "high",
                     "timeout": 600,
@@ -324,6 +369,15 @@ def _run_cloud_script_author(
             },
         )
         request_id = response["request_id"]
+        _write_authoring_diagnostic(
+            workspace,
+            {
+                "type": "request_started",
+                "scenario": scenario,
+                "session_id": session_id,
+                "request_id": request_id,
+            },
+        )
         events = _wait_for_request_events(
             base_url,
             request_id,
@@ -342,6 +396,7 @@ def _run_cloud_script_author(
         except subprocess.TimeoutExpired:
             server.kill()
             server.wait(timeout=20)
+        server_log.close()
     return _collect_authoring_telemetry(
         scenario=scenario,
         workspace=workspace,
@@ -687,6 +742,18 @@ def _extract_bundle_archive(archive_path: Path, target_dir: Path) -> Path:
     return directories[0]
 
 
+def _bundle_executable(bundle_dir: Path) -> Path:
+    candidates = (
+        [bundle_dir / "crystal-lattice.exe", bundle_dir / "bin" / "crystal-lattice.exe"]
+        if os.name == "nt"
+        else [bundle_dir / "crystal-lattice", bundle_dir / "bin" / "crystal-lattice"]
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise AssertionError(f"bundle executable not found under {bundle_dir}")
+
+
 def _archive_matches_current_platform(path: Path) -> bool:
     name = path.name.lower()
     system = platform.system().lower()
@@ -741,12 +808,14 @@ def _reserve_port() -> int:
         return int(sock.getsockname()[1])
 
 
-def _wait_for_server(base_url: str, process: subprocess.Popen[str]) -> None:
+def _wait_for_server(
+    base_url: str, process: subprocess.Popen[str], *, server_log_path: Path
+) -> None:
     deadline = time.monotonic() + 120
     last_error = ""
     while time.monotonic() < deadline:
         if process.poll() is not None:
-            output = process.stdout.read() if process.stdout is not None else ""
+            output = _read_text_tail(server_log_path, max_chars=20_000)
             raise AssertionError(f"server exited early\n{output}")
         try:
             _json_request("GET", f"{base_url}/api/hello", None, timeout=2)
@@ -793,6 +862,9 @@ def _wait_for_request_events(
     started_at = time.monotonic()
     deadline = started_at + timeout_seconds
     soft_deadline = started_at + soft_timeout_seconds
+    no_progress_timeout = AUTHORING_NO_PROGRESS_TIMEOUT_SECONDS
+    last_progress_at = started_at
+    last_signature: dict[str, Any] = {}
     warned_soft_timeout = False
     collected: list[dict[str, Any]] = []
     while time.monotonic() < deadline:
@@ -813,19 +885,53 @@ def _wait_for_request_events(
                 timeout=30,
             )
         except TimeoutError:
+            _write_authoring_diagnostic(
+                workspace,
+                {
+                    "type": "events_poll_timeout",
+                    "request_id": request_id,
+                    "elapsed_seconds": round(time.monotonic() - started_at, 3),
+                    "session": _session_summary(workspace, session_id),
+                },
+            )
             time.sleep(1)
             continue
         collected = payload.get("events") or []
+        signature = _authoring_progress_signature(
+            workspace=workspace,
+            session_id=session_id,
+            events=collected,
+        )
+        if signature != last_signature:
+            last_signature = signature
+            last_progress_at = now
+        _write_authoring_diagnostic(
+            workspace,
+            {
+                "type": "events_poll",
+                "request_id": request_id,
+                "elapsed_seconds": round(now - started_at, 3),
+                "seconds_since_progress": round(now - last_progress_at, 3),
+                **signature,
+            },
+        )
         if any(event.get("type") == "request_completed" for event in collected):
             return collected
         error_events = [event for event in collected if event.get("type") == "error"]
         if error_events:
-            raise AssertionError(f"request failed: {error_events[-1]}")
+            raise AssertionError(
+                "request failed: "
+                f"{error_events[-1]}\n"
+                f"diagnostics={_diagnostics_path(workspace)}\n"
+                f"session={_session_summary(workspace, session_id)}"
+            )
         tool_count = _tool_count_from_events(collected)
         if tool_count > hard_tool_limit:
             raise AssertionError(
                 f"request exceeded hard tool limit {hard_tool_limit}; "
-                f"observed {tool_count} tool calls"
+                f"observed {tool_count} tool calls\n"
+                f"diagnostics={_diagnostics_path(workspace)}\n"
+                f"session={_session_summary(workspace, session_id)}"
             )
         if _authoring_progress_is_sufficient(
             workspace=workspace,
@@ -834,8 +940,86 @@ def _wait_for_request_events(
             require_fast_local_harness=require_fast_local_harness,
         ):
             return collected
+        if now - last_progress_at >= no_progress_timeout:
+            raise AssertionError(
+                "cloud-script-author request made no observable progress for "
+                f"{no_progress_timeout}s\n"
+                f"request_id={request_id}\n"
+                f"diagnostics={_diagnostics_path(workspace)}\n"
+                f"session={_session_summary(workspace, session_id)}"
+            )
         time.sleep(1)
-    raise AssertionError(f"timed out waiting for request {request_id}: {collected}")
+    raise AssertionError(
+        f"timed out waiting for request {request_id}: {collected}\n"
+        f"diagnostics={_diagnostics_path(workspace)}\n"
+        f"session={_session_summary(workspace, session_id)}"
+    )
+
+
+def _diagnostics_path(workspace: Path) -> Path:
+    return workspace / ".cloud-agent-authoring-diagnostics.jsonl"
+
+
+def _write_authoring_diagnostic(workspace: Path, payload: dict[str, Any]) -> None:
+    path = _diagnostics_path(workspace)
+    record = {
+        "timestamp": time.time(),
+        **payload,
+    }
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, sort_keys=True) + "\n")
+
+
+def _authoring_progress_signature(
+    *, workspace: Path, session_id: str, events: list[dict[str, Any]]
+) -> dict[str, Any]:
+    event_types = [
+        event.get("type") for event in events if isinstance(event.get("type"), str)
+    ]
+    session = _session_summary(workspace, session_id)
+    generated = _generated_cloud_agent_files(workspace)
+    return {
+        "event_count": len(events),
+        "last_event_type": event_types[-1] if event_types else None,
+        "event_types_tail": event_types[-8:],
+        "message_count": session.get("message_count"),
+        "last_message_role": session.get("last_message_role"),
+        "last_message_tool": session.get("last_message_tool"),
+        "last_message_preview": session.get("last_message_preview"),
+        "generated_files": generated,
+    }
+
+
+def _session_summary(workspace: Path, session_id: str) -> dict[str, Any]:
+    if not session_id:
+        return {"session_id": session_id, "message_count": 0}
+    session_path = workspace / ".crystal" / "sessions" / f"{session_id}.json"
+    if not session_path.is_file():
+        return {"session_id": session_id, "missing": True, "message_count": 0}
+    try:
+        payload = json.loads(session_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {"session_id": session_id, "error": str(exc), "message_count": 0}
+    messages = payload.get("messages") if isinstance(payload, dict) else None
+    if not isinstance(messages, list) or not messages:
+        return {"session_id": session_id, "message_count": 0}
+    last = messages[-1] if isinstance(messages[-1], dict) else {}
+    metadata = last.get("metadata") if isinstance(last.get("metadata"), dict) else {}
+    return {
+        "session_id": session_id,
+        "message_count": len(messages),
+        "last_message_role": last.get("role"),
+        "last_message_tool": metadata.get("tool_name"),
+        "last_message_preview": str(last.get("content") or "")
+        .replace("\n", " ")[:400],
+    }
+
+
+def _read_text_tail(path: Path, *, max_chars: int) -> str:
+    if not path.is_file():
+        return ""
+    text = path.read_text(encoding="utf-8", errors="replace")
+    return text[-max_chars:]
 
 
 def _tool_count_from_events(events: list[dict[str, Any]]) -> int:

@@ -183,12 +183,33 @@ def _commit_all(workspace_dir: Path, message: str) -> None:
     _run(["git", "commit", "-m", message], cwd=workspace_dir)
 
 
-def _runtime_image_build_args() -> list[str]:
+def _runtime_image_build_args(tmp_path: Path) -> list[str]:
+    context = tmp_path / "cloud-runtime"
+    config = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    _run(
+        [
+            sys.executable,
+            str(ROOT / "scripts" / "prepare_cloud_runtime_build_context.py"),
+            "--output",
+            str(context),
+            "--config",
+            str(config),
+        ],
+        cwd=ROOT,
+        env=_pythonpath_env(),
+    )
     return [
         "--runtime-build-context",
-        str(ROOT),
+        str(context),
         "--runtime-dockerfile",
-        str(ROOT / "cloud-orchestrator" / "runtime" / "python" / "Dockerfile"),
+        str(context / "Dockerfile"),
     ]
 
 
@@ -246,7 +267,7 @@ def test_validate_cloud_command_succeeds_for_this_repository_hooks(
             str(workspace),
             "--cache-dir",
             str(cache_dir),
-            *_runtime_image_build_args(),
+            *_runtime_image_build_args(tmp_path),
         ],
         cwd=ROOT,
         env=_pythonpath_env(),
@@ -307,7 +328,7 @@ def test_validate_cloud_command_fails_when_local_stage_does_not_stage_required_e
             str(workspace),
             "--cache-dir",
             str(cache_dir),
-            *_runtime_image_build_args(),
+            *_runtime_image_build_args(tmp_path),
         ],
         cwd=ROOT,
         env=_pythonpath_env(),
@@ -357,7 +378,7 @@ def test_validate_cloud_command_fails_when_validate_hook_exits_non_zero(
             str(workspace),
             "--cache-dir",
             str(cache_dir),
-            *_runtime_image_build_args(),
+            *_runtime_image_build_args(tmp_path),
         ],
         cwd=ROOT,
         env=_pythonpath_env(),

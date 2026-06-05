@@ -20,7 +20,14 @@ def _load_module_from_path(module_name: str, path: Path) -> ModuleType:
 
 def _load_runtime_module(repo_root: Path) -> ModuleType:
     runtime_path = (
-        repo_root / "cloud-orchestrator" / "runtime" / "python" / "runtime.py"
+        repo_root
+        / "plugins"
+        / "cloud-agent-app"
+        / "src"
+        / "cloud_agent_app"
+        / "bundled_runtime"
+        / "python"
+        / "runtime.py"
     )
     return _load_module_from_path("_cloud_runtime_workdir_test_runtime", runtime_path)
 

@@ -35,7 +35,9 @@ For a model-oriented authoring guide with examples, see
 [`docs/cloud-script-authoring.md`](docs/cloud-script-authoring.md). The default
 `cloud-script-author` agent points at this guide through
 `${env:BUILTIN_PLUGINS}/cloud-agent-app/docs/cloud-script-authoring.md` so the
-same path works from source checkouts and bundled CLI installs.
+same path works from source checkouts and bundled CLI installs. Keep the guide
+in sync with this reference when changing container profile fields, since the
+authoring agent reads it before inspecting plugin source.
 
 They are addressed in config through:
 

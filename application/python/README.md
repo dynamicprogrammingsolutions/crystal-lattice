@@ -564,10 +564,17 @@ The full cloud profile reference lives in
 including:
 
 - the `validate-cloud` command and its built-in smoke contract
+- container profile image/Dockerfile modes, build assets, cache mounts, and
+  runtime mounts
 - the flattened `transfer_up_profiles` schema
 - the bundled script tree under `default_config/cloud-agent/profiles/`
 - the standard repo-local hook conventions and optional-hook behavior
 - the complete config example and field-by-field reference
+
+The authoring guide tells agents to add project container profiles only when the
+runtime image must change. Project source remains a runtime workspace mount; a
+Dockerfile profile may use project files only through explicit stable
+`build_assets` such as package manifests or lockfiles.
 
 `connection_key` is optional. When omitted, the cloud plugin derives an opaque
 stable key from the local config/workspace context so multiple local sessions
@@ -944,9 +951,10 @@ Use `BUNDLE_E2E_OLLAMA_MODEL` to override the default `qwen3:0.6b` model.
 
 The real-model installed-bundle cloud-script-author validation is separately
 gated because it needs a compatible bundle archive, Docker, and hosted provider
-credentials. By default it uses the normal OpenAI provider config and API-key
-auth; the root `.env` is loaded by the test suite, so `OPENAI_API_KEY` can live
-there:
+credentials. By default it uses `CHATGPT_CREDENTIALS` when set, then the saved
+login at `$HOME/.crystal/auth/chatgpt-auth.json` when present, and otherwise
+falls back to the normal OpenAI provider config and API-key auth. The root
+`.env` is loaded by the test suite, so `OPENAI_API_KEY` can live there:
 
 ```bash
 RUN_CLOUD_SCRIPT_AUTHOR_BUNDLE_E2E=1 \
@@ -954,9 +962,9 @@ CRYSTAL_LATTICE_BUNDLE_ARCHIVE=/path/to/crystal-lattice-cli-...-<platform>-<arch
 pytest application/python/tests/test_cloud_script_author_installed_bundle_real_api.py -q -m "integration and api and docker"
 ```
 
-To force ChatGPT login auth for a local run, set `CHATGPT_CREDENTIALS`
-explicitly. In this mode the test sends `auth_mode: "chatgpt"` and does not
-fall back to API-key auth:
+To force a specific ChatGPT login auth file for a local run, set
+`CHATGPT_CREDENTIALS` explicitly. In this mode the test sends
+`auth_mode: "chatgpt"` and does not fall back to API-key auth:
 
 ```bash
 RUN_CLOUD_SCRIPT_AUTHOR_BUNDLE_E2E=1 \

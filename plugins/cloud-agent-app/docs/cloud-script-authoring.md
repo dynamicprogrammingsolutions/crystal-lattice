@@ -49,7 +49,7 @@ Use this order when creating or changing cloud-agent hooks:
 3. Read the bundled default profile scripts as the baseline for the normal
    transfer/setup behavior.
 4. Decide whether the standard hooks are enough, or whether the project needs a
-   custom `.cloud-agent/cloud-agent.json` transfer profile.
+   custom `.cloud-agent/cloud-agent.json` transfer profile or container profile.
 5. Write the hooks and any project config.
 6. Make generated shell scripts executable.
 7. Run cheap local checks first: shell syntax checks, JSON validation, and a
@@ -198,8 +198,106 @@ npm install
 ```
 
 If a project needs tools that are not present in the default runtime image,
-prefer documenting or selecting an appropriate container profile instead of
-making hooks silently skip required setup.
+define or select an appropriate container profile instead of making hooks
+silently skip required setup.
+
+## Container Profiles
+
+Most projects should start with the default runtime profile and put
+project-specific dependency installation in `.cloud-agent/install-cloud`.
+Create a project-local container profile only when the runtime image itself
+needs to change, for example:
+
+- required apt packages are large or slow to install on every session
+- a tool such as Node.js, pnpm, system libraries, or Ollama should be
+  preinstalled in the image
+- large mutable data such as model files should live on a mounted directory
+- dependency directories such as `node_modules` should be shared between cloud
+  instances instead of copied into Docker layers
+
+Container profiles live in `.cloud-agent/cloud-agent.json` under
+`container_profiles`. `default_container_profile` selects one. The cloud-agent
+plugin supplies the standard `default-runtime` profile when no project config
+declares container profiles, so simple projects do not need to copy it.
+
+Image mode selects a prebuilt image:
+
+```json
+{
+  "default_container_profile": "project-runtime",
+  "container_profiles": {
+    "project-runtime": {
+      "label": "Project runtime",
+      "image": "project-cloud-agent-runtime:latest"
+    }
+  }
+}
+```
+
+Dockerfile mode builds a profile-provided Dockerfile. `mode` is optional; if a
+profile has `dockerfile`, the resolver treats it as Dockerfile mode.
+
+```json
+{
+  "default_container_profile": "project-runtime",
+  "container_profiles": {
+    "project-runtime": {
+      "label": "Project runtime",
+      "image": "project-cloud-agent-runtime:latest",
+      "dockerfile": ".cloud-agent/runtime/Dockerfile",
+      "context": ".cloud-agent/runtime",
+      "build_assets": [
+        {
+          "source": "package.json",
+          "target": "assets/package.json"
+        },
+        {
+          "source": "package-lock.json",
+          "target": "assets/package-lock.json"
+        }
+      ],
+      "cache_mounts": [
+        {
+          "id": "node-modules",
+          "target": "/cloud-agent/instance/workspace/node_modules",
+          "scope": "connection"
+        }
+      ],
+      "mounts": [
+        {
+          "id": "ollama-models",
+          "target": "/cloud-agent/cache/ollama",
+          "scope": "profile"
+        }
+      ]
+    }
+  }
+}
+```
+
+Path rules are the same as other cloud-agent config paths. Use explicit env
+placeholders such as `${env:WORKING_DIR}/.cloud-agent/runtime/Dockerfile`, or
+relative paths such as `.cloud-agent/runtime/Dockerfile` when the project config
+file lives in the project. Relative paths resolve from the current project
+directory during normal config compilation.
+
+The Dockerfile build has a hard project boundary. The Docker build context
+cannot use project files implicitly. The project workspace is mounted only when
+the runtime container starts. If a Dockerfile needs project-specific build
+inputs, declare them explicitly in `build_assets`; those files or directories
+are copied into the sanitized build context and included in the build digest.
+
+Good build assets are stable package manifests, lockfiles, tool config files,
+or small patch directories. Avoid volatile generated files, large source trees,
+cache directories, local databases, `.env` files, credentials, or any secret.
+They are allowed by the parser because projects differ, but they will cause
+unnecessary rebuilds, larger uploads, unsafe images, or secret exposure.
+
+Use `cache_mounts` for dependency caches or install outputs that can be shared
+between instances. Use `mounts` for large mutable data that should not be part
+of an image layer, such as Ollama models. Keep normal project source as the
+runtime workspace mount unless a small, stable file is explicitly needed at
+image build time.
 
 ## Validation Hook
 

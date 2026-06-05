@@ -30,6 +30,10 @@ sanitized build context and included in the digest.
 - [x] Update the AWS stack to provision and mount EBS for the orchestrator data directory.
 - [x] Preserve current default runtime image behavior.
 - [x] Add unit tests for config parsing and Docker command construction.
+- [x] Audit and clean up cloud script authoring docs, prompt guidance, and tests
+  after plugin-owned container profile/runtime changes.
+- [x] Audit and run the installed-bundle real API cloud-script-author test with
+  saved ChatGPT login auth.
 - [ ] Add gated integration tests for Dockerfile build/run behavior if practical.
 
 Parent Task: `tasks/20260429-cloud-agent-orchestrator/000-main.md`
@@ -329,3 +333,105 @@ Ireland EBS deployment notes:
 - The remote Docker smoke left two runtime containers running; they were removed
   after the passing test. The health endpoint remained healthy but still reported
   stale registry counts (`instances: 2`, `transfers: 3`) after container cleanup.
+
+## Authoring Documentation Cleanup Notes
+
+Added during task completion.
+
+Audited and cleaned up the cloud script authoring documentation, default
+`cloud-script-author` prompt, and related tests after moving runtime/container
+ownership to the cloud-agent plugin.
+
+Changes completed:
+
+- Expanded `plugins/cloud-agent-app/docs/cloud-script-authoring.md` with
+  container profile guidance for image mode, Dockerfile mode, `build_assets`,
+  `cache_mounts`, `mounts`, path resolution, and the hard boundary that project
+  workspace files are mounted at runtime unless explicitly declared as build
+  assets.
+- Updated the default `cloud-script-author` system message to direct agents to
+  the container profile guidance when project setup needs runtime image changes,
+  apt packages, Node tooling, Ollama/model storage, or shared dependency
+  directories.
+- Added cheap regression tests for the authoring guide and prompt so the
+  model-facing docs keep the new container-profile contract visible.
+- Updated runtime unit tests to load the plugin-owned bundled runtime shim from
+  `plugins/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/runtime.py`
+  instead of the removed orchestrator runtime path.
+- Updated Docker validation command tests to prepare a plugin-owned runtime
+  build context with `scripts/prepare_cloud_runtime_build_context.py` instead of
+  pointing at the deleted `cloud-orchestrator/runtime/python/Dockerfile`.
+- Updated the validation digest source path list to match the staged
+  plugin-owned runtime context layout.
+
+Verification completed:
+
+- `python -m json.tool application/python/agent_terminal_app/default_config/config.json >/dev/null`
+- `python -m py_compile application/python/tests/test_cloud_validation_command_docker.py application/python/tests/test_cloud_agent_runtime.py application/python/tests/test_cloud_runtime_workdir.py application/python/tests/test_cloud_script_author_prompt.py plugins/cloud-agent-app/tests/test_cloud_script_authoring_docs.py plugins/cloud-agent-app/src/cloud_agent_app/cloud_agent_validation.py`
+- `PYTHONPATH=core/python:application/python:plugins/cloud-agent-app/src pytest application/python/tests/test_cloud_script_author_prompt.py plugins/cloud-agent-app/tests/test_cloud_script_authoring_docs.py -q`
+- `PYTHONPATH=core/python:application/python:plugins/cloud-agent-app/src pytest plugins/cloud-agent-app/tests/test_cloud_agent_app_plugin.py -q`
+- `PYTHONPATH=core/python:application/python:plugins/cloud-agent-app/src pytest application/python/tests/test_default_config_effective_agent_configs.py -q -m integration`
+- `PYTHONPATH=core/python:application/python:plugins/cloud-agent-app/src pytest application/python/tests/test_cloud_agent_runtime.py application/python/tests/test_cloud_runtime_workdir.py -q`
+- `PYTHONPATH=core/python:application/python:plugins/cloud-agent-app/src pytest application/python/tests/test_cloud_validation_command_docker.py -q -m 'integration and docker'`
+
+## Real API Authoring Test Notes
+
+Added during task completion.
+
+Audited and ran the installed-bundle real API `cloud-script-author` tests after
+the authoring documentation cleanup.
+
+Changes completed:
+
+- `application/python/tests/test_cloud_script_author_installed_bundle_real_api.py`
+  now uses `CHATGPT_CREDENTIALS` when set and otherwise falls back to the saved
+  local ChatGPT login at `$HOME/.crystal/auth/chatgpt-auth.json` when present.
+- The real API test now asserts that the installed bundle's authoring guide
+  contains the container profile contract (`container_profiles`,
+  `default_container_profile`, Dockerfile mode, `build_assets`, `cache_mounts`,
+  `mounts`, and the hard project-boundary warning).
+- The real API test now writes per-workspace diagnostics to
+  `.cloud-agent-authoring-diagnostics.jsonl` and server output to
+  `.cloud-agent-authoring-server.log`. Event polling records request id, event
+  tail, message count, generated files, and last persisted message summary.
+- Added a generous no-progress watchdog controlled by
+  `CLOUD_SCRIPT_AUTHOR_NO_PROGRESS_TIMEOUT` (default 900 seconds). This turns a
+  silent stalled request into an actionable failure with diagnostic file paths
+  and a session summary.
+- `application/python/tests/test_cloud_validation_installed_bundle.py` and the
+  real API authoring test now accept both optimized bundle executables at
+  bundle root and full bundled-Python executables at `bin/crystal-lattice`.
+- The installed-bundle validation test now accepts both optimized `bundled`
+  layout and full `python-runtime` layout.
+- `application/python/README.md` documents the saved ChatGPT-login fallback for
+  the real API authoring test.
+
+Verification completed:
+
+- `python -m py_compile application/python/tests/test_cloud_script_author_installed_bundle_real_api.py application/python/tests/test_cloud_validation_installed_bundle.py`
+- `PYTHONPATH=core/python:application/python:plugins/cloud-agent-app/src pytest application/python/tests/test_cloud_script_author_prompt.py plugins/cloud-agent-app/tests/test_cloud_script_authoring_docs.py -q`
+- `PYTHONPATH=core/python:application/python pytest application/python/tests/test_cloud_runtime_plugin_bundle_builder.py application/python/tests/test_cloud_orchestrator_source_bundle.py application/python/tests/test_runtime_layout.py -q`
+- Built a fresh bundled-Python runtime package directory with
+  `python scripts/build_crystal_lattice_python_runtime_package.py`. The command
+  timed out during final archive creation, leaving the generated archive
+  truncated, but the package directory was usable and contained the updated
+  authoring guide.
+- Created a valid local test archive from that package directory:
+  `tmp/crystal-lattice-python-runtime-v0.1.0-darwin-arm64-authoring-test.tar.gz`.
+- `CRYSTAL_LATTICE_BUNDLE_ARCHIVE=tmp/crystal-lattice-python-runtime-v0.1.0-darwin-arm64-authoring-test.tar.gz PYTHONPATH=core/python:application/python:plugins/cloud-agent-app/src pytest application/python/tests/test_cloud_validation_installed_bundle.py -q -m 'integration and docker'`
+  passed (`1 passed in 595.00s`).
+- Standard real API authoring scenario passed with saved ChatGPT login:
+  `RUN_CLOUD_SCRIPT_AUTHOR_BUNDLE_E2E=1 CHATGPT_CREDENTIALS="$HOME/.crystal/auth/chatgpt-auth.json" CLOUD_SCRIPT_AUTHOR_NO_PROGRESS_TIMEOUT=420 CRYSTAL_LATTICE_BUNDLE_ARCHIVE="tmp/crystal-lattice-python-runtime-v0.1.0-darwin-arm64-authoring-test.tar.gz" PYTHONPATH=core/python:application/python:plugins/cloud-agent-app/src pytest application/python/tests/test_cloud_script_author_installed_bundle_real_api.py::test_installed_bundle_cloud_script_author_generates_valid_hooks -q -s -m 'integration and api and docker'`
+  passed (`1 passed in 258.16s`).
+- Multi-repo real API authoring scenario passed with saved ChatGPT login:
+  `RUN_CLOUD_SCRIPT_AUTHOR_BUNDLE_E2E=1 CHATGPT_CREDENTIALS="$HOME/.crystal/auth/chatgpt-auth.json" CLOUD_SCRIPT_AUTHOR_NO_PROGRESS_TIMEOUT=420 CRYSTAL_LATTICE_BUNDLE_ARCHIVE="tmp/crystal-lattice-python-runtime-v0.1.0-darwin-arm64-authoring-test.tar.gz" PYTHONPATH=core/python:application/python:plugins/cloud-agent-app/src pytest application/python/tests/test_cloud_script_author_installed_bundle_real_api.py::test_installed_bundle_cloud_script_author_generates_multi_repo_transfer -q -s -m 'integration and api and docker'`
+  passed (`1 passed in 462.74s`).
+- `git diff --check`
+
+Interim diagnostic finding:
+
+- An earlier real API run was manually stopped after it stopped making visible
+  progress. The persisted session proved ChatGPT auth worked and the model had
+  read the guide/project files, but it did not preserve enough information to
+  distinguish a provider hang from a request failure. The new diagnostic stream
+  and no-progress watchdog were added to make that failure mode observable.

@@ -35,20 +35,23 @@ def test_installed_bundle_validate_cloud_builds_runtime_from_bundle(
     _ensure_docker()
 
     bundle_dir = _extract_bundle_archive(archive_path, tmp_path / "bundle")
-    executable = bundle_dir / (
-        "crystal-lattice.exe" if os.name == "nt" else "crystal-lattice"
-    )
-    assert executable.is_file()
+    executable = _bundle_executable(bundle_dir)
 
     layout_result = _run([str(executable), "--runtime-layout-json"], cwd=tmp_path)
     layout = json.loads(layout_result.stdout)
-    assert layout["layout"] == "bundled"
+    assert layout["layout"] in {"bundled", "python-runtime"}
     env_overrides = layout["env_overrides"]
-    assert "/_internal/bundled_plugins" in env_overrides["BUILTIN_PLUGINS"]
+    if layout["layout"] == "bundled":
+        assert "/_internal/bundled_plugins" in env_overrides["BUILTIN_PLUGINS"]
+    else:
+        assert env_overrides["BUILTIN_PLUGINS"].endswith("/plugins")
     bundle_paths = layout["bundle_paths"]
     runtime_context = Path(bundle_paths["cloud_runtime_build_context"])
     runtime_dockerfile = Path(bundle_paths["cloud_runtime_dockerfile"])
-    assert "_internal/cloud_runtime" in str(runtime_context)
+    if layout["layout"] == "bundled":
+        assert "_internal/cloud_runtime" in str(runtime_context)
+    else:
+        assert runtime_context.name == "cloud_runtime"
     assert runtime_context.is_dir()
     assert runtime_dockerfile.is_file()
     assert (
@@ -250,6 +253,18 @@ def _extract_bundle_archive(archive_path: Path, target_dir: Path) -> Path:
     directories = [path for path in target_dir.iterdir() if path.is_dir()]
     assert len(directories) == 1, directories
     return directories[0]
+
+
+def _bundle_executable(bundle_dir: Path) -> Path:
+    candidates = (
+        [bundle_dir / "crystal-lattice.exe", bundle_dir / "bin" / "crystal-lattice.exe"]
+        if os.name == "nt"
+        else [bundle_dir / "crystal-lattice", bundle_dir / "bin" / "crystal-lattice"]
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise AssertionError(f"bundle executable not found under {bundle_dir}")
 
 
 def _bundle_env() -> dict[str, str]:

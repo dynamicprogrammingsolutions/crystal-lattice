@@ -38,15 +38,15 @@ _DIGEST_IGNORE_DIRS = {
 }
 _DIGEST_IGNORE_SUFFIXES = {".pyc", ".pyo", ".log"}
 _SOURCE_RUNTIME_DIGEST_PATHS = (
-    Path("core") / "python" / "agent_core",
-    Path("core") / "python" / "agent_app",
-    Path("core") / "python" / "plugins",
-    Path("core") / "python" / "sitecustomize.py",
-    Path("application") / "python" / "agent_terminal_app",
-    Path("plugins"),
-    Path("scripts") / "build_cloud_runtime_plugin_bundle.py",
-    Path("cloud-orchestrator") / "runtime" / "python" / "Dockerfile",
-    Path("cloud-orchestrator") / "runtime" / "python" / "runtime.py",
+    Path("Dockerfile"),
+    Path("runtime.py"),
+    Path("python_lib") / "agent_core",
+    Path("python_lib") / "agent_app",
+    Path("python_lib") / "plugins",
+    Path("python_lib") / "sitecustomize.py",
+    Path("python_lib") / "agent_terminal_app",
+    Path("cloud-runtime-plugin-bundle"),
+    Path("plugin_sources"),
 )
 
 

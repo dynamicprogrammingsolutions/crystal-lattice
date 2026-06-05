@@ -12,7 +12,16 @@ from fastapi.testclient import TestClient
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-RUNTIME_PATH = REPO_ROOT / "cloud-orchestrator" / "runtime" / "python" / "runtime.py"
+RUNTIME_PATH = (
+    REPO_ROOT
+    / "plugins"
+    / "cloud-agent-app"
+    / "src"
+    / "cloud_agent_app"
+    / "bundled_runtime"
+    / "python"
+    / "runtime.py"
+)
 
 
 @pytest.fixture(autouse=True)
