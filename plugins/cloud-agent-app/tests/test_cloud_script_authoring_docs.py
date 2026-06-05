@@ -41,6 +41,16 @@ def test_cloud_script_authoring_guide_warns_against_implicit_project_context() -
     assert "normal project source as the runtime workspace mount" in text
 
 
+def test_cloud_script_authoring_guide_allows_small_external_validation_smoke() -> None:
+    text = " ".join(GUIDE.read_text(encoding="utf-8").lower().split())
+
+    assert "fast, repeatable, and as deterministic as practical" in text
+    assert "small smoke check" in text
+    assert "transferred credential works" in text
+    assert "do not assume the target project is itself an ai application" in text
+    assert "provider-free" not in text
+
+
 def test_cloud_agent_readme_points_authoring_agent_to_guide() -> None:
     text = README.read_text(encoding="utf-8")
     normalized = " ".join(text.split())

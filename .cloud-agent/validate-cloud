@@ -5,11 +5,19 @@ set -euo pipefail
 
 cd "${CLOUD_WORKSPACE_DIR}"
 
-test -f .env
 test -f .cloud-agent-install.ok
 test -d .venv
 test -x .venv/bin/python
 
 . .venv/bin/activate
+
+# Fast local proof that the workspace and test runner are usable.
 pytest -o addopts='' core/python/tests/test_ui_condition.py -q
-pytest -o addopts='' plugins/openrouter/tests/test_openrouter_basic_integration.py::test_openrouter_basic_non_streaming -q -m "integration and openrouter and api"
+
+# When a local .env or explicit provider credential is present, prove the
+# cloud workspace can reach the configured provider with one small smoke check.
+if [ -f .env ] || [ -n "${OPENROUTER_API_KEY:-}" ]; then
+  pytest -o addopts='' \
+    plugins/openrouter/tests/test_openrouter_basic_integration.py::test_openrouter_basic_non_streaming \
+    -q -m "integration and openrouter and api"
+fi

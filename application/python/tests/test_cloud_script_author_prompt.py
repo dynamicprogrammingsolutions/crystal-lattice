@@ -31,12 +31,16 @@ def test_cloud_script_author_prompt_includes_container_profile_guidance() -> Non
         "mounts",
         "Node tooling",
         "Ollama",
+        "prefer fast local checks first",
+        "small external smoke",
+        "transferred credentials or remote services",
         "Do not print secrets",
     ):
         assert required in template
 
     assert "baking the project workspace into Docker layers" in template
     assert "stable manifests, lockfiles, patches" in template
+    assert "provider-free" not in template
 
 
 def test_cloud_script_author_agent_can_read_guide_and_default_profiles() -> None:

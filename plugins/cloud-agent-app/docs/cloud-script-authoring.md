@@ -32,7 +32,7 @@ Every hook should be executable and should start with:
 set -euo pipefail
 ```
 
-Keep hooks deterministic and idempotent. They may be run more than once during
+Keep hooks repeatable and idempotent. They may be run more than once during
 local validation. Prefer explicit checks over silent best-effort behavior.
 
 Do not print secrets. Do not commit `.env` files or generated credentials.
@@ -209,7 +209,8 @@ Create a project-local container profile only when the runtime image itself
 needs to change, for example:
 
 - required apt packages are large or slow to install on every session
-- a tool such as Node.js, pnpm, system libraries, or Ollama should be
+- a tool such as Node.js, pnpm, system libraries, database clients, browser
+  runtimes, or Ollama should be
   preinstalled in the image
 - large mutable data such as model files should live on a mounted directory
 - dependency directories such as `node_modules` should be shared between cloud
@@ -304,8 +305,13 @@ image build time.
 `.cloud-agent/validate-cloud` runs after transfer, setup, install, and the
 built-in runtime smoke check. Use it to prove the cloud workspace is usable.
 
-Validation should be deterministic and provider-free. It should not call hosted
-LLM APIs.
+Validation should be fast, repeatable, and as deterministic as practical. Run
+the smallest useful check that proves the project works in the cloud runtime.
+Prefer cheap local tests first. If the project genuinely depends on credentials
+or a remote service that is intentionally made available in the cloud runtime,
+validation may include one small smoke check that proves the connection and the
+expected basic behavior. Avoid broad, flaky, high-latency, or unnecessarily
+expensive external validation.
 
 Example for a Python project:
 
@@ -336,6 +342,25 @@ test -d .venv
 python -m unittest discover -s tests -q
 ```
 
+Example that intentionally proves a transferred credential works:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+
+cd "${CLOUD_WORKSPACE_DIR}"
+test -f .env
+test -d .venv
+. .venv/bin/activate
+pytest -o addopts='' tests/test_fast_local_smoke.py -q
+pytest -o addopts='' tests/test_provider_smoke.py::test_basic_connection -q -m "integration and api"
+```
+
+In that pattern, keep the external smoke as narrow as possible. One request or
+one read-only connectivity check is usually enough.
+
 ## Using Project Guidance
 
 Read normal project guidance before writing hooks:
@@ -348,7 +373,7 @@ Read normal project guidance before writing hooks:
 
 Translate "fresh checkout setup" into `.cloud-agent/install-cloud`. Translate
 "local env file required" into `.cloud-agent/local-stage`. Translate "basic
-test command" into `.cloud-agent/validate-cloud`.
+cloud validation proof" into `.cloud-agent/validate-cloud`.
 
 Do not put cloud-specific instructions into the project's `AGENTS.md` just to
 make the hooks work. The cloud contract belongs here and in the generated
@@ -492,6 +517,11 @@ examples when the installed source is available:
 - `application/python/tests/test_cloud_validation_command_docker.py` has
   slower Docker-backed `validate-cloud` examples. Treat these as final
   validation examples, not as the inner loop.
+
+Do not assume the target project is itself an AI application. The same hook
+structure may be used for libraries, CLIs, web apps, mobile backends, data
+pipelines, browser automation projects, SDKs, infrastructure tooling, or any
+other repository that needs a reproducible cloud workspace.
 
 ## Local Validation
 
