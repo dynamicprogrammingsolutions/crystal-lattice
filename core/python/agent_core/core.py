@@ -52,6 +52,7 @@ Examples:
 from typing import Any, Dict, List, Optional, Iterator, AsyncIterator, Tuple, Set
 from .types import Message, Session, MessageRole, ToolDescriptor
 from .core_context import CoreContext
+from .model_cache import ModelDiscoveryCache
 from .plugin import (
     ProviderWrapper,
     ExtensionWrapper,
@@ -581,7 +582,9 @@ class AgentCore:
             metadata=new_metadata,
         )
 
-    def __init__(self):
+    _MODEL_CACHE_KEY_VERSION = "agent-core-models-v2"
+
+    def __init__(self, model_cache: Optional[ModelDiscoveryCache] = None):
         """Initialize core with empty plugin pipeline.
 
         Loggers are initialized lazily so that structlog configuration can
@@ -594,10 +597,10 @@ class AgentCore:
         self._providers: List[ProviderWrapper] = []
         self._features: List[FeatureWrapper] = []
         self._tools: List[ToolWrapper] = []
-        # Caches for model discovery and tag-based dependency resolution.
-        # Keys use provider wrapper id for uniqueness, independent of
-        # human-readable provider names.
-        self._models_cache: Dict[Tuple[int, str], List[Dict[str, Any]]] = {}
+        # Model discovery can be shared across fresh AgentCore instances by
+        # passing the same cache object. Dependency/tag/tool-preparation caches
+        # remain core-local because they are tied to wrapper/runtime state.
+        self._model_cache = model_cache or ModelDiscoveryCache()
         self._dependency_cache: Dict[
             Tuple[int, str, str],
             Tuple[List[str], List[str], List[str], List[str]],
@@ -608,8 +611,7 @@ class AgentCore:
         self._context = CoreContext(core=self)
 
     def _reset_caches(self) -> None:
-        """Reset internal caches for models, dependencies, and tags."""
-        self._models_cache = {}
+        """Reset core-local caches for dependencies, tags, and prepared tools."""
         self._dependency_cache = {}
         self._tags_cache = {}
         self._prepared_tool_states = {}
@@ -1350,6 +1352,52 @@ class AgentCore:
         except TypeError:
             return repr(models)
 
+    def _plugin_cache_signature(self, wrapper: Any) -> Tuple[str, str, str, str]:
+        plugin_class = getattr(wrapper, "plugin_class", None)
+        module = (
+            getattr(plugin_class, "__module__", "")
+            if plugin_class is not None
+            else ""
+        )
+        qualname = (
+            getattr(plugin_class, "__qualname__", "")
+            if plugin_class is not None
+            else ""
+        )
+        name = getattr(wrapper, "name", None)
+        if not isinstance(name, str) or not name:
+            name = (
+                getattr(plugin_class, "name", "")
+                if plugin_class is not None
+                else ""
+            )
+        version = getattr(wrapper, "version", None)
+        if not isinstance(version, str) or not version:
+            version = (
+                getattr(plugin_class, "version", "")
+                if plugin_class is not None
+                else ""
+            )
+        return (
+            module,
+            qualname,
+            name if isinstance(name, str) else "",
+            version if isinstance(version, str) else "",
+        )
+
+    def _models_cache_key_for_config(
+        self,
+        provider: ProviderWrapper,
+        config: Dict[str, Any],
+    ) -> Tuple[Any, ...]:
+        return (
+            self._MODEL_CACHE_KEY_VERSION,
+            self._plugin_cache_signature(provider),
+            tuple(self._plugin_cache_signature(ext) for ext in provider.extensions),
+            tuple(self._plugin_cache_signature(feature) for feature in self._features),
+            self._normalize_config(config),
+        )
+
     def _provider_identities(self, provider: ProviderWrapper) -> List[str]:
         """Return identifier strings that can refer to this provider.
 
@@ -1489,33 +1537,29 @@ class AgentCore:
         config: Dict[str, Any],
     ) -> List[Dict[str, Any]]:
         """Return cached or freshly-computed model descriptors for this provider+config."""
-        provider_id = id(provider)
-        norm_config = self._normalize_config(config)
-        cache_key = (provider_id, norm_config)
-        cached = self._models_cache.get(cache_key)
-        if cached is not None:
-            return cached
+        cache_key = self._models_cache_key_for_config(provider, config)
 
-        # Start with provider-declared models and let extensions and features
-        # participate in model discovery. Adapters normalize shapes so that
-        # `get_models` always returns a list of dicts.
-        models: List[Dict[str, Any]] = provider.get_models(config)
-        for ext in provider.extensions:
-            models = ext.get_models(config, models)
-        for feature in self._features:
-            models = feature.get_models(config, models)
-        # Validate and normalize
-        validated: List[Dict[str, Any]] = []
-        for model in models:
-            if not isinstance(model, Dict):
-                continue
-            model_id = model.get("id")
-            if not isinstance(model_id, str) or not model_id:
-                continue
-            validated.append(dict(model))
+        def _compute() -> List[Dict[str, Any]]:
+            # Start with provider-declared models and let extensions and features
+            # participate in model discovery. Adapters normalize shapes so that
+            # `get_models` always returns a list of dicts.
+            models: List[Dict[str, Any]] = provider.get_models(config)
+            for ext in provider.extensions:
+                models = ext.get_models(config, models)
+            for feature in self._features:
+                models = feature.get_models(config, models)
+            # Validate and normalize
+            validated: List[Dict[str, Any]] = []
+            for model in models:
+                if not isinstance(model, Dict):
+                    continue
+                model_id = model.get("id")
+                if not isinstance(model_id, str) or not model_id:
+                    continue
+                validated.append(dict(model))
+            return validated
 
-        self._models_cache = {**self._models_cache, cache_key: validated}
-        return validated
+        return self._model_cache.get_or_compute(cache_key, _compute)
 
     def _resolve_plugins_for_config(
         self,

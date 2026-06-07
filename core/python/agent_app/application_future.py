@@ -27,7 +27,7 @@ from datetime import datetime
 import os
 import threading
 
-from agent_core import AgentCore, Message, Session
+from agent_core import AgentCore, Message, ModelDiscoveryCache, Session
 from agent_core.plugin.loader import validate_plugin_for_kind
 from .app_context import ApplicationContext
 
@@ -281,6 +281,27 @@ class AgentApplication:
         "protected_metadata_changed": "protected metadata changed",
     }
 
+    @staticmethod
+    def _core_factory_with_model_cache(
+        core_factory: Callable[[], AgentCore],
+        model_cache: ModelDiscoveryCache,
+    ) -> Callable[[], AgentCore]:
+        if core_factory is AgentCore:
+            return lambda: AgentCore(model_cache=model_cache)
+
+        try:
+            signature = inspect.signature(core_factory)
+        except (TypeError, ValueError):
+            return core_factory
+
+        for parameter in signature.parameters.values():
+            if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+                return lambda: core_factory(model_cache=model_cache)  # type: ignore[call-arg]
+            if parameter.name == "model_cache":
+                return lambda: core_factory(model_cache=model_cache)  # type: ignore[call-arg]
+
+        return core_factory
+
     def __init__(
         self,
         config_path: str | Path,
@@ -294,8 +315,13 @@ class AgentApplication:
         logger = get_logger("AgentApplication")
         self._logger = logger
         # Core factory is stored so that per-session cores can be created
-        # without sharing state across requests.
-        self._core_factory = core_factory
+        # without sharing wrapper/runtime state across requests. Model
+        # discovery cache is intentionally shared at the application scope.
+        self._model_cache = ModelDiscoveryCache()
+        self._core_factory = self._core_factory_with_model_cache(
+            core_factory,
+            self._model_cache,
+        )
         self._event_store: EventStore = event_store or InMemoryEventStore()
         self._non_streaming_provider_classes: Set[type[Any]] = set()
         self._provider_capability_lock = threading.Lock()
@@ -303,7 +329,7 @@ class AgentApplication:
         # A single core instance is still used for import/export with the
         # filesystem session store; inference uses fresh cores created via
         # ``_new_core``.
-        core = core_factory()
+        core = self._core_factory()
         self._core = core
 
         config_path_resolved = Path(config_path).resolve()
@@ -484,6 +510,7 @@ class AgentApplication:
         self._runtime_state_root = session_root_path.parent / "runtime"
         self._runtime_state_root.mkdir(parents=True, exist_ok=True)
         self._runtime_store = RuntimeStore()
+        self._runtime_store.set("agent_core.model_discovery_cache", self._model_cache)
         self._tool_runtime = self._runtime_store
         self._context = ApplicationContext(
             app=self,

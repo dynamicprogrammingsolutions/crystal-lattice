@@ -13,6 +13,7 @@ Functional Architecture:
 """
 
 from .core import AgentCore
+from .model_cache import ModelDiscoveryCache
 from .types import (
     Message,
     Session,
@@ -42,6 +43,7 @@ __version__ = "0.3.0"
 __all__ = [
     # Core
     "AgentCore",
+    "ModelDiscoveryCache",
     # Data types
     "Session",
     "Message",
