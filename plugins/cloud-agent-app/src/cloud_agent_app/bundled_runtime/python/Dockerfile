@@ -47,7 +47,7 @@ RUN mkdir -p /tmp/cloud-runtime-plugin-bundle && \
     python3 -m pip wheel --wheel-dir /tmp/cloud-runtime-plugin-bundle/wheelhouse \
         -r cloud-runtime-plugin-bundle/local-projects.txt
 
-FROM runtime-base
+FROM runtime-base AS cloud-agent-runtime
 
 COPY python_lib ./python_lib
 COPY runtime.py ./cloud-orchestrator/runtime/python/runtime.py

@@ -217,9 +217,10 @@ needs to change, for example:
   instances instead of copied into Docker layers
 
 Container profiles live in `.cloud-agent/cloud-agent.json` under
-`container_profiles`. `default_container_profile` selects one. The cloud-agent
-plugin supplies the standard `default-runtime` profile when no project config
-declares container profiles, so simple projects do not need to copy it.
+`container_profiles`. `default_container_profile` selects one. The canonical
+Crystal Lattice default config declares the standard `default-runtime` profile
+explicitly; project configs only need to add or select a different profile when
+the project runtime should change.
 
 Image mode selects a prebuilt image:
 
@@ -236,7 +237,8 @@ Image mode selects a prebuilt image:
 ```
 
 Dockerfile mode builds a profile-provided Dockerfile. `mode` is optional; if a
-profile has `dockerfile`, the resolver treats it as Dockerfile mode.
+profile has `dockerfile`, the resolver treats it as Dockerfile mode. `context`
+can be a directory path or an explicit list of build-context entries.
 
 ```json
 {
@@ -245,9 +247,12 @@ profile has `dockerfile`, the resolver treats it as Dockerfile mode.
     "project-runtime": {
       "label": "Project runtime",
       "image": "project-cloud-agent-runtime:latest",
-      "dockerfile": ".cloud-agent/runtime/Dockerfile",
-      "context": ".cloud-agent/runtime",
-      "build_assets": [
+      "dockerfile": "Dockerfile",
+      "context": [
+        {
+          "source": ".cloud-agent/runtime/Dockerfile",
+          "target": "Dockerfile"
+        },
         {
           "source": "package.json",
           "target": "assets/package.json"
@@ -285,8 +290,35 @@ directory during normal config compilation.
 The Dockerfile build has a hard project boundary. The Docker build context
 cannot use project files implicitly. The project workspace is mounted only when
 the runtime container starts. If a Dockerfile needs project-specific build
-inputs, declare them explicitly in `build_assets`; those files or directories
-are copied into the sanitized build context and included in the build digest.
+inputs, declare them explicitly in `context` entries or `build_assets`; those
+files or directories are copied into the sanitized build context and included in
+the build digest.
+
+For portable custom runtimes, copy the default Dockerfile and edit the copy. The
+default Dockerfile lives at:
+
+```text
+${env:BUILTIN_PLUGINS}/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/Dockerfile
+```
+
+Keep the default stages intact when possible. The default final runtime stage is
+named `cloud-agent-runtime`, so project additions can append a cache-friendly
+final stage:
+
+```dockerfile
+FROM cloud-agent-runtime AS project-runtime
+
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        nodejs \
+        npm && \
+    rm -rf /var/lib/apt/lists/*
+```
+
+That stage name is local to the same Dockerfile, so Docker can reuse cached
+default stages without relying on an external image alias. Do not write
+`FROM cloud-agent-runtime:latest` unless the deployment explicitly guarantees
+that image tag is available to the builder.
 
 Good build assets are stable package manifests, lockfiles, tool config files,
 or small patch directories. Avoid volatile generated files, large source trees,

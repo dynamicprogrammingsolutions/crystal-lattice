@@ -75,6 +75,15 @@ class RuntimeLayout:
         values = {
             "BUILTIN_PLUGINS": str(self.builtin_plugins),
         }
+        cloud_runtime_context = self.cloud_runtime_build_context
+        if cloud_runtime_context is None and self.layout == "source":
+            cloud_runtime_context = (
+                self.manifest_path.parents[3]
+                / "build"
+                / f"cloud-runtime-source-context-{os.getpid()}"
+            )
+        if cloud_runtime_context is not None:
+            values["CLOUD_RUNTIME_BUILD_CONTEXT"] = str(cloud_runtime_context)
         python_executable = self.python_executable
         if python_executable is not None:
             values["CRYSTAL_PLUGIN_PYTHON"] = str(python_executable)

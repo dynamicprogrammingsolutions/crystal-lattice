@@ -251,7 +251,7 @@ Added during task completion.
 - `PYTHONPATH=core/python:application/python pytest application/python/tests/test_cloud_orchestrator_source_bundle.py application/python/tests/test_runtime_layout.py application/python/tests/test_python_runtime_package_builder.py -q`
 - `python -m py_compile scripts/prepare_cloud_runtime_build_context.py scripts/build_crystal_lattice_binary.py scripts/build_crystal_lattice_python_runtime_package.py plugins/cloud-agent-app/src/cloud_agent_app/cloud_agent_validation.py`
 - `bash -n cloud-orchestrator/deploy/remote-docker/deploy.sh cloud-orchestrator/deploy/lib/source_bundle.sh`
-- `python -m json.tool application/python/agent_terminal_app/default_config.json >/dev/null && python -m json.tool application/python/agent_terminal_app/default_config/config.json >/dev/null && python -m json.tool application/python/agent_terminal_app/runtime_layout.json >/dev/null`
+- `python -m json.tool application/python/agent_terminal_app/default_config/config.json >/dev/null && python -m json.tool application/python/agent_terminal_app/runtime_layout.json >/dev/null`
 - `PYTHONPATH=core/python:application/python:plugins/cloud-agent-app/src python - <<'PY' ... AgentApplication('application/python/agent_terminal_app/default_config/config.json', ...) ...`
 - `git diff --check`
 
@@ -435,3 +435,12 @@ Interim diagnostic finding:
   read the guide/project files, but it did not preserve enough information to
   distinguish a provider hang from a request failure. The new diagnostic stream
   and no-progress watchdog were added to make that failure mode observable.
+
+Additional completion notes:
+
+- Follow-up audit clarified that `FROM cloud-agent-runtime:latest` is valid only
+  in deployments that deliberately publish that alias to the active builder. It
+  is not a fully portable project-Dockerfile contract.
+- The explicit default runtime profile and multi-source build context cleanup
+  has been split into
+  `tasks/20260429-cloud-agent-orchestrator/0130-explicit-runtime-context-config.md`.

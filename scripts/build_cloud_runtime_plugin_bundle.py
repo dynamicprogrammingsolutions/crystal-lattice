@@ -10,11 +10,15 @@ from typing import Iterable
 
 
 EXCLUDED_DIR_NAMES = {
+    ".crystal",
     ".git",
     ".mypy_cache",
+    ".plugin_cache",
     ".pytest_cache",
     ".ruff_cache",
+    ".venv",
     "__pycache__",
+    "auth",
     "build",
     "dist",
     "htmlcov",

@@ -27,7 +27,7 @@ from agent_core.utils import get_logger
 from agent_core.types import Session
 from agent_terminal_app.runtime_layout import load_runtime_layout
 
-from .cloud_agent_profiles import DEFAULT_RUNTIME_IMAGE, resolve_cloud_agent_profiles
+from .cloud_agent_profiles import resolve_cloud_agent_profiles
 from .cloud_agent_container import stage_container_build_context
 from .cloud_agent_transfer import (
     CLOUD_CACHE_DIR,
@@ -108,65 +108,7 @@ class CloudAgentAppPlugin:
         cloud = application.get("cloud_agent") if isinstance(application, dict) else {}
         if not isinstance(cloud, dict):
             return {}
-        return resolve_cloud_agent_profiles(self._with_plugin_defaults(cloud))
-
-    def _with_plugin_defaults(self, cloud: Dict[str, Any]) -> Dict[str, Any]:
-        configured_profiles = cloud.get("container_profiles")
-        has_profiles = isinstance(configured_profiles, dict)
-        has_default_profile = has_profiles and "default-runtime" in configured_profiles
-        has_default_id = isinstance(
-            cloud.get("default_container_profile"), str
-        ) and bool(str(cloud.get("default_container_profile")).strip())
-        if (
-            has_profiles
-            and has_default_id
-            and (
-                cloud.get("default_container_profile") != "default-runtime"
-                or has_default_profile
-            )
-        ):
-            return dict(cloud)
-
-        defaults: Dict[str, Any] = {
-            "default_container_profile": "default-runtime",
-            "container_profiles": {
-                "default-runtime": self._default_runtime_container_profile()
-            },
-        }
-        merged = {**defaults, **cloud}
-        default_profiles = defaults["container_profiles"]
-        if isinstance(configured_profiles, dict):
-            merged["container_profiles"] = {
-                **default_profiles,
-                **configured_profiles,
-            }
-        return merged
-
-    def _default_runtime_container_profile(self) -> Dict[str, Any]:
-        runtime_layout = load_runtime_layout()
-        if runtime_layout.layout == "source":
-            repo_root = (
-                runtime_layout.cloud_runtime_build_context
-                or runtime_layout.manifest_path.parents[3]
-            )
-            context = repo_root / "build" / f"cloud-runtime-validation-{os.getpid()}"
-            return {
-                "label": "Default cloud agent runtime",
-                "image": DEFAULT_RUNTIME_IMAGE,
-                "dockerfile": str(context / "Dockerfile"),
-                "context": str(context),
-                "_prepare_source_runtime_context": True,
-            }
-        context = runtime_layout.cloud_runtime_build_context
-        dockerfile = runtime_layout.cloud_runtime_dockerfile
-        if context is None or dockerfile is None:
-            raise RuntimeError("Cloud runtime build context is not available")
-        return {
-            "label": "Default cloud agent runtime",
-            "image": DEFAULT_RUNTIME_IMAGE,
-            "dockerfile": str(dockerfile),
-            "context": str(context),
-        }
+        return resolve_cloud_agent_profiles(cloud)
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         return [
@@ -513,6 +455,7 @@ class CloudAgentAppPlugin:
                     session_id=session_id,
                 )
                 container = self._prepare_container_for_orchestrator(
+                    app,
                     state,
                     orchestrator_url=orchestrator_url,
                     workspace_dir=workspace_dir,
@@ -1022,19 +965,172 @@ class CloudAgentAppPlugin:
         raise RuntimeError("Cloud agent requires a resolved container profile")
 
     def _prepare_container_build_sources(
-        self, container: Dict[str, Any]
+        self,
+        container: Dict[str, Any],
+        *,
+        app: Any | None = None,
+        materialization_dir: Path | None = None,
     ) -> Dict[str, Any]:
-        if (
-            container.get("mode") == "dockerfile"
-            and container.get("_prepare_source_runtime_context") is True
-        ):
-            raw_context = container.get("context_path") or container.get("context")
-            if not isinstance(raw_context, str) or not raw_context.strip():
-                raise RuntimeError("Default cloud runtime context path is missing")
-            prepare_source_cloud_runtime_build_context(
-                load_runtime_layout(), destination=Path(raw_context)
+        if container.get("mode") != "dockerfile":
+            return container
+        runtime_layout = load_runtime_layout()
+        if runtime_layout.layout != "source":
+            return container
+        raw_runtime_context = runtime_layout.env_overrides().get(
+            "CLOUD_RUNTIME_BUILD_CONTEXT"
+        )
+        if not isinstance(raw_runtime_context, str) or not raw_runtime_context.strip():
+            return container
+        runtime_context = Path(raw_runtime_context).expanduser().resolve()
+        if not self._container_references_runtime_context(container, runtime_context):
+            return container
+        prepared_context, _prepared_dockerfile = prepare_source_cloud_runtime_build_context(
+            runtime_layout,
+            destination=materialization_dir,
+            selected_config=self._active_config_path(app),
+        )
+        return self._rewrite_runtime_context_paths(
+            container,
+            source_root=runtime_context,
+            prepared_root=prepared_context,
+        )
+
+    def _active_config_path(self, app: Any | None) -> Path | None:
+        if app is None:
+            return None
+        get_config_path = getattr(app, "get_config_path", None)
+        if not callable(get_config_path):
+            return None
+        config_path = get_config_path()
+        if not config_path:
+            return None
+        return Path(str(config_path)).expanduser().resolve()
+
+    def _container_references_runtime_context(
+        self, container: Dict[str, Any], runtime_context: Path
+    ) -> bool:
+        context_path = container.get("context_path")
+        if isinstance(context_path, str) and context_path.strip():
+            if self._path_within(Path(context_path).expanduser().resolve(), runtime_context):
+                return True
+        for entry in container.get("context_entries", []):
+            if not isinstance(entry, dict):
+                continue
+            source_path = entry.get("source_path")
+            if isinstance(source_path, str) and source_path.strip():
+                if self._path_within(
+                    Path(source_path).expanduser().resolve(), runtime_context
+                ):
+                    return True
+        for entry in container.get("build_assets", []):
+            if not isinstance(entry, dict):
+                continue
+            source_path = entry.get("source_path")
+            if isinstance(source_path, str) and source_path.strip():
+                if self._path_within(
+                    Path(source_path).expanduser().resolve(), runtime_context
+                ):
+                    return True
+        return False
+
+    def _path_within(self, path: Path, root: Path) -> bool:
+        try:
+            path.relative_to(root)
+        except ValueError:
+            return False
+        return True
+
+    def _rewrite_runtime_context_paths(
+        self,
+        container: Dict[str, Any],
+        *,
+        source_root: Path,
+        prepared_root: Path,
+    ) -> Dict[str, Any]:
+        rewritten = dict(container)
+        context_path = self._rebased_runtime_path(
+            container.get("context_path"),
+            source_root=source_root,
+            prepared_root=prepared_root,
+        )
+        if context_path is not None:
+            rewritten["context_path"] = str(context_path)
+        dockerfile_path = self._rebased_runtime_path(
+            container.get("dockerfile_path"),
+            source_root=source_root,
+            prepared_root=prepared_root,
+        )
+        if dockerfile_path is not None:
+            rewritten["dockerfile_path"] = str(dockerfile_path)
+        rewritten["context_entries"] = self._rewrite_runtime_entries(
+            container.get("context_entries"),
+            source_root=source_root,
+            prepared_root=prepared_root,
+        )
+        rewritten["build_assets"] = self._rewrite_runtime_entries(
+            container.get("build_assets"),
+            source_root=source_root,
+            prepared_root=prepared_root,
+        )
+        return rewritten
+
+    def _rewrite_runtime_entries(
+        self,
+        raw_entries: Any,
+        *,
+        source_root: Path,
+        prepared_root: Path,
+    ) -> list[Dict[str, Any]]:
+        if not isinstance(raw_entries, list):
+            return []
+        rewritten: list[Dict[str, Any]] = []
+        for entry in raw_entries:
+            if not isinstance(entry, dict):
+                continue
+            updated = dict(entry)
+            source_path = self._rebased_runtime_path(
+                entry.get("source_path"),
+                source_root=source_root,
+                prepared_root=prepared_root,
             )
-        return container
+            if source_path is not None:
+                updated["source_path"] = str(source_path)
+            rewritten.append(updated)
+        return rewritten
+
+    def _rebased_runtime_path(
+        self,
+        raw_path: Any,
+        *,
+        source_root: Path,
+        prepared_root: Path,
+    ) -> Path | None:
+        if not isinstance(raw_path, str) or not raw_path.strip():
+            return None
+        path = Path(raw_path).expanduser().resolve()
+        if not self._path_within(path, source_root):
+            return None
+        return prepared_root / path.relative_to(source_root)
+
+    def _orchestrator_container_payload(self, container: Dict[str, Any]) -> Dict[str, Any]:
+        allowed_fields = {
+            "profile_id",
+            "label",
+            "mode",
+            "image",
+            "dockerfile",
+            "build_context_digest",
+            "build_context_ref",
+            "target",
+            "build_args",
+            "cache_mounts",
+            "mounts",
+        }
+        return {
+            key: value
+            for key, value in container.items()
+            if key in allowed_fields and value is not None
+        }
 
     def _validation_cache_dir(
         self, params: Dict[str, Any], *, workspace_dir: Path
@@ -1128,6 +1224,7 @@ class CloudAgentAppPlugin:
 
     def _prepare_container_for_orchestrator(
         self,
+        app: Any,
         state: Dict[str, Any],
         *,
         orchestrator_url: str,
@@ -1135,11 +1232,15 @@ class CloudAgentAppPlugin:
     ) -> Dict[str, Any]:
         container = self._resolved_container(state)
         if container.get("mode") != "dockerfile":
-            return container
-        container = self._prepare_container_build_sources(container)
+            return self._orchestrator_container_payload(container)
 
         build_root = Path(tempfile.mkdtemp(prefix="cloud-agent-build-context-"))
         try:
+            container = self._prepare_container_build_sources(
+                container,
+                app=app,
+                materialization_dir=build_root / "runtime-context",
+            )
             staged = stage_container_build_context(
                 container,
                 workspace_dir=workspace_dir,
@@ -1152,8 +1253,9 @@ class CloudAgentAppPlugin:
                 "build_context_digest": digest,
                 "build_context_ref": {"digest": digest},
             }
+            payload = self._orchestrator_container_payload(container)
             if self._build_context_exists(orchestrator_url, digest, state):
-                return container
+                return payload
 
             build_transfer_dir = build_root / "transfer"
             shutil.copytree(staged.context_dir, build_transfer_dir / "context")
@@ -1191,7 +1293,7 @@ class CloudAgentAppPlugin:
                 },
                 token=state.get("orchestrator_token"),
             )
-            return container
+            return payload
         finally:
             shutil.rmtree(build_root, ignore_errors=True)
 
@@ -1369,7 +1471,7 @@ class CloudAgentAppPlugin:
         )
         runtime_layout = load_runtime_layout()
         container = self._resolved_container(state)
-        container = self._prepare_container_build_sources(container)
+        active_config_path = self._active_config_path(app)
         runtime_image = str(container.get("image") or "").strip()
         if not runtime_image:
             raise RuntimeError("Cloud validation requires a configured runtime image")
@@ -1408,6 +1510,24 @@ class CloudAgentAppPlugin:
         instance_dir = temp_root / "instance"
         transfer_dir.mkdir(parents=True, exist_ok=True)
         instance_dir.mkdir(parents=True, exist_ok=True)
+        if container.get("mode") == "dockerfile":
+            container = self._prepare_container_build_sources(
+                container,
+                app=app,
+                materialization_dir=temp_root / "runtime-context",
+            )
+        elif (
+            runtime_build_context is None
+            and runtime_dockerfile is None
+            and runtime_layout.layout == "source"
+        ):
+            runtime_build_context, runtime_dockerfile = (
+                prepare_source_cloud_runtime_build_context(
+                    runtime_layout,
+                    destination=temp_root / "runtime-image-build-context",
+                    selected_config=active_config_path,
+                )
+            )
         port = reserve_local_port()
         container_name = (
             f"cloud-agent-validate-{int(time.time())}-{os.getpid()}".replace("_", "-")
@@ -1473,6 +1593,7 @@ class CloudAgentAppPlugin:
                     runtime_layout=runtime_layout,
                     build_context=runtime_build_context,
                     dockerfile=runtime_dockerfile,
+                    selected_config=active_config_path,
                     logger=_log,
                 )
             _log.info(

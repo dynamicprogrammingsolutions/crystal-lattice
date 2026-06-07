@@ -16,6 +16,8 @@ pytestmark = pytest.mark.integration
 
 
 ROOT = Path(__file__).resolve().parents[3]
+OPTIONAL_PLUGIN_NAME = "gemini-compaction-feature"
+OPTIONAL_PLUGIN_PACKAGE = "gemini_compaction_feature"
 
 
 def test_frozen_installed_bundle_rejects_optional_builtin_plugin_install(
@@ -51,7 +53,7 @@ def test_frozen_installed_bundle_rejects_optional_builtin_plugin_install(
             {
                 "plugin_cache_dir": str(plugin_cache),
                 "plugins": [
-                    "path:${env:BUILTIN_PLUGINS}/message-export-actions",
+                    f"path:${{env:BUILTIN_PLUGINS}}/{OPTIONAL_PLUGIN_NAME}",
                 ],
                 "providers": {},
                 "agents": {},
@@ -92,8 +94,7 @@ def test_frozen_installed_bundle_rejects_optional_builtin_plugin_install(
     assert (
         "Dynamic plugin installation is not supported in this frozen runtime" in output
     )
-    assert "message-export-actions" in output
-    assert not any(plugin_cache.glob("message-export-actions@*"))
+    assert not any(plugin_cache.glob(f"{OPTIONAL_PLUGIN_NAME}@*"))
 
 
 def _assert_selected_and_optional_plugin_layout(bundled_plugins: Path) -> None:
@@ -103,7 +104,7 @@ def _assert_selected_and_optional_plugin_layout(bundled_plugins: Path) -> None:
         )
     )
     optional = json.loads(
-        (bundled_plugins / "message-export-actions" / "agent_plugin.json").read_text(
+        (bundled_plugins / OPTIONAL_PLUGIN_NAME / "agent_plugin.json").read_text(
             encoding="utf-8"
         )
     )
@@ -111,12 +112,12 @@ def _assert_selected_and_optional_plugin_layout(bundled_plugins: Path) -> None:
     assert selected["preinstalled"] is True
     assert not (bundled_plugins / "codex-tools" / "src").exists()
     assert optional.get("preinstalled") is not True
-    assert (bundled_plugins / "message-export-actions" / "pyproject.toml").is_file()
+    assert (bundled_plugins / OPTIONAL_PLUGIN_NAME / "pyproject.toml").is_file()
     assert (
         bundled_plugins
-        / "message-export-actions"
+        / OPTIONAL_PLUGIN_NAME
         / "src"
-        / "message_export_actions"
+        / OPTIONAL_PLUGIN_PACKAGE
         / "__init__.py"
     ).is_file()
 

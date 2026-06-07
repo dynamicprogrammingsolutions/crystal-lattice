@@ -91,7 +91,10 @@ def test_claude_environment_helper_renders_effective_working_directory(
     assert " - Platform:" in environment_text
     assert " - Shell:" in environment_text
     assert " - OS Version:" in environment_text
-    assert " - You are powered by the model anthropic/claude-haiku-4.5." in environment_text
+    assert (
+        " - You are powered by the model anthropic/claude-haiku-4.5."
+        in environment_text
+    )
 
 
 def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
@@ -128,6 +131,9 @@ def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
         / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
 
     app = AgentApplication(
         str(config_path),
@@ -190,6 +196,9 @@ def test_default_config_claude_agent_uses_claude_tools(
         / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
 
     app = AgentApplication(
         str(config_path),

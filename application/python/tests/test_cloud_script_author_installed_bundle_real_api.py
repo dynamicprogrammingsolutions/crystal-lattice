@@ -52,6 +52,18 @@ class AuthoringTelemetry:
     generated_files: list[str]
 
 
+@dataclass
+class LiveAuthoringTraceState:
+    printed_first_user_message: bool = False
+    printed_assistant_message_indexes: set[int] | None = None
+    last_tool_calls_sent: int = -1
+    last_tool_calls_completed: int = -1
+
+    def __post_init__(self) -> None:
+        if self.printed_assistant_message_indexes is None:
+            self.printed_assistant_message_indexes = set()
+
+
 def test_installed_bundle_cloud_script_author_generates_valid_hooks(
     tmp_path: Path,
 ) -> None:
@@ -270,6 +282,8 @@ def _assert_bundled_authoring_guide_has_container_profile_contract(path: Path) -
         "hard project boundary",
         "cannot use project files implicitly",
         "runtime workspace mount",
+        "copy the default dockerfile",
+        "from cloud-agent-runtime as project-runtime",
     ):
         assert required in normalized, f"{required!r} missing from {path}"
 
@@ -445,6 +459,7 @@ def _assert_standard_hooks_exist(workspace: Path) -> None:
 def _run_validate_cloud(
     executable: Path, *, workspace: Path, cache_dir: Path, env: dict[str, str]
 ) -> subprocess.CompletedProcess[str]:
+    print("[validate-cloud] starting", flush=True)
     return _run(
         [
             str(executable),
@@ -867,6 +882,7 @@ def _wait_for_request_events(
     last_signature: dict[str, Any] = {}
     warned_soft_timeout = False
     collected: list[dict[str, Any]] = []
+    trace_state = LiveAuthoringTraceState()
     while time.monotonic() < deadline:
         now = time.monotonic()
         if not warned_soft_timeout and now >= soft_deadline:
@@ -897,6 +913,12 @@ def _wait_for_request_events(
             time.sleep(1)
             continue
         collected = payload.get("events") or []
+        _emit_live_authoring_trace(
+            workspace=workspace,
+            session_id=session_id,
+            events=collected,
+            state=trace_state,
+        )
         signature = _authoring_progress_signature(
             workspace=workspace,
             session_id=session_id,
@@ -1022,7 +1044,114 @@ def _read_text_tail(path: Path, *, max_chars: int) -> str:
     return text[-max_chars:]
 
 
-def _tool_count_from_events(events: list[dict[str, Any]]) -> int:
+def _emit_live_authoring_trace(
+    *,
+    workspace: Path,
+    session_id: str,
+    events: list[dict[str, Any]],
+    state: LiveAuthoringTraceState,
+) -> None:
+    messages = _load_session_messages(workspace, session_id)
+    first_user = _first_user_message(messages)
+    if first_user is not None and not state.printed_first_user_message:
+        _print_trace_block("user", first_user)
+        state.printed_first_user_message = True
+
+    for index, message in enumerate(messages):
+        if index in state.printed_assistant_message_indexes:
+            continue
+        if not _is_traceable_assistant_message(message):
+            continue
+        reasoning = _message_reasoning(message)
+        content = _message_content_text(message)
+        if reasoning:
+            _print_trace_block("assistant reasoning", reasoning)
+        if content:
+            _print_trace_block("assistant", content)
+        if reasoning or content:
+            state.printed_assistant_message_indexes.add(index)
+
+    tool_calls_sent, tool_calls_completed = _tool_progress_from_events(events)
+    if (
+        tool_calls_sent != state.last_tool_calls_sent
+        or tool_calls_completed != state.last_tool_calls_completed
+    ):
+        print(
+            "[authoring][tools] "
+            f"sent={tool_calls_sent} completed={tool_calls_completed}",
+            flush=True,
+        )
+        state.last_tool_calls_sent = tool_calls_sent
+        state.last_tool_calls_completed = tool_calls_completed
+
+
+def _print_trace_block(label: str, text: str) -> None:
+    normalized = text.strip()
+    if not normalized:
+        return
+    print(f"[authoring][{label}]", flush=True)
+    print(normalized, flush=True)
+    print("", flush=True)
+
+
+def _first_user_message(messages: list[dict[str, Any]]) -> str | None:
+    for message in messages:
+        if message.get("role") != "user":
+            continue
+        content = _message_content_text(message)
+        if content:
+            return content
+    return None
+
+
+def _is_traceable_assistant_message(message: dict[str, Any]) -> bool:
+    if message.get("role") != "assistant":
+        return False
+    metadata = message.get("metadata")
+    if isinstance(metadata, dict) and isinstance(metadata.get("tool_name"), str):
+        return False
+    return bool(_message_reasoning(message) or _message_content_text(message))
+
+
+def _message_reasoning(message: dict[str, Any]) -> str:
+    metadata = message.get("metadata")
+    if isinstance(metadata, dict):
+        reasoning = metadata.get("reasoning")
+        if isinstance(reasoning, str):
+            return reasoning.strip()
+    direct_reasoning = message.get("reasoning")
+    return direct_reasoning.strip() if isinstance(direct_reasoning, str) else ""
+
+
+def _message_content_text(message: dict[str, Any]) -> str:
+    chunks: list[str] = []
+    _append_message_content_chunks(chunks, message.get("content"))
+    return "\n".join(chunk for chunk in chunks if chunk).strip()
+
+
+def _append_message_content_chunks(chunks: list[str], value: Any) -> None:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped:
+            chunks.append(stripped)
+        return
+    if isinstance(value, list):
+        for item in value:
+            _append_message_content_chunks(chunks, item)
+        return
+    if isinstance(value, dict):
+        text = value.get("text")
+        if isinstance(text, str):
+            stripped = text.strip()
+            if stripped:
+                chunks.append(stripped)
+            return
+        content = value.get("content")
+        if content is not None:
+            _append_message_content_chunks(chunks, content)
+
+
+def _tool_progress_from_events(events: list[dict[str, Any]]) -> tuple[int, int]:
     tool_result_ids: set[str] = set()
     tool_call_ids: set[str] = set()
     for event in events:
@@ -1047,7 +1176,12 @@ def _tool_count_from_events(events: list[dict[str, Any]]) -> int:
                     call_id = call.get("id") if isinstance(call, dict) else None
                     if isinstance(call_id, str) and call_id:
                         tool_call_ids.add(call_id)
-    return len(tool_result_ids or tool_call_ids)
+    return len(tool_call_ids), len(tool_result_ids)
+
+
+def _tool_count_from_events(events: list[dict[str, Any]]) -> int:
+    tool_calls_sent, tool_calls_completed = _tool_progress_from_events(events)
+    return tool_calls_completed or tool_calls_sent
 
 
 def _authoring_progress_is_sufficient(

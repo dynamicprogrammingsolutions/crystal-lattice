@@ -34,8 +34,8 @@ CONFIG_PATH = (
     / "config.json"
 )
 EXPECTED_GPT5_APPLY_PATCH_MARKER = (
-    'Use the `apply_patch` shell command to edit files '
-    '(NEVER try `applypatch` or `apply-patch`, only `apply_patch`): '
+    "Use the `apply_patch` shell command to edit files "
+    "(NEVER try `applypatch` or `apply-patch`, only `apply_patch`): "
     '{"command":["apply_patch","*** Begin Patch'
 )
 
@@ -44,7 +44,9 @@ EXPECTED_GPT5_APPLY_PATCH_MARKER = (
 def ensure_openrouter_api_key() -> str:
     api_key = get_repo_env("OPENROUTER_API_KEY")
     if not api_key:
-        pytest.skip("OPENROUTER_API_KEY not set; skipping default-config OpenRouter GPT-5 tests")
+        pytest.skip(
+            "OPENROUTER_API_KEY not set; skipping default-config OpenRouter GPT-5 tests"
+        )
     return api_key
 
 
@@ -52,7 +54,9 @@ def ensure_openrouter_api_key() -> str:
 def ensure_openai_api_key() -> str:
     api_key = get_repo_env("OPENAI_API_KEY")
     if not api_key:
-        pytest.skip("OPENAI_API_KEY not set; skipping default-config OpenAI GPT-5 tests")
+        pytest.skip(
+            "OPENAI_API_KEY not set; skipping default-config OpenAI GPT-5 tests"
+        )
     return api_key
 
 
@@ -64,8 +68,12 @@ def _run_request(
     *,
     overrides: Dict[str, Any],
 ) -> Session:
-    events = list(app.send_request(core, session, base_config, overrides=overrides, stream=False))
-    checkpoints = [event for event in events if event.get("type") == "session_checkpoint"]
+    events = list(
+        app.send_request(core, session, base_config, overrides=overrides, stream=False)
+    )
+    checkpoints = [
+        event for event in events if event.get("type") == "session_checkpoint"
+    ]
     assert checkpoints, "expected at least one session checkpoint"
     final_session = checkpoints[-1]["session"]
     assert isinstance(final_session, Session)
@@ -113,7 +121,9 @@ def _assert_apply_patch_shell_call(final_session: Session) -> None:
     shell_calls = [call for call in inspected_calls if call.tool_name == "shell"]
     assert shell_calls, "expected the model to call the shell tool"
 
-    shell_payloads = [call.payload for call in shell_calls if isinstance(call.payload, dict)]
+    shell_payloads = [
+        call.payload for call in shell_calls if isinstance(call.payload, dict)
+    ]
     assert any(
         (
             isinstance(payload.get("command"), list)
@@ -140,7 +150,11 @@ def _assert_apply_patch_shell_call(final_session: Session) -> None:
 def test_default_config_gpt5_openrouter_agent_selects_gpt5_prompt_and_uses_apply_patch(
     ensure_openrouter_api_key: str,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
     app = AgentApplication(
         str(CONFIG_PATH),
         str(tmp_path / "sessions"),
@@ -170,7 +184,8 @@ def test_default_config_gpt5_openrouter_agent_selects_gpt5_prompt_and_uses_apply
         session,
         base_config,
         overrides={
-            "model": os.getenv("OPENROUTER_GPT5_SELECTION_TEST_MODEL") or "openai/gpt-5-mini",
+            "model": os.getenv("OPENROUTER_GPT5_SELECTION_TEST_MODEL")
+            or "openai/gpt-5-mini",
             "working_directory": str(workspace),
             "allowed_paths": [str(workspace)],
         },
@@ -188,7 +203,11 @@ def test_default_config_gpt5_openrouter_agent_selects_gpt5_prompt_and_uses_apply
 def test_default_config_gpt5_openai_agent_selects_gpt5_prompt_and_uses_apply_patch(
     ensure_openai_api_key: str,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
     app = AgentApplication(
         str(CONFIG_PATH),
         str(tmp_path / "sessions"),

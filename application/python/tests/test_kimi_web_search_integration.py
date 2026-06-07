@@ -64,6 +64,9 @@ def _make_agent_app(
         / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     monkeypatch.setenv("WORKING_DIR", str(workspace))

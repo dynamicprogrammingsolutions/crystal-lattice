@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 
@@ -10,9 +11,13 @@ from agent_app.events import InMemoryEventStore
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS_DIR = ROOT / "scripts"
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "optional_plugins"
+FIXTURE_OPTIONAL_PLUGIN_NAME = "_test-small-app"
+FIXTURE_OPTIONAL_PLUGIN_DIR = FIXTURES_DIR / FIXTURE_OPTIONAL_PLUGIN_NAME
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+from build_cloud_runtime_plugin_bundle import copytree_sanitized
 from build_cloud_runtime_plugin_bundle import stage_cloud_runtime_plugin_bundle
 import build_crystal_lattice_binary as binary_builder
 
@@ -65,7 +70,7 @@ def test_binary_asset_staging_keeps_selected_preinstalled_and_optional_installab
 
     assert "codex-tools" in selected
     assert "cloud-agent-app" in selected
-    assert "message-export-actions" not in selected
+    assert "gemini-compaction-feature" not in selected
 
     binary_builder.prepare_staged_assets(selected, resources)
 
@@ -76,7 +81,7 @@ def test_binary_asset_staging_keeps_selected_preinstalled_and_optional_installab
         )
     )
     optional_descriptor = json.loads(
-        (bundled_plugins / "message-export-actions" / "agent_plugin.json").read_text(
+        (bundled_plugins / "gemini-compaction-feature" / "agent_plugin.json").read_text(
             encoding="utf-8"
         )
     )
@@ -84,18 +89,18 @@ def test_binary_asset_staging_keeps_selected_preinstalled_and_optional_installab
     assert selected_descriptor["preinstalled"] is True
     assert not (bundled_plugins / "codex-tools" / "src").exists()
     assert optional_descriptor.get("preinstalled") is not True
-    assert (bundled_plugins / "message-export-actions" / "pyproject.toml").is_file()
+    assert (bundled_plugins / "gemini-compaction-feature" / "pyproject.toml").is_file()
     assert (
         bundled_plugins
-        / "message-export-actions"
+        / "gemini-compaction-feature"
         / "src"
-        / "message_export_actions"
+        / "gemini_compaction_feature"
         / "__init__.py"
     ).is_file()
 
     hidden_imports = binary_builder.discover_plugin_hidden_imports(bundled_plugins)
     assert "codex_tools" in hidden_imports
-    assert "message_export_actions" not in hidden_imports
+    assert "gemini_compaction_feature" not in hidden_imports
 
 
 def test_bundled_cloud_runtime_includes_python_headers_for_native_wheels() -> None:
@@ -117,13 +122,32 @@ def test_bundled_cloud_runtime_includes_python_headers_for_native_wheels() -> No
     assert "python3-venv" in text
 
 
-def test_optional_bundled_source_plugin_installs_and_loads_from_staged_assets(
+def test_cloud_runtime_context_sanitizer_excludes_private_generated_state(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "module.py").write_text("value = 1\n", encoding="utf-8")
+    for dirname in (".plugin_cache", ".venv", ".crystal", "auth"):
+        private_dir = source / dirname
+        private_dir.mkdir()
+        (private_dir / "secret.txt").write_text("secret\n", encoding="utf-8")
+
+    destination = tmp_path / "destination"
+    copytree_sanitized(source, destination)
+
+    assert (destination / "module.py").is_file()
+    for dirname in (".plugin_cache", ".venv", ".crystal", "auth"):
+        assert not (destination / dirname).exists()
+
+
+def test_optional_fixture_plugin_installs_from_bundled_plugins_root(
     tmp_path: Path, monkeypatch
 ) -> None:
-    monkeypatch.setattr(binary_builder, "ASSET_STAGE_DIR", tmp_path / "assets")
-    selected = binary_builder.discover_selected_bundled_plugin_names()
-    resources = binary_builder.discover_builtin_plugin_resource_paths()
-    binary_builder.prepare_staged_assets(selected, resources)
+    bundled_plugins = tmp_path / "bundled-plugins"
+    shutil.copytree(
+        FIXTURE_OPTIONAL_PLUGIN_DIR, bundled_plugins / FIXTURE_OPTIONAL_PLUGIN_NAME
+    )
 
     config_dir = tmp_path / "config"
     config_dir.mkdir()
@@ -134,7 +158,7 @@ def test_optional_bundled_source_plugin_installs_and_loads_from_staged_assets(
             {
                 "plugin_cache_dir": str(plugin_cache),
                 "plugins": [
-                    "path:${env:BUILTIN_PLUGINS}/message-export-actions",
+                    f"path:${{env:BUILTIN_PLUGINS}}/{FIXTURE_OPTIONAL_PLUGIN_NAME}",
                 ],
                 "providers": {},
                 "agents": {},
@@ -142,7 +166,7 @@ def test_optional_bundled_source_plugin_installs_and_loads_from_staged_assets(
         ),
         encoding="utf-8",
     )
-    monkeypatch.setenv("BUILTIN_PLUGINS", str(tmp_path / "assets" / "bundled_plugins"))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str(bundled_plugins))
     monkeypatch.setenv("CONFIG_DIR", str(config_dir))
 
     app = AgentApplication(
@@ -152,15 +176,52 @@ def test_optional_bundled_source_plugin_installs_and_loads_from_staged_assets(
     )
 
     assert app.get_config_errors() == []
-    application_plugins = {
-        plugin["id"]: plugin for plugin in app.list_application_plugins()
-    }
-    assert "message_send_to_kindle" in application_plugins
-    assert "message_share_as_pdf" in application_plugins
-    install_dir = next(plugin_cache.glob("message-export-actions@*"))
+    _assert_optional_fixture_plugin_loaded(app, plugin_cache)
+
+
+def test_optional_fixture_plugin_installs_from_arbitrary_direct_path(
+    tmp_path: Path,
+) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    plugin_cache = tmp_path / "plugin-cache"
+    config_path = config_dir / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "plugin_cache_dir": str(plugin_cache),
+                "plugins": [f"path:{FIXTURE_OPTIONAL_PLUGIN_DIR}"],
+                "providers": {},
+                "agents": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+    )
+
+    assert app.get_config_errors() == []
+    _assert_optional_fixture_plugin_loaded(app, plugin_cache)
+
+
+def _assert_optional_fixture_plugin_loaded(
+    app: AgentApplication, plugin_cache: Path
+) -> None:
+    assert any(
+        plugin.get("name") == "_test_small_app"
+        for plugin in app.list_application_plugins()
+    )
+    assert any(
+        action.get("id") == "_test_small_app.ping"
+        for action in app.get_application_actions()
+    )
+    install_dir = next(plugin_cache.glob(f"{FIXTURE_OPTIONAL_PLUGIN_NAME}@*"))
     assert install_dir.is_dir()
-    _assert_distribution_installed(install_dir, "markdown")
-    _assert_distribution_installed(install_dir, "xhtml2pdf")
+    _assert_distribution_installed(install_dir, "tomli-w")
 
 
 def _assert_distribution_installed(install_dir: Path, distribution_name: str) -> None:

@@ -29,35 +29,42 @@ def stage_container_build_context(
 ) -> StagedContainerBuildContext:
     """Create a sanitized Docker build context for a resolved container profile."""
 
-    context_source = _resolved_path(
-        container.get("context_path"), container.get("context"), workspace_dir
-    )
-    if not context_source.is_dir():
-        raise RuntimeError(f"Container build context does not exist: {context_source}")
-    dockerfile_source = _resolved_path(
-        container.get("dockerfile_path"), container.get("dockerfile"), workspace_dir
-    )
-    if not dockerfile_source.is_file():
-        raise RuntimeError(f"Container Dockerfile does not exist: {dockerfile_source}")
-
     context_dir = destination_dir / "context"
     if context_dir.exists():
         shutil.rmtree(context_dir)
     context_dir.mkdir(parents=True, exist_ok=True)
-    _copy_tree_contents(context_source, context_dir)
+
+    context_entries = _entries(container.get("context_entries"))
+    if context_entries:
+        for entry in context_entries:
+            _stage_entry(entry, workspace_dir=workspace_dir, context_dir=context_dir)
+        dockerfile_relative_path = _safe_relative_path(
+            container.get("dockerfile"), label="Dockerfile path"
+        )
+    else:
+        context_source = _resolved_path(
+            container.get("context_path"), container.get("context"), workspace_dir
+        )
+        if not context_source.is_dir():
+            raise RuntimeError(
+                f"Container build context does not exist: {context_source}"
+            )
+        dockerfile_source = _resolved_path(
+            container.get("dockerfile_path"), container.get("dockerfile"), workspace_dir
+        )
+        if not dockerfile_source.is_file():
+            raise RuntimeError(
+                f"Container Dockerfile does not exist: {dockerfile_source}"
+            )
+
+        _copy_tree_contents(context_source, context_dir)
+        dockerfile_relative_path = _stage_dockerfile(
+            dockerfile_source, context_source=context_source, context_dir=context_dir
+        )
 
     for asset in _entries(container.get("build_assets")):
-        source = _resolved_path(
-            asset.get("source_path"), asset.get("source"), workspace_dir
-        )
-        if not source.exists():
-            raise RuntimeError(f"Container build asset does not exist: {source}")
-        target = _safe_relative_path(asset.get("target"), label="build asset target")
-        _copy_path(source, context_dir / target)
+        _stage_entry(asset, workspace_dir=workspace_dir, context_dir=context_dir)
 
-    dockerfile_relative_path = _stage_dockerfile(
-        dockerfile_source, context_source=context_source, context_dir=context_dir
-    )
     dockerfile = context_dir / dockerfile_relative_path
     if not dockerfile.is_file():
         raise RuntimeError(f"Container Dockerfile does not exist: {dockerfile}")
@@ -109,6 +116,18 @@ def _copy_path(source: Path, destination: Path) -> None:
     else:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
+
+
+def _stage_entry(
+    entry: Mapping[str, Any], *, workspace_dir: Path, context_dir: Path
+) -> None:
+    source = _resolved_path(
+        entry.get("source_path"), entry.get("source"), workspace_dir
+    )
+    if not source.exists():
+        raise RuntimeError(f"Container build source does not exist: {source}")
+    target = _safe_relative_path(entry.get("target"), label="build source target")
+    _copy_path(source, context_dir / target)
 
 
 def _copy_ignore(_dir: str, names: list[str]) -> set[str]:

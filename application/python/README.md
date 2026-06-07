@@ -539,11 +539,10 @@ crystal-lattice validate-cloud --cache-dir /path/to/stable/cache
 crystal-lattice validate-cloud --runtime-build-context /path/to/context --runtime-dockerfile /path/to/Dockerfile
 ```
 
-The command runs the selected container profile. When config omits
-`application.cloud_agent.container_profiles`, the cloud-agent plugin supplies
-the default Dockerfile runtime profile. Image-mode profiles run the configured
-image, and Dockerfile-mode profiles stage the configured context plus build
-assets, compute a digest, and build/reuse the local image.
+The command runs the selected container profile. The canonical default config
+declares the default Dockerfile runtime profile explicitly. Image-mode profiles
+run the configured image, and Dockerfile-mode profiles stage the configured
+context plus build assets, compute a digest, and build/reuse the local image.
 Custom image names are treated as user-owned: validation trusts them when
 present and fails clearly when they are missing unless explicit runtime build
 overrides or Dockerfile profile metadata are provided.

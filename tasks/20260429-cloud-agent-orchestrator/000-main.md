@@ -39,6 +39,7 @@ Plan and implement cloud agent orchestration for the terminal/server application
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0125-explicit-ssh-transfer-adapter-script.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0126-script-driven-cloud-layout.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0127-cloud-specific-config-overrides.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0130-explicit-runtime-context-config.md`
 
 ### Later phases
 

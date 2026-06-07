@@ -19,6 +19,7 @@ from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
 from agent_core import Session
 from cloud_agent_app import cloud_agent_validation
+import cloud_agent_app.cloud_agent_app_plugin as cloud_agent_app_plugin_module
 from cloud_agent_app.cloud_agent_container import stage_container_build_context
 from cloud_agent_app.cloud_agent_app_plugin import CloudAgentAppPlugin
 from cloud_agent_app.cloud_agent_profiles import resolve_cloud_agent_profiles
@@ -551,7 +552,7 @@ def test_validate_cloud_action_packages_runtime_and_returns_success(
 
     monkeypatch.setattr(
         "cloud_agent_app.cloud_agent_app_plugin.ensure_local_runtime_image",
-        lambda runtime_image, runtime_layout, build_context=None, dockerfile=None, logger=None: {
+        lambda runtime_image, runtime_layout, build_context=None, dockerfile=None, selected_config=None, logger=None: {
             "runtime_image": runtime_image,
             "source": "existing",
         },
@@ -567,6 +568,8 @@ def test_validate_cloud_action_packages_runtime_and_returns_success(
         cwd: Path,
         logger=None,
         event_name: str = "cloud_validation_command",
+        env: dict[str, str] | None = None,
+        stream_output: bool = False,
     ):
         captured_commands.append(command)
         return subprocess.CompletedProcess(
@@ -626,6 +629,134 @@ def test_validate_cloud_action_packages_runtime_and_returns_success(
     shutil.rmtree(artifacts_dir, ignore_errors=True)
 
 
+def test_validate_cloud_action_materializes_source_runtime_image_context_per_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "sample.txt").write_text("payload\n", encoding="utf-8")
+    _write_script(workspace / ".cloud-agent" / "install-cloud")
+    _write_script(workspace / ".cloud-agent" / "validate-cloud")
+    transfer_script = _write_script(
+        tmp_path / "transfer.py",
+        'mkdir -p "${TRANSFER_DIR}"\ncp "${LOCAL_WORKSPACE_DIR}/sample.txt" "${TRANSFER_DIR}/sample.txt"\n',
+    )
+
+    config_path = _write_config(tmp_path, transfer_script)
+    app = AgentApplication(
+        str(config_path), str(tmp_path / "sessions"), event_store=InMemoryEventStore()
+    )
+    plugin = app._app_plugins["cloud"].plugin
+    captured_prepare: dict[str, Path] = {}
+    captured_runtime_image: dict[str, Any] = {}
+
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.load_runtime_layout",
+        lambda: SimpleNamespace(layout="source"),
+    )
+
+    def fake_prepare_source_cloud_runtime_build_context(
+        runtime_layout: Any,
+        *,
+        destination: Path | None = None,
+        selected_config: Path | None = None,
+    ) -> tuple[Path, Path]:
+        assert destination is not None
+        captured_prepare["destination"] = destination.resolve()
+        captured_prepare["selected_config"] = (
+            selected_config.resolve() if selected_config is not None else None
+        )
+        destination.mkdir(parents=True, exist_ok=True)
+        dockerfile = destination / "Dockerfile"
+        dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+        return destination, dockerfile
+
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.prepare_source_cloud_runtime_build_context",
+        fake_prepare_source_cloud_runtime_build_context,
+    )
+
+    def fake_ensure_local_runtime_image(
+        runtime_image: str,
+        runtime_layout: Any,
+        build_context: Path | None = None,
+        dockerfile: Path | None = None,
+        selected_config: Path | None = None,
+        logger=None,
+    ) -> dict[str, str]:
+        captured_runtime_image["runtime_image"] = runtime_image
+        captured_runtime_image["build_context"] = (
+            build_context.resolve() if build_context is not None else None
+        )
+        captured_runtime_image["dockerfile"] = (
+            dockerfile.resolve() if dockerfile is not None else None
+        )
+        captured_runtime_image["selected_config"] = (
+            selected_config.resolve() if selected_config is not None else None
+        )
+        return {
+            "runtime_image": runtime_image,
+            "source": "built",
+            "build_context": str(build_context) if build_context is not None else "",
+            "dockerfile": str(dockerfile) if dockerfile is not None else "",
+        }
+
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.ensure_local_runtime_image",
+        fake_ensure_local_runtime_image,
+    )
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.reserve_local_port",
+        lambda: 18123,
+    )
+    monkeypatch.setattr(
+        "cloud_agent_app.cloud_agent_app_plugin.run_command",
+        lambda command, *, cwd, logger=None, event_name="cloud_validation_command", env=None, stream_output=False: subprocess.CompletedProcess(
+            command,
+            0,
+            stdout="ok",
+            stderr="",
+        ),
+    )
+    monkeypatch.setattr(
+        plugin, "_wait_for_local_runtime_ready", lambda port, state: {"ready": True}
+    )
+    monkeypatch.setattr(
+        plugin,
+        "_local_runtime_request",
+        lambda method, port, path, payload=None: (
+            200,
+            {
+                "status": "ok",
+                "smoke": {"workspace_exists": True},
+                "validate": {"status": "ran"},
+            },
+        ),
+    )
+    monkeypatch.setattr(plugin, "_docker_logs", lambda container_name: "")
+    monkeypatch.setattr(plugin, "_remove_container", lambda container_name: None)
+
+    result = app.execute_application_action(
+        "cloud",
+        "cloud.validate_cloud",
+        {
+            "workspace_dir": str(workspace),
+            "keep_temp_dir": True,
+        },
+    )
+
+    artifacts_dir = Path(result["artifacts_dir"]).resolve()
+    expected_context = artifacts_dir / "runtime-image-build-context"
+    assert captured_prepare["destination"] == expected_context
+    assert captured_prepare["selected_config"] == config_path.resolve()
+    assert captured_runtime_image["runtime_image"] == "cloud-agent-runtime:latest"
+    assert captured_runtime_image["build_context"] == expected_context
+    assert captured_runtime_image["dockerfile"] == expected_context / "Dockerfile"
+    assert captured_runtime_image["selected_config"] == config_path.resolve()
+    shutil.rmtree(artifacts_dir, ignore_errors=True)
+
+
 def test_runtime_image_builds_default_when_digest_label_is_missing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -639,7 +770,7 @@ def test_runtime_image_builds_default_when_digest_label_is_missing(
         cloud_runtime_build_context=context,
         cloud_runtime_dockerfile=dockerfile,
     )
-    calls: list[list[str]] = []
+    calls: list[dict[str, Any]] = []
 
     def fake_run_command(
         command: list[str],
@@ -647,8 +778,16 @@ def test_runtime_image_builds_default_when_digest_label_is_missing(
         cwd: Path,
         logger=None,
         event_name: str = "cloud_validation_command",
+        env: dict[str, str] | None = None,
+        stream_output: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        calls.append(command)
+        calls.append(
+            {
+                "command": command,
+                "env": env,
+                "stream_output": stream_output,
+            }
+        )
         if command[:3] == ["docker", "image", "inspect"]:
             return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
         return subprocess.CompletedProcess(command, 0, stdout="built", stderr="")
@@ -660,15 +799,18 @@ def test_runtime_image_builds_default_when_digest_label_is_missing(
         runtime_layout=layout,
     )
 
-    build_command = next(
-        command for command in calls if command[:2] == ["docker", "build"]
+    build_call = next(
+        call for call in calls if call["command"][:2] == ["docker", "build"]
     )
+    build_command = build_call["command"]
     assert result["source"] == "built"
     assert result["digest"]
     assert result["digest_tag"].startswith("cloud-agent-runtime:sha-")
     assert "-t" in build_command
     assert "cloud-agent-runtime:latest" in build_command
     assert result["digest_tag"] in build_command
+    assert build_call["stream_output"] is True
+    assert build_call["env"] == cloud_agent_validation._DOCKER_BUILD_PROGRESS_ENV
     assert (
         f"{cloud_agent_validation.RUNTIME_DIGEST_LABEL}={result['digest']}"
         in build_command
@@ -690,7 +832,7 @@ def test_runtime_image_reuses_default_when_digest_label_matches(
         cloud_runtime_build_context=context,
         cloud_runtime_dockerfile=dockerfile,
     )
-    calls: list[list[str]] = []
+    calls: list[dict[str, Any]] = []
 
     def fake_run_command(
         command: list[str],
@@ -698,8 +840,16 @@ def test_runtime_image_reuses_default_when_digest_label_matches(
         cwd: Path,
         logger=None,
         event_name: str = "cloud_validation_command",
+        env: dict[str, str] | None = None,
+        stream_output: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        calls.append(command)
+        calls.append(
+            {
+                "command": command,
+                "env": env,
+                "stream_output": stream_output,
+            }
+        )
         payload = [
             {
                 "Config": {
@@ -720,7 +870,7 @@ def test_runtime_image_reuses_default_when_digest_label_matches(
 
     assert result["source"] == "existing"
     assert result["digest"] == digest
-    assert not any(command[:2] == ["docker", "build"] for command in calls)
+    assert not any(call["command"][:2] == ["docker", "build"] for call in calls)
 
 
 def test_runtime_image_missing_custom_without_explicit_build_metadata_fails(
@@ -742,6 +892,8 @@ def test_runtime_image_missing_custom_without_explicit_build_metadata_fails(
         cwd: Path,
         logger=None,
         event_name: str = "cloud_validation_command",
+        env: dict[str, str] | None = None,
+        stream_output: bool = False,
     ) -> subprocess.CompletedProcess[str]:
         return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
 
@@ -766,7 +918,7 @@ def test_runtime_image_builds_custom_with_explicit_build_metadata(
         cloud_runtime_build_context=None,
         cloud_runtime_dockerfile=None,
     )
-    calls: list[list[str]] = []
+    calls: list[dict[str, Any]] = []
 
     def fake_run_command(
         command: list[str],
@@ -774,8 +926,16 @@ def test_runtime_image_builds_custom_with_explicit_build_metadata(
         cwd: Path,
         logger=None,
         event_name: str = "cloud_validation_command",
+        env: dict[str, str] | None = None,
+        stream_output: bool = False,
     ) -> subprocess.CompletedProcess[str]:
-        calls.append(command)
+        calls.append(
+            {
+                "command": command,
+                "env": env,
+                "stream_output": stream_output,
+            }
+        )
         if command[:3] == ["docker", "image", "inspect"]:
             return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
         return subprocess.CompletedProcess(command, 0, stdout="built", stderr="")
@@ -791,7 +951,72 @@ def test_runtime_image_builds_custom_with_explicit_build_metadata(
 
     assert result["source"] == "built"
     assert result["digest_tag"].startswith("custom-runtime:sha-")
-    assert any(command[:2] == ["docker", "build"] for command in calls)
+    build_call = next(
+        call for call in calls if call["command"][:2] == ["docker", "build"]
+    )
+    assert build_call["stream_output"] is True
+    assert build_call["env"] == cloud_agent_validation._DOCKER_BUILD_PROGRESS_ENV
+
+
+def test_staged_container_image_builds_with_streamed_plain_progress(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = tmp_path / "context"
+    context.mkdir()
+    dockerfile = context / "Dockerfile"
+    dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+    staged_context = cloud_agent_validation.StagedContainerBuildContext(
+        context_dir=context,
+        dockerfile=dockerfile,
+        dockerfile_relative_path="Dockerfile",
+        digest="abc123",
+    )
+    calls: list[dict[str, Any]] = []
+
+    def fake_run_command(
+        command: list[str],
+        *,
+        cwd: Path,
+        logger=None,
+        event_name: str = "cloud_validation_command",
+        env: dict[str, str] | None = None,
+        stream_output: bool = False,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(
+            {
+                "command": command,
+                "env": env,
+                "stream_output": stream_output,
+            }
+        )
+        if command[:3] == ["docker", "image", "inspect"]:
+            return subprocess.CompletedProcess(command, 1, stdout="", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="built", stderr="")
+
+    monkeypatch.setattr(cloud_agent_validation, "run_command", fake_run_command)
+
+    result = cloud_agent_validation.ensure_local_staged_container_image(
+        {
+            "image": "profile-runtime:latest",
+            "target": "project-runtime",
+            "build_args": {"PYTHON_VERSION": "3.12"},
+        },
+        staged_context=staged_context,
+    )
+
+    build_call = next(
+        call for call in calls if call["command"][:2] == ["docker", "build"]
+    )
+    build_command = build_call["command"]
+    assert result["source"] == "built"
+    assert result["digest"] == "abc123"
+    assert build_call["stream_output"] is True
+    assert build_call["env"] == cloud_agent_validation._DOCKER_BUILD_PROGRESS_ENV
+    assert "--target" in build_command
+    assert "project-runtime" in build_command
+    assert "--build-arg" in build_command
+    assert "PYTHON_VERSION=3.12" in build_command
 
 
 def test_profile_resolver_selects_default_profiles_and_expands_env_paths(
@@ -999,61 +1224,278 @@ def test_profile_resolver_expands_container_env_paths(tmp_path: Path) -> None:
     assert container["build_assets"][0]["source_path"] == str(asset.resolve())
 
 
-def test_cloud_plugin_supplies_default_dockerfile_container_profile(
+def test_profile_resolver_exposes_list_mode_dockerfile_context(tmp_path: Path) -> None:
+    transfer = _write_script(tmp_path / "transfer")
+    setup = _write_script(tmp_path / "setup")
+    export = _write_script(tmp_path / "export")
+    apply_down = _write_script(tmp_path / "apply-down")
+
+    resolved = resolve_cloud_agent_profiles(
+        {
+            "default_transfer_up_profile": "current",
+            "default_sync_down_profile": "patch",
+            "default_container_profile": "runtime",
+            "transfer_up_profiles": {
+                "current": {
+                    "local_transfer_script": str(transfer),
+                    "cloud_setup_script": str(setup),
+                }
+            },
+            "sync_down_profiles": {
+                "patch": {
+                    "cloud_export_script": str(export),
+                    "local_apply_script": str(apply_down),
+                }
+            },
+            "container_profiles": {
+                "runtime": {
+                    "image": "runtime:test",
+                    "dockerfile": "Dockerfile",
+                    "context": [
+                        {
+                            "source": "runtime/Dockerfile",
+                            "target": "Dockerfile",
+                        },
+                        {
+                            "source": "runtime/runtime.py",
+                            "target": "runtime.py",
+                        },
+                    ],
+                    "build_assets": [
+                        {
+                            "source": "frontend/package.json",
+                            "target": "assets/frontend/package.json",
+                        }
+                    ],
+                }
+            },
+        },
+        env={"WORKING_DIR": str(tmp_path), "CONFIG_DIR": str(tmp_path)},
+    )
+
+    container = resolved["container"]
+    assert container["mode"] == "dockerfile"
+    assert container["dockerfile"] == "Dockerfile"
+    assert "context_path" not in container
+    assert "dockerfile_path" not in container
+    assert container["context_entries"] == [
+        {
+            "source": "runtime/Dockerfile",
+            "source_path": str((tmp_path / "runtime" / "Dockerfile").resolve()),
+            "target": "Dockerfile",
+        },
+        {
+            "source": "runtime/runtime.py",
+            "source_path": str((tmp_path / "runtime" / "runtime.py").resolve()),
+            "target": "runtime.py",
+        },
+    ]
+
+
+def test_cloud_plugin_requires_explicit_container_profile() -> None:
+    plugin = CloudAgentAppPlugin()
+
+    with pytest.raises(
+        ValueError,
+        match="application.cloud_agent.default_container_profile is required",
+    ):
+        plugin.init(
+            {
+                "application": {
+                    "cloud_agent": {
+                        "default_transfer_up_profile": "current",
+                        "default_sync_down_profile": "patch",
+                        "transfer_up_profiles": {"current": {}},
+                        "sync_down_profiles": {"patch": {}},
+                    }
+                }
+            }
+        )
+
+
+def test_prepare_container_build_sources_materializes_runtime_context_in_request_dir(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    context = tmp_path / "runtime"
-    context.mkdir()
-    dockerfile = context / "Dockerfile"
-    dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+    runtime_context = tmp_path / "runtime-context"
+    materialized_context = tmp_path / "materialized-runtime-context"
+    config_path = tmp_path / "custom-config.json"
+    config_path.write_text("{}", encoding="utf-8")
+    captured: dict[str, Path] = {}
+
     plugin = CloudAgentAppPlugin()
     monkeypatch.setattr(
+        cloud_agent_app_plugin_module,
+        "load_runtime_layout",
+        lambda: SimpleNamespace(
+            layout="source",
+            env_overrides=lambda: {
+                "CLOUD_RUNTIME_BUILD_CONTEXT": str(runtime_context.resolve())
+            },
+        ),
+    )
+
+    def fake_prepare_source_cloud_runtime_build_context(
+        runtime_layout: Any,
+        *,
+        destination: Path | None = None,
+        selected_config: Path | None = None,
+    ) -> tuple[Path, Path]:
+        captured["destination"] = destination.resolve() if destination else None
+        captured["selected_config"] = (
+            selected_config.resolve() if selected_config is not None else None
+        )
+        return materialized_context, materialized_context / "Dockerfile"
+
+    monkeypatch.setattr(
+        cloud_agent_app_plugin_module,
+        "prepare_source_cloud_runtime_build_context",
+        fake_prepare_source_cloud_runtime_build_context,
+    )
+
+    container = {
+        "mode": "dockerfile",
+        "dockerfile": "Dockerfile",
+        "context_entries": [
+            {
+                "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/python_lib",
+                "source_path": str((runtime_context / "python_lib").resolve()),
+                "target": "python_lib",
+            }
+        ],
+        "build_assets": [
+            {
+                "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/plugin_sources",
+                "source_path": str((runtime_context / "plugin_sources").resolve()),
+                "target": "plugin_sources",
+            }
+        ],
+    }
+    rewritten = plugin._prepare_container_build_sources(
+        container,
+        app=SimpleNamespace(get_config_path=lambda: config_path),
+        materialization_dir=materialized_context,
+    )
+
+    assert captured["destination"] == materialized_context.resolve()
+    assert captured["selected_config"] == config_path.resolve()
+    assert rewritten["context_entries"][0]["source_path"] == str(
+        (materialized_context / "python_lib").resolve()
+    )
+    assert rewritten["build_assets"][0]["source_path"] == str(
+        (materialized_context / "plugin_sources").resolve()
+    )
+    assert container["context_entries"][0]["source_path"] == str(
+        (runtime_context / "python_lib").resolve()
+    )
+
+
+def test_prepare_container_for_orchestrator_sends_sanitized_dockerfile_payload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime_context = tmp_path / "runtime-context"
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    plugin = CloudAgentAppPlugin()
+    captured_destination: dict[str, Path] = {}
+
+    monkeypatch.setattr(
         plugin,
-        "_default_runtime_container_profile",
-        lambda: {
-            "label": "Default cloud agent runtime",
-            "image": "cloud-agent-runtime:latest",
-            "dockerfile": str(dockerfile),
-            "context": str(context),
+        "_prepare_container_build_sources",
+        lambda container, app=None, materialization_dir=None: {
+            **container,
+            "context_entries": [
+                {
+                    "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/python_lib",
+                    "source_path": str(
+                        (tmp_path / "materialized" / "python_lib").resolve()
+                    ),
+                    "target": "python_lib",
+                }
+            ],
+            "build_assets": [
+                {
+                    "source": "frontend/package.json",
+                    "source_path": str(
+                        (workspace / "frontend" / "package.json").resolve()
+                    ),
+                    "target": "assets/package.json",
+                }
+            ],
         },
     )
 
-    resolved = plugin.init(
+    def fake_stage_container_build_context(
+        container: Dict[str, Any],
+        *,
+        workspace_dir: Path,
+        destination_dir: Path,
+    ) -> Any:
+        captured_destination["path"] = destination_dir.resolve()
+        context_dir = destination_dir / "context"
+        context_dir.mkdir(parents=True, exist_ok=True)
+        dockerfile = context_dir / "Dockerfile"
+        dockerfile.write_text("FROM scratch\n", encoding="utf-8")
+        return SimpleNamespace(
+            context_dir=context_dir,
+            dockerfile=dockerfile,
+            dockerfile_relative_path="Dockerfile",
+            digest="digest123",
+        )
+
+    monkeypatch.setattr(
+        cloud_agent_app_plugin_module,
+        "stage_container_build_context",
+        fake_stage_container_build_context,
+    )
+    monkeypatch.setattr(plugin, "_build_context_exists", lambda *args, **kwargs: True)
+
+    payload = plugin._prepare_container_for_orchestrator(
+        SimpleNamespace(get_config_path=lambda: tmp_path / "config.json"),
         {
-            "application": {
-                "cloud_agent": {
-                    "default_transfer_up_profile": "current",
-                    "default_sync_down_profile": "patch",
-                    "transfer_up_profiles": {
-                        "current": {
-                            "local_transfer_script": str(
-                                _write_script(tmp_path / "transfer")
-                            ),
-                            "cloud_setup_script": str(
-                                _write_script(tmp_path / "setup")
-                            ),
-                        }
-                    },
-                    "sync_down_profiles": {
-                        "patch": {
-                            "cloud_export_script": str(
-                                _write_script(tmp_path / "export")
-                            ),
-                            "local_apply_script": str(
-                                _write_script(tmp_path / "apply")
-                            ),
-                        }
-                    },
-                }
+            "container": {
+                "profile_id": "default-runtime",
+                "label": "Default runtime",
+                "mode": "dockerfile",
+                "image": "cloud-agent-runtime:latest",
+                "dockerfile": "Dockerfile",
+                "context_entries": [
+                    {
+                        "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/python_lib",
+                        "source_path": str((runtime_context / "python_lib").resolve()),
+                        "target": "python_lib",
+                    }
+                ],
+                "build_assets": [
+                    {
+                        "source": "frontend/package.json",
+                        "source_path": str(
+                            (workspace / "frontend" / "package.json").resolve()
+                        ),
+                        "target": "assets/package.json",
+                    }
+                ],
+                "cache_mounts": [],
+                "mounts": [],
             }
-        }
+        },
+        orchestrator_url="http://orchestrator.test",
+        workspace_dir=workspace,
     )
 
-    assert resolved["selected_container_profile"] == "default-runtime"
-    assert resolved["container"]["mode"] == "dockerfile"
-    assert resolved["container"]["image"] == "cloud-agent-runtime:latest"
-    assert resolved["container"]["context_path"] == str(context.resolve())
-    assert resolved["container"]["dockerfile_path"] == str(dockerfile.resolve())
+    assert captured_destination["path"].name == "staged"
+    assert payload == {
+        "profile_id": "default-runtime",
+        "label": "Default runtime",
+        "mode": "dockerfile",
+        "image": "cloud-agent-runtime:latest",
+        "dockerfile": "Dockerfile",
+        "build_context_digest": "digest123",
+        "build_context_ref": {"digest": "digest123"},
+        "cache_mounts": [],
+        "mounts": [],
+    }
+    assert "context_entries" not in payload
+    assert "build_assets" not in payload
 
 
 def test_container_build_context_digest_includes_declared_assets(

@@ -15,6 +15,9 @@ def test_source_runtime_layout_resolves_bundle_paths() -> None:
     assert layout.builtin_plugins == repo_root / "plugins"
     assert layout.cloud_runtime_build_context is None
     assert layout.cloud_runtime_dockerfile is None
+    assert layout.env_overrides()["CLOUD_RUNTIME_BUILD_CONTEXT"].startswith(
+        str(repo_root / "build" / "cloud-runtime-source-context-")
+    )
     assert layout.default_config_template.name == "default_config"
     assert (layout.default_config_template / "config.json").is_file()
 
@@ -97,6 +100,9 @@ def test_bundled_runtime_layout_exposes_bundled_plugin_root(tmp_path: Path) -> N
     assert layout.builtin_plugins == tmp_path / "bundled_plugins"
     assert layout.env_overrides()["BUILTIN_PLUGINS"] == str(
         tmp_path / "bundled_plugins"
+    )
+    assert layout.env_overrides()["CLOUD_RUNTIME_BUILD_CONTEXT"] == str(
+        tmp_path / "cloud_runtime"
     )
     assert layout.cloud_runtime_build_context == tmp_path / "cloud_runtime"
     assert layout.cloud_runtime_dockerfile == tmp_path / "cloud_runtime" / "Dockerfile"

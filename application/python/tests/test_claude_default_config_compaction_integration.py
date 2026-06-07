@@ -76,6 +76,9 @@ def _build_default_config_app(
         / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
 
     session_root = tmp_path / "sessions"
     app = AgentApplication(

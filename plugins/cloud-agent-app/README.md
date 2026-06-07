@@ -149,8 +149,39 @@ Rules:
       "connection_key": "optional-stable-project-or-server-key",
       "transfer_method": "managed_ssh",
       "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
+      "default_container_profile": "default-runtime",
       "default_transfer_up_profile": "working-tree-current-state",
       "default_sync_down_profile": "working-tree-patch",
+      "container_profiles": {
+        "default-runtime": {
+          "label": "Default Crystal Lattice cloud agent runtime",
+          "mode": "dockerfile",
+          "image": "cloud-agent-runtime:latest",
+          "dockerfile": "Dockerfile",
+          "context": [
+            {
+              "source": "${env:BUILTIN_PLUGINS}/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/Dockerfile",
+              "target": "Dockerfile"
+            },
+            {
+              "source": "${env:BUILTIN_PLUGINS}/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/runtime.py",
+              "target": "runtime.py"
+            },
+            {
+              "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/python_lib",
+              "target": "python_lib"
+            },
+            {
+              "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/cloud-runtime-plugin-bundle",
+              "target": "cloud-runtime-plugin-bundle"
+            },
+            {
+              "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/plugin_sources",
+              "target": "plugin_sources"
+            }
+          ]
+        }
+      },
       "transfer_up_profiles": {
         "working-tree-current-state": {
           "label": "Working tree current state",
@@ -251,8 +282,8 @@ Rules:
   `${env:WORKING_DIR}/.cloud-agent/cloud-agent.json`.
 - `default_transfer_up_profile`, `default_sync_down_profile`: Selected bundled
   or project-defined transfer/sync defaults.
-- `default_container_profile`: Optional selected container profile. When omitted,
-  the cloud-agent plugin supplies `default-runtime`.
+- `default_container_profile`: Selected container profile. The canonical default
+  config sets this to `default-runtime` and declares that profile explicitly.
 
 ### `transfer_up_profiles`
 
@@ -284,14 +315,13 @@ Each profile describes one complete upload/setup/install/validation family.
   `dockerfile` if `dockerfile` is present, otherwise `image`.
 - `image`: Required runtime image name. In Dockerfile mode this is the image
   name the deployment-wired builder produces and the runner starts.
-- `dockerfile`: Dockerfile source path. Required for Dockerfile mode. Env
-  placeholders are expanded; relative paths resolve relative to the
-  current/project directory. The Dockerfile is copied into the staged context
-  and sent to the builder as a staged relative path.
-- `context`: Source directory copied into a sanitized staged build context.
-  Required for Dockerfile mode. Env placeholders are expanded; relative paths
-  resolve relative to the current/project directory. The staged copy, not the
-  live workspace directory, is used as the Docker build context.
+- `dockerfile`: Dockerfile path inside the staged context for list-mode
+  `context`, or Dockerfile source path for directory-mode `context`. Required
+  for Dockerfile mode.
+- `context`: Source directory copied into a sanitized staged build context, or
+  an explicit list of `{source, target}` entries copied into an empty staged
+  context. `source` values follow the usual env-placeholder and relative-path
+  rules. `target` values must be safe relative paths inside the staged context.
 - `target`: Optional Docker build target. Included in the build digest.
 - `build_args`: Optional string build arguments. Included in the build digest.
   Do not use build args for secrets.
@@ -302,6 +332,12 @@ Each profile describes one complete upload/setup/install/validation family.
   package manifests are ideal assets. Generated files, large directories,
   frequently changing source trees, and secret-containing paths are allowed by
   the parser but will cause rebuilds, larger artifact uploads, or unsafe images.
+- For portable custom runtimes, copy the default Dockerfile from
+  `${env:BUILTIN_PLUGINS}/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/Dockerfile`
+  and edit the copy. The default final stage is named `cloud-agent-runtime`, so
+  a project can append `FROM cloud-agent-runtime AS project-runtime` and keep
+  Docker build cache reuse without depending on an external
+  `cloud-agent-runtime:latest` image alias.
 - `cache_mounts`: Optional persistent runtime mounts shared between instances.
   Each entry has `id`, `target`, and optional `scope` (`profile`, `connection`,
   `global`, or `instance`; default `profile`).

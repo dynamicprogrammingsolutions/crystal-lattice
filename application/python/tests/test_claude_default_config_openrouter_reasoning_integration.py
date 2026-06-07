@@ -39,7 +39,9 @@ def _run_request(
     session: Session,
     base_config: Dict[str, Any],
 ) -> tuple[Session, List[Dict[str, Any]], List[Dict[str, Any]]]:
-    events = list(app.send_request(core, session, base_config, overrides=None, stream=True))
+    events = list(
+        app.send_request(core, session, base_config, overrides=None, stream=True)
+    )
     checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
     assert checkpoints, "expected at least one session checkpoint"
     final_session = checkpoints[-1]["session"]
@@ -68,7 +70,9 @@ def test_agent_application_default_config_claude_reads_files_and_reasons(
     monkeypatch.setenv("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", "test-gemini-key"))
     monkeypatch.setenv("TAVILY_API_KEY", os.getenv("TAVILY_API_KEY", "test-tavily-key"))
     monkeypatch.setenv("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", "test-openai-key"))
-    monkeypatch.setenv("FIREWORKS_API_KEY", os.getenv("FIREWORKS_API_KEY", "test-fireworks-key"))
+    monkeypatch.setenv(
+        "FIREWORKS_API_KEY", os.getenv("FIREWORKS_API_KEY", "test-fireworks-key")
+    )
     monkeypatch.setenv("ZAI_API_KEY", os.getenv("ZAI_API_KEY", "test-zai-key"))
     monkeypatch.setenv(
         "CLOUD_ORCHESTRATOR_URL",
@@ -86,6 +90,9 @@ def test_agent_application_default_config_claude_reads_files_and_reasons(
         / "agent_terminal_app"
         / "default_config"
         / "config.json"
+    )
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
     )
     session_root = tmp_path / "sessions"
     events = InMemoryEventStore()
@@ -127,7 +134,9 @@ def test_agent_application_default_config_claude_reads_files_and_reasons(
     assert "bank_b: 21" in final_text, final_text
 
     tool_result_events = [
-        ev for ev in request_events if isinstance(ev, dict) and ev.get("type") == "tool_results"
+        ev
+        for ev in request_events
+        if isinstance(ev, dict) and ev.get("type") == "tool_results"
     ]
     assert tool_result_events, "expected tool_results events"
     tool_names = []

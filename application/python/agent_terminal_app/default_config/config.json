@@ -153,7 +153,7 @@
     "cloud_script_author_codex_message": {
       "system_message_enabled": true,
       "system_message": {
-        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{CODEX_PROJECT_INSTRUCTIONS}}\n\n# Cloud Script Authoring\nYou help create Crystal Lattice cloud-agent project hooks. Read the bundled authoring guide at `{{CLOUD_SCRIPT_AUTHORING_GUIDE_PATH}}` before writing hooks, then follow its workflow, including the container profile guidance when project setup needs runtime image changes. Use the bundled default profile scripts at `{{CLOUD_AGENT_DEFAULT_PROFILES_PATH}}` as the baseline reference for transfer/setup behavior. Use ordinary project guidance such as AGENTS.md, README files, package manifests, and tests to infer fresh-checkout setup. Keep hooks repeatable, executable, and idempotent. Validation should run the smallest practical proof that the project works in the cloud runtime: prefer fast local checks first, and include a small external smoke only when the project genuinely depends on transferred credentials or remote services. If required apt packages, Node tooling, browser runtimes, database clients, Ollama, large model data, or shared dependency directories would make every cloud startup slow, add a project `.cloud-agent/cloud-agent.json` with an appropriate `container_profiles` entry instead of baking the project workspace into Docker layers. In Dockerfile profiles, use `build_assets` only for stable manifests, lockfiles, patches, or other explicit non-secret inputs; use `cache_mounts` or `mounts` for shared runtime data such as node_modules, model caches, package caches, or browser data. Run `chmod +x` on generated hook, harness, and profile scripts. Before your final response, run cheap local checks such as `bash -n` for shell hooks and JSON validation for generated config; for custom transfer profiles, create and run a no-Docker local harness. Run `crystal-lattice validate-cloud --workspace-dir <project>` as final acceptance when Docker is available and practical. Inspect cloud-agent plugin source only if the guide is insufficient, and report what was unclear. Do not print secrets.\n\n{{CODEX_ENVIRONMENT_CONTEXT}}\n\n{{TASKS}}",
+        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{CODEX_PROJECT_INSTRUCTIONS}}\n\n# Cloud Script Authoring\nYou create Crystal Lattice cloud-agent project hooks and optional project config.\n\nRead and follow the bundled authoring guide before writing files:\n`{{CLOUD_SCRIPT_AUTHORING_GUIDE_PATH}}`\n\nUse the bundled default profile scripts as examples:\n`{{CLOUD_AGENT_DEFAULT_PROFILES_PATH}}`\n\nUse AGENTS.md, README files, package manifests, lockfiles, and tests to infer the project's fresh-checkout setup and validation command. If runtime image changes are needed, follow the guide's container profile section. Do not print secrets.\n\nBefore your final response, run cheap syntax and JSON checks for generated files. Run `crystal-lattice validate-cloud --workspace-dir <project>` when Docker is available and practical.\n\n{{CODEX_ENVIRONMENT_CONTEXT}}\n\n{{TASKS}}",
         "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
         "variables": {
           "CODEX_DEVELOPER_MESSAGE": {
@@ -527,8 +527,39 @@
       "transfer_method": "managed_ssh",
       "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
       "startup_poll_timeout_seconds": 300,
+      "default_container_profile": "default-runtime",
       "default_transfer_up_profile": "working-tree-current-state",
       "default_sync_down_profile": "working-tree-patch",
+      "container_profiles": {
+        "default-runtime": {
+          "label": "Default Crystal Lattice cloud agent runtime",
+          "mode": "dockerfile",
+          "image": "cloud-agent-runtime:latest",
+          "dockerfile": "Dockerfile",
+          "context": [
+            {
+              "source": "${env:BUILTIN_PLUGINS}/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/Dockerfile",
+              "target": "Dockerfile"
+            },
+            {
+              "source": "${env:BUILTIN_PLUGINS}/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/runtime.py",
+              "target": "runtime.py"
+            },
+            {
+              "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/python_lib",
+              "target": "python_lib"
+            },
+            {
+              "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/cloud-runtime-plugin-bundle",
+              "target": "cloud-runtime-plugin-bundle"
+            },
+            {
+              "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/plugin_sources",
+              "target": "plugin_sources"
+            }
+          ]
+        }
+      },
       "transfer_up_profiles": {
         "working-tree-current-state": {
           "label": "Working tree current state",

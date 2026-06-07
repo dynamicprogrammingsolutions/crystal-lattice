@@ -9,6 +9,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
 from agent_core.utils import get_logger
 from agent_terminal_app.runtime_layout import RuntimeLayout
@@ -48,6 +49,10 @@ _SOURCE_RUNTIME_DIGEST_PATHS = (
     Path("cloud-runtime-plugin-bundle"),
     Path("plugin_sources"),
 )
+_DOCKER_BUILD_PROGRESS_ENV = {
+    "DOCKER_BUILDKIT": "1",
+    "BUILDKIT_PROGRESS": "plain",
+}
 
 
 @dataclass(frozen=True)
@@ -75,6 +80,8 @@ def run_command(
     cwd: Path,
     logger=None,
     event_name: str = "cloud_validation_command",
+    env: Mapping[str, str] | None = None,
+    stream_output: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     active_logger = logger or _log
     active_logger.info(
@@ -83,13 +90,47 @@ def run_command(
         cwd=str(cwd),
     )
     started_at = time.monotonic()
-    result = subprocess.run(
-        command,
-        cwd=str(cwd),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
+    process_env = None if env is None else {**os.environ, **env}
+    if not stream_output:
+        result = subprocess.run(
+            command,
+            cwd=str(cwd),
+            env=process_env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+    else:
+        process = subprocess.Popen(
+            command,
+            cwd=str(cwd),
+            env=process_env,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            bufsize=1,
+        )
+        output_chunks: list[str] = []
+        try:
+            if process.stdout is not None:
+                for raw_line in process.stdout:
+                    output_chunks.append(raw_line)
+                    line = raw_line.rstrip("\r\n")
+                    if line:
+                        active_logger.info(
+                            f"{event_name}_output",
+                            output=line,
+                        )
+        finally:
+            if process.stdout is not None:
+                process.stdout.close()
+        returncode = process.wait()
+        result = subprocess.CompletedProcess(
+            command,
+            returncode,
+            stdout="".join(output_chunks),
+            stderr=None,
+        )
     duration = round(time.monotonic() - started_at, 3)
     active_logger.info(
         f"{event_name}_complete",
@@ -107,6 +148,7 @@ def resolve_runtime_build_spec(
     *,
     build_context: Path | None = None,
     dockerfile: Path | None = None,
+    selected_config: Path | None = None,
 ) -> RuntimeImageBuildSpec | None:
     context = build_context or runtime_layout.cloud_runtime_build_context
     dockerfile_path = dockerfile or runtime_layout.cloud_runtime_dockerfile
@@ -116,7 +158,7 @@ def resolve_runtime_build_spec(
         and getattr(runtime_layout, "layout", "") == "source"
     ):
         context, dockerfile_path = prepare_source_cloud_runtime_build_context(
-            runtime_layout
+            runtime_layout, selected_config=selected_config
         )
     if context is None and dockerfile_path is None:
         return None
@@ -143,6 +185,7 @@ def prepare_source_cloud_runtime_build_context(
     runtime_layout: RuntimeLayout,
     *,
     destination: Path | None = None,
+    selected_config: Path | None = None,
 ) -> tuple[Path, Path]:
     repo_root = runtime_layout.cloud_runtime_build_context
     if repo_root is None and runtime_layout.layout == "source":
@@ -152,12 +195,16 @@ def prepare_source_cloud_runtime_build_context(
     context = destination or repo_root / "build" / "cloud-runtime-validation"
     script = repo_root / "scripts" / "prepare_cloud_runtime_build_context.py"
     config = (
-        repo_root
-        / "application"
-        / "python"
-        / "agent_terminal_app"
-        / "default_config"
-        / "config.json"
+        selected_config.expanduser().resolve()
+        if selected_config is not None
+        else (
+            repo_root
+            / "application"
+            / "python"
+            / "agent_terminal_app"
+            / "default_config"
+            / "config.json"
+        )
     )
     if not script.is_file():
         raise RuntimeError(f"Cloud runtime context preparer is missing: {script}")
@@ -190,6 +237,7 @@ def ensure_local_runtime_image(
     runtime_layout: RuntimeLayout,
     build_context: Path | None = None,
     dockerfile: Path | None = None,
+    selected_config: Path | None = None,
     logger=None,
 ) -> dict[str, str]:
     active_logger = logger or _log
@@ -211,6 +259,7 @@ def ensure_local_runtime_image(
         runtime_layout,
         build_context=build_context,
         dockerfile=dockerfile,
+        selected_config=selected_config,
     )
 
     if build_spec is None:
@@ -273,6 +322,8 @@ def ensure_local_runtime_image(
         cwd=build_spec.context_dir,
         logger=active_logger,
         event_name="cloud_validation_runtime_image_build",
+        env=_DOCKER_BUILD_PROGRESS_ENV,
+        stream_output=True,
     )
     if build_result.returncode != 0:
         raise RuntimeError(
@@ -350,6 +401,8 @@ def ensure_local_staged_container_image(
         cwd=staged_context.context_dir,
         logger=active_logger,
         event_name="cloud_validation_container_image_build",
+        env=_DOCKER_BUILD_PROGRESS_ENV,
+        stream_output=True,
     )
     if build_result.returncode != 0:
         raise RuntimeError(

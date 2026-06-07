@@ -17,6 +17,7 @@ def test_cloud_script_authoring_guide_documents_container_profiles() -> None:
         "container_profiles",
         "default_container_profile",
         "Dockerfile mode",
+        '"context"',
         "build_assets",
         "cache_mounts",
         "mounts",
@@ -37,7 +38,7 @@ def test_cloud_script_authoring_guide_warns_against_implicit_project_context() -
     text = " ".join(GUIDE.read_text(encoding="utf-8").lower().split())
 
     assert "cannot use project files implicitly" in text
-    assert "declare them explicitly in `build_assets`" in text
+    assert "declare them explicitly in `context` entries or `build_assets`" in text
     assert "normal project source as the runtime workspace mount" in text
 
 
@@ -49,6 +50,17 @@ def test_cloud_script_authoring_guide_allows_small_external_validation_smoke() -
     assert "transferred credential works" in text
     assert "do not assume the target project is itself an ai application" in text
     assert "provider-free" not in text
+
+
+def test_cloud_script_authoring_guide_recommends_cache_friendly_custom_dockerfiles() -> (
+    None
+):
+    text = " ".join(GUIDE.read_text(encoding="utf-8").split())
+
+    assert "cloud-agent-runtime:latest" in text
+    assert "copy the default Dockerfile" in text
+    assert "FROM cloud-agent-runtime AS project-runtime" in text
+    assert "Docker can reuse cached default stages" in text
 
 
 def test_cloud_agent_readme_points_authoring_agent_to_guide() -> None:

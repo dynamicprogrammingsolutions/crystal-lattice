@@ -192,6 +192,7 @@ def _resolve_container_profile(
 ) -> Dict[str, Any]:
     mode = _container_mode(profile)
     image = _container_image(profile)
+    raw_context = profile.get("context")
     resolved: Dict[str, Any] = {
         "profile_id": profile_id,
         "mode": mode,
@@ -199,20 +200,28 @@ def _resolve_container_profile(
     }
     if "label" in profile and isinstance(profile.get("label"), str):
         resolved["label"] = str(profile["label"])
-    if profile.get("_prepare_source_runtime_context") is True:
-        resolved["_prepare_source_runtime_context"] = True
 
     if mode == "dockerfile":
         dockerfile = _required_container_string(profile, "dockerfile", profile_id)
-        context = _required_container_string(profile, "context", profile_id)
         resolved["dockerfile"] = dockerfile
-        resolved["context"] = context
-        resolved["dockerfile_path"] = str(
-            _resolve_config_path(dockerfile, env=env, base_dir=base_dir)
-        )
-        resolved["context_path"] = str(
-            _resolve_config_path(context, env=env, base_dir=base_dir)
-        )
+        if isinstance(raw_context, list):
+            context_entries = _container_path_entries(
+                profile, "context", profile_id, env=env, base_dir=base_dir
+            )
+            if not context_entries:
+                raise ValueError(
+                    f"application.cloud_agent.container_profiles.{profile_id}.context must not be empty"
+                )
+            resolved["context_entries"] = context_entries
+        else:
+            context = _required_container_string(profile, "context", profile_id)
+            resolved["context"] = context
+            resolved["context_path"] = str(
+                _resolve_config_path(context, env=env, base_dir=base_dir)
+            )
+            resolved["dockerfile_path"] = str(
+                _resolve_config_path(dockerfile, env=env, base_dir=base_dir)
+            )
         target = _optional_container_string(profile, "target")
         if target is not None:
             resolved["target"] = target

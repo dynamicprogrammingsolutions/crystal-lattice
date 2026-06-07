@@ -65,7 +65,9 @@ def _build_terminal_app(
 
     openrouter_key = get_repo_env("OPENROUTER_API_KEY")
     if not openrouter_key:
-        pytest.skip("OPENROUTER_API_KEY not set; skipping Claude default-config smoke tests")
+        pytest.skip(
+            "OPENROUTER_API_KEY not set; skipping Claude default-config smoke tests"
+        )
 
     gemini_key = get_repo_env("GEMINI_API_KEY")
     if not gemini_key:
@@ -73,9 +75,15 @@ def _build_terminal_app(
 
     monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_key)
     monkeypatch.setenv("GEMINI_API_KEY", gemini_key)
-    monkeypatch.setenv("TAVILY_API_KEY", get_repo_env("TAVILY_API_KEY", "test-tavily-key"))
-    monkeypatch.setenv("OPENAI_API_KEY", get_repo_env("OPENAI_API_KEY", "test-openai-key"))
-    monkeypatch.setenv("FIREWORKS_API_KEY", get_repo_env("FIREWORKS_API_KEY", "test-fireworks-key"))
+    monkeypatch.setenv(
+        "TAVILY_API_KEY", get_repo_env("TAVILY_API_KEY", "test-tavily-key")
+    )
+    monkeypatch.setenv(
+        "OPENAI_API_KEY", get_repo_env("OPENAI_API_KEY", "test-openai-key")
+    )
+    monkeypatch.setenv(
+        "FIREWORKS_API_KEY", get_repo_env("FIREWORKS_API_KEY", "test-fireworks-key")
+    )
     monkeypatch.setenv("ZAI_API_KEY", get_repo_env("ZAI_API_KEY", "test-zai-key"))
     monkeypatch.setenv(
         "CLOUD_ORCHESTRATOR_URL",
@@ -95,9 +103,14 @@ def _build_terminal_app(
         / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
     session_root = tmp_path / "sessions"
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     assert agent_app.get_config_errors() == []
 
     term_app = TerminalApplication(

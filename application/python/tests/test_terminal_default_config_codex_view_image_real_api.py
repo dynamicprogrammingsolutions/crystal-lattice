@@ -151,6 +151,9 @@ def _run_view_image_case(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Session:
     monkeypatch.setenv("CONFIG_DIR", str(CONFIG_PATH.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(session_root / "cloud-runtime-context")
+    )
     monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
     monkeypatch.setenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token")
     app = AgentApplication(

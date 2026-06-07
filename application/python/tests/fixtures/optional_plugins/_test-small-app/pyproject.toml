@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "test-small-app-fixture"
+version = "0.1.0"
+description = "Tiny optional application plugin fixture for bundled plugin install tests"
+requires-python = ">=3.10"
+dependencies = [
+  "tomli-w>=1.0.0"
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["_test_small_app*"]
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
