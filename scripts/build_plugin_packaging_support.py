@@ -17,8 +17,11 @@ if str(CORE_DIR) not in sys.path:
     sys.path.insert(0, str(CORE_DIR))
 
 from agent_app.config import collect_unique_declared_plugin_specs
-from agent_app.config import load_resolved_config
+from agent_app.config import build_config_resolution_env
+from agent_app.config import load_raw_config
 from agent_app.config import remove_declared_plugin_specs_by_exact_match
+from agent_app.config import resolve_config_mixins
+from agent_app.config import resolve_placeholders
 
 
 EXCLUDED_DIR_NAMES = {
@@ -71,7 +74,7 @@ def analyze_packaging_plugins(
 ) -> PackagingPluginAnalysis:
     config_path = config_path.expanduser().resolve()
     plugins_root = plugins_root.expanduser().resolve()
-    resolved_config, config_errors, _resolution_env = load_resolved_config(
+    resolution_env = build_config_resolution_env(
         config_path,
         env_overrides={
             "BUILTIN_PLUGINS": str(plugins_root),
@@ -80,13 +83,18 @@ def analyze_packaging_plugins(
             ),
         },
     )
-
-    analysis_config = copy.deepcopy(resolved_config)
+    raw_config = load_raw_config(config_path)
+    analysis_raw_config = copy.deepcopy(raw_config)
     if cloud_disabled_plugin_specs:
         remove_declared_plugin_specs_by_exact_match(
-            analysis_config,
+            analysis_raw_config,
             cloud_disabled_plugin_specs,
         )
+    resolved_config, placeholder_errors = resolve_placeholders(
+        analysis_raw_config, env=resolution_env
+    )
+    analysis_config, mixin_errors = resolve_config_mixins(resolved_config)
+    config_errors = placeholder_errors + mixin_errors
 
     selected_plugin_names = discover_selected_bundled_plugin_names_from_resolved_config(
         analysis_config,

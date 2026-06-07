@@ -160,6 +160,45 @@ def test_cloud_runtime_plugin_bundle_prunes_disabled_builtin_plugin_specs(
     ).read_text(encoding="utf-8")
 
 
+def test_cloud_runtime_plugin_bundle_prunes_disabled_builtin_plugin_specs_before_env_resolution(
+    tmp_path: Path,
+) -> None:
+    disabled_spec = "path:${env:BUILTIN_PLUGINS}/message-export-actions"
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "plugins": [
+                    "path:${env:BUILTIN_PLUGINS}/cloud-agent-app",
+                    disabled_spec,
+                ],
+                "providers": {},
+                "agents": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "cloud-runtime-plugin-bundle"
+
+    manifest = stage_cloud_runtime_plugin_bundle(
+        plugins_root=ROOT / "plugins",
+        selected_config=config_path,
+        output=output,
+        local_project_prefix="./plugin_sources",
+        cloud_disabled_plugin_specs=[disabled_spec],
+    )
+
+    assert "cloud-agent-app" in manifest["preinstalled_plugins"]
+    assert "message-export-actions" not in manifest["preinstalled_plugins"]
+    assert "message-export-actions" not in manifest["local_projects"]
+    assert not (
+        output / "bundled_plugins" / "message-export-actions" / "agent_plugin.json"
+    ).exists()
+    assert "./plugin_sources/message-export-actions\n" not in (
+        output / "local-projects.txt"
+    ).read_text(encoding="utf-8")
+
+
 def test_binary_asset_staging_keeps_selected_preinstalled_and_optional_installable(
     tmp_path: Path, monkeypatch
 ) -> None:
