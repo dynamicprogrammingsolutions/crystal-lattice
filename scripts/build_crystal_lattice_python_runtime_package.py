@@ -13,8 +13,8 @@ import tarfile
 import venv
 import zipfile
 
-from build_cloud_runtime_plugin_bundle import copytree_sanitized
-from build_cloud_runtime_plugin_bundle import (
+from build_plugin_packaging_support import copytree_sanitized
+from build_plugin_packaging_support import (
     discover_selected_bundled_plugin_names,
     is_python_project,
     resolve_local_project_names,
@@ -143,6 +143,7 @@ def stage_repo_like_runtime(package_dir: Path) -> None:
     scripts_target = package_dir / "scripts"
     scripts_target.mkdir(parents=True, exist_ok=True)
     for script_name in (
+        "build_plugin_packaging_support.py",
         "build_cloud_runtime_plugin_bundle.py",
         "build_crystal_lattice_binary.py",
         "prepare_cloud_runtime_build_context.py",
@@ -334,6 +335,7 @@ def verify_package_tree(package_dir: Path) -> None:
         package_dir / PREINSTALLED_PLUGIN_MANIFEST,
         package_dir / "scripts" / "build_crystal_lattice_binary.py",
         package_dir / "scripts" / "build_cloud_runtime_plugin_bundle.py",
+        package_dir / "scripts" / "build_plugin_packaging_support.py",
         package_dir / "scripts" / "prepare_cloud_runtime_build_context.py",
         package_dir / "cloud_runtime" / "Dockerfile",
         package_dir / "cloud_runtime" / "runtime.py",

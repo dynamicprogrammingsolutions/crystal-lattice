@@ -970,6 +970,7 @@ class CloudAgentAppPlugin:
         *,
         app: Any | None = None,
         materialization_dir: Path | None = None,
+        cloud_disabled_plugin_specs: list[str] | None = None,
     ) -> Dict[str, Any]:
         if container.get("mode") != "dockerfile":
             return container
@@ -988,12 +989,19 @@ class CloudAgentAppPlugin:
             runtime_layout,
             destination=materialization_dir,
             selected_config=self._active_config_path(app),
+            cloud_disabled_plugin_specs=cloud_disabled_plugin_specs,
         )
         return self._rewrite_runtime_context_paths(
             container,
             source_root=runtime_context,
             prepared_root=prepared_context,
         )
+
+    def _cloud_disabled_plugin_specs(self, state: Dict[str, Any]) -> list[str]:
+        raw = state.get("disabled_plugins")
+        if not isinstance(raw, list):
+            return []
+        return [value for value in raw if isinstance(value, str) and value]
 
     def _active_config_path(self, app: Any | None) -> Path | None:
         if app is None:
@@ -1240,6 +1248,7 @@ class CloudAgentAppPlugin:
                 container,
                 app=app,
                 materialization_dir=build_root / "runtime-context",
+                cloud_disabled_plugin_specs=self._cloud_disabled_plugin_specs(state),
             )
             staged = stage_container_build_context(
                 container,
@@ -1510,11 +1519,13 @@ class CloudAgentAppPlugin:
         instance_dir = temp_root / "instance"
         transfer_dir.mkdir(parents=True, exist_ok=True)
         instance_dir.mkdir(parents=True, exist_ok=True)
+        cloud_disabled_plugin_specs = self._cloud_disabled_plugin_specs(state)
         if container.get("mode") == "dockerfile":
             container = self._prepare_container_build_sources(
                 container,
                 app=app,
                 materialization_dir=temp_root / "runtime-context",
+                cloud_disabled_plugin_specs=cloud_disabled_plugin_specs,
             )
         elif (
             runtime_build_context is None
@@ -1526,6 +1537,7 @@ class CloudAgentAppPlugin:
                     runtime_layout,
                     destination=temp_root / "runtime-image-build-context",
                     selected_config=active_config_path,
+                    cloud_disabled_plugin_specs=cloud_disabled_plugin_specs,
                 )
             )
         port = reserve_local_port()

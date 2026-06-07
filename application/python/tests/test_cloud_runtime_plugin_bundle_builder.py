@@ -29,7 +29,7 @@ def test_cloud_runtime_plugin_bundle_stages_preinstalled_metadata_and_sources(
 
     manifest = stage_cloud_runtime_plugin_bundle(
         plugins_root=ROOT / "plugins",
-        default_config=(
+        selected_config=(
             ROOT
             / "application"
             / "python"
@@ -58,6 +58,106 @@ def test_cloud_runtime_plugin_bundle_stages_preinstalled_metadata_and_sources(
     local_projects = (output / "local-projects.txt").read_text(encoding="utf-8")
     assert "./plugin_sources/codex-tools\n" in local_projects
     assert "./plugin_sources/tool-compat-shared\n" in local_projects
+
+
+def test_builtin_plugin_selection_ignores_disabled_plugin_raw_strings(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "plugins": [
+                    "path:${env:BUILTIN_PLUGINS}/openrouter",
+                    "path:${env:BUILTIN_PLUGINS}/cloud-agent-app",
+                ],
+                "application": {
+                    "cloud_agent": {
+                        "disabled_plugins": [
+                            {
+                                "$raw": "path:${env:BUILTIN_PLUGINS}/message-export-actions"
+                            }
+                        ]
+                    }
+                },
+                "providers": {},
+                "agents": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    selected = binary_builder.discover_selected_bundled_plugin_names(config_path)
+
+    assert "openrouter" in selected
+    assert "cloud-agent-app" in selected
+    assert "message-export-actions" not in selected
+
+
+def test_builtin_plugin_selection_uses_resolved_equivalent_path_forms(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("ALT_BUILTINS", str(ROOT / "plugins"))
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "plugins": [
+                    f"path:{ROOT / 'plugins' / 'openrouter'}",
+                    {"path": f"{ROOT / 'plugins' / 'cloud-agent-app'}"},
+                    "bash:${env:ALT_BUILTINS}/bash-send-kindle-icloud",
+                ],
+                "providers": {},
+                "agents": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    selected = binary_builder.discover_selected_bundled_plugin_names(config_path)
+
+    assert "openrouter" in selected
+    assert "cloud-agent-app" in selected
+    assert "bash-send-kindle-icloud" in selected
+
+
+def test_cloud_runtime_plugin_bundle_prunes_disabled_builtin_plugin_specs(
+    tmp_path: Path,
+) -> None:
+    selected_spec = f"path:{(ROOT / 'plugins' / 'message-export-actions').resolve()}"
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "plugins": [
+                    "path:${env:BUILTIN_PLUGINS}/cloud-agent-app",
+                    selected_spec,
+                ],
+                "providers": {},
+                "agents": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "cloud-runtime-plugin-bundle"
+
+    manifest = stage_cloud_runtime_plugin_bundle(
+        plugins_root=ROOT / "plugins",
+        selected_config=config_path,
+        output=output,
+        local_project_prefix="./plugin_sources",
+        cloud_disabled_plugin_specs=[selected_spec],
+    )
+
+    assert "cloud-agent-app" in manifest["preinstalled_plugins"]
+    assert "message-export-actions" not in manifest["preinstalled_plugins"]
+    assert "message-export-actions" not in manifest["local_projects"]
+    assert not (
+        output / "bundled_plugins" / "message-export-actions" / "agent_plugin.json"
+    ).exists()
+    assert "./plugin_sources/message-export-actions\n" not in (
+        output / "local-projects.txt"
+    ).read_text(encoding="utf-8")
 
 
 def test_binary_asset_staging_keeps_selected_preinstalled_and_optional_installable(

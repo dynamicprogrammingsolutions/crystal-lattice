@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Set, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Mapping, MutableMapping, Set, Tuple
 import json
 import os
 import importlib
@@ -91,6 +91,185 @@ def load_raw_config(path: str | Path) -> Dict[str, Any]:
     config_path = Path(path)
     with config_path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+def load_resolved_config(
+    config_path: str | Path,
+    *,
+    env: Mapping[str, str] | None = None,
+    config_env: Mapping[str, str] | None = None,
+    env_overrides: Mapping[str, str] | None = None,
+) -> tuple[Dict[str, Any], List[Dict[str, Any]], Dict[str, str]]:
+    """Load, placeholder-resolve, and mixin-resolve a config from disk.
+
+    Packaging/build helpers need the same config interpretation contract as the
+    runtime application, but without constructing an AgentApplication.
+    """
+
+    raw_config = load_raw_config(config_path)
+    resolution_env = build_config_resolution_env(
+        config_path,
+        env=env,
+        config_env=config_env,
+        env_overrides=env_overrides,
+    )
+    resolved_config, placeholder_errors = resolve_placeholders(
+        raw_config, env=resolution_env
+    )
+    mixin_resolved_config, mixin_errors = resolve_config_mixins(resolved_config)
+    return mixin_resolved_config, placeholder_errors + mixin_errors, resolution_env
+
+
+def coerce_plugin_specs(
+    raw_value: Any,
+    path: str,
+    errors: List[Dict[str, Any]] | None = None,
+) -> List[Any]:
+    if raw_value is None:
+        return []
+    if isinstance(raw_value, list):
+        return list(raw_value)
+    if errors is not None:
+        errors.append(
+            {
+                "type": "plugin_config_invalid",
+                "detail": f"'{path}' should be a list; coerced single value into list",
+                "path": path,
+            }
+        )
+    return [raw_value]
+
+
+def iter_specs_in_order(*spec_lists: List[Any]) -> Iterator[Any]:
+    seen: Set[str] = set()
+    for spec_list in spec_lists:
+        for spec in spec_list:
+            if isinstance(spec, str):
+                cache_key = f"str:{spec}"
+            else:
+                try:
+                    encoded = json.dumps(spec, sort_keys=True, separators=(",", ":"))
+                except Exception:
+                    encoded = repr(spec)
+                cache_key = f"json:{encoded}"
+            if cache_key in seen:
+                continue
+            seen.add(cache_key)
+            yield spec
+
+
+def iter_unique_specs(first: List[Any], *rest: Iterable[List[Any]]) -> Iterator[Any]:
+    flat_lists: List[List[Any]] = [first]
+    for value in rest:
+        for spec_list in value:
+            flat_lists.append(list(spec_list))
+    yield from iter_specs_in_order(*flat_lists)
+
+
+def collect_declared_plugin_specs(
+    resolved_config: JsonMapping,
+    *,
+    errors: List[Dict[str, Any]] | None = None,
+) -> tuple[List[Any], Dict[str, List[Any]], Dict[str, List[Any]]]:
+    plugin_specs = coerce_plugin_specs(resolved_config.get("plugins"), "plugins", errors)
+
+    providers_cfg = (
+        resolved_config.get("providers")
+        if isinstance(resolved_config.get("providers"), dict)
+        else {}
+    )
+    provider_plugin_specs: Dict[str, List[Any]] = {}
+    for provider_id, provider_cfg in providers_cfg.items():
+        if not isinstance(provider_cfg, dict):
+            continue
+        provider_plugin_specs[provider_id] = coerce_plugin_specs(
+            provider_cfg.get("plugins"),
+            f"providers.{provider_id}.plugins",
+            errors,
+        )
+
+    agents_cfg = (
+        resolved_config.get("agents")
+        if isinstance(resolved_config.get("agents"), dict)
+        else {}
+    )
+    agent_plugin_specs: Dict[str, List[Any]] = {}
+    for agent_id, agent_cfg in agents_cfg.items():
+        if not isinstance(agent_cfg, dict):
+            continue
+        agent_plugin_specs[agent_id] = coerce_plugin_specs(
+            agent_cfg.get("plugins"),
+            f"agents.{agent_id}.plugins",
+            errors,
+        )
+
+    return plugin_specs, provider_plugin_specs, agent_plugin_specs
+
+
+def collect_unique_declared_plugin_specs(
+    resolved_config: JsonMapping,
+    *,
+    errors: List[Dict[str, Any]] | None = None,
+) -> List[Any]:
+    plugin_specs, provider_plugin_specs, agent_plugin_specs = (
+        collect_declared_plugin_specs(resolved_config, errors=errors)
+    )
+    return list(
+        iter_unique_specs(
+            plugin_specs,
+            provider_plugin_specs.values(),
+            agent_plugin_specs.values(),
+        )
+    )
+
+
+def iter_string_values(value: object) -> Iterator[str]:
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for child in value.values():
+            yield from iter_string_values(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from iter_string_values(child)
+
+
+def remove_declared_plugin_specs_by_exact_match(
+    config: MutableMapping[str, Any], disabled_specs: Iterable[str]
+) -> Dict[str, Any]:
+    disabled_set = {spec for spec in disabled_specs if isinstance(spec, str) and spec}
+    removed: list[Dict[str, str]] = []
+
+    def filter_plugins(container: MutableMapping[str, Any], path: str) -> None:
+        plugins = container.get("plugins")
+        if not isinstance(plugins, list):
+            return
+        kept = []
+        for item in plugins:
+            if isinstance(item, str) and item in disabled_set:
+                removed.append({"path": path, "spec": item})
+            else:
+                kept.append(item)
+        container["plugins"] = kept
+
+    filter_plugins(config, "plugins")
+
+    providers = config.get("providers")
+    if isinstance(providers, MutableMapping):
+        for provider_id, provider_cfg in providers.items():
+            if isinstance(provider_cfg, MutableMapping):
+                filter_plugins(provider_cfg, f"providers.{provider_id}.plugins")
+
+    agents = config.get("agents")
+    if isinstance(agents, MutableMapping):
+        for agent_id, agent_cfg in agents.items():
+            if isinstance(agent_cfg, MutableMapping):
+                filter_plugins(agent_cfg, f"agents.{agent_id}.plugins")
+
+    return {
+        "requested": sorted(disabled_set),
+        "removed": removed,
+    }
 
 
 def _resolve_value(

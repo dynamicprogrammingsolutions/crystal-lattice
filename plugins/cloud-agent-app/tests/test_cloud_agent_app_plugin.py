@@ -661,12 +661,14 @@ def test_validate_cloud_action_materializes_source_runtime_image_context_per_req
         *,
         destination: Path | None = None,
         selected_config: Path | None = None,
+        cloud_disabled_plugin_specs: list[str] | None = None,
     ) -> tuple[Path, Path]:
         assert destination is not None
         captured_prepare["destination"] = destination.resolve()
         captured_prepare["selected_config"] = (
             selected_config.resolve() if selected_config is not None else None
         )
+        captured_prepare["disabled_specs"] = list(cloud_disabled_plugin_specs or [])
         destination.mkdir(parents=True, exist_ok=True)
         dockerfile = destination / "Dockerfile"
         dockerfile.write_text("FROM scratch\n", encoding="utf-8")
@@ -750,6 +752,7 @@ def test_validate_cloud_action_materializes_source_runtime_image_context_per_req
     expected_context = artifacts_dir / "runtime-image-build-context"
     assert captured_prepare["destination"] == expected_context
     assert captured_prepare["selected_config"] == config_path.resolve()
+    assert captured_prepare["disabled_specs"] == []
     assert captured_runtime_image["runtime_image"] == "cloud-agent-runtime:latest"
     assert captured_runtime_image["build_context"] == expected_context
     assert captured_runtime_image["dockerfile"] == expected_context / "Dockerfile"
@@ -1339,11 +1342,13 @@ def test_prepare_container_build_sources_materializes_runtime_context_in_request
         *,
         destination: Path | None = None,
         selected_config: Path | None = None,
+        cloud_disabled_plugin_specs: list[str] | None = None,
     ) -> tuple[Path, Path]:
         captured["destination"] = destination.resolve() if destination else None
         captured["selected_config"] = (
             selected_config.resolve() if selected_config is not None else None
         )
+        captured["disabled_specs"] = list(cloud_disabled_plugin_specs or [])
         return materialized_context, materialized_context / "Dockerfile"
 
     monkeypatch.setattr(
@@ -1378,6 +1383,7 @@ def test_prepare_container_build_sources_materializes_runtime_context_in_request
 
     assert captured["destination"] == materialized_context.resolve()
     assert captured["selected_config"] == config_path.resolve()
+    assert captured["disabled_specs"] == []
     assert rewritten["context_entries"][0]["source_path"] == str(
         (materialized_context / "python_lib").resolve()
     )
@@ -1401,7 +1407,7 @@ def test_prepare_container_for_orchestrator_sends_sanitized_dockerfile_payload(
     monkeypatch.setattr(
         plugin,
         "_prepare_container_build_sources",
-        lambda container, app=None, materialization_dir=None: {
+        lambda container, app=None, materialization_dir=None, cloud_disabled_plugin_specs=None: {
             **container,
             "context_entries": [
                 {
@@ -3023,9 +3029,11 @@ def test_portable_config_cloud_disabled_plugin_specs_do_not_mutate_local_input()
 
 def test_agent_application_cloud_disabled_plugins_support_raw_literals(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     disabled_spec = "path:${env:BUILTIN_PLUGINS}/session-asset-attachments"
     cloud_plugin_path = _plugin_path()
+    monkeypatch.setenv("BUILTIN_PLUGINS", str(_repo_root() / "plugins"))
     config = {
         "providers": {
             "echo": {

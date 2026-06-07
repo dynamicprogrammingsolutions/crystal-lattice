@@ -31,6 +31,7 @@ def test_cloud_orchestrator_source_bundle_includes_runtime_build_helper(
 
     assert "scripts/build_cloud_runtime_plugin_bundle.py" in names
     assert "scripts/build_crystal_lattice_binary.py" in names
+    assert "scripts/build_plugin_packaging_support.py" in names
     assert "scripts/prepare_cloud_runtime_build_context.py" in names
     assert (
         "plugins/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/Dockerfile"

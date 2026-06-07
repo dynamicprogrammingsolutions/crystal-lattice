@@ -10,9 +10,10 @@ import shutil
 import subprocess
 import sys
 import tarfile
+from typing import Iterable
 import zipfile
 
-from build_cloud_runtime_plugin_bundle import (
+from build_plugin_packaging_support import (
     copy_local_project_sources,
     copytree_sanitized,
     discover_builtin_plugin_resource_paths as discover_builtin_plugin_resource_paths_for_config,
@@ -179,17 +180,27 @@ def default_config_path() -> Path:
     return APP_PACKAGE_DIR / "default_config" / "config.json"
 
 
-def discover_selected_bundled_plugin_names(config_path: Path | None = None) -> set[str]:
+def discover_selected_bundled_plugin_names(
+    config_path: Path | None = None,
+    *,
+    cloud_disabled_plugin_specs: Iterable[str] | None = None,
+) -> set[str]:
     return discover_selected_bundled_plugin_names_for_config(
-        config_path or default_config_path(), PLUGINS_DIR
+        config_path or default_config_path(),
+        PLUGINS_DIR,
+        cloud_disabled_plugin_specs=cloud_disabled_plugin_specs,
     )
 
 
 def discover_builtin_plugin_resource_paths(
     config_path: Path | None = None,
+    *,
+    cloud_disabled_plugin_specs: Iterable[str] | None = None,
 ) -> set[Path]:
     return discover_builtin_plugin_resource_paths_for_config(
-        config_path or default_config_path(), PLUGINS_DIR
+        config_path or default_config_path(),
+        PLUGINS_DIR,
+        cloud_disabled_plugin_specs=cloud_disabled_plugin_specs,
     )
 
 
@@ -321,6 +332,7 @@ def prepare_cloud_runtime_build_context(
     destination: Path,
     *,
     selected_config: Path | None = None,
+    cloud_disabled_plugin_specs: Iterable[str] | None = None,
 ) -> None:
     if destination.exists():
         shutil.rmtree(destination)
@@ -344,12 +356,16 @@ def prepare_cloud_runtime_build_context(
     copytree_sanitized(APP_PACKAGE_DIR, python_lib / "agent_terminal_app")
     stage_cloud_runtime_plugin_bundle(
         plugins_root=PLUGINS_DIR,
-        default_config=selected_config or default_config_path(),
+        selected_config=selected_config or default_config_path(),
         output=destination / "cloud-runtime-plugin-bundle",
         local_project_prefix="./plugin_sources",
+        cloud_disabled_plugin_specs=cloud_disabled_plugin_specs,
     )
     local_project_names = resolve_local_project_names(
-        discover_selected_bundled_plugin_names(selected_config),
+        discover_selected_bundled_plugin_names(
+            selected_config or default_config_path(),
+            cloud_disabled_plugin_specs=cloud_disabled_plugin_specs,
+        ),
         PLUGINS_DIR,
     )
     copy_local_project_sources(

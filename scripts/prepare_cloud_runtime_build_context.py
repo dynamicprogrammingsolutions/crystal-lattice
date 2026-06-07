@@ -18,10 +18,17 @@ def main() -> None:
         default=None,
         help="config file used to select preinstalled plugin runtime assets",
     )
+    parser.add_argument(
+        "--disabled-plugin-spec",
+        action="append",
+        default=[],
+        help="exact plugin spec to prune from packaging-time plugin selection",
+    )
     args = parser.parse_args()
     prepare_cloud_runtime_build_context(
         args.output.expanduser().resolve(),
         selected_config=args.config.expanduser().resolve() if args.config else None,
+        cloud_disabled_plugin_specs=args.disabled_plugin_spec,
     )
 
 

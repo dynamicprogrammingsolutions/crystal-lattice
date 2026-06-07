@@ -9,7 +9,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Iterable, Mapping
 
 from agent_core.utils import get_logger
 from agent_terminal_app.runtime_layout import RuntimeLayout
@@ -186,6 +186,7 @@ def prepare_source_cloud_runtime_build_context(
     *,
     destination: Path | None = None,
     selected_config: Path | None = None,
+    cloud_disabled_plugin_specs: Iterable[str] | None = None,
 ) -> tuple[Path, Path]:
     repo_root = runtime_layout.cloud_runtime_build_context
     if repo_root is None and runtime_layout.layout == "source":
@@ -216,6 +217,8 @@ def prepare_source_cloud_runtime_build_context(
         "--config",
         str(config),
     ]
+    for spec in cloud_disabled_plugin_specs or ():
+        command.extend(["--disabled-plugin-spec", str(spec)])
     result = subprocess.run(
         command,
         cwd=str(repo_root),

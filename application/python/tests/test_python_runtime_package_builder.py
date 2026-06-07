@@ -52,6 +52,7 @@ def test_python_runtime_package_stages_launcher_layout_and_bundle_script(
     assert launcher.is_file()
     assert runtime_builder.package_python(package_dir).is_file()
     assert (package_dir / "scripts" / "build_crystal_lattice_binary.py").is_file()
+    assert (package_dir / "scripts" / "build_plugin_packaging_support.py").is_file()
     assert (package_dir / "plugins" / "message-export-actions").is_dir()
     assert (package_dir / "preinstalled-plugins.json").is_file()
 

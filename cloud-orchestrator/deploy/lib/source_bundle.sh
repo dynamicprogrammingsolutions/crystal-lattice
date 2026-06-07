@@ -28,6 +28,7 @@ create_cloud_orchestrator_source_bundle() {
     application/python \
     plugins \
     scripts/build_cloud_runtime_plugin_bundle.py \
+    scripts/build_plugin_packaging_support.py \
     scripts/build_crystal_lattice_binary.py \
     scripts/prepare_cloud_runtime_build_context.py
 }
