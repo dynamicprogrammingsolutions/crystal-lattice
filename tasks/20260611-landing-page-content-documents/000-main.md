@@ -4,7 +4,7 @@ Create a content-document architecture for the Astro landing page so page copy a
 
 ## Task checklist
 
-- [ ] `tasks/20260611-landing-page-content-documents/010-simple-yaml-page-content.md`
+- [x] `tasks/20260611-landing-page-content-documents/010-simple-yaml-page-content.md`
 - [ ] `tasks/20260611-landing-page-content-documents/020-section-document-parser.md`
 
 ## Context

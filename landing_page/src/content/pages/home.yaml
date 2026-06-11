@@ -1,0 +1,121 @@
+seo:
+  title: "Crystal Lattice: The Open Source AI Agent Platform"
+  description: "A local-first, provider-agnostic AI agent platform. Terminal & HTTP server, mobile app, plugin ecosystem, and Python SDK. All on your own hardware."
+
+sections:
+  - type: hero
+    id: hero
+    badge: "Open Source  ·  Apache 2.0"
+    titleHtml: "The open source<br /><span class=\"highlight\">AI agent platform</span>"
+    subtitle: "Crystal Lattice is a local-first, provider-agnostic AI agent platform. Terminal & HTTP server, iOS & Android mobile app, deep plugin system, and a Python SDK. Everything runs on your own hardware, with your own models, and your own data."
+    actions:
+      - label: "Get started"
+        href: "#quickstart"
+        variant: primary
+        icon: arrow
+      - label: "View on GitHub"
+        href: "#"
+        variant: outline
+        icon: github
+        target: "_blank"
+    install:
+      prompt: "$"
+      command: "curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash"
+      altHtml: "or <code>pipx install crystal-lattice-cli</code>"
+
+  - type: providers
+    label: "Works with"
+    providers:
+      - "OpenAI"
+      - "Anthropic"
+      - "Google Gemini"
+      - "OpenRouter"
+      - "Ollama"
+      - "Any OpenAI-compatible API"
+
+  - type: features
+    id: features
+    eyebrow: "Features"
+    title: "Full control, zero compromises"
+    body: "Persistent sessions, multi-agent configs, tool calling, streaming, mobile access, and a developer SDK. Full control, no vendor lock-in."
+    items:
+      - icon: lock
+        title: "Local-first & private"
+        desc: "Your conversations, sessions, and history live on your own machine. No data is sent anywhere except to whichever AI provider you choose. Run completely offline with local models via Ollama: no API key, no internet, no data leaving your device."
+      - icon: provider
+        title: "Provider agnostic"
+        desc: "Crystal Lattice doesn't lock you into any one AI provider or model. The terminal, mobile app, and SDK all work identically regardless of which provider is configured. Switching providers is a one-line config change."
+      - icon: stream
+        title: "Streaming-first"
+        desc: "Responses stream token-by-token from the model, through the server, to your terminal or phone. Partial messages display as they arrive. Final messages replace them with full metadata: tool call results, reasoning traces, and token counts."
+      - icon: file
+        title: "Persistent sessions"
+        desc: "Sessions are stored on the filesystem. Restart the server and your conversations are still there. Multiple simultaneous sessions, each with their own agent config, message history, and state. List and resume any session from the mobile app."
+      - icon: tool
+        title: "Automatic tool calling"
+        desc: "Agents call tools (file reads, web search, code execution, or custom tools you define) in an automatic multi-step loop. The model requests a tool call, the app executes it, the result feeds back into the conversation, and the model continues."
+      - icon: plugin
+        title: "Deep plugin system"
+        desc: "Extend every layer: add providers, tools, features, UI controls, and application actions with Python or JavaScript plugins. You never need to modify the core to add a capability. Write a plugin, point your config at it, and it loads."
+
+  - type: quickstart
+    id: quickstart
+    eyebrow: "Quickstart"
+    title: "Up and running in two minutes"
+    body: "Install the CLI, start the server, connect your phone."
+    steps:
+      - num: "1"
+        title: "Install"
+        body:
+          - html: "One-line installer for macOS & Linux:"
+        codeBlocks:
+          - "curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash"
+        after:
+          - html: "Or via pipx:"
+        afterCodeBlocks:
+          - "pipx install crystal-lattice-cli"
+      - num: "2"
+        title: "Start the server"
+        body:
+          - html: "Create a working directory and launch:"
+        codeBlocks:
+          - |
+            mkdir ~/crystal-lattice && cd ~/crystal-lattice
+
+            crystal-lattice \
+              --server \
+              --console \
+              --config-local \
+              --host 0.0.0.0 \
+              --port 9000
+        after:
+          - html: "Add a provider key to <code>.crystal/config.json</code> to enable model calls."
+      - num: "3"
+        title: "Connect your phone"
+        body:
+          - html: "Find your LAN IP:"
+        codeBlocks:
+          - |
+            hostname -I              # Linux
+            ipconfig getifaddr en0   # macOS
+        after:
+          - html: "In the app: <strong>Manual Address → &lt;IP&gt;:9000 → Connect</strong>"
+          - html: "Or launch with <code>--enable-bonjour</code> for zero-config auto-discovery."
+
+  - type: cta
+    title: "Start running your own AI platform"
+    body: "Crystal Lattice is free and open source under the Apache 2.0 license. Install the CLI, start the server, and have your first agent session running in minutes."
+    actions:
+      - label: "Install the CLI"
+        href: "#quickstart"
+        variant: primary
+        icon: arrow
+      - label: "Read the docs"
+        href: "#"
+        variant: outline
+        target: "_blank"
+      - label: "View on GitHub"
+        href: "#"
+        variant: outline
+        icon: github
+        target: "_blank"

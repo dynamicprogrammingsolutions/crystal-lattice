@@ -1,20 +1,14 @@
 ---
-const providers = [
-  { name: "OpenAI" },
-  { name: "Anthropic" },
-  { name: "Google Gemini" },
-  { name: "OpenRouter" },
-  { name: "Ollama" },
-  { name: "Any OpenAI-compatible API" },
-];
+const { section } = Astro.props;
+const providers = Array.isArray(section.providers) ? section.providers : [];
 ---
 
 <div class="providers-strip">
   <div class="container">
-    <p class="label">Works with</p>
+    <p class="label">{section.label}</p>
     <div class="logos">
       {providers.map(p => (
-        <span class="chip">{p.name}</span>
+        <span class="chip">{p}</span>
       ))}
     </div>
   </div>

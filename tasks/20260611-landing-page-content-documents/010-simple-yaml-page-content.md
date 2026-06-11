@@ -4,14 +4,14 @@ Move existing Astro landing page content into simple page-level YAML files while
 
 ## Requirements checklist
 
-- [ ] Work in `/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/pr-10-cl-291` on branch `pr-10-cl-291`.
-- [ ] Add simple YAML content files for each existing landing page.
-- [ ] Refactor existing pages/components to receive content from YAML instead of owning hardcoded copy.
-- [ ] Introduce or prepare the section-definition/component registry shape that subtask 020 will extend with parsers.
-- [ ] Preserve current visible content, section order, and rendered page structure.
-- [ ] Keep Astro component HTML readable, with clear placeholders such as `{section.title}`, `{item.body}`, and `{step.code}`.
-- [ ] Run `npm run build` in `landing_page`.
-- [ ] Note any unavoidable rendered markup differences in completion notes.
+- [x] Work in `/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/pr-10-cl-291` on branch `pr-10-cl-291`.
+- [x] Add simple YAML content files for each existing landing page.
+- [x] Refactor existing pages/components to receive content from YAML instead of owning hardcoded copy.
+- [x] Introduce or prepare the section-definition/component registry shape that subtask 020 will extend with parsers.
+- [x] Preserve current visible content, section order, and rendered page structure.
+- [x] Keep Astro component HTML readable, with clear placeholders such as `{section.title}`, `{item.body}`, and `{step.code}`.
+- [x] Run `npm run build` in `landing_page`.
+- [x] Note any unavoidable rendered markup differences in completion notes.
 
 Parent Task: `tasks/20260611-landing-page-content-documents/000-main.md`
 
@@ -245,7 +245,49 @@ Recommended additional checks:
 
 ## Completion Notes
 
-Add notes here during completion: what content files were added, which components were refactored, build result, and any rendered-output differences.
+Added during completion.
+
+Implemented the YAML baseline for all existing public pages:
+
+- `landing_page/src/content/pages/home.yaml`
+- `landing_page/src/content/pages/mobile.yaml`
+- `landing_page/src/content/pages/privacy.yaml`
+- `landing_page/src/content/pages/terms.yaml`
+
+Added build-time YAML loading and content collection configuration:
+
+- `landing_page/src/content/loadPage.ts`
+- `landing_page/src/content/pageTypes.ts`
+- `landing_page/src/content.config.ts`
+- `landing_page/src/types/js-yaml.d.ts`
+
+Added the renderer-side section architecture:
+
+- flat section-specific definitions under `landing_page/src/sections/*.ts`
+- shared registry and renderer under `landing_page/src/section-system/`
+
+Refactored existing Astro presentation components in place under
+`landing_page/src/components/` to consume `section` props. Added
+`landing_page/src/components/LegalContent.astro` so privacy and terms pages use
+the same section-rendering path without keeping prose in the route files.
+
+Updated `/`, `/mobile`, `/privacy`, and `/terms` route files to load their page
+YAML and render `page.sections` through `SectionRenderer`.
+
+Validation:
+
+```bash
+cd /Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/pr-10-cl-291/landing_page
+npm run build
+```
+
+Result: passed. Astro built 4 pages: `/`, `/mobile/`, `/privacy/`, and
+`/terms/`.
+
+Rendered-output note: the migration intentionally preserves the current visible
+copy, route order, section order, class names, and component structure. The
+generated HTML may have non-semantic whitespace/formatting differences because
+copy now flows through YAML and mapped component props.
 
 ## Execution plan
 

@@ -1,23 +1,20 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Nav from '../components/Nav.astro';
-import Hero from '../components/mobile/Hero.astro';
-import Features from '../components/mobile/Features.astro';
-import Connect from '../components/mobile/Connect.astro';
-import Download from '../components/mobile/Download.astro';
 import Footer from '../components/Footer.astro';
+import SectionRenderer from '../section-system/SectionRenderer.astro';
+import { loadPage } from '../content/loadPage';
+
+const page = loadPage('mobile');
 ---
 
 <Layout
-  title="Crystal Lattice: Mobile App"
-  description="The Crystal Lattice companion app for iOS and Android. Chat with your AI agents, manage sessions, and switch providers. All connected to your own server."
+  title={page.seo?.title}
+  description={page.seo?.description}
 >
   <Nav />
   <main>
-    <Hero />
-    <Features />
-    <Connect />
-    <Download />
+    <SectionRenderer sections={page.sections} />
   </main>
   <Footer />
 </Layout>

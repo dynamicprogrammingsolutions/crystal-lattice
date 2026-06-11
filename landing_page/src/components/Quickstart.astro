@@ -1,54 +1,29 @@
 ---
+const { section } = Astro.props;
+const steps = Array.isArray(section.steps) ? section.steps : [];
 ---
 
 <section class="quickstart" id="quickstart">
   <div class="container">
     <div class="header">
-      <p class="label">Quickstart</p>
-      <h2>Up and running in two minutes</h2>
-      <p class="desc">Install the CLI, start the server, connect your phone.</p>
+      <p class="label">{section.eyebrow}</p>
+      <h2>{section.title}</h2>
+      <p class="desc">{section.body}</p>
     </div>
 
     <div class="steps">
-      <div class="step">
-        <div class="step-header">
-          <span class="step-num">1</span>
-          <h3>Install</h3>
+      {steps.map((step) => (
+        <div class="step">
+          <div class="step-header">
+            <span class="step-num">{step.num}</span>
+            <h3>{step.title}</h3>
+          </div>
+          {(step.body ?? []).map((block) => <p set:html={block.html} />)}
+          {(step.codeBlocks ?? []).map((code) => <pre>{code}</pre>)}
+          {(step.after ?? []).map((block) => <p set:html={block.html} />)}
+          {(step.afterCodeBlocks ?? []).map((code) => <pre>{code}</pre>)}
         </div>
-        <p>One-line installer for macOS & Linux:</p>
-        <pre>curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash</pre>
-        <p>Or via pipx:</p>
-        <pre>pipx install crystal-lattice-cli</pre>
-      </div>
-
-      <div class="step">
-        <div class="step-header">
-          <span class="step-num">2</span>
-          <h3>Start the server</h3>
-        </div>
-        <p>Create a working directory and launch:</p>
-        <pre>{`mkdir ~/crystal-lattice && cd ~/crystal-lattice
-
-crystal-lattice \\
-  --server \\
-  --console \\
-  --config-local \\
-  --host 0.0.0.0 \\
-  --port 9000`}</pre>
-        <p>Add a provider key to <code>.crystal/config.json</code> to enable model calls.</p>
-      </div>
-
-      <div class="step">
-        <div class="step-header">
-          <span class="step-num">3</span>
-          <h3>Connect your phone</h3>
-        </div>
-        <p>Find your LAN IP:</p>
-        <pre>{`hostname -I              # Linux
-ipconfig getifaddr en0   # macOS`}</pre>
-        <p>In the app: <strong>Manual Address → &lt;IP&gt;:9000 → Connect</strong></p>
-        <p>Or launch with <code>--enable-bonjour</code> for zero-config auto-discovery.</p>
-      </div>
+      ))}
     </div>
   </div>
 </section>
