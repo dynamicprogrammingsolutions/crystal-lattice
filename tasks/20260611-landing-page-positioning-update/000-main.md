@@ -4,7 +4,7 @@ Refine the landing page so it better reflects Crystal Lattice's strongest curren
 
 ## Task checklist
 
-- [ ] `tasks/20260611-landing-page-positioning-update/010-claim-safety-and-current-state-audit.md`
+- [x] `tasks/20260611-landing-page-positioning-update/010-claim-safety-and-current-state-audit.md`
 - [ ] `tasks/20260611-landing-page-positioning-update/020-homepage-structure-and-copy.md`
 - [ ] `tasks/20260611-landing-page-positioning-update/030-mobile-connectivity-and-store-links.md`
 - [ ] `tasks/20260611-landing-page-positioning-update/040-plugin-control-and-sdk-action-blocks.md`

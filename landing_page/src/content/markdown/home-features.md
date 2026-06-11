@@ -2,58 +2,57 @@
 eyebrow: Features
 title: Full control, zero compromises
 body: >-
-  Persistent sessions, multi-agent configs, tool calling, streaming, mobile
-  access, and a developer SDK. Full control, no vendor lock-in.
+  Persistent sessions, configurable agents, tool calling, streaming, mobile
+  access, and a developer SDK. Defaults you can replace when your workflow needs
+  something different.
 ---
 
-## Local-first & private
+## Runs from your computer
 
 <!-- icon: lock -->
 
-Your conversations, sessions, and history live on your own machine. No data is
-sent anywhere except to whichever AI provider you choose. Run completely offline
-with local models via Ollama: no API key, no internet, no data leaving your
-device.
+Your sessions and history are stored in the working directory you choose. Model
+requests go to the provider or local model you configure, and bridge traffic only
+exists when you choose to connect across networks.
 
-## Provider agnostic
+## Provider and model-family plugins
 
 <!-- icon: provider -->
 
-Crystal Lattice doesn't lock you into any one AI provider or model. The
-terminal, mobile app, and SDK all work identically regardless of which provider
-is configured. Switching providers is a one-line config change.
+Providers, model-family harnesses, tools, prompts, and request behavior are
+plugin-driven. Different providers and models expose different capabilities, so
+Crystal Lattice lets the harness change with the agent you are running.
 
 ## Streaming-first
 
 <!-- icon: stream -->
 
-Responses stream token-by-token from the model, through the server, to your
-terminal or phone. Partial messages display as they arrive. Final messages
-replace them with full metadata: tool call results, reasoning traces, and token
-counts.
+Responses stream token-by-token from the model to your terminal or phone.
+Partial messages display as they arrive. Final messages can include metadata
+such as tool call results, reasoning traces, and token counts when the configured
+provider and plugins supply them.
 
 ## Persistent sessions
 
 <!-- icon: file -->
 
-Sessions are stored on the filesystem. Restart the server and your conversations
-are still there. Multiple simultaneous sessions, each with their own agent
-config, message history, and state. List and resume any session from the mobile
-app.
+Sessions are stored on the filesystem. Restart Crystal Lattice and your
+conversations are still there. Multiple simultaneous sessions can each keep their
+own agent config, message history, and state. List and resume sessions from the
+app UI.
 
 ## Automatic tool calling
 
 <!-- icon: tool -->
 
-Agents call tools (file reads, web search, code execution, or custom tools you
-define) in an automatic multi-step loop. The model requests a tool call, the app
-executes it, the result feeds back into the conversation, and the model
-continues.
+When tools are configured, agents can use them in a multi-step loop. The model
+requests a tool call, Crystal Lattice executes it, the result feeds back into the
+conversation, and the model continues.
 
 ## Deep plugin system
 
 <!-- icon: plugin -->
 
 Extend every layer: add providers, tools, features, UI controls, and application
-actions with Python or JavaScript plugins. You never need to modify the core to
-add a capability. Write a plugin, point your config at it, and it loads.
+actions with Python or JavaScript plugins. Write a plugin, point your config at
+it, and use it without waiting for the core project to accept a new capability.

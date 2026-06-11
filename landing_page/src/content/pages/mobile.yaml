@@ -1,35 +1,39 @@
 seo:
   title: "Crystal Lattice: Mobile App"
   description: >-
-    The Crystal Lattice companion app for iOS and Android. Chat with your AI
-    agents, manage sessions, and switch providers. All connected to your own
-    server.
+    Open Crystal Lattice sessions from your phone, watch responses stream, and
+    reconnect through local network discovery or the bridge.
 
 sections:
   - type: mobileHero
     label: "Crystal Lattice Control"
-    titleHtml: "Your AI agents,<br />in your pocket"
+    titleHtml: "Your agent workspace,<br />from your phone"
     subtitle: >-
-      The official iOS and Android companion for Crystal Lattice. Browse
-      sessions, send messages, watch responses stream in real time, manage
-      plugins and settings, all from your phone on your own server.
+      Browse sessions, send messages, and watch responses stream from Crystal
+      Lattice running on your computer. Store releases are coming soon; source
+      builds are available today.
     platforms:
       - label: "iOS"
         icon: apple
       - label: "Android"
         icon: android
     storeButtons:
-      - href: "#"
-        className: "app-store"
+      - className: "app-store"
         icon: apple
-        sub: "Download on the"
+        sub: "Coming soon"
         name: "App Store"
-      - href: "#"
-        className: "play-store"
+        comingSoon: true
+      - className: "play-store"
         icon: play
-        sub: "Get it on"
+        sub: "Coming soon"
         name: "Google Play"
-    note: "Free · Requires a Crystal Lattice server"
+        comingSoon: true
+      - href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice/tree/main/mobile/crystal-lattice-control-rn"
+        className: "source"
+        icon: github
+        sub: "Available today"
+        name: "Run from source"
+    note: "Store releases coming soon · Source builds available today"
     image:
       src: "/cl-mobile-frame.png"
       alt: "Crystal Lattice Control mobile app"
@@ -37,10 +41,10 @@ sections:
   - type: mobileFeatures
     id: features
     eyebrow: "What you get"
-    titleHtml: "A full-featured client,<br />not a thin wrapper"
+    titleHtml: "A phone view for<br />real agent work"
     body: >-
-      The mobile app exposes the complete Crystal Lattice API. Anything you can
-      do from the terminal, you can do from your phone.
+      Open sessions, send messages, watch streams, and use supported
+      plugin-driven controls from your phone.
     items:
       - icon: stream
         title: "Real-time streaming"
@@ -51,61 +55,70 @@ sections:
         title: "Session management"
         desc: >-
           Browse all your sessions, resume any conversation, and create new
-          ones. Each has its own model, provider, and configuration.
+          ones. Sessions keep their own agent configuration, message history,
+          and state.
       - icon: provider
-        title: "Provider & model switching"
+        title: "Configured agents"
         desc: >-
-          Switch between OpenAI, Anthropic, Ollama, and others per session.
-          Change the model mid-conversation without losing context.
+          Work with the agents you have configured on your computer. Provider
+          and model-family capabilities can vary, so Crystal Lattice keeps this
+          behavior plugin-driven.
       - icon: plugin
         title: "Plugin controls"
         desc: >-
-          Enable or disable plugins from the app. Tool results and agent actions
-          are shown inline in the conversation as they happen.
+          Supported plugin-exposed controls, tool results, and agent actions are
+          shown inline in the conversation as they happen.
       - icon: wifi
         title: "Connection methods"
         desc: >-
-          Connect via manual IP, zero-config Bonjour discovery on the same
-          network, or a pairing-code bridge for remote access.
+          Connect via manual IP, automatic discovery on the same network, or a
+          pairing-code bridge when your phone is outside that network.
       - icon: info
         title: "Thinking blocks"
         desc: >-
           Models with reasoning traces (Ollama, OpenRouter) show their thinking
-          inline, collapsible so the conversation stays readable.
+          inline when the configured provider and plugins expose them,
+          collapsible so the conversation stays readable.
 
   - type: mobileConnect
     id: connect
     eyebrow: "Connectivity"
     title: "Connect from anywhere"
-    body: "Three ways to link your phone to your server. Pick whatever fits your setup."
+    body: "Three ways to link your phone to Crystal Lattice. Pick whatever fits your setup."
     methods:
       - num: "01"
         title: "Manual address"
-        desc: "Enter your server's IP and port directly. Works on any network as long as you can reach the host."
+        desc: "Enter the address of the Crystal Lattice process running on your computer. Works wherever your phone can reach that address."
         code: "http://192.168.1.42:9000"
       - num: "02"
         title: "Auto-discovery"
-        desc: "On the same local network, the app finds your server automatically via Bonjour/mDNS. No config needed."
+        desc: "On the same Wi-Fi, the app can find your computer automatically. Under the hood, this uses Bonjour/mDNS."
         code: "crystal-lattice ... --enable-bonjour"
       - num: "03"
         title: "Bridge pairing"
         desc: >-
-          Connect from anywhere with a pairing code. Start the bridge service,
-          tap the code in the app, and you're connected.
-        code: "crystal-lattice ... --enable-bridge"
+          When your phone is outside the local network, pair through a bridge.
+          Deploy the bridge, start Crystal Lattice with its bridge URL, then
+          connect with the pairing code.
+        code: "crystal-lattice ... --bridge-url wss://<your-cloudfront-domain>/ws/websocket"
 
   - type: mobileDownload
-    title: "Get the app"
+    title: "Mobile app availability"
     body: >-
-      Free to download. Connects to any Crystal Lattice server running on your
-      network or reachable via the bridge service.
+      Store releases are coming soon. Today, you can build the mobile app from
+      source and connect it to Crystal Lattice on your network or through the
+      bridge.
     storeButtons:
-      - href: "#"
-        icon: apple
-        sub: "Download on the"
+      - icon: apple
+        sub: "Coming soon"
         name: "App Store"
-      - href: "#"
-        icon: play
-        sub: "Get it on"
+        comingSoon: true
+      - icon: play
+        sub: "Coming soon"
         name: "Google Play"
-    noteHtml: 'Need the server first? <a href="/#quickstart">Get Crystal Lattice →</a>'
+        comingSoon: true
+      - href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice/tree/main/mobile/crystal-lattice-control-rn"
+        icon: github
+        sub: "Available today"
+        name: "Run from source"
+    noteHtml: 'Need Crystal Lattice first? <a href="/#quickstart">Get started →</a>'

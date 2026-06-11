@@ -1,26 +1,26 @@
 seo:
-  title: "Crystal Lattice: The Open Source AI Agent Platform"
+  title: "Crystal Lattice: Plugin-driven AI agent workspace"
   description: >-
-    A local-first, provider-agnostic AI agent platform. Terminal & HTTP server,
-    mobile app, plugin ecosystem, and Python SDK. All on your own hardware.
+    Run AI agents your way: start on your computer, continue from your phone,
+    and customize tools, prompts, settings, and model-family harnesses through
+    plugins.
 
 sections:
   - type: hero
     id: hero
-    badge: "Open Source  ·  Apache 2.0"
-    titleHtml: 'The open source<br /><span class="highlight">AI agent platform</span>'
+    badge: "Plugin-driven agent workspace"
+    titleHtml: 'Own the harness.<br /><span class="highlight">Use the agent anywhere.</span>'
     subtitle: >-
-      Crystal Lattice is a local-first, provider-agnostic AI agent platform.
-      Terminal & HTTP server, iOS & Android mobile app, deep plugin system, and
-      a Python SDK. Everything runs on your own hardware, with your own models,
-      and your own data.
+      Crystal Lattice is a plugin-driven platform for running AI agents your
+      way: from your computer, from your phone, and through custom tools,
+      prompts, settings, and model-family harnesses you can replace.
     actions:
       - label: "Get started"
         href: "#quickstart"
         variant: primary
         icon: arrow
       - label: "View on GitHub"
-        href: "#"
+        href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice"
         variant: outline
         icon: github
         target: "_blank"
@@ -38,7 +38,7 @@ sections:
       - "Google Gemini"
       - "OpenRouter"
       - "Ollama"
-      - "Any OpenAI-compatible API"
+      - "OpenAI-compatible APIs"
 
   - type: features
     id: features
@@ -48,7 +48,7 @@ sections:
     id: quickstart
     eyebrow: "Quickstart"
     title: "Up and running in two minutes"
-    body: "Install the CLI, start the server, connect your phone."
+    body: "Install the CLI, start Crystal Lattice, connect from your phone."
     steps:
       - num: "1"
         title: "Install"
@@ -62,7 +62,7 @@ sections:
         afterCodeBlocks:
           - "pipx install crystal-lattice-cli"
       - num: "2"
-        title: "Start the server"
+        title: "Start Crystal Lattice"
         body:
           - html: "Create a working directory and launch:"
         codeBlocks:
@@ -87,25 +87,24 @@ sections:
             ipconfig getifaddr en0   # macOS
         after:
           - html: "In the app: <strong>Manual Address → &lt;IP&gt;:9000 → Connect</strong>"
-          - html: "Or launch with <code>--enable-bonjour</code> for zero-config auto-discovery."
+          - html: "Or launch with <code>--enable-bonjour</code> so the app can find your computer automatically on the same Wi-Fi."
 
   - type: cta
     title: "Start running your own AI platform"
     body: >-
-      Crystal Lattice is free and open source under the Apache 2.0 license.
-      Install the CLI, start the server, and have your first agent session
-      running in minutes.
+      Crystal Lattice is developed in the open. Install the CLI, start Crystal
+      Lattice, and have your first agent session running in minutes.
     actions:
       - label: "Install the CLI"
         href: "#quickstart"
         variant: primary
         icon: arrow
       - label: "Read the docs"
-        href: "#"
+        href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice#readme"
         variant: outline
         target: "_blank"
       - label: "View on GitHub"
-        href: "#"
+        href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice"
         variant: outline
         icon: github
         target: "_blank"

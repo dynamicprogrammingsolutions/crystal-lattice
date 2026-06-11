@@ -6,21 +6,18 @@ meta: "Effective date: May 2025"
 
 ## Open source software
 
-Crystal Lattice — including the CLI, server, agent-core SDK, bridge service, and
-mobile app — is open source software distributed under the
-[Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
-
-You may use, copy, modify, merge, publish, distribute, sublicense, and sell
-copies of the software in accordance with the terms of that license. A copy of
-the license is included in the source repository and is also available at the
-link above.
+Crystal Lattice is source-available open source software. Components in the
+repository are distributed under their respective license files. The root project
+and many packages use the Apache License, Version 2.0; bridge and cloud
+components may use the GNU Affero General Public License, Version 3. See the
+license files in the repository for the terms that apply to each component.
 
 ## Website terms
 
 These terms govern your use of crystallattice.dev (the "Site"). By accessing the
 Site, you agree to these terms. If you do not agree, please do not use the Site.
 
-The Site provides information about the Crystal Lattice open source project.
+The Site provides information about the Crystal Lattice project.
 Content is provided for informational purposes only.
 
 ## No warranty
@@ -40,9 +37,9 @@ When using Crystal Lattice, you are responsible for:
 
 - Complying with the terms of service of any AI provider you connect to (OpenAI,
   Anthropic, Google, OpenRouter, etc.).
-- Securing your server appropriately if you expose it on a network. The server
-  binds to `0.0.0.0` when you pass `--host 0.0.0.0` — only do this on trusted
-  networks or behind appropriate access controls.
+- Securing the local Crystal Lattice process appropriately if you expose it on a
+  network. It binds to `0.0.0.0` when you pass `--host 0.0.0.0` — only do this
+  on trusted networks or behind appropriate access controls.
 - Managing and protecting any API keys used to configure AI providers.
 - Ensuring your use of AI-generated content complies with applicable laws in
   your jurisdiction.
@@ -60,14 +57,15 @@ subject to its own infrastructure terms where applicable.
 ## Intellectual property
 
 The Crystal Lattice name, logo, and associated branding are the property of the
-project maintainers. The Apache 2.0 license grants broad rights to use, modify,
-and distribute the software itself, but does not grant rights to use the
-project's trademarks or branding in ways that imply official endorsement.
+project maintainers. Open source software licenses in the repository grant
+rights to use, modify, and distribute the covered software, but they do not grant
+rights to use the project's trademarks or branding in ways that imply official
+endorsement.
 
 ## Contributions
 
-Contributions to the Crystal Lattice project are governed by the Apache 2.0
-license and the contribution guidelines in the repository. By submitting a pull
+Contributions to the Crystal Lattice project are governed by the license and
+contribution terms for the component being changed. By submitting a pull
 request, you agree that your contribution may be distributed under those terms.
 
 ## Changes
