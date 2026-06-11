@@ -172,6 +172,14 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
   - OpenRouter slow hosted suites: `pytest plugins/openrouter/tests -m 'slow_integration and openrouter' -q`
 - Provider follow-up for major changes:
   - For major provider, request-pipeline, tool-loop, or default-config changes, explicitly consider follow-up verification in `plugins/openrouter`, `plugins/openai_responses`, and `plugins/reference-openai-compatible-provider`.
+- Shared workspace package verification:
+  - Fast/default package tests:
+    - `npm --workspace @crystal-lattice/frontend-sdk test`
+    - `npm --workspace @crystal-lattice/frontend-sdk-react test`
+    - `npm --workspace @crystal-lattice/frontend-rn-components test`
+  - `packages/frontend-sdk` excludes `src/integration/**` from its default Vitest run; use explicit `integration:*` scripts for backend, hosted-provider, bridge, cloud, or AWS e2e coverage.
+  - Frontend SDK integration commands are documented in `packages/frontend-sdk/src/integration/__tests__/README.md`; run hosted API, Docker, cloud, and AWS-backed suites selectively rather than all at once.
+  - `packages/react-native-mac-text-view` and `packages/tool-host-node` currently do not define package-local automated test scripts.
 - Coverage (core focus):
   ```bash
   pytest core/python/tests -v --cov=core/python/agent_core --cov-report=term-missing

@@ -18,8 +18,6 @@ import {
   waitForAsync,
 } from '../harness';
 
-const RUN = process.env.RUN_CLOUD_ORCHESTRATOR_E2E === '1';
-const describeIf = RUN ? describe : describe.skip;
 const CLOUD_ORCHESTRATOR_E2E_MODE = process.env.CLOUD_ORCHESTRATOR_E2E_MODE || '';
 const IS_LOCAL_CLOUD_ORCHESTRATOR_E2E =
   CLOUD_ORCHESTRATOR_E2E_MODE === '' || CLOUD_ORCHESTRATOR_E2E_MODE === 'local';
@@ -29,15 +27,12 @@ const IS_AWS_E2E = CLOUD_ORCHESTRATOR_E2E_MODE.startsWith('aws-');
 // the current directory/parents; checking provider keys in this Node process
 // would skip before exercising the normal application credential path.
 const RUN_OPENROUTER =
-  RUN &&
   process.env.RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E === '1';
 const describeOpenRouterIf = RUN_OPENROUTER ? describe : describe.skip;
 const RUN_CODEX_DEFAULT_CONFIG =
-  RUN &&
   process.env.RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E === '1';
 const describeCodexDefaultConfigIf = RUN_CODEX_DEFAULT_CONFIG ? describe.sequential : describe.skip;
 const RUN_CODEX_DEFAULT_CONFIG_EC2 =
-  RUN &&
   process.env.RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_EC2_E2E === '1' &&
   CLOUD_ORCHESTRATOR_E2E_MODE === 'aws-ec2-cloudfront';
 const describeCodexDefaultConfigEc2If = RUN_CODEX_DEFAULT_CONFIG_EC2
@@ -909,7 +904,7 @@ async function runDefaultConfigCodexChain(options: {
   }
 }
 
-describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestrator -> cloud runtime)', () => {
+describe('cloud orchestrator e2e (frontend SDK -> local app action -> orchestrator -> cloud runtime)', () => {
   let stopAll: Array<() => Promise<void>> = [];
 
   afterAll(async () => {
