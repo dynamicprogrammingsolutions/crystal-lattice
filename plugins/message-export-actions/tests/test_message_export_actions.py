@@ -554,3 +554,53 @@ def test_pdf_style_normalization_defaults_to_web() -> None:
     assert export_utils.normalize_pdf_style(None) == "web"
     assert export_utils.normalize_pdf_style("classic") == "classic"
     assert export_utils.normalize_pdf_style("unknown") == "web"
+
+
+def test_xhtml2pdf_web_html_embeds_available_sans_font(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    font_path = tmp_path / "MessageExportSans.ttf"
+    font_path.write_bytes(b"not-a-real-font-for-css-test")
+    monkeypatch.setattr(export_utils, "PDF_SANS_FONT_CANDIDATES", (font_path,))
+
+    css = export_utils._web_html_css()
+
+    assert '@font-face' in css
+    assert 'font-family: "MessageExportSans"' in css
+    assert font_path.resolve().as_posix() in css
+
+
+def test_pandoc_web_style_uses_named_link_colors(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: Dict[str, Any] = {}
+
+    def _fake_run(cmd: list[str], **kwargs: Any) -> Any:
+        captured["cmd"] = cmd
+
+        class Result:
+            returncode = 0
+            stderr = ""
+            stdout = ""
+
+        return Result()
+
+    monkeypatch.setattr(export_utils.subprocess, "run", _fake_run)
+
+    output_path = tmp_path / "out.pdf"
+    export_utils._convert_markdown_to_pdf_pandoc(
+        markdown_text="Body",
+        title="Title",
+        output_path=output_path,
+        pdf_engine="xelatex",
+        style="web",
+    )
+
+    cmd = captured["cmd"]
+    assert "linkcolor=blue" in cmd
+    assert "urlcolor=blue" in cmd
+    assert "linkcolor=2563EB" not in cmd
+    assert "urlcolor=2563EB" not in cmd
+    assert "mainfont=Helvetica Neue" in cmd
