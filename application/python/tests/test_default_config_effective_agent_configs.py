@@ -49,6 +49,7 @@ def test_default_config_effective_agent_configs_stay_intact(
         / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
     session_root = tmp_path / "sessions"
 
     app = AgentApplication(
@@ -64,9 +65,7 @@ def test_default_config_effective_agent_configs_stay_intact(
                 ".",
                 "..",
                 str(
-                    Path(__file__).resolve().parents[3]
-                    / "plugins"
-                    / "cloud-agent-app"
+                    Path(__file__).resolve().parents[3] / "plugins" / "cloud-agent-app"
                 ),
             ],
             "shell_tool_mode": "auto",
@@ -93,6 +92,9 @@ def test_default_config_effective_agent_configs_stay_intact(
             "reasoning_max_tokens": 16000,
             "web_search_enabled": True,
             "web_search_provider": "gemini_api",
+            "mcp_enabled": False,
+            "mcp_reuse_runtime": True,
+            "mcp_fail_on_startup_error": False,
             "request_options": {
                 "provider": {"order": ["anthropic"], "allow_fallbacks": False}
             },

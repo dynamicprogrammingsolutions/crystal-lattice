@@ -30,6 +30,26 @@
         }
       }
     },
+    "claude_mcp_defaults": {
+      "mcp_enabled": false,
+      "mcp_reuse_runtime": true,
+      "mcp_fail_on_startup_error": false,
+      "mcp_servers": {
+        "filesystem": {
+          "enabled": false,
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@modelcontextprotocol/server-filesystem",
+            "${env:WORKING_DIR}"
+          ],
+          "cwd": "${env:WORKING_DIR}",
+          "startup_timeout_seconds": 30,
+          "tool_timeout_seconds": 30
+        }
+      }
+    },
     "codex_developer_message": {
       "codex_personality": "default",
       "skills_enabled": true,
@@ -729,7 +749,7 @@
       "web_search_provider": "gemini_api"
     },
     "claude": {
-      "mixin_refs": ["claude_system_message"],
+      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
       "plugins": [

@@ -91,7 +91,10 @@ def test_claude_environment_helper_renders_effective_working_directory(
     assert " - Platform:" in environment_text
     assert " - Shell:" in environment_text
     assert " - OS Version:" in environment_text
-    assert " - You are powered by the model anthropic/claude-haiku-4.5." in environment_text
+    assert (
+        " - You are powered by the model anthropic/claude-haiku-4.5."
+        in environment_text
+    )
 
 
 def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
@@ -128,6 +131,7 @@ def test_default_config_claude_system_message_renders_sections_tasks_and_agents(
         / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
 
     app = AgentApplication(
         str(config_path),
@@ -206,6 +210,10 @@ def test_default_config_claude_agent_uses_claude_tools(
     assert base_config["tavily_api_key"] == "test-tavily-key"
     assert base_config["web_search_enabled"] is True
     assert base_config["web_search_provider"] == "gemini_api"
+    assert base_config["mcp_enabled"] is False
+    assert base_config["mcp_reuse_runtime"] is True
+    assert base_config["mcp_fail_on_startup_error"] is False
+    assert "filesystem" in base_config["mcp_servers"]
 
     plugin_ids = {
         entry["id"]
@@ -221,9 +229,11 @@ def test_default_config_claude_agent_uses_claude_tools(
     assert "claude_task_stop_tool" in plugin_ids
     assert "claude_web_fetch_tool" in plugin_ids
     assert "claude_web_search_tool" in plugin_ids
+    assert "claude_mcp_tool" in plugin_ids
     assert "shell" not in plugin_ids
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
     claude_agent = config["agents"]["claude"]
+    assert "claude_mcp_defaults" in claude_agent["mixin_refs"]
     assert claude_agent["plugins"] == ["path:${env:BUILTIN_PLUGINS}/claude-tools"]
     assert "anthropic-openrouter" not in config["agents"]

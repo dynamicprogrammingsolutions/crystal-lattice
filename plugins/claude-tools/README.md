@@ -15,6 +15,7 @@ This package is being built from behavior-driven investigations of Claude Code's
 - `TaskStop`: Claude Code-compatible background-task stop tool for terminating running Bash tasks by task ID.
 - `WebFetch`: Claude Code-compatible URL fetch tool with Anthropic-native schemas, prompt-based page analysis, redirect handling, and timeout behavior.
 - `WebSearch`: Claude Code-compatible web search tool with Anthropic-native schemas and Claude-shaped result formatting backed by Gemini or Tavily providers.
+- `ClaudeMCPTool`: Claude Code-compatible MCP tool wrapper that exposes discovered MCP server tools with Claude's `mcp__server__tool` naming and Anthropic-native result formatting.
 
 ## Implemented Session Actions
 
@@ -37,6 +38,15 @@ This package is being built from behavior-driven investigations of Claude Code's
 `WebFetch` currently supports public HTTP(S) fetches, `http` to `https` upgrade, the observed cross-host redirect message shape, and Claude-compatible invalid-URL and timeout strings for the investigated cases.
 
 `WebSearch` currently supports the Claude `WebSearch` schema and Claude-shaped text results while letting the app choose either `gemini_api` or `tavily` as the backend provider through config.
+
+`ClaudeMCPTool` currently supports stdio/SSE/HTTP MCP servers through the shared `mcp-shared` runtime package. It keeps runtime lifecycle, discovery, and raw tool calls in `mcp-shared`, while this package owns the Claude-facing schema and result shape observed in `investigation/fixtures/mcp/`. Successful text MCP results are returned as Claude-style Anthropic `tool_result` blocks containing a JSON string such as `{"content":"..."}`; MCP errors are returned with `is_error: true`.
+
+Claude MCP configuration keys:
+
+- `mcp_enabled`: global toggle for MCP-backed tools
+- `mcp_reuse_runtime`: reuse live MCP runtime connections across requests
+- `mcp_fail_on_startup_error`: fail preparation when an enabled MCP server cannot start
+- `mcp_servers`: MCP server definitions keyed by server name
 
 `Compact conversation` currently supports the observed Claude `/compact` behavior investigated under `investigation/fixtures/compaction/`, including the appended compaction prompt, Claude-style numbered summary validation, transcript fallback guidance, and session-history rewrite through the core/native rebuild path so provider-native formatting remains owned by the core pipeline. The action now supports full-history compaction, prefix compaction, arbitrary selected ranges, and a message-level "Compact messages up to here" UI action. When a conversation has a leading system message, that system message is preserved in the visible transcript and included in subrange compaction requests as request context.
 

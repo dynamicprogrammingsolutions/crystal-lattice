@@ -11,7 +11,8 @@
     "claude_tools.claude_glob_tool.ClaudeGlobTool",
     "claude_tools.claude_grep_tool.ClaudeGrepTool",
     "claude_tools.claude_web_fetch_tool.ClaudeWebFetchTool",
-    "claude_tools.claude_web_search_tool.ClaudeWebSearchTool"
+    "claude_tools.claude_web_search_tool.ClaudeWebSearchTool",
+    "claude_tools.claude_mcp_tool.ClaudeMCPTool"
   ],
   "kinds": {
     "claude_tools.claude_compaction_feature.ClaudeCompactionFeature": "features",
@@ -23,7 +24,8 @@
     "claude_tools.claude_glob_tool.ClaudeGlobTool": "tools",
     "claude_tools.claude_grep_tool.ClaudeGrepTool": "tools",
     "claude_tools.claude_web_fetch_tool.ClaudeWebFetchTool": "tools",
-    "claude_tools.claude_web_search_tool.ClaudeWebSearchTool": "tools"
+    "claude_tools.claude_web_search_tool.ClaudeWebSearchTool": "tools",
+    "claude_tools.claude_mcp_tool.ClaudeMCPTool": "tools"
   },
   "local_workspace_dependencies": [
     {
@@ -33,6 +35,10 @@
     {
       "name": "web-fetch-shared",
       "path": "../web-fetch-shared"
+    },
+    {
+      "name": "mcp-shared",
+      "path": "../mcp-shared"
     }
   ]
 }
