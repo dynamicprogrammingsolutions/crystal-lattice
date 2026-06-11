@@ -155,19 +155,29 @@ That suite was still run and recorded for `050`, but the failure does not come f
 
 Added during completion.
 
-What is complete now, before `040`:
+What is complete now:
 
-- Claude tool/config/system-message validation for the implemented non-compaction surface
+- Claude tool/config/system-message validation for the implemented standard-tool surface
 - application-level execution proof for the default `claude` agent
 - real-provider `WebSearch` validation for both Gemini and Tavily
 - investigation-harness docs update
+- Claude compaction investigation, implementation, fixture-driven tests, action tests, and real integration coverage through `tasks/20260504-claude-tools-parity/040-investigate-and-implement-claude-compaction.md`
 
-What remains blocked or deferred:
+Fresh recheck from the new `task/claude-mcp-tools` worktree after editable install:
 
-- the compaction portion of `050`, because `tasks/20260504-claude-tools-parity/040-investigate-and-implement-claude-compaction.md` is still open
-- the first checklist item stays open because it explicitly includes compaction coverage
+```bash
+pytest plugins/tool-compat-shared/tests -q
+```
 
-Recommended next step after this partial `050` pass:
+Result: `1 failed, 149 passed, 4 skipped`
 
-- either fix or explicitly triage the unrelated `tool-compat-shared` glob test failure if we want a clean shared-suite baseline
-- then move to `040` Claude compaction, after which the remaining `050` checklist item can be closed
+The remaining failure is:
+
+- `plugins/tool-compat-shared/tests/test_search_engine.py::test_glob_search_sorts_recent_files_first_and_matches_case_insensitively`
+
+This confirms the earlier shared-suite failure is still present in a clean worktree and is not resolved by the new branch/install. It is still outside the Claude-specific compaction implementation, but it remains a broader validation cleanup item if `050` requires a clean shared-suite baseline.
+
+Recommended next step:
+
+- either fix or explicitly triage the unrelated `tool-compat-shared` glob test failure if `050` should require a clean shared-suite baseline
+- otherwise mark `050` complete with that failure documented as out of scope for Claude parity

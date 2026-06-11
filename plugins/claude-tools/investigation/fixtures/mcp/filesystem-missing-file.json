@@ -1,0 +1,420 @@
+{
+  "assistant_tool_uses": [
+    {
+      "id": "<TOOL_CALL_ID>",
+      "input": {
+        "path": "missing.txt"
+      },
+      "name": "mcp__filesystem__read_text_file",
+      "type": "tool_use"
+    }
+  ],
+  "case": "filesystem-missing-file",
+  "debug_mcp_lines": [
+    "2026-06-01T05:33:16.729Z [DEBUG] [STARTUP] Loading MCP configs...",
+    "2026-06-01T05:33:16.748Z [DEBUG] [STARTUP] MCP configs resolved in 1ms (awaited at +19ms)",
+    "2026-06-01T05:33:16.751Z [DEBUG] [MCP] --mcp-config servers running fully async (nonblocking)",
+    "2026-06-01T05:33:16.751Z [DEBUG] [MCP] claude.ai connectors running fully async (nonblocking)",
+    "2026-06-01T05:33:16.753Z [DEBUG] MCP server \"filesystem\": Starting connection with timeout of 30000ms",
+    "2026-06-01T05:33:18.489Z [ERROR] \"MCP server \\\"filesystem\\\" Server stderr: Secure MCP Filesystem Server running on stdio\\n\"",
+    "2026-06-01T05:33:18.489Z [DEBUG] MCP server \"filesystem\": Successfully connected (transport: stdio) in 1738ms",
+    "2026-06-01T05:33:18.489Z [DEBUG] MCP server \"filesystem\": Connection established with capabilities: {\"hasTools\":true,\"hasPrompts\":false,\"hasResources\":false,\"hasResourceSubscribe\":false,\"serverVersion\":{\"name\":\"secure-filesystem-server\",\"version\":\"0.2.0\"}}",
+    "2026-06-01T05:33:18.489Z [DEBUG] [MCP] Server \"filesystem\" connected with subscribe=false",
+    "2026-06-01T05:33:18.492Z [DEBUG] MCP server \"filesystem\": Received ListRoots request from server",
+    "2026-06-01T05:33:19.572Z [INFO] [Stall] tool_dispatch_start tool=mcp__filesystem__read_text_file toolUseId=<TOOL_CALL_ID> permissionDecisionMs=1",
+    "2026-06-01T05:33:19.574Z [DEBUG] MCP server \"filesystem\": Calling MCP tool: read_text_file",
+    "2026-06-01T05:33:19.584Z [ERROR] MCP server \"filesystem\" ENOENT: no such file or directory, open '<WORKSPACE>/missing.txt'",
+    "2026-06-01T05:33:19.585Z [DEBUG] MCP server \"filesystem\": Tool 'read_text_file' failed after 0s: ENOENT: no such file or directory, open '<WORKSPACE>/missing.txt'",
+    "2026-06-01T05:33:19.589Z [WARN] [Stall] tool_dispatch_end tool=mcp__filesystem__read_text_file toolUseId=<TOOL_CALL_ID> outcome=error durationMs=17",
+    "2026-06-01T05:33:19.589Z [DEBUG] mcp__filesystem__read_text_file tool error (17ms): ENOENT: no such file or directory, open '/Users/ferenci84/Dev/Mine/ai-agent-platform-worktrees/claude-mcp-tools/plugins/claude-tools/investigation/raw/mcp/20260601-073316-filesystem-missing-file/works",
+    "2026-06-01T05:33:21.582Z [DEBUG] MCP server \"filesystem\": Sending SIGINT to MCP server process",
+    "2026-06-01T05:33:21.608Z [DEBUG] MCP server \"filesystem\": STDIO connection closed after 3s (cleanly)",
+    "2026-06-01T05:33:21.608Z [DEBUG] MCP server \"filesystem\": Cleared connection cache for reconnection",
+    "2026-06-01T05:33:21.637Z [DEBUG] MCP server \"filesystem\": MCP server process exited cleanly"
+  ],
+  "expected_fragment": "",
+  "expected_fragment_seen": false,
+  "mcp_tool_names": [
+    "mcp__filesystem__create_directory",
+    "mcp__filesystem__directory_tree",
+    "mcp__filesystem__edit_file",
+    "mcp__filesystem__get_file_info",
+    "mcp__filesystem__list_allowed_directories",
+    "mcp__filesystem__list_directory",
+    "mcp__filesystem__list_directory_with_sizes",
+    "mcp__filesystem__move_file",
+    "mcp__filesystem__read_file",
+    "mcp__filesystem__read_media_file",
+    "mcp__filesystem__read_multiple_files",
+    "mcp__filesystem__read_text_file",
+    "mcp__filesystem__search_files",
+    "mcp__filesystem__write_file"
+  ],
+  "mcp_tools": [
+    {
+      "description": "Create a new directory or ensure a directory exists. Can create multiple nested directories in one operation. If the directory already exists, this operation will succeed silently. Perfect for setting up directory structures for projects or ensuring required paths exist. Only works within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__create_directory"
+    },
+    {
+      "description": "Get a recursive tree view of files and directories as a JSON structure. Each entry includes 'name', 'type' (file/directory), and 'children' for directories. Files have no children array, while directories always have a children array (which may be empty). The output is formatted with 2-space indentation for readability. Only works within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "excludePatterns": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__directory_tree"
+    },
+    {
+      "description": "Make line-based edits to a text file. Each edit replaces exact line sequences with new content. Returns a git-style diff showing the changes made. Only works within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "dryRun": {
+            "default": false,
+            "description": "Preview changes using git-style diff format",
+            "type": "boolean"
+          },
+          "edits": {
+            "items": {
+              "properties": {
+                "newText": {
+                  "description": "Text to replace with",
+                  "type": "string"
+                },
+                "oldText": {
+                  "description": "Text to search for - must match exactly",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "oldText",
+                "newText"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "edits"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__edit_file"
+    },
+    {
+      "description": "Retrieve detailed metadata about a file or directory. Returns comprehensive information including size, creation time, last modified time, permissions, and type. This tool is perfect for understanding file characteristics without reading the actual content. Only works within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__get_file_info"
+    },
+    {
+      "description": "Returns the list of directories that this server is allowed to access. Subdirectories within these allowed directories are also accessible. Use this to understand which directories and their nested paths are available before trying to access files.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {},
+        "type": "object"
+      },
+      "name": "mcp__filesystem__list_allowed_directories"
+    },
+    {
+      "description": "Get a detailed listing of all files and directories in a specified path. Results clearly distinguish between files and directories with [FILE] and [DIR] prefixes. This tool is essential for understanding directory structure and finding specific files within a directory. Only works within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__list_directory"
+    },
+    {
+      "description": "Get a detailed listing of all files and directories in a specified path, including sizes. Results clearly distinguish between files and directories with [FILE] and [DIR] prefixes. This tool is useful for understanding directory structure and finding specific files within a directory. Only works within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "sortBy": {
+            "default": "name",
+            "description": "Sort entries by name or size",
+            "enum": [
+              "name",
+              "size"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__list_directory_with_sizes"
+    },
+    {
+      "description": "Move or rename files and directories. Can move files between directories and rename them in a single operation. If the destination exists, the operation will fail. Works across different directories and can be used for simple renaming within the same directory. Both source and destination must be within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "destination": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "destination"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__move_file"
+    },
+    {
+      "description": "Read the complete contents of a file as text. DEPRECATED: Use read_text_file instead.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "head": {
+            "description": "If provided, returns only the first N lines of the file",
+            "type": "number"
+          },
+          "path": {
+            "type": "string"
+          },
+          "tail": {
+            "description": "If provided, returns only the last N lines of the file",
+            "type": "number"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__read_file"
+    },
+    {
+      "description": "Read an image or audio file. Returns the base64 encoded data and MIME type. Only works within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__read_media_file"
+    },
+    {
+      "description": "Read the contents of multiple files simultaneously. This is more efficient than reading files one by one when you need to analyze or compare multiple files. Each file's content is returned with its path as a reference. Failed reads for individual files won't stop the entire operation. Only works within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "paths": {
+            "description": "Array of file paths to read. Each path must be a string pointing to a valid file within allowed directories.",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "paths"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__read_multiple_files"
+    },
+    {
+      "description": "Read the complete contents of a file from the file system as text. Handles various text encodings and provides detailed error messages if the file cannot be read. Use this tool when you need to examine the contents of a single file. Use the 'head' parameter to read only the first N lines of a file, or the 'tail' parameter to read only the last N lines of a file. Operates on the file as text regardless of extension. Only works within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "head": {
+            "description": "If provided, returns only the first N lines of the file",
+            "type": "number"
+          },
+          "path": {
+            "type": "string"
+          },
+          "tail": {
+            "description": "If provided, returns only the last N lines of the file",
+            "type": "number"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__read_text_file"
+    },
+    {
+      "description": "Recursively search for files and directories matching a pattern. The patterns should be glob-style patterns that match paths relative to the working directory. Use pattern like '*.ext' to match files in current directory, and '**/*.ext' to match files in all subdirectories. Returns full paths to all matching items. Great for finding files when you don't know their exact location. Only searches within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "excludePatterns": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "pattern": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "pattern"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__search_files"
+    },
+    {
+      "description": "Create a new file or completely overwrite an existing file with new content. Use with caution as it will overwrite existing files without warning. Handles text content with proper encoding. Only works within allowed directories.",
+      "input_schema": {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "content"
+        ],
+        "type": "object"
+      },
+      "name": "mcp__filesystem__write_file"
+    }
+  ],
+  "prompt_mcp_tool_names": [
+    "mcp__filesystem__create_directory",
+    "mcp__filesystem__directory_tree",
+    "mcp__filesystem__edit_file",
+    "mcp__filesystem__get_file_info",
+    "mcp__filesystem__list_allowed_directories",
+    "mcp__filesystem__list_directory",
+    "mcp__filesystem__list_directory_with_sizes",
+    "mcp__filesystem__move_file",
+    "mcp__filesystem__read_file",
+    "mcp__filesystem__read_media_file",
+    "mcp__filesystem__read_multiple_files",
+    "mcp__filesystem__read_text_file",
+    "mcp__filesystem__search_files",
+    "mcp__filesystem__write_file"
+  ],
+  "request_count": 3,
+  "request_urls": [
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true"
+  ],
+  "returncode": 0,
+  "stderr_excerpt": "",
+  "stdout_summary": {
+    "event_types": [
+      "system",
+      "assistant",
+      "user",
+      "assistant",
+      "result"
+    ],
+    "final_result": "The MCP filesystem tool returned an `ENOENT` error, which means \"Error: NO ENTry\" - the file `missing.txt` does not exist at the specified path. The tool explicitly reports \"no such file or directory\" for the path `<WORKSPACE>/missing.txt`.",
+    "system_subtypes": [
+      "init"
+    ],
+    "tool_results": [
+      {
+        "content": "ENOENT: no such file or directory, open '<WORKSPACE>/missing.txt'",
+        "is_error": true,
+        "tool_use_id": "<TOOL_CALL_ID>",
+        "type": "tool_result"
+      }
+    ],
+    "tool_uses": [
+      {
+        "id": "<TOOL_CALL_ID>",
+        "input": {
+          "path": "missing.txt"
+        },
+        "name": "mcp__filesystem__read_text_file",
+        "type": "tool_use"
+      }
+    ]
+  },
+  "tool_results": [
+    {
+      "cache_control": {
+        "type": "ephemeral"
+      },
+      "content": "ENOENT: no such file or directory, open '<WORKSPACE>/missing.txt'",
+      "is_error": true,
+      "tool_use_id": "<TOOL_CALL_ID>",
+      "type": "tool_result"
+    }
+  ]
+}

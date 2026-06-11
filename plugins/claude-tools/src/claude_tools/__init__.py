@@ -19,6 +19,7 @@ from .claude_compaction_feature import ClaudeCompactionFeature
 from .claude_edit_tool import ClaudeEditTool
 from .claude_grep_tool import ClaudeGrepTool
 from .claude_glob_tool import ClaudeGlobTool
+from .claude_mcp_tool import ClaudeMCPTool
 from .claude_read_tool import ClaudeReadTool
 from .claude_task_stop_tool import ClaudeTaskStopTool
 from .claude_web_fetch_tool import ClaudeWebFetchTool
@@ -33,6 +34,7 @@ __all__ = [
     "ClaudeEditTool",
     "ClaudeGlobTool",
     "ClaudeGrepTool",
+    "ClaudeMCPTool",
     "ClaudeTaskStopTool",
     "ClaudeWebFetchTool",
     "ClaudeWebSearchTool",
