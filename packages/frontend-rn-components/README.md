@@ -2,6 +2,23 @@
 
 Frontend Rn Components package for Crystal Lattice.
 
+## Testing
+
+Run the package tests from the repository root:
+
+```bash
+npm --workspace @crystal-lattice/frontend-rn-components test
+```
+
+Or from this package directory:
+
+```bash
+npm test
+```
+
+This package currently has fast Vitest coverage only; it does not define
+integration or e2e scripts.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

@@ -2,6 +2,37 @@
 
 Frontend Sdk package for Crystal Lattice.
 
+## Testing
+
+Run fast/default package tests from the repository root:
+
+```bash
+npm --workspace @crystal-lattice/frontend-sdk test
+```
+
+Or from this package directory:
+
+```bash
+npm test
+```
+
+The default Vitest config excludes `src/integration/**`, so this command is the
+safe everyday check for SDK logic, transports, reducers, plugin helpers, and
+other unit-style tests.
+
+Integration and e2e suites live under `src/integration/__tests__` and are
+selected by explicit package scripts. Start with the detailed integration guide:
+
+- [src/integration/__tests__/README.md](src/integration/__tests__/README.md)
+
+Common categories:
+
+- Local backend integration: `npm run integration:backend`
+- Hosted provider integration: `npm run integration:backend:openai`, `npm run integration:backend:openrouter`, `npm run integration:backend:openrouter-images`, `npm run integration:backend:openrouter:mcp`
+- Bridge e2e: `npm run integration:bridge`
+- Cloud orchestrator e2e: `npm run integration:cloud`, `npm run integration:cloud:profiles`
+- AWS-backed e2e and maintenance commands: run only when intentionally working on those deployments
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

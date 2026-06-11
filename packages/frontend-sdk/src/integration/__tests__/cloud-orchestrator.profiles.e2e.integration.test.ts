@@ -19,8 +19,6 @@ import {
   waitForAsync,
 } from '../harness';
 
-const RUN = process.env.RUN_CLOUD_ORCHESTRATOR_PROFILE_E2E === '1';
-const describeIf = RUN ? describe.sequential : describe.skip;
 const TEST_TIMEOUT_MS = 600_000;
 const HOOK_TIMEOUT_MS = 60_000;
 
@@ -422,7 +420,7 @@ async function startCloudSession(options: {
   };
 }
 
-describeIf(
+describe.sequential(
   'cloud orchestrator standard profile e2e (local docker orchestrator)',
   () => {
     let orchestrator: StartedCloudOrchestrator | null = null;

@@ -5,8 +5,6 @@ import { BridgeTransport } from '../../transport/bridgeTransport';
 import type { WebSocketLike } from '../../transport/bridgeTransport';
 import { startBackendServer, startBridgeForE2E, waitForAsync, waitForStdoutMatch } from '../harness';
 
-const RUN = process.env.RUN_BRIDGE_E2E_INTEGRATION === '1';
-const describeIf = RUN ? describe : describe.skip;
 const IS_AWS_E2E = (process.env.BRIDGE_E2E_MODE || '').startsWith('aws-');
 const TEST_TIMEOUT_MS = IS_AWS_E2E ? 2_700_000 : 600_000;
 const HOOK_TIMEOUT_MS = IS_AWS_E2E ? 900_000 : 10_000;
@@ -40,7 +38,7 @@ class NodeWebSocketWrapper implements WebSocketLike {
   }
 }
 
-describeIf('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient -> FastAPI)', () => {
+describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient -> FastAPI)', () => {
   let stopAll: Array<() => Promise<void>> = [];
   let sharedAwsBridge: Awaited<ReturnType<typeof startBridgeForE2E>> | null = null;
 

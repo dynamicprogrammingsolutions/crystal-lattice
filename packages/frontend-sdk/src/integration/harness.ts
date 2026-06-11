@@ -57,7 +57,7 @@ export async function getFreePort(): Promise<number> {
   });
 }
 
-function findRepoRoot(fromDir: string): string {
+export function findRepoRoot(fromDir: string): string {
   let current = fromDir;
   for (let i = 0; i < 10; i += 1) {
     const candidate = path.join(current, 'core', 'python');
@@ -71,6 +71,41 @@ function findRepoRoot(fromDir: string): string {
     current = next;
   }
   throw new Error(`Unable to find repo root from ${fromDir}`);
+}
+
+export function loadEnvVarFromRoot(name: string): string | null {
+  const existing = process.env[name];
+  if (typeof existing === 'string' && existing.trim()) {
+    return existing.trim();
+  }
+
+  const repoRoot = findRepoRoot(process.cwd());
+  const envPath = path.join(repoRoot, '.env');
+  if (!fs.existsSync(envPath)) {
+    return null;
+  }
+
+  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) {
+      continue;
+    }
+    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
+    if (!match || match[1] !== name) {
+      continue;
+    }
+    let value = match[2].trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+    if (value) {
+      process.env[name] = value;
+      return value;
+    }
+  }
+
+  return null;
 }
 
 export interface StartedServer {

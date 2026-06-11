@@ -14,11 +14,7 @@ import {
   waitForAsync,
 } from '../harness';
 
-const RUN = process.env.RUN_BACKEND_INTEGRATION === '1';
-
-const describeIf = RUN ? describe : describe.skip;
-
-describeIf('backend integration (real FastAPI server + plugins + SDK)', () => {
+describe('backend integration (real FastAPI server + plugins + SDK)', () => {
   const serverConfig = {
     providers: {
       test_provider: {

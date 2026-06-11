@@ -4,39 +4,49 @@ This directory contains Vitest integration and e2e tests for the TypeScript
 frontend SDK talking to real backend processes, bridge services, cloud
 orchestrators, and selected real model providers.
 
-Run commands below from `packages/frontend-sdk` unless noted otherwise.
+Run commands below from `packages/frontend-sdk` unless noted otherwise. The
+package's default `npm test` run excludes this directory; use these scripts when
+you intentionally want integration or e2e coverage.
 
 ```bash
-npm test -- src/integration/__tests__/<file>.ts
+npm run integration:backend
+npm run integration:cloud -- -t "routes two cloud sessions"
 ```
 
-Most suites are skipped unless an explicit gate environment variable is set.
-Provider-backed tests may also need keys in the shell or in the repository root
-`.env`, depending on the suite. Cloud orchestrator e2e tests intentionally let
-the Python backend application resolve provider keys through its normal dotenv
-path.
+To run an integration file directly, use the integration Vitest config:
+
+```bash
+npm exec -- vitest run --config vitest.integration.config.ts src/integration/__tests__/<file>.ts
+```
+
+The package scripts select exact files. Environment variables are kept for
+credentials, optional modes, and AWS danger interlocks. Provider-backed tests may
+need keys in the shell or in the repository root `.env`, depending on the suite.
+Cloud orchestrator e2e tests intentionally let the Python backend application
+resolve provider keys through its normal dotenv path.
 
 ## NPM Commands
 
-Prefer these package scripts for day-to-day use. They set the right gate
-variables and call the test file directly; extra Vitest arguments are forwarded
-after `--`.
+Prefer these package scripts for day-to-day use. Extra Vitest arguments are
+forwarded after `--`.
 
-| Command | Runs |
-| --- | --- |
-| `npm run integration:backend` | `backend.integration.test.ts` with local deterministic providers. |
-| `npm run integration:backend:openai` | OpenAI Responses attachment integration. |
-| `npm run integration:backend:openrouter` | OpenRouter chat attachment integration. |
-| `npm run integration:backend:openrouter-images` | OpenRouter image-generation attachment integration. |
-| `npm run integration:bridge` | Bridge e2e in Docker mode by default. |
-| `npm run integration:bridge:aws:fargate-secure` | Bridge e2e against AWS Fargate secure deployment. |
-| `npm run integration:bridge:aws:fargate-public` | Bridge e2e against AWS Fargate public-task deployment. |
-| `npm run integration:bridge:aws:ec2` | Bridge e2e against AWS EC2 secure deployment. |
-| `npm run integration:cloud` | Cloud orchestrator e2e in local Docker mode by default. |
-| `npm run integration:cloud:openrouter` | Cloud orchestrator local e2e plus real OpenRouter tool-call flow. |
-| `npm run integration:cloud:codex` | Cloud orchestrator local default-config Codex OpenRouter/OpenAI flows. |
-| `npm run integration:cloud:aws` | Cloud orchestrator e2e against AWS EC2 + CloudFront. |
-| `npm run integration:cloud:aws:codex` | AWS EC2 + CloudFront default-config Codex OpenRouter/OpenAI flows. |
+| Category | Command | Runs / requirements |
+| --- | --- | --- |
+| Local backend | `npm run integration:backend` | `backend.integration.test.ts` with deterministic local providers. |
+| Hosted API | `npm run integration:backend:openai` | OpenAI Responses attachment integration; requires `OPENAI_API_KEY`. |
+| Hosted API | `npm run integration:backend:openrouter` | OpenRouter chat attachment integration; requires `OPENROUTER_API_KEY`. |
+| Hosted API | `npm run integration:backend:openrouter-images` | OpenRouter image-generation attachment integration; requires `OPENROUTER_API_KEY`. |
+| Hosted API | `npm run integration:backend:openrouter:mcp` | Codex MCP app-action integration; requires `OPENROUTER_API_KEY` and `npx`. |
+| Bridge e2e | `npm run integration:bridge` | Bridge e2e in Docker mode by default. |
+| Bridge e2e / AWS | `npm run integration:bridge:aws:fargate-secure` | Bridge e2e against AWS Fargate secure deployment. |
+| Bridge e2e / AWS | `npm run integration:bridge:aws:fargate-public` | Bridge e2e against AWS Fargate public-task deployment. |
+| Bridge e2e / AWS | `npm run integration:bridge:aws:ec2` | Bridge e2e against AWS EC2 secure deployment. |
+| Cloud e2e | `npm run integration:cloud` | Cloud orchestrator e2e in local Docker mode by default. |
+| Cloud e2e | `npm run integration:cloud:profiles` | Standard cloud profile e2e in local Docker mode. |
+| Cloud e2e / hosted API | `npm run integration:cloud:openrouter` | Cloud local e2e plus real OpenRouter tool-call flow. |
+| Cloud e2e / hosted API | `npm run integration:cloud:codex` | Cloud local default-config Codex OpenRouter/OpenAI flows. |
+| Cloud e2e / AWS | `npm run integration:cloud:aws` | Cloud orchestrator e2e against AWS EC2 + CloudFront. |
+| Cloud e2e / AWS | `npm run integration:cloud:aws:codex` | AWS EC2 + CloudFront default-config Codex OpenRouter/OpenAI flows. |
 
 Examples:
 
@@ -89,7 +99,7 @@ These variables are consumed by `src/integration/harness.ts`.
 
 ### `backend.integration.test.ts`
 
-Gate: `RUN_BACKEND_INTEGRATION=1`
+Selected by `npm run integration:backend`.
 
 Starts a real FastAPI backend with deterministic local providers and exercises
 SDK/controller behavior without real model providers.
@@ -125,7 +135,9 @@ npm run integration:backend
 
 ### `backend.openai.integration.test.ts`
 
-Gate: `RUN_BACKEND_OPENAI_INTEGRATION=1` and `OPENAI_API_KEY`
+Selected by `npm run integration:backend:openai`.
+
+Requires `OPENAI_API_KEY`.
 
 This file reads `OPENAI_API_KEY` and optional `OPENAI_BASE_URL` from the shell
 or repository root `.env`. It starts a real backend with the OpenAI Responses
@@ -147,7 +159,9 @@ npm run integration:backend:openai
 
 ### `backend.image_attachments.integration.test.ts`
 
-Gate: `RUN_BACKEND_OPENROUTER_INTEGRATION=1` and `OPENROUTER_API_KEY`
+Selected by `npm run integration:backend:openrouter-images`.
+
+Requires `OPENROUTER_API_KEY`.
 
 This file reads `OPENROUTER_API_KEY`, optional `OPENROUTER_BASE_URL`, and
 optional `OPENROUTER_IMAGE_GENERATION_E2E_MODEL` from the shell or repository
@@ -171,7 +185,9 @@ npm run integration:backend:openrouter-images
 
 ### `backend.openrouter.integration.test.ts`
 
-Gate: `RUN_BACKEND_OPENROUTER_INTEGRATION=1` and `OPENROUTER_API_KEY`
+Selected by `npm run integration:backend:openrouter`.
+
+Requires `OPENROUTER_API_KEY`.
 
 This file reads `OPENROUTER_API_KEY`, optional `OPENROUTER_BASE_URL`, and
 optional `OPENROUTER_VISION_MODEL` from the shell or repository root `.env`.
@@ -193,9 +209,34 @@ Example:
 npm run integration:backend:openrouter
 ```
 
+### `backend.codex_mcp.integration.test.ts`
+
+Selected by `npm run integration:backend:openrouter:mcp`.
+
+Requires `OPENROUTER_API_KEY` and `npx`.
+
+This file starts a real backend with the OpenRouter provider, the MCP runtime
+app plugin, and Codex tools. It verifies SDK-discovered UI schema and MCP app
+actions through the SDK.
+
+Default models:
+
+- provider model: `openai/gpt-5.4-mini`
+- test prompt model: `openai/gpt-5.4-nano`
+
+Test:
+
+- `enables MCP through SDK-discovered UI schema and exercises MCP app actions through the SDK`
+
+Example:
+
+```bash
+npm run integration:backend:openrouter:mcp
+```
+
 ### `bridge.e2e.integration.test.ts`
 
-Gate: `RUN_BRIDGE_E2E_INTEGRATION=1`
+Selected by `npm run integration:bridge` and the AWS bridge variants.
 
 Starts or connects to an Elixir bridge and a real Python backend, then verifies
 `BridgeTransport` end-to-end through pairing and proxied HTTP requests.
@@ -219,7 +260,7 @@ npm run integration:bridge
 
 ### `cloud-orchestrator.e2e.integration.test.ts`
 
-Base gate: `RUN_CLOUD_ORCHESTRATOR_E2E=1`
+Selected by `npm run integration:cloud` and related cloud scripts.
 
 Starts or connects to a cloud orchestrator, starts local backend servers with
 the cloud-agent app plugin, transfers workspaces/config assets into cloud
@@ -240,34 +281,37 @@ Provider credentials:
 - `CLOUD_ORCHESTRATOR_OPENROUTER_MODEL` optionally overrides the OpenRouter model
   used by the OpenRouter tool-call suite.
 
-Base tests enabled by `RUN_CLOUD_ORCHESTRATOR_E2E=1`:
+Base tests enabled by `npm run integration:cloud`:
 
 - `opens a cloud session through CloudTransport and syncs workspace files back down`
 - `routes two cloud sessions through one connection-scoped CloudTransport`
 
-Additional standard-profile gate:
+Additional standard-profile command:
 
-- `RUN_CLOUD_ORCHESTRATOR_PROFILE_E2E=1`
+- `npm run integration:cloud:profiles`
 - Runs `cloud-orchestrator.profiles.e2e.integration.test.ts`
 - Always uses the local Docker orchestrator harness
 - Verifies the shipped standard cloud profiles end to end using fixture-backed
   repo overrides and hooks rather than handwritten test-only scripts
 
-Additional OpenRouter gate:
+Additional OpenRouter command:
 
-- `RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E=1`
+- `npm run integration:cloud:openrouter`
+- Internally sets `RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E=1` because these tests still share the base cloud e2e file.
 - Test: `runs local and cloud OpenRouter tool calls with config assets and sync-back`
 
-Additional local default-config Codex gate:
+Additional local default-config Codex command:
 
-- `RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E=1`
+- `npm run integration:cloud:codex`
+- Internally sets `RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E=1` because these tests still share the base cloud e2e file.
 - Tests:
   - `runs local-cloud-local bash and apply_patch chain with codex-openrouter`
   - `runs local-cloud-local bash and apply_patch chain with codex-openai`
 
-Additional AWS default-config Codex gate:
+Additional AWS default-config Codex command:
 
-- `RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_EC2_E2E=1`
+- `npm run integration:cloud:aws:codex`
+- Internally sets `RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_EC2_E2E=1` because these tests still share the base cloud e2e file.
 - Requires `CLOUD_ORCHESTRATOR_E2E_MODE=aws-ec2-cloudfront`
 - Tests:
   - `runs EC2 local-cloud-local bash and apply_patch chain with codex-openrouter`

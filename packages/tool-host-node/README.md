@@ -2,6 +2,12 @@
 
 Tool Host Node package for Crystal Lattice.
 
+## Testing
+
+This package does not currently define a package-local automated test script.
+When changing the host or SDK entrypoints, verify through the tool-plugin flow
+that consumes `agent-tool-host-node`.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

@@ -18,8 +18,6 @@ import {
   waitForAsync,
 } from '../harness';
 
-const RUN = process.env.RUN_CLOUD_ORCHESTRATOR_E2E === '1';
-const describeIf = RUN ? describe : describe.skip;
 const CLOUD_ORCHESTRATOR_E2E_MODE = process.env.CLOUD_ORCHESTRATOR_E2E_MODE || '';
 const IS_AWS_E2E = CLOUD_ORCHESTRATOR_E2E_MODE.startsWith('aws-');
 // Keep provider-gated suites gated only by explicit test flags. The backend
@@ -788,7 +786,7 @@ async function runDefaultConfigCodexChain(options: {
   }
 }
 
-describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestrator -> cloud runtime)', () => {
+describe('cloud orchestrator e2e (frontend SDK -> local app action -> orchestrator -> cloud runtime)', () => {
   let stopAll: Array<() => Promise<void>> = [];
 
   afterAll(async () => {

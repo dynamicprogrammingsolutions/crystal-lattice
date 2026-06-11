@@ -18,6 +18,12 @@ Reusable macOS-native multiline text view for React Native New Architecture cons
 
 See [example/MacTextViewExample.tsx](./example/MacTextViewExample.tsx) for a package-owned usage example that exercises the public API.
 
+## Testing
+
+This package does not currently define a package-local automated test script.
+When changing it, verify through the consuming React Native macOS desktop app or
+the package-owned example as appropriate.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.
