@@ -102,17 +102,19 @@ Do not attempt to invent the future parser in this subtask. The aim is simply to
 
 However, do prepare the renderer-side architecture for the parser subtask. Keep
 the Astro presentation components in the current `landing_page/src/components/`
-structure. Put the section definition/registry files in a separate directory
-outside `components`, such as `landing_page/src/sections/`. Do not create one
-directory per section type in this task.
+structure. Put section-specific definition files in `landing_page/src/sections/`
+as flat files such as `hero.ts`, `features.ts`, and `mobileHero.ts`. Put shared
+wiring such as the registry and generic `SectionRenderer.astro` in a separate
+directory outside `sections`, such as `landing_page/src/section-system/`.
 
 The recommended v1 shape is:
 
 ```text
-landing_page/src/sections/registry.ts
-landing_page/src/sections/SectionRenderer.astro
-landing_page/src/sections/homeSections.ts
-landing_page/src/sections/mobileSections.ts
+landing_page/src/sections/hero.ts
+landing_page/src/sections/features.ts
+landing_page/src/sections/mobileHero.ts
+landing_page/src/section-system/registry.ts
+landing_page/src/section-system/SectionRenderer.astro
 landing_page/src/components/Hero.astro
 landing_page/src/components/Features.astro
 landing_page/src/components/mobile/Hero.astro
@@ -121,14 +123,14 @@ landing_page/src/components/mobile/Features.astro
 
 In this subtask, a section definition may only need `type` and `Component`.
 Subtask 020 will extend the same definition shape with a parser. Section
-definitions may live in grouped files such as `homeSections.ts` and
-`mobileSections.ts`, or in another flat file layout under `src/sections/`, but
-avoid a large switch in page files.
+definitions should live as flat, shareable files under `src/sections/`; for
+example, both home and mobile pages can reuse a generic `featureGrid.ts`
+definition if the normalized section shape matches.
 
 Example renderer-side definition for this subtask:
 
 ```ts
-// landing_page/src/sections/homeSections.ts
+// landing_page/src/sections/features.ts
 import Features from "../components/Features.astro";
 
 export const featuresSection = {
@@ -140,8 +142,9 @@ export const featuresSection = {
 Example registry:
 
 ```ts
-// landing_page/src/sections/registry.ts
-import { heroSection, featuresSection } from "./homeSections";
+// landing_page/src/section-system/registry.ts
+import { heroSection } from "../sections/hero";
+import { featuresSection } from "../sections/features";
 
 export const sectionDefinitions = [
   heroSection,
@@ -208,10 +211,11 @@ const { section } = Astro.props;
 For icons, prefer semantic keys in YAML rather than embedding SVG path markup in the content file. It is acceptable to keep an icon map in component code during this stage.
 
 Adapt existing Astro components in place under `landing_page/src/components/`.
-The new `landing_page/src/sections/` area should contain section definitions,
-registries, and generic renderer/wiring code, not relocated section templates.
-This preserves the current component structure while making the data-driven
-section system explicit.
+The new `landing_page/src/sections/` area should contain only section-specific
+definition files. The shared registry and generic renderer should live outside
+`sections` in a dedicated wiring/runtime directory such as
+`landing_page/src/section-system/`. This preserves the current component
+structure while making the data-driven section system explicit.
 
 ## Preservation Requirement
 
@@ -242,3 +246,17 @@ Recommended additional checks:
 ## Completion Notes
 
 Add notes here during completion: what content files were added, which components were refactored, build result, and any rendered-output differences.
+
+## Execution plan
+
+Added during completion planning after user approval.
+
+1. Inspect the current Astro source and capture the existing route-to-section map:
+   `/` renders `Hero`, `Providers`, `Features`, `Quickstart`, and `CTA`; `/mobile` renders mobile `Hero`, `Features`, `Connect`, and `Download`; `/privacy` and `/terms` render legal prose pages.
+2. Add YAML content documents under `landing_page/src/content/pages/` for the current pages, preserving the current copy, headings, commands, CTA labels, and section order.
+3. Add the renderer-side section architecture without moving Astro templates:
+   section-specific definitions as flat files under `landing_page/src/sections/`, and shared wiring under `landing_page/src/section-system/` with `registry.ts` and `SectionRenderer.astro`.
+4. Refactor existing Astro section components in place under `landing_page/src/components/` to accept `section` props while keeping their markup, styles, and class names stable.
+5. Update page entry points to load their page YAML and render `page.sections` through the generic section renderer. Use the least disruptive approach for legal pages while centralizing their text.
+6. Run `npm run build` in `landing_page`.
+7. Inspect generated routes for `/`, `/mobile/`, `/privacy/`, and `/terms/`, and note any unavoidable non-semantic differences in completion notes.

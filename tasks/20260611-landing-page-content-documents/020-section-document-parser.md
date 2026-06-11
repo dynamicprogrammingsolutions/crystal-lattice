@@ -93,10 +93,11 @@ definitions, for example:
 ```text
 landing_page/src/content/sectionDocument.ts
 landing_page/src/content/pageTypes.ts
-landing_page/src/sections/registry.ts
-landing_page/src/sections/homeSections.ts
-landing_page/src/sections/mobileSections.ts
-landing_page/src/sections/legalSections.ts
+landing_page/src/sections/hero.ts
+landing_page/src/sections/steps.ts
+landing_page/src/sections/pluginPrompt.ts
+landing_page/src/section-system/registry.ts
+landing_page/src/section-system/SectionRenderer.astro
 landing_page/src/components/Hero.astro
 landing_page/src/components/Quickstart.astro
 landing_page/src/components/mobile/Hero.astro
@@ -128,8 +129,10 @@ type PageDocument = {
 Section types, section parsers, and Astro section templates must be extensible.
 Do not put every section parser into one large switch/file. Keep Astro
 presentation components in the current `landing_page/src/components/`
-structure, and put section definition files in a separate directory outside
-`components`, such as `landing_page/src/sections/`. A section definition owns:
+structure, put section-specific definition files as flat files under
+`landing_page/src/sections/`, and put shared wiring such as registry and
+generic renderer files in a separate directory outside `sections`, such as
+`landing_page/src/section-system/`. A section definition owns:
 
 - the public section `type`
 - the parser for that section type
@@ -139,9 +142,10 @@ structure, and put section definition files in a separate directory outside
 The central registry should be the only place that maps a `type` string to a
 section definition. The central page compiler should orchestrate parsing and
 validation, but section-specific extraction rules should live with the section
-definition. Section definitions may be grouped into files such as
-`homeSections.ts`, `mobileSections.ts`, and `legalSections.ts`, or another flat
-layout under `src/sections/`. Do not require one directory per section type.
+definition. Section definitions should be shareable across pages and live in
+flat files such as `src/sections/hero.ts`, `src/sections/featureGrid.ts`, and
+`src/sections/pluginPrompt.ts`. Do not create one directory per section type as
+part of this task.
 
 Suggested contract shape:
 
@@ -180,7 +184,7 @@ export type SectionDefinition<TSection extends { type: string }> = {
 Example section definition module:
 
 ```ts
-// landing_page/src/sections/homeSections.ts
+// landing_page/src/sections/pluginPrompt.ts
 import PluginPrompt from "../components/PluginPrompt.astro";
 import type { SectionDefinition, SectionParser } from "../content/pageTypes";
 import { firstCodeBlock, firstHeading, paragraphsBeforeFirstCode } from "./helpers";
@@ -244,9 +248,12 @@ export const pluginPromptSection = {
 Example registry:
 
 ```ts
-// landing_page/src/sections/registry.ts
-import { heroSection, stepsSection, pluginPromptSection } from "./homeSections";
-import { mobileHeroSection, mobileFeaturesSection } from "./mobileSections";
+// landing_page/src/section-system/registry.ts
+import { heroSection } from "../sections/hero";
+import { stepsSection } from "../sections/steps";
+import { pluginPromptSection } from "../sections/pluginPrompt";
+import { mobileHeroSection } from "../sections/mobileHero";
+import { mobileFeaturesSection } from "../sections/mobileFeatures";
 
 export const sectionDefinitions = [
   heroSection,
@@ -265,7 +272,7 @@ The generic Astro renderer should use the same definitions:
 
 ```astro
 ---
-// landing_page/src/sections/SectionRenderer.astro
+// landing_page/src/section-system/SectionRenderer.astro
 import { sectionDefinitionByType } from "./registry";
 
 const { sections } = Astro.props;
@@ -352,7 +359,7 @@ The page should remain thin, for example:
 import Layout from "../layouts/Layout.astro";
 import Nav from "../components/Nav.astro";
 import Footer from "../components/Footer.astro";
-import SectionRenderer from "../sections/SectionRenderer.astro";
+import SectionRenderer from "../section-system/SectionRenderer.astro";
 import { loadPageDocument } from "../content/sectionDocument";
 
 const page = await loadPageDocument("home");
@@ -369,11 +376,13 @@ const page = await loadPageDocument("home");
 
 Section components should continue to be ordinary Astro components with clean HTML placeholders. The parser should not leak rendering concerns into content extraction.
 
-Keep section definitions and components separate:
+Keep section definitions, shared wiring, and components separate:
 
 ```text
-landing_page/src/sections/homeSections.ts
-landing_page/src/sections/mobileSections.ts
+landing_page/src/sections/hero.ts
+landing_page/src/sections/mobileHero.ts
+landing_page/src/section-system/registry.ts
+landing_page/src/section-system/SectionRenderer.astro
 landing_page/src/components/Hero.astro
 landing_page/src/components/mobile/Hero.astro
 ```
@@ -381,7 +390,8 @@ landing_page/src/components/mobile/Hero.astro
 Shared parser helpers can live in `landing_page/src/sections/helpers.ts` or
 `landing_page/src/content/markdownBlocks.ts`, but keep section-specific logic in
 the section definition module. Do not move existing Astro components into
-per-section definition folders as part of this task.
+per-section definition folders as part of this task, and do not mix registry or
+renderer wiring into the `src/sections/` directory.
 
 ## Testing
 
