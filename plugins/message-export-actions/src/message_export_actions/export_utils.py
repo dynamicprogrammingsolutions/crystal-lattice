@@ -34,6 +34,14 @@ DEFAULT_LANGUAGE = "en-US"
 DEFAULT_TOC_DEPTH = 2
 DEFAULT_EPUB_TITLE = "Untitled EPUB"
 DEFAULT_LUA_FILTER_PATH = Path(__file__).with_name("strip_local_file_references.lua")
+PDF_SANS_FONT_CANDIDATES = (
+    Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
+    Path("/Library/Fonts/Arial.ttf"),
+    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+    Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+    Path("/usr/local/share/fonts/DejaVuSans.ttf"),
+    Path("C:/Windows/Fonts/arial.ttf"),
+)
 
 
 @dataclass(frozen=True)
@@ -333,9 +341,11 @@ def convert_markdown_to_epub(
 
 
 def _classic_html_css() -> str:
-    return """
+    return (
+        _embedded_sans_font_css()
+        + """
       body {
-        font-family: Helvetica, Arial, sans-serif;
+        font-family: "MessageExportSans", Arial, Helvetica, sans-serif;
         font-size: 11pt;
         line-height: 1.45;
         color: #111827;
@@ -364,15 +374,37 @@ def _classic_html_css() -> str:
         margin: 1em 0;
       }
     """
+    )
+
+
+def _pdf_sans_font_path() -> Path | None:
+    for candidate in PDF_SANS_FONT_CANDIDATES:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _embedded_sans_font_css() -> str:
+    font_path = _pdf_sans_font_path()
+    if font_path is None:
+        return ""
+    return f"""
+      @font-face {{
+        font-family: "MessageExportSans";
+        src: url("{font_path.resolve().as_posix()}");
+      }}
+    """
 
 
 def _web_html_css() -> str:
-    return """
+    return (
+        _embedded_sans_font_css()
+        + """
       @page {
         margin: 24pt 30pt;
       }
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+        font-family: "MessageExportSans", Arial, Helvetica, sans-serif;
         font-size: 10.5pt;
         line-height: 1.55;
         color: #172033;
@@ -464,6 +496,7 @@ def _web_html_css() -> str:
         font-weight: 700;
       }
     """
+    )
 
 
 def _html_document(*, title: str, markdown_text: str, style: str = PDF_STYLE_WEB) -> str:
@@ -544,9 +577,9 @@ def _convert_markdown_to_pdf_pandoc(
                 "--variable",
                 "colorlinks=true",
                 "--variable",
-                "linkcolor=2563EB",
+                "linkcolor=blue",
                 "--variable",
-                "urlcolor=2563EB",
+                "urlcolor=blue",
                 "--include-in-header",
                 str(header_path),
             ]
