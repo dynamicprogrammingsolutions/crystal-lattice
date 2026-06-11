@@ -24,7 +24,7 @@ const icons = {
         <div class="card">
           <div class="icon" set:html={icons[f.icon] ?? ""} />
           <h3>{f.title}</h3>
-          <p>{f.desc}</p>
+          <p set:html={f.descHtml ?? f.desc}></p>
         </div>
       ))}
     </div>

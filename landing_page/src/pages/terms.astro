@@ -4,8 +4,9 @@ import Nav from '../components/Nav.astro';
 import Footer from '../components/Footer.astro';
 import SectionRenderer from '../section-system/SectionRenderer.astro';
 import { loadPage } from '../content/loadPage';
+import { preparePage } from '../section-system/preparePage';
 
-const page = loadPage('terms');
+const page = preparePage(loadPage('terms'));
 ---
 
 <Layout title={page.seo?.title} description={page.seo?.description}>

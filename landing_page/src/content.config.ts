@@ -5,4 +5,9 @@ const pages = defineCollection({
   schema: z.any(),
 });
 
-export const collections = { pages };
+const markdown = defineCollection({
+  type: "content",
+  schema: z.any(),
+});
+
+export const collections = { pages, markdown };
