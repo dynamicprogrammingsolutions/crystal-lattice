@@ -8,6 +8,7 @@ Break the mobile message refresh slowdown into separable fixes. The first priori
 - [ ] `tasks/20260610-mobile-message-refresh-performance/020-message-list-frontend-projection.md`
 - [ ] `tasks/20260610-mobile-message-refresh-performance/030-session-metadata-ui-schema-invalidation-events.md`
 - [ ] `tasks/20260610-mobile-message-refresh-performance/040-frontend-refresh-orchestration.md`
+- [ ] `tasks/20260610-mobile-message-refresh-performance/050-plain-http-bridge-large-payload-path.md`
 
 ## Background
 
@@ -32,4 +33,4 @@ Known diagnostic results from the investigation:
 
 ## Scope Notes
 
-The plain HTTP bridge path for large payloads, gzip/HTTP2, and server-to-bridge HTTP response upload are intentionally not included in this task directory. Those are larger transport architecture changes that should be planned separately after the immediate bridge concurrency and payload projection work.
+The plain HTTP bridge path for large payloads, gzip/HTTP2, and server-to-bridge HTTP response upload are included as a later-stage subtask. Do the immediate bridge concurrency and payload projection work first, then treat the HTTP bridge path as a broader transport architecture improvement.
