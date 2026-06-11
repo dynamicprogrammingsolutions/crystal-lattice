@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 
 import pytest
 
+from agent_app.app_context import ApplicationContext
 from agent_app.application_future import AgentApplication
 from agent_app.tool_loop import ToolLoopRunner
 from agent_core import AgentCore, Message, Session
@@ -146,6 +147,8 @@ def test_pending_tool_calls_ignored_after_follow_up_user_message() -> None:
         config={},
         request_id="req_pending",
         tool_loop_cfg=SimpleNamespace(max_loops=8),
+        app_context=ApplicationContext(app=object()),
+        base_config={},
     )
 
     tool_call: Dict[str, object] = {
@@ -168,6 +171,8 @@ def test_pending_tool_calls_returned_for_unresolved_tail_assistant() -> None:
         config={},
         request_id="req_pending_tail",
         tool_loop_cfg=SimpleNamespace(max_loops=8),
+        app_context=ApplicationContext(app=object()),
+        base_config={},
     )
 
     tool_call: Dict[str, object] = {
@@ -204,6 +209,7 @@ def test_interceptor_tool_prompt_title_overridable_from_config(tmp_path: Path) -
         "function": {"name": "add", "arguments": json.dumps({"a": 1, "b": 2})},
     }
     session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    app.save_session(session)
     events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
     checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
     final_session = checkpoints[-1]["session"]
@@ -391,6 +397,7 @@ def test_interceptor_prompt_suspend_and_resume(tmp_path: Path) -> None:
         "function": {"name": "add", "arguments": json.dumps({"a": 2, "b": 3})},
     }
     session = core.add_message(session, "assistant", "", {"tool_calls": [tool_call]})
+    app.save_session(session)
     events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
     checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
     final_session = checkpoints[-1]["session"]
@@ -424,6 +431,7 @@ def test_interceptor_prompt_suspend_and_resume(tmp_path: Path) -> None:
         ],
         metadata=final_session.metadata,
     )
+    app.save_session(resumed)
     events2 = list(app.send_request(core, resumed, base_config, overrides=None, stream=False))
     checkpoints2 = [ev for ev in events2 if ev.get("type") == "session_checkpoint"]
     resumed_session = checkpoints2[-1]["session"]
@@ -452,6 +460,7 @@ def test_interceptor_transform_and_stop_semantics(tmp_path: Path) -> None:
         },
     ]
     session = core.add_message(session, "assistant", "", {"tool_calls": calls})
+    app.save_session(session)
     events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
     final_session = [ev for ev in events if ev.get("type") == "session_checkpoint"][-1]["session"]
     assert isinstance(final_session, Session)
@@ -471,6 +480,7 @@ def test_interceptor_transform_and_stop_semantics(tmp_path: Path) -> None:
         messages=[*final_session.messages[:-1], Message(role=assistant.role, content=assistant.content, metadata=md, multipart_content=assistant.multipart_content)],
         metadata=final_session.metadata,
     )
+    app.save_session(resumed1)
     events2 = list(app.send_request(core, resumed1, base_config, overrides=None, stream=False))
     sess2 = [ev for ev in events2 if ev.get("type") == "session_checkpoint"][-1]["session"]
     assert isinstance(sess2, Session)
@@ -496,6 +506,7 @@ def test_interceptor_transform_responses_shaped_tool_call(tmp_path: Path) -> Non
         },
     ]
     session = core.add_message(session, "assistant", "", {"tool_calls": calls})
+    app.save_session(session)
     events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
     final_session = [ev for ev in events if ev.get("type") == "session_checkpoint"][-1]["session"]
     assert isinstance(final_session, Session)
@@ -522,6 +533,7 @@ def test_interceptor_transform_responses_shaped_tool_call(tmp_path: Path) -> Non
         ],
         metadata=final_session.metadata,
     )
+    app.save_session(resumed)
     events2 = list(app.send_request(core, resumed, base_config, overrides=None, stream=False))
     sess2 = [ev for ev in events2 if ev.get("type") == "session_checkpoint"][-1]["session"]
     assert isinstance(sess2, Session)
