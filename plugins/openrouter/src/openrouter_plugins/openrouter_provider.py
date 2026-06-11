@@ -136,6 +136,28 @@ class OpenRouterProvider(ProviderPlugin):
             )
         return record.filename, record.mime_type, store.load_bytes(session_id, asset_id)
 
+    def _session_asset_ref_from_content(self, content: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(content, dict):
+            return None
+        asset_ref = content.get("asset_ref")
+        if not isinstance(asset_ref, dict):
+            return None
+        if asset_ref.get("kind") != "session_asset":
+            return None
+        session_id = asset_ref.get("session_id")
+        asset_id = asset_ref.get("asset_id")
+        attachment_type = asset_ref.get("attachment_type")
+        if (
+            not isinstance(session_id, str)
+            or not session_id
+            or not isinstance(asset_id, str)
+            or not asset_id
+            or not isinstance(attachment_type, str)
+            or not attachment_type
+        ):
+            return None
+        return asset_ref
+
     def _expanded_tool_content(
         self,
         content: Any,
@@ -188,7 +210,7 @@ class OpenRouterProvider(ProviderPlugin):
                         context,
                     ),
                 }
-                if msg.get("role") == "tool"
+                if isinstance(msg.get("content"), list)
                 else msg
             )
             for msg in messages
@@ -252,16 +274,6 @@ class OpenRouterProvider(ProviderPlugin):
                 "display_placement": "left",
                 "options": model_options,
                 "label": "model",
-            },
-            {
-                "ui_type": "composer_attachment",
-                "key": "openrouter:attachment:image",
-                "attachment_type": "image",
-                "supports_url": True,
-                "supported_file_types": ["png", "jpg", "jpeg", "webp", "gif"],
-                "display_placement": "below",
-                "label": "Image",
-                "icon": "image",
             },
         ]
 
@@ -464,6 +476,7 @@ class OpenRouterProvider(ProviderPlugin):
                 continue
 
             parts: List[Dict[str, Any]] = [{"type": "text", "text": content}]
+            attachment_sources: List[Dict[str, Any]] = []
             for part in multipart:
                 if not isinstance(part, dict):
                     continue
@@ -480,6 +493,26 @@ class OpenRouterProvider(ProviderPlugin):
                         "[openrouter_provider] image multipartContent part requires dict content"
                     )
 
+                asset_ref = self._session_asset_ref_from_content(part_content)
+                if asset_ref is not None:
+                    parts.append(
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "asset_ref": asset_ref,
+                                "filename": part_content.get("filename"),
+                                "mime_type": part_content.get("mime_type"),
+                            },
+                        }
+                    )
+                    attachment_sources.append(
+                        {
+                            "content_index": len(parts) - 1,
+                            "multipart_part": part,
+                        }
+                    )
+                    continue
+
                 url = part_content.get("url")
                 if not isinstance(url, str) or not url:
                     data_base64 = part_content.get("data_base64")
@@ -493,10 +526,21 @@ class OpenRouterProvider(ProviderPlugin):
 
                 if not isinstance(url, str) or not url:
                     raise ValueError(
-                        "[openrouter_provider] image multipartContent part requires content.url or content.data_base64"
+                        "[openrouter_provider] image multipartContent part requires content.url, content.data_base64, or content.asset_ref"
                     )
 
                 parts.append({"type": "image_url", "image_url": {"url": url}})
+                attachment_sources.append(
+                    {
+                        "content_index": len(parts) - 1,
+                        "multipart_part": part,
+                    }
+                )
+
+            if attachment_sources:
+                internal_metadata = dict(native_message.get("_metadata") or {})
+                internal_metadata["_openrouter_attachment_sources"] = attachment_sources
+                native_message["_metadata"] = internal_metadata
 
             native.append({**native_message, "content": parts})
 
@@ -521,13 +565,26 @@ class OpenRouterProvider(ProviderPlugin):
             role = m.get("role", "assistant")
             content = m.get("content", "")
             metadata = self._core_metadata_from_native_internal(m.get("_metadata"))
+            source_by_index: Dict[int, Dict[str, Any]] = {}
+            raw_sources = metadata.get("_openrouter_attachment_sources")
+            if isinstance(raw_sources, list):
+                for raw_source in raw_sources:
+                    if not isinstance(raw_source, dict):
+                        continue
+                    content_index = raw_source.get("content_index")
+                    multipart_part = raw_source.get("multipart_part")
+                    if (
+                        isinstance(content_index, int)
+                        and isinstance(multipart_part, dict)
+                    ):
+                        source_by_index[content_index] = multipart_part
 
             msg: Dict[str, Any] = {"role": role, "content": ""}
             multipart_out: List[Dict[str, Any]] = []
 
             if isinstance(content, list):
                 text_parts: List[str] = []
-                for part in content:
+                for content_index, part in enumerate(content):
                     if not isinstance(part, dict):
                         continue
                     part_type = part.get("type")
@@ -537,8 +594,26 @@ class OpenRouterProvider(ProviderPlugin):
                             text_parts.append(text)
                         continue
                     if part_type == "image_url":
+                        source_part = source_by_index.get(content_index)
+                        if isinstance(source_part, dict):
+                            multipart_out.append(source_part)
+                            continue
                         image_url = part.get("image_url")
                         if isinstance(image_url, dict):
+                            asset_ref = image_url.get("asset_ref")
+                            if isinstance(asset_ref, dict):
+                                multipart_out.append(
+                                    {
+                                        "type": "image",
+                                        "content": {
+                                            "asset_ref": asset_ref,
+                                            "filename": image_url.get("filename"),
+                                            "mime_type": image_url.get("mime_type"),
+                                        },
+                                        "metadata": {},
+                                    }
+                                )
+                                continue
                             url = image_url.get("url")
                             if isinstance(url, str) and url:
                                 multipart_out.append(
@@ -587,6 +662,7 @@ class OpenRouterProvider(ProviderPlugin):
             if isinstance(tool_call_id, str) and tool_call_id:
                 metadata["tool_call_id"] = tool_call_id
 
+            metadata.pop("_openrouter_attachment_sources", None)
             metadata["native_indices"] = [native_idx]
             normalized.append({**msg, "metadata": metadata})
 

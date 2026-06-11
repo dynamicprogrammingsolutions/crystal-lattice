@@ -22,6 +22,7 @@ MODELS = {
     "glm_fireworks": FIREWORKS_GLM_MODEL,
     "kimi_fireworks": FIREWORKS_KIMI_MODEL,
 }
+pytestmark = pytest.mark.api
 
 
 def _assistant_with_content(messages: list[dict[str, Any]]) -> dict[str, Any] | None:

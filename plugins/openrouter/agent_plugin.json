@@ -4,6 +4,7 @@
   "entries": [
     "openrouter_plugins.openrouter_provider.OpenRouterProvider",
     "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider",
+    "openrouter_plugins.openrouter_attachments_extension.OpenRouterAttachmentsExtension",
     "openrouter_plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension",
     "openrouter_plugins.openrouter_tools_extension.OpenRouterToolsExtension",
     "openrouter_plugins.claude_caching_extension.ClaudeCachingExtension",
@@ -16,6 +17,7 @@
   "kinds": {
     "openrouter_plugins.openrouter_provider.OpenRouterProvider": "providers",
     "openrouter_plugins.openrouter_image_generation_provider.OpenRouterImageGenerationProvider": "providers",
+    "openrouter_plugins.openrouter_attachments_extension.OpenRouterAttachmentsExtension": "extensions",
     "openrouter_plugins.openrouter_reasoning_extension.OpenRouterReasoningExtension": "extensions",
     "openrouter_plugins.openrouter_tools_extension.OpenRouterToolsExtension": "extensions",
     "openrouter_plugins.claude_caching_extension.ClaudeCachingExtension": "extensions",

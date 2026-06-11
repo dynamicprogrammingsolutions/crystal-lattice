@@ -257,7 +257,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                   connectionId={connectionId}
                   isActive={tab === 'messages'}
                   sessionId={selectedSessionId}
-                      sessionSummary={sessionSummary}
+                  sessionSummary={sessionSummary}
                   cachedMessages={cacheEntry?.messages ?? null}
                   lastLoadedAt={cacheEntry?.lastLoadedAt ?? null}
                   cachedEventsCursorId={
@@ -281,6 +281,11 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                         eventsCursorId,
                         activeRequestId,
                       );
+                    }
+                  }}
+                  onUpdateSessionSummaries={(sessions) => {
+                    if (connectionId) {
+                      onUpdateSessionsCache(connectionId, sessions);
                     }
                   }}
                   onBack={() => {

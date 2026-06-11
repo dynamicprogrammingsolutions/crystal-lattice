@@ -7,6 +7,7 @@ provider configuration so they do not require network access.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 from pathlib import Path
@@ -83,6 +84,56 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "session_created" in kinds
     assert "message_appended" in kinds
     assert "request_started" in kinds or "final" in kinds
+
+
+@pytest.mark.asyncio
+async def test_run_terminal_uses_compact_erasing_prompt(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    echo_config = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(
+        str(echo_config), str(session_root), event_store=events
+    )
+    term_app = term_mod.TerminalApplication(
+        config_path=str(echo_config),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    captured: dict[str, object] = {}
+
+    class _FakePromptSession:
+        def __init__(self, *args, **kwargs) -> None:
+            captured["session_args"] = args
+            captured["session_kwargs"] = kwargs
+
+        async def prompt_async(self, message, **kwargs):
+            captured["prompt_message"] = message
+            captured["prompt_kwargs"] = kwargs
+            raise EOFError()
+
+    async def _fake_poll_events(app, write, ui_state, poll_interval=0.1) -> None:
+        return None
+
+    monkeypatch.setattr(term_mod, "PromptSession", _FakePromptSession)
+    monkeypatch.setattr(term_mod, "_poll_events", _fake_poll_events)
+    monkeypatch.setattr(term_mod, "_set_terminal_title", lambda title: None)
+    monkeypatch.setattr(term_mod, "patch_stdout", lambda *_args, **_kwargs: contextlib.nullcontext())
+
+    await term_mod._run_terminal(term_app)
+
+    session_kwargs = captured.get("session_kwargs")
+    assert isinstance(session_kwargs, dict)
+    assert session_kwargs.get("erase_when_done") is True
+    assert captured.get("prompt_message") == "> "
 
 
 def test_terminal_started_request_clears_active_request_id_for_http_snapshots(
@@ -213,6 +264,125 @@ def test_set_completion() -> None:
     val_texts = _collect_completion_texts(completer, "/set reasoning_effort h")
     assert "high" in val_texts
     assert "low" not in val_texts
+
+
+def test_terminal_ui_schema_elements_share_cache_and_key_changes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    base_dir = Path(term_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        agent_app=agent_app,
+    )
+
+    term_app.start_new_session(agent_id="default")
+    core, _base_config, _session = term_app.require_session()
+
+    calls: list[dict] = []
+
+    def _first_schema(*, config):
+        calls.append(dict(config))
+        return [
+            {"ui_type": "status_bar", "data": "content"},
+            {"ui_type": "message_footer", "data": "metadata.timestamp"},
+            {"ui_type": "config", "key": "reasoning_effort"},
+        ]
+
+    monkeypatch.setattr(core, "get_ui_schema", _first_schema)
+
+    assert term_app.status_bar_elements() == [
+        {"ui_type": "status_bar", "data": "content"}
+    ]
+    assert term_app.message_footer_elements() == [
+        {"ui_type": "message_footer", "data": "metadata.timestamp"}
+    ]
+    assert term_app.session_ui_elements() == [
+        {"ui_type": "config", "key": "reasoning_effort"}
+    ]
+    assert len(calls) == 1
+
+    term_app.update_override("cache_probe", "changed")
+    new_core, _new_base_config, _new_session = term_app.require_session()
+
+    changed_calls: list[dict] = []
+
+    def _changed_schema(*, config):
+        changed_calls.append(dict(config))
+        return [{"ui_type": "status_bar", "data": "metadata.changed"}]
+
+    monkeypatch.setattr(new_core, "get_ui_schema", _changed_schema)
+
+    assert term_app.status_bar_elements() == [
+        {"ui_type": "status_bar", "data": "metadata.changed"}
+    ]
+    assert len(changed_calls) == 1
+    assert changed_calls[0].get("cache_probe") == "changed"
+
+
+def test_status_bar_text_skips_schema_lookup_without_assistant_message() -> None:
+    from agent_terminal_app import terminal as term_mod
+
+    class _DummyApp:
+        session_id = "session-1"
+
+        def current_agent_id(self) -> str:
+            return "agent-1"
+
+        def get_last_assistant_message(self):
+            return None
+
+        def status_bar_elements(self):
+            raise AssertionError("status_bar_elements should not be called")
+
+    assert (
+        term_mod._status_bar_text(_DummyApp())  # type: ignore[arg-type]
+        == "Agent: agent-1  Session: session-1"
+    )
+
+
+def test_status_bar_text_renders_schema_when_assistant_message_exists() -> None:
+    from agent_terminal_app import terminal as term_mod
+
+    class _DummyApp:
+        session_id = "session-1"
+
+        def __init__(self) -> None:
+            self.status_bar_calls = 0
+
+        def current_agent_id(self) -> str:
+            return "agent-1"
+
+        def get_last_assistant_message(self):
+            return {"role": "assistant", "content": "ready"}
+
+        def status_bar_elements(self):
+            self.status_bar_calls += 1
+            return [
+                {
+                    "ui_type": "status_bar",
+                    "data": "content",
+                    "template": "Last: {{data}}",
+                }
+            ]
+
+    app = _DummyApp()
+    assert (
+        term_mod._status_bar_text(app)  # type: ignore[arg-type]
+        == "Agent: agent-1  Session: session-1  Last: ready"
+    )
+    assert app.status_bar_calls == 1
 
 
 def test_plugins_completion_subcommands_and_ids() -> None:

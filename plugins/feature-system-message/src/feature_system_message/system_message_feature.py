@@ -799,6 +799,19 @@ class SystemMessageFeature(FeaturePlugin):
                 resolved[name] = ""
         return resolved, metadata_updates
 
+    @staticmethod
+    def _coerce_state_system_message_variables(state: Dict[str, Any]) -> Dict[str, str]:
+        raw = state.get("system_message_variables")
+        if not isinstance(raw, dict):
+            return {}
+
+        resolved: Dict[str, str] = {}
+        for key, value in raw.items():
+            if not isinstance(key, str):
+                continue
+            resolved[key] = "" if value is None else str(value)
+        return resolved
+
     # ---- Lifecycle ----
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize plugin from flat config and shared state.
@@ -947,15 +960,69 @@ class SystemMessageFeature(FeaturePlugin):
             cfg.get("variables") or {},
             runtime_context=runtime_context,
         )
+        variables = {
+            **variables,
+            **self._coerce_state_system_message_variables(state),
+        }
+
+        request = state.get("request") or {}
+        request_messages = request.get("messages")
+        request_is_list = isinstance(request_messages, list)
+        override_base = request_messages if request_is_list else working_native
+
+        override_is_responses_items = is_responses_items
+        if request_is_list:
+            for msg in request_messages:
+                if isinstance(msg, dict):
+                    override_is_responses_items = isinstance(msg.get("type"), str) and bool(
+                        msg.get("type")
+                    )
+                    break
 
         # Choose the system template to render. Prefer the *last* system
         # message in the native history so that user-supplied system
         # messages take precedence over any earlier, config-derived one.
-        if system_index is not None:
+        template_message = None
+        template_is_responses_items = override_is_responses_items
+        template_system_index: int | None = None
+        for idx in range(len(override_base) - 1, -1, -1):
+            msg = override_base[idx]
+            if not isinstance(msg, dict):
+                continue
+            if override_is_responses_items:
+                if msg.get("type") == "message" and msg.get("role") == "system":
+                    template_message = msg
+                    template_system_index = idx
+                    template_is_responses_items = True
+                    break
+            else:
+                if msg.get("role") == "system":
+                    template_message = msg
+                    template_system_index = idx
+                    template_is_responses_items = False
+                    break
+
+        if template_message is not None:
+            if template_is_responses_items:
+                content = template_message.get("content") if isinstance(template_message, dict) else None
+                text_parts: List[str] = []
+                if isinstance(content, list):
+                    for part in content:
+                        if not isinstance(part, dict):
+                            continue
+                        if part.get("type") != "input_text":
+                            continue
+                        text = part.get("text")
+                        if isinstance(text, str) and text:
+                            text_parts.append(text)
+                base_template = "\n".join(text_parts)
+            else:
+                base_template = str(template_message.get("content", "") or "")
+        elif system_index is not None:
             sys_msg = working_native[system_index]
             if is_responses_items:
                 content = sys_msg.get("content") if isinstance(sys_msg, dict) else None
-                text_parts: List[str] = []
+                text_parts = []
                 if isinstance(content, list):
                     for part in content:
                         if not isinstance(part, dict):
@@ -975,7 +1042,6 @@ class SystemMessageFeature(FeaturePlugin):
             return working_native, state
 
         rendered = self._render_template(base_template, variables)
-        request = state.get("request") or {}
 
         if cfg.get("as_instructions", False):
             existing_instructions = request.get("instructions")
@@ -1002,10 +1068,10 @@ class SystemMessageFeature(FeaturePlugin):
 
         # Build override messages: same as native history, but with the
         # chosen system message rendered at the selected index.
-        override_messages = list(working_native)
-        if system_index is not None:
-            original = dict(override_messages[system_index])
-            if is_responses_items:
+        override_messages = list(override_base)
+        if template_system_index is not None:
+            original = dict(override_messages[template_system_index])
+            if override_is_responses_items:
                 content = original.get("content")
                 parts = list(content) if isinstance(content, list) else []
 
@@ -1024,11 +1090,17 @@ class SystemMessageFeature(FeaturePlugin):
                 if not replaced:
                     new_parts = [{"type": "input_text", "text": rendered}, *new_parts]
 
-                override_messages[system_index] = {**original, "content": new_parts}
+                override_messages[template_system_index] = {
+                    **original,
+                    "content": new_parts,
+                }
             else:
-                override_messages[system_index] = {**original, "content": rendered}
+                override_messages[template_system_index] = {
+                    **original,
+                    "content": rendered,
+                }
         else:
-            if is_responses_items:
+            if override_is_responses_items:
                 override_messages = [
                     {
                         "type": "message",

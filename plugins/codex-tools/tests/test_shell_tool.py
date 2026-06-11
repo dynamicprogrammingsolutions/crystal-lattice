@@ -222,6 +222,22 @@ class TestShellArrayToolExecute:
         assert result["exit_code"] == 1
 
     @pytest.mark.asyncio
+    async def test_invalid_workdir_returns_codex_like_spawn_error(self) -> None:
+        wrapper = ToolWrapper(ShellArrayTool)
+        state = wrapper.init({})
+
+        result = await wrapper.execute_tool_async(
+            "shell",
+            {"command": ["echo", "hello"], "workdir": "/definitely/missing/workdir"},
+            state,
+        )
+
+        assert result["success"] is False
+        assert result["exit_code"] is None
+        assert "Error: failed to spawn command:" in result["output"]
+        assert "workdir: /definitely/missing/workdir" in result["output"]
+
+    @pytest.mark.asyncio
     async def test_stderr_capture(self, tmp_path: Path) -> None:
         """Stderr should be captured in output."""
         wrapper = ToolWrapper(ShellArrayTool)

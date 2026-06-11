@@ -1,0 +1,56 @@
+{
+  "assistant_tool_use": {
+    "id": "<TOOL_CALL_ID>",
+    "input": {
+      "path": "<WORKSPACE>/many",
+      "pattern": "**/*.py"
+    },
+    "name": "Glob",
+    "type": "tool_use"
+  },
+  "case": "success-truncated-results",
+  "claude_returncode": 0,
+  "final_result": "DONE",
+  "raw_artifact_dir": null,
+  "request_count": 3,
+  "request_urls": [
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true"
+  ],
+  "tool_result_message": {
+    "content": [
+      {
+        "cache_control": {
+          "type": "ephemeral"
+        },
+        "content": "<WORKSPACE>/many/file_000.py\n<WORKSPACE>/many/file_001.py\n<WORKSPACE>/many/file_002.py\n<WORKSPACE>/many/file_003.py\n<WORKSPACE>/many/file_004.py\n<WORKSPACE>/many/file_005.py\n<WORKSPACE>/many/file_006.py\n<WORKSPACE>/many/file_007.py\n<WORKSPACE>/many/file_008.py\n<WORKSPACE>/many/file_009.py\n<WORKSPACE>/many/file_010.py\n<WORKSPACE>/many/file_011.py\n<WORKSPACE>/many/file_012.py\n<WORKSPACE>/many/file_013.py\n<WORKSPACE>/many/file_014.py\n<WORKSPACE>/many/file_015.py\n<WORKSPACE>/many/file_016.py\n<WORKSPACE>/many/file_017.py\n<WORKSPACE>/many/file_018.py\n<WORKSPACE>/many/file_019.py\n<WORKSPACE>/many/file_020.py\n<WORKSPACE>/many/file_021.py\n<WORKSPACE>/many/file_022.py\n<WORKSPACE>/many/file_023.py\n<WORKSPACE>/many/file_024.py\n<WORKSPACE>/many/file_025.py\n<WORKSPACE>/many/file_026.py\n<WORKSPACE>/many/file_027.py\n<WORKSPACE>/many/file_028.py\n<WORKSPACE>/many/file_029.py\n<WORKSPACE>/many/file_030.py\n<WORKSPACE>/many/file_031.py\n<WORKSPACE>/many/file_032.py\n<WORKSPACE>/many/file_033.py\n<WORKSPACE>/many/file_034.py\n<WORKSPACE>/many/file_035.py\n<WORKSPACE>/many/file_036.py\n<WORKSPACE>/many/file_037.py\n<WORKSPACE>/many/file_038.py\n<WORKSPACE>/many/file_039.py\n<WORKSPACE>/many/file_040.py\n<WORKSPACE>/many/file_041.py\n<WORKSPACE>/many/file_042.py\n<WORKSPACE>/many/file_043.py\n<WORKSPACE>/many/file_044.py\n<WORKSPACE>/many/file_045.py\n<WORKSPACE>/many/file_046.py\n<WORKSPACE>/many/file_047.py\n<WORKSPACE>/many/file_048.py\n<WORKSPACE>/many/file_049.py\n<WORKSPACE>/many/file_050.py\n<WORKSPACE>/many/file_051.py\n<WORKSPACE>/many/file_052.py\n<WORKSPACE>/many/file_053.py\n<WORKSPACE>/many/file_054.py\n<WORKSPACE>/many/file_055.py\n<WORKSPACE>/many/file_056.py\n<WORKSPACE>/many/file_057.py\n<WORKSPACE>/many/file_058.py\n<WORKSPACE>/many/file_059.py\n<WORKSPACE>/many/file_060.py\n<WORKSPACE>/many/file_061.py\n<WORKSPACE>/many/file_062.py\n<WORKSPACE>/many/file_063.py\n<WORKSPACE>/many/file_064.py\n<WORKSPACE>/many/file_065.py\n<WORKSPACE>/many/file_066.py\n<WORKSPACE>/many/file_067.py\n<WORKSPACE>/many/file_068.py\n<WORKSPACE>/many/file_069.py\n<WORKSPACE>/many/file_070.py\n<WORKSPACE>/many/file_071.py\n<WORKSPACE>/many/file_072.py\n<WORKSPACE>/many/file_073.py\n<WORKSPACE>/many/file_074.py\n<WORKSPACE>/many/file_075.py\n<WORKSPACE>/many/file_076.py\n<WORKSPACE>/many/file_077.py\n<WORKSPACE>/many/file_078.py\n<WORKSPACE>/many/file_079.py\n<WORKSPACE>/many/file_080.py\n<WORKSPACE>/many/file_081.py\n<WORKSPACE>/many/file_082.py\n<WORKSPACE>/many/file_083.py\n<WORKSPACE>/many/file_084.py\n<WORKSPACE>/many/file_085.py\n<WORKSPACE>/many/file_086.py\n<WORKSPACE>/many/file_087.py\n<WORKSPACE>/many/file_088.py\n<WORKSPACE>/many/file_089.py\n<WORKSPACE>/many/file_090.py\n<WORKSPACE>/many/file_091.py\n<WORKSPACE>/many/file_092.py\n<WORKSPACE>/many/file_093.py\n<WORKSPACE>/many/file_094.py\n<WORKSPACE>/many/file_095.py\n<WORKSPACE>/many/file_096.py\n<WORKSPACE>/many/file_097.py\n<WORKSPACE>/many/file_098.py\n<WORKSPACE>/many/file_099.py\n(Results are truncated. Consider using a more specific path or pattern.)",
+        "tool_use_id": "<TOOL_CALL_ID>",
+        "type": "tool_result"
+      }
+    ],
+    "role": "user"
+  },
+  "tool_schema": {
+    "description": "- Fast file pattern matching tool that works with any codebase size\n- Supports glob patterns like \"**/*.js\" or \"src/**/*.ts\"\n- Returns matching file paths sorted by modification time\n- Use this tool when you need to find files by name patterns\n- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Agent tool instead",
+    "input_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "description": "The directory to search in. If not specified, the current working directory will be used. IMPORTANT: Omit this field to use the default directory. DO NOT enter \"undefined\" or \"null\" - simply omit it for the default behavior. Must be a valid directory path if provided.",
+          "type": "string"
+        },
+        "pattern": {
+          "description": "The glob pattern to match files against",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pattern"
+      ],
+      "type": "object"
+    },
+    "name": "Glob"
+  }
+}

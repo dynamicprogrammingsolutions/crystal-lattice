@@ -1,7 +1,7 @@
 import type { AgentBackend } from '../backend/backend';
 import type { ExecuteActionResponse } from '../types/plugins';
+import type { UiSchemaElement } from '../types/uiSchema';
 
-export const DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID = 'openai_responses_attachments';
 export const DEFAULT_ATTACHMENT_ACTION_OWNER = 'provider_extension';
 export const SESSION_ASSET_ATTACHMENTS_PLUGIN_ID = 'session_asset_attachments';
 export const STORE_ATTACHMENT_ACTION_ID = 'store_attachment';
@@ -32,6 +32,12 @@ export interface StoredAttachmentAssetDescriptor {
 export interface DownloadedAttachmentPayload {
   attachment_asset: StoredAttachmentAssetDescriptor;
   data_base64: string;
+}
+
+export interface ComposerAttachmentUiElement extends UiSchemaElement {
+  ui_type: 'composer_attachment';
+  attachment_type?: string;
+  attachment_action_plugin?: string;
 }
 
 function actionErrorMessage(response: ExecuteActionResponse): string {
@@ -84,8 +90,27 @@ function ensureStoredAttachmentDescriptor(value: any): StoredAttachmentAssetDesc
   return value as StoredAttachmentAssetDescriptor;
 }
 
-function attachmentActionOwner(pluginId: string): string {
+function attachmentActionOwner(pluginId: string, actionOwner?: string | null): string {
+  if (typeof actionOwner === 'string' && actionOwner.trim()) {
+    return actionOwner.trim();
+  }
   return pluginId === SESSION_ASSET_ATTACHMENTS_PLUGIN_ID ? 'application' : DEFAULT_ATTACHMENT_ACTION_OWNER;
+}
+
+export function resolveAttachmentActionPluginId(
+  element: ComposerAttachmentUiElement | null | undefined,
+): string | null {
+  const actionPlugin = element?.attachment_action_plugin;
+  if (typeof actionPlugin === 'string' && actionPlugin.trim()) {
+    return actionPlugin.trim();
+  }
+
+  const plugin = element?.plugin;
+  if (typeof plugin === 'string' && plugin.trim()) {
+    return plugin.trim();
+  }
+
+  return null;
 }
 
 export function selectSessionAssetId(content: any): string | null {
@@ -111,14 +136,15 @@ export async function storeSessionAttachment(options: {
   dataUrl?: string | null;
   dataBase64?: string | null;
   clientAttachmentId?: string | null;
-  pluginId?: string;
+  pluginId: string;
+  actionOwner?: string | null;
   idempotencyKey?: string;
 }): Promise<StoredAttachmentAssetDescriptor> {
-  const pluginId =
-    typeof options.pluginId === 'string' && options.pluginId.trim()
-      ? options.pluginId.trim()
-      : DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID;
+  const pluginId = typeof options.pluginId === 'string' ? options.pluginId.trim() : '';
   const sessionId = typeof options.sessionId === 'string' ? options.sessionId.trim() : '';
+  if (!pluginId) {
+    throw new Error('pluginId is required to store an attachment.');
+  }
   if (!sessionId) {
     throw new Error('sessionId is required to store an attachment.');
   }
@@ -126,7 +152,7 @@ export async function storeSessionAttachment(options: {
   const response = await options.backend.executeAction({
     pluginId,
     actionId: STORE_ATTACHMENT_ACTION_ID,
-      actionOwner: attachmentActionOwner(pluginId),
+    actionOwner: attachmentActionOwner(pluginId, options.actionOwner),
     idempotencyKey: options.idempotencyKey,
     inputs: {
       session_id: sessionId,
@@ -154,15 +180,16 @@ export async function deleteSessionAttachment(options: {
   backend: AgentBackend;
   sessionId: string;
   assetId: string;
-  pluginId?: string;
+  pluginId: string;
+  actionOwner?: string | null;
   idempotencyKey?: string;
 }): Promise<StoredAttachmentAssetDescriptor> {
-  const pluginId =
-    typeof options.pluginId === 'string' && options.pluginId.trim()
-      ? options.pluginId.trim()
-      : DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID;
+  const pluginId = typeof options.pluginId === 'string' ? options.pluginId.trim() : '';
   const sessionId = typeof options.sessionId === 'string' ? options.sessionId.trim() : '';
   const assetId = typeof options.assetId === 'string' ? options.assetId.trim() : '';
+  if (!pluginId) {
+    throw new Error('pluginId is required to delete an attachment.');
+  }
   if (!sessionId) {
     throw new Error('sessionId is required to delete an attachment.');
   }
@@ -173,7 +200,7 @@ export async function deleteSessionAttachment(options: {
   const response = await options.backend.executeAction({
     pluginId,
     actionId: DELETE_ATTACHMENT_ACTION_ID,
-      actionOwner: attachmentActionOwner(pluginId),
+    actionOwner: attachmentActionOwner(pluginId, options.actionOwner),
     idempotencyKey: options.idempotencyKey,
     inputs: {
       session_id: sessionId,
@@ -192,15 +219,16 @@ export async function downloadSessionAttachment(options: {
   backend: AgentBackend;
   sessionId: string;
   assetId: string;
-  pluginId?: string;
+  pluginId: string;
+  actionOwner?: string | null;
   idempotencyKey?: string;
 }): Promise<DownloadedAttachmentPayload> {
-  const pluginId =
-    typeof options.pluginId === 'string' && options.pluginId.trim()
-      ? options.pluginId.trim()
-      : DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID;
+  const pluginId = typeof options.pluginId === 'string' ? options.pluginId.trim() : '';
   const sessionId = typeof options.sessionId === 'string' ? options.sessionId.trim() : '';
   const assetId = typeof options.assetId === 'string' ? options.assetId.trim() : '';
+  if (!pluginId) {
+    throw new Error('pluginId is required to download an attachment.');
+  }
   if (!sessionId) {
     throw new Error('sessionId is required to download an attachment.');
   }
@@ -211,7 +239,7 @@ export async function downloadSessionAttachment(options: {
   const response = await options.backend.executeAction({
     pluginId,
     actionId: DOWNLOAD_ATTACHMENT_ACTION_ID,
-      actionOwner: attachmentActionOwner(pluginId),
+    actionOwner: attachmentActionOwner(pluginId, options.actionOwner),
     idempotencyKey: options.idempotencyKey,
     inputs: {
       session_id: sessionId,

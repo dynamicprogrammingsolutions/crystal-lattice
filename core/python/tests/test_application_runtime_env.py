@@ -209,3 +209,17 @@ def test_runtime_store_get_or_create_reuses_existing_value(tmp_path: Path) -> No
     assert first is second
     assert created == [first]
     app.close()
+
+
+def test_runtime_state_root_defaults_next_to_sessions(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(
+        str(config_path),
+        str(session_root),
+        core_factory=AgentCore,
+    )
+
+    assert app.get_runtime_state_root() == (session_root.parent / "runtime").resolve()
+    assert app.get_runtime_state_root().exists() is True
+    app.close()

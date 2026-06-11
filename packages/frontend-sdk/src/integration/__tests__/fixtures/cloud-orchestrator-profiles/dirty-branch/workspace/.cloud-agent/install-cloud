@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+
+printf 'ok\n' > "${CLOUD_WORKSPACE_DIR}/install.ok"

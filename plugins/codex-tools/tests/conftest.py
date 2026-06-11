@@ -8,6 +8,7 @@ def pytest_configure() -> None:
     root = Path(__file__).resolve().parents[3]
     for rel in (
         "plugins/codex-tools/src",
+        "plugins/skill-shared/src",
         "plugins/mcp-shared/src",
         "plugins/openai_responses/src",
         "plugins/openrouter/src",

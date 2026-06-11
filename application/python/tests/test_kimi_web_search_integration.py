@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 
 import pytest
+
+from repo_test_env import get_repo_env
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -20,24 +21,9 @@ if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
 
 
-def _get_env_key(key_name: str) -> str:
-    value = os.environ.get(key_name, "")
-    if value:
-        return value
-    env_path = ROOT / ".env"
-    if not env_path.exists():
-        return ""
-    with open(env_path) as f:
-        for line in f:
-            line = line.strip()
-            if line.startswith(f"{key_name}="):
-                return line[len(key_name) + 1 :].strip().strip('"').strip("'")
-    return ""
-
-
 @pytest.fixture(scope="module")
 def gemini_api_key() -> str:
-    key = _get_env_key("GEMINI_API_KEY")
+    key = get_repo_env("GEMINI_API_KEY")
     if not key:
         pytest.skip("GEMINI_API_KEY not set; skipping Kimi SearchWeb integration")
     return key
@@ -45,7 +31,7 @@ def gemini_api_key() -> str:
 
 @pytest.fixture(scope="module")
 def openrouter_api_key() -> str:
-    key = _get_env_key("OPENROUTER_API_KEY")
+    key = get_repo_env("OPENROUTER_API_KEY")
     if not key:
         pytest.skip("OPENROUTER_API_KEY not set; skipping default config test")
     return key
@@ -62,7 +48,7 @@ def _make_agent_app(
 
     monkeypatch.setenv("OPENROUTER_API_KEY", openrouter_api_key)
     monkeypatch.setenv("GEMINI_API_KEY", gemini_api_key)
-    monkeypatch.setenv("TAVILY_API_KEY", _get_env_key("TAVILY_API_KEY"))
+    monkeypatch.setenv("TAVILY_API_KEY", get_repo_env("TAVILY_API_KEY"))
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
     monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
     monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
@@ -78,6 +64,9 @@ def _make_agent_app(
         / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     monkeypatch.setenv("WORKING_DIR", str(workspace))
@@ -92,6 +81,7 @@ def _make_agent_app(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 def test_kimi_default_config_search_web_with_gemini_override(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

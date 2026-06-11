@@ -49,6 +49,10 @@ def test_default_config_effective_agent_configs_stay_intact(
         / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
     session_root = tmp_path / "sessions"
 
     app = AgentApplication(
@@ -57,10 +61,34 @@ def test_default_config_effective_agent_configs_stay_intact(
     assert app.get_config_errors() == []
 
     cases = {
+        "cloud-script-author": {
+            "provider": "openai_responses",
+            "model": "gpt-5.4-mini",
+            "auth_mode": "auto",
+            "allowed_paths": [
+                ".",
+                "..",
+                str(
+                    Path(__file__).resolve().parents[3] / "plugins" / "cloud-agent-app"
+                ),
+                str(
+                    Path(__file__).resolve().parents[1]
+                    / "agent_terminal_app"
+                    / "default_config"
+                    / "cloud-agent"
+                    / "profiles"
+                ),
+            ],
+            "shell_tool_mode": "auto",
+            "system_message_enabled": True,
+            "skills_enabled": True,
+        },
         "codex-openai-api": {
             "provider": "openai_responses",
             "auth_mode": "api",
             "shell_tool_mode": "auto",
+            "skills_enabled": True,
+            "skills_roots": [".agents/skills"],
         },
         "glm": {
             "provider": "openrouter",
@@ -75,6 +103,9 @@ def test_default_config_effective_agent_configs_stay_intact(
             "reasoning_max_tokens": 16000,
             "web_search_enabled": True,
             "web_search_provider": "gemini_api",
+            "mcp_enabled": False,
+            "mcp_reuse_runtime": True,
+            "mcp_fail_on_startup_error": False,
             "request_options": {
                 "provider": {"order": ["anthropic"], "allow_fallbacks": False}
             },

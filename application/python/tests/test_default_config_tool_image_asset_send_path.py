@@ -44,6 +44,10 @@ PNG_BYTES = base64.b64decode(
 
 def _set_default_config_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CONFIG_DIR", str(CONFIG_PATH.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT",
+        str(ROOT / "build" / "test-cloud-runtime-context"),
+    )
     monkeypatch.setenv("OPENROUTER_API_KEY", "test-openrouter-key")
     monkeypatch.setenv("OPENAI_API_KEY", "test-openai-key")
     monkeypatch.setenv("GEMINI_API_KEY", "test-gemini-key")

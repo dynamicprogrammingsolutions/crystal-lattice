@@ -659,6 +659,7 @@ class BashToolSource:
             }
 
         positional = raw.get("positional")
+        config_keys = raw.get("config_keys")
         pos_entries: List[Dict[str, Any]] = []
         if args_mode == "positional":
             if not isinstance(positional, list) or not positional:
@@ -710,6 +711,7 @@ class BashToolSource:
             "args_mode": args_mode,
             "tools": tools,
             "positional": pos_entries,
+            "config_keys": list(config_keys) if isinstance(config_keys, list) else config_keys,
         }, None
 
     def _tool_schema_properties(self, schema0: Mapping[str, Any]) -> Optional[set[str]]:
@@ -741,6 +743,7 @@ class BashToolSource:
         args_mode = schema.get("args_mode")
         tools = schema.get("tools")
         positional = schema.get("positional")
+        config_keys = schema.get("config_keys")
 
         if args_mode not in {"flags", "positional", "json"}:
             return None, {
@@ -752,6 +755,15 @@ class BashToolSource:
             return None, {
                 "type": "plugin_descriptor_invalid",
                 "detail": "Missing tools list",
+                "path": str(tool_path),
+            }
+        if config_keys is not None and (
+            not isinstance(config_keys, list)
+            or not all(isinstance(item, str) and item.strip() for item in config_keys)
+        ):
+            return None, {
+                "type": "plugin_descriptor_invalid",
+                "detail": "Invalid config_keys; expected a list of non-empty strings",
                 "path": str(tool_path),
             }
 
@@ -769,6 +781,7 @@ class BashToolSource:
             "bash_tools": tools,
             "bash_args_mode": str(args_mode),
             "bash_positional": positional if isinstance(positional, list) else [],
+            "bash_config_keys": list(config_keys) if isinstance(config_keys, list) else [],
             "bash_timeout_seconds": timeout_val,
             "bash_error_timeout_seconds": err_timeout_val,
             "bash_stream_stderr": stream_stderr,

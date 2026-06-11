@@ -22,5 +22,15 @@
     "gemini_tools.gemini_shell_tool.GeminiShellTool": "tools",
     "gemini_tools.gemini_web_fetch_tool.GeminiWebFetchTool": "tools",
     "gemini_tools.gemini_web_search_tool.GeminiWebSearchTool": "tools"
-  }
+  },
+  "local_workspace_dependencies": [
+    {
+      "name": "tool-compat-shared",
+      "path": "../tool-compat-shared"
+    },
+    {
+      "name": "web-fetch-shared",
+      "path": "../web-fetch-shared"
+    }
+  ]
 }

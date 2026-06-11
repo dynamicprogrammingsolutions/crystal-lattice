@@ -46,7 +46,9 @@ def _assert_generated_image_response(
     assistant = final_messages[-1]
     assert assistant["role"] == "assistant"
     multipart = assistant.get("multipartContent")
-    assert isinstance(multipart, list) and multipart, "expected assistant multipart image output"
+    assert (
+        isinstance(multipart, list) and multipart
+    ), "expected assistant multipart image output"
 
     image_part = multipart[0]
     assert image_part.get("type") == "image"
@@ -65,7 +67,9 @@ def _assert_generated_image_response(
         return
 
     metadata = getattr(session_like, "metadata", None) or {}
-    session_assets = metadata.get("session_assets") if isinstance(metadata, dict) else None
+    session_assets = (
+        metadata.get("session_assets") if isinstance(metadata, dict) else None
+    )
     assert isinstance(session_assets, dict)
     assert asset_ref["asset_id"] in session_assets
 
@@ -105,6 +109,7 @@ def _wait_for_final_event(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_config_openrouter_image_agent_generates_asset_backed_image(
     ensure_openrouter_api_key: str,
@@ -125,10 +130,22 @@ def test_default_config_openrouter_image_agent_generates_asset_backed_image(
     monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
     monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
 
-    config_path = ROOT / "application" / "python" / "agent_terminal_app" / "default_config" / "config.json"
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
     session_root = tmp_path / "sessions"
 
-    app = AgentApplication(str(config_path), str(session_root), event_store=InMemoryEventStore())
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=InMemoryEventStore()
+    )
     assert app.get_config_errors() == []
 
     try:
@@ -146,13 +163,17 @@ def test_default_config_openrouter_image_agent_generates_asset_backed_image(
         error_events = [event for event in events if event.get("type") == "error"]
         if error_events:
             detail = error_events[-1].get("detail")
-            if isinstance(detail, str) and ("402" in detail or "Payment Required" in detail):
+            if isinstance(detail, str) and (
+                "402" in detail or "Payment Required" in detail
+            ):
                 pytest.skip(
                     f"OpenRouter account could not access default-config image-generation agent: {detail}"
                 )
 
         final_events = [event for event in events if event.get("type") == "final"]
-        assert final_events, "expected final event from default-config image-generation agent"
+        assert (
+            final_events
+        ), "expected final event from default-config image-generation agent"
 
         final_messages = final_events[-1]["messages"]
         stored_session = app.load_session_record(session.session_id)
@@ -167,6 +188,7 @@ def test_default_config_openrouter_image_agent_generates_asset_backed_image(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_config_openrouter_image_agent_send_message_endpoint_real_api(
     ensure_openrouter_api_key: str,
@@ -187,15 +209,29 @@ def test_default_config_openrouter_image_agent_send_message_endpoint_real_api(
     monkeypatch.setenv("FIREWORKS_API_KEY", "test-fireworks-key")
     monkeypatch.setenv("ZAI_API_KEY", "test-zai-key")
 
-    config_path = ROOT / "application" / "python" / "agent_terminal_app" / "default_config" / "config.json"
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
     session_root = tmp_path / "sessions"
 
-    app = AgentApplication(str(config_path), str(session_root), event_store=InMemoryEventStore())
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=InMemoryEventStore()
+    )
     assert app.get_config_errors() == []
     client = _install_test_client(app)
 
     try:
-        create_response = client.post("/sessions", json={"agent_id": "openrouter-image"})
+        create_response = client.post(
+            "/sessions", json={"agent_id": "openrouter-image"}
+        )
         assert create_response.status_code == 200
         session_id = create_response.json()["session"]["session_id"]
 
@@ -216,7 +252,9 @@ def test_default_config_openrouter_image_agent_send_message_endpoint_real_api(
         error_events = [event for event in events if event.get("type") == "error"]
         if error_events:
             detail = error_events[-1].get("detail")
-            if isinstance(detail, str) and ("402" in detail or "Payment Required" in detail):
+            if isinstance(detail, str) and (
+                "402" in detail or "Payment Required" in detail
+            ):
                 pytest.skip(
                     f"OpenRouter account could not access default-config image-generation endpoint test: {detail}"
                 )

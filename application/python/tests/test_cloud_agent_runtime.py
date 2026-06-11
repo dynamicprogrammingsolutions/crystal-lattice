@@ -12,7 +12,16 @@ from fastapi.testclient import TestClient
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-RUNTIME_PATH = REPO_ROOT / "cloud-orchestrator" / "runtime" / "python" / "runtime.py"
+RUNTIME_PATH = (
+    REPO_ROOT
+    / "plugins"
+    / "cloud-agent-app"
+    / "src"
+    / "cloud_agent_app"
+    / "bundled_runtime"
+    / "python"
+    / "runtime.py"
+)
 
 
 @pytest.fixture(autouse=True)
@@ -141,6 +150,7 @@ def test_cloud_runtime_materializes_transfer_and_runs_setup_and_export_scripts(
     for path in (scripts_dir, config_dir / "assets"):
         path.mkdir(parents=True, exist_ok=True)
     (transfer_dir / "local.txt").write_text("from local\n", encoding="utf-8")
+    (cloud_root / "manifest.json").write_text("{}", encoding="utf-8")
     (config_dir / "config.json").write_text(
         json.dumps(
             {
@@ -163,6 +173,18 @@ def test_cloud_runtime_materializes_transfer_and_runs_setup_and_export_scripts(
         encoding="utf-8",
     )
     setup_script.chmod(0o755)
+    install_script = scripts_dir / "install"
+    install_script.write_text(
+        '#!/usr/bin/env bash\nset -euo pipefail\nprintf install > "$CLOUD_WORKSPACE_DIR/install-ran.txt"\n',
+        encoding="utf-8",
+    )
+    install_script.chmod(0o755)
+    validate_script = scripts_dir / "validate"
+    validate_script.write_text(
+        '#!/usr/bin/env bash\nset -euo pipefail\nprintf validate > "$CLOUD_WORKSPACE_DIR/validate-ran.txt"\n',
+        encoding="utf-8",
+    )
+    validate_script.chmod(0o755)
     export_script = scripts_dir / "export"
     export_script.write_text(
         '#!/usr/bin/env bash\nset -euo pipefail\ncp "$CLOUD_WORKSPACE_DIR/local.txt" "$TRANSFER_DIR/exported.txt"\n',
@@ -199,6 +221,16 @@ def test_cloud_runtime_materializes_transfer_and_runs_setup_and_export_scripts(
         assert (instance_dir / "workspace" / "setup-ran.txt").read_text(
             encoding="utf-8"
         ) == "setup"
+        assert (instance_dir / "workspace" / "install-ran.txt").read_text(
+            encoding="utf-8"
+        ) == "install"
+
+        validated = client.post("/cloud-agent/runtime/validate")
+        assert validated.status_code == 200
+        assert validated.json()["validate"]["status"] == "ran"
+        assert (instance_dir / "workspace" / "validate-ran.txt").read_text(
+            encoding="utf-8"
+        ) == "validate"
 
         exported = client.post("/cloud-agent/runtime/export")
         assert exported.status_code == 200
@@ -250,11 +282,10 @@ def test_cloud_runtime_health_is_available_before_agent_application_ready(
 
     class BlockingAgentApplication:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
-            deadline = time.time() + 2
-            while not release and time.time() < deadline:
+            while not release:
                 time.sleep(0.01)
 
-    monkeypatch.setattr(runtime, "AgentApplication", BlockingAgentApplication)
+    monkeypatch.setattr(runtime.cloud_runtime, "AgentApplication", BlockingAgentApplication)
 
     with TestClient(runtime.app) as client:
         health = client.get("/health")
@@ -270,9 +301,75 @@ def test_cloud_runtime_health_is_available_before_agent_application_ready(
             "agent_application_initializing",
         }
 
-        sessions = client.get("/sessions")
-        assert sessions.status_code == 503
-        assert sessions.json()["detail"]["error"] == "runtime_not_ready"
+        validation = client.post("/cloud-agent/runtime/validate")
+        assert validation.status_code == 503
+        assert validation.json()["detail"]["error"] == "runtime_not_ready"
 
         release = True
         assert _wait_ready(client)["ready"] is True
+
+
+def test_cloud_runtime_validate_endpoint_surfaces_validate_script_failure(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    instance_dir = tmp_path / "instance"
+    transfer_dir = tmp_path / "transfer"
+    cloud_root = transfer_dir / ".cloud-agent"
+    scripts_dir = cloud_root / "scripts"
+    config_dir = cloud_root / "config"
+    sessions_dir = cloud_root / "sessions"
+    for path in (scripts_dir, config_dir / "assets", sessions_dir):
+        path.mkdir(parents=True, exist_ok=True)
+    (transfer_dir / "local.txt").write_text("from local\n", encoding="utf-8")
+    (cloud_root / "manifest.json").write_text("{}", encoding="utf-8")
+    (config_dir / "config.json").write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "echo": {
+                        "provider": "echo_openai_like",
+                        "model": "test-model",
+                        "stream": False,
+                    }
+                },
+                "plugins": ["plugins.echo_openai_like_provider.EchoOpenAILikeProvider"],
+                "agents": {"default": {"provider": "echo"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (sessions_dir / "session-validation.json").write_text(
+        json.dumps({"session_id": "session-validation", "messages": [], "metadata": {}}),
+        encoding="utf-8",
+    )
+    validate_script = scripts_dir / "validate"
+    validate_script.write_text(
+        '#!/usr/bin/env bash\nset -euo pipefail\necho "broken validate" >&2\nexit 7\n',
+        encoding="utf-8",
+    )
+    validate_script.chmod(0o755)
+
+    monkeypatch.setenv("CLOUD_AGENT_INSTANCE_DIR", str(instance_dir))
+    monkeypatch.setenv("CLOUD_AGENT_WORKSPACE_DIR", str(instance_dir / "workspace"))
+    monkeypatch.setenv("CLOUD_AGENT_SESSIONS_DIR", str(instance_dir / "sessions"))
+    monkeypatch.setenv(
+        "CLOUD_AGENT_CONFIG_PATH", str(instance_dir / "config" / "config.json")
+    )
+    monkeypatch.setenv("CONFIG_DIR", str(instance_dir / "config" / "assets"))
+    monkeypatch.setenv("WORKING_DIR", str(instance_dir / "workspace"))
+    monkeypatch.setenv("TRANSFER_DIR", str(transfer_dir))
+    monkeypatch.setenv("CLOUD_AGENT_VALIDATION_SESSION_ID", "session-validation")
+    monkeypatch.delenv("ENABLE_BONJOUR", raising=False)
+    monkeypatch.delenv("BRIDGE_URL", raising=False)
+
+    runtime = _load_runtime_module("cloud_agent_runtime_validate_failure_test")
+    runtime.server_mod._agent_app = None
+    with TestClient(runtime.app) as client:
+        assert _wait_ready(client)["ready"] is True
+        validated = client.post("/cloud-agent/runtime/validate")
+        assert validated.status_code == 409
+        detail = validated.json()["detail"]
+        assert detail["error"] == "script_failed"
+        assert detail["stage"] == "cloud_validation_running"
+        assert detail["returncode"] == 7

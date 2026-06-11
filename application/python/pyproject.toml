@@ -51,11 +51,14 @@ agent_terminal_app = [
 ]
 
 [tool.pytest.ini_options]
+addopts = "-m 'not integration and not docker'"
 markers = [
     "integration: integration tests that may hit real services",
+    "api: hosted API integration tests requiring credentials and potentially incurring cost",
+    "slow_integration: slow integration tests that should be run selectively",
     "docker: tests that require Docker",
+    "ollama: tests that require a local Ollama server and model",
     "gemini: tests requiring Gemini credentials",
     "openai: tests requiring OpenAI credentials",
-    "ollama: Ollama integration tests",
     "openrouter: OpenRouter integration tests",
 ]

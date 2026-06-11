@@ -18,24 +18,21 @@ import {
   waitForAsync,
 } from '../harness';
 
-const RUN = process.env.RUN_CLOUD_ORCHESTRATOR_E2E === '1';
-const describeIf = RUN ? describe : describe.skip;
 const CLOUD_ORCHESTRATOR_E2E_MODE = process.env.CLOUD_ORCHESTRATOR_E2E_MODE || '';
+const IS_LOCAL_CLOUD_ORCHESTRATOR_E2E =
+  CLOUD_ORCHESTRATOR_E2E_MODE === '' || CLOUD_ORCHESTRATOR_E2E_MODE === 'local';
 const IS_AWS_E2E = CLOUD_ORCHESTRATOR_E2E_MODE.startsWith('aws-');
 // Keep provider-gated suites gated only by explicit test flags. The backend
 // application loads dotenv values from the config directory, .crystal dirs, and
 // the current directory/parents; checking provider keys in this Node process
 // would skip before exercising the normal application credential path.
 const RUN_OPENROUTER =
-  RUN &&
   process.env.RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E === '1';
 const describeOpenRouterIf = RUN_OPENROUTER ? describe : describe.skip;
 const RUN_CODEX_DEFAULT_CONFIG =
-  RUN &&
   process.env.RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_E2E === '1';
 const describeCodexDefaultConfigIf = RUN_CODEX_DEFAULT_CONFIG ? describe.sequential : describe.skip;
 const RUN_CODEX_DEFAULT_CONFIG_EC2 =
-  RUN &&
   process.env.RUN_CLOUD_ORCHESTRATOR_CODEX_DEFAULT_CONFIG_EC2_E2E === '1' &&
   CLOUD_ORCHESTRATOR_E2E_MODE === 'aws-ec2-cloudfront';
 const describeCodexDefaultConfigEc2If = RUN_CODEX_DEFAULT_CONFIG_EC2
@@ -90,6 +87,7 @@ function localBackendConfig(options: {
     plugins: [
       'plugins.echo_openai_like_provider.EchoOpenAILikeProvider',
       'plugins.file_writer_tool.FileWriterTool',
+      'path:${env:BUILTIN_PLUGINS}/session-title-app',
       'path:${env:BUILTIN_PLUGINS}/cloud-agent-app',
     ],
     agents: {
@@ -170,6 +168,7 @@ function openRouterBackendConfig(options: {
 function writeCloudAgentScripts(workspaceDir: string): void {
   const scriptsDir = path.join(workspaceDir, '.cloud-agent');
   fs.mkdirSync(scriptsDir, { recursive: true });
+  const repoRoot = findRepoRoot(process.cwd());
 
   const scripts: Record<string, string> = {
     'transfer-up': [
@@ -237,6 +236,17 @@ function writeCloudAgentScripts(workspaceDir: string): void {
       '  fi',
       'fi',
     ].join('\n'),
+    'install-cloud': [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      'exit 0',
+    ].join('\n'),
+    'validate-cloud': [
+      '#!/usr/bin/env bash',
+      'set -euo pipefail',
+      ': "${CLOUD_WORKSPACE_DIR:?}"',
+      'test -d "${CLOUD_WORKSPACE_DIR}"',
+    ].join('\n'),
     'mark-synced': [
       '#!/usr/bin/env bash',
       'set -euo pipefail',
@@ -253,46 +263,21 @@ function writeCloudAgentScripts(workspaceDir: string): void {
     fs.writeFileSync(scriptPath, `${content}\n`, { encoding: 'utf8', mode: 0o755 });
   }
 
+  const projectConfigFixturePath = path.join(
+    repoRoot,
+    'packages',
+    'frontend-sdk',
+    'src',
+    'integration',
+    '__tests__',
+    'fixtures',
+    'cloud-orchestrator',
+    'common',
+    'cloud-agent-project-config.json',
+  );
   fs.writeFileSync(
     path.join(scriptsDir, 'cloud-agent.json'),
-    `${JSON.stringify(
-      {
-        default_transfer_up_profile: 'working-tree-current-state',
-        default_sync_down_profile: 'working-tree-patch',
-        default_container_profile: 'default-runtime',
-        transfer_up_profiles: {
-          'working-tree-current-state': {
-            label: 'Working tree current state',
-            local_transfer_script: '.cloud-agent/transfer-up',
-            install_profile: 'repo-install',
-            compatible_sync_down_profiles: ['working-tree-patch'],
-          },
-        },
-        install_profiles: {
-          'repo-install': {
-            label: 'Repository install',
-            cloud_install_script: '.cloud-agent/setup-cloud',
-          },
-        },
-        sync_down_profiles: {
-          'working-tree-patch': {
-            label: 'Apply cloud patch to current worktree',
-            cloud_export_script: '.cloud-agent/export-cloud',
-            cloud_mark_synced_script: '.cloud-agent/mark-synced',
-            local_apply_script: '.cloud-agent/apply-down',
-            compatible_transfer_up_profiles: ['working-tree-current-state'],
-          },
-        },
-        container_profiles: {
-          'default-runtime': {
-            label: 'Default cloud agent runtime',
-            image: 'cloud-agent-runtime:latest',
-          },
-        },
-      },
-      null,
-      2,
-    )}\n`,
+    `${fs.readFileSync(projectConfigFixturePath, 'utf8').trim()}\n`,
     { encoding: 'utf8' },
   );
 }
@@ -580,6 +565,114 @@ function requireCloudInstanceId(cloudLink: ReturnType<typeof parseCloudConnectio
   return cloudLink.instanceId;
 }
 
+async function startCloudSessionAgentAndWaitForLink(
+  localBackend: RestAgentBackend,
+  sessionId: string,
+  timeoutMs = 420_000,
+): Promise<ReturnType<typeof parseCloudConnectionLink>> {
+  const startResult = await localBackend.executeAction({
+    pluginId: 'cloud',
+    actionId: 'cloud.start_session_agent',
+    actionOwner: 'application',
+    inputs: { session_id: sessionId },
+  });
+  expect(startResult.status, JSON.stringify(startResult, null, 2)).toBe('ok');
+
+  let rawLink =
+    typeof (startResult.result as any).connection_link === 'string'
+      ? ((startResult.result as any).connection_link as string)
+      : '';
+
+  if (!rawLink) {
+    await waitForAsync(
+      async () => {
+        const checkResult = await localBackend.executeAction({
+          pluginId: 'cloud',
+          actionId: 'cloud.check_session_agent',
+          actionOwner: 'application',
+          inputs: { session_id: sessionId },
+        });
+        if (checkResult.status !== 'ok') {
+          throw new Error(`cloud.check_session_agent failed: ${JSON.stringify(checkResult, null, 2)}`);
+        }
+        const result = checkResult.result as any;
+        if (result.state === 'failed') {
+          throw new Error(`cloud startup failed: ${JSON.stringify(result, null, 2)}`);
+        }
+        if (typeof result.connection_link === 'string' && result.connection_link) {
+          rawLink = result.connection_link;
+          return true;
+        }
+        return false;
+      },
+      { timeoutMs, intervalMs: 2_000 },
+    );
+  }
+
+  return parseCloudConnectionLink(rawLink);
+}
+
+function expectRuntimeImagePreinstalledPlugins(): void {
+  if (!IS_LOCAL_CLOUD_ORCHESTRATOR_E2E) {
+    return;
+  }
+
+  const script = `
+import importlib.util
+import json
+from pathlib import Path
+
+root = Path("/opt/ai-agent-platform/cloud-runtime-plugin-bundle")
+manifest = json.loads((root / "manifest.json").read_text())
+preinstalled = set(manifest.get("preinstalled_plugins", []))
+expected = ["cloud-agent-app", "codex-tools", "session-title-app"]
+
+missing = [name for name in expected if name not in preinstalled]
+if missing:
+    raise AssertionError(f"missing preinstalled plugins: {missing}; manifest={manifest}")
+
+for name in expected:
+    descriptor_path = root / "bundled_plugins" / name / "agent_plugin.json"
+    descriptor = json.loads(descriptor_path.read_text())
+    if descriptor.get("preinstalled") is not True:
+        raise AssertionError(f"{name} descriptor is not marked preinstalled: {descriptor}")
+
+for module in ["cloud_agent_app", "codex_tools", "session_title_app"]:
+    if importlib.util.find_spec(module) is None:
+        raise AssertionError(f"module is not importable: {module}")
+`;
+
+  execFileSync(
+    'docker',
+    ['run', '--rm', 'cloud-agent-runtime:latest', 'python3', '-c', script],
+    { stdio: 'pipe' },
+  );
+}
+
+function expectCloudRuntimePluginCacheEmpty(orchestrator: StartedCloudOrchestrator): void {
+  if (!IS_LOCAL_CLOUD_ORCHESTRATOR_E2E) {
+    return;
+  }
+
+  const pluginCache = path.join(
+    orchestrator.dataDir,
+    'runtime-cache',
+    'plugin_cache',
+    'plugins',
+  );
+  if (!fs.existsSync(pluginCache)) {
+    return;
+  }
+
+  const entries = fs
+    .readdirSync(pluginCache, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+
+  expect(entries).toEqual([]);
+}
+
 async function runDefaultConfigCodexChain(options: {
   orchestrator: StartedCloudOrchestrator;
   agentId: 'codex-openrouter' | 'codex-openai';
@@ -672,14 +765,7 @@ async function runDefaultConfigCodexChain(options: {
       `${options.agentId} local first turn`,
     );
 
-    const startResult = await localBackend.executeAction({
-      pluginId: 'cloud',
-      actionId: 'cloud.start_session_agent',
-      actionOwner: 'application',
-      inputs: { session_id: sessionId },
-    });
-    expect(startResult.status, JSON.stringify(startResult, null, 2)).toBe('ok');
-    const cloudLink = parseCloudConnectionLink((startResult.result as any).connection_link as string);
+    const cloudLink = await startCloudSessionAgentAndWaitForLink(localBackend, sessionId);
     expect(cloudLink.connectionId).toBeTruthy();
     await waitForCloudInstanceRunning(cloudLink, 300_000);
     const cloudTransport = cloudTransportFromLink(cloudLink, 180_000);
@@ -733,6 +819,21 @@ async function runDefaultConfigCodexChain(options: {
       `${options.agentId} cloud turn`,
     );
 
+    const syncDownResult = await localBackend.executeAction({
+      pluginId: 'cloud',
+      actionId: 'cloud.sync_down',
+      actionOwner: 'application',
+      inputs: {
+        instance_id: requireCloudInstanceId(cloudLink),
+        session_id: sessionId,
+        workspace_dir: workspaceDir,
+      },
+    });
+    expect(syncDownResult.status, JSON.stringify(syncDownResult, null, 2)).toBe('ok');
+    expect(fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim()).toBe(
+      'local1=alpha\ncloud2=alpha-bravo',
+    );
+
     const closeResult = await localBackend.executeAction({
       pluginId: 'cloud',
       actionId: 'cloud.close_session',
@@ -744,9 +845,6 @@ async function runDefaultConfigCodexChain(options: {
       },
     });
     expect(closeResult.status, JSON.stringify(closeResult, null, 2)).toBe('ok');
-    expect(fs.readFileSync(path.join(workspaceDir, 'chain.txt'), 'utf8').trim()).toBe(
-      'local1=alpha\ncloud2=alpha-bravo',
-    );
 
     const localFinalStartCount = (await localBackend.listMessages(sessionId)).messages.length;
     const localFinalSend = await localBackend.sendMessage(sessionId, {
@@ -806,7 +904,7 @@ async function runDefaultConfigCodexChain(options: {
   }
 }
 
-describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestrator -> cloud runtime)', () => {
+describe('cloud orchestrator e2e (frontend SDK -> local app action -> orchestrator -> cloud runtime)', () => {
   let stopAll: Array<() => Promise<void>> = [];
 
   afterAll(async () => {
@@ -821,6 +919,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
     async () => {
       const orchestrator = await startCloudOrchestratorForE2E();
       stopAll.push(orchestrator.stop);
+      expectRuntimeImagePreinstalledPlugins();
 
       const workspaceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cloud-workspace-'));
       initializeGitWorkspace(workspaceDir);
@@ -862,6 +961,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       const localServer = await startBackendServer({
         config: {},
         configPath,
+        startupTimeoutMs: 240_000,
         env: {
           CONFIG_DIR: configRoot,
           WORKING_DIR: workspaceDir,
@@ -884,16 +984,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         content: 'local hello',
       });
 
-      const startResult = await localBackend.executeAction({
-        pluginId: 'cloud',
-        actionId: 'cloud.start_session_agent',
-        actionOwner: 'application',
-        inputs: { session_id: sessionId },
-      });
-
-      expect(startResult.status).toBe('ok');
-      const link = (startResult.result as any).connection_link as string;
-      const cloudLink = parseCloudConnectionLink(link);
+      const cloudLink = await startCloudSessionAgentAndWaitForLink(localBackend, sessionId);
       expect(cloudLink.sessionId).toBe(sessionId);
       expect(cloudLink.connectionId).toBeTruthy();
       await waitForCloudInstanceRunning(cloudLink);
@@ -904,6 +995,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       const cloudSessions = await cloudBackend.listSessions();
       expect(cloudSessions.some((session) => session.session_id === sessionId)).toBe(true);
       await expect(cloudBackend.listAgents()).resolves.toContain('default');
+      expectCloudRuntimePluginCacheEmpty(orchestrator);
 
       const cloudMessages = await cloudBackend.listMessages(sessionId);
       expect(cloudMessages.messages[0]?.message.content).toBe('local hello');
@@ -972,7 +1064,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         { timeoutMs: 30_000, intervalMs: 500 },
       );
 
-      await localBackend.executeAction({
+      const syncDownResult = await localBackend.executeAction({
         pluginId: 'cloud',
         actionId: 'cloud.sync_down',
         actionOwner: 'application',
@@ -981,6 +1073,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
           workspace_dir: workspaceDir,
         },
       });
+      expect(syncDownResult.status, JSON.stringify(syncDownResult, null, 2)).toBe('ok');
 
       expect(fs.readFileSync(path.join(workspaceDir, 'from-cloud.txt'), 'utf8')).toBe(
         'synced from cloud\n',
@@ -1004,19 +1097,34 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
         { timeoutMs: 30_000, intervalMs: 500 },
       );
 
-      await localBackend.executeAction({
+      const secondSyncDownResult = await localBackend.executeAction({
+        pluginId: 'cloud',
+        actionId: 'cloud.sync_down',
+        actionOwner: 'application',
+        inputs: {
+          instance_id: requireCloudInstanceId(cloudLink),
+          workspace_dir: workspaceDir,
+        },
+      });
+      expect(
+        secondSyncDownResult.status,
+        JSON.stringify(secondSyncDownResult, null, 2),
+      ).toBe('ok');
+      expect(fs.readFileSync(path.join(workspaceDir, 'from-cloud-2.txt'), 'utf8')).toBe(
+        'second sync from cloud\n',
+      );
+
+      const closeResult = await localBackend.executeAction({
         pluginId: 'cloud',
         actionId: 'cloud.close_session',
         actionOwner: 'application',
         inputs: {
           instance_id: requireCloudInstanceId(cloudLink),
           session_id: sessionId,
+          workspace_dir: workspaceDir,
         },
       });
-
-      expect(fs.readFileSync(path.join(workspaceDir, 'from-cloud-2.txt'), 'utf8')).toBe(
-        'second sync from cloud\n',
-      );
+      expect(closeResult.status, JSON.stringify(closeResult, null, 2)).toBe('ok');
       const localMessages = await localBackend.listMessages(sessionId);
       expect(localMessages.messages.length).toBeGreaterThanOrEqual(2);
     },
@@ -1054,6 +1162,7 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       const localServer = await startBackendServer({
         config: {},
         configPath,
+        startupTimeoutMs: 240_000,
         env: {
           CONFIG_DIR: configRoot,
           WORKING_DIR: workspaceDir,
@@ -1074,23 +1183,11 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       await localBackend.appendMessage(session1, { role: 'user', content: 'local hello one' });
       await localBackend.appendMessage(session2, { role: 'user', content: 'local hello two' });
 
-      const start1 = await localBackend.executeAction({
-        pluginId: 'cloud',
-        actionId: 'cloud.start_session_agent',
-        actionOwner: 'application',
-        inputs: { session_id: session1 },
-      });
-      const link1 = parseCloudConnectionLink((start1.result as any).connection_link as string);
+      const link1 = await startCloudSessionAgentAndWaitForLink(localBackend, session1);
       expect(link1.connectionId).toBeTruthy();
       await waitForCloudInstanceRunning(link1);
 
-      const start2 = await localBackend.executeAction({
-        pluginId: 'cloud',
-        actionId: 'cloud.start_session_agent',
-        actionOwner: 'application',
-        inputs: { session_id: session2 },
-      });
-      const link2 = parseCloudConnectionLink((start2.result as any).connection_link as string);
+      const link2 = await startCloudSessionAgentAndWaitForLink(localBackend, session2);
       expect(link2.connectionId).toBe(link1.connectionId);
       expect(requireCloudInstanceId(link2)).not.toBe(requireCloudInstanceId(link1));
       await waitForCloudInstanceRunning(link2);
@@ -1105,6 +1202,28 @@ describeIf('cloud orchestrator e2e (frontend SDK -> local app action -> orchestr
       const messages2 = await cloudBackend.listMessages(session2);
       expect(messages1.messages[0]?.message.content).toBe('local hello one');
       expect(messages2.messages[0]?.message.content).toBe('local hello two');
+
+      const titleResult = await cloudBackend.executeSessionAction!({
+        sessionId: session2,
+        pluginId: 'session_title',
+        actionId: 'set_session_title',
+        actionOwner: 'application',
+        inputs: {
+          session_id: session2,
+          title: 'Cloud title two',
+        },
+      });
+      expect(titleResult.status).toBe('ok');
+
+      await waitForAsync(async () => {
+        const sessions = await cloudBackend.listSessions();
+        const first = sessions.find((session) => session.session_id === session1);
+        const second = sessions.find((session) => session.session_id === session2);
+        return (
+          (second?.metadata?.title as string | undefined) === 'Cloud title two' &&
+          !first?.metadata?.title
+        );
+      }, { timeoutMs: 30_000, intervalMs: 500 });
 
       await cloudBackend.send(session1);
       await cloudBackend.send(session2);
@@ -1225,6 +1344,7 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
       const localServer = await startBackendServer({
         config: {},
         configPath,
+        startupTimeoutMs: 240_000,
         env: {
           CONFIG_DIR: configRoot,
           WORKING_DIR: workspaceDir,
@@ -1257,14 +1377,7 @@ describeOpenRouterIf('cloud orchestrator OpenRouter e2e', () => {
       );
       expect(fs.readFileSync(path.join(workspaceDir, 'local-openrouter.txt'), 'utf8')).toBe('local ok\n');
 
-      const startResult = await localBackend.executeAction({
-        pluginId: 'cloud',
-        actionId: 'cloud.start_session_agent',
-        actionOwner: 'application',
-        inputs: { session_id: sessionId },
-      });
-
-      const cloudLink = parseCloudConnectionLink((startResult.result as any).connection_link as string);
+      const cloudLink = await startCloudSessionAgentAndWaitForLink(localBackend, sessionId);
       expect(cloudLink.connectionId).toBeTruthy();
       await waitForCloudInstanceRunning(cloudLink, 300_000);
       const cloudTransport = cloudTransportFromLink(cloudLink, 120_000);

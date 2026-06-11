@@ -22,6 +22,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python 3.10 compatibility
 ROOT = Path(__file__).resolve().parents[1]
 APP_PYPROJECT = ROOT / "application" / "python" / "pyproject.toml"
 RELEASES_DIR = ROOT / "dist" / "crystal-lattice"
+PYTHON_RUNTIME_RELEASES_DIR = ROOT / "dist" / "crystal-lattice-python-runtime"
 DEFAULT_INSTALL_ROOT = Path.home() / ".local" / "opt" / "crystal-lattice-cli"
 DEFAULT_BIN_DIR = Path.home() / ".local" / "bin"
 
@@ -68,7 +69,7 @@ def main() -> None:
         run(
             [
                 sys.executable,
-                "scripts/smoke_test_crystal_lattice_archive.py",
+                "scripts/smoke_test_crystal_lattice_python_runtime_archive.py",
                 str(archive),
             ]
         )
@@ -91,7 +92,10 @@ def current_platform_archive() -> Path:
         f"{normalize_platform(platform.system())}-{normalize_arch(platform.machine())}"
     )
     suffix = ".zip" if target_id.startswith("windows-") else ".tar.gz"
-    return RELEASES_DIR / f"crystal-lattice-cli-v{version}-{target_id}{suffix}"
+    return (
+        PYTHON_RUNTIME_RELEASES_DIR
+        / f"crystal-lattice-python-runtime-v{version}-{target_id}{suffix}"
+    )
 
 
 def read_project_version() -> str:
@@ -192,9 +196,9 @@ def find_bundle_dir(extract_dir: Path) -> Path:
 
 def install_command(bundle_dir: Path, bin_dir: Path, command_name: str) -> Path:
     bin_dir.mkdir(parents=True, exist_ok=True)
-    executable = bundle_dir / executable_name()
+    executable = package_launcher(bundle_dir)
     if not executable.is_file():
-        raise RuntimeError(f"Bundle executable is missing: {executable}")
+        raise RuntimeError(f"Package launcher is missing: {executable}")
 
     if os.name == "nt":
         command_path = bin_dir / f"{command_name}.cmd"
@@ -202,23 +206,28 @@ def install_command(bundle_dir: Path, bin_dir: Path, command_name: str) -> Path:
         return command_path
 
     command_path = bin_dir / command_name
-    if command_path.exists() or command_path.is_symlink():
-        command_path.unlink()
-    command_path.symlink_to(executable)
+    command_path.write_text(
+        "#!/usr/bin/env sh\n" f'exec "{executable}" "$@"\n',
+        encoding="utf-8",
+    )
+    command_path.chmod(0o755)
     return command_path
 
 
 def verify_installed_command(command_path: Path) -> None:
     layout = json.loads(run([str(command_path), "--runtime-layout-json"]).stdout)
-    if layout.get("layout") != "bundled":
+    if layout.get("layout") != "python-runtime":
         raise RuntimeError(
-            f"Installed command must use bundled layout, got {layout.get('layout')!r}"
+            "Installed command must use python-runtime layout, got "
+            f"{layout.get('layout')!r}"
         )
     run([str(command_path), "--help"])
 
 
-def executable_name() -> str:
-    return "crystal-lattice.exe" if os.name == "nt" else "crystal-lattice"
+def package_launcher(bundle_dir: Path) -> Path:
+    if os.name == "nt":
+        return bundle_dir / "Scripts" / "crystal-lattice.cmd"
+    return bundle_dir / "bin" / "crystal-lattice"
 
 
 def remove_path(path: Path) -> None:

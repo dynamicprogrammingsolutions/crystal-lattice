@@ -27,8 +27,9 @@ from datetime import datetime
 import os
 import threading
 
-from agent_core import AgentCore, Message, Session
+from agent_core import AgentCore, Message, ModelDiscoveryCache, Session
 from agent_core.plugin.loader import validate_plugin_for_kind
+from .app_context import ApplicationContext
 
 from .app_plugins import ApplicationPluginWrapper
 from .config import (
@@ -280,6 +281,27 @@ class AgentApplication:
         "protected_metadata_changed": "protected metadata changed",
     }
 
+    @staticmethod
+    def _core_factory_with_model_cache(
+        core_factory: Callable[[], AgentCore],
+        model_cache: ModelDiscoveryCache,
+    ) -> Callable[[], AgentCore]:
+        if core_factory is AgentCore:
+            return lambda: AgentCore(model_cache=model_cache)
+
+        try:
+            signature = inspect.signature(core_factory)
+        except (TypeError, ValueError):
+            return core_factory
+
+        for parameter in signature.parameters.values():
+            if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+                return lambda: core_factory(model_cache=model_cache)  # type: ignore[call-arg]
+            if parameter.name == "model_cache":
+                return lambda: core_factory(model_cache=model_cache)  # type: ignore[call-arg]
+
+        return core_factory
+
     def __init__(
         self,
         config_path: str | Path,
@@ -293,8 +315,13 @@ class AgentApplication:
         logger = get_logger("AgentApplication")
         self._logger = logger
         # Core factory is stored so that per-session cores can be created
-        # without sharing state across requests.
-        self._core_factory = core_factory
+        # without sharing wrapper/runtime state across requests. Model
+        # discovery cache is intentionally shared at the application scope.
+        self._model_cache = ModelDiscoveryCache()
+        self._core_factory = self._core_factory_with_model_cache(
+            core_factory,
+            self._model_cache,
+        )
         self._event_store: EventStore = event_store or InMemoryEventStore()
         self._non_streaming_provider_classes: Set[type[Any]] = set()
         self._provider_capability_lock = threading.Lock()
@@ -302,7 +329,7 @@ class AgentApplication:
         # A single core instance is still used for import/export with the
         # filesystem session store; inference uses fresh cores created via
         # ``_new_core``.
-        core = core_factory()
+        core = self._core_factory()
         self._core = core
 
         config_path_resolved = Path(config_path).resolve()
@@ -358,6 +385,13 @@ class AgentApplication:
             dict(plugin_policy_in) if isinstance(plugin_policy_in, dict) else {}
         )
         plugin_policy.setdefault("base_dir", config_base_dir)
+        preinstalled_manifest = self._resolved_env.get(
+            "CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST"
+        )
+        if preinstalled_manifest:
+            plugin_policy.setdefault(
+                "preinstalled_plugin_manifest", preinstalled_manifest
+            )
 
         mgr = PluginManager(cache_dir=cache_path, policy=plugin_policy)
 
@@ -473,8 +507,19 @@ class AgentApplication:
         self._session_asset_store = FilesystemSessionAssetStore(
             session_root_path.parent / "session_assets"
         )
+        self._runtime_state_root = session_root_path.parent / "runtime"
+        self._runtime_state_root.mkdir(parents=True, exist_ok=True)
         self._runtime_store = RuntimeStore()
+        self._runtime_store.set("agent_core.model_discovery_cache", self._model_cache)
         self._tool_runtime = self._runtime_store
+        self._context = ApplicationContext(
+            app=self,
+            application=self,
+            session_asset_store=self._session_asset_store,
+            runtime_state_root=self._runtime_state_root,
+            runtime_store=self._runtime_store,
+            tool_runtime=self._runtime_store,
+        )
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
@@ -1311,16 +1356,13 @@ class AgentApplication:
         extra_context: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
         context = self._ensure_serializable_context(extra_context)
-        return {
-            **context,
-            "lifecycle": lifecycle,
-            "trigger_source": "application",
-            "session": session.to_dict(),
-            "config": config,
-            "app": self,
-            "application": self,
-            "base_config": self._config,
-        }
+        return self._context.build_lifecycle_context(
+            lifecycle=lifecycle,
+            session=session,
+            config=config,
+            base_config=self._config,
+            extra=context,
+        )
 
     @staticmethod
     def _session_from_result_value(value: Any) -> Optional[Session]:
@@ -1437,17 +1479,14 @@ class AgentApplication:
                 overrides,
             )
 
-        core_context = self._build_lifecycle_context(
-            lifecycle,
-            current_session,
-            effective_config,
-            context,
-        )
         current_session, core_results = core.execute_lifecycle_actions(
             current_session,
             effective_config,
             lifecycle,
-            context=core_context,
+            context=self._context.build_core_handoff_context(
+                base_config=self._config,
+                extra=context,
+            ),
         )
         results.extend(core_results)
         core, base_config, _ = self._resolve_runtime_for_session(
@@ -1985,6 +2024,27 @@ class AgentApplication:
                     elements.append(element)
         return elements
 
+    def get_application_commands(self) -> List[Dict[str, Any]]:
+        """Return flattened command bindings from application plugins.
+
+        Each returned command dictionary includes a ``"plugin"`` field naming
+        the contributing plugin. Commands are frontend-facing bindings onto
+        existing application actions rather than a second executable surface.
+        """
+
+        commands: List[Dict[str, Any]] = []
+        for plugin_id, wrapper in self._app_plugins.items():
+            for raw_command in wrapper.get_commands():
+                if not isinstance(raw_command, dict):
+                    continue
+                if "plugin" in raw_command and isinstance(raw_command["plugin"], str):
+                    commands.append(raw_command)
+                else:
+                    command = dict(raw_command)
+                    command["plugin"] = plugin_id
+                    commands.append(command)
+        return commands
+
     # Internal helpers for action validation ---------------------------------
 
     class _ApplicationActionValidationError(Exception):
@@ -2184,12 +2244,6 @@ class AgentApplication:
             base_config, session, overrides
         )
 
-        action_context = dict(context) if isinstance(context, dict) else {}
-        action_context.setdefault("app", self)
-        action_context.setdefault("application", self)
-        action_context.setdefault("session_asset_store", self._session_asset_store)
-        action_context.setdefault("base_config", base_config)
-
         try:
             new_session, result = core.execute_session_action(
                 session,
@@ -2197,7 +2251,10 @@ class AgentApplication:
                 plugin_id,
                 action_id,
                 action_params,
-                context=action_context,
+                context=self._context.build_core_handoff_context(
+                    base_config=base_config,
+                    extra=context,
+                ),
             )
         except AgentCore._SessionActionValidationError as exc:  # type: ignore[attr-defined]
             raise self._ApplicationActionValidationError(
@@ -2394,6 +2451,9 @@ class AgentApplication:
 
     def get_session_asset_store(self) -> FilesystemSessionAssetStore:
         return self._session_asset_store
+
+    def get_runtime_state_root(self) -> Path:
+        return self._runtime_state_root
 
     def get_runtime_store(self) -> RuntimeStore:
         return self._runtime_store
@@ -2662,25 +2722,6 @@ class AgentApplication:
         )
         return core, base_cfg, switched_session
 
-    def _build_tool_context(
-        self,
-        *,
-        session: Session,
-        request_id: str,
-    ) -> Dict[str, Any]:
-        return {
-            "app": self,
-            "application": self,
-            "base_config": self._config,
-            "session_id": session.session_id,
-            "session": session.to_dict(),
-            "request_id": request_id,
-            "session_asset_store": self._session_asset_store,
-            "runtime_store": self._runtime_store,
-            "tool_runtime": self._runtime_store,
-            "trigger_source": "application",
-        }
-
     def prepare_tools_for_session(
         self,
         core: AgentCore,
@@ -2709,7 +2750,11 @@ class AgentApplication:
         config = self.resolve_effective_config(base_config, session, overrides)
         core.prepare_tools(
             config,
-            context=self._build_tool_context(session=session, request_id=rid),
+            context=self._context.build_tool_context(
+                session=session,
+                request_id=rid,
+                base_config=base_config,
+            ),
         )
         return core, base_config, session, config, rid
 
@@ -2741,7 +2786,11 @@ class AgentApplication:
         config = self.resolve_effective_config(base_config, session, overrides)
         await core.prepare_tools_async(
             config,
-            context=self._build_tool_context(session=session, request_id=rid),
+            context=self._context.build_tool_context(
+                session=session,
+                request_id=rid,
+                base_config=base_config,
+            ),
         )
         return core, base_config, session, config, rid
 
@@ -2934,10 +2983,12 @@ class AgentApplication:
             "stream": effective_stream,
         }
 
-        core.prepare_tools(
-            config,
-            context=self._build_tool_context(session=session, request_id=rid),
+        tool_context = self._context.build_tool_context(
+            session=session,
+            request_id=rid,
+            base_config=base_config,
         )
+        core.prepare_tools(config, context=tool_context)
 
         cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
         self._request_cancellations[rid] = cancellation
@@ -2952,7 +3003,11 @@ class AgentApplication:
             core.prepare_tools(
                 refreshed,
                 context={
-                    **self._build_tool_context(session=current_session, request_id=rid),
+                    **self._context.build_tool_context(
+                        session=current_session,
+                        request_id=rid,
+                        base_config=base_config,
+                    ),
                     "cancellation": cancellation,
                 },
             )
@@ -3039,12 +3094,11 @@ class AgentApplication:
                     config=config,
                     request_id=rid,
                     tool_loop_cfg=self._tool_loop_cfg,
+                    app_context=self._context,
+                    base_config=base_config,
+                    overrides=overrides,
                     cancel_callback=_is_cancelled,
                     cancellation=cancellation,
-                    context={
-                        **self._build_tool_context(session=session, request_id=rid),
-                        "cancellation": cancellation,
-                    },
                     on_session_checkpoint=_persist_checkpoint,
                     session_for_phase=_sync_phase_session_for_request,
                     config_for_session=_refresh_config_for_session,

@@ -19,6 +19,9 @@ from openai_responses_plugins.openai_responses_attachments_extension import (
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 
 
+pytestmark = pytest.mark.api
+
+
 _ONE_PIXEL_GIF_DATA_URL = (
     "data:image/gif;base64,"
     "R0lGODlhAQABAIABAP8AAP///yH5BAEAAAEALAAAAAABAAEAAAICRAEAOw=="

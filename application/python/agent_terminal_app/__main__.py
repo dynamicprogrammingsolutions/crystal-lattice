@@ -6,11 +6,12 @@ import logging
 import os
 import shutil
 import socket
+import subprocess
 import sys
 import threading
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from .runtime_layout import RuntimeLayout, load_runtime_layout
 
@@ -410,6 +411,182 @@ def _set_terminal_title(title: str) -> None:
         pass
 
 
+def _command_argparse_type(expected_type: str):
+    if expected_type == "integer":
+        return int
+    if expected_type == "number":
+        return float
+    return str
+
+
+def _application_action_map(agent_app: Any) -> dict[tuple[str, str], dict[str, Any]]:
+    get_actions = getattr(agent_app, "get_application_actions", None)
+    if not callable(get_actions):
+        return {}
+    actions = get_actions()
+    result: dict[tuple[str, str], dict[str, Any]] = {}
+    if not isinstance(actions, list):
+        return result
+    for action in actions:
+        if not isinstance(action, dict):
+            continue
+        plugin = action.get("plugin")
+        action_id = action.get("id")
+        if isinstance(plugin, str) and isinstance(action_id, str):
+            result[(plugin, action_id)] = action
+    return result
+
+
+def _parse_contributed_command(
+    command: dict[str, Any],
+    action_def: dict[str, Any],
+    argv: list[str],
+) -> dict[str, Any]:
+    parser = argparse.ArgumentParser(
+        prog=f"crystal-lattice {command['name']}",
+        description=str(command.get("description") or command["name"]),
+    )
+    action_inputs = (
+        action_def.get("inputs") if isinstance(action_def.get("inputs"), dict) else {}
+    )
+    raw_args = command.get("args")
+    args_spec = raw_args if isinstance(raw_args, list) else []
+    for entry in args_spec:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name")
+        flags = entry.get("flags")
+        if not isinstance(name, str) or not name:
+            continue
+        if not isinstance(flags, list) or not all(
+            isinstance(flag, str) and flag for flag in flags
+        ):
+            continue
+        action_input = (
+            action_inputs.get(name) if isinstance(action_inputs.get(name), dict) else {}
+        )
+        expected_type = str(entry.get("type") or action_input.get("type") or "string")
+        required = bool(action_input.get("required", False))
+        default = action_input.get("default")
+        help_text = str(entry.get("help") or "")
+        if expected_type == "boolean":
+            parser.add_argument(
+                *flags,
+                dest=name,
+                action="store_true",
+                default=bool(default) if default is not None else False,
+                help=help_text,
+            )
+        else:
+            kwargs: dict[str, Any] = {
+                "dest": name,
+                "type": _command_argparse_type(expected_type),
+                "required": required,
+                "help": help_text,
+            }
+            if default is not None:
+                kwargs["default"] = default
+            parser.add_argument(*flags, **kwargs)
+    parsed = parser.parse_args(argv)
+    values = {
+        key: value
+        for key, value in vars(parsed).items()
+        if value is not None and value != []
+    }
+    return values
+
+
+def _render_command_result(result: dict[str, Any]) -> None:
+    display = result.get("display")
+    if isinstance(display, dict):
+        title = display.get("title")
+        body = display.get("body")
+        if isinstance(title, str) and title:
+            print(title)
+        if isinstance(body, str) and body:
+            print(body)
+        return
+    print(json.dumps(result, indent=2, sort_keys=True))
+
+
+def _run_builtin_bundle_command(
+    args: argparse.Namespace,
+    runtime_layout: RuntimeLayout,
+    parser: argparse.ArgumentParser,
+) -> None:
+    bundle_parser = argparse.ArgumentParser(
+        prog=f"{Path(sys.argv[0]).name} bundle",
+        description="Build an optimized config-specific Crystal Lattice bundle.",
+    )
+    bundle_parser.add_argument(
+        "--config",
+        type=str,
+        default=args.config,
+        required=args.config is None,
+        help="config file used to select preinstalled plugins",
+    )
+    bundle_parser.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="directory where the optimized bundle archive is written",
+    )
+    bundle_parser.add_argument(
+        "--version",
+        type=str,
+        default=None,
+        help="override version used in artifact names",
+    )
+    bundle_parser.add_argument(
+        "--no-archive",
+        action="store_true",
+        help="build the optimized bundle directory but do not create an archive",
+    )
+
+    bundle_args = bundle_parser.parse_args(list(args.command_args or []))
+    bundle_script = runtime_layout.bundle_script
+    if runtime_layout.layout != "python-runtime" or bundle_script is None:
+        parser.error(
+            "the bundle command is only supported from the full bundled-Python "
+            "Crystal Lattice package"
+        )
+    if not bundle_script.is_file():
+        parser.error(f"bundle builder script is missing: {bundle_script}")
+
+    config_path = Path(bundle_args.config).expanduser().resolve()
+    if not config_path.is_file():
+        parser.error(f"bundle config does not exist: {config_path}")
+
+    command = [
+        sys.executable,
+        str(bundle_script),
+        "--config",
+        str(config_path),
+    ]
+    if bundle_args.output:
+        command.extend(["--output", str(Path(bundle_args.output).expanduser())])
+    if bundle_args.version:
+        command.extend(["--version", bundle_args.version])
+    if bundle_args.no_archive:
+        command.append("--no-archive")
+
+    env = os.environ.copy()
+    runtime_root = runtime_layout.manifest_dir.parent.parent.parent
+    python_paths = [
+        runtime_root / "core" / "python",
+        runtime_root / "application" / "python",
+    ]
+    existing_pythonpath = env.get("PYTHONPATH")
+    values = [*(str(path) for path in python_paths)]
+    if existing_pythonpath:
+        values.append(existing_pythonpath)
+    env["PYTHONPATH"] = os.pathsep.join(values)
+    try:
+        subprocess.run(command, cwd=str(bundle_script.parents[1]), env=env, check=True)
+    except subprocess.CalledProcessError as exc:
+        raise SystemExit(exc.returncode) from exc
+
+
 def main() -> None:  # pragma: no cover - manual execution only
     parser = argparse.ArgumentParser(
         description="Agent Terminal App: FastAPI API + prompt_toolkit console",
@@ -591,9 +768,23 @@ def main() -> None:  # pragma: no cover - manual execution only
             "existing local process holding the lock and take over."
         ),
     )
+    parser.add_argument(
+        "command",
+        nargs="?",
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "command_args",
+        nargs=argparse.REMAINDER,
+        help=argparse.SUPPRESS,
+    )
 
     args = parser.parse_args()
     runtime_layout = load_runtime_layout()
+
+    if args.command == "bundle":
+        _run_builtin_bundle_command(args, runtime_layout, parser)
+        return
 
     if args.runtime_layout_json:
         print(json.dumps(runtime_layout.to_resolved_dict(), indent=2, sort_keys=True))
@@ -715,6 +906,63 @@ def main() -> None:  # pragma: no cover - manual execution only
 
     print(f"[agent_terminal_app] Using config: {config_path}")
     print(f"[agent_terminal_app] Using sessions dir: {session_root}")
+
+    contributed_command = (
+        args.command if isinstance(args.command, str) and args.command else ""
+    )
+
+    if contributed_command:
+        command_app = AgentApplication(
+            str(config_path),
+            str(session_root),
+            config_env=config_env,
+            env_overrides=env_overrides,
+        )
+        commands = command_app.get_application_commands()
+        command_map = {
+            command["name"]: command
+            for command in commands
+            if isinstance(command, dict) and isinstance(command.get("name"), str)
+        }
+        command_def = command_map.get(contributed_command)
+        if command_def is None:
+            parser.error(f"unknown command: {contributed_command}")
+
+        if args.console or args.server:
+            parser.error(
+                f"{contributed_command} is a standalone command and cannot be combined "
+                "with --console or --server"
+            )
+
+        action_id = command_def.get("action_id")
+        plugin_id = command_def.get("plugin")
+        if not isinstance(action_id, str) or not action_id:
+            parser.error(f"command {contributed_command!r} is missing action_id")
+        if not isinstance(plugin_id, str) or not plugin_id:
+            parser.error(f"command {contributed_command!r} is missing plugin binding")
+
+        action_def = _application_action_map(command_app).get((plugin_id, action_id))
+        if action_def is None:
+            parser.error(
+                f"command {contributed_command!r} references unknown action {plugin_id}.{action_id}"
+            )
+
+        params = _parse_contributed_command(
+            command_def,
+            action_def,
+            list(args.command_args or []),
+        )
+        try:
+            result = command_app.execute_application_action(
+                plugin_id=plugin_id,
+                action_id=action_id,
+                params=params,
+            )
+        except Exception as exc:
+            print(str(exc), file=sys.stderr)
+            raise SystemExit(1) from exc
+        _render_command_result(result)
+        return
 
     # Modes:
     # - default (no flags): server only

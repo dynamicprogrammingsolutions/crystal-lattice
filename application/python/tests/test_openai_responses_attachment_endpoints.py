@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import pytest
-from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
 
@@ -32,9 +31,10 @@ from agent_app.events import InMemoryEventStore  # noqa: E402
 from agent_terminal_app.server import app as fastapi_app  # noqa: E402
 from agent_terminal_app.server import get_agent_app  # noqa: E402
 import openai_responses_plugins.openai_responses_provider as provider_module  # noqa: E402
-from openai_responses_plugins.openai_responses_provider import (
+from openai_responses_plugins.openai_responses_provider import (  # noqa: E402
     OpenAIResponsesProvider,
-)  # noqa: E402
+)
+from repo_test_env import get_repo_env  # noqa: E402
 
 pytestmark = [pytest.mark.integration, pytest.mark.openai]
 
@@ -194,8 +194,7 @@ def _wait_for_final_event(
 
 @pytest.fixture(scope="module")
 def ensure_openai_api_key() -> str:
-    load_dotenv(ROOT / ".env")
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = get_repo_env("OPENAI_API_KEY")
     if not api_key:
         pytest.skip("OPENAI_API_KEY not set; skipping OpenAI attachment endpoint tests")
     return api_key
@@ -344,6 +343,7 @@ def test_add_message_returns_400_for_pdf_without_upload_mode(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openai
 def test_openai_responses_send_message_uploaded_pdf_endpoint_real_api(
     ensure_openai_api_key: str,
@@ -413,6 +413,7 @@ def test_openai_responses_send_message_uploaded_pdf_endpoint_real_api(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openai
 def test_openai_responses_add_message_then_send_uploaded_pdf_endpoint_real_api(
     ensure_openai_api_key: str,

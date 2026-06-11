@@ -22,9 +22,12 @@ import signal
 import subprocess
 import sys
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
+
+from .reader_engine import truncate_line
 
 # =============================================================================
 # Background Process Defaults
@@ -487,6 +490,55 @@ def approx_token_count(text: str) -> int:
     return len(text) // APPROX_BYTES_PER_TOKEN
 
 
+def accumulate_truncated_lines(
+    lines: Iterable[str],
+    *,
+    max_chars: int,
+    max_line_length: int | None = None,
+    marker: str = "...",
+) -> tuple[str, dict[str, Any]]:
+    """Accumulate lines into a bounded string with optional per-line truncation.
+
+    Each line is truncated independently before being appended to the output
+    buffer. The remaining character budget is applied to each line, so the
+    final included line may be shortened again to fit the total cap.
+    """
+    buffer: list[str] = []
+    chars_written = 0
+    lines_seen = 0
+    lines_written = 0
+    truncated = False
+
+    for line in lines:
+        lines_seen += 1
+        if chars_written >= max_chars:
+            truncated = True
+            continue
+
+        remaining_chars = max_chars - chars_written
+        limit = remaining_chars
+        if max_line_length is not None:
+            limit = min(limit, max_line_length)
+
+        processed_line = truncate_line(line, limit, marker)
+        if processed_line != line:
+            truncated = True
+
+        buffer.append(processed_line)
+        chars_written += len(processed_line)
+        lines_written += 1
+
+    return "".join(buffer), {
+        "truncated": truncated,
+        "chars_written": chars_written,
+        "lines_seen": lines_seen,
+        "lines_written": lines_written,
+        "max_chars": max_chars,
+        "max_line_length": max_line_length,
+        "marker": marker,
+    }
+
+
 def _build_metadata(
     *,
     truncated: bool,
@@ -769,6 +821,7 @@ __all__ = [
     "BACKGROUND_MAX_LINES",
     "BACKGROUND_READ_TIMEOUT",
     "ShellInfo",
+    "accumulate_truncated_lines",
     "approx_token_count",
     "build_shell_args",
     "detect_shell",

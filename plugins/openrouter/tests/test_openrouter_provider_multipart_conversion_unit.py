@@ -51,6 +51,60 @@ def test_openrouter_provider_converts_image_multipart_content() -> None:
         "type": "image_url",
         "image_url": {"url": "https://example.com/image.png"},
     }
+    assert msg["_metadata"]["_openrouter_attachment_sources"][0]["multipart_part"] == {
+        "type": "image",
+        "content": {"url": "https://example.com/image.png"},
+        "metadata": {},
+    }
+
+
+def test_openrouter_provider_roundtrips_session_asset_image_parts() -> None:
+    provider = OpenRouterProvider()
+    state = provider.init(
+        {
+            "model": "google/gemini-2.5-flash-lite",
+            "api_key": "test",
+            "base_url": "https://openrouter.ai/api/v1",
+        }
+    )
+    asset_ref = {
+        "kind": "session_asset",
+        "session_id": "sess_123",
+        "asset_id": "asset_123",
+        "attachment_type": "image",
+    }
+    core_messages: List[Dict[str, Any]] = [
+        {
+            "role": "user",
+            "content": "Review this stored image.",
+            "multipartContent": [
+                {
+                    "type": "image",
+                    "content": {
+                        "asset_ref": asset_ref,
+                        "filename": "red-square.png",
+                        "mime_type": "image/png",
+                    },
+                    "metadata": {"download_plugin_id": "openrouter_attachments"},
+                }
+            ],
+        }
+    ]
+
+    native = provider.to_native_messages(core_messages, state)
+
+    assert native[0]["content"][1] == {
+        "type": "image_url",
+        "image_url": {
+            "asset_ref": asset_ref,
+            "filename": "red-square.png",
+            "mime_type": "image/png",
+        },
+    }
+
+    roundtripped = provider.from_native_messages(native, state)
+
+    assert roundtripped[0]["multipartContent"] == core_messages[0]["multipartContent"]
 
 
 def test_openrouter_provider_preserves_provider_native_tool_result_content() -> None:
@@ -143,6 +197,88 @@ def test_openrouter_provider_expands_request_override_asset_refs_before_send(
     assert "data:image/png;base64" not in repr(initialized["request"]["messages"])
     # Simulate a later feature rebuilding request["messages"] from compact
     # durable native history after provider initialize_request has run.
+    initialized = {
+        **initialized,
+        "_request_context": {
+            "session_asset_store": asset_store,
+            "session_id": "sess_asset",
+        },
+        "request": {**initialized["request"], "messages": native},
+    }
+
+    captured: Dict[str, Any] = {}
+
+    class Response:
+        ok = True
+        status_code = 200
+        text = "{}"
+        encoding = "utf-8"
+
+        def json(self) -> Dict[str, Any]:
+            return {"choices": [{"message": {"role": "assistant", "content": "ok"}}]}
+
+        def close(self) -> None:
+            pass
+
+    def post(self: requests.Session, *args: Any, **kwargs: Any) -> Response:
+        captured["json"] = kwargs.get("json")
+        return Response()
+
+    monkeypatch.setattr(requests.Session, "post", post)
+
+    provider.call_api(native, initialized)
+
+    payload = captured["json"]
+    assert isinstance(payload, dict)
+    assert "asset_ref" not in repr(payload)
+    assert "data:image/png;base64," + base64.b64encode(b"image-bytes").decode(
+        "ascii"
+    ) in repr(payload)
+
+
+def test_openrouter_provider_expands_user_asset_refs_before_send(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    provider = OpenRouterProvider()
+    asset_store = FilesystemSessionAssetStore(tmp_path / "session_assets")
+    image_record = asset_store.store_base64(
+        session_id="sess_asset",
+        attachment_type="image",
+        filename="square.png",
+        mime_type="image/png",
+        data_base64=base64.b64encode(b"image-bytes").decode("ascii"),
+    )
+    state = provider.init(
+        {
+            "model": "moonshotai/kimi-k2.5",
+            "api_key": "test",
+            "base_url": "https://openrouter.ai/api/v1",
+        }
+    )
+    core_messages: List[Dict[str, Any]] = [
+        {
+            "role": "user",
+            "content": "What color is this square?",
+            "multipartContent": [
+                {
+                    "type": "image",
+                    "content": {
+                        "asset_ref": image_record.asset_ref(),
+                        "filename": image_record.filename,
+                        "mime_type": image_record.mime_type,
+                    },
+                    "metadata": {"download_plugin_id": "openrouter_attachments"},
+                }
+            ],
+        }
+    ]
+    native = provider.to_native_messages(core_messages, state)
+
+    _, initialized = provider.initialize_request(
+        native,
+        state,
+        context={"session_asset_store": asset_store, "session_id": "sess_asset"},
+    )
     initialized = {
         **initialized,
         "_request_context": {

@@ -6,6 +6,7 @@ import {
   downloadSessionAttachment,
   deleteSessionAttachment,
   DOWNLOAD_ATTACHMENT_ACTION_ID,
+  resolveAttachmentActionPluginId,
   SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
   selectSessionAssetId,
   storeSessionAttachment,
@@ -54,6 +55,7 @@ describe('attachmentActions', () => {
       mimeType: 'image/png',
       dataUrl: 'data:image/png;base64,QUJDRA==',
       clientAttachmentId: 'draft-1',
+      pluginId: 'openai_responses_attachments',
     });
 
     expect(asset.asset_ref.asset_id).toBe('asset_1');
@@ -96,6 +98,7 @@ describe('attachmentActions', () => {
       backend: buildBackend(executeAction),
       sessionId: 's1',
       assetId: 'asset_1',
+      pluginId: 'openai_responses_attachments',
     });
 
     expect(deleted.filename).toBe('report.pdf');
@@ -236,6 +239,38 @@ describe('attachmentActions', () => {
     });
   });
 
+  it('prefers attachment_action_plugin over plugin when resolving attachment action ownership', () => {
+    expect(
+      resolveAttachmentActionPluginId({
+        ui_type: 'composer_attachment',
+        plugin: 'openai_responses',
+        attachment_action_plugin: 'openai_responses_attachments',
+        attachment_type: 'image',
+      }),
+    ).toBe('openai_responses_attachments');
+  });
+
+  it('falls back to plugin when no attachment_action_plugin is provided', () => {
+    expect(
+      resolveAttachmentActionPluginId({
+        ui_type: 'composer_attachment',
+        plugin: 'openrouter_image_generation_attachments',
+        attachment_type: 'image',
+      }),
+    ).toBe('openrouter_image_generation_attachments');
+  });
+
+  it('returns null when an attachment element does not define a usable action plugin', () => {
+    expect(
+      resolveAttachmentActionPluginId({
+        ui_type: 'composer_attachment',
+        plugin: '   ',
+        attachment_action_plugin: '',
+        attachment_type: 'image',
+      }),
+    ).toBeNull();
+  });
+
   it('surfaces backend action errors with the server message', async () => {
     const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
       status: 'error',
@@ -250,8 +285,63 @@ describe('attachmentActions', () => {
         filename: 'report.pdf',
         mimeType: 'application/pdf',
         dataBase64: 'QUJDRA==',
+        pluginId: 'openai_responses_attachments',
       }),
     ).rejects.toThrow('asset store unavailable');
+  });
+
+  it('uses an explicit actionOwner when provided', async () => {
+    const executeAction: AgentBackend['executeAction'] = vi.fn(async (): Promise<ExecuteActionResponse> => ({
+      status: 'ok',
+      plugin: 'message_share_as_pdf',
+      action_id: 'download_attachment',
+      result: {
+        attachment_asset: {
+          asset_ref: {
+            kind: 'session_asset',
+            session_id: 's1',
+            asset_id: 'asset_20',
+            attachment_type: 'pdf',
+          },
+          filename: 'report.pdf',
+          mime_type: 'application/pdf',
+        },
+        data_base64: 'QUJDRA==',
+      },
+    }));
+
+    await downloadSessionAttachment({
+      backend: buildBackend(executeAction),
+      sessionId: 's1',
+      assetId: 'asset_20',
+      pluginId: 'message_share_as_pdf',
+      actionOwner: 'application',
+    });
+
+    expect(executeAction).toHaveBeenCalledWith({
+      pluginId: 'message_share_as_pdf',
+      actionId: DOWNLOAD_ATTACHMENT_ACTION_ID,
+      actionOwner: 'application',
+      idempotencyKey: undefined,
+      inputs: {
+        session_id: 's1',
+        asset_id: 'asset_20',
+      },
+    });
+  });
+
+  it('rejects missing plugin ids for generic attachment helpers', async () => {
+    await expect(
+      storeSessionAttachment({
+        backend: buildBackend(vi.fn()),
+        sessionId: 's1',
+        attachmentType: 'image',
+        filename: 'red.png',
+        mimeType: 'image/png',
+        dataBase64: 'QUJDRA==',
+        pluginId: '',
+      }),
+    ).rejects.toThrow('pluginId is required');
   });
 
   it('selects asset ids from session-asset content payloads', () => {

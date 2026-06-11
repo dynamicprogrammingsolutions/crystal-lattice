@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${LOCAL_WORKSPACE_DIR:?}"
+: "${TRANSFER_STAGE_DIR:?}"
+
+if [ -f "${LOCAL_WORKSPACE_DIR}/.env" ]; then
+  mkdir -p "${TRANSFER_STAGE_DIR}"
+  cp "${LOCAL_WORKSPACE_DIR}/.env" "${TRANSFER_STAGE_DIR}/.env"
+fi

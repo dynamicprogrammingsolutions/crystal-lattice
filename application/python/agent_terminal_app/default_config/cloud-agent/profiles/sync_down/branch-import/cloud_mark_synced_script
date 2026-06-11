@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Purpose: Record the last successfully synced committed cloud HEAD so repeated
+# branch-import exports can be incremental.
+# Required env vars: CLOUD_WORKSPACE_DIR, CLOUD_AGENT_LAST_SYNCED_REF.
+# Inputs: Prepared git workspace at CLOUD_WORKSPACE_DIR.
+# Outputs: Updated CLOUD_AGENT_LAST_SYNCED_REF in the cloud workspace.
+# Customization: Keep this bundled script for branch-import sync-down.
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+: "${CLOUD_AGENT_LAST_SYNCED_REF:?}"
+
+git config --global --add safe.directory "${CLOUD_WORKSPACE_DIR}" >/dev/null 2>&1 || true
+
+cd "${CLOUD_WORKSPACE_DIR}"
+git rev-parse --show-toplevel >/dev/null
+git update-ref "${CLOUD_AGENT_LAST_SYNCED_REF}" "$(git rev-parse HEAD)"

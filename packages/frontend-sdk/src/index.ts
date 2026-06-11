@@ -40,6 +40,7 @@ export type {
   ActionDisplayOpenUrlAction,
   ActionDisplayCopyTextAction,
   ActionDisplayRunActionAction,
+  ActionDisplayDownloadAttachmentAssetAction,
   ActionDisplayFollowupAction,
   ActionDisplayPayload,
   StandardActionResult,
@@ -117,18 +118,19 @@ export { runApplicationAction, getRunActionErrorMessage } from './plugins/action
 export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';
 export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
 export type {
+  ComposerAttachmentUiElement,
   SessionAssetRef,
   StoredAttachmentAssetDescriptor,
   DownloadedAttachmentPayload,
 } from './plugins/attachmentActions';
 export {
-  DEFAULT_ATTACHMENT_ACTION_PLUGIN_ID,
   DEFAULT_ATTACHMENT_ACTION_OWNER,
   SESSION_ASSET_ATTACHMENTS_PLUGIN_ID,
   STORE_ATTACHMENT_ACTION_ID,
   DELETE_ATTACHMENT_ACTION_ID,
   DOWNLOAD_ATTACHMENT_ACTION_ID,
   selectSessionAssetId,
+  resolveAttachmentActionPluginId,
   storeSessionAttachment,
   deleteSessionAttachment,
   downloadSessionAttachment,
@@ -136,6 +138,9 @@ export {
 
 export type { SessionsControllerState } from './sessions/sessionsController';
 export { SessionsController } from './sessions/sessionsController';
+
+export type { SessionContextControllerState } from './sessions/sessionContextController';
+export { SessionContextController } from './sessions/sessionContextController';
 
 export type {
   SessionListFieldGroups,

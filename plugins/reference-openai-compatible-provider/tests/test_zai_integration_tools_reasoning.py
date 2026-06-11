@@ -19,6 +19,7 @@ _HIDDEN_WORD_OPTIONS = [
     "East",
     "West",
 ]
+pytestmark = pytest.mark.api
 
 
 def _extract_hidden_word(reasoning: str) -> str | None:

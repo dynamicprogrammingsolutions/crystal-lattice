@@ -3033,12 +3033,15 @@ class OpenAIResponsesProvider(ProviderPlugin):
             response_obj = self._response_to_dict(response_payload)
 
             output = response_obj.get("output")
-            if not isinstance(output, list):
+            if isinstance(output, list):
+                output_items = [item for item in output if isinstance(item, dict)]
+            elif output_items_state:
+                output_items = list(output_items_state)
+            else:
                 raise RuntimeError(
                     "OpenAI Responses stream failed: missing output list in response.completed event"
                 )
 
-            output_items = [item for item in output if isinstance(item, dict)]
             if not output_items and output_items_state:
                 output_items = list(output_items_state)
             response_md = self._response_internal_metadata(response_obj)

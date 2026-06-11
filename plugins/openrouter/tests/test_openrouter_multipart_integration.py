@@ -26,6 +26,7 @@ from openrouter_plugins.openrouter_provider import OpenRouterProvider
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = "https://openrouter.ai/api/v1"
+pytestmark = pytest.mark.api
 
 # Model from OpenRouter's multimodal examples.
 MODEL_GEMINI_FLASH_PREVIEW = "google/gemini-3-flash-preview"

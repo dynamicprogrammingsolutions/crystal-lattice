@@ -1,0 +1,185 @@
+{
+  "attachment_count": 0,
+  "case": "error-no-messages",
+  "compact_boundary": null,
+  "compact_request": null,
+  "compact_request_has_no_tools_directive": false,
+  "compact_request_has_resume_directive": false,
+  "compact_request_has_text_only_directive": false,
+  "compact_request_message_count": 0,
+  "compact_request_prompt_sections": [],
+  "compact_request_prompt_text": null,
+  "compact_request_system_prompt_text": null,
+  "compact_request_tool_count": 0,
+  "compact_statuses": [],
+  "compact_summary_count": 0,
+  "compact_summary_sections": [],
+  "compact_summary_text": null,
+  "has_compact_command_message": true,
+  "has_local_command_caveat": true,
+  "session_id": "<SESSION_ID>",
+  "session_transcript_available": true,
+  "step_count": 1,
+  "steps": [
+    {
+      "continue_session": false,
+      "index": 1,
+      "prompt": "/compact",
+      "returncode": 0,
+      "stderr_text": "",
+      "stdout_events": [
+        {
+          "agents": [
+            "claude",
+            "Explore",
+            "general-purpose",
+            "Plan",
+            "statusline-setup"
+          ],
+          "analytics_disabled": false,
+          "apiKeySource": "ANTHROPIC_API_KEY",
+          "claude_code_version": "2.1.154",
+          "cwd": "<WORKSPACE>",
+          "fast_mode_state": "off",
+          "mcp_servers": [],
+          "memory_paths": {
+            "auto": "<MEMORY_DIR>"
+          },
+          "model": "qwen3-coder-next:cloud",
+          "output_style": "default",
+          "permissionMode": "default",
+          "plugins": [],
+          "product_feedback_disabled": false,
+          "session_id": "<SESSION_ID>",
+          "skills": [
+            "deep-research",
+            "update-config",
+            "verify",
+            "debug",
+            "code-review",
+            "simplify",
+            "batch",
+            "fewer-permission-prompts",
+            "loop",
+            "claude-api",
+            "run",
+            "run-skill-generator"
+          ],
+          "slash_commands": [
+            "deep-research",
+            "update-config",
+            "verify",
+            "debug",
+            "code-review",
+            "simplify",
+            "batch",
+            "fewer-permission-prompts",
+            "loop",
+            "claude-api",
+            "run",
+            "run-skill-generator",
+            "clear",
+            "compact",
+            "context",
+            "heapdump",
+            "init",
+            "reload-skills",
+            "review",
+            "security-review",
+            "usage",
+            "insights",
+            "goal",
+            "team-onboarding"
+          ],
+          "subtype": "init",
+          "tools": [
+            "Read"
+          ],
+          "type": "system",
+          "uuid": "eb09091d-bba6-4238-8f3e-f1cd48b6ffb8"
+        },
+        {
+          "message": {
+            "container": null,
+            "content": [
+              {
+                "text": "Error: No messages to compact",
+                "type": "text"
+              }
+            ],
+            "context_management": null,
+            "id": "8e8775ec-8799-4b0d-accb-a226687e4e50",
+            "model": "<synthetic>",
+            "role": "assistant",
+            "stop_details": null,
+            "stop_reason": "stop_sequence",
+            "stop_sequence": "",
+            "type": "message",
+            "usage": {
+              "cache_creation": {
+                "ephemeral_1h_input_tokens": 0,
+                "ephemeral_5m_input_tokens": 0
+              },
+              "cache_creation_input_tokens": 0,
+              "cache_read_input_tokens": 0,
+              "inference_geo": null,
+              "input_tokens": 0,
+              "iterations": null,
+              "output_tokens": 0,
+              "server_tool_use": {
+                "web_fetch_requests": 0,
+                "web_search_requests": 0
+              },
+              "service_tier": null,
+              "speed": null
+            }
+          },
+          "parent_tool_use_id": null,
+          "session_id": "<SESSION_ID>",
+          "type": "assistant",
+          "uuid": "990aa2ce-539d-411f-865d-083ac0ed5ebd"
+        },
+        {
+          "duration_api_ms": 0,
+          "duration_ms": 44,
+          "fast_mode_state": "off",
+          "is_error": false,
+          "modelUsage": {},
+          "num_turns": 0,
+          "permission_denials": [],
+          "result": "",
+          "session_id": "<SESSION_ID>",
+          "stop_reason": null,
+          "subtype": "success",
+          "total_cost_usd": 0,
+          "type": "result",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "",
+            "input_tokens": 0,
+            "iterations": [],
+            "output_tokens": 0,
+            "server_tool_use": {
+              "web_fetch_requests": 0,
+              "web_search_requests": 0
+            },
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "uuid": "ae6718da-3cac-40b1-863a-b713c33919a3"
+        }
+      ]
+    }
+  ],
+  "summary_has_no_acknowledgement_directive": false,
+  "summary_has_resume_directive": false,
+  "summary_is_compact_summary": false,
+  "summary_is_user_message": false,
+  "summary_is_visible_in_transcript_only": false,
+  "summary_mentions_transcript_path": false
+}

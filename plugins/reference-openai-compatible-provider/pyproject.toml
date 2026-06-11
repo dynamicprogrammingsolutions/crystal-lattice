@@ -37,8 +37,11 @@ include = ["reference_openai_compatible_provider*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+addopts = "-m 'not integration'"
 markers = [
   "integration: integration tests that may hit real services",
+  "api: hosted API integration tests requiring credentials and potentially incurring cost",
+  "slow_integration: slow integration tests that should be run selectively",
   "fireworks: tests exercising hosted Fireworks integration",
   "zai: tests exercising hosted Z.ai integration",
   "ollama: tests exercising local Ollama integration",

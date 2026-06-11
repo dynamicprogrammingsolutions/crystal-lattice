@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "intentional fixture validation failure" >&2
+exit 6

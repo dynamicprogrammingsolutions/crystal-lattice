@@ -30,6 +30,12 @@ export type {
 export { useSessionsController } from './useSessionsController';
 
 export type {
+  UseSessionContextControllerOptions,
+  UseSessionContextControllerResult,
+} from './useSessionContextController';
+export { useSessionContextController } from './useSessionContextController';
+
+export type {
   UseAgentsControllerOptions,
   UseAgentsControllerResult,
 } from './useAgentsController';

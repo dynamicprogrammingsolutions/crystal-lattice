@@ -42,6 +42,7 @@ export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefin
   pinnedKeysForBar?: readonly ActionKey[];
   onChangePinned: (nextPinned: ActionKey[]) => void;
   onAction: (key: ActionKey) => void;
+  onOpenMenu?: () => void;
   isActionDisabled?: (key: ActionKey) => boolean;
   isActive?: boolean;
 
@@ -234,6 +235,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                   clearActiveActionsPopoverMenu(menuId);
                 };
 
+                props.onOpenMenu?.();
                 setActiveActionsPopoverMenu({
                   data: {
                     id: menuId,
@@ -280,6 +282,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                 return;
               }
 
+              props.onOpenMenu?.();
               setMenuVisible(true);
             }}
           >

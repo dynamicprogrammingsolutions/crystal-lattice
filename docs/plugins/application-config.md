@@ -437,6 +437,12 @@ Subcommands:
 - `run`: executes the tool and writes output to stdout (streamed).
 - `error` (optional): formats the final tool message text on failure.
 
+The bash tool host also injects:
+
+- `AGENT_TOOL_PYTHON`: absolute path to the Python interpreter running the host
+- `AGENT_TOOL_TIMED_OUT=1`: when invoking `error` after a timeout
+- `AGENT_TOOL_TIMEOUT_SECONDS=<n>`: timeout value for timed-out invocations
+
 ### Schema JSON
 
 `schema` must return a JSON object containing at least:
@@ -449,6 +455,20 @@ Subcommands:
   "tools": [ ... OpenAI tool schemas ... ]
 }
 ```
+
+Optional schema field:
+
+```
+{
+  "config_keys": ["my_setting", "another_setting"]
+}
+```
+
+When present, the bash tool host reads those keys from the resolved request
+config and exports them into the subprocess environment as:
+
+- `AGENT_TOOL_CONFIG_MY_SETTING`
+- `AGENT_TOOL_CONFIG_ANOTHER_SETTING`
 
 v1 constraints:
 - Exactly one tool schema per file.
@@ -484,6 +504,12 @@ default formatting including exit code + stderr/stdout.
 On timeout, the host sets:
 - `AGENT_TOOL_TIMED_OUT=1`
 - `AGENT_TOOL_TIMEOUT_SECONDS=<n>`
+
+For all bash-tool subprocesses, the host also sets:
+- `AGENT_TOOL_PYTHON=<sys.executable>`
+
+This is intended for bash tools that delegate part of their work to helper
+Python scripts and need a stable interpreter path.
 
 ### Streaming
 

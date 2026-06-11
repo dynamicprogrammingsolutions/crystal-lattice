@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Purpose: Advance the cloud baseline after a successful local patch apply by
+# committing the exported staged delta in the cloud workspace.
+# Required env vars: CLOUD_WORKSPACE_DIR.
+# Inputs: Prepared git workspace at CLOUD_WORKSPACE_DIR after export.
+# Outputs: Optional sync acknowledgement commit in the cloud workspace.
+# Customization: Keep this bundled script for standard patch sync-down.
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+
+git config --global --add safe.directory "${CLOUD_WORKSPACE_DIR}" >/dev/null 2>&1 || true
+
+cd "${CLOUD_WORKSPACE_DIR}"
+if ! git diff --cached --quiet --binary HEAD; then
+  git -c user.name='Cloud Agent' -c user.email='cloud-agent@example.invalid' \
+    commit -q -m 'cloud-agent synced changes'
+fi

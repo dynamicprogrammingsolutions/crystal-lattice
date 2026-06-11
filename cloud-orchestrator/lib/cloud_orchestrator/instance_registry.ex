@@ -61,6 +61,9 @@ defmodule CloudOrchestrator.InstanceRegistry do
      }}
   end
 
+  def proxyable?(%{"state" => "running"}), do: true
+  def proxyable?(_instance), do: false
+
   def count, do: GenServer.call(__MODULE__, :count)
   def reset, do: GenServer.call(__MODULE__, :reset)
 

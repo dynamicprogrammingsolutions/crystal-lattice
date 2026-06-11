@@ -8,54 +8,16 @@ import { FetchTransport } from '../../transport/fetchTransport';
 import { RestAgentBackend } from '../../backend/restBackend';
 import {
   downloadSessionAttachment,
+  resolveAttachmentActionPluginId,
   selectAttachmentPreviewUrl,
   storeSessionAttachment,
 } from '../../index';
-import { startBackendServer, waitForAsync } from '../harness';
-
-function findRepoRoot(fromDir: string): string {
-  let current = fromDir;
-  for (let i = 0; i < 10; i += 1) {
-    if (fs.existsSync(path.join(current, 'core', 'python'))) {
-      return current;
-    }
-    const next = path.dirname(current);
-    if (next === current) break;
-    current = next;
-  }
-  throw new Error(`Unable to find repo root from ${fromDir}`);
-}
-
-function loadEnvVarFromRoot(name: string): string | null {
-  const existing = process.env[name];
-  if (typeof existing === 'string' && existing.trim()) {
-    return existing.trim();
-  }
-
-  const repoRoot = findRepoRoot(process.cwd());
-  const envPath = path.join(repoRoot, '.env');
-  if (!fs.existsSync(envPath)) {
-    return null;
-  }
-
-  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!match || match[1] !== name) continue;
-    let value = match[2].trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    if (value) {
-      process.env[name] = value;
-      return value;
-    }
-  }
-
-  return null;
-}
+import {
+  findRepoRoot,
+  loadEnvVarFromRoot,
+  startBackendServer,
+  waitForAsync,
+} from '../harness';
 
 function generateSourceImageBase64(): { filename: string; dataBase64: string } {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-sdk-openrouter-image-'));
@@ -116,10 +78,11 @@ async function getImageAttachmentPluginId(
       element.attachment_type === 'image',
   ) as any;
 
-  if (!imageAttachmentElement || typeof imageAttachmentElement.plugin !== 'string') {
+  const pluginId = resolveAttachmentActionPluginId(imageAttachmentElement);
+  if (!imageAttachmentElement || typeof pluginId !== 'string' || !pluginId) {
     throw new Error('image composer attachment plugin was not exposed in session UI schema');
   }
-  return imageAttachmentElement.plugin;
+  return pluginId;
 }
 
 const OPENROUTER_API_KEY = loadEnvVarFromRoot('OPENROUTER_API_KEY');
@@ -127,7 +90,7 @@ const OPENROUTER_BASE_URL = loadEnvVarFromRoot('OPENROUTER_BASE_URL');
 const OPENROUTER_IMAGE_MODEL =
   loadEnvVarFromRoot('OPENROUTER_IMAGE_GENERATION_E2E_MODEL') ||
   'google/gemini-2.5-flash-image';
-const RUN = process.env.RUN_BACKEND_OPENROUTER_INTEGRATION === '1' && !!OPENROUTER_API_KEY;
+const RUN = !!OPENROUTER_API_KEY;
 const describeIf = RUN ? describe : describe.skip;
 
 describeIf('backend integration (real FastAPI server + frontend SDK + OpenRouter image generation)', () => {

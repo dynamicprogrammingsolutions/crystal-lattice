@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable
 
 import pytest
-from dotenv import load_dotenv
+from repo_test_env import get_repo_env
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -39,8 +39,7 @@ EXPECTED_TEXT = "CODEX VIEW IMAGE 7391"
 
 @pytest.fixture(scope="module")
 def ensure_openrouter_api_key() -> str:
-    load_dotenv(ROOT / ".env")
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = get_repo_env("OPENROUTER_API_KEY")
     if not api_key:
         pytest.skip(
             "OPENROUTER_API_KEY not set; skipping default-config OpenRouter view_image tests"
@@ -50,8 +49,7 @@ def ensure_openrouter_api_key() -> str:
 
 @pytest.fixture(scope="module")
 def ensure_openai_api_key() -> str:
-    load_dotenv(ROOT / ".env")
-    api_key = os.getenv("OPENAI_API_KEY")
+    api_key = get_repo_env("OPENAI_API_KEY")
     if not api_key:
         pytest.skip(
             "OPENAI_API_KEY not set; skipping default-config OpenAI view_image tests"
@@ -153,6 +151,9 @@ def _run_view_image_case(
     monkeypatch: pytest.MonkeyPatch,
 ) -> Session:
     monkeypatch.setenv("CONFIG_DIR", str(CONFIG_PATH.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(session_root / "cloud-runtime-context")
+    )
     monkeypatch.setenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test")
     monkeypatch.setenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token")
     app = AgentApplication(
@@ -204,6 +205,7 @@ def _run_view_image_case(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_config_codex_openrouter_reads_text_from_image_with_view_image(
     ensure_openrouter_api_key: str,
@@ -220,6 +222,7 @@ def test_default_config_codex_openrouter_reads_text_from_image_with_view_image(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openai
 def test_default_config_codex_openai_reads_text_from_image_with_view_image(
     ensure_openai_api_key: str,

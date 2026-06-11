@@ -207,6 +207,57 @@ def test_execute_action_success_path_calls_plugin(tmp_path: Path) -> None:
     assert last["params"] == {"value": "hello"}
 
 
+def test_execute_session_action_alias_calls_same_plugin_path(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+    from tests.dummy_app_plugin import DummyAppPlugin
+
+    app = _build_app(tmp_path)
+
+    resp = server_mod.execute_session_action(
+        "session-1",
+        {
+            "plugin": "dummy_app_plugin",
+            "action_id": "do_dummy",
+            "inputs": {"value": "hello"},
+        },
+        app_instance=app,
+    )
+
+    assert resp["status"] == "ok"
+    assert resp["plugin"] == "dummy_app_plugin"
+    assert resp["action_id"] == "do_dummy"
+    assert (resp.get("result") or {})["echo"] == {"value": "hello"}
+
+    wrappers = getattr(app, "_app_plugins")
+    wrapper = wrappers["dummy_app_plugin"]
+    plugin = wrapper.plugin
+    assert isinstance(plugin, DummyAppPlugin)
+    assert plugin.executed
+    assert plugin.executed[-1]["params"] == {"value": "hello"}
+
+
+def test_execute_session_action_alias_preserves_error_envelope(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_app(tmp_path)
+
+    resp = server_mod.execute_session_action(
+        "session-1",
+        {
+            "plugin": "dummy_app_plugin",
+            "action_id": "do_dummy",
+            "inputs": {},
+        },
+        app_instance=app,
+    )
+
+    assert resp["status"] == "error"
+    assert resp["plugin"] == "dummy_app_plugin"
+    assert resp["action_id"] == "do_dummy"
+    assert resp["error_type"] == "validation"
+    assert "details" in resp
+
+
 def test_execute_action_unknown_plugin_or_action(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 

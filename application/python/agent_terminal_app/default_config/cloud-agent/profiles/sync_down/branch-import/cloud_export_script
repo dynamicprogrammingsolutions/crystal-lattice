@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Purpose: Export the committed cloud branch plus optional delegated and cloud
+# full-state safety refs for branch-import sync-down.
+# Required env vars: CLOUD_WORKSPACE_DIR, TRANSFER_DIR, SESSION_ID,
+# CLOUD_AGENT_CLOUD_FULL_STATE_REF, CLOUD_AGENT_LAST_SYNCED_REF.
+# Inputs: Prepared git workspace at CLOUD_WORKSPACE_DIR.
+# Outputs: TRANSFER_DIR/.cloud-agent/refs.bundle and ref metadata files.
+# Customization: Keep this bundled script for branch-import sync-down.
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+: "${TRANSFER_DIR:?}"
+: "${SESSION_ID:?}"
+: "${CLOUD_AGENT_CLOUD_FULL_STATE_REF:?}"
+: "${CLOUD_AGENT_LAST_SYNCED_REF:?}"
+
+payload_dir="${TRANSFER_DIR}/.cloud-agent"
+mkdir -p "${payload_dir}"
+
+git config --global --add safe.directory "${CLOUD_WORKSPACE_DIR}" >/dev/null 2>&1 || true
+
+cd "${CLOUD_WORKSPACE_DIR}"
+git rev-parse --show-toplevel >/dev/null
+
+committed_ref="refs/cloud-agent/export/committed"
+delegated_export_ref="refs/cloud-agent/export/delegated-snapshot"
+cloud_full_export_ref="refs/cloud-agent/export/cloud-full-state"
+current_head="$(git rev-parse HEAD)"
+git update-ref "${committed_ref}" "${current_head}"
+
+if git rev-parse --verify --quiet "${CLOUD_AGENT_DELEGATED_SNAPSHOT_REF}" >/dev/null; then
+  git update-ref "${delegated_export_ref}" "$(git rev-parse "${CLOUD_AGENT_DELEGATED_SNAPSHOT_REF}")"
+  printf '%s\n' "${delegated_export_ref}" > "${payload_dir}/delegated-ref"
+else
+  rm -f "${payload_dir}/delegated-ref"
+fi
+
+if ! git diff --quiet --binary HEAD || ! git diff --cached --quiet --binary HEAD; then
+  index_file="${payload_dir}/cloud-full-state.index"
+  rm -f "${index_file}"
+  GIT_INDEX_FILE="${index_file}" git read-tree HEAD
+  GIT_INDEX_FILE="${index_file}" git add -A -- . ':(exclude).cloud-agent'
+  snapshot_tree="$(GIT_INDEX_FILE="${index_file}" git write-tree)"
+  cloud_full_commit="$(
+    printf 'cloud-agent cloud full state %s\n' "${SESSION_ID}" | \
+      git -c user.name='Cloud Agent' -c user.email='cloud-agent@example.invalid' \
+        commit-tree "${snapshot_tree}" -p HEAD
+  )"
+  rm -f "${index_file}"
+else
+  cloud_full_commit="${current_head}"
+fi
+git update-ref "${CLOUD_AGENT_CLOUD_FULL_STATE_REF}" "${cloud_full_commit}"
+git update-ref "${cloud_full_export_ref}" "${cloud_full_commit}"
+
+printf '%s\n' "${committed_ref}" > "${payload_dir}/committed-ref"
+printf '%s\n' "${cloud_full_export_ref}" > "${payload_dir}/cloud-full-state-ref"
+printf '%s\n' "${current_head}" > "${payload_dir}/committed-head"
+
+bundle_args=("${committed_ref}" "${cloud_full_export_ref}")
+if [ -f "${payload_dir}/delegated-ref" ]; then
+  bundle_args+=("${delegated_export_ref}")
+fi
+if git rev-parse --verify --quiet "${CLOUD_AGENT_LAST_SYNCED_REF}" >/dev/null; then
+  bundle_args=("^$(git rev-parse "${CLOUD_AGENT_LAST_SYNCED_REF}")" "${bundle_args[@]}")
+fi
+
+git bundle create "${payload_dir}/refs.bundle" "${bundle_args[@]}"

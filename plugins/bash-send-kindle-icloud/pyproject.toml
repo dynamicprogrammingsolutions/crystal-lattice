@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "bash-send-kindle-icloud"
+version = "0.1.0"
+description = "Bash tool plugin: send any EPUB file via iCloud SMTP"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+
+[project.optional-dependencies]
+dev = ["agent-core>=0.3.0", "pytest>=7.0.0"]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["bash_send_kindle_icloud*"]
+
+
+[tool.setuptools.data-files]
+"" = [
+  "agent_plugin.json",
+  "build_epub_from_markdown.bash",
+  "send_to_kindle.bash",
+  "send_markdown_to_kindle.bash",
+  "send_icloud_email.py",
+  "strip_local_file_references.lua",
+]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

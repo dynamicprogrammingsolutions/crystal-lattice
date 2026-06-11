@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Iterator, List
 from agent_core import AgentCore, Message, MessageRole, Session
 from agent_core.tool_result_payloads import TOOL_RESULT_FIELD
 from agent_core.types import ProviderRequestCancelled
+from .app_context import ApplicationContext
 
 
 class RequestCancellation:
@@ -74,9 +75,11 @@ class ToolLoopRunner:
         config: Dict[str, Any],
         request_id: str,
         tool_loop_cfg: Any,
+        app_context: ApplicationContext,
+        base_config: Dict[str, Any],
+        overrides: Dict[str, Any] | None = None,
         cancel_callback: Any | None = None,
         cancellation: RequestCancellation | None = None,
-        context: Dict[str, Any] | None = None,
         on_session_checkpoint: Callable[[Session], Session | None] | None = None,
         session_for_phase: Callable[[Session], Session | None] | None = None,
         config_for_session: Callable[[Session], Dict[str, Any] | None] | None = None,
@@ -85,9 +88,11 @@ class ToolLoopRunner:
         self._config = config
         self._request_id = request_id
         self._tool_loop_cfg = tool_loop_cfg
+        self._app_context = app_context
+        self._base_config = dict(base_config)
+        self._overrides = dict(overrides or {})
         self._cancel_callback = cancel_callback
         self._cancellation = cancellation
-        self._context = context
         self._on_session_checkpoint = on_session_checkpoint
         self._session_for_phase = session_for_phase
         self._config_for_session = config_for_session
@@ -166,11 +171,6 @@ class ToolLoopRunner:
             if isinstance(updated, dict):
                 self._config = updated
 
-        if isinstance(self._context, dict):
-            self._context = {
-                **self._context,
-                "session": session.to_dict(),
-            }
         return session
 
     def _checkpoint_session(self, session: Session) -> Session:
@@ -179,6 +179,19 @@ class ToolLoopRunner:
             return session
         checkpointed = handler(session)
         return checkpointed if isinstance(checkpointed, Session) else session
+
+    def _build_tool_context(self, session: Session) -> Dict[str, Any]:
+        extra = (
+            {"cancellation": self._cancellation}
+            if self._cancellation is not None
+            else None
+        )
+        return self._app_context.build_tool_context(
+            session=session,
+            request_id=self._request_id,
+            base_config=self._base_config,
+            extra=extra,
+        )
 
     def _set_message_metadata(
         self,
@@ -303,7 +316,17 @@ class ToolLoopRunner:
                     config,
                     request_id=rid,
                     cancellation=self._cancellation,
-                    context=self._context,
+                    context=self._app_context.build_core_handoff_context(
+                        base_config=self._base_config,
+                        extra={
+                            "overrides": dict(self._overrides),
+                            **(
+                                {"cancellation": self._cancellation}
+                                if self._cancellation is not None
+                                else {}
+                            ),
+                        },
+                    ),
                 )
             except ProviderRequestCancelled:
                 yield {
@@ -350,7 +373,17 @@ class ToolLoopRunner:
                 config,
                 request_id=rid,
                 cancellation=self._cancellation,
-                context=self._context,
+                context=self._app_context.build_core_handoff_context(
+                    base_config=self._base_config,
+                    extra={
+                        "overrides": dict(self._overrides),
+                        **(
+                            {"cancellation": self._cancellation}
+                            if self._cancellation is not None
+                            else {}
+                        ),
+                    },
+                ),
             ):
                 if self._is_cancelled():
                     yield {
@@ -670,7 +703,7 @@ class ToolLoopRunner:
                                 "pending_prompt": prompt,
                                 "raw_call": effective_call,
                                 "arguments": effective_payload,
-                                "request_overrides": self._context.get("overrides") if isinstance(self._context, dict) else None,
+                                "request_overrides": dict(self._overrides),
                             }
                             current_session = self._set_message_metadata(current_session, assistant_idx, md)
                         yield {
@@ -820,57 +853,39 @@ class ToolLoopRunner:
                         "metadata": missing_handler_metadata,
                     }
                 else:
-                    had_result = False
                     saw_partial = False
                     stream_error: str | None = None
                     last_result: Dict[str, Any] | None = synthetic_result
-                    if synthetic_result is not None:
-                        had_result = True
-                    if not had_result:
-                        tool_context: Dict[str, Any] = dict(self._context) if isinstance(self._context, dict) else {}
-                        tool_context.setdefault("core", core)
-                        tool_context.setdefault("config", config)
-                        tool_context.setdefault("trigger_source", "application")
-                        try:
-                            iterator = tool.stream_tool(
-                                name,
-                                effective_payload,
-                                state,
-                                payload_kind=inspected_call.payload_kind if inspected_call is not None else None,
-                                payload_format=inspected_call.payload_format if inspected_call is not None else None,
-                                payload_metadata=inspected_call.payload_metadata if inspected_call is not None else None,
-                                tool_call=effective_call if isinstance(effective_call, dict) else None,
-                                cancellation=self._cancellation,
-                                context=tool_context,
-                                prepared=prepared,
-                            )
-                            iterator = iter(iterator)
-                        except Exception as exc:
-                            iterator = None
-                            stream_error = f"Tool error: {exc}"
-                        if iterator is not None:
+                    if last_result is None:
+                        result_gen = core._iter_resolved_tool_result_chunks(
+                            inspected_call=inspected_call,
+                            tool=tool,
+                            state=state,
+                            prepared=prepared,
+                            config=config,
+                            cancellation=self._cancellation,
+                            context=self._build_tool_context(current_session),
+                        )
+                        while True:
                             try:
-                                for chunk in iterator:
-                                    if not isinstance(chunk, dict):
-                                        continue
-                                    if "success" in chunk:
-                                        last_result = chunk
-                                        had_result = True
-                                    elif "part" in chunk:
-                                        if stream_tools:
-                                            phase = "start" if not saw_partial else "stream"
-                                            saw_partial = True
-                                            yield {
-                                                "type": "tool_partial",
-                                                "session_id": current_session.session_id,
-                                                "request_id": rid,
-                                                "tool_call_id": call_id,
-                                                "phase": phase,
-                                                "payload": chunk,
-                                            }
-                            except Exception as exc:
-                                stream_error = f"Tool error: {exc}"
-                    if not had_result or not isinstance(last_result, dict):
+                                chunk = next(result_gen)
+                            except StopIteration as stop:
+                                last_result, stream_error = stop.value
+                                break
+                            if not isinstance(chunk, dict):
+                                continue
+                            if "part" in chunk and stream_tools:
+                                phase = "start" if not saw_partial else "stream"
+                                saw_partial = True
+                                yield {
+                                    "type": "tool_partial",
+                                    "session_id": current_session.session_id,
+                                    "request_id": rid,
+                                    "tool_call_id": call_id,
+                                    "phase": phase,
+                                    "payload": chunk,
+                                }
+                    if not isinstance(last_result, dict):
                         metadata = {"tool_call_id": call_id, "tool_name": name}
                         last_final = {
                             "role": "tool",
@@ -1014,7 +1029,7 @@ class ToolLoopRunner:
                                         "pending_prompt": prompt,
                                         "raw_call": effective_call,
                                         "arguments": effective_payload,
-                                        "request_overrides": self._context.get("overrides") if isinstance(self._context, dict) else None,
+                                        "request_overrides": dict(self._overrides),
                                     }
                                     current_session = self._set_message_metadata(current_session, assistant_idx, md)
                                 yield {
@@ -1060,44 +1075,26 @@ class ToolLoopRunner:
                                 break
                         if self._suspended:
                             break
-                        try:
-                            formatted_content = tool.format_tool_result(final_result, state)
-                        except Exception as exc:
-                            formatted_content = f"Tool formatting error: {exc}"
-                        metadata = {
-                            "tool_call_id": call_id,
-                            "tool_name": name,
-                        }
+                        extra_metadata: Dict[str, Any] = {}
                         if tool_phase_md:
                             # For tool_result phase, persist lifecycle metadata on the tool message.
-                            metadata.update(tool_phase_md)
-                            metadata["interception_current"] = {
+                            extra_metadata.update(tool_phase_md)
+                            extra_metadata["interception_current"] = {
                                 "phase": "tool_result",
                                 "tool_call_id": call_id,
                                 "tool_name": name,
                                 "completed": True,
                             }
-                        if matched_schema is not None:
-                            metadata["tool_schema"] = matched_schema
-                        plugin_name = getattr(tool, "name", None)
-                        if isinstance(plugin_name, str) and plugin_name:
-                            metadata["tool_plugin"] = plugin_name
-                        try:
-                            display_candidate = tool.to_display_format(
-                                formatted_content or "",
-                                final_result,
-                                state,
-                            )
-                            if isinstance(display_candidate, dict):
-                                metadata["display"] = display_candidate
-                        except Exception:
-                            pass
-                        last_final = {
-                            "role": "tool",
-                            "content": formatted_content or "",
-                            "metadata": metadata,
-                            TOOL_RESULT_FIELD: final_result if isinstance(final_result, dict) else None,
-                        }
+                        last_final = core._format_tool_result_message(
+                            registry=registry,
+                            tool=tool,
+                            state=state,
+                            matched_schema=matched_schema,
+                            call_id=call_id,
+                            name=name,
+                            result=final_result,
+                            extra_metadata=extra_metadata,
+                        )
 
             if last_final is None and self._is_cancelled():
                 break
@@ -1145,7 +1142,7 @@ class ToolLoopRunner:
                 content,
                 metadata,
                 config=config,
-                context=self._context,
+                context=self._build_tool_context(current_session),
                 tool_result=tool_result if isinstance(tool_result, dict) else None,
             )
 

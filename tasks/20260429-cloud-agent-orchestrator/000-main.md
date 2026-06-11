@@ -17,13 +17,30 @@ Plan and implement cloud agent orchestration for the terminal/server application
 - [x] `tasks/20260429-cloud-agent-orchestrator/0114-cloud-transfer-endpoint-configuration.md`
 - [x] `tasks/20260429-cloud-agent-orchestrator/0115-real-tool-sync-back-e2e.md`
 - [x] `tasks/20260429-cloud-agent-orchestrator/0120-cloud-profile-config-no-behavior-change.md`
-- [ ] `tasks/20260429-cloud-agent-orchestrator/0121-default-cloud-profile-scripts.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121-default-cloud-profile-scripts.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.1-cloud-profile-schema-and-script-conventions.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/0121.2-cloud-validation-command-and-bundled-runtime-assets.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/0121.3-cloud-agent-config-reference-audit-and-typing.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.4-cloud-validation-runtime-image-build-cleanup.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.5-cloud-script-author-agent-and-installed-bundle-authoring-validation.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.6-selected-bundled-plugin-preinstall-and-bundle-e2e.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.7-cloud-script-author-testing-guidance-and-telemetry.md`
+- [ ] `tasks/20260429-cloud-agent-orchestrator/0121.8-cloud-runtime-plugin-bundle-staged-build.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.9-bundled-python-plugin-runtime-package.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.10-cloud-action-routing-robustness.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.11-cloud-config-assets-include-excluded.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.12-cloud-runtime-preinstalled-plugin-e2e-assertions.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.13-cloud-orchestrator-deploy-e2e-source-bundle-coverage.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0121.14-cloud-start-background-operation-and-status-refresh.md`
+  - DEPENDS ON `tasks/20260602-generic-session-context-refresh-for-ui-actions.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0122-sync-profile-selection-ui.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0123-cloud-profile-user-docs.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0124-dockerfile-container-profiles.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0125-explicit-ssh-transfer-adapter-script.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0126-script-driven-cloud-layout.md`
 - [ ] `tasks/20260429-cloud-agent-orchestrator/0127-cloud-specific-config-overrides.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0130-explicit-runtime-context-config.md`
+- [x] `tasks/20260429-cloud-agent-orchestrator/0131-config-driven-packaging-plugin-discovery.md`
 
 ### Later phases
 

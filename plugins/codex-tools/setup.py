@@ -15,4 +15,15 @@ def _mcp_shared_dependency() -> str:
     return f"mcp-shared @ file://{sibling}"
 
 
-setup(install_requires=[_shared_dependency(), _mcp_shared_dependency()])
+def _skill_shared_dependency() -> str:
+    sibling = (Path(__file__).resolve().parents[1] / "skill-shared").resolve()
+    return f"skill-shared @ file://{sibling}"
+
+
+setup(
+    install_requires=[
+        _shared_dependency(),
+        _mcp_shared_dependency(),
+        _skill_shared_dependency(),
+    ]
+)

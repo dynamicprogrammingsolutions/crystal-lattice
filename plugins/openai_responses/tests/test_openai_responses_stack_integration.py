@@ -25,6 +25,9 @@ from plugins.math_tools import MathTools
 from plugins.request_options_feature import RequestOptionsFeature
 
 
+pytestmark = pytest.mark.api
+
+
 @pytest.fixture(scope="module")
 def ensure_openai_api_key() -> str:
     repo_root = Path(__file__).resolve().parents[3]

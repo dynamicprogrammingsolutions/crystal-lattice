@@ -29,6 +29,7 @@ from plugins.request_options_feature import RequestOptionsFeature
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = "https://openrouter.ai/api/v1"
 MODEL = "openai/gpt-5-mini"
+pytestmark = pytest.mark.api
 
 
 @pytest.fixture(scope="module")

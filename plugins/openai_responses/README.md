@@ -699,21 +699,43 @@ Implementation classes registered by the bundle:
 
 For contributors and local validation:
 
-Run the plugin test suite:
+Run the fast default package suite:
 
 ```bash
 pytest plugins/openai_responses/tests -q
 ```
 
-Run integration tests that hit the real OpenAI API:
+This package defaults to `-m 'not integration and not manual_integration'`.
+
+Run hosted API integration tests:
 
 ```bash
-pytest plugins/openai_responses/tests -m 'integration and openai' -q
+pytest plugins/openai_responses/tests -m 'integration and api and not slow_integration and openai' -q
 ```
 
-Those integration tests read `OPENAI_API_KEY` from the repo root `.env` during
-local use in this repo and skip when credentials are not available.
+Run manual ChatGPT-auth integration tests separately:
+
+```bash
+pytest plugins/openai_responses/tests -m 'manual_integration' -q
+```
+
+The OpenAI Responses test suite bootstraps the repo root `.env` during local
+use in this repo and does not overwrite already-exported environment variables.
+Hosted API tests typically require `OPENAI_API_KEY`. Manual integration tests
+also require saved ChatGPT auth state.
 
 ## License
 
-This directory is available under the [Apache License 2.0](../../LICENSE).
+Copyright 2026 Dynamic Programming Solutions Kft.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+<http://www.apache.org/licenses/LICENSE-2.0>
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

@@ -9,13 +9,10 @@ defmodule CloudOrchestrator.Runner.Docker do
   @container_config_path "/cloud-agent/instance/config/config.json"
   @container_config_assets_dir "/cloud-agent/instance/config/assets"
   @container_cache_dir "/cloud-agent/cache"
+  @runtime_digest_label "org.crystal-lattice.cloud-runtime.digest"
 
   @impl true
   def start_instance(instance, params) do
-    image =
-      Map.get(params, "runtime_image") || System.get_env("CLOUD_AGENT_RUNTIME_IMAGE") ||
-        "cloud-agent-runtime:latest"
-
     port = 30_000 + :rand.uniform(999)
     instance_path = instance_path(instance["instance_id"])
     instance_host_path = instance_host_path(instance["instance_id"])
@@ -24,27 +21,32 @@ defmodule CloudOrchestrator.Runner.Docker do
     prepare_instance_layout!(instance_path)
     prepare_runtime_cache!()
 
-    args = runtime_container_args(instance, params, port, image)
+    with {:ok, container} <- container_spec(params),
+         {:ok, image} <- ensure_container_image(container) do
+      args =
+        runtime_container_args(instance, Map.put(params, "container", container), port, image)
 
-    case System.cmd("docker", args, stderr_to_stdout: true) do
-      {container_id, 0} ->
-        container_id = String.trim(container_id)
-        proxy_base_url = "http://#{proxy_host()}:#{port}"
+      case System.cmd("docker", args, stderr_to_stdout: true) do
+        {container_id, 0} ->
+          container_id = String.trim(container_id)
+          proxy_base_url = "http://#{proxy_host()}:#{port}"
 
-        {:ok,
-         instance
-         |> Map.put("state", "starting")
-         |> Map.put("startup_stage", "container_started")
-         |> Map.put("runner", "docker")
-         |> Map.put("container_id", container_id)
-         |> Map.put("instance_path", instance_path)
-         |> Map.put("instance_host_path", instance_host_path)
-         |> Map.put("workspace_path", workspace_path)
-         |> Map.put("workspace_host_path", workspace_host_path)
-         |> Map.put("proxy_base_url", proxy_base_url)}
+          {:ok,
+           instance
+           |> Map.put("state", "starting")
+           |> Map.put("startup_stage", "container_started")
+           |> Map.put("runner", "docker")
+           |> Map.put("container_id", container_id)
+           |> Map.put("container", container)
+           |> Map.put("instance_path", instance_path)
+           |> Map.put("instance_host_path", instance_host_path)
+           |> Map.put("workspace_path", workspace_path)
+           |> Map.put("workspace_host_path", workspace_host_path)
+           |> Map.put("proxy_base_url", proxy_base_url)}
 
-      {output, code} ->
-        {:error, "docker run failed with #{code}: #{output}"}
+        {output, code} ->
+          {:error, "docker run failed with #{code}: #{output}"}
+      end
     end
   end
 
@@ -85,11 +87,12 @@ defmodule CloudOrchestrator.Runner.Docker do
 
   def recent_logs(_instance), do: nil
 
-  def runtime_container_args(instance, _params, port, image) do
+  def runtime_container_args(instance, params, port, image) do
     name = "cloud-agent-" <> instance["instance_id"]
     transfer = instance["transfer"] || %{}
     transfer_host_path = transfer["slot_host_path"]
     instance_host_path = instance_host_path(instance["instance_id"])
+    container = Map.get(params, "container") || %{}
 
     [
       "run",
@@ -128,10 +131,212 @@ defmodule CloudOrchestrator.Runner.Docker do
       "#{transfer_host_path}:/transfer:ro",
       "-v",
       "#{runtime_cache_host_path()}:#{@container_cache_dir}",
+      profile_mount_args(instance, container),
       "-p",
       "#{bind_host()}:#{port}:8000",
       image
     ]
+    |> List.flatten()
+  end
+
+  def docker_build_args(container) do
+    image = container["image"]
+    digest = container["build_context_digest"]
+    context_host_path = build_context_host_path(digest)
+
+    dockerfile =
+      Path.join(context_host_path, safe_relative(container["dockerfile"] || "Dockerfile"))
+
+    args = [
+      "build",
+      "-t",
+      image,
+      "--label",
+      "#{@runtime_digest_label}=#{digest}"
+    ]
+
+    args =
+      case container["target"] do
+        target when is_binary(target) and target != "" -> args ++ ["--target", target]
+        _ -> args
+      end
+
+    args =
+      container
+      |> Map.get("build_args", %{})
+      |> Enum.sort_by(fn {key, _value} -> to_string(key) end)
+      |> Enum.reduce(args, fn {key, value}, acc ->
+        if is_binary(key) and is_binary(value) do
+          acc ++ ["--build-arg", "#{key}=#{value}"]
+        else
+          acc
+        end
+      end)
+
+    args ++ ["-f", dockerfile, context_host_path]
+  end
+
+  defp container_spec(params) do
+    container = Map.get(params, "container")
+
+    with true <- is_map(container),
+         mode when is_binary(mode) and mode != "" <- container["mode"],
+         image when is_binary(image) and image != "" <- container["image"] do
+      {:ok,
+       container
+       |> Map.put_new("cache_mounts", [])
+       |> Map.put_new("mounts", [])}
+    else
+      _ -> {:error, "container.mode and container.image are required"}
+    end
+  end
+
+  defp ensure_container_image(%{"mode" => "dockerfile"} = container) do
+    image = container["image"]
+    digest = container["build_context_digest"]
+
+    cond do
+      !is_binary(digest) or String.trim(digest) == "" ->
+        {:error, "dockerfile container is missing build_context_digest"}
+
+      !File.dir?(build_context_path(digest)) ->
+        {:error, "dockerfile build context is not available for digest #{digest}"}
+
+      image_digest_label(image) == digest ->
+        {:ok, image}
+
+      true ->
+        build_container_image(container, image)
+    end
+  end
+
+  defp ensure_container_image(container), do: {:ok, container["image"]}
+
+  defp build_container_image(container, image) do
+    case System.cmd("docker", docker_build_args(container), stderr_to_stdout: true) do
+      {_output, 0} -> {:ok, image}
+      {output, code} -> {:error, "docker build failed with #{code}: #{output}"}
+    end
+  rescue
+    exception -> {:error, Exception.message(exception)}
+  end
+
+  defp image_digest_label(image) do
+    case System.cmd("docker", ["image", "inspect", image], stderr_to_stdout: true) do
+      {payload, 0} ->
+        with {:ok, [metadata | _]} <- Jason.decode(payload),
+             labels when is_map(labels) <- get_in(metadata, ["Config", "Labels"]),
+             value when is_binary(value) <- labels[@runtime_digest_label] do
+          value
+        else
+          _ -> nil
+        end
+
+      _ ->
+        nil
+    end
+  end
+
+  defp profile_mount_args(instance, container) do
+    mounts =
+      []
+      |> Kernel.++(list_value(container["cache_mounts"]))
+      |> Kernel.++(list_value(container["mounts"]))
+
+    Enum.flat_map(mounts, fn mount ->
+      case shared_mount_paths(instance, container, mount) do
+        {:ok, data_path, host_path, target} ->
+          File.mkdir_p!(data_path)
+          ["-v", "#{host_path}:#{target}"]
+
+        :error ->
+          []
+      end
+    end)
+  end
+
+  defp shared_mount_paths(instance, container, mount) do
+    with id when is_binary(id) and id != "" <- mount["id"],
+         target when is_binary(target) and target != "" <- mount["target"],
+         true <- String.starts_with?(target, "/"),
+         false <- String.contains?(target, ":") do
+      relative = shared_mount_relative_path(instance, container, mount["scope"], id)
+
+      {:ok, Path.join(shared_mount_data_root(), relative),
+       Path.join(shared_mount_host_root(), relative), target}
+    else
+      _ -> :error
+    end
+  end
+
+  defp shared_mount_relative_path(instance, container, scope, id) do
+    safe_id = safe_segment(id)
+
+    case scope do
+      "global" ->
+        Path.join(["global", safe_id])
+
+      "connection" ->
+        Path.join(["connections", safe_segment(instance["connection_id"] || "unknown"), safe_id])
+
+      "instance" ->
+        Path.join(["instances", safe_segment(instance["instance_id"]), safe_id])
+
+      _ ->
+        Path.join(["profiles", safe_segment(container["profile_id"] || "default"), safe_id])
+    end
+  end
+
+  defp list_value(value) when is_list(value), do: value
+  defp list_value(_value), do: []
+
+  defp build_context_path(digest) do
+    Path.join([
+      Application.fetch_env!(:cloud_orchestrator, :data_dir),
+      "build-contexts",
+      safe_segment(digest),
+      "context"
+    ])
+  end
+
+  defp build_context_host_path(digest) do
+    Path.join([
+      Application.fetch_env!(:cloud_orchestrator, :host_data_dir),
+      "build-contexts",
+      safe_segment(digest),
+      "context"
+    ])
+  end
+
+  defp shared_mount_data_root do
+    Path.join(Application.fetch_env!(:cloud_orchestrator, :data_dir), "shared-mounts")
+  end
+
+  defp shared_mount_host_root do
+    Path.join(Application.fetch_env!(:cloud_orchestrator, :host_data_dir), "shared-mounts")
+  end
+
+  defp safe_relative(path) when is_binary(path) do
+    parts = Path.split(path)
+
+    if Path.type(path) == :relative and ".." not in parts do
+      Path.join(parts)
+    else
+      raise ArgumentError, "unsafe Dockerfile path"
+    end
+  end
+
+  defp safe_relative(_path), do: "Dockerfile"
+
+  defp safe_segment(value) do
+    value
+    |> to_string()
+    |> String.replace(~r/[^A-Za-z0-9_.:-]+/, "-")
+    |> String.trim(".-")
+    |> case do
+      "" -> "default"
+      segment -> segment
+    end
   end
 
   @impl true

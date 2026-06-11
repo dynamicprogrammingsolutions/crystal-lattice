@@ -103,7 +103,6 @@ describe('session-scoped action sources', () => {
           id: 'cloud_start_session_agent',
           action_id: 'cloud.start_session_agent',
           label: 'Start cloud agent',
-          condition: { not: { path: 'metadata.cloud_agent.instance_id', exists: true } },
         } as any,
         {
           ui_type: 'session_action',
@@ -111,7 +110,6 @@ describe('session-scoped action sources', () => {
           id: 'cloud_check_session_agent',
           action_id: 'cloud.check_session_agent',
           label: 'Check cloud status',
-          condition: { path: 'metadata.cloud_agent.instance_id', exists: true },
         } as any,
       ],
       uiSchemaElements: [],
@@ -122,6 +120,9 @@ describe('session-scoped action sources', () => {
       },
     });
 
-    expect(result.map((action) => action.id)).toEqual(['cloud_check_session_agent']);
+    expect(result.map((action) => action.id)).toEqual([
+      'cloud_start_session_agent',
+      'cloud_check_session_agent',
+    ]);
   });
 });

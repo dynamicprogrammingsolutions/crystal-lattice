@@ -24,12 +24,15 @@ deploy_stack "$origin_stack" "$SCRIPT_DIR/secure-origin.yaml" \
   TransferSshImageUri="$TRANSFER_SSH_IMAGE_URI" \
   InstanceType="$INSTANCE_TYPE" \
   CpuArchitecture="$CPU_ARCHITECTURE" \
+  DataVolumeSizeGiB="$DATA_VOLUME_SIZE_GIB" \
   KeyName="$KEY_NAME" \
   ControlToken="$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" \
-  TokenSecret="$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE"
+  TokenSecret="$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE" \
+  RuntimeReadyTimeoutMs="$CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS"
 
 CLOUD_ORCHESTRATOR_EC2_URL="$(stack_output "$origin_stack" Ec2HttpUrl)"
 CLOUD_ORCHESTRATOR_INSTANCE_ID="$(stack_output "$origin_stack" InstanceId)"
+CLOUD_ORCHESTRATOR_DATA_VOLUME_ID="$(stack_output "$origin_stack" DataVolumeId)"
 origin_domain="$(stack_output "$origin_stack" Ec2PublicDnsName)"
 CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST="$origin_domain"
 
@@ -45,12 +48,39 @@ save_state
 wait_http_health "${CLOUD_ORCHESTRATOR_EC2_URL%/}/health"
 
 ssm_params="$(mktemp -t cloud-orchestrator-ssm.XXXXXX.json)"
-python3 - "$ssm_params" "$CLOUD_ORCHESTRATOR_URL" "$CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST" "$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" "$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE" "$ORCHESTRATOR_IMAGE_URI" "$RUNTIME_IMAGE_URI" "$TRANSFER_SSH_IMAGE_URI" <<'PY'
+python3 - "$ssm_params" "$CLOUD_ORCHESTRATOR_URL" "$CLOUD_ORCHESTRATOR_TRANSFER_PUBLIC_HOST" "$CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE" "$CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE" "$ORCHESTRATOR_IMAGE_URI" "$RUNTIME_IMAGE_URI" "$TRANSFER_SSH_IMAGE_URI" "$CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS" "$CLOUD_ORCHESTRATOR_DATA_VOLUME_ID" <<'PY'
 import json
 import sys
 
-path, public_url, transfer_public_host, control_token, token_secret, orchestrator_image, runtime_image, transfer_ssh_image = sys.argv[1:9]
+path, public_url, transfer_public_host, control_token, token_secret, orchestrator_image, runtime_image, transfer_ssh_image, runtime_ready_timeout_ms, data_volume_id = sys.argv[1:11]
+data_volume_id_no_dash = data_volume_id.replace("-", "")
+mount_data_volume = f"""
+set -eux
+dnf install -y xfsprogs
+mkdir -p /var/lib/cloud-orchestrator
+DATA_DEVICE=''
+for attempt in $(seq 1 60); do
+  for candidate in /dev/disk/by-id/nvme-Amazon_Elastic_Block_Store_{data_volume_id_no_dash} /dev/xvdf /dev/sdf; do
+    if [ -e "$candidate" ]; then
+      DATA_DEVICE="$(readlink -f "$candidate")"
+      break
+    fi
+  done
+  if [ -n "$DATA_DEVICE" ]; then
+    break
+  fi
+  sleep 2
+done
+test -n "$DATA_DEVICE"
+if ! blkid "$DATA_DEVICE" >/dev/null 2>&1; then
+  mkfs.xfs -f "$DATA_DEVICE"
+fi
+DATA_UUID="$(blkid -s UUID -o value "$DATA_DEVICE")"
+grep -q "$DATA_UUID" /etc/fstab || echo "UUID=$DATA_UUID /var/lib/cloud-orchestrator xfs defaults,nofail 0 2" >> /etc/fstab
+mount /var/lib/cloud-orchestrator || mount -a
+"""
 commands = [
+    mount_data_volume,
     f"docker pull {runtime_image}",
     f"docker pull {transfer_ssh_image}",
     f"docker pull {orchestrator_image}",
@@ -76,6 +106,7 @@ commands = [
         "-e CLOUD_ORCHESTRATOR_HOST_DATA_DIR=/var/lib/cloud-orchestrator "
         "-e CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=host.docker.internal "
         "-e CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=172.17.0.1 "
+        f"-e CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS={runtime_ready_timeout_ms} "
         "cloud-orchestrator:latest"
     ),
 ]

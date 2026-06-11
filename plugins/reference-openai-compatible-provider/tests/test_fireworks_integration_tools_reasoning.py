@@ -23,6 +23,7 @@ _HIDDEN_WORD_OPTIONS = [
     "East",
     "West",
 ]
+pytestmark = pytest.mark.api
 
 
 def _run_until_no_tool_calls(core, session, cfg: dict, max_iterations: int = 5):

@@ -22,12 +22,24 @@ def _prepare_workspace(tmp_path: Path) -> Path:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     (workspace / ".temp").mkdir()
-    (workspace / "codex.txt").write_text("CODEX integration line\nsecond line\n", encoding="utf-8")
-    (workspace / "gemini.txt").write_text("GEMINI integration line\nsecond line\n", encoding="utf-8")
-    (workspace / "qwen.txt").write_text("QWEN integration line\nsecond line\n", encoding="utf-8")
-    (workspace / "grok.txt").write_text("GROK integration line\nsecond line\n", encoding="utf-8")
-    (workspace / "kimi.txt").write_text("KIMI integration line\nsecond line\n", encoding="utf-8")
-    (workspace / "claude.txt").write_text("CLAUDE integration line\nsecond line\n", encoding="utf-8")
+    (workspace / "codex.txt").write_text(
+        "CODEX integration line\nsecond line\n", encoding="utf-8"
+    )
+    (workspace / "gemini.txt").write_text(
+        "GEMINI integration line\nsecond line\n", encoding="utf-8"
+    )
+    (workspace / "qwen.txt").write_text(
+        "QWEN integration line\nsecond line\n", encoding="utf-8"
+    )
+    (workspace / "grok.txt").write_text(
+        "GROK integration line\nsecond line\n", encoding="utf-8"
+    )
+    (workspace / "kimi.txt").write_text(
+        "KIMI integration line\nsecond line\n", encoding="utf-8"
+    )
+    (workspace / "claude.txt").write_text(
+        "CLAUDE integration line\nsecond line\n", encoding="utf-8"
+    )
     (workspace / "AGENTS.md").write_text(
         "Repository policy from AGENTS.\n",
         encoding="utf-8",
@@ -54,11 +66,14 @@ def _tool_names_from_events(events: list[dict]) -> list[str]:
 def ensure_openrouter_api_key() -> str:
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        pytest.skip("OPENROUTER_API_KEY not set; skipping terminal default-config OpenRouter integration test")
+        pytest.skip(
+            "OPENROUTER_API_KEY not set; skipping terminal default-config OpenRouter integration test"
+        )
     return api_key
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_terminal_application_default_config_agents_make_real_tool_calls(
     ensure_openrouter_api_key: str,
@@ -73,11 +88,23 @@ def test_terminal_application_default_config_agents_make_real_tool_calls(
     monkeypatch.chdir(workspace)
     monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
 
-    config_path = ROOT / "application" / "python" / "agent_terminal_app" / "default_config" / "config.json"
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
+    )
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
-    agent_app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    agent_app = AgentApplication(
+        str(config_path), str(session_root), event_store=events
+    )
     assert agent_app.get_config_errors() == []
 
     term_app = TerminalApplication(
@@ -125,7 +152,9 @@ def test_terminal_application_default_config_agents_make_real_tool_calls(
             session = term_app.start_new_session(agent_id=agent_id)
             term_app.append_user_message(expected["prompt"])
 
-            final_session_dict, _messages, _request_id = term_app.send_request(stream=False)
+            final_session_dict, _messages, _request_id = term_app.send_request(
+                stream=False
+            )
             assert final_session_dict is not None
 
             loaded = agent_app.load_session(session.session_id)

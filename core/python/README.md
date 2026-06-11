@@ -22,18 +22,22 @@ This SDK follows **pure functional programming** principles:
 
 ## Installation
 
+These commands install only the `agent_core` package from `core/python`. They
+do not install `application/python` or any repo-root plugin packages under
+`plugins/`.
+
 ### From Source
 
 ```bash
 cd core/python
-pip install -e .
+python -m pip install -e .
 ```
 
 ### Development Installation
 
 ```bash
 cd core/python
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 ```
 
 ## Quick Start
@@ -607,4 +611,16 @@ Current version: `0.3.0` (Functional Architecture + Discovery)
 
 ## License
 
-This directory is available under the [Apache License 2.0](../../LICENSE).
+Copyright 2026 Dynamic Programming Solutions Kft.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+<http://www.apache.org/licenses/LICENSE-2.0>
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

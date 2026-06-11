@@ -1,7 +1,14 @@
 defmodule CloudOrchestrator.Router do
   use Plug.Router
 
-  alias CloudOrchestrator.{ConnectionRegistry, InstanceRegistry, Proxy, Token, TransferRegistry}
+  alias CloudOrchestrator.{
+    BuildContextStore,
+    ConnectionRegistry,
+    InstanceRegistry,
+    Proxy,
+    Token,
+    TransferRegistry
+  }
 
   plug(:match)
   plug(:dispatch)
@@ -46,6 +53,40 @@ defmodule CloudOrchestrator.Router do
       end
     else
       {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
+    end
+  end
+
+  get "/build-contexts/:digest" do
+    with :ok <- authorize_control(conn) do
+      case BuildContextStore.get(digest) do
+        {:ok, context} -> send_json(conn, 200, context)
+        {:error, :not_found} -> send_json(conn, 404, %{error: "build_context_not_found"})
+      end
+    else
+      {:error, :unauthorized} -> send_json(conn, 401, %{error: "unauthorized"})
+    end
+  end
+
+  post "/build-contexts" do
+    with :ok <- authorize_control(conn),
+         {:ok, params} <- read_json_params(conn),
+         {:ok, context} <- BuildContextStore.create(params) do
+      send_json(conn, 201, context)
+    else
+      {:error, :unauthorized} ->
+        send_json(conn, 401, %{error: "unauthorized"})
+
+      {:error, :transfer_not_found} ->
+        send_json(conn, 404, %{error: "transfer_not_found"})
+
+      {:error, :transfer_not_ready} ->
+        send_json(conn, 409, %{error: "transfer_not_ready"})
+
+      {:error, :build_context_not_found} ->
+        send_json(conn, 400, %{error: "build_context_not_found"})
+
+      {:error, reason} ->
+        send_json(conn, 400, %{error: to_string(reason)})
     end
   end
 

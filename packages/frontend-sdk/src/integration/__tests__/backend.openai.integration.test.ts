@@ -7,52 +7,16 @@ import { execFileSync } from 'node:child_process';
 import { FetchTransport } from '../../transport/fetchTransport';
 import { RestAgentBackend } from '../../backend/restBackend';
 import { ChatController } from '../../chat/chatController';
-import { storeSessionAttachment } from '../../plugins/attachmentActions';
-import { startBackendServer, waitFor } from '../harness';
-
-function findRepoRoot(fromDir: string): string {
-  let current = fromDir;
-  for (let i = 0; i < 10; i += 1) {
-    if (fs.existsSync(path.join(current, 'core', 'python'))) {
-      return current;
-    }
-    const next = path.dirname(current);
-    if (next === current) break;
-    current = next;
-  }
-  throw new Error(`Unable to find repo root from ${fromDir}`);
-}
-
-function loadEnvVarFromRoot(name: string): string | null {
-  const existing = process.env[name];
-  if (typeof existing === 'string' && existing.trim()) {
-    return existing.trim();
-  }
-
-  const repoRoot = findRepoRoot(process.cwd());
-  const envPath = path.join(repoRoot, '.env');
-  if (!fs.existsSync(envPath)) {
-    return null;
-  }
-
-  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
-  for (const rawLine of lines) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith('#')) continue;
-    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)=(.*)$/);
-    if (!match || match[1] !== name) continue;
-    let value = match[2].trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    if (value) {
-      process.env[name] = value;
-      return value;
-    }
-  }
-
-  return null;
-}
+import {
+  resolveAttachmentActionPluginId,
+  storeSessionAttachment,
+} from '../../plugins/attachmentActions';
+import {
+  findRepoRoot,
+  loadEnvVarFromRoot,
+  startBackendServer,
+  waitFor,
+} from '../harness';
 
 function generateRedSquarePngBase64(): { filename: string; dataBase64: string } {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-sdk-openai-attachment-'));
@@ -72,7 +36,7 @@ function generateRedSquarePngBase64(): { filename: string; dataBase64: string } 
 
 const OPENAI_API_KEY = loadEnvVarFromRoot('OPENAI_API_KEY');
 const OPENAI_BASE_URL = loadEnvVarFromRoot('OPENAI_BASE_URL');
-const RUN = process.env.RUN_BACKEND_OPENAI_INTEGRATION === '1' && !!OPENAI_API_KEY;
+const RUN = !!OPENAI_API_KEY;
 const describeIf = RUN ? describe : describe.skip;
 
 describeIf('backend integration (real FastAPI server + frontend SDK + OpenAI Responses attachments)', () => {
@@ -104,6 +68,7 @@ describeIf('backend integration (real FastAPI server + frontend SDK + OpenAI Res
         plugins: [`path:${openaiResponsesPluginDir}`],
         agents: { default: { provider: 'openai' } },
       },
+      startupTimeoutMs: 120000,
     });
     stopServer = started.stop;
 
@@ -117,6 +82,18 @@ describeIf('backend integration (real FastAPI server + frontend SDK + OpenAI Res
     controller.startEventStreaming({ initialSinceId: controller.getSnapshot().eventsCursorId });
 
     try {
+      const sessionUiElements = await backend.getSessionUiSchema(sessionId);
+      const imageAttachmentElement = sessionUiElements.find(
+        (element: any) =>
+          element &&
+          element.ui_type === 'composer_attachment' &&
+          element.attachment_type === 'image',
+      ) as any;
+      expect(imageAttachmentElement?.plugin).toBe('openai_responses');
+      expect(imageAttachmentElement?.attachment_action_plugin).toBe('openai_responses_attachments');
+      const attachmentPluginId = resolveAttachmentActionPluginId(imageAttachmentElement);
+      expect(attachmentPluginId).toBe('openai_responses_attachments');
+
       const image = generateRedSquarePngBase64();
       const asset = await storeSessionAttachment({
         backend,
@@ -126,6 +103,7 @@ describeIf('backend integration (real FastAPI server + frontend SDK + OpenAI Res
         mimeType: 'image/png',
         dataBase64: image.dataBase64,
         clientAttachmentId: 'sdk-openai-draft-image',
+        pluginId: attachmentPluginId ?? '',
       });
 
       await controller.appendMessage({

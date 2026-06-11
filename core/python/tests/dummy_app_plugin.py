@@ -62,6 +62,23 @@ class DummyAppPlugin:
             }
         ]
 
+    def get_commands(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        return [
+            {
+                "name": "dummy-command",
+                "description": "Run the dummy action from the CLI.",
+                "action_id": "do_dummy",
+                "args": [
+                    {
+                        "name": "value",
+                        "flags": ["--value"],
+                        "type": "string",
+                        "required": True,
+                    }
+                ],
+            }
+        ]
+
     def execute_action(
         self,
         app: Any,  # AgentApplication, but kept generic to avoid import cycle

@@ -30,8 +30,35 @@
         }
       }
     },
+    "claude_mcp_defaults": {
+      "mcp_enabled": false,
+      "mcp_reuse_runtime": true,
+      "mcp_fail_on_startup_error": false,
+      "mcp_servers": {
+        "filesystem": {
+          "enabled": false,
+          "transport": "stdio",
+          "command": "npx",
+          "args": [
+            "-y",
+            "@modelcontextprotocol/server-filesystem",
+            "${env:WORKING_DIR}"
+          ],
+          "cwd": "${env:WORKING_DIR}",
+          "startup_timeout_seconds": 30,
+          "tool_timeout_seconds": 30
+        }
+      }
+    },
     "codex_developer_message": {
       "codex_personality": "default",
+      "skills_enabled": true,
+      "skills_roots": [
+        ".agents/skills"
+      ],
+      "skills_follow_symlinks": false,
+      "skills_max_scan_depth": 6,
+      "skills_max_dirs_per_root": 2000,
       "system_message_enabled": true,
       "codex_developer_messages": [
         {
@@ -125,6 +152,42 @@
           "CODEX_PROJECT_INSTRUCTIONS": {
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+          },
+            "CODEX_SKILLS_SECTION": {
+              "text": ""
+            },
+          "CODEX_ENVIRONMENT_CONTEXT": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+          },
+          "TASKS": {
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
+            "condition": {
+              "inline_code": "include_tasks()"
+            }
+          }
+        }
+      }
+    },
+    "cloud_script_author_codex_message": {
+      "system_message_enabled": true,
+      "system_message": {
+        "template": "{{CODEX_DEVELOPER_MESSAGE}}\n\n{{CODEX_PROJECT_INSTRUCTIONS}}\n\n# Cloud Script Authoring\nYou create Crystal Lattice cloud-agent project hooks and optional project config.\n\nRead and follow the bundled authoring guide before writing files. Read the bundled authoring guide at:\n`{{CLOUD_SCRIPT_AUTHORING_GUIDE_PATH}}`\n\nUse the bundled default profile scripts as examples:\n`{{CLOUD_AGENT_DEFAULT_PROFILES_PATH}}`\n\nUse AGENTS.md, README files, package manifests, lockfiles, and tests to infer the project's fresh-checkout setup and validation command. If runtime image changes are needed, follow the guide's container profile section. Do not print secrets.\n\nBefore your final response, run cheap syntax and JSON checks for generated files, including `bash -n` for shell scripts. Run the no-Docker local harness when Docker is unavailable, and run `crystal-lattice validate-cloud --workspace-dir <project>` when Docker is available and practical.\n\n{{CODEX_ENVIRONMENT_CONTEXT}}\n\n{{TASKS}}",
+        "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/select_codex_developer_message.py",
+        "variables": {
+          "CODEX_DEVELOPER_MESSAGE": {
+            "inline_code": "select_codex_developer_message()"
+          },
+          "CODEX_PROJECT_INSTRUCTIONS": {
+            "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
+            "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
+          },
+          "CLOUD_SCRIPT_AUTHORING_GUIDE_PATH": {
+            "text": "${env:BUILTIN_PLUGINS}/cloud-agent-app/docs/cloud-script-authoring.md"
+          },
+          "CLOUD_AGENT_DEFAULT_PROFILES_PATH": {
+            "text": "${env:CONFIG_DIR}/cloud-agent/profiles"
           },
           "CODEX_ENVIRONMENT_CONTEXT": {
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
@@ -326,27 +389,27 @@
         "variables": {
           "INTRODUCTION": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/introduction.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/introduction.md"
             ]
           },
           "WORKFLOW": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/workflow.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/workflow.md"
             ]
           },
           "TOOL_USAGE": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/tool-usage.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tool-usage.md"
             ]
           },
           "TONE_AND_STYLE": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/tone-and-style.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/tone-and-style.md"
             ]
           },
           "MEMORY": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/memory.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/memory.md"
             ]
           },
           "ENVIRONMENT_SECTION": {
@@ -354,7 +417,7 @@
           },
           "CONTEXT_MANAGEMENT": {
             "files": [
-              "${env:CONFIG_DIR}/system_messages/claude/context-management.md"
+              "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/context-management.md"
             ]
           },
           "TASKS": {
@@ -483,36 +546,83 @@
       "workspace_dir": ".",
       "transfer_method": "managed_ssh",
       "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
+      "startup_poll_timeout_seconds": 300,
+      "default_container_profile": "default-runtime",
       "default_transfer_up_profile": "working-tree-current-state",
       "default_sync_down_profile": "working-tree-patch",
-      "default_container_profile": "default-runtime",
+      "container_profiles": {
+        "default-runtime": {
+          "label": "Default Crystal Lattice cloud agent runtime",
+          "mode": "dockerfile",
+          "image": "cloud-agent-runtime:latest",
+          "dockerfile": "Dockerfile",
+          "context": [
+            {
+              "source": "${env:BUILTIN_PLUGINS}/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/Dockerfile",
+              "target": "Dockerfile"
+            },
+            {
+              "source": "${env:BUILTIN_PLUGINS}/cloud-agent-app/src/cloud_agent_app/bundled_runtime/python/runtime.py",
+              "target": "runtime.py"
+            },
+            {
+              "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/python_lib",
+              "target": "python_lib"
+            },
+            {
+              "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/cloud-runtime-plugin-bundle",
+              "target": "cloud-runtime-plugin-bundle"
+            },
+            {
+              "source": "${env:CLOUD_RUNTIME_BUILD_CONTEXT}/plugin_sources",
+              "target": "plugin_sources"
+            }
+          ]
+        }
+      },
       "transfer_up_profiles": {
         "working-tree-current-state": {
           "label": "Working tree current state",
-          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state/transfer-up",
-          "install_profile": "repo-install",
+          "local_stage_script": "${env:WORKING_DIR}/.cloud-agent/local-stage",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/local_transfer_script",
+          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/cloud_setup_script",
+          "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
+          "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
           "compatible_sync_down_profiles": ["working-tree-patch"]
-        }
-      },
-      "install_profiles": {
-        "repo-install": {
-          "label": "Repository install",
-          "cloud_install_script": "${env:CONFIG_DIR}/cloud-agent/profiles/repo-install/install"
+        },
+        "working-tree-current-state-branch": {
+          "label": "Working tree current state with branch export",
+          "local_stage_script": "${env:WORKING_DIR}/.cloud-agent/local-stage",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state-branch/local_transfer_script",
+          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state-branch/cloud_setup_script",
+          "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
+          "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
+          "compatible_sync_down_profiles": ["branch-import"]
+        },
+        "clean-head": {
+          "label": "Clean committed HEAD",
+          "local_stage_script": "${env:WORKING_DIR}/.cloud-agent/local-stage",
+          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/local_transfer_script",
+          "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/cloud_setup_script",
+          "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
+          "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
+          "compatible_sync_down_profiles": ["branch-import"]
         }
       },
       "sync_down_profiles": {
         "working-tree-patch": {
           "label": "Apply cloud patch to current worktree",
-          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/export",
-          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/mark-synced",
-          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/apply-down",
+          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_export_script",
+          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_mark_synced_script",
+          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/local_apply_script",
           "compatible_transfer_up_profiles": ["working-tree-current-state"]
-        }
-      },
-      "container_profiles": {
-        "default-runtime": {
-          "label": "Default cloud agent runtime",
-          "image": "cloud-agent-runtime:latest"
+        },
+        "branch-import": {
+          "label": "Import committed cloud branch with optional safety snapshots",
+          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_export_script",
+          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_mark_synced_script",
+          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/local_apply_script",
+          "compatible_transfer_up_profiles": ["working-tree-current-state-branch", "clean-head"]
         }
       },
       "managed_ssh": {
@@ -532,6 +642,7 @@
           "auth",
           "state"
         ],
+        "include_excluded": [],
         "max_top_level_entry_bytes": 104857600
       },
       "runtime_env": {
@@ -554,6 +665,16 @@
     }
   },
   "agents": {
+    "cloud-script-author": {
+      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "cloud_script_author_codex_message"],
+      "provider": "openai",
+      "model": "gpt-5.4-mini",
+      "allowed_paths": [".", "..", "${env:BUILTIN_PLUGINS}/cloud-agent-app", "${env:CONFIG_DIR}/cloud-agent/profiles"],
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/codex-tools"
+      ],
+      "shell_tool_mode": "auto"
+    },
     "codex-openrouter": {
       "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
       "provider": "openrouter",
@@ -656,7 +777,7 @@
       "web_search_provider": "gemini_api"
     },
     "claude": {
-      "mixin_refs": ["claude_system_message"],
+      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
       "plugins": [

@@ -19,6 +19,7 @@ from kimi_tools.kimi_glob_tool import KimiGlobTool
 GLM5_FIREWORKS_MODEL = "fireworks/glm-5"
 REPO_ROOT = Path(__file__).resolve().parents[3]
 GLOB_PATTERN = "**/*openai*responses*/**"
+pytestmark = pytest.mark.api
 
 
 def _collect_response(core, session, config: dict[str, Any], *, stream: bool):

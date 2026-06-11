@@ -99,9 +99,9 @@ jobs:
       - name: Install build dependencies
         run: python -m pip install -e core/python -e "application/python[binary]"
 
-      - name: Build binary archive
+      - name: Build bundled-Python runtime archive
         run: |
-          python scripts/build_crystal_lattice_binary.py \
+          python scripts/build_crystal_lattice_python_runtime_package.py \
             --platform "${{ matrix.platform }}" \
             --arch "${{ matrix.arch }}"
 
@@ -114,7 +114,7 @@ jobs:
           import os
           from pathlib import Path
 
-          archives = sorted(Path("dist/crystal-lattice").glob(os.environ["ARCHIVE_GLOB"]))
+          archives = sorted(Path("dist/crystal-lattice-python-runtime").glob(os.environ["ARCHIVE_GLOB"]))
           archives = [path for path in archives if f"-{os.environ['TARGET']}." in path.name]
           if len(archives) != 1:
               found = "\n".join(str(path) for path in archives) or "<none>"
@@ -127,7 +127,7 @@ jobs:
           PY
 
       - name: Smoke-test release archive
-        run: python scripts/smoke_test_crystal_lattice_archive.py "$CRYSTAL_RELEASE_ARCHIVE"
+        run: python scripts/smoke_test_crystal_lattice_python_runtime_archive.py "$CRYSTAL_RELEASE_ARCHIVE"
 
       - name: Upload release archive artifact
         uses: actions/upload-artifact@v4

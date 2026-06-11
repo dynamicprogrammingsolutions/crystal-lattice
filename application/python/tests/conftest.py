@@ -7,11 +7,17 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 CORE_PY = ROOT / "core" / "python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
 
-from agent_app.runtime_env import RuntimeEnvOverlay
+from repo_test_env import load_repo_root_env  # noqa: E402
+from agent_app.runtime_env import RuntimeEnvOverlay  # noqa: E402
+
+
+load_repo_root_env()
 
 
 @pytest.fixture(autouse=True)

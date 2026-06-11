@@ -179,6 +179,60 @@ class _FixtureStreamingClient:
         return self
 
 
+class _FixtureRawSSEStream:
+    def __init__(
+        self,
+        events: list[Dict[str, Any]],
+        headers: Dict[str, str] | None = None,
+    ) -> None:
+        self._events = events
+        self.headers = headers or {}
+
+    def __enter__(self) -> "_FixtureRawSSEStream":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        _ = (exc_type, exc, tb)
+
+    def iter_lines(self):
+        for event in self._events:
+            yield f"data: {json.dumps(event)}"
+            yield ""
+        yield "data: [DONE]"
+        yield ""
+
+
+class _FixtureRawStreamingCreateResource:
+    def __init__(self, events: list[Dict[str, Any]]) -> None:
+        self._events = events
+        self.calls: list[Dict[str, Any]] = []
+
+    def create(self, **kwargs: Any) -> _FixtureRawSSEStream:
+        self.calls.append(kwargs)
+        if kwargs.get("stream") is not True:
+            raise AssertionError("expected stream=True")
+        return _FixtureRawSSEStream(self._events)
+
+
+class _FixtureRawStreamingResponsesResource:
+    def __init__(self, events: list[Dict[str, Any]]) -> None:
+        self.with_streaming_response = _FixtureRawStreamingCreateResource(events)
+
+    def create(self, **kwargs: Any) -> Any:
+        _ = kwargs
+        raise AssertionError("expected ChatGPT raw streaming path")
+
+
+class _FixtureRawStreamingClient:
+    def __init__(self, events: list[Dict[str, Any]]) -> None:
+        self.responses = _FixtureRawStreamingResponsesResource(events)
+        self.option_calls: list[Dict[str, Any]] = []
+
+    def with_options(self, **kwargs: Any) -> "_FixtureRawStreamingClient":
+        self.option_calls.append(kwargs)
+        return self
+
+
 class _UploadStreamingFixtureClient(_FixtureStreamingClient):
     def __init__(self, events: list[Dict[str, Any]]) -> None:
         super().__init__(events)
@@ -344,6 +398,57 @@ class _StreamingFailureFixtureProvider(OpenAIResponsesProvider):
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         state = super().init(config)
         state["client"] = _FixtureStreamingClient(_load_failed_stream_fixture_events())
+        return state
+
+
+def _chatgpt_raw_stream_events_missing_completed_output() -> list[Dict[str, Any]]:
+    return [
+        {
+            "type": "response.created",
+            "response": {
+                "id": "resp_chatgpt_raw_1",
+                "status": "in_progress",
+            },
+        },
+        {
+            "type": "response.output_text.delta",
+            "delta": "RAW_OK",
+        },
+        {
+            "type": "response.output_item.done",
+            "item": {
+                "type": "message",
+                "id": "msg_chatgpt_raw_1",
+                "role": "assistant",
+                "status": "completed",
+                "content": [{"type": "output_text", "text": "RAW_OK"}],
+            },
+        },
+        {
+            "type": "response.completed",
+            "response": {
+                "id": "resp_chatgpt_raw_1",
+                "status": "completed",
+                "usage": {
+                    "input_tokens": 1,
+                    "output_tokens": 1,
+                    "total_tokens": 2,
+                },
+            },
+        },
+    ]
+
+
+class _RawChatGPTCompletedWithoutOutputProvider(OpenAIResponsesProvider):
+    last_client: _FixtureRawStreamingClient | None = None
+
+    def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        state = super().init(config)
+        client = _FixtureRawStreamingClient(
+            _chatgpt_raw_stream_events_missing_completed_output()
+        )
+        type(self).last_client = client
+        state["client"] = client
         return state
 
 
@@ -1485,7 +1590,6 @@ def test_to_native_messages_converts_openai_chat_tool_result_envelope() -> None:
         {"type": "input_image", "image_url": "data:image/png;base64,AAA"},
         {"type": "input_text", "text": "</image>"},
     ]
-
 
 def test_to_native_messages_converts_image_data_base64_to_data_url() -> None:
     provider = OpenAIResponsesProvider()
@@ -3355,6 +3459,56 @@ def test_process_chunk_raises_on_completed_event_without_output() -> None:
         )
 
 
+def test_process_chunk_uses_accumulated_output_items_when_completed_event_omits_output() -> None:
+    provider = OpenAIResponsesProvider()
+    state: Dict[str, Any] = {}
+    native_messages: list[Dict[str, Any]] = []
+
+    _partials, _finals, native_messages, state = provider.process_chunk(
+        {
+            "type": "response.output_item.done",
+            "item": {
+                "type": "message",
+                "role": "assistant",
+                "content": [{"type": "output_text", "text": "Recovered final"}],
+            },
+        },
+        native_messages,
+        state,
+    )
+
+    _partials, finals, next_native_messages, next_state = provider.process_chunk(
+        {
+            "type": "response.completed",
+            "response": {
+                "id": "resp_missing_output",
+                "usage": {"input_tokens": 1, "output_tokens": 2, "total_tokens": 3},
+            },
+        },
+        native_messages,
+        state,
+    )
+
+    assert finals == [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Recovered final"}],
+            "_metadata": {
+                "response_id": "resp_missing_output",
+                "_openai_responses_usage_raw": {
+                    "input_tokens": 1,
+                    "output_tokens": 2,
+                    "total_tokens": 3,
+                },
+            },
+        }
+    ]
+    assert next_native_messages == finals
+    assert next_state["_openai_responses_stream_completed"] is True
+    assert next_state["_openai_responses_stream_output_items"] == []
+
+
 def test_process_chunk_raises_on_response_failed_terminal_event() -> None:
     provider = OpenAIResponsesProvider()
     events = _load_failed_stream_fixture_events()
@@ -3466,6 +3620,72 @@ def test_send_request_stream_wrapper_compatibility_with_streaming_finals() -> No
         )
         for item in native_history
     )
+
+
+def test_send_request_stream_chatgpt_raw_completed_without_output_uses_output_item_fallback() -> (
+    None
+):
+    core = AgentCore()
+    core.register_provider(_RawChatGPTCompletedWithoutOutputProvider)
+
+    config = {
+        "model": "gpt-5-mini",
+        "auth_mode": "chatgpt",
+        "chatgpt_access_token": "chatgpt-access-token",
+        "chatgpt_token_type": "Bearer",
+        "chatgpt_account_id": "acct-123",
+        "chatgpt_base_url": "https://chatgpt.example.test/backend-api/codex",
+        "timeout": 30,
+    }
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Reply with RAW_OK")
+
+    partial_fragments: list[str] = []
+    final_session = None
+    final_messages: list[Dict[str, Any]] = []
+
+    for chunk in core.send_request_stream(session, config):
+        if chunk["type"] == "partial":
+            text = chunk["message"].get("content")
+            if isinstance(text, str) and text:
+                partial_fragments.append(text)
+        elif chunk["type"] == "final":
+            final_session = chunk["session"]
+            final_messages = chunk["messages"]
+
+    assert partial_fragments == ["RAW_OK"]
+    assert final_session is not None
+    assert len(final_messages) == 1
+    assert final_messages[0]["role"] == "assistant"
+    assert final_messages[0]["content"] == "RAW_OK"
+    assert final_messages[0]["metadata"]["response_id"] == "resp_chatgpt_raw_1"
+    assert final_messages[0]["metadata"]["native_indices"] == [1]
+
+    native_history = (final_session.metadata or {}).get("native_messages")
+    assert isinstance(native_history, list)
+    assert len(native_history) == 2
+    assert native_history[0] == {
+        "type": "message",
+        "role": "user",
+        "content": [{"type": "input_text", "text": "Reply with RAW_OK"}],
+    }
+    assert native_history[1]["type"] == "message"
+    assert native_history[1]["role"] == "assistant"
+    assert native_history[1]["content"] == [
+        {"type": "output_text", "text": "RAW_OK"}
+    ]
+    assert native_history[1]["_metadata"]["response_id"] == "resp_chatgpt_raw_1"
+    assert native_history[1]["_metadata"]["_openai_responses_usage_raw"] == {
+        "input_tokens": 1,
+        "output_tokens": 1,
+        "total_tokens": 2,
+    }
+
+    client = _RawChatGPTCompletedWithoutOutputProvider.last_client
+    assert client is not None
+    assert len(client.responses.with_streaming_response.calls) == 1
+    assert client.responses.with_streaming_response.calls[0]["stream"] is True
 
 
 def test_send_request_stream_raises_on_failed_terminal_event() -> None:

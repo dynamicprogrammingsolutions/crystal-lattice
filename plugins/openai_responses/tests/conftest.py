@@ -16,3 +16,7 @@ def pytest_configure() -> None:
     src_str = str(src)
     if src_str not in sys.path:
         sys.path.insert(0, src_str)
+
+    from repo_test_env import load_repo_root_env
+
+    load_repo_root_env()

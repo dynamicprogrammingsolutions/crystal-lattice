@@ -3,7 +3,32 @@ from __future__ import annotations
 import nox
 
 
-def _build_bundle(session: nox.Session) -> None:
+nox.options.sessions = ["build_bundle", "install_prod_local"]
+
+
+def _build_runtime_package(session: nox.Session) -> None:
+    session.run(
+        "python",
+        "-m",
+        "pip",
+        "install",
+        "-e",
+        "core/python",
+        "-e",
+        "application/python[binary]",
+    )
+    session.run("python", "scripts/build_crystal_lattice_python_runtime_package.py")
+
+
+@nox.session(python=False)
+def build_bundle(session: nox.Session) -> None:
+    """Build the current-platform production bundled-Python archive."""
+    _build_runtime_package(session)
+
+
+@nox.session(python=False)
+def build_optimized_bundle(session: nox.Session) -> None:
+    """Build the current-platform optimized PyInstaller archive."""
     session.run(
         "python",
         "-m",
@@ -18,14 +43,8 @@ def _build_bundle(session: nox.Session) -> None:
 
 
 @nox.session(python=False)
-def build_bundle(session: nox.Session) -> None:
-    """Build the current-platform production binary archive."""
-    _build_bundle(session)
-
-
-@nox.session(python=False)
 def install_prod_local(session: nox.Session) -> None:
-    """Smoke-test and install the current-platform production archive locally."""
+    """Smoke-test and install the current-platform production package locally."""
     session.run("python", "scripts/install_crystal_lattice_archive.py")
 
 

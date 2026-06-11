@@ -343,6 +343,11 @@ The runtime may populate these commonly used keys in `context`:
 Plugins may also use additional serializable context keys supplied by the
 caller.
 
+Reserved context keys are owned by the core/application builders. Caller
+context is additive only. If caller-provided context reuses a reserved key,
+the builder keeps the owned value and emits a warning instead of silently
+overriding it.
+
 ### Layered context for feature/extension plugins
 
 Feature plugins and provider extensions receive **layered context** that provides different capabilities depending on where the action is triggered. This allows plugins to access enhanced capabilities when available while gracefully degrading when running in core-only mode.
@@ -368,6 +373,8 @@ context = {
 | `trigger_source` | `str` | Where action was triggered (`"core"`, `"application"`) |
 | `session` | `dict` | Serialized session (`session.to_dict()`) |
 | `lifecycle` | `str` | Lifecycle trigger name (for lifecycle-triggered actions) |
+| `request_context` | `dict` | Request-initialized plugin context for action-style flows |
+| `request_runtime` | `dict` | Request runtime helpers (`provider`, `features`) for action-style flows |
 
 #### Layer 2: Application-level context (when called from AgentApplication)
 
@@ -395,6 +402,12 @@ context = {
 | `app` / `application` | `AgentApplication` | Application instance for enhanced capabilities |
 | `base_config` | `dict` | Full application configuration (all agents) |
 | `session_asset_store` | `SessionAssetStore` | File attachment store (optional) |
+
+When application and core both contribute context, ownership is explicit:
+application contributes application-owned keys such as `app`,
+`application`, `base_config`, and `session_asset_store`, while the core
+contributes core-owned keys such as `core`, `config`, `session`,
+`trigger_source`, `request_context`, and `request_runtime`.
 
 #### Layer 3: Terminal/Server-level context (implementation-specific)
 
