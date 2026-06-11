@@ -31,14 +31,16 @@ sections:
       altHtml: "or <code>pipx install crystal-lattice-cli</code>"
 
   - type: providers
-    label: "Works with"
+    label: "Built for"
     providers:
-      - "OpenAI"
-      - "Anthropic"
-      - "Google Gemini"
+      - "Codex-style tools"
+      - "Claude-style workflows"
+      - "Gemini"
+      - "Qwen"
+      - "Kimi"
+      - "Grok"
       - "OpenRouter"
       - "Ollama"
-      - "OpenAI-compatible APIs"
 
   - type: features
     id: features
@@ -47,8 +49,10 @@ sections:
   - type: quickstart
     id: quickstart
     eyebrow: "Quickstart"
-    title: "Up and running in two minutes"
-    body: "Install the CLI, start Crystal Lattice, connect from your phone."
+    title: "Start on your computer. Continue from your phone."
+    body: >-
+      Install the CLI, start Crystal Lattice in a project folder, then connect
+      from the mobile app on the same Wi-Fi.
     steps:
       - num: "1"
         title: "Install"
@@ -74,26 +78,23 @@ sections:
               --console \
               --config-local \
               --host 0.0.0.0 \
-              --port 9000
+              --port 9000 \
+              --enable-bonjour
         after:
           - html: "Add a provider key to <code>.crystal/config.json</code> to enable model calls."
       - num: "3"
         title: "Connect your phone"
         body:
-          - html: "Find your LAN IP:"
-        codeBlocks:
-          - |
-            hostname -I              # Linux
-            ipconfig getifaddr en0   # macOS
+          - html: "Open Crystal Lattice Control, choose <strong>Automatic Discovery</strong>, and select your computer."
+        codeBlocks: []
         after:
-          - html: "In the app: <strong>Manual Address → &lt;IP&gt;:9000 → Connect</strong>"
-          - html: "Or launch with <code>--enable-bonjour</code> so the app can find your computer automatically on the same Wi-Fi."
+          - html: "Manual address is still available if discovery is not available on your network."
 
   - type: cta
-    title: "Start running your own AI platform"
+    title: "Own your agent harness"
     body: >-
-      Crystal Lattice is developed in the open. Install the CLI, start Crystal
-      Lattice, and have your first agent session running in minutes.
+      Start Crystal Lattice from a project folder, open the same work from app
+      UI or phone, and replace the plugins that define how the agent behaves.
     actions:
       - label: "Install the CLI"
         href: "#quickstart"

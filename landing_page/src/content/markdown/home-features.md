@@ -1,58 +1,54 @@
 ---
-eyebrow: Features
-title: Full control, zero compromises
+eyebrow: Why Crystal Lattice
+title: Control the harness, not just the chat
 body: >-
-  Persistent sessions, configurable agents, tool calling, streaming, mobile
-  access, and a developer SDK. Defaults you can replace when your workflow needs
-  something different.
+  Crystal Lattice is built for people who want the agent workspace, phone
+  access, model-family behavior, session tools, and automation surface to be
+  replaceable instead of hardcoded.
 ---
 
-## Runs from your computer
-
-<!-- icon: lock -->
-
-Your sessions and history are stored in the working directory you choose. Model
-requests go to the provider or local model you configure, and bridge traffic only
-exists when you choose to connect across networks.
-
-## Provider and model-family plugins
-
-<!-- icon: provider -->
-
-Providers, model-family harnesses, tools, prompts, and request behavior are
-plugin-driven. Different providers and models expose different capabilities, so
-Crystal Lattice lets the harness change with the agent you are running.
-
-## Streaming-first
+## Start And Continue
 
 <!-- icon: stream -->
 
-Responses stream token-by-token from the model to your terminal or phone.
-Partial messages display as they arrive. Final messages can include metadata
-such as tool call results, reasoning traces, and token counts when the configured
-provider and plugins supply them.
+Start Crystal Lattice from a project folder on your computer. The terminal can
+stay open, but the work is not trapped there: app UIs and the mobile app can
+open the same sessions.
 
-## Persistent sessions
+## Connect Beyond The Local Network
 
-<!-- icon: file -->
+<!-- icon: provider -->
 
-Sessions are stored on the filesystem. Restart Crystal Lattice and your
-conversations are still there. Multiple simultaneous sessions can each keep their
-own agent config, message history, and state. List and resume sessions from the
-app UI.
+On the same Wi-Fi, the phone app can find your computer automatically. When you
+are away from that network, pair through a bridge so the same workspace can be
+reached from outside.
 
-## Automatic tool calling
-
-<!-- icon: tool -->
-
-When tools are configured, agents can use them in a multi-step loop. The model
-requests a tool call, Crystal Lattice executes it, the result feeds back into the
-conversation, and the model continues.
-
-## Deep plugin system
+## Control With No Compromises
 
 <!-- icon: plugin -->
 
-Extend every layer: add providers, tools, features, UI controls, and application
-actions with Python or JavaScript plugins. Write a plugin, point your config at
-it, and use it without waiting for the core project to accept a new capability.
+Serious users eventually disagree with defaults. Crystal Lattice lets plugins
+expose settings, tools, request behavior, and session actions that you can select
+or replace in config.
+
+## Harnesses For Model Families
+
+<!-- icon: tool -->
+
+Different model families work best with different coding harnesses. Crystal
+Lattice uses plugins to provide simplified Codex-style, Claude-style, Gemini,
+Qwen, Kimi, and Grok tool and prompt sets.
+
+## Sessions Become Workspaces
+
+<!-- icon: file -->
+
+Agent work is more than a transcript. Sessions can carry titles, pinned state,
+summaries, snapshots, attachments, and custom actions supplied by plugins.
+
+## Automate The Same Harness
+
+<!-- icon: lock -->
+
+Use the same configured agents and plugins from scripts when the job becomes
+repetitive: batch drafting, data enrichment, evaluations, or internal tools.

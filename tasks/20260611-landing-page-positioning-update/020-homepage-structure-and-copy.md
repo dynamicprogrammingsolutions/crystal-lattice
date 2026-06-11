@@ -4,13 +4,13 @@ Rewrite the homepage content so the page leads with the human workflow and gradu
 
 ## Requirements checklist
 
-- [ ] Update the hero around "Start on your computer. Continue from your phone."
-- [ ] Replace generic provider-agnostic/open-source positioning with human-centered control and customization.
-- [ ] Rework the feature grid to introduce the key concepts in plain language.
-- [ ] Put session workbench before or near the plugin/control section so plugin-driven session operations are easy to understand.
-- [ ] Avoid saying desktop is a separate device; describe desktop as another UI on the user's computer.
-- [ ] Avoid saying HTTP is a client; if mentioned, call it an API/transport for apps/scripts.
-- [ ] Keep the result as an intermediate base, not a final exhaustive website.
+- [x] Keep the hero centered on "Own the harness. Use the agent anywhere."
+- [x] Replace generic provider-agnostic/open-source positioning with human-centered control and customization.
+- [x] Rework the feature grid to introduce the key concepts in plain language.
+- [x] Put session workbench before or near the plugin/control section so plugin-driven session operations are easy to understand.
+- [x] Avoid saying desktop is a separate device; describe desktop as another UI on the user's computer.
+- [x] Avoid saying HTTP is a client; if mentioned, call it an API/transport for apps/scripts.
+- [x] Keep the result as an intermediate base, not a final exhaustive website.
 
 Parent Task: `tasks/20260611-landing-page-positioning-update/000-main.md`
 Depends On: `tasks/20260611-landing-page-positioning-update/010-claim-safety-and-current-state-audit.md`
@@ -114,3 +114,64 @@ Use Python for repeatable workflows, bulk jobs, internal tools, and evaluations 
 - Do not claim all provider switching is seamless.
 - Do not frame desktop as a second device. If desktop is mentioned, say "desktop UI" or "app UI."
 - Use "plugin-driven" only after showing what plugins change.
+
+## Execution plan
+
+Added during completion after maintainer approval.
+
+1. Update `landing_page/src/content/pages/home.yaml`.
+   - Keep the selected hero direction: "Own the harness. Use the agent anywhere."
+   - Retitle the provider strip so it does not collapse providers and model-family harnesses into a single provider claim.
+   - Rework quickstart around the first concrete workflow: start Crystal Lattice on the user's computer, then continue from the phone on the same Wi-Fi.
+   - Lead phone setup with automatic discovery and keep manual IP as a fallback.
+   - Update CTA copy to reinforce harness ownership and replaceable plugins.
+
+2. Update `landing_page/src/content/markdown/home-features.md`.
+   - Replace the generic six-card feature grid with a narrative grid in the agreed order:
+     start and continue, connect beyond the local network, control with no compromises, harnesses for model families, sessions as workspaces, and automation.
+   - Keep the wording plain and careful; avoid reintroducing the overclaims fixed in task `010`.
+   - Use existing feature-grid icons and avoid new component work in this task.
+
+3. Do not modify components unless current content cannot be represented with existing sections.
+   - `Features.astro`, `Quickstart.astro`, `Providers.astro`, and `CTA.astro` should remain unchanged if possible.
+   - Bridge deployment commands, plugin-planning prompt blocks, screenshots, and Python code samples belong to later subtasks.
+
+4. Verify.
+   - Run `yarn build` from `landing_page`.
+   - Re-run the task `010` risky-phrase/link scan.
+   - Update this task's checklist and completion notes.
+   - Mark task `020` complete in `tasks/20260611-landing-page-positioning-update/000-main.md` after verification.
+
+## Completion Notes
+
+Added during completion.
+
+Implemented the homepage structure and copy pass as an intermediate base using
+the existing page sections.
+
+Changed content:
+
+- `landing_page/src/content/pages/home.yaml`
+  - Kept the selected hero direction: "Own the harness. Use the agent anywhere."
+  - Changed the provider strip from a generic provider list to "Built for" chips
+    that include model-family harnesses and integrations.
+  - Reworked quickstart around the concrete workflow: install the CLI, start
+    Crystal Lattice in a project folder with local network discovery enabled,
+    then connect from the phone.
+  - Led phone connection with Automatic Discovery and left manual address as a
+    fallback.
+  - Updated the CTA to reinforce harness ownership and replaceable plugins.
+
+- `landing_page/src/content/markdown/home-features.md`
+  - Replaced the generic feature grid with the agreed narrative order:
+    start and continue, bridge access beyond the local network, control with no
+    compromises, model-family harnesses, sessions as workspaces, and automation.
+  - Kept bridge and automation at a high-level copy layer; deployment commands,
+    plugin prompts, screenshots, and Python code remain for later subtasks.
+
+Verification:
+
+- Re-ran the task `010` risky-phrase/link scan; no matches were found.
+- Ran `yarn build` from `landing_page`; build passed.
+- Build still reports an Astro duplicate-id warning for `home-features.md`.
+  This warning existed before this task family and is outside this task's scope.
