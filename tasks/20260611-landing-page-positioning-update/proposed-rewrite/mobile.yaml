@@ -1,0 +1,126 @@
+# Proposed rewrite for landing_page/src/content/pages/mobile.yaml.
+#
+# This is a review artifact, not loaded by Astro today.
+
+seo:
+  title: "Crystal Lattice Control: Continue agent work from your phone"
+  description: >-
+    The Crystal Lattice mobile client connects to the Crystal Lattice runtime
+    on your computer so you can browse sessions, send messages, watch responses
+    stream, and use plugin-driven actions from your phone.
+
+sections:
+  - type: mobileHero
+    label: "Crystal Lattice Control"
+    titleHtml: "Continue agent work,<br />from your phone."
+    subtitle: >-
+      Crystal Lattice Control is a mobile UI for the Crystal Lattice runtime
+      running on your computer. Browse sessions, send messages, watch responses
+      stream, and use plugin-driven actions without staying at the keyboard.
+    platforms:
+      - label: "iOS"
+        icon: apple
+      - label: "Android"
+        icon: android
+    storeButtons:
+      - href: ""
+        className: "app-store"
+        icon: apple
+        sub: "Coming soon on the"
+        name: "App Store"
+        disabled: true
+      - href: ""
+        className: "play-store"
+        icon: play
+        sub: "Coming soon on"
+        name: "Google Play"
+        disabled: true
+      - href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice/tree/main/mobile/crystal-lattice-control-rn"
+        className: "source"
+        icon: github
+        sub: "Available today"
+        name: "Run from source"
+    note: "Requires Crystal Lattice running on your computer"
+    image:
+      src: "/cl-mobile-frame.png"
+      alt: "Crystal Lattice Control mobile app"
+
+  - type: mobileFeatures
+    id: features
+    eyebrow: "What you can do"
+    titleHtml: "The core session workflow,<br />in your pocket."
+    body: >-
+      The mobile app focuses on real session work: browse sessions, send
+      messages, stream responses, manage supported settings and plugins, and run
+      actions that plugins expose to the UI.
+    items:
+      - icon: stream
+        title: "Watch work stream"
+        desc: >-
+          Follow responses as they arrive, then keep the final message and
+          metadata in the shared session history.
+      - icon: chat
+        title: "Resume sessions"
+        desc: >-
+          Browse existing sessions and continue the same work you started from
+          the app UI or terminal UI on your computer.
+      - icon: plugin
+        title: "Use plugin actions"
+        desc: >-
+          When a plugin exposes a setting or action, the app can render the
+          control without hardcoding that feature into the mobile client.
+      - icon: provider
+        title: "Keep model-family behavior"
+        desc: >-
+          Mobile does not flatten the harness. The same configured agents,
+          built-in plugins, provider settings, and session actions stay in use.
+      - icon: wifi
+        title: "Connect near or far"
+        desc: >-
+          Use automatic discovery on the same local network, or pair through a
+          self-hosted bridge when you are outside that network. Hosted bridge is
+          coming soon.
+
+  - type: mobileConnect
+    id: connect
+    eyebrow: "Connectivity"
+    title: "Connect near or far"
+    body: >-
+      Use automatic discovery when your phone is on the same local network. Use
+      a self-hosted bridge when you want to connect from outside that network.
+      Hosted bridge service is coming soon.
+    methods:
+      - num: "01"
+        title: "Manual address"
+        desc: "Enter your computer's local network address and port when you already know where Crystal Lattice is running."
+        code: "http://192.168.1.42:9000"
+      - num: "02"
+        title: "Automatic local discovery"
+        desc: "On the same Wi-Fi, the app can find your computer automatically. Under the hood this uses Bonjour/mDNS local network discovery."
+        code: "crystal-lattice ... --enable-bonjour"
+      - num: "03"
+        title: "Bridge pairing"
+        desc: "When your phone is outside the local network, deploy a reachable bridge and connect through a pairing code."
+        code: "crystal-lattice ... --bridge-url wss://<your-cloudfront-domain>/ws/websocket"
+
+  - type: mobileDownload
+    title: "Mobile apps are coming soon"
+    body: >-
+      App Store and Google Play distribution are planned. Until then, the React
+      Native mobile app can be run from source.
+    storeButtons:
+      - href: ""
+        icon: apple
+        sub: "Coming soon on the"
+        name: "App Store"
+        disabled: true
+      - href: ""
+        icon: play
+        sub: "Coming soon on"
+        name: "Google Play"
+        disabled: true
+      - href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice/tree/main/mobile/crystal-lattice-control-rn"
+        icon: github
+        sub: "Available today"
+        name: "Run from source"
+    noteHtml: 'Need Crystal Lattice on your computer first? <a href="/#computer-to-phone">Install Crystal Lattice</a>'

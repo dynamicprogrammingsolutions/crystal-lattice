@@ -9,6 +9,11 @@ Refine the landing page so it better reflects Crystal Lattice's strongest curren
 - [ ] `tasks/20260611-landing-page-positioning-update/030-mobile-connectivity-and-store-links.md`
 - [ ] `tasks/20260611-landing-page-positioning-update/040-plugin-control-and-sdk-action-blocks.md`
 - [ ] `tasks/20260611-landing-page-positioning-update/050-implementation-and-verification.md`
+- [ ] `tasks/20260611-landing-page-positioning-update/100-simplify-workspace-start-command.md`
+- [ ] `tasks/20260611-landing-page-positioning-update/110-plugin-authoring-and-user-owned-plugin-workflow.md`
+- [ ] `tasks/20260611-landing-page-positioning-update/120-config-reload-from-ui.md`
+- [ ] `tasks/20260611-landing-page-positioning-update/130-general-purpose-harnesses.md`
+- [ ] `tasks/20260611-landing-page-positioning-update/140-provider-native-settings-ui.md`
 
 ## Context
 
