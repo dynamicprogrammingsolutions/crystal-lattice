@@ -1,0 +1,111 @@
+seo:
+  title: "Crystal Lattice: Plugin-driven AI agent workspace"
+  description: >-
+    Run AI agents your way: start on your computer, continue from your phone,
+    and customize tools, prompts, settings, and model-family harnesses through
+    plugins.
+
+sections:
+  - type: hero
+    id: hero
+    badge: "Plugin-driven agent workspace"
+    titleHtml: 'Own the harness.<br /><span class="highlight">Use the agent anywhere.</span>'
+    subtitle: >-
+      Crystal Lattice is a plugin-driven platform for running AI agents your
+      way: from your computer, from your phone, and through custom tools,
+      prompts, settings, and model-family harnesses you can replace.
+    actions:
+      - label: "Get started"
+        href: "#quickstart"
+        variant: primary
+        icon: arrow
+      - label: "View on GitHub"
+        href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice"
+        variant: outline
+        icon: github
+        target: "_blank"
+    install:
+      prompt: "$"
+      command: "curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.\
+        amazonaws.com/crystal-lattice-cli/install.sh | bash"
+      altHtml: "or <code>pipx install crystal-lattice-cli</code>"
+
+  - type: providers
+    label: "Built for"
+    providers:
+      - "Codex-style tools"
+      - "Claude-style workflows"
+      - "Gemini"
+      - "Qwen"
+      - "Kimi"
+      - "Grok"
+      - "OpenRouter"
+      - "Ollama"
+
+  - type: features
+    id: features
+    source: "../markdown/home-features.md"
+
+  - type: quickstart
+    id: quickstart
+    eyebrow: "Quickstart"
+    title: "Start on your computer. Continue from your phone."
+    body: >-
+      Install the CLI, start Crystal Lattice in a project folder, then connect
+      from the mobile app on the same Wi-Fi.
+    steps:
+      - num: "1"
+        title: "Install"
+        body:
+          - html: "One-line installer for macOS & Linux:"
+        codeBlocks:
+          - "curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.\
+            amazonaws.com/crystal-lattice-cli/install.sh | bash"
+        after:
+          - html: "Or via pipx:"
+        afterCodeBlocks:
+          - "pipx install crystal-lattice-cli"
+      - num: "2"
+        title: "Start Crystal Lattice"
+        body:
+          - html: "Create a working directory and launch:"
+        codeBlocks:
+          - |
+            mkdir ~/crystal-lattice && cd ~/crystal-lattice
+
+            crystal-lattice \
+              --server \
+              --console \
+              --config-local \
+              --host 0.0.0.0 \
+              --port 9000 \
+              --enable-bonjour
+        after:
+          - html: "Add a provider key to <code>.crystal/config.json</code> to enable model calls."
+      - num: "3"
+        title: "Connect your phone"
+        body:
+          - html: "Open Crystal Lattice Control, choose <strong>Automatic Discovery</strong>, and select your computer."
+        codeBlocks: []
+        after:
+          - html: "Manual address is still available if discovery is not available on your network."
+
+  - type: cta
+    title: "Own your agent harness"
+    body: >-
+      Start Crystal Lattice from a project folder, open the same work from app
+      UI or phone, and replace the plugins that define how the agent behaves.
+    actions:
+      - label: "Install the CLI"
+        href: "#quickstart"
+        variant: primary
+        icon: arrow
+      - label: "Read the docs"
+        href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice#readme"
+        variant: outline
+        target: "_blank"
+      - label: "View on GitHub"
+        href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice"
+        variant: outline
+        icon: github
+        target: "_blank"
