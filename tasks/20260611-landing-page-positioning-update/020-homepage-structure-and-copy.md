@@ -21,12 +21,28 @@ Depends On: `tasks/20260611-landing-page-positioning-update/010-claim-safety-and
 - `landing_page/src/content/markdown/home-features.md`
 - Potentially `landing_page/src/components/Providers.astro` only if the strip needs a different label/layout.
 
+## Desired Content Target
+
+Use this directory as the canonical target for the desired homepage content:
+
+```text
+tasks/20260611-landing-page-positioning-update/desired-final-content/
+```
+
+The target is written as YAML plus Markdown, matching the landing page content
+model. The YAML is allowed to introduce new section types; the implementer
+should add section definitions/components where the current section registry
+cannot render the desired content clearly.
+
+Long sections should use Markdown sources, as shown in
+`desired-final-content/home.yaml`, rather than packing all copy into YAML.
+
 ## Proposed Homepage Structure
 
 Use this primary order for the intermediate page:
 
 1. Hero: Own the harness. Use the agent anywhere.
-2. Start and continue: install CLI, start Crystal Lattice, then open the same work from the phone on the local network.
+2. Computer to phone: install CLI, start Crystal Lattice, then open the same work from the phone on the local network.
 3. Connect outside the local network: AWS bridge and pairing flow.
 4. Control with no compromises: settings and UI controls exposed by replaceable plugins.
 5. Harnesses that fit each model family: simplified Codex/Claude/Gemini/Qwen/Kimi/Grok-style tools and instructions.
@@ -71,10 +87,10 @@ unless licensing is reviewed and scoped correctly.
 
 Replace `home-features.md` with cards close to these:
 
-### Start And Continue
+### Computer To Phone
 
 ```text
-Install the CLI, choose a project folder, and start Crystal Lattice. The terminal UI can stay open, but the work is not trapped there. On the same Wi-Fi, the mobile app can find your computer automatically so you can continue the same session from your phone.
+Start Crystal Lattice in the project folder where you want the agent to work. The terminal UI can stay open, but the work is not trapped there. On the same Wi-Fi, the mobile app can find your computer automatically so you can keep going from your phone.
 ```
 
 ### Connect Outside The Local Network

@@ -5,6 +5,9 @@ Implement the approved landing page copy and minimal component changes, then ver
 ## Requirements checklist
 
 - [ ] Apply the approved copy changes from the parent task and subtasks.
+- [ ] Compare implemented content against `tasks/20260611-landing-page-positioning-update/desired-final-content/`.
+- [ ] Add new section definitions/components where the desired YAML section types require them.
+- [ ] Keep long structured content in Markdown sources where the desired content draft does so.
 - [ ] Keep changes minimal and avoid redesigning the page.
 - [ ] Preserve the current Astro content-driven structure where possible.
 - [ ] Avoid broad unverified claims about store availability, licensing, provider switching, and feature completeness.

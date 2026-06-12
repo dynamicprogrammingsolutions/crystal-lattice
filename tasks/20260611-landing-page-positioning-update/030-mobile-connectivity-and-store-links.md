@@ -22,6 +22,12 @@ Depends On: `tasks/20260611-landing-page-positioning-update/010-claim-safety-and
 - Possibly `landing_page/src/components/mobile/Hero.astro` if store buttons need disabled/coming-soon state.
 - Possibly `landing_page/src/components/mobile/Connect.astro` if method blocks need richer explanatory text.
 
+## Desired Content Target
+
+Use `tasks/20260611-landing-page-positioning-update/desired-final-content/mobile.yaml`
+as the target mobile page content. It includes coming-soon store buttons, a
+source fallback, and corrected connectivity copy.
+
 ## Draft Mobile Hero
 
 ```text

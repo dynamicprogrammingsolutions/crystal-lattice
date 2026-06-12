@@ -34,7 +34,14 @@ Main platform code/docs for accurate snippets:
 - `plugins/docs/provider-extensions.md`
 - `plugins/docs/ui-elements.md`
 - `plugins/docs/plugin-packaging-and-loading.md`
-- User's `HOME/.crystal/config.json` or relevant config example for plugin-exposed temperature, if available and safe to inspect.
+- User's `HOME/.crystal/config.json` or relevant config example for `request_options` / `request_options_ui`, if available and safe to inspect.
+
+Desired content target:
+
+- `tasks/20260611-landing-page-positioning-update/desired-final-content/home.yaml`
+- `tasks/20260611-landing-page-positioning-update/desired-final-content/markdown/control-no-compromises.md`
+- `tasks/20260611-landing-page-positioning-update/desired-final-content/markdown/build-or-replace-plugin.md`
+- `tasks/20260611-landing-page-positioning-update/desired-final-content/markdown/automate-with-python.md`
 
 ## Section Type Recommendation
 
@@ -53,6 +60,16 @@ Better small option:
 
 This avoids forcing every action block into numbered quickstart steps.
 
+The desired content draft already uses new target section types:
+
+- `showcase`
+- `promptBlock`
+- `codeExample`
+
+Implementers may use these names or choose nearby names, but the final rendered
+page should preserve the target structure and avoid collapsing these sections
+back into generic feature cards.
+
 ## Draft Control Section
 
 Title:
@@ -70,13 +87,13 @@ Serious users eventually disagree with the defaults. In Crystal Lattice, a setti
 Illustration target:
 
 ```text
-Show a config snippet plus screenshot for a request option exposed by a plugin, for example temperature from the user's HOME/.crystal config. The exact snippet should be taken from a real config or sanitized real config.
+Show a config snippet plus screenshot for request options exposed by a plugin. Prefer the `request_options` / `request_options_ui` pattern from the desired content draft.
 ```
 
 Draft explanation:
 
 ```text
-The app does not need to know every possible provider option ahead of time. A plugin describes the setting, the UI renders it, and the request pipeline applies it.
+For many workflows, high-level control is enough: expose the request options the user cares about and let the UI render them in settings. Power users can still replace the lower-level plugin that defines how those options map into the request.
 ```
 
 ## Draft Plugin Planning Prompt

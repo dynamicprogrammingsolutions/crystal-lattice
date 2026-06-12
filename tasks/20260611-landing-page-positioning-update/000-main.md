@@ -36,6 +36,35 @@ yarn build
 
 It passed before these task files were created.
 
+## Desired Final Content Draft
+
+Use the files under:
+
+```text
+tasks/20260611-landing-page-positioning-update/desired-final-content/
+```
+
+as the canonical content target for the intended intermediate final state.
+These files are written in the same content style as the landing page:
+
+- `desired-final-content/home.yaml`
+- `desired-final-content/mobile.yaml`
+- `desired-final-content/markdown/*.md`
+
+The YAML files intentionally include section types that may not exist yet, such
+as `actionGuide`, `showcase`, `markdownSection`, `promptBlock`, and
+`codeExample`. The landing page content model is extensible through code; if an
+existing section cannot render the target content clearly, the implementer
+should add the needed section definition/component instead of flattening the
+content back into generic cards.
+
+Where section content is long, structured, prompt-like, or easier to parse as
+Markdown, the YAML should refer to a separate Markdown file via `source`. This
+keeps the YAML structural and the copy easy to edit.
+
+Subtasks may adapt implementation details, but should not reinvent the page
+message without updating `desired-final-content/` first.
+
 ## Product Direction
 
 Avoid leading with jargon such as "HTTP client", "local-first", "Bonjour", "bridge", or "model-native" before explaining the idea in plain language.
@@ -76,7 +105,7 @@ Important corrections from product discussion:
 This is an intermediate version, not the final website. Use this primary order:
 
 1. Hero: "Own the harness. Use the agent anywhere."
-2. Start and continue: install CLI, start Crystal Lattice on the user's computer, then open the same work from the phone on the local network.
+2. Computer to phone: install CLI, start Crystal Lattice on the user's computer, then open the same work from the phone on the local network.
 3. Connect outside the local network: AWS bridge deployment and pairing flow.
 4. Control with no compromises: config-driven options exposed by replaceable plugins.
 5. Harnesses that fit each model family: Codex-like, Claude-like, Gemini/Qwen/Kimi/Grok-like tool and prompt packages.
@@ -104,10 +133,10 @@ Short supporting bullets:
 
 ## Draft Section Texts
 
-### Start And Continue
+### Computer To Phone
 
 ```text
-Install the CLI, choose a project folder, and start Crystal Lattice. The terminal UI can stay open, but the work is not trapped there. On the same Wi-Fi, the mobile app can find your computer automatically. Open Crystal Lattice Control, choose Automatic Discovery, select your computer, and continue the session from your phone.
+Start Crystal Lattice in the project folder where you want the agent to work. The terminal UI can stay open, but the work is not trapped there. On the same Wi-Fi, the mobile app can find your computer automatically. Open Crystal Lattice Control, choose Automatic Discovery, select your computer, and keep going from your phone.
 ```
 
 Action:
@@ -174,7 +203,7 @@ Serious users eventually disagree with the defaults. Crystal Lattice is built so
 Illustration target:
 
 ```text
-Show a config snippet and screenshot for a plugin-exposed setting, such as temperature, from the user's HOME/.crystal config. Explain that the UI control exists because a plugin exposes it and can be replaced.
+Show a config snippet and screenshot for `request_options` and `request_options_ui`. Explain that high-level request options can be exposed directly in settings, while power users can still replace the lower-level plugin that defines the behavior.
 ```
 
 ### Harnesses That Fit Each Model Family
