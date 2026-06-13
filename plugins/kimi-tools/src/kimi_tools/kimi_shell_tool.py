@@ -6,7 +6,7 @@ Schema matches Kimi CLI shell tool behavior.
 Features:
 - Clean environment (strips PyInstaller/frozen-executable variables)
 - Timeout in seconds (default: 60, max: 300)
-- No truncation
+- Kimi-style output truncation
 - Success/failure message formatting
 """
 
@@ -15,12 +15,11 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, Iterator, List
+from typing import Any, Dict, List
 
 from agent_core.types import ToolPlugin
 from tool_compat_shared import (
-    ShellInfo,
-    detect_shell,
+    accumulate_truncated_lines,
     run_shell_command,
 )
 
@@ -28,6 +27,10 @@ from tool_compat_shared import (
 # Kimi defaults
 DEFAULT_TIMEOUT_SECONDS = 60
 DEFAULT_MAX_TIMEOUT_SECONDS = 300
+DEFAULT_MAX_OUTPUT_CHARS = 50_000
+DEFAULT_MAX_OUTPUT_LINE_LENGTH = 2_000
+TRUNCATION_MARKER = "[...truncated]"
+TRUNCATION_NOTICE = "Output is truncated to fit in the message."
 
 
 def get_clean_env() -> Dict[str, str]:
@@ -108,7 +111,8 @@ class KimiShellTool(ToolPlugin):
                     "Usage notes:\n"
                     "- Use this tool to execute shell commands.\n"
                     "- The `timeout` parameter is in seconds. Default: 60, Max: 300.\n"
-                    "- Commands run with a clean environment (PyInstaller variables removed)."
+                    "- Commands run with a clean environment (PyInstaller variables removed).\n"
+                    "- Output is truncated to fit in the message when needed."
                 ),
                 "parameters": {
                     "type": "object",
@@ -195,6 +199,18 @@ class KimiShellTool(ToolPlugin):
             # No running loop - we can use asyncio.run()
             result = asyncio.run(_run())
         
+        output, trunc_meta = accumulate_truncated_lines(
+            result["output"].splitlines(keepends=True),
+            max_chars=DEFAULT_MAX_OUTPUT_CHARS,
+            max_line_length=DEFAULT_MAX_OUTPUT_LINE_LENGTH,
+            marker=TRUNCATION_MARKER,
+        )
+        result = {
+            **result,
+            "output": output,
+            "truncated": trunc_meta.get("truncated", False),
+        }
+
         # Format output based on result type
         if result.get("timed_out"):
             return self._format_timeout_result(result, timeout, command)
@@ -223,7 +239,10 @@ class KimiShellTool(ToolPlugin):
             lines.append(result["output"])
         
         # Success message
-        lines.append("Command executed successfully.")
+        message = "Command executed successfully."
+        if result.get("truncated"):
+            message += f" {TRUNCATION_NOTICE}"
+        lines.append(message)
         
         return {
             "success": True,
@@ -231,6 +250,7 @@ class KimiShellTool(ToolPlugin):
             "exit_code": result["exit_code"],
             "duration_seconds": result["duration_seconds"],
             "command": command,
+            "truncated": bool(result.get("truncated")),
         }
     
     def _format_failure_result(
@@ -251,7 +271,10 @@ class KimiShellTool(ToolPlugin):
             lines.append(result["output"])
         
         # Failure message
-        lines.append(f"Command failed with exit code: {result['exit_code']}.")
+        message = f"Command failed with exit code: {result['exit_code']}."
+        if result.get("truncated"):
+            message += f" {TRUNCATION_NOTICE}"
+        lines.append(message)
         
         return {
             "success": False,
@@ -259,6 +282,7 @@ class KimiShellTool(ToolPlugin):
             "exit_code": result["exit_code"],
             "duration_seconds": result["duration_seconds"],
             "command": command,
+            "truncated": bool(result.get("truncated")),
         }
     
     def _format_timeout_result(
@@ -280,7 +304,10 @@ class KimiShellTool(ToolPlugin):
             lines.append(result["output"])
         
         # Timeout message
-        lines.append(f"Command killed by timeout ({timeout}s)")
+        message = f"Command killed by timeout ({timeout}s)"
+        if result.get("truncated"):
+            message += f" {TRUNCATION_NOTICE}"
+        lines.append(message)
         
         return {
             "success": False,
@@ -289,6 +316,7 @@ class KimiShellTool(ToolPlugin):
             "timed_out": True,
             "duration_seconds": result["duration_seconds"],
             "command": command,
+            "truncated": bool(result.get("truncated")),
         }
     
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> str:

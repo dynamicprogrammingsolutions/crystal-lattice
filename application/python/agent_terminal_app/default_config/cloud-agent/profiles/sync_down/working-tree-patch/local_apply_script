@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Purpose: Apply the exported cloud binary patch onto the current local worktree
+# while remaining safe to retry after the same patch was already applied.
+# Required env vars: LOCAL_WORKSPACE_DIR, TRANSFER_DIR.
+# Inputs: TRANSFER_DIR/.cloud-agent/cloud.patch.
+# Outputs: Updated local worktree at LOCAL_WORKSPACE_DIR.
+# Customization: Keep this bundled script for standard patch sync-down.
+set -euo pipefail
+
+: "${LOCAL_WORKSPACE_DIR:?}"
+: "${TRANSFER_DIR:?}"
+
+patch_path="${TRANSFER_DIR}/.cloud-agent/cloud.patch"
+
+cd "${LOCAL_WORKSPACE_DIR}"
+if [ -s "${patch_path}" ]; then
+  if git apply --check --binary "${patch_path}" >/dev/null 2>&1; then
+    git apply --binary "${patch_path}"
+  elif git apply --reverse --check --binary "${patch_path}" >/dev/null 2>&1; then
+    exit 0
+  else
+    git apply --check --binary "${patch_path}"
+  fi
+fi

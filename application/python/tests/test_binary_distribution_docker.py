@@ -87,7 +87,6 @@ def test_linux_bundle_builds_and_runs_in_clean_runtime_container(
         linux_archives
     ), f"No Linux release archive found under {snapshot_dir / 'dist'}"
     archive = linux_archives[-1]
-
     _run(
         [
             "docker",

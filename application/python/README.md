@@ -81,11 +81,50 @@ python -m pip install -e "core/python[dev]"
 python -m pip install -e application/python
 ```
 
+For local source development, install `core/python` first so
+`application/python` resolves against your checkout of the core SDK. This
+editable install still does not install repo-root plugin packages; install
+`plugins/<plugin-name>[dev]` separately when you are actively changing one.
+
 For binary build work:
 
 ```bash
 python -m pip install -e core/python -e "application/python[binary]"
 ```
+
+## Testing
+
+For contributors and local validation:
+
+- Fast default package run:
+
+  ```bash
+  pytest application/python/tests -q
+  ```
+
+  This package defaults to `-m 'not integration and not docker'`.
+
+- Non-API integration:
+
+  ```bash
+  pytest application/python/tests -m 'integration and not api and not slow_integration and not docker' -q
+  ```
+
+- Hosted API integration:
+
+  ```bash
+  pytest application/python/tests -m 'integration and api and not slow_integration and not docker' -q
+  ```
+
+- Docker-only bundle validation:
+
+  ```bash
+  pytest application/python/tests -m docker -q
+  ```
+
+The application test suite bootstraps the repo root `.env` for local
+real-provider tests and does not overwrite already-exported environment
+variables.
 
 ## Running Crystal Lattice
 
@@ -216,6 +255,10 @@ Important layout behavior:
   sources in binary installs.
 - Config files, sessions, auth state, and plugin install caches are user-owned
   state and stay outside the bundle.
+
+Literal values can opt out of placeholder resolution by wrapping them as
+`{"$raw": "..."}` in JSON config. The wrapped value is passed through exactly
+as written, including `${env:...}` or `${file:...}` text.
 
 ## Provider Credentials
 
@@ -452,7 +495,7 @@ crystal-lattice \
   --cloud-orchestrator-token "$CLOUD_ORCHESTRATOR_TOKEN"
 ```
 
-Config example:
+Quick-start config:
 
 ```json
 {
@@ -464,101 +507,92 @@ Config example:
       "orchestrator_url": "${env:CLOUD_ORCHESTRATOR_URL}",
       "orchestrator_token": "${env:CLOUD_ORCHESTRATOR_TOKEN}",
       "workspace_dir": ".",
-      "connection_key": "optional-stable-project-or-server-key",
-      "transfer_method": "managed_ssh",
       "project_config_path": "${env:WORKING_DIR}/.cloud-agent/cloud-agent.json",
       "default_transfer_up_profile": "working-tree-current-state",
-      "default_sync_down_profile": "working-tree-patch",
-      "default_container_profile": "default-runtime",
-      "transfer_up_profiles": {
-        "working-tree-current-state": {
-          "label": "Working tree current state",
-          "local_transfer_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-current-state/transfer-up",
-          "install_profile": "repo-install",
-          "compatible_sync_down_profiles": ["working-tree-patch"]
-        }
-      },
-      "install_profiles": {
-        "repo-install": {
-          "label": "Repository install",
-          "cloud_install_script": "${env:CONFIG_DIR}/cloud-agent/profiles/repo-install/install"
-        }
-      },
-      "sync_down_profiles": {
-        "working-tree-patch": {
-          "label": "Apply cloud patch to current worktree",
-          "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/export",
-          "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/mark-synced",
-          "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/working-tree-patch/apply-down",
-          "compatible_transfer_up_profiles": ["working-tree-current-state"]
-        }
-      },
-      "container_profiles": {
-        "default-runtime": {
-          "label": "Default cloud agent runtime",
-          "image": "cloud-agent-runtime:latest"
-        }
-      },
-      "managed_ssh": {
-        "adapter_script": null,
-        "ssh_path": "ssh",
-        "rsync_path": "rsync",
-        "extra_rsync_args": []
-      },
-      "config_assets": {
-        "include_config_dir": true,
-        "exclude": [".env", ".env.*", ".plugin_cache", "logs", "sessions", "auth", "state"],
-        "max_top_level_entry_bytes": 104857600
-      },
-      "runtime_env": {
-        "include_config_env": true,
-        "include": [],
-        "exclude": [
-          "CLOUD_ORCHESTRATOR_URL",
-          "CLOUD_ORCHESTRATOR_TOKEN",
-          "SERVER_HOST",
-          "SERVER_PORT",
-          "BRIDGE_URL",
-          "BRIDGE_LOCAL_HTTP_BASE",
-          "OPENAI_BASE_URL",
-          "CONFIG_DIR",
-          "BUILTIN_PLUGINS",
-          "PLUGIN_CACHE_DIR"
-        ],
-        "env_files": []
-      }
+      "default_sync_down_profile": "working-tree-patch"
     }
   }
 }
 ```
+
+The default bundled profiles are selected automatically. Projects can usually
+customize cloud behavior with repo-local hooks instead of inventing project-only
+bundled profiles:
+
+- `.cloud-agent/local-stage`
+- `.cloud-agent/install-cloud`
+- `.cloud-agent/validate-cloud`
+
+Local hook validation does not require the orchestrator service. Run the shared
+local-Docker validation flow directly from the main CLI:
+
+```bash
+crystal-lattice validate-cloud
+```
+
+Useful flags:
+
+```bash
+crystal-lattice validate-cloud --workspace-dir /path/to/project
+crystal-lattice validate-cloud --keep-temp-dir
+crystal-lattice validate-cloud --cache-dir /path/to/stable/cache
+crystal-lattice validate-cloud --runtime-build-context /path/to/context --runtime-dockerfile /path/to/Dockerfile
+```
+
+The command runs the selected container profile. The canonical default config
+declares the default Dockerfile runtime profile explicitly. Image-mode profiles
+run the configured image, and Dockerfile-mode profiles stage the configured
+context plus build assets, compute a digest, and build/reuse the local image.
+Custom image names are treated as user-owned: validation trusts them when
+present and fails clearly when they are missing unless explicit runtime build
+overrides or Dockerfile profile metadata are provided.
+When `--cache-dir` is provided, it is bind-mounted to `/cloud-agent/cache` so
+plugin and pip caches persist across validation runs.
+
+The default config also includes a `cloud-script-author` agent for creating
+these hooks from ordinary project guidance. It uses the project's normal
+`AGENTS.md`/README setup instructions and points directly at the bundled
+authoring guide, which is in the agent's allowed read paths:
+
+```text
+${env:BUILTIN_PLUGINS}/cloud-agent-app/docs/cloud-script-authoring.md
+```
+
+The full cloud profile reference lives in
+[`plugins/cloud-agent-app/README.md`](../../plugins/cloud-agent-app/README.md),
+including:
+
+- the `validate-cloud` command and its built-in smoke contract
+- container profile image/Dockerfile modes, build assets, cache mounts, and
+  runtime mounts
+- the flattened `transfer_up_profiles` schema
+- the bundled script tree under `default_config/cloud-agent/profiles/`
+- the standard repo-local hook conventions and optional-hook behavior
+- the complete config example and field-by-field reference
+
+The authoring guide tells agents to add project container profiles only when the
+runtime image must change. Project source remains a runtime workspace mount; a
+Dockerfile profile may use project files only through explicit stable
+`build_assets` such as package manifests or lockfiles.
 
 `connection_key` is optional. When omitted, the cloud plugin derives an opaque
 stable key from the local config/workspace context so multiple local sessions
 can share one cloud connection while still running as separate cloud instances.
 The orchestrator treats this key as plugin-owned opaque data.
 
-The configured default profiles are selected automatically. Projects can
-override the bundled defaults from a single optional workdir file at
-`.cloud-agent/cloud-agent.json`. That file may override default profile ids or
-individual profile fields. Script fields can be a string or an ordered fallback
-list; the first existing script path is used, and fallback lists in the project
-file fall back to the inherited bundled script when no project path exists.
-Relative script paths in the project file resolve from `WORKING_DIR`.
-Patch-based sync profiles can also define `cloud_mark_synced_script`; it runs
-only after the local apply step succeeds, so the cloud-side baseline advances
-without breaking retry safety.
-
-Scripts receive stable environment variables:
-
-- Local transfer: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
-- Cloud setup/export: `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
-- Local apply: `LOCAL_WORKSPACE_DIR`, `CLOUD_WORKSPACE_DIR`, `TRANSFER_DIR`
+`application.cloud_agent.disabled_plugins` is a cloud-only plugin-spec filter
+applied during portable config generation. Each entry must match an exact
+plugin spec string from a `plugins` list, for example
+`path:${env:BUILTIN_PLUGINS}/session-asset-attachments`. Matching specs are
+removed from the generated cloud runtime config from the top-level `plugins`
+list and from any provider or agent `plugins` lists. This does not affect the
+local runtime config.
 
 The managed-SSH byte-transfer adapter is platform-owned. By default it runs the
 packaged rsync-over-SSH adapter script against the orchestrator's restricted
 transfer slot. Projects can override `managed_ssh.adapter_script` for unusual
-transport needs, but workspace selection should stay in the project content
-scripts above.
+transport needs, but workspace selection should stay in repo-local hook and
+profile scripts.
 
 For deployments where the orchestrator HTTP endpoint and managed-SSH endpoint
 are different hosts, such as AWS CloudFront in front of an EC2 Docker host, the
@@ -573,12 +607,16 @@ under `.cloud-agent/config/config.json`, removes the local
 `application.cloud_agent` control-plane section, and copies the configured
 `CONFIG_DIR` asset tree to `.cloud-agent/config/assets/`. The cloud runtime
 sets `CONFIG_DIR` to that copied asset tree and `WORKING_DIR` to the cloud
-workspace. Plugin-owned settings such as `working_directory` and
-`allowed_paths` are preserved as configured.
+workspace. Environment variables referenced by config placeholders are
+transferred through `.cloud-agent/env/runtime.env` according to `runtime_env`.
+Values are never included in action display payloads.
 
-Environment variables referenced by config placeholders are transferred through
-`.cloud-agent/env/runtime.env` according to `runtime_env`. Values are never
-included in action display payloads.
+The default `config_assets.exclude` keeps `.env`, `.env.*`, `auth`, `state`,
+logs, sessions, and plugin caches out of the copied config assets. To opt in a
+specific excluded config file, use `config_assets.include_excluded`, for example
+`auth/chatgpt-auth.json`. To load an env file as runtime environment variables,
+prefer `runtime_env.env_files`, for example `.env.cloud`.
+
 - `POST /sessions` - create a session.
 - `GET /sessions` - list sessions.
 - `GET /sessions/{session_id}/messages` - list session messages.
@@ -591,7 +629,7 @@ included in action display payloads.
 - `PATCH /sessions/{session_id}/agent` - change a session's agent.
 - `GET /sessions/{session_id}/plugins` - list session plugins.
 - `PUT /sessions/{session_id}/plugins` - update enabled session plugins.
-- `GET /application/ui-schema` and `POST /actions` - application UI/actions.
+- `GET /application/ui-schema`, `POST /actions`, and `POST /sessions/{session_id}/actions` - application UI/actions.
 
 Run the command help for the complete CLI surface:
 
@@ -609,20 +647,58 @@ dependency. When a CLI release needs newer core behavior, bump the `agent-core`
 dependency floor and release the core package first or alongside the CLI
 package.
 
-### Binary Builds
+### Runtime Packages And Optimized Bundles
 
-The binary release format is a PyInstaller `--onedir` bundle. It keeps the
-executable, bundled Python runtime, app assets, and built-in plugin source
-projects as separate files so release artifacts are easier to inspect and
-debug.
+The general distribution format is a bundled-Python runtime package. It ships a
+normal Python runtime, repo-shaped application sources, built-in plugin sources,
+and launcher scripts. This is the package shape intended for desktop/local use
+because arbitrary plugins and their Python dependencies install through normal
+`python -m pip` behavior.
 
-Build the current platform:
+Build the current-platform bundled-Python package:
+
+```bash
+python scripts/build_crystal_lattice_python_runtime_package.py
+```
+
+The script creates a package directory under:
+
+```text
+build/crystal-lattice-python-runtime/
+```
+
+and a release archive under:
+
+```text
+dist/crystal-lattice-python-runtime/
+```
+
+Bundled-Python archive names look like:
+
+```text
+crystal-lattice-python-runtime-v0.1.0-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.0-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.0-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.0-windows-amd64.zip
+```
+
+From that full package, users can create optimized config-specific PyInstaller
+artifacts:
+
+```bash
+crystal-lattice bundle --config path/to/config.json --output dist/
+```
+
+Optimized artifacts are runtime-only outputs. They preinstall the plugins
+selected by the supplied config and do not support creating further bundles.
+
+Maintainer builds can still call the PyInstaller builder directly:
 
 ```bash
 python scripts/build_crystal_lattice_binary.py
 ```
 
-The script creates a PyInstaller app directory under:
+That script creates a PyInstaller app directory under:
 
 ```text
 application/python/dist/crystal-lattice/
@@ -634,7 +710,7 @@ and a release archive under:
 dist/crystal-lattice/
 ```
 
-Archive names look like:
+Optimized PyInstaller archive names look like:
 
 ```text
 crystal-lattice-cli-v0.1.0-linux-amd64.tar.gz
@@ -643,13 +719,46 @@ crystal-lattice-cli-v0.1.0-darwin-arm64.tar.gz
 crystal-lattice-cli-v0.1.0-windows-amd64.zip
 ```
 
-PyInstaller does not cross-compile. Build Linux, macOS, and Windows binaries on
-matching hosts or CI runners.
+PyInstaller does not cross-compile. Build Linux, macOS, and Windows optimized
+artifacts on matching hosts or CI runners.
 
-The bundle includes sanitized built-in plugin project directories from the
-repo-root `plugins/` directory. User-owned state stays outside the bundle:
-config files, sessions, auth state, and plugin install caches belong under the
-selected `.crystal` directory.
+The bundle preinstalls default-config plugin projects and their Python
+dependencies during the binary build. It still exposes lightweight metadata and
+referenced resource files under `_internal/bundled_plugins`, so default config
+paths such as `path:${env:BUILTIN_PLUGINS}/codex-tools` continue to resolve
+without copying selected plugin source trees into that directory. User-owned
+state stays outside the bundle: config files, sessions, auth state, and plugin
+install caches belong under the selected `.crystal` directory.
+
+In the bundled-Python package, built-in plugin source trees remain under
+`plugins/`. The default-config plugin closure is also installed into the
+packaged Python runtime and recorded in the package-owned
+`preinstalled-plugins.json` manifest. Startup uses that manifest to import
+default plugins without installing them into the user plugin cache, while
+leaving the copied plugin source descriptors unchanged. When user config
+references a built-in plugin that is not in the default closure, the app
+installs it lazily into the configured plugin cache using the packaged Python
+interpreter.
+
+In optimized PyInstaller artifacts, optional built-in plugins that are not
+selected by the build config remain as source trees under
+`_internal/bundled_plugins`, but PyInstaller/frozen artifacts are
+config-specific packages and do not support arbitrary dynamic plugin
+installation by default. Dynamic plugin installation belongs to the full
+bundled-Python package, where `CRYSTAL_PLUGIN_PYTHON` or
+`plugin_policy.python_executable` can select the interpreter used for
+`python -m pip install --target ...`.
+
+The bundled cloud runtime Docker context uses the same selected-plugin metadata
+model, but builds Linux wheels inside Docker. The installed archive carries
+selected plugin source inputs under `_internal/cloud_runtime/plugin_sources`
+only so the Docker builder can create runtime-compatible wheels. The final cloud
+runtime image installs those wheels at image build time and sets
+`BUILTIN_PLUGINS` to
+`/opt/ai-agent-platform/cloud-runtime-plugin-bundle/bundled_plugins`, which
+contains only preinstalled descriptors and resources. Runtime startup should not
+install bundled/default plugins into `/cloud-agent/cache/plugin_cache/plugins`;
+that cache remains for non-bundled or user-provided plugins.
 
 ### Local Nox Scripts
 
@@ -660,10 +769,16 @@ Install `nox` once if needed:
 python -m pip install nox
 ```
 
-Build the current-platform bundle:
+Build the current-platform bundled-Python runtime package:
 
 ```bash
 nox -s build_bundle
+```
+
+Build the current-platform optimized PyInstaller artifact directly:
+
+```bash
+nox -s build_optimized_bundle
 ```
 
 Run a local production install rehearsal from the generated archive:
@@ -672,10 +787,11 @@ Run a local production install rehearsal from the generated archive:
 nox -s install_prod_local
 ```
 
-Together these commands intentionally follow the release installer shape:
+`build_bundle` and `install_prod_local` intentionally follow the release
+installer shape:
 
 1. install local build dependencies
-2. run `scripts/build_crystal_lattice_binary.py`
+2. run `scripts/build_crystal_lattice_python_runtime_package.py`
 3. smoke-test the generated release archive
 4. install from the archive, not from editable source
 5. link `crystal-lattice` into `~/.local/bin`
@@ -724,7 +840,7 @@ s3://crystal-lattice-downloads-874087778966/crystal-lattice-cli/*
 Manual republish:
 
 ```bash
-python scripts/publish_crystal_lattice_s3.py --assets-dir dist/crystal-lattice
+python scripts/publish_crystal_lattice_s3.py --assets-dir dist/crystal-lattice-python-runtime
 ```
 
 Turn off public S3 downloads quickly:
@@ -820,6 +936,62 @@ pytest application/python/tests/test_binary_distribution_docker.py -q
 This test is marked `integration` and `docker`. Docker validates Linux bundles
 only; macOS and Windows bundles still need native runners.
 
+The deeper installed-bundle E2E test runs the extracted current-platform bundle
+directly, uses Ollama with Qwen 0.6B, sends a real model request, and verifies a
+tool-call flow without hosted API calls:
+
+```bash
+RUN_CRYSTAL_BUNDLE_OLLAMA_E2E=1 \
+CRYSTAL_LATTICE_BUNDLE_ARCHIVE=/path/to/crystal-lattice-cli-...-<platform>-<arch>.tar.gz \
+pytest application/python/tests/test_binary_distribution_bundle_e2e_ollama.py -q -m "integration and ollama"
+```
+
+Use `BUNDLE_E2E_OLLAMA_MODEL` to override the default `qwen3:0.6b` model.
+
+The real-model installed-bundle cloud-script-author validation is separately
+gated because it needs a compatible bundle archive, Docker, and hosted provider
+credentials. By default it uses `CHATGPT_CREDENTIALS` when set, then the saved
+login at `$HOME/.crystal/auth/chatgpt-auth.json` when present, and otherwise
+falls back to the normal OpenAI provider config and API-key auth. The root
+`.env` is loaded by the test suite, so `OPENAI_API_KEY` can live there:
+
+```bash
+RUN_CLOUD_SCRIPT_AUTHOR_BUNDLE_E2E=1 \
+CRYSTAL_LATTICE_BUNDLE_ARCHIVE=/path/to/crystal-lattice-cli-...-<platform>-<arch>.tar.gz \
+pytest application/python/tests/test_cloud_script_author_installed_bundle_real_api.py -q -m "integration and api and docker"
+```
+
+To force a specific ChatGPT login auth file for a local run, set
+`CHATGPT_CREDENTIALS` explicitly. In this mode the test sends
+`auth_mode: "chatgpt"` and does not fall back to API-key auth:
+
+```bash
+RUN_CLOUD_SCRIPT_AUTHOR_BUNDLE_E2E=1 \
+CHATGPT_CREDENTIALS="$HOME/.crystal/auth/chatgpt-auth.json" \
+CRYSTAL_LATTICE_BUNDLE_ARCHIVE=/path/to/crystal-lattice-cli-...-<platform>-<arch>.tar.gz \
+pytest application/python/tests/test_cloud_script_author_installed_bundle_real_api.py -q -m "integration and api and docker"
+```
+
+The standard authoring validation uses the default `gpt-5.4-mini` model with
+high reasoning. The harder multi-repo validation defaults to `gpt-5.4`. Use
+`CLOUD_SCRIPT_AUTHOR_TEST_MODEL` to override the model for local runs. The
+real-model request and final `validate-cloud` subprocess both warn after a
+15-minute soft timeout and fail only at the 30-minute hard timeout; soft-timeout
+warnings are a signal to inspect runtime startup or model/tool-loop behavior
+rather than treating the longer run as fully healthy.
+
 ## License
 
-This directory is available under the [Apache License 2.0](../../LICENSE).
+Copyright 2026 Dynamic Programming Solutions Kft.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+<http://www.apache.org/licenses/LICENSE-2.0>
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

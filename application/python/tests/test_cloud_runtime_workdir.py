@@ -8,18 +8,28 @@ from types import ModuleType
 from typing import Any
 
 
-def _load_runtime_module(repo_root: Path) -> ModuleType:
-    module_name = "_cloud_runtime_workdir_test_runtime"
-    runtime_path = (
-        repo_root / "cloud-orchestrator" / "runtime" / "python" / "runtime.py"
-    )
-    spec = importlib.util.spec_from_file_location(module_name, runtime_path)
+def _load_module_from_path(module_name: str, path: Path) -> ModuleType:
+    spec = importlib.util.spec_from_file_location(module_name, path)
     assert spec is not None
     assert spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def _load_runtime_module(repo_root: Path) -> ModuleType:
+    runtime_path = (
+        repo_root
+        / "plugins"
+        / "cloud-agent-app"
+        / "src"
+        / "cloud_agent_app"
+        / "bundled_runtime"
+        / "python"
+        / "runtime.py"
+    )
+    return _load_module_from_path("_cloud_runtime_workdir_test_runtime", runtime_path)
 
 
 def test_initialize_runtime_chdirs_to_workspace_before_agent_application(
@@ -57,21 +67,28 @@ def test_initialize_runtime_chdirs_to_workspace_before_agent_application(
         def __init__(self, *_args: Any, **_kwargs: Any) -> None:
             constructed_cwd.append(Path.cwd().resolve())
 
-    monkeypatch.setattr(runtime, "AgentApplication", FakeAgentApplication)
-    monkeypatch.setattr(runtime, "InMemoryEventStore", lambda: object())
+    monkeypatch.setattr(runtime.cloud_runtime, "AgentApplication", FakeAgentApplication)
+    monkeypatch.setattr(runtime.cloud_runtime, "InMemoryEventStore", lambda: object())
     monkeypatch.setattr(
-        runtime,
+        runtime.cloud_runtime,
         "FilesystemSnapshotSelectionStore",
         lambda _path: object(),
     )
 
     try:
         runtime._initialize_runtime()
-        from codex_tools.apply_patch_runtime import execute_apply_patch_text
-        from codex_tools.workdir import resolve_turn_cwd
+        codex_tools_root = repo_root / "plugins" / "codex-tools" / "src" / "codex_tools"
+        apply_patch_runtime = _load_module_from_path(
+            "_cloud_runtime_test_apply_patch_runtime",
+            codex_tools_root / "apply_patch_runtime.py",
+        )
+        workdir = _load_module_from_path(
+            "_cloud_runtime_test_workdir",
+            codex_tools_root / "workdir.py",
+        )
 
         config = {"working_directory": ".", "allowed_paths": ["."]}
-        patch_result = execute_apply_patch_text(
+        patch_result = apply_patch_runtime.execute_apply_patch_text(
             "*** Begin Patch\n"
             "*** Add File: patched.txt\n"
             "+patched in workspace\n"
@@ -79,7 +96,7 @@ def test_initialize_runtime_chdirs_to_workspace_before_agent_application(
             config=config,
         )
 
-        assert resolve_turn_cwd(config) == str(workspace_dir.resolve())
+        assert workdir.resolve_turn_cwd(config) == str(workspace_dir.resolve())
         assert patch_result["success"] is True
         assert (workspace_dir / "patched.txt").read_text(
             encoding="utf-8"
@@ -88,6 +105,8 @@ def test_initialize_runtime_chdirs_to_workspace_before_agent_application(
         os.chdir(old_cwd)
         runtime.server_mod._agent_app = None
         sys.modules.pop(runtime.__name__, None)
+        sys.modules.pop("_cloud_runtime_test_apply_patch_runtime", None)
+        sys.modules.pop("_cloud_runtime_test_workdir", None)
 
     assert constructed_cwd == [workspace_dir.resolve()]
     assert (workspace_dir / "committed.txt").read_text(

@@ -2826,6 +2826,69 @@ def test_list_sessions_endpoint_strips_native_messages_from_metadata(
     assert "native_messages" not in meta_out
 
 
+def test_get_session_summary_matches_list_sessions_entry(tmp_path: Path) -> None:
+    """GET /sessions/{id}/summary returns the same shape as /sessions entries."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "single summary preview", "metadata": None},
+        app_instance=app,
+    )
+
+    list_resp = server_mod.list_sessions(app_instance=app)
+    list_entry = next(
+        item for item in list_resp["sessions"] if item["session_id"] == session_id
+    )
+    summary_resp = server_mod.get_session_summary(session_id, app_instance=app)
+
+    assert summary_resp["session"] == list_entry
+
+
+def test_get_session_summary_reflects_metadata_changes(tmp_path: Path) -> None:
+    """GET /sessions/{id}/summary refreshes metadata changed in the background."""
+
+    from agent_terminal_app import server as server_mod
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+
+    create = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = create["session"]["session_id"]
+
+    first = server_mod.get_session_summary(session_id, app_instance=app)["session"]
+    assert (first.get("metadata") or {}).get("background_state") is None
+
+    session_path = session_root / f"{session_id}.json"
+    raw = json.loads(session_path.read_text(encoding="utf-8"))
+    metadata = raw.get("metadata") if isinstance(raw.get("metadata"), dict) else {}
+    metadata["background_state"] = "ready"
+    metadata["native_messages"] = [{"role": "user", "content": "large"}]
+    raw["metadata"] = metadata
+    session_path.write_text(json.dumps(raw), encoding="utf-8")
+    stat_before = session_path.stat()
+    os.utime(session_path, (stat_before.st_mtime + 2, stat_before.st_mtime + 2))
+
+    second = server_mod.get_session_summary(session_id, app_instance=app)["session"]
+    second_metadata = second.get("metadata") or {}
+    assert second_metadata.get("background_state") == "ready"
+    assert "native_messages" not in second_metadata
+
+
 def test_checkpoint_cursor_after_message_appended(tmp_path: Path) -> None:
     """After appending a message, cursor_event_id is after the event.
 

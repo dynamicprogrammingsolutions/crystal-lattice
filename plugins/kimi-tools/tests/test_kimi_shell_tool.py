@@ -248,20 +248,61 @@ class TestKimiShellToolFormatting:
         assert "Command killed by timeout" in result["output"]
 
     @pytest.mark.asyncio
-    async def test_no_truncation(self, tmp_path: Path) -> None:
-        """Kimi should not truncate output."""
+    async def test_long_single_line_is_truncated(self, tmp_path: Path) -> None:
+        """Long single-line output should be truncated with Kimi-style marker."""
         wrapper = ToolWrapper(KimiShellTool)
         state = wrapper.init({"working_directory": str(tmp_path)})
-        
-        # Generate a lot of output
+
+        command = f'"{sys.executable}" -c "print(\'x\' * 3000)"'
         result = await wrapper.execute_tool_async(
             "Shell",
-            {"command": "for i in $(seq 1 5000); do echo \"Line $i\"; done"},
+            {"command": command},
             state,
         )
-        
-        # Should NOT have truncated key
-        assert "truncated" not in result or result.get("truncated") is False
+
+        assert result["success"] is True
+        assert result.get("truncated") is True
+        first_line = result["output"].splitlines()[0]
+        assert "[...truncated]" in first_line
+        assert len(first_line) <= 2000
+        assert "Command executed successfully. Output is truncated to fit in the message." in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_large_multiline_output_is_capped(self, tmp_path: Path) -> None:
+        """Large multiline output should be capped at the tool-level budget."""
+        wrapper = ToolWrapper(KimiShellTool)
+        state = wrapper.init({"working_directory": str(tmp_path)})
+
+        command = f'"{sys.executable}" -c "for i in range(6000): print(f\'Line {{i}}\')"'
+        result = await wrapper.execute_tool_async(
+            "Shell",
+            {"command": command},
+            state,
+        )
+
+        assert result["success"] is True
+        assert result.get("truncated") is True
+        assert "Line 0" in result["output"]
+        assert "Line 5999" not in result["output"]
+        assert "Output is truncated to fit in the message." in result["output"]
+
+    @pytest.mark.asyncio
+    async def test_failure_includes_truncation_notice(self, tmp_path: Path) -> None:
+        """Failure output should include the truncation notice when output is capped."""
+        wrapper = ToolWrapper(KimiShellTool)
+        state = wrapper.init({"working_directory": str(tmp_path)})
+
+        command = f'"{sys.executable}" -c "import sys; print(\'x\' * 3000); sys.exit(7)"'
+        result = await wrapper.execute_tool_async(
+            "Shell",
+            {"command": command},
+            state,
+        )
+
+        assert result["success"] is False
+        assert result["exit_code"] == 7
+        assert result.get("truncated") is True
+        assert "Command failed with exit code: 7. Output is truncated to fit in the message." in result["output"]
 
 
 class TestKimiShellToolTimeoutLimits:

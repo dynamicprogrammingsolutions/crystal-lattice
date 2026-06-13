@@ -227,10 +227,13 @@ def _status_bar_text(app: TerminalApplication) -> str:
 
     # Add plugin-contributed status_bar elements from last assistant message
     try:
-        elements = app.status_bar_elements()
         last_msg = app.get_last_assistant_message()
+        if not last_msg:
+            return "  ".join(parts)
 
-        if last_msg and elements:
+        elements = app.status_bar_elements()
+
+        if elements:
             for el in elements:
                 if not isinstance(el, dict):
                     continue

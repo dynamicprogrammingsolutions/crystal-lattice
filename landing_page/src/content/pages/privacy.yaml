@@ -1,0 +1,7 @@
+seo:
+  title: "Privacy Policy — Crystal Lattice"
+  description: "Crystal Lattice privacy policy. Local-first software — your data stays on your machine."
+
+sections:
+  - type: legalContent
+    source: "../markdown/privacy.md"

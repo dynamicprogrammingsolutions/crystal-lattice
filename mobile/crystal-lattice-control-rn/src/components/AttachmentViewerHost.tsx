@@ -11,8 +11,6 @@ import {
   View,
 } from 'react-native';
 import RNFS from 'react-native-fs';
-import Share from 'react-native-share';
-import { saveDocuments } from '@react-native-documents/picker';
 import {
   CameraRoll,
   iosRequestAddOnlyGalleryPermission,
@@ -34,6 +32,10 @@ import {
   resolveAttachmentDownloadPluginId,
   type MessageAttachmentSnapshot,
 } from '../messageAttachments';
+import {
+  saveLocalDocument,
+  shareLocalDocument,
+} from '../utils/generatedFileActions';
 import { useTheme, type Theme } from '../theme';
 
 function attachmentViewerCacheKey(
@@ -81,24 +83,56 @@ export const AttachmentViewerHost: React.FC<{
     key: string;
     uri: string;
   } | null>(null);
+  const [initialImageLoadError, setInitialImageLoadError] = useState<string | null>(null);
+  const [loadingInitialImage, setLoadingInitialImage] = useState(false);
 
   const selectedKey = attachment?.cacheKey ?? null;
+  const attachmentAssetId = attachment ? selectSessionAssetId(attachment.content) : null;
+  const attachmentDownloadPluginId = attachment
+    ? resolveAttachmentDownloadPluginId(attachment)
+    : null;
   const previewUrl = attachment
     ? selectAttachmentPreviewUrl(attachment.content, attachment.previewUrl)
     : null;
+  const canDownloadImage =
+    attachment?.type === 'image' &&
+    !!backend &&
+    typeof sessionId === 'string' &&
+    !!sessionId &&
+    typeof attachmentAssetId === 'string' &&
+    !!attachmentAssetId &&
+    typeof attachmentDownloadPluginId === 'string' &&
+    !!attachmentDownloadPluginId;
   const isImage =
-    attachment?.type === 'image' && typeof previewUrl === 'string' && previewUrl.length > 0;
+    attachment?.type === 'image' &&
+    ((typeof previewUrl === 'string' && previewUrl.length > 0) || canDownloadImage);
   const cacheKey = attachment ? attachmentViewerCacheKey(attachment, sessionId) : null;
 
   useEffect(() => {
-    if (!attachment || !isImage || typeof previewUrl !== 'string' || !cacheKey) {
+    if (!attachment || !isImage || !cacheKey) {
       setActiveImageSource(null);
       return;
     }
-    setActiveImageSource({
-      key: cacheKey,
-      uri: fullResolutionUriByKeyRef.current[cacheKey] || previewUrl,
-    });
+    const cachedUri = fullResolutionUriByKeyRef.current[cacheKey];
+    if (cachedUri) {
+      setInitialImageLoadError(null);
+      setLoadingInitialImage(false);
+      setActiveImageSource({
+        key: cacheKey,
+        uri: cachedUri,
+      });
+      return;
+    }
+    if (typeof previewUrl === 'string' && previewUrl) {
+      setInitialImageLoadError(null);
+      setLoadingInitialImage(false);
+      setActiveImageSource({
+        key: cacheKey,
+        uri: previewUrl,
+      });
+      return;
+    }
+    setActiveImageSource(null);
   }, [attachment, cacheKey, isImage, previewUrl]);
 
   const ensureAttachmentLocalFile = useCallback(
@@ -213,7 +247,7 @@ export const AttachmentViewerHost: React.FC<{
           backend,
           sessionId,
           assetId,
-          pluginId: pluginId ?? undefined,
+          pluginId: pluginId ?? '',
         });
         await RNFS.writeFile(targetPath, downloaded.data_base64, 'base64');
         return `file://${targetPath}`;
@@ -239,17 +273,11 @@ export const AttachmentViewerHost: React.FC<{
   const handleSaveToFile = useCallback(
     async (targetAttachment: MessageAttachmentSnapshot) => {
       const localUri = await ensureAttachmentLocalFile(targetAttachment, { preferOriginal: true });
-      const result = await saveDocuments({
-        sourceUris: [localUri],
+      return saveLocalDocument({
+        localUri,
         mimeType: attachmentMimeType(targetAttachment),
         fileName: attachmentFilename(targetAttachment),
-        copy: true,
       });
-      const saved = result[0];
-      if (saved?.error) {
-        throw new Error(saved.error);
-      }
-      return saved?.name || attachmentFilename(targetAttachment);
     },
     [ensureAttachmentLocalFile],
   );
@@ -271,15 +299,57 @@ export const AttachmentViewerHost: React.FC<{
   const handleShareAttachment = useCallback(
     async (targetAttachment: MessageAttachmentSnapshot) => {
       const localUri = await ensureAttachmentLocalFile(targetAttachment, { preferOriginal: true });
-      await Share.open({
-        url: localUri,
-        type: attachmentMimeType(targetAttachment),
-        filename: attachmentFilename(targetAttachment),
-        failOnCancel: false,
+      await shareLocalDocument({
+        localUri,
+        mimeType: attachmentMimeType(targetAttachment),
+        fileName: attachmentFilename(targetAttachment),
       });
     },
     [ensureAttachmentLocalFile],
   );
+
+  useEffect(() => {
+    if (!attachment || !isImage || !cacheKey) {
+      setInitialImageLoadError(null);
+      setLoadingInitialImage(false);
+      return;
+    }
+    if (typeof previewUrl === 'string' && previewUrl) {
+      setInitialImageLoadError(null);
+      setLoadingInitialImage(false);
+      return;
+    }
+    const cachedUri = fullResolutionUriByKeyRef.current[cacheKey];
+    if (cachedUri) {
+      setInitialImageLoadError(null);
+      setLoadingInitialImage(false);
+      setActiveImageSource({ key: cacheKey, uri: cachedUri });
+      return;
+    }
+    if (!canDownloadImage) {
+      return;
+    }
+
+    let cancelled = false;
+    setInitialImageLoadError(null);
+    setLoadingInitialImage(true);
+    void ensureAttachmentLocalFile(attachment, { preferOriginal: true }).then(
+      (localUri) => {
+        if (cancelled) return;
+        setActiveImageSource({ key: cacheKey, uri: localUri });
+        setLoadingInitialImage(false);
+      },
+      (err: any) => {
+        if (cancelled) return;
+        setInitialImageLoadError(err?.message || 'Unable to load this attachment preview.');
+        setLoadingInitialImage(false);
+      },
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [attachment, cacheKey, canDownloadImage, ensureAttachmentLocalFile, isImage, previewUrl]);
 
   useEffect(() => {
     if (!attachment) {
@@ -312,7 +382,7 @@ export const AttachmentViewerHost: React.FC<{
     void openExternal();
   }, [attachment, isImage, onRequestClose]);
 
-  if (!attachment || !isImage || typeof previewUrl !== 'string') {
+  if (!attachment || !isImage) {
     return null;
   }
 
@@ -320,7 +390,7 @@ export const AttachmentViewerHost: React.FC<{
   const displayUri =
     activeImageSource?.key === key
       ? activeImageSource.uri
-      : fullResolutionUriByKeyRef.current[key] || previewUrl;
+      : fullResolutionUriByKeyRef.current[key] || previewUrl || null;
   const fullResolutionLoaded = !!fullResolutionUriByKeyRef.current[key];
 
   return (
@@ -340,19 +410,36 @@ export const AttachmentViewerHost: React.FC<{
     >
       <GestureAttachmentViewerModalContent>
         <View style={styles.modalOverlay}>
-          <View style={styles.zoomArea}>
-            <ImageZoom
-              key={key}
-              uri={displayUri}
-              style={styles.zoomImage}
-              minScale={1}
-              maxScale={6}
-              doubleTapScale={3}
-              isPinchEnabled
-              isPanEnabled
-              isDoubleTapEnabled
-            />
-          </View>
+          {typeof displayUri === 'string' && displayUri ? (
+            <View style={styles.zoomArea}>
+              <ImageZoom
+                key={key}
+                uri={displayUri}
+                style={styles.zoomImage}
+                minScale={1}
+                maxScale={6}
+                doubleTapScale={3}
+                isPinchEnabled
+                isPanEnabled
+                isDoubleTapEnabled
+              />
+            </View>
+          ) : (
+            <View style={styles.zoomArea}>
+              <View style={styles.initialImageStatusCard}>
+                {loadingInitialImage ? (
+                  <>
+                    <ActivityIndicator size="small" color={theme.surface} />
+                    <Text style={styles.previewLoadingText}>Loading image...</Text>
+                  </>
+                ) : (
+                  <Text style={styles.previewErrorText}>
+                    {initialImageLoadError || 'Unable to load this attachment preview.'}
+                  </Text>
+                )}
+              </View>
+            </View>
+          )}
           <AttachmentViewerFooter
             styles={styles}
             theme={theme}
@@ -503,11 +590,24 @@ const createStyles = (theme: Theme) =>
     zoomArea: {
       flex: 1,
       minHeight: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     zoomImage: {
       flex: 1,
       width: '100%',
       height: '100%',
+    },
+    initialImageStatusCard: {
+      minWidth: 180,
+      maxWidth: '88%',
+      borderRadius: 16,
+      paddingHorizontal: 18,
+      paddingVertical: 14,
+      backgroundColor: 'rgba(10, 16, 24, 0.68)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 10,
     },
     previewFooter: {
       paddingHorizontal: 16,

@@ -68,6 +68,7 @@ export interface AgentBackend {
     idempotencyKey?: string;
   }): Promise<{ session: { session_id: string; [key: string]: any } }>;
   listSessions(params?: { limit?: number }): Promise<SessionSummary[]>;
+  getSessionSummary(sessionId: string): Promise<SessionSummary>;
   forkSession(
     sessionId: string,
     params?: { index?: number; idempotencyKey?: string },
@@ -200,6 +201,14 @@ export interface AgentBackend {
     params?: { pluginId?: string },
   ): Promise<ApplicationUiElement[]>;
   executeAction(params: {
+    pluginId: string;
+    actionId: string;
+    actionOwner?: string;
+    inputs: Record<string, any>;
+    idempotencyKey?: string;
+  }): Promise<ExecuteActionResponse>;
+  executeSessionAction?(params: {
+    sessionId: string;
     pluginId: string;
     actionId: string;
     actionOwner?: string;

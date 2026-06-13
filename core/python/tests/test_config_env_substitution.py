@@ -23,3 +23,19 @@ def test_embedded_env_substitution_missing(monkeypatch):
     resolved, errors = resolve_placeholders(raw)
     assert resolved["value"] == "aaa__bbb"
     assert any(e.get("type") == "env_missing" for e in errors)
+
+
+def test_raw_wrapper_preserves_literal_string(monkeypatch):
+    raw = {
+        "plugins": [
+            {"$raw": "path:${env:BASE}/x/${env:NAME}"},
+        ],
+        "message": {"$raw": "${file:/tmp/does-not-matter.txt}"},
+    }
+    monkeypatch.setenv("BASE", "/tmp/base")
+    monkeypatch.setenv("NAME", "pkg")
+    resolved, errors = resolve_placeholders(raw)
+
+    assert errors == []
+    assert resolved["plugins"] == ["path:${env:BASE}/x/${env:NAME}"]
+    assert resolved["message"] == "${file:/tmp/does-not-matter.txt}"

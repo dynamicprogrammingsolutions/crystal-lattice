@@ -15,6 +15,7 @@ from agent_core.tool_interop import DEFAULT_TOOL_INTEROP_REGISTRY
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
+pytestmark = pytest.mark.api
 
 
 @pytest.fixture(scope="module")

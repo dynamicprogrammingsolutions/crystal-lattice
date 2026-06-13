@@ -39,16 +39,60 @@ class RuntimeLayout:
     def root_system_messages(self) -> Path:
         return self.bundle_path("root_system_messages")
 
+    @property
+    def cloud_runtime_build_context(self) -> Path | None:
+        return self.optional_bundle_path("cloud_runtime_build_context")
+
+    @property
+    def cloud_runtime_dockerfile(self) -> Path | None:
+        return self.optional_bundle_path("cloud_runtime_dockerfile")
+
+    @property
+    def python_executable(self) -> Path | None:
+        return self.optional_bundle_path("python_executable")
+
+    @property
+    def bundle_script(self) -> Path | None:
+        return self.optional_bundle_path("bundle_script")
+
+    @property
+    def preinstalled_plugin_manifest(self) -> Path | None:
+        return self.optional_bundle_path("preinstalled_plugin_manifest")
+
     def bundle_path(self, name: str) -> Path:
         return _resolve_bundle_path(self.manifest_dir, self.bundle_paths[name])
+
+    def optional_bundle_path(self, name: str) -> Path | None:
+        raw_path = self.bundle_paths.get(name)
+        if not isinstance(raw_path, str) or not raw_path:
+            return None
+        return _resolve_bundle_path(self.manifest_dir, raw_path)
 
     def user_path(self, name: str) -> Path:
         return _resolve_user_path(self.user_paths[name])
 
     def env_overrides(self) -> dict[str, str]:
-        return {
+        values = {
             "BUILTIN_PLUGINS": str(self.builtin_plugins),
         }
+        cloud_runtime_context = self.cloud_runtime_build_context
+        if cloud_runtime_context is None and self.layout == "source":
+            cloud_runtime_context = (
+                self.manifest_path.parents[3]
+                / "build"
+                / f"cloud-runtime-source-context-{os.getpid()}"
+            )
+        if cloud_runtime_context is not None:
+            values["CLOUD_RUNTIME_BUILD_CONTEXT"] = str(cloud_runtime_context)
+        python_executable = self.python_executable
+        if python_executable is not None:
+            values["CRYSTAL_PLUGIN_PYTHON"] = str(python_executable)
+        preinstalled_plugin_manifest = self.preinstalled_plugin_manifest
+        if preinstalled_plugin_manifest is not None:
+            values["CRYSTAL_PREINSTALLED_PLUGIN_MANIFEST"] = str(
+                preinstalled_plugin_manifest
+            )
+        return values
 
     def to_resolved_dict(self) -> dict[str, Any]:
         return {

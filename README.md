@@ -265,10 +265,15 @@ Set up a development environment:
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -e "core/python[dev]"
+```
+
+Add the terminal/server app when the plugin work needs app-level integration:
+
+```bash
 python -m pip install -e application/python
 ```
 
-Try a template plugin test loop:
+Install each repo-root plugin package separately when you are actively changing it:
 
 ```bash
 python -m pip install -e "plugins/template-python-provider[dev]"
@@ -281,6 +286,7 @@ supported forms.
 
 ### Plugin Docs
 
+- [plugins/docs/index.md](plugins/docs/index.md)
 - [plugins/docs/provider-plugins.md](plugins/docs/provider-plugins.md)
 - [plugins/docs/tool-plugins.md](plugins/docs/tool-plugins.md)
 - [plugins/docs/node-tool-plugins.md](plugins/docs/node-tool-plugins.md)
@@ -291,6 +297,7 @@ supported forms.
 - [plugins/docs/plugin-packaging-and-loading.md](plugins/docs/plugin-packaging-and-loading.md)
 - [plugins/docs/testing-and-validation.md](plugins/docs/testing-and-validation.md)
 - [plugins/docs/ui-elements.md](plugins/docs/ui-elements.md)
+- [docs/plugins/development.md](docs/plugins/development.md) - older/general plugin overview
 
 ## Core Development Quickstart
 
@@ -302,6 +309,10 @@ source .venv/bin/activate
 python -m pip install -e "core/python[dev]"
 python -m pip install -e application/python
 ```
+
+`core/python[dev]` installs the core SDK development environment from this
+repo checkout. It does not install repo-root plugin packages, so install
+`plugins/<plugin-name>[dev]` separately when you are changing a plugin.
 
 Run the common fast test sets:
 
@@ -380,14 +391,14 @@ authorizes proxied HTTP requests.
 
 - `core/python/agent_core` - core SDK.
 - `core/python/agent_app` - app runtime, config, sessions, events, tool loop.
-- `core/python/plugins` - built-in Python plugins installed with `agent-core`.
+- `core/python/plugins` - core-packaged Python plugins kept mainly for tests, compatibility, and some package-local/core features.
 - `core/python/examples` - runnable examples used as executable docs.
 - `core/python/tests` - core, app-layer, and plugin tests.
 - `application/python/agent_terminal_app` - CLI, terminal, FastAPI server, mobile glue.
 - `application/python/tests` - terminal/server tests.
 - `mobile/crystal-lattice-control-rn` - React Native app.
 - `bridge-elixir` - bridge service and Docker/HAProxy setup.
-- `plugins` - optional plugin bundles, templates, and plugin docs.
+- `plugins` - built-in plugin projects for the current runtime layout, plus templates and shared plugin docs.
 - `docs` - MkDocs/API reference docs.
 
 ## Core SDK Examples
@@ -471,7 +482,8 @@ mkdocs serve
 Key docs:
 
 - [docs/api/core-sdk.md](docs/api/core-sdk.md)
-- [docs/plugins/development.md](docs/plugins/development.md)
+- [plugins/docs/index.md](plugins/docs/index.md)
+- [docs/plugins/development.md](docs/plugins/development.md) - older/general plugin overview
 - [docs/reference/agent_core](docs/reference/agent_core)
 - [application/python/README.md](application/python/README.md)
 - [mobile/crystal-lattice-control-rn/README.md](mobile/crystal-lattice-control-rn/README.md)
@@ -494,7 +506,31 @@ source files for the most up-to-date behavior.
 
 ## License
 
-Unless a more specific `LICENSE` file applies in a subdirectory, repository
-contents are available under the [Apache License 2.0](LICENSE). When a
-directory includes its own `LICENSE` file, that file applies within that
-subtree. See [LICENSING.md](LICENSING.md) for the repository-wide rule.
+Unless otherwise noted, original source code and other original materials in
+this repository are licensed under the Apache License, Version 2.0.
+
+Copyright 2026 Dynamic Programming Solutions Kft.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this material except in compliance with the License.
+You may obtain a copy of the License at
+
+<http://www.apache.org/licenses/LICENSE-2.0>
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Some subdirectories may include their own `LICENSE` files, file-level license
+headers, `NOTICE` files, or other rights notices. Those more specific notices
+apply within their respective files or subtrees.
+
+Some compatibility-oriented materials in this repository are derived from or
+adapted from third-party systems and are not necessarily licensed by us under
+Apache-2.0. Rights for those materials should be determined from the
+applicable file-level notices, subtree-specific notices, and upstream terms.
+
+See [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md) for the repository-wide
+licensing rule.

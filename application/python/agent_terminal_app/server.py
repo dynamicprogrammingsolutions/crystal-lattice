@@ -360,11 +360,7 @@ def _append_message_to_session_locked(
         metadata,
         config,
         multipart_content=multipart_content,
-        context={
-            "session_id": session.session_id,
-            "session": session.to_dict(),
-            "session_asset_store": app_instance.get_session_asset_store(),
-        },
+        context=app_instance._context.build_core_handoff_context(base_config=config),
     )
     app_instance.save_session(new_session)
 
@@ -661,6 +657,180 @@ def _get_session_list_trigger_actions(
                 trigger_actions.append((plugin_id, plugin_index, action))
 
     return trigger_actions
+
+
+def _session_pinned_metadata_key(app_instance: AgentApplication) -> str:
+    raw_cfg = getattr(app_instance, "_config", {})
+    app_cfg = raw_cfg.get("application") if isinstance(raw_cfg, dict) else {}
+    raw_pinned_key = (
+        app_cfg.get("session_pinned_metadata_key")
+        if isinstance(app_cfg, dict)
+        else None
+    )
+    if isinstance(raw_pinned_key, str) and raw_pinned_key.strip():
+        return raw_pinned_key.strip()
+    return "pinned"
+
+
+def _build_session_summary_entry(
+    *,
+    app_instance: AgentApplication,
+    path: Path,
+    session_id: str,
+    mtime: float,
+    pinned_metadata_key: str,
+    trigger_actions: List[Tuple[str, int, Dict[str, Any]]],
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    preview = ""
+    metadata: Dict[str, Any] = {}
+
+    try:
+        data = path.read_text(encoding="utf-8")
+        raw = json.loads(data)
+        raw_metadata = raw.get("metadata")
+        if isinstance(raw_metadata, dict):
+            # ``native_messages`` can contain a full copy of the
+            # conversation in provider-native form and is significantly
+            # larger than the rest of the metadata. It is not needed for
+            # session summaries and would unnecessarily bloat responses.
+            metadata = {
+                key: value
+                for key, value in raw_metadata.items()
+                if key != "native_messages"
+            }
+        messages = raw.get("messages") or []
+        for msg in messages:
+            if not isinstance(msg, dict):
+                continue
+            if msg.get("role") != "user":
+                continue
+            content = msg.get("content")
+            if isinstance(content, str) and content:
+                single = " ".join(content.split())
+                if len(single) > 80:
+                    preview = single[:77] + "..."
+                else:
+                    preview = single
+                break
+    except Exception:  # pragma: no cover - defensive
+        preview = ""
+
+    pinned_val = metadata.get(pinned_metadata_key, False)
+
+    entry: Dict[str, Any] = {
+        "session_id": session_id,
+        "modified": mtime,
+        "preview": preview,
+        "metadata": metadata,
+        "pinned": bool(pinned_val),
+    }
+
+    order_specs_raw: List[Dict[str, Any]] = []
+    per_session_specs: List[Dict[str, Any]] = []
+
+    if trigger_actions:
+        session_obj: Optional[Session] = None
+        for plugin_id, plugin_index, action_def in trigger_actions:
+            inputs_schema = action_def.get("inputs") or {}
+            params: Dict[str, Any] = {}
+            needs_session = False
+
+            for name, spec in inputs_schema.items():
+                if name == "session_id":
+                    params[name] = session_id
+                elif name == "session_summary":
+                    params[name] = entry
+                elif name == "session":
+                    needs_session = True
+
+            if needs_session and session_obj is None:
+                try:
+                    ctx = app_instance.load_session(session_id)
+                except Exception:  # pragma: no cover - defensive
+                    ctx = None
+                if ctx is None:
+                    continue
+                _core, _base, session_obj = ctx
+
+            if needs_session and session_obj is not None:
+                params["session"] = session_obj
+
+            try:
+                result = app_instance.execute_application_action(
+                    plugin_id,
+                    action_def.get("id", ""),
+                    params,
+                )
+            except Exception:  # pragma: no cover - defensive
+                continue
+
+            fields = result.get("session_list_fields")
+            if isinstance(fields, dict):
+                for k, v in fields.items():
+                    entry[k] = v
+
+            raw_specs = result.get("session_list_order")
+            if raw_specs:
+                if isinstance(raw_specs, dict):
+                    specs_iter = [raw_specs]
+                elif isinstance(raw_specs, list):
+                    specs_iter = [s for s in raw_specs if isinstance(s, dict)]
+                else:
+                    specs_iter = []
+                for spec_index, spec in enumerate(specs_iter):
+                    record = {
+                        "spec": dict(spec),
+                        "plugin_id": plugin_id,
+                        "plugin_index": plugin_index,
+                        "spec_index": spec_index,
+                    }
+                    order_specs_raw.append(record)
+                    per_session_specs.append(record)
+
+    return entry, order_specs_raw, per_session_specs
+
+
+def _load_session_summary_entry_locked(
+    *,
+    app_instance: AgentApplication,
+    root: Path,
+    cache: SessionListCache,
+    session_id: str,
+    pinned_metadata_key: str,
+    trigger_actions: List[Tuple[str, int, Dict[str, Any]]],
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    path = root / f"{session_id}.json"
+    if not path.is_file():
+        cache.entries_by_id.pop(session_id, None)
+        cache.order_specs_by_id.pop(session_id, None)
+        raise KeyError(session_id)
+
+    stat = path.stat()
+    mtime = float(stat.st_mtime)
+
+    cached = cache.entries_by_id.get(session_id)
+    if cached is not None and isinstance(cached.get("modified"), (int, float)):
+        try:
+            cached_mtime = float(cached["modified"])
+        except Exception:  # pragma: no cover - defensive
+            cached_mtime = -1.0
+        if cached_mtime >= mtime:
+            return cached, cache.order_specs_by_id.get(session_id) or []
+
+    entry, order_specs_raw, per_session_specs = _build_session_summary_entry(
+        app_instance=app_instance,
+        path=path,
+        session_id=session_id,
+        mtime=mtime,
+        pinned_metadata_key=pinned_metadata_key,
+        trigger_actions=trigger_actions,
+    )
+    cache.entries_by_id[session_id] = entry
+    if trigger_actions:
+        cache.order_specs_by_id[session_id] = per_session_specs
+    else:
+        cache.order_specs_by_id.pop(session_id, None)
+    return entry, order_specs_raw
 
 
 def _build_default_agent_app() -> AgentApplication:
@@ -1870,7 +2040,15 @@ def update_message(
             )
             config = resolve_request_config(base_config, overrides)
 
-            new_session = core.modify_message(session, target_index, content, config)
+            new_session = core.modify_message(
+                session,
+                target_index,
+                content,
+                config,
+                context=app_instance._context.build_core_handoff_context(
+                    base_config=base_config
+                ),
+            )
             app_instance.save_session(new_session)
 
             updated_message = new_session.messages[target_index]
@@ -2258,19 +2436,7 @@ def list_sessions(
     cache = _get_session_list_cache(root)
 
     trigger_actions = _get_session_list_trigger_actions(app_instance)
-
-    # Resolve the metadata key used for pinned state once per call.
-    raw_cfg = getattr(app_instance, "_config", {})
-    app_cfg = raw_cfg.get("application") if isinstance(raw_cfg, dict) else {}
-    raw_pinned_key = (
-        app_cfg.get("session_pinned_metadata_key")
-        if isinstance(app_cfg, dict)
-        else None
-    )
-    if isinstance(raw_pinned_key, str) and raw_pinned_key.strip():
-        pinned_metadata_key = raw_pinned_key.strip()
-    else:
-        pinned_metadata_key = "pinned"
+    pinned_metadata_key = _session_pinned_metadata_key(app_instance)
 
     items: List[Dict[str, Any]] = []
     paths = list(root.glob("*.json"))
@@ -2289,149 +2455,24 @@ def list_sessions(
 
         for path in paths:
             try:
-                stat = path.stat()
+                path.stat()
             except OSError:  # pragma: no cover - defensive
                 continue
 
             session_id = path.stem
             seen_ids.add(session_id)
-            mtime = float(stat.st_mtime)
-
-            cached = cache.entries_by_id.get(session_id)
-            if cached is not None and isinstance(cached.get("modified"), (int, float)):
-                try:
-                    cached_mtime = float(cached["modified"])
-                except Exception:  # pragma: no cover - defensive
-                    cached_mtime = -1.0
-                if cached_mtime >= mtime:
-                    items.append(cached)
-                    # Reuse any cached ordering specs for this session.
-                    cached_specs = cache.order_specs_by_id.get(session_id) or []
-                    order_specs_raw.extend(cached_specs)
-                    continue
-
-            preview = ""
-            metadata: Dict[str, Any] = {}
-
             try:
-                data = path.read_text(encoding="utf-8")
-                raw = json.loads(data)
-                raw_metadata = raw.get("metadata")
-                if isinstance(raw_metadata, dict):
-                    # ``native_messages`` can contain a full copy of
-                    # the conversation in provider-native form and is
-                    # significantly larger than the rest of the
-                    # metadata. It is not needed for the sessions list
-                    # and would unnecessarily bloat the ``/sessions``
-                    # response, so strip it here.
-                    metadata = {
-                        key: value
-                        for key, value in raw_metadata.items()
-                        if key != "native_messages"
-                    }
-                messages = raw.get("messages") or []
-                for msg in messages:
-                    if not isinstance(msg, dict):
-                        continue
-                    if msg.get("role") != "user":
-                        continue
-                    content = msg.get("content")
-                    if isinstance(content, str) and content:
-                        single = " ".join(content.split())
-                        if len(single) > 80:
-                            preview = single[:77] + "..."
-                        else:
-                            preview = single
-                        break
-            except Exception:  # pragma: no cover - defensive
-                preview = ""
-
-            pinned_val = metadata.get(pinned_metadata_key, False)
-
-            entry: Dict[str, Any] = {
-                "session_id": session_id,
-                "modified": mtime,
-                "preview": preview,
-                "metadata": metadata,
-                "pinned": bool(pinned_val),
-            }
-
-            # Run any application-level actions that are configured to
-            # trigger when listing sessions. These actions can return
-            # lightweight calculated fields (``session_list_fields``)
-            # that are merged into the summary.
-            if trigger_actions:
-                session_obj: Optional[Session] = None
-                per_session_specs: List[Dict[str, Any]] = []
-                for plugin_id, plugin_index, action_def in trigger_actions:
-                    inputs_schema = action_def.get("inputs") or {}
-                    params: Dict[str, Any] = {}
-                    needs_session = False
-
-                    for name, spec in inputs_schema.items():
-                        if name == "session_id":
-                            params[name] = session_id
-                        elif name == "session_summary":
-                            params[name] = entry
-                        elif name == "session":
-                            needs_session = True
-
-                    if needs_session and session_obj is None:
-                        try:
-                            ctx = app_instance.load_session(session_id)
-                        except Exception:  # pragma: no cover - defensive
-                            ctx = None
-                        if ctx is None:
-                            continue
-                        _core, _base, session_obj = ctx
-
-                    if needs_session and session_obj is not None:
-                        params["session"] = session_obj
-
-                    try:
-                        result = app_instance.execute_application_action(
-                            plugin_id,
-                            action_def.get("id", ""),
-                            params,
-                        )
-                    except Exception:  # pragma: no cover - defensive
-                        continue
-
-                    fields = result.get("session_list_fields")
-                    if isinstance(fields, dict):
-                        for k, v in fields.items():
-                            entry[k] = v
-
-                    # Optional ordering specifications contributed by this
-                    # action for this specific session.
-                    raw_specs = result.get("session_list_order")
-                    if raw_specs:
-                        if isinstance(raw_specs, dict):
-                            specs_iter = [raw_specs]
-                        elif isinstance(raw_specs, list):
-                            specs_iter = [s for s in raw_specs if isinstance(s, dict)]
-                        else:
-                            specs_iter = []
-                        for spec_index, spec in enumerate(specs_iter):
-                            record = {
-                                "spec": dict(spec),
-                                "plugin_id": plugin_id,
-                                "plugin_index": plugin_index,
-                                "spec_index": spec_index,
-                            }
-                            order_specs_raw.append(record)
-                            per_session_specs.append(record)
-
-                # Cache per-session ordering specs so that future /sessions
-                # calls can reuse them even when the entry itself is served
-                # entirely from cache.
-                cache.order_specs_by_id[session_id] = per_session_specs
-            else:
-                # No trigger actions configured; ensure we do not retain
-                # stale per-session ordering specs for this session.
-                cache.order_specs_by_id.pop(session_id, None)
-
-            cache.entries_by_id[session_id] = entry
+                entry, specs = _load_session_summary_entry_locked(
+                    app_instance=app_instance,
+                    root=root,
+                    cache=cache,
+                    session_id=session_id,
+                    pinned_metadata_key=pinned_metadata_key,
+                    trigger_actions=trigger_actions,
+                )
+            except KeyError:  # pragma: no cover - file disappeared after glob
+                continue
+            order_specs_raw.extend(specs)
             items.append(entry)
 
         # Drop cache entries (and their ordering specs) whose files have
@@ -2452,6 +2493,47 @@ def list_sessions(
         items = items[:limit]
 
     return {"sessions": items}
+
+
+@app.get("/sessions/{session_id}/summary")
+def get_session_summary(
+    session_id: str,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return a fresh summary for one session.
+
+    The shape matches a single item from ``GET /sessions`` so UI code can
+    refresh the session context it uses for metadata-driven action surfaces
+    without reloading the entire sessions list.
+    """
+
+    root = _get_session_root(app_instance)
+    try:
+        exists = root.exists()
+    except Exception:  # pragma: no cover - defensive
+        exists = False
+    if not exists:
+        _clear_session_list_cache(root)
+        raise HTTPException(status_code=404, detail=f"Session {session_id!r} not found")
+
+    cache = _get_session_list_cache(root)
+    trigger_actions = _get_session_list_trigger_actions(app_instance)
+    pinned_metadata_key = _session_pinned_metadata_key(app_instance)
+    with cache.lock:
+        try:
+            entry, _specs = _load_session_summary_entry_locked(
+                app_instance=app_instance,
+                root=root,
+                cache=cache,
+                session_id=session_id,
+                pinned_metadata_key=pinned_metadata_key,
+                trigger_actions=trigger_actions,
+            )
+        except (KeyError, OSError) as exc:
+            raise HTTPException(
+                status_code=404, detail=f"Session {session_id!r} not found"
+            ) from exc
+    return {"session": entry}
 
 
 @app.get("/sessions/{session_id}/snapshots")
@@ -3216,19 +3298,14 @@ def list_application_ui_schema(
     return {"elements": elements}
 
 
-@app.post("/actions")
-def execute_action(
+def _execute_action_request(
     payload: Dict[str, Any],
-    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
-    app_instance: AgentApplication = Depends(get_agent_app),
+    *,
+    idempotency_key: Optional[str],
+    app_instance: AgentApplication,
+    scope_prefix: str,
 ) -> Dict[str, Any]:
-    """Execute an application-level action.
-
-    The response always uses an explicit status envelope and never
-    embeds full session objects; callers should observe session
-    changes via the existing /sessions and /sessions/{id}/messages
-    endpoints.
-    """
+    """Execute an application action request and return the standard envelope."""
 
     body = payload or {}
     plugin_id = body.get("plugin")
@@ -3236,7 +3313,7 @@ def execute_action(
     action_owner = body.get("action_owner")
     raw_inputs = body.get("inputs") or {}
 
-    scope = f"POST /actions/{plugin_id}/{action_id}"
+    scope = f"{scope_prefix}/{plugin_id}/{action_id}"
     cached = _idempotency_maybe_replay(scope, idempotency_key, body)
     if cached is not None:
         return cached
@@ -3322,6 +3399,45 @@ def execute_action(
 
     _idempotency_store(scope, idempotency_key, body, response)
     return response
+
+
+@app.post("/actions")
+def execute_action(
+    payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Execute an application-level action.
+
+    The response always uses an explicit status envelope and never
+    embeds full session objects; callers should observe session
+    changes via the existing /sessions and /sessions/{id}/messages
+    endpoints.
+    """
+
+    return _execute_action_request(
+        payload,
+        idempotency_key=idempotency_key,
+        app_instance=app_instance,
+        scope_prefix="POST /actions",
+    )
+
+
+@app.post("/sessions/{session_id}/actions")
+def execute_session_action(
+    session_id: str,
+    payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Execute an application action through a session-scoped alias route."""
+
+    return _execute_action_request(
+        payload,
+        idempotency_key=idempotency_key,
+        app_instance=app_instance,
+        scope_prefix=f"POST /sessions/{session_id}/actions",
+    )
 
 
 # ---------------------------------------------------------------------------

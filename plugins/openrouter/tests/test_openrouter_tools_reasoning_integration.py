@@ -39,6 +39,9 @@ from plugins.file_reader_tool import FileReaderTool
 from plugins.request_options_feature import RequestOptionsFeature
 
 
+pytestmark = [pytest.mark.api, pytest.mark.slow_integration]
+
+
 def _get_openai_provider_options() -> Dict[str, Any]:
     """Build provider routing block based on OPENAI_PROVIDER.
 

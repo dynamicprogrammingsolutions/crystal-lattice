@@ -27,6 +27,9 @@ from agent_app.events import InMemoryEventStore  # noqa: E402
 from agent_core import Session  # noqa: E402
 
 
+pytestmark = pytest.mark.api
+
+
 def _vision_model() -> str:
     return os.getenv("OPENAI_RESPONSES_VISION_MODEL") or "gpt-5-mini"
 

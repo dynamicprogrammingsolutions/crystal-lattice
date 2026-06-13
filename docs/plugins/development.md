@@ -1,5 +1,8 @@
 # Plugin Development
 
+This page is an older/general overview. For the current shared plugin docs, start at
+`plugins/docs/index.md`.
+
 This guide explains how to build provider, provider extension, feature, and tool plugins for the AI Agent Platform. It includes minimal examples and links to the full API reference generated from docstrings.
 
 - Core principles
@@ -17,6 +20,7 @@ Provider plugins (canonical guide): `plugins/docs/provider-plugins.md`.
 Tool plugins (canonical guide): `plugins/docs/tool-plugins.md`.
 Node tool plugins (canonical guide): `plugins/docs/node-tool-plugins.md`.
 Bash tool plugins (canonical guide): `plugins/docs/bash-tool-plugins.md`.
+Application plugins (current guide): `plugins/docs/application-plugins.md`.
 
 ## Provider Plugin
 

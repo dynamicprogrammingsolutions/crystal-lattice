@@ -86,7 +86,8 @@ Resources:
                 - aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
             build:
               commands:
-                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RuntimeRepository}:${ImageTag} -f /workspace/cloud-orchestrator/runtime/python/Dockerfile /workspace
+                - cd /workspace && python3 scripts/prepare_cloud_runtime_build_context.py --output build/cloud-runtime --config application/python/agent_terminal_app/default_config/config.json
+                - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${RuntimeRepository}:${ImageTag} /workspace/build/cloud-runtime
                 - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${TransferSshRepository}:${ImageTag} /workspace/cloud-orchestrator/transfer/managed-ssh
                 - docker build --platform ${DockerPlatform} -t ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${OrchestratorRepository}:${ImageTag} /workspace/cloud-orchestrator
             post_build:

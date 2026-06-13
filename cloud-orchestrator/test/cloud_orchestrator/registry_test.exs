@@ -57,15 +57,38 @@ end
 defmodule CloudOrchestrator.RegistryTest do
   use ExUnit.Case
 
-  alias CloudOrchestrator.{ConnectionRegistry, InstanceRegistry, Token, TransferRegistry}
+  alias CloudOrchestrator.{
+    BuildContextStore,
+    ConnectionRegistry,
+    InstanceRegistry,
+    Token,
+    TransferRegistry
+  }
 
   setup do
     System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH", "1")
     previous_runner = Application.get_env(:cloud_orchestrator, :runner)
+    previous_data_dir = Application.get_env(:cloud_orchestrator, :data_dir)
+    previous_host_data_dir = Application.get_env(:cloud_orchestrator, :host_data_dir)
     previous_async_status = Application.get_env(:cloud_orchestrator, :test_async_runtime_status)
+
+    data_dir =
+      System.tmp_dir!()
+      |> Path.join("cloud-orchestrator-registry-test-#{System.unique_integer([:positive])}")
+
+    Application.put_env(:cloud_orchestrator, :data_dir, data_dir)
+    Application.put_env(:cloud_orchestrator, :host_data_dir, data_dir)
 
     previous_transfer_public_host =
       Application.get_env(:cloud_orchestrator, :transfer_public_host)
+
+    previous_transfer_port_start =
+      Application.get_env(:cloud_orchestrator, :transfer_port_start)
+
+    previous_transfer_port_end =
+      Application.get_env(:cloud_orchestrator, :transfer_port_end)
+
+    previous_fake_busy_ports = System.get_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS")
 
     TransferRegistry.reset()
     InstanceRegistry.reset()
@@ -73,15 +96,78 @@ defmodule CloudOrchestrator.RegistryTest do
 
     on_exit(fn ->
       restore_env(:runner, previous_runner)
+      restore_env(:data_dir, previous_data_dir)
+      restore_env(:host_data_dir, previous_host_data_dir)
       restore_env(:test_async_runtime_status, previous_async_status)
       restore_env(:transfer_public_host, previous_transfer_public_host)
+      restore_env(:transfer_port_start, previous_transfer_port_start)
+      restore_env(:transfer_port_end, previous_transfer_port_end)
+
+      restore_system_env(
+        "CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS",
+        previous_fake_busy_ports
+      )
+
       TransferRegistry.reset()
       InstanceRegistry.reset()
       ConnectionRegistry.reset()
       System.delete_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH")
+      File.rm_rf!(data_dir)
     end)
 
     :ok
+  end
+
+  test "build contexts are stored once by digest from ready transfers" do
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "method" => "managed_ssh",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert {:ok, internal_transfer} = TransferRegistry.get(transfer["transfer_id"])
+    context_dir = Path.join(internal_transfer["slot_path"], "context")
+    File.mkdir_p!(context_dir)
+    File.write!(Path.join(context_dir, "Dockerfile"), "FROM scratch\n")
+    assert {:ok, _ready} = TransferRegistry.mark_ready(transfer["transfer_id"])
+
+    assert {:ok, first} =
+             BuildContextStore.create(%{
+               "digest" => "sha256:test",
+               "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]},
+               "path" => "context"
+             })
+
+    assert {:ok, second} =
+             BuildContextStore.create(%{
+               "digest" => "sha256:test",
+               "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]},
+               "path" => "context"
+             })
+
+    assert first["digest"] == "sha256:test"
+    assert second["path"] == first["path"]
+    assert {:ok, stored} = BuildContextStore.get("sha256:test")
+    assert File.read!(Path.join(stored["path"], "Dockerfile")) == "FROM scratch\n"
+  end
+
+  test "build context store rejects paths outside transfer slot" do
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "method" => "managed_ssh",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert {:ok, _ready} = TransferRegistry.mark_ready(transfer["transfer_id"])
+
+    assert {:error, :unsafe_path} =
+             BuildContextStore.create(%{
+               "digest" => "sha256:unsafe",
+               "transfer_ref" => %{"transfer_id" => transfer["transfer_id"]},
+               "path" => "../outside"
+             })
   end
 
   test "creates opaque transfer slots and starts instances from ready transfer refs" do
@@ -146,6 +232,36 @@ defmodule CloudOrchestrator.RegistryTest do
     assert transfer["endpoint"]["host"] == "override.example.test"
   end
 
+  test "retries the next port when a managed SSH transfer port is already allocated" do
+    Application.put_env(:cloud_orchestrator, :transfer_port_start, 22000)
+    Application.put_env(:cloud_orchestrator, :transfer_port_end, 22002)
+    System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS", "22000")
+
+    assert {:ok, transfer} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "method" => "managed_ssh",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert transfer["endpoint"]["port"] == 22001
+  end
+
+  test "returns a clear error when the managed SSH transfer port range is exhausted" do
+    Application.put_env(:cloud_orchestrator, :transfer_port_start, 22000)
+    Application.put_env(:cloud_orchestrator, :transfer_port_end, 22001)
+    System.put_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS", "22000,22001")
+
+    assert {:error, message} =
+             TransferRegistry.create(%{
+               "direction" => "upload",
+               "method" => "managed_ssh",
+               "public_key" => "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey test"
+             })
+
+    assert message =~ "no available managed SSH transfer ports in configured range 22000-22001"
+  end
+
   test "refuses to start from a transfer that is not ready" do
     assert {:ok, transfer} =
              TransferRegistry.create(%{
@@ -205,6 +321,70 @@ defmodule CloudOrchestrator.RegistryTest do
     assert {:ok, claims} = Token.verify(instance_1["token"])
     assert claims["connection_id"] == instance_1["connection_id"]
     assert claims["instance_id"] == instance_1["instance_id"]
+  end
+
+  test "connection default falls back to newer running instance when old default failed" do
+    assert {:ok, transfer_1} = ready_transfer()
+    assert {:ok, transfer_2} = ready_transfer()
+
+    assert {:ok, instance_1} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{"connection_key" => "default-fallback", "reuse" => true},
+               "session_id" => "session-1",
+               "transfer_ref" => %{"transfer_id" => transfer_1["transfer_id"]}
+             })
+
+    InstanceRegistry.mark_failed(instance_1["instance_id"], %{"startup_error" => "test_failure"})
+
+    assert eventually(fn ->
+             {:ok, failed} = InstanceRegistry.get(instance_1["instance_id"])
+             failed["state"] == "failed"
+           end)
+
+    assert {:ok, instance_2} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{"connection_key" => "default-fallback", "reuse" => true},
+               "session_id" => "session-2",
+               "transfer_ref" => %{"transfer_id" => transfer_2["transfer_id"]}
+             })
+
+    assert {:ok, connection} = ConnectionRegistry.get(instance_1["connection_id"])
+    assert connection["default_instance_id"] == instance_2["instance_id"]
+
+    assert {:ok, default} = ConnectionRegistry.default_instance(instance_1["connection_id"])
+    assert default["instance_id"] == instance_2["instance_id"]
+  end
+
+  test "connection default lookup bypasses stored default when it fails later" do
+    assert {:ok, transfer_1} = ready_transfer()
+    assert {:ok, transfer_2} = ready_transfer()
+
+    assert {:ok, instance_1} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{"connection_key" => "default-late-fallback", "reuse" => true},
+               "session_id" => "session-1",
+               "transfer_ref" => %{"transfer_id" => transfer_1["transfer_id"]}
+             })
+
+    assert {:ok, instance_2} =
+             ConnectionRegistry.start_instance(%{
+               "connection_ref" => %{"connection_key" => "default-late-fallback", "reuse" => true},
+               "session_id" => "session-2",
+               "transfer_ref" => %{"transfer_id" => transfer_2["transfer_id"]}
+             })
+
+    assert {:ok, connection} = ConnectionRegistry.get(instance_1["connection_id"])
+    assert connection["default_instance_id"] == instance_1["instance_id"]
+
+    InstanceRegistry.mark_failed(instance_1["instance_id"], %{"startup_error" => "test_failure"})
+
+    assert eventually(fn ->
+             {:ok, failed} = InstanceRegistry.get(instance_1["instance_id"])
+             failed["state"] == "failed"
+           end)
+
+    assert {:ok, default} = ConnectionRegistry.default_instance(instance_1["connection_id"])
+    assert default["instance_id"] == instance_2["instance_id"]
   end
 
   test "registers routes for sessions created through an existing connection instance" do
@@ -337,6 +517,8 @@ defmodule CloudOrchestrator.RegistryTest do
 
   defp restore_env(key, nil), do: Application.delete_env(:cloud_orchestrator, key)
   defp restore_env(key, value), do: Application.put_env(:cloud_orchestrator, key, value)
+  defp restore_system_env(key, nil), do: System.delete_env(key)
+  defp restore_system_env(key, value), do: System.put_env(key, value)
 
   defp ready_transfer do
     with {:ok, transfer} <-

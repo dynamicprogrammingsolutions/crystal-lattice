@@ -5,37 +5,43 @@ subdirectories include portions derived from or adapted from upstream projects:
 
 codex/
 OpenAI Codex
+Licensed under the Apache License, Version 2.0
 Copyright 2025 OpenAI
 https://github.com/openai/codex
 
 kimi/
 Kimi Code CLI
+Licensed under the Apache License, Version 2.0
 Copyright 2025 Moonshot AI
 https://github.com/MoonshotAI/kimi-cli
 
 The upstream Kimi Code CLI NOTICE also attributes reused portions to:
 OpenAI Codex
+Licensed under the Apache License, Version 2.0
 Copyright 2025 OpenAI
 https://github.com/openai/codex
 
 gemini/
 Gemini CLI
+Licensed under the Apache License, Version 2.0
 Copyright 2025 Google LLC
 https://github.com/google-gemini/gemini-cli
 
 qwen/
 Qwen Code
+Licensed under the Apache License, Version 2.0
 Copyright 2025 Qwen contributors
 https://github.com/QwenLM/qwen-code
 
 The upstream Qwen Code README also acknowledges:
 Gemini CLI
+Licensed under the Apache License, Version 2.0
 Copyright 2025 Google LLC
 https://github.com/google-gemini/gemini-cli
 
 grok/
 Grok CLI
-MIT License
+Licensed under the MIT License
 Package: @vibe-kit/grok-cli
 
 Other subdirectories in this tree are part of this project unless a more

@@ -19,6 +19,7 @@ REASONING_DIR = REPO_ROOT / "plugins" / "openrouter_responses" / "tests" / "reas
 PROMPT_TEMPLATE = (REASONING_DIR / "prompt.txt").read_text(encoding="utf-8")
 DEFAULT_SEED = "Fennel 983; Olive 193; Graphite 668."
 FOLLOW_UP_SEED = "Juniper 741; Amber 202; Quartz 515."
+pytestmark = pytest.mark.api
 
 
 @pytest.fixture(scope="module")

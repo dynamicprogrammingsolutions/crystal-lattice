@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+
+test -f "${CLOUD_WORKSPACE_DIR}/a.txt"
+test -f "${CLOUD_WORKSPACE_DIR}/b.txt"

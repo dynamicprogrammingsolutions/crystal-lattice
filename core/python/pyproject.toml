@@ -27,6 +27,7 @@ dependencies = [
     "trafilatura>=1.8.0",
     "GitPython>=3.1.0",
     "requests>=2.31.0",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
@@ -51,6 +52,8 @@ python_functions = ["test_*"]
 addopts = "-v --cov=agent_core --cov-report=term-missing -m 'not integration'"
 markers = [
     "integration: integration tests that may hit real services",
+    "api: hosted API integration tests requiring credentials and potentially incurring cost",
+    "slow_integration: slow integration tests that should be run selectively",
     "openrouter: tests exercising the OpenRouter provider",
     "ollama: tests exercising local Ollama integration",
 ]

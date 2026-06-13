@@ -140,6 +140,19 @@ export class RestAgentBackend implements AgentBackend {
     return sessions;
   }
 
+  async getSessionSummary(sessionId: string): Promise<SessionSummary> {
+    const resp = await this.transport.request<{ session?: SessionSummary } | SessionSummary>({
+      method: 'GET',
+      path: `/sessions/${encodeURIComponent(sessionId)}/summary`,
+    });
+    const data: any = resp.data as any;
+    const session = data && typeof data.session === 'object' ? data.session : data;
+    if (!session || typeof session.session_id !== 'string') {
+      throw new Error('Server did not return a session summary');
+    }
+    return session as SessionSummary;
+  }
+
   async listMessages(
     sessionId: string,
     params: { start?: number; end?: number } = {},
@@ -150,6 +163,8 @@ export class RestAgentBackend implements AgentBackend {
       messages: IndexedMessage[];
       cursor_event_id?: string | null;
       active_request_id?: string | null;
+      readonly?: boolean;
+      snapshot_id?: string | null;
     }>({ method: 'GET', path });
 
     const messages = Array.isArray(resp.data?.messages) ? resp.data.messages : [];
@@ -576,28 +591,7 @@ export class RestAgentBackend implements AgentBackend {
     return elements;
   }
 
-  async executeAction(params: {
-    pluginId: string;
-    actionId: string;
-    actionOwner?: string;
-    inputs: Record<string, any>;
-    idempotencyKey?: string;
-  }): Promise<ExecuteActionResponse> {
-    const payload = {
-      plugin: params.pluginId,
-      action_id: params.actionId,
-      action_owner: params.actionOwner,
-      inputs: params.inputs,
-    };
-    const resp = await this.transport.request<ExecuteActionResponse>({
-      method: 'POST',
-      path: '/actions',
-      headers: this.buildIdempotencyHeaders(params.idempotencyKey),
-      body: payload,
-      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
-    });
-    const data = resp.data;
-
+  private handleExecuteActionResponse(data: ExecuteActionResponse): ExecuteActionResponse {
     if (data && data.status === 'ok') {
       const result: any = data.result && typeof data.result === 'object' ? data.result : {};
       const resultStatus = typeof result.status === 'string' ? result.status : 'ok';
@@ -608,10 +602,7 @@ export class RestAgentBackend implements AgentBackend {
           result.ui_effects && typeof result.ui_effects === 'object' ? result.ui_effects : {};
 
         const invalidatedSessionIds = new Set<string>();
-        const maybeLists = [
-          mutations.updated_session_ids,
-          uiEffects.reload_session_ids,
-        ];
+        const maybeLists = [mutations.updated_session_ids, uiEffects.reload_session_ids];
         for (const rawList of maybeLists) {
           if (!Array.isArray(rawList)) continue;
           for (const id of rawList) {
@@ -629,5 +620,56 @@ export class RestAgentBackend implements AgentBackend {
     }
 
     return data;
+  }
+
+  private async executeActionRequest(
+    path: string,
+    params: {
+      pluginId: string;
+      actionId: string;
+      actionOwner?: string;
+      inputs: Record<string, any>;
+      idempotencyKey?: string;
+    },
+  ): Promise<ExecuteActionResponse> {
+    const payload = {
+      plugin: params.pluginId,
+      action_id: params.actionId,
+      action_owner: params.actionOwner,
+      inputs: params.inputs,
+    };
+    const resp = await this.transport.request<ExecuteActionResponse>({
+      method: 'POST',
+      path,
+      headers: this.buildIdempotencyHeaders(params.idempotencyKey),
+      body: payload,
+      timeoutMs: HEAVY_REQUEST_TIMEOUT_MS,
+    });
+
+    return this.handleExecuteActionResponse(resp.data);
+  }
+
+  async executeAction(params: {
+    pluginId: string;
+    actionId: string;
+    actionOwner?: string;
+    inputs: Record<string, any>;
+    idempotencyKey?: string;
+  }): Promise<ExecuteActionResponse> {
+    return this.executeActionRequest('/actions', params);
+  }
+
+  async executeSessionAction(params: {
+    sessionId: string;
+    pluginId: string;
+    actionId: string;
+    actionOwner?: string;
+    inputs: Record<string, any>;
+    idempotencyKey?: string;
+  }): Promise<ExecuteActionResponse> {
+    return this.executeActionRequest(
+      `/sessions/${encodeURIComponent(params.sessionId)}/actions`,
+      params,
+    );
   }
 }

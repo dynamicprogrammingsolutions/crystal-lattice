@@ -204,6 +204,60 @@ def test_system_message_can_compile_into_request_instructions() -> None:
     assert "messages" not in request
 
 
+def test_state_system_message_variables_override_config_values() -> None:
+    feature = SystemMessageFeature()
+
+    config = {
+        "system_message_enabled": True,
+        "system_message": {
+            "template": "Hello {{NAME}}",
+            "variables": {"NAME": "Config User"},
+        },
+    }
+
+    state: Dict[str, Any] = {"system_message_variables": {"NAME": "State User"}}
+    state = feature.init(config, state)
+
+    native = _simple_native([{"role": "user", "content": "Hi"}])
+    _new_native, new_state = feature.initialize_request(native, state)
+
+    request = new_state.get("request") or {}
+    override = request.get("messages") or []
+    assert override[0]["content"] == "Hello State User"
+
+
+def test_existing_request_messages_are_preserved_when_rendering_system_message() -> None:
+    feature = SystemMessageFeature()
+
+    config = {
+        "system_message_enabled": True,
+        "system_message": {
+            "template": "Hello {{NAME}}",
+            "variables": {"NAME": "Alice"},
+        },
+    }
+
+    state: Dict[str, Any] = {
+        "request": {
+            "messages": [
+                {"role": "user", "content": "Original"},
+                {"role": "user", "content": "<skill>\n<name>demo</name>\n</skill>"},
+            ]
+        }
+    }
+    state = feature.init(config, state)
+
+    native = _simple_native([{"role": "user", "content": "Hi"}])
+    _new_native, new_state = feature.initialize_request(native, state)
+
+    request = new_state.get("request") or {}
+    override = request.get("messages") or []
+    assert override[0]["role"] == "system"
+    assert override[0]["content"] == "Hello Alice"
+    assert override[1]["content"] == "Original"
+    assert override[2]["content"] == "<skill>\n<name>demo</name>\n</skill>"
+
+
 def test_no_permanent_system_message_when_user_system_present() -> None:
     feature = SystemMessageFeature()
 

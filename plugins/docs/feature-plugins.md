@@ -159,6 +159,10 @@ class FeaturePlugin(BasePlugin, Protocol):
 
 Feature plugins receive layered context that provides different capabilities depending on where the action is triggered.
 
+Caller-supplied context is additive only. Reserved keys owned by the
+context builders are not overridden; if a caller reuses one of those keys,
+the builder keeps the owned value and emits a warning.
+
 ### Layer 1: Core-level context (always present)
 
 When called from `AgentCore.execute_session_action()` or `AgentCore.execute_lifecycle_actions()`:
@@ -180,6 +184,8 @@ context = {
 | `trigger_source` | `str` | Where action was triggered (`"core"`, `"application"`) |
 | `session` | `dict` | Serialized session (`session.to_dict()`) |
 | `lifecycle` | `str` | Lifecycle trigger name (for lifecycle-triggered actions) |
+| `request_context` | `dict` | Request-initialized plugin context for action-style flows |
+| `request_runtime` | `dict` | Request runtime helpers (`provider`, `features`) for action-style flows |
 
 ### Layer 2: Application-level context (when called from AgentApplication)
 

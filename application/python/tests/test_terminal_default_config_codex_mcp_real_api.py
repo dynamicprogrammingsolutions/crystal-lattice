@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 import sys
 import tempfile
@@ -8,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable
 
 import pytest
-from dotenv import load_dotenv
+from repo_test_env import get_repo_env
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -40,10 +39,11 @@ TEST_MODEL = "openai/gpt-5.4-nano"
 
 @pytest.fixture(scope="module")
 def ensure_openrouter_api_key() -> str:
-    load_dotenv(ROOT / ".env")
-    api_key = os.getenv("OPENROUTER_API_KEY")
+    api_key = get_repo_env("OPENROUTER_API_KEY")
     if not api_key:
-        pytest.skip("OPENROUTER_API_KEY not set; skipping default-config Codex MCP integration test")
+        pytest.skip(
+            "OPENROUTER_API_KEY not set; skipping default-config Codex MCP integration test"
+        )
     return api_key
 
 
@@ -53,8 +53,12 @@ def _run_request(
     session: Session,
     base_config: Dict[str, Any],
 ) -> Session:
-    events = list(app.send_request(core, session, base_config, overrides=None, stream=False))
-    checkpoints = [event for event in events if event.get("type") == "session_checkpoint"]
+    events = list(
+        app.send_request(core, session, base_config, overrides=None, stream=False)
+    )
+    checkpoints = [
+        event for event in events if event.get("type") == "session_checkpoint"
+    ]
     assert checkpoints, "expected at least one session checkpoint"
     final_session = checkpoints[-1]["session"]
     assert isinstance(final_session, Session)
@@ -68,6 +72,7 @@ def _iter_tool_messages(session: Session) -> Iterable[Session]:
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.openrouter
 def test_default_config_codex_mcp_via_real_ui_flow(
     ensure_openrouter_api_key: str,
@@ -83,6 +88,9 @@ def test_default_config_codex_mcp_via_real_ui_flow(
     target.write_text("alpha from mcp\nsecond line\n", encoding="utf-8")
     shutil.rmtree(CONFIG_PATH.parent / ".plugin_cache", ignore_errors=True)
     monkeypatch.setenv("CONFIG_DIR", str(CONFIG_PATH.parent.resolve()))
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(workspace_dir / "cloud-runtime-context")
+    )
     monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
 
     app = AgentApplication(
@@ -92,7 +100,9 @@ def test_default_config_codex_mcp_via_real_ui_flow(
     )
 
     try:
-        create_resp = server_mod.create_session({"agent_id": "codex-openrouter"}, app_instance=app)
+        create_resp = server_mod.create_session(
+            {"agent_id": "codex-openrouter"}, app_instance=app
+        )
         session_id = create_resp["session"]["session_id"]
 
         plugins_resp = server_mod.get_session_plugins(session_id, app_instance=app)
@@ -102,10 +112,7 @@ def test_default_config_codex_mcp_via_real_ui_flow(
             for entry in plugins
             if isinstance(entry, dict)
             and entry.get("enabled") is True
-            and (
-                entry.get("kind") != "tools"
-                or entry.get("id") == "codex_mcp_tool"
-            )
+            and (entry.get("kind") != "tools" or entry.get("id") == "codex_mcp_tool")
         ]
         assert "codex_mcp_tool" in enabled_plugin_ids
 
@@ -119,7 +126,10 @@ def test_default_config_codex_mcp_via_real_ui_flow(
             for entry in put_resp["plugins"]
         )
         assert all(
-            not (entry.get("kind") == "tools" and entry.get("id") in {"shell", "shell_command"})
+            not (
+                entry.get("kind") == "tools"
+                and entry.get("id") in {"shell", "shell_command"}
+            )
             or entry.get("enabled") is False
             for entry in put_resp["plugins"]
         )
@@ -127,7 +137,9 @@ def test_default_config_codex_mcp_via_real_ui_flow(
         ui_resp = server_mod.get_session_ui_schema(session_id, app_instance=app)
         ui_elements = ui_resp["elements"]
         global_toggle = next(
-            element for element in ui_elements if isinstance(element, dict) and element.get("key") == "mcp_enabled"
+            element
+            for element in ui_elements
+            if isinstance(element, dict) and element.get("key") == "mcp_enabled"
         )
         server_toggle = next(
             element
@@ -142,7 +154,9 @@ def test_default_config_codex_mcp_via_real_ui_flow(
         schema_resp = server_mod.get_session_config_schema(session_id, app_instance=app)
         schema = schema_resp["schema"]
         model_entry = next(
-            entry for entry in schema if isinstance(entry, dict) and entry.get("key") == "model"
+            entry
+            for entry in schema
+            if isinstance(entry, dict) and entry.get("key") == "model"
         )
         assert model_entry["key"] == "model"
 
@@ -158,9 +172,11 @@ def test_default_config_codex_mcp_via_real_ui_flow(
             app_instance=app,
         )
 
-        app_ui_before = server_mod.get_session_application_ui_schema(session_id, app_instance=app)
+        app_ui_before = server_mod.get_session_application_ui_schema(
+            session_id, app_instance=app
+        )
         app_elements_before = app_ui_before["elements"]
-        status_action = next(
+        next(
             element
             for element in app_elements_before
             if isinstance(element, dict)
@@ -177,7 +193,10 @@ def test_default_config_codex_mcp_via_real_ui_flow(
             app_instance=app,
         )
         assert status_before["status"] == "ok"
-        assert "No MCP runtimes are currently stored." in status_before["result"]["display"]["body"]
+        assert (
+            "No MCP runtimes are currently stored."
+            in status_before["result"]["display"]["body"]
+        )
 
         server_mod.add_message(
             session_id,
@@ -200,11 +219,15 @@ def test_default_config_codex_mcp_via_real_ui_flow(
         assert tool_messages, "expected at least one tool message"
         assert any(
             isinstance((message.metadata or {}).get("tool_name"), str)
-            and str((message.metadata or {}).get("tool_name")).startswith("mcp__filesystem__")
+            and str((message.metadata or {}).get("tool_name")).startswith(
+                "mcp__filesystem__"
+            )
             for message in tool_messages
         )
 
-        assistant_messages = [message for message in final_session.messages if message.role == "assistant"]
+        assistant_messages = [
+            message for message in final_session.messages if message.role == "assistant"
+        ]
         assert assistant_messages, "expected assistant response"
         final_text = str(assistant_messages[-1].content or "").strip()
         assert final_text == "alpha from mcp"

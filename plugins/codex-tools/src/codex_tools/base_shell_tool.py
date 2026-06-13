@@ -6,8 +6,12 @@ the same output formatting and truncation behavior, implemented here.
 
 from __future__ import annotations
 
+import os
+import traceback
+from pathlib import Path
 from typing import Any, Dict, List
 
+from agent_core.utils import get_logger
 from agent_core.types import ToolPlugin
 from tool_compat_shared.shell_engine import truncate_output
 
@@ -19,6 +23,7 @@ from .apply_patch_runtime import (
 )
 
 DEFAULT_MAX_OUTPUT_TOKENS = 10_000  # From Codex models.json truncation_policy
+log = get_logger("codex_shell_tools")
 
 
 class BaseCodexShellTool(ToolPlugin):
@@ -36,6 +41,73 @@ class BaseCodexShellTool(ToolPlugin):
     """
     
     version: str = "1.0.0"
+
+    def _extra_workdir_error_context(self) -> str:
+        raw = os.environ.get("CRYSTAL_SHELL_ERROR_CONTEXT", "")
+        enabled = raw.strip().lower() in {"1", "true", "yes", "on"}
+        marker: Dict[str, Any] | None = None
+        context = getattr(self, "_last_tool_context_for_error", None)
+        if isinstance(context, dict):
+            session = context.get("session")
+            if isinstance(session, dict):
+                metadata = session.get("metadata")
+                if isinstance(metadata, dict):
+                    raw_marker = metadata.get("cloud_agent_last_runtime")
+                    if isinstance(raw_marker, dict):
+                        marker = raw_marker
+        if not enabled and marker is None:
+            return ""
+        current_dir = str(Path.cwd())
+        if os.environ.get("CLOUD_AGENT_INSTANCE_DIR"):
+            return (
+                "\nRunning in dockerized cloud environment. "
+                f"Current working directory: {current_dir}"
+            )
+        if isinstance(marker, dict) and marker.get("was_cloud") is True:
+            prior_cwd = marker.get("current_workdir")
+            suffix = ""
+            if isinstance(prior_cwd, str) and prior_cwd:
+                suffix = f" Last cloud working directory: {prior_cwd}"
+            return (
+                "\nThis session previously ran in a dockerized cloud environment. "
+                f"Current working directory: {current_dir}.{suffix}"
+            )
+        return f"\nCurrent working directory: {current_dir}"
+
+    def _spawn_error_message(self, workdir: str | None, exc: Exception) -> str:
+        if isinstance(exc, PermissionError):
+            base = f"Error: failed to spawn command: Permission denied (os error 13)\nworkdir: {workdir}"
+        else:
+            base = (
+                "Error: failed to spawn command: "
+                f"{exc}\nworkdir: {workdir}"
+            )
+        return f"{base}{self._extra_workdir_error_context()}"
+
+    def _spawn_error_result(
+        self,
+        *,
+        command: Any,
+        workdir: str | None,
+        exc: Exception,
+        state: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        self._last_tool_context_for_error = (
+            state.get("_last_tool_context") if isinstance(state, dict) else None
+        )
+        message = self._spawn_error_message(workdir, exc)
+        return {
+            "success": False,
+            "output": message,
+            "exit_code": None,
+            "timed_out": False,
+            "cancelled": False,
+            "truncated": False,
+            "duration_seconds": 0.0,
+            "command": command,
+            "workdir": workdir,
+            "error": message,
+        }
 
     def _maybe_intercept_apply_patch(
         self,
@@ -70,6 +142,8 @@ class BaseCodexShellTool(ToolPlugin):
         result: Dict[str, Any],
         truncated_output: str,
         trunc_meta: Dict[str, Any],
+        *,
+        state: Dict[str, Any] | None = None,
     ) -> Dict[str, Any]:
         """Build result dict with Codex-style formatting.
         
@@ -129,7 +203,7 @@ class BaseCodexShellTool(ToolPlugin):
             and not result.get("cancelled", False)
         )
         
-        return {
+        formatted_result = {
             "success": success,
             "output": output_text,
             "exit_code": exit_code,
@@ -138,6 +212,7 @@ class BaseCodexShellTool(ToolPlugin):
             "truncated": trunc_meta.get("truncated", False),
             "duration_seconds": duration,
         }
+        return formatted_result
     
     def _apply_truncation(
         self,
@@ -211,7 +286,31 @@ class BaseCodexShellTool(ToolPlugin):
         
         Returns the formatted output string.
         """
-        return result.get("output", "")
+        output = result.get("output", "")
+        if isinstance(output, str) and output:
+            return output
+
+        error = result.get("error")
+        if isinstance(error, str) and error:
+            log.error(
+                "shell_tool_error_fallback_to_error_message",
+                tool_name=getattr(self, "name", None),
+                session_id=(
+                    ((state.get("_last_tool_context") or {}).get("session_id"))
+                    if isinstance(state, dict)
+                    else None
+                ),
+                tool_call_id=(
+                    ((state.get("_last_tool_context") or {}).get("tool_call_id"))
+                    if isinstance(state, dict)
+                    else None
+                ),
+                stack_trace="".join(traceback.format_stack(limit=20)),
+                error_message=error,
+            )
+            return error
+
+        return output if isinstance(output, str) else ""
     
     def format_tool_call_preview(
         self,

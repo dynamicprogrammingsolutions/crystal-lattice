@@ -3,7 +3,7 @@ grok-tools
 This package includes portions derived from or adapted from:
 
 Grok CLI
-MIT License
+Licensed under the MIT License
 Package: @vibe-kit/grok-cli
 
 The derived portions are used to provide Grok-compatible tool schemas,

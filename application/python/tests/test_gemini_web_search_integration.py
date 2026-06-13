@@ -11,12 +11,12 @@ environment or .env file.
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
 
 import pytest
+
+from repo_test_env import get_repo_env
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -30,24 +30,9 @@ if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
 
 
-def _get_env_key(key_name: str) -> str:
-    """Get API key from environment or .env file."""
-    value = os.environ.get(key_name, "")
-    if not value:
-        env_path = ROOT / ".env"
-        if env_path.exists():
-            with open(env_path) as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith(f"{key_name}="):
-                        value = line[len(key_name) + 1 :].strip().strip('"').strip("'")
-                        break
-    return value
-
-
 @pytest.fixture(scope="module")
 def gemini_api_key() -> str:
-    key = _get_env_key("GEMINI_API_KEY")
+    key = get_repo_env("GEMINI_API_KEY")
     if not key:
         pytest.skip("GEMINI_API_KEY not set; skipping web search integration test")
     return key
@@ -55,12 +40,12 @@ def gemini_api_key() -> str:
 
 @pytest.fixture(scope="module")
 def tavily_api_key() -> str:
-    return _get_env_key("TAVILY_API_KEY")
+    return get_repo_env("TAVILY_API_KEY")
 
 
 @pytest.fixture(scope="module")
 def openrouter_api_key() -> str:
-    key = _get_env_key("OPENROUTER_API_KEY")
+    key = get_repo_env("OPENROUTER_API_KEY")
     if not key:
         pytest.skip("OPENROUTER_API_KEY not set; skipping web search integration test")
     return key
@@ -89,6 +74,9 @@ def _make_agent_app(
         / "agent_terminal_app"
         / "default_config"
         / "config.json"
+    )
+    monkeypatch.setenv(
+        "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
     )
     session_root = tmp_path / "sessions"
 
@@ -146,7 +134,9 @@ def test_web_search_ui_schema_with_gemini_key(
         and isinstance(el.get("key"), str)
         and "web_search" in el.get("key", "")
     ]
-    assert "web_search_enabled" in ws_keys, f"web_search_enabled not in UI keys: {ws_keys}"
+    assert (
+        "web_search_enabled" in ws_keys
+    ), f"web_search_enabled not in UI keys: {ws_keys}"
 
 
 @pytest.mark.integration
@@ -196,15 +186,19 @@ def test_web_search_ui_schema_with_both_keys_shows_provider_select(
     ]
     ws_keys = [el.get("key") for el in ws_elements]
     assert "web_search_enabled" in ws_keys, f"web_search_enabled not in keys: {ws_keys}"
-    assert "web_search_provider" in ws_keys, (
-        f"web_search_provider not in keys (should appear when both keys available): {ws_keys}"
-    )
+    assert (
+        "web_search_provider" in ws_keys
+    ), f"web_search_provider not in keys (should appear when both keys available): {ws_keys}"
 
     # The provider selector should have options for both backends
-    provider_el = next(el for el in ws_elements if el.get("key") == "web_search_provider")
+    provider_el = next(
+        el for el in ws_elements if el.get("key") == "web_search_provider"
+    )
     options = provider_el.get("options", [])
     option_values = [o.get("value") for o in options if isinstance(o, dict)]
-    assert "gemini_api" in option_values, f"gemini_api not in provider options: {option_values}"
+    assert (
+        "gemini_api" in option_values
+    ), f"gemini_api not in provider options: {option_values}"
     assert "tavily" in option_values, f"tavily not in provider options: {option_values}"
 
 
@@ -222,8 +216,6 @@ def test_google_web_search_in_available_tools(
     gemini_api_key: str,
 ) -> None:
     """google_web_search should appear in available tools when enabled."""
-    from agent_app.application_future import AgentApplication
-    from agent_app.events import InMemoryEventStore
     from agent_terminal_app.terminal_app import TerminalApplication
 
     agent_app = _make_agent_app(
@@ -253,9 +245,9 @@ def test_google_web_search_in_available_tools(
 
     available = core.get_available_tools(base_config)
     tool_names = [t.tool_name for t in available]
-    assert "google_web_search" in tool_names, (
-        f"google_web_search not in available tools: {tool_names}"
-    )
+    assert (
+        "google_web_search" in tool_names
+    ), f"google_web_search not in available tools: {tool_names}"
 
 
 # ---------------------------------------------------------------------------
@@ -264,6 +256,7 @@ def test_google_web_search_in_available_tools(
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.gemini
 def test_web_search_gemini_api_real_call(
     tmp_path: Path,
@@ -316,18 +309,19 @@ def test_web_search_gemini_api_real_call(
         if name:
             tool_names_in_session.append(name)
 
-    assert "google_web_search" in tool_names_in_session, (
-        f"google_web_search not called. Tools called: {tool_names_in_session}"
-    )
+    assert (
+        "google_web_search" in tool_names_in_session
+    ), f"google_web_search not called. Tools called: {tool_names_in_session}"
 
     # The final assistant message should mention Python
     final_text = final_session.messages[-1].content.strip()
-    assert "Python" in final_text or "python" in final_text.lower(), (
-        f"Final response doesn't mention Python: {final_text[:200]}"
-    )
+    assert (
+        "Python" in final_text or "python" in final_text.lower()
+    ), f"Final response doesn't mention Python: {final_text[:200]}"
 
 
 @pytest.mark.integration
+@pytest.mark.api
 @pytest.mark.gemini
 def test_web_search_tavily_backend_real_call(
     tmp_path: Path,
@@ -386,6 +380,6 @@ def test_web_search_tavily_backend_real_call(
         if name:
             tool_names_in_session.append(name)
 
-    assert "google_web_search" in tool_names_in_session, (
-        f"google_web_search not called. Tools called: {tool_names_in_session}"
-    )
+    assert (
+        "google_web_search" in tool_names_in_session
+    ), f"google_web_search not called. Tools called: {tool_names_in_session}"

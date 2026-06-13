@@ -1,0 +1,133 @@
+---
+const { section } = Astro.props;
+const legalSections = Array.isArray(section.sections) ? section.sections : [];
+---
+
+<main class="prose-page">
+  <div class="container">
+    <div class="header">
+      <p class="label">{section.label}</p>
+      <h1>{section.title}</h1>
+      <p class="meta">{section.meta}</p>
+    </div>
+
+    <div class="content">
+      {legalSections.map((item) => (
+        <section>
+          <h2>{item.title}</h2>
+          {(item.blocks ?? []).map((block) => (
+            <>
+              {block.type === "paragraph" && <p set:html={block.html} />}
+              {block.type === "list" && (
+                <ul>
+                  {(block.items ?? []).map((listItem) => <li set:html={listItem} />)}
+                </ul>
+              )}
+            </>
+          ))}
+        </section>
+      ))}
+    </div>
+  </div>
+</main>
+
+<style>
+  .prose-page {
+    padding: 5rem 0 6rem;
+  }
+
+  .container {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+  }
+
+  .header {
+    margin-bottom: 3rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-soft);
+    margin-bottom: 0.75rem;
+  }
+
+  h1 {
+    font-size: clamp(1.75rem, 4vw, 2.5rem);
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
+
+  .meta {
+    font-size: 0.875rem;
+    color: var(--text-5);
+  }
+
+  .content {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+  }
+
+  section h2 {
+    font-size: 1.0625rem;
+    font-weight: 600;
+    color: var(--text-2);
+    margin-bottom: 0.75rem;
+    letter-spacing: -0.01em;
+  }
+
+  section p {
+    font-size: 0.9375rem;
+    color: var(--text-4);
+    line-height: 1.7;
+    margin-bottom: 0.75rem;
+  }
+
+  section p:last-child {
+    margin-bottom: 0;
+  }
+
+  section a {
+    color: var(--accent-soft);
+    transition: color 0.15s;
+  }
+
+  section a:hover {
+    color: var(--accent-pale);
+  }
+
+  section ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    margin-top: 0.5rem;
+  }
+
+  section ul li {
+    font-size: 0.9375rem;
+    color: var(--text-4);
+    line-height: 1.65;
+    padding-left: 1.25rem;
+    position: relative;
+  }
+
+  section ul li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--border-strong);
+  }
+
+  code {
+    font-size: 0.875em;
+  }
+</style>

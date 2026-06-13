@@ -13,19 +13,7 @@ defmodule CloudOrchestrator.TransferService.ManagedSSH do
         {:error, :missing_public_key}
 
       System.get_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH") == "1" ->
-        {:ok,
-         %{
-           "container_id" => nil,
-           "endpoint" =>
-             endpoint_for(params)
-             |> Map.put("port", port)
-             |> Map.put("username", "transfer")
-             |> Map.put("path", ".")
-             |> Map.put(
-               "host_key",
-               "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeManagedSshHostKeyForTests"
-             )
-         }}
+        fake_start(params, port)
 
       true ->
         args = [
@@ -66,7 +54,13 @@ defmodule CloudOrchestrator.TransferService.ManagedSSH do
             end
 
           {output, code} ->
-            {:error, "managed SSH container failed with #{code}: #{output}"}
+            reason = "managed SSH container failed with #{code}: #{String.trim(output)}"
+
+            if port_conflict_output?(output) do
+              {:error, {:port_unavailable, reason}}
+            else
+              {:error, reason}
+            end
         end
     end
   end
@@ -127,6 +121,44 @@ defmodule CloudOrchestrator.TransferService.ManagedSSH do
 
   defp bind_host do
     System.get_env("CLOUD_ORCHESTRATOR_TRANSFER_BIND_HOST") || "0.0.0.0"
+  end
+
+  defp fake_start(params, port) do
+    if port in fake_busy_ports() do
+      {:error,
+       {:port_unavailable,
+        "managed SSH container failed with 125: docker: Error response from daemon: Bind for #{bind_host()}:#{port} failed: port is already allocated."}}
+    else
+      {:ok,
+       %{
+         "container_id" => nil,
+         "endpoint" =>
+           endpoint_for(params)
+           |> Map.put("port", port)
+           |> Map.put("username", "transfer")
+           |> Map.put("path", ".")
+           |> Map.put(
+             "host_key",
+             "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeManagedSshHostKeyForTests"
+           )
+       }}
+    end
+  end
+
+  defp fake_busy_ports do
+    System.get_env("CLOUD_ORCHESTRATOR_FAKE_MANAGED_SSH_BUSY_PORTS", "")
+    |> String.split(",", trim: true)
+    |> Enum.flat_map(fn value ->
+      case Integer.parse(String.trim(value)) do
+        {port, ""} -> [port]
+        _ -> []
+      end
+    end)
+  end
+
+  defp port_conflict_output?(output) do
+    String.contains?(output, "port is already allocated") ||
+      String.contains?(output, "address already in use")
   end
 
   defp host_from_public_url do

@@ -358,16 +358,30 @@ python -m pip install -e "plugins/reference-openai-compatible-provider[dev]"
 
 ### Tests
 
-Unit tests:
+Fast default package run:
 
 ```bash
 pytest plugins/reference-openai-compatible-provider/tests -q
 ```
 
-Integration tests (requires a local Ollama server):
+This package defaults to `-m 'not integration'`.
+
+Local Ollama integration:
 
 ```bash
-pytest plugins/reference-openai-compatible-provider/tests -m integration -q
+pytest plugins/reference-openai-compatible-provider/tests -m 'integration and ollama and not api and not slow_integration' -q
+```
+
+Hosted Fireworks integration:
+
+```bash
+pytest plugins/reference-openai-compatible-provider/tests -m 'integration and api and not slow_integration and fireworks' -q
+```
+
+Hosted Z.ai integration:
+
+```bash
+pytest plugins/reference-openai-compatible-provider/tests -m 'integration and api and not slow_integration and zai' -q
 ```
 
 Environment overrides used by the Ollama integration tests:
@@ -375,10 +389,26 @@ Environment overrides used by the Ollama integration tests:
 - `OLLAMA_OPENAI_BASE_URL` (default `http://localhost:11434/v1`)
 - `OLLAMA_OPENAI_MODEL` (default `qwen3:0.6b`)
 
+The reference-provider test suite bootstraps the repo root `.env` during local
+use and does not overwrite already-exported environment variables. Hosted API
+tests typically require `FIREWORKS_API_KEY` or `ZAI_API_KEY`.
+
 ### Debugging streaming
 
 Set `debug_stream: true` in provider config to log decoded streaming chunks. Avoid enabling this when sending secrets because responses may include sensitive data.
 
 ## License
 
-This directory is available under the [Apache License 2.0](../../LICENSE).
+Copyright 2026 Dynamic Programming Solutions Kft.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+<http://www.apache.org/licenses/LICENSE-2.0>
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

@@ -15,6 +15,9 @@ from openai_responses_plugins.openai_responses_native_compaction_extension impor
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 
 
+pytestmark = pytest.mark.api
+
+
 class _SecretValue(str):
     def __repr__(self) -> str:
         return "<redacted secret>"

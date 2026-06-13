@@ -12,6 +12,7 @@ _RED_PNG_BASE64 = (
 )
 _REMOTE_TEST_IMAGE_URL = "https://dummyimage.com/128x128/ff0000/ffffff.png&text=R"
 _DEFAULT_FIREWORKS_VISION_MODEL = "fireworks/qwen3-vl-30b-a3b-thinking"
+pytestmark = pytest.mark.api
 
 
 @pytest.mark.integration

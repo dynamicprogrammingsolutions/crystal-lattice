@@ -46,6 +46,7 @@ import {
 import { useApplicationPlugins, useApplicationPluginsContext } from './ApplicationPluginsContext';
 import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { usePluginActionDialog } from './usePluginActionDialog';
+import { handleGeneratedFileFollowupAction } from './utils/generatedFileActions';
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
@@ -288,6 +289,21 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         Alert.alert('Copied', 'Copied to clipboard.');
         return;
       }
+      if (action.kind === 'download_attachment_asset') {
+        if (!backend) {
+          Alert.alert('No connection', 'Connect to a server to download the generated file.');
+          return;
+        }
+        try {
+          await handleGeneratedFileFollowupAction({ backend, action });
+        } catch (err: any) {
+          Alert.alert(
+            'File action failed',
+            err?.message || 'Unable to open the generated file.',
+          );
+        }
+        return;
+      }
       if (action.kind === 'run_action') {
         if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
           setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
@@ -311,7 +327,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         }
       }
     },
-    [executePluginAction],
+    [backend, executePluginAction],
   );
 
 	  const {

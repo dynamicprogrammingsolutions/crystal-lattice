@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${CLOUD_WORKSPACE_DIR:?}"
+
+cd "${CLOUD_WORKSPACE_DIR}"
+
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install \
+  -e ./core/python \
+  -e ./application/python \
+  -e ./plugins/cloud-agent-app \
+  -e './plugins/openrouter[dev]'
+
+printf 'ok\n' > .cloud-agent-install.ok

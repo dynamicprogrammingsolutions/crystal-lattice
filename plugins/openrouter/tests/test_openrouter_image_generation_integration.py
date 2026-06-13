@@ -34,6 +34,7 @@ from openrouter_plugins.openrouter_image_generation_provider import (  # noqa: E
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 BASE_URL = os.getenv("OPENROUTER_BASE_URL") or "https://openrouter.ai/api/v1"
+pytestmark = pytest.mark.api
 
 
 @pytest.fixture(scope="module")

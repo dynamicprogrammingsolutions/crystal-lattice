@@ -2,6 +2,13 @@
 
 Cloud Orchestrator is the control plane for cloud agent sessions. It is independent from the bridge service.
 
+In the intended deployment shape, the orchestrator complements the
+`cloud-agent-app` plugin while the bridge complements both by handling pairing
+and cross-network connectivity for local and cloud-backed clients. The Elixir
+orchestrator owns cloud session lifecycle and runtime control; the
+`cloud-agent-app` plugin exposes those capabilities through application actions,
+connection links, and local/cloud sync flows.
+
 The MVP service is an Elixir/Phoenix application with a built-in Docker runner. The Docker runner is bundled into the same release image, but it is isolated behind a runner behaviour so later AWS Fargate, Kubernetes, or remote runner implementations can replace it without changing the public API.
 
 Conceptually:
@@ -15,7 +22,10 @@ Conceptually:
 ```bash
 cd cloud-orchestrator
 cd ..
-docker build -t cloud-agent-runtime:latest -f cloud-orchestrator/runtime/python/Dockerfile .
+python3 scripts/prepare_cloud_runtime_build_context.py \
+  --output build/cloud-runtime \
+  --config application/python/agent_terminal_app/default_config/config.json
+docker build -t cloud-agent-runtime:latest build/cloud-runtime
 cd cloud-orchestrator
 docker compose -f docker-compose.single-node.yml up --build
 curl http://127.0.0.1:4100/health
@@ -28,7 +38,10 @@ Set `CLOUD_ORCHESTRATOR_CONTROL_TOKEN` in remote deployments. Control-plane call
 For a host-local manual smoke without Compose:
 
 ```bash
-docker build -t cloud-agent-runtime:latest -f cloud-orchestrator/runtime/python/Dockerfile .
+python3 scripts/prepare_cloud_runtime_build_context.py \
+  --output build/cloud-runtime \
+  --config application/python/agent_terminal_app/default_config/config.json
+docker build -t cloud-agent-runtime:latest build/cloud-runtime
 docker build -t cloud-agent-transfer-ssh:latest cloud-orchestrator/transfer/managed-ssh
 
 PORT=4105 \
@@ -108,6 +121,19 @@ Patch-based sync profiles may include a cloud-side mark-synced script that runs
 only after local apply succeeds, advancing the cloud git baseline for
 incremental syncs while preserving retry safety.
 
+For local hook validation without the orchestrator service, use the standard
+CLI command:
+
+```bash
+crystal-lattice validate-cloud
+```
+
+That command runs the configured container profile locally. For Dockerfile
+profiles, the cloud-agent plugin stages a Docker-buildable runtime context and
+uses a digest label to rebuild only when the context is missing or stale. The
+default packaged runtime Dockerfile and runtime app live in the
+`cloud-agent-app` plugin.
+
 ## Runtime Config, Assets, And Env
 
 When `cloud.start_session_agent` runs, the local application writes a portable
@@ -134,13 +160,20 @@ tool paths, provider settings, and plugin path descriptors are preserved.
 in `application.cloud_agent.config_assets`, including exclude patterns and a
 per-top-level-entry size limit. This lets projects exclude `.env`,
 `.plugin_cache`, logs, or other bulky/private entries without the runtime
-hardcoding project-specific paths.
+hardcoding project-specific paths. Use `config_assets.include_excluded` for
+narrow opt-ins such as `auth/chatgpt-auth.json` when a normally excluded file
+must keep its `CONFIG_DIR`-relative path in the cloud runtime.
 
 Runtime env values are written through `application.cloud_agent.runtime_env`.
 By default, env placeholders referenced by config can be transferred by name,
 with explicit excludes for local control-plane and runtime-owned variables.
 Secret values are written only into runtime env files, never into action display
 payloads.
+
+Connection-scoped proxy routes prefer session-specific routes when the request
+identifies a session. Unscoped connection proxy requests use the connection
+default instance, but the registry falls back to a newer running instance when
+the recorded default is failed, closed, or otherwise not proxyable.
 
 The Docker runner mounts each instance at:
 
@@ -189,6 +222,13 @@ Local orchestrator mode:
 RUN_CLOUD_ORCHESTRATOR_E2E=1 npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e
 ```
 
+The local E2E harness builds `cloud-agent-runtime:latest` and
+`cloud-agent-transfer-ssh:latest` from an extracted deploy source bundle created
+by `create_cloud_orchestrator_source_bundle`. This intentionally differs from
+manual local Docker commands that build from the checkout root: the E2E should
+fail if a runtime Dockerfile depends on a file omitted from the reduced deploy
+bundle.
+
 Real OpenRouter tool-loop E2E is opt-in:
 
 ```bash
@@ -197,6 +237,36 @@ RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E=1 \
 OPENROUTER_API_KEY=... \
 npm test --prefix packages/frontend-sdk -- cloud-orchestrator.e2e
 ```
+
+AWS EC2 + CloudFront E2E can validate existing images from deploy state, or
+force a fresh build from the current source bundle:
+
+```bash
+AWS_STACK_NAME=crystal-lattice-cloud-orchestrator-e2e-manual \
+npm run --prefix packages/frontend-sdk integration:cloud:aws
+
+AWS_STACK_NAME=crystal-lattice-cloud-orchestrator-e2e-manual \
+npm run --prefix packages/frontend-sdk integration:cloud:aws:fresh
+```
+
+Use the fresh mode when the test must prove the current checkout can build and
+deploy. The non-fresh mode is useful for validating known prebuilt images, but
+it can validate stale images if the build step was not run for the current
+source and stack/tag.
+
+Remote Docker deploy smoke is separately gated because it needs an explicit SSH
+target and leaves the deployment running:
+
+```bash
+RUN_CLOUD_ORCHESTRATOR_REMOTE_DOCKER_E2E=1 \
+CLOUD_ORCHESTRATOR_REMOTE=user@example-host \
+CLOUD_ORCHESTRATOR_PUBLIC_URL=https://cloud.example.com \
+npm run --prefix packages/frontend-sdk integration:cloud:remote-docker
+```
+
+That smoke invokes `cloud-orchestrator/deploy/remote-docker/deploy.sh`
+directly, then runs the frontend SDK cloud orchestrator E2E in external mode
+against `CLOUD_ORCHESTRATOR_PUBLIC_URL`.
 
 Set `CLOUD_ORCHESTRATOR_OPENROUTER_MODEL` to choose the model; the test uses a
 cheap tool-capable fallback when unset.
@@ -214,4 +284,18 @@ If the external orchestrator uses a control-plane token, also set `CLOUD_ORCHEST
 
 ## License
 
-This directory is available under the [GNU Affero General Public License v3.0](LICENSE).
+Crystal Lattice Cloud Orchestrator is a control plane for cloud agent sessions.
+Copyright (C) 2026 Dynamic Programming Solutions Kft.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.

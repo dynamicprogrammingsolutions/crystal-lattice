@@ -1,0 +1,1 @@
+Cloud profile integration asset

@@ -11,6 +11,8 @@ from fireworks_test_utils import (
     send_request_or_skip,
 )
 
+pytestmark = pytest.mark.api
+
 
 @pytest.mark.integration
 @pytest.mark.fireworks

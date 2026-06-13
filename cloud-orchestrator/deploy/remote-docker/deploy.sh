@@ -17,6 +17,8 @@ Optional environment:
   CLOUD_ORCHESTRATOR_PORT              Published HTTP port (default: 4100)
   CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST Hostname the orchestrator uses to reach runtime ports
   CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST  Host IP for runtime port binding (default: 172.17.0.1)
+  CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS
+                                      Runtime readiness timeout in milliseconds (default: 1800000)
   SSH_OPTS                             Extra ssh options
   RSYNC_OPTS                           Extra rsync options
 
@@ -63,6 +65,7 @@ port="${CLOUD_ORCHESTRATOR_PORT:-4100}"
 runner="${CLOUD_ORCHESTRATOR_RUNNER:-docker}"
 docker_proxy_host="${CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST:-host.docker.internal}"
 docker_bind_host="${CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST:-172.17.0.1}"
+runtime_ready_timeout_ms="${CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS:-1800000}"
 secret_key_base="${SECRET_KEY_BASE:-$(openssl rand -hex 64)}"
 transfer_port_start="${TRANSFER_PORT_START:-22000}"
 transfer_port_end="${TRANSFER_PORT_END:-22099}"
@@ -80,15 +83,38 @@ if [[ -n "${SSH_OPTS:-}" ]]; then
 fi
 
 bundle_path="$(mktemp -t cloud-orchestrator-source.XXXXXX.tar.gz)"
+runtime_context_dir="$(mktemp -d -t cloud-runtime-context.XXXXXX)"
+runtime_bundle_path="$(mktemp -t cloud-runtime-context.XXXXXX.tar.gz)"
 cleanup() {
   rm -f "${bundle_path}"
+  rm -f "${runtime_bundle_path}"
+  rm -rf "${runtime_context_dir}"
 }
 trap cleanup EXIT
 
 create_cloud_orchestrator_source_bundle "${bundle_path}" "${repo_root}"
+python3 "${repo_root}/scripts/prepare_cloud_runtime_build_context.py" \
+  --output "${runtime_context_dir}" \
+  --config "${repo_root}/application/python/agent_terminal_app/default_config/config.json"
+COPYFILE_DISABLE=1 tar -czf "${runtime_bundle_path}" -C "${runtime_context_dir}" .
+
+remote_cleanup_command="
+# Temporary development cleanup: stop old runtime and transfer containers
+# and remove previous images to free disk space before rebuilding.
+# TODO: Replace this deploy-time cleanup with continuous cleanup and
+# persistent storage. This is a temporary development workaround,
+# not a final solution.
+runtime_container_ids=\$(docker ps -aq --format '{{.ID}} {{.Names}}' 2>/dev/null | awk '\$2 ~ /^cloud-agent-/ || \$2 ~ /^cloud-transfer-/ { print \$1 }')
+if [[ -n \"\${runtime_container_ids}\" ]]; then
+  printf '%s\n' \"\${runtime_container_ids}\" | xargs -r docker rm -f >/dev/null 2>&1 || true
+fi
+docker rmi cloud-agent-runtime:latest cloud-agent-transfer-ssh:latest >/dev/null 2>&1 || true
+docker image prune -f >/dev/null 2>&1 || true
+"
 
 ssh_setup_command="
 set -euo pipefail
+${remote_cleanup_command}
 mkdir -p $(quote "${remote_dir}")/.deploy
 "
 
@@ -102,9 +128,8 @@ rsync_args=(-az)
 if [[ ${#rsync_extra[@]} -gt 0 ]]; then
   rsync_args+=("${rsync_extra[@]}")
 fi
-rsync_args+=("${bundle_path}" "${remote}:${remote_dir}/.deploy/source.tar.gz")
-
-rsync "${rsync_args[@]}"
+rsync "${rsync_args[@]}" "${bundle_path}" "${remote}:${remote_dir}/.deploy/source.tar.gz"
+rsync "${rsync_args[@]}" "${runtime_bundle_path}" "${remote}:${remote_dir}/.deploy/cloud-runtime.tar.gz"
 
 remote_command="
 set -euo pipefail
@@ -113,6 +138,7 @@ cd $(quote "${remote_dir}")
 find . -mindepth 1 -maxdepth 1 ! -name .deploy -exec rm -rf {} +
 tar -xzf .deploy/source.tar.gz -C .
 mkdir -p $(quote "${host_data_dir}")
+
 if docker compose version >/dev/null 2>&1; then
   compose_cmd='docker compose'
   compose_file='cloud-orchestrator/docker-compose.single-node.yml'
@@ -120,7 +146,10 @@ else
   compose_cmd='docker-compose'
   compose_file='cloud-orchestrator/docker-compose.single-node-v2.yml'
 fi
-docker build -t cloud-agent-runtime:latest -f cloud-orchestrator/runtime/python/Dockerfile .
+rm -rf build/cloud-runtime
+mkdir -p build/cloud-runtime
+tar -xzf .deploy/cloud-runtime.tar.gz -C build/cloud-runtime
+docker build -t cloud-agent-runtime:latest build/cloud-runtime
 docker build -t cloud-agent-transfer-ssh:latest cloud-orchestrator/transfer/managed-ssh
 CLOUD_ORCHESTRATOR_PUBLIC_URL=$(quote "${CLOUD_ORCHESTRATOR_PUBLIC_URL}") \\
 CLOUD_ORCHESTRATOR_TOKEN_SECRET=$(quote "${token_secret}") \\
@@ -129,6 +158,7 @@ CLOUD_ORCHESTRATOR_HOST_DATA_DIR=$(quote "${host_data_dir}") \\
 CLOUD_ORCHESTRATOR_RUNNER=$(quote "${runner}") \\
 CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=$(quote "${docker_proxy_host}") \\
 CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=$(quote "${docker_bind_host}") \\
+CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS=$(quote "${runtime_ready_timeout_ms}") \\
 SECRET_KEY_BASE=$(quote "${secret_key_base}") \\
 TRANSFER_PORT_START=$(quote "${transfer_port_start}") \\
 TRANSFER_PORT_END=$(quote "${transfer_port_end}") \\
@@ -142,6 +172,7 @@ CLOUD_ORCHESTRATOR_HOST_DATA_DIR=$(quote "${host_data_dir}") \\
 CLOUD_ORCHESTRATOR_RUNNER=$(quote "${runner}") \\
 CLOUD_ORCHESTRATOR_DOCKER_PROXY_HOST=$(quote "${docker_proxy_host}") \\
 CLOUD_ORCHESTRATOR_DOCKER_BIND_HOST=$(quote "${docker_bind_host}") \\
+CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS=$(quote "${runtime_ready_timeout_ms}") \\
 SECRET_KEY_BASE=$(quote "${secret_key_base}") \\
 TRANSFER_PORT_START=$(quote "${transfer_port_start}") \\
 TRANSFER_PORT_END=$(quote "${transfer_port_end}") \\

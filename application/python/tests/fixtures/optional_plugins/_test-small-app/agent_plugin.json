@@ -1,0 +1,10 @@
+{
+  "module": "_test_small_app",
+  "subdirectory": ".",
+  "entries": [
+    "_test_small_app.SmallTestAppPlugin"
+  ],
+  "kinds": {
+    "_test_small_app.SmallTestAppPlugin": "application"
+  }
+}

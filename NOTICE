@@ -5,22 +5,26 @@ This project includes portions derived from or adapted from the following
 upstream projects:
 
 OpenAI Codex
+Licensed under the Apache License, Version 2.0
 Copyright 2025 OpenAI
 https://github.com/openai/codex
 
 Kimi Code CLI
+Licensed under the Apache License, Version 2.0
 Copyright 2025 Moonshot AI
 https://github.com/MoonshotAI/kimi-cli
 
 Gemini CLI
+Licensed under the Apache License, Version 2.0
 Copyright 2025 Google LLC
 https://github.com/google-gemini/gemini-cli
 
 Grok CLI
-MIT License
+Licensed under the MIT License
 Package: @vibe-kit/grok-cli
 
 Qwen Code
+Licensed under the Apache License, Version 2.0
 Copyright 2025 Qwen contributors
 https://github.com/QwenLM/qwen-code
 

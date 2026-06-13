@@ -6,6 +6,7 @@ from pathlib import Path
 
 def test_can_import_tools() -> None:
     from codex_tools.apply_patch_tool import ApplyPatchTool
+    from codex_tools.codex_skills_feature import CodexSkillsFeature
     from codex_tools.shell_tool import ShellArrayTool
     from codex_tools.shell_command_tool import ShellCommandTool
     from codex_tools.shell_tool_legacy import ShellTool
@@ -13,6 +14,7 @@ def test_can_import_tools() -> None:
     from codex_tools.view_image_tool import ViewImageTool
 
     assert ApplyPatchTool.name
+    assert CodexSkillsFeature.name
     assert ShellArrayTool.name
     assert ShellCommandTool.name
     assert ShellTool.name
@@ -29,7 +31,9 @@ def test_descriptor_is_present() -> None:
     assert "codex_tools.shell_command_tool.ShellCommandTool" in data["entries"]
     assert "codex_tools.shell_tool_legacy.ShellTool" in data["entries"]
     assert "codex_tools.apply_patch_tool.ApplyPatchTool" in data["entries"]
+    assert "codex_tools.codex_skills_feature.CodexSkillsFeature" in data["entries"]
     assert "codex_tools.view_image_tool.ViewImageTool" in data["entries"]
     assert "codex_tools.codex_variant_feature.CodexVariantFeature" in data["entries"]
     assert data["kinds"]["codex_tools.view_image_tool.ViewImageTool"] == "tools"
+    assert data["kinds"]["codex_tools.codex_skills_feature.CodexSkillsFeature"] == "features"
     assert data["kinds"]["codex_tools.codex_variant_feature.CodexVariantFeature"] == "features"

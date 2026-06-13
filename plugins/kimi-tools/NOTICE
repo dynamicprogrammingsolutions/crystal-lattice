@@ -3,12 +3,14 @@ kimi-tools
 This package includes portions derived from or adapted from:
 
 Kimi Code CLI
+Licensed under the Apache License, Version 2.0
 Copyright 2025 Moonshot AI
 https://github.com/MoonshotAI/kimi-cli
 
 The upstream Kimi Code CLI NOTICE also attributes reused portions to:
 
 OpenAI Codex
+Licensed under the Apache License, Version 2.0
 Copyright 2025 OpenAI
 https://github.com/openai/codex
 

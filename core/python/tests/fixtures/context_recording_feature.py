@@ -87,6 +87,13 @@ class ContextRecordingFeature:
                 "inputs": {},
                 "trigger": "request_complete",
             },
+            {
+                "id": "record_response_finalize_context",
+                "label": "Record response finalize context",
+                "description": "Record context when triggered by response finalize.",
+                "inputs": {},
+                "trigger": "response_finalize",
+            },
         ]
 
     def execute_action(

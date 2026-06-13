@@ -1,4 +1,18 @@
 #!/usr/bin/env python3
+# Copyright 2026 Dynamic Programming Solutions Kft.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 """Normalize Claude Code proxy logs into implementation fixtures."""
 
 from __future__ import annotations
@@ -121,29 +135,48 @@ def normalize_value(value: Any, replacements: dict[str, str]) -> Any:
     return value
 
 
-def _find_read_schema(requests: list[dict[str, Any]]) -> dict[str, Any] | None:
+def find_tool_schema(
+    requests: list[dict[str, Any]],
+    *,
+    tool_name: str,
+) -> dict[str, Any] | None:
     for request in requests:
         for tool in request.get("body", {}).get("tools", []) or []:
-            if isinstance(tool, dict) and tool.get("name") == "Read":
+            if isinstance(tool, dict) and tool.get("name") == tool_name:
                 return tool
     return None
 
 
-def _find_tool_use(requests: list[dict[str, Any]]) -> dict[str, Any] | None:
+def find_assistant_tool_use(
+    requests: list[dict[str, Any]],
+    *,
+    tool_name: str,
+) -> dict[str, Any] | None:
     for request in requests:
         for message in request.get("body", {}).get("messages", []) or []:
             for block in message.get("content", []) or []:
-                if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("name") == "Read":
+                if (
+                    isinstance(block, dict)
+                    and block.get("type") == "tool_use"
+                    and block.get("name") == tool_name
+                ):
                     return block
     return None
 
 
-def _find_tool_result_message(requests: list[dict[str, Any]]) -> dict[str, Any] | None:
+def find_tool_result_message(
+    requests: list[dict[str, Any]],
+    *,
+    tool_use_id: str | None = None,
+) -> dict[str, Any] | None:
     for request in requests:
         for message in request.get("body", {}).get("messages", []) or []:
             for block in message.get("content", []) or []:
-                if isinstance(block, dict) and block.get("type") == "tool_result":
-                    return message
+                if not isinstance(block, dict) or block.get("type") != "tool_result":
+                    continue
+                if tool_use_id is not None and block.get("tool_use_id") != tool_use_id:
+                    continue
+                return message
     return None
 
 
@@ -160,9 +193,11 @@ def build_fixture(
         "case": case_name,
         "request_count": len(normalized_requests),
         "request_urls": [request.get("url") for request in normalized_requests],
-        "tool_schema": _find_read_schema(normalized_requests),
-        "assistant_tool_use": _find_tool_use(normalized_requests),
-        "tool_result_message": _find_tool_result_message(normalized_requests),
+        "tool_schema": find_tool_schema(normalized_requests, tool_name="Read"),
+        "assistant_tool_use": find_assistant_tool_use(
+            normalized_requests, tool_name="Read"
+        ),
+        "tool_result_message": find_tool_result_message(normalized_requests),
         "final_result": None,
     }
 

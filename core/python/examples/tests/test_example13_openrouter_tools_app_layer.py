@@ -20,19 +20,14 @@ from pathlib import Path
 
 import pytest
 
-try:  # Load .env from the current working directory (repo root in tests)
-    from dotenv import load_dotenv
-
-    load_dotenv()
-except Exception:
-    pass
-
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 CORE_PY = os.path.join(ROOT, "core/python")
 if CORE_PY not in sys.path:
     sys.path.insert(0, CORE_PY)
+
+pytestmark = [pytest.mark.integration, pytest.mark.api]
 
 
 @pytest.fixture(scope="module")

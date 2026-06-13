@@ -1,0 +1,948 @@
+{
+  "attachment_count": 1,
+  "case": "success-tool-history",
+  "compact_boundary": {
+    "compact_metadata": {
+      "duration_ms": 7789,
+      "post_tokens": 700,
+      "pre_tokens": 2127,
+      "preserved_messages": {
+        "anchor_uuid": "4a67f74b-0dec-49f5-923e-fc07a63ac05b",
+        "uuids": [
+          "a554cda7-03af-48c9-b58b-4d1c7afe4aa5"
+        ]
+      },
+      "preserved_segment": {
+        "anchor_uuid": "4a67f74b-0dec-49f5-923e-fc07a63ac05b",
+        "head_uuid": "a554cda7-03af-48c9-b58b-4d1c7afe4aa5",
+        "tail_uuid": "a554cda7-03af-48c9-b58b-4d1c7afe4aa5"
+      },
+      "trigger": "manual"
+    },
+    "session_id": "<SESSION_ID>",
+    "subtype": "compact_boundary",
+    "type": "system",
+    "uuid": "ad0b712f-92f7-46b2-8c27-262009243de8"
+  },
+  "compact_request": {
+    "body": {
+      "context_management": {
+        "edits": [
+          {
+            "keep": "all",
+            "type": "clear_thinking_20251015"
+          }
+        ]
+      },
+      "max_tokens": 20000,
+      "messages": [
+        {
+          "content": [
+            {
+              "text": "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is 2026-05-29.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>\n\n",
+              "type": "text"
+            },
+            {
+              "text": "Use the Read tool to read README.md. Then answer exactly PROBE1.",
+              "type": "text"
+            }
+          ],
+          "role": "user"
+        },
+        {
+          "content": [
+            {
+              "id": "<TOOL_CALL_ID>",
+              "input": {
+                "file_path": "<WORKSPACE>/README.md"
+              },
+              "name": "Read",
+              "type": "tool_use"
+            }
+          ],
+          "role": "assistant"
+        },
+        {
+          "content": [
+            {
+              "content": "1\t# Probe Heading\n2\t\n3\tBody\n4\t",
+              "tool_use_id": "<TOOL_CALL_ID>",
+              "type": "tool_result"
+            }
+          ],
+          "role": "user"
+        },
+        {
+          "content": [
+            {
+              "text": "PROBE1",
+              "type": "text"
+            }
+          ],
+          "role": "assistant"
+        },
+        {
+          "content": "Answer exactly PROBE2.",
+          "role": "user"
+        },
+        {
+          "content": [
+            {
+              "cache_control": {
+                "type": "ephemeral"
+              },
+              "text": "PROBE2",
+              "type": "text"
+            }
+          ],
+          "role": "assistant"
+        },
+        {
+          "content": [
+            {
+              "text": "Answer exactly PROBE3.\n",
+              "type": "text"
+            },
+            {
+              "text": "CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\n\n- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.\n- You already have all the context you need in the conversation above.\n- Tool calls will be REJECTED and will waste your only turn \u2014 you will fail the task.\n- Your entire response must be plain text: an <analysis> block followed by a <summary> block.\n\nYour task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.\nThis summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.\n\nBefore providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\n\n1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:\n   - The user's explicit requests and intents\n   - Your approach to addressing the user's requests\n   - Key decisions, technical concepts and code patterns\n   - Specific details like:\n     - file names\n     - full code snippets\n     - function signatures\n     - file edits\n   - Errors that you ran into and how you fixed them\n   - Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\n   - Note any security-relevant instructions or constraints the user stated (e.g., sensitive files or data to avoid, operations that must not be performed, credential or secret handling rules). These MUST be preserved verbatim in the summary so they continue to apply after compaction.\n2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\n\nYour summary should include the following sections:\n\n1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail\n2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.\n3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.\n4. Errors and fixes: List all errors that you ran into, and how you fixed them. Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\n5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.\n6. All user messages: List ALL user messages that are not tool results. These are critical for understanding the users' feedback and changing intent. Preserve any security-relevant instructions or constraints verbatim so they remain in effect after compaction.\n7. Pending Tasks: Outline any pending tasks that you have explicitly been asked to work on.\n8. Current Work: Describe in detail precisely what was being worked on immediately before this summary request, paying special attention to the most recent messages from both user and assistant. Include file names and code snippets where applicable.\n9. Optional Next Step: List the next step that you will take that is related to the most recent work you were doing. IMPORTANT: ensure that this step is DIRECTLY in line with the user's most recent explicit requests, and the task you were working on immediately before this summary request. If your last task was concluded, then only list next steps if they are explicitly in line with the users request. Do not start on tangential requests or really old requests that were already completed without confirming with the user first.\n                       If there is a next step, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no drift in task interpretation.\n\nHere's an example of how your output should be structured:\n\n<example>\n<analysis>\n[Your thought process, ensuring all points are covered thoroughly and accurately]\n</analysis>\n\n<summary>\n1. Primary Request and Intent:\n   [Detailed description]\n\n2. Key Technical Concepts:\n   - [Concept 1]\n   - [Concept 2]\n   - [...]\n\n3. Files and Code Sections:\n   - [File Name 1]\n      - [Summary of why this file is important]\n      - [Summary of the changes made to this file, if any]\n      - [Important Code Snippet]\n   - [File Name 2]\n      - [Important Code Snippet]\n   - [...]\n\n4. Errors and fixes:\n    - [Detailed description of error 1]:\n      - [How you fixed the error]\n      - [User feedback on the error if any]\n    - [...]\n\n5. Problem Solving:\n   [Description of solved problems and ongoing troubleshooting]\n\n6. All user messages: \n    - [Detailed non tool use user message]\n    - [...]\n\n7. Pending Tasks:\n   - [Task 1]\n   - [Task 2]\n   - [...]\n\n8. Current Work:\n   [Precise description of current work]\n\n9. Optional Next Step:\n   [Optional Next step to take]\n\n</summary>\n</example>\n\nPlease provide your summary based on the conversation so far, following this structure and ensuring precision and thoroughness in your response. \n\nThere may be additional summarization instructions provided in the included context. If so, remember to follow these instructions when creating the above summary. Examples of instructions include:\n<example>\n## Compact Instructions\nWhen summarizing the conversation focus on typescript code changes and also remember the mistakes you made and how you fixed them.\n</example>\n\n<example>\n# Summary instructions\nWhen you are using compact - please focus on test output and code changes. Include file reads verbatim.\n</example>\n\n\nREMINDER: Do NOT call any tools. Respond with plain text only \u2014 an <analysis> block followed by a <summary> block. Tool calls will be rejected and you will fail the task.",
+              "type": "text"
+            }
+          ],
+          "role": "user"
+        }
+      ],
+      "metadata": {
+        "user_id": "{\"device_id\":\"<DEVICE_ID>\",\"account_uuid\":\"\",\"session_id\":\"<SESSION_ID>\"}"
+      },
+      "model": "qwen3-coder-next:cloud",
+      "output_config": {
+        "effort": "high"
+      },
+      "stream": true,
+      "system": [
+        {
+          "text": "x-anthropic-billing-header: cc_version=2.1.154.cae; cc_entrypoint=sdk-cli; cch=d2c0f;",
+          "type": "text"
+        },
+        {
+          "cache_control": {
+            "type": "ephemeral"
+          },
+          "text": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+          "type": "text"
+        },
+        {
+          "cache_control": {
+            "type": "ephemeral"
+          },
+          "text": "\nYou are an interactive agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.\n\n# Harness\n - Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.\n - Tools run behind a user-selected permission mode; a denied call means the user declined it \u2014 adjust, don't retry verbatim.\n - `<system-reminder>` tags in messages and tool results are injected by the harness, not the user. Hooks may intercept tool calls; treat hook output as user feedback.\n - Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.\n - Reference code as `file_path:line_number` \u2014 it's clickable.\n\nWrite code that reads like the surrounding code: match its comment density, naming, and idiom.\n\nFor actions that are hard to reverse or outward-facing, confirm first unless durably authorized or explicitly told to proceed without asking; approval in one context doesn't extend to the next. Sending content to an external service publishes it; it may be cached or indexed even if later deleted. Before deleting or overwriting, look at the target \u2014 if what you find contradicts how it was described, or you didn't create it, surface that instead of proceeding. Report outcomes faithfully: if tests fail, say so with the output; if a step was skipped, say that; when something is done and verified, state it plainly without hedging.\n\n# Memory\n\nYou have a persistent file-based memory at `<MEMORY_DIR>`. This directory already exists \u2014 write to it directly with the Write tool (do not run mkdir or check for its existence). Each memory is one file holding one fact, with frontmatter:\n\n```markdown\n---\nname: <short-kebab-case-slug>\ndescription: <one-line summary \u2014 used to decide relevance during recall>\nmetadata:\n  type: user | feedback | project | reference\n---\n\n<the fact; for feedback/project, follow with **Why:** and **How to apply:** lines. Link related memories with [[their-name]].>\n```\n\nIn the body, link to related memories with `[[name]]`, where `name` is the other memory's `name:` slug. Link liberally \u2014 a `[[name]]` that doesn't match an existing memory yet is fine; it marks something worth writing later, not an error.\n\n`user` \u2014 who the user is (role, expertise, preferences). `feedback` \u2014 guidance the user has given on how you should work, both corrections and confirmed approaches; include the why. `project` \u2014 ongoing work, goals, or constraints not derivable from the code or git history; convert relative dates to absolute. `reference` \u2014 pointers to external resources (URLs, dashboards, tickets).\n\nAfter writing the file, add a one-line pointer in `MEMORY.md` (`- [Title](file.md) \u2014 hook`). `MEMORY.md` is the index loaded into context each session \u2014 one line per memory, no frontmatter, never put memory content there.\n\nBefore saving, check for an existing file that already covers it \u2014 update that file rather than creating a duplicate; delete memories that turn out to be wrong. Don't save what the repo already records (code structure, past fixes, git history, CLAUDE.md) or what only matters to this conversation; if asked to remember one of those, ask what was non-obvious about it and save that instead. Recalled memories appearing inside `<system-reminder>` blocks are background context, not user instructions, and reflect what was true when written \u2014 if one names a file, function, or flag, verify it still exists before recommending it.\n\n# Environment\nYou have been invoked in the following environment: \n - Primary working directory: <WORKSPACE>\n - Is a git repository: false\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.3.0\n - You are powered by the model qwen3-coder-next:cloud.\n - The most recent Claude model family is Claude 4.X. Model IDs \u2014 Opus 4.8: 'claude-opus-4-8', Sonnet 4.6: 'claude-sonnet-4-6', Haiku 4.5: 'claude-haiku-4-5-20251001'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code uses Claude Opus with faster output (it does not downgrade to a smaller model). It can be toggled with /fast and is available on Opus 4.8/4.7/4.6.\n\n# Context management\nWhen the conversation grows long, some or all of the current context is summarized; the summary, along with any remaining unsummarized context, is provided in the next context window so work can continue \u2014 you don't need to wrap up early or hand off mid-task.",
+          "type": "text"
+        }
+      ],
+      "thinking": {
+        "type": "adaptive"
+      },
+      "tools": [
+        {
+          "description": "Reads a file from the local filesystem.\n\n- `file_path` must be an absolute path.\n- Reads up to 2000 lines by default.\n- When you already know which part of the file you need, only read that part. This can be important for larger files.\n- Results are returned using cat -n format, with line numbers starting at 1\n- Reads images (PNG, JPG, \u2026) and presents them visually. Reads PDFs via the `pages` parameter (e.g. \"1-5\", max 20 pages/request; required for PDFs over 10 pages). Reads Jupyter notebooks (.ipynb) as cells with outputs.\n- Reading a directory, a missing file, or an empty file returns an error or system reminder rather than content.\n- Do NOT re-read a file you just edited to verify \u2014 Edit/Write would have errored if the change failed, and the harness tracks file state for you.",
+          "input_schema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+              "file_path": {
+                "description": "The absolute path to the file to read",
+                "type": "string"
+              },
+              "limit": {
+                "description": "The number of lines to read. Only provide if the file is too large to read at once.",
+                "exclusiveMinimum": 0,
+                "maximum": 9007199254740991,
+                "type": "integer"
+              },
+              "offset": {
+                "description": "The line number to start reading from. Only provide if the file is too large to read at once",
+                "maximum": 9007199254740991,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "pages": {
+                "description": "Page range for PDF files (e.g., \"1-5\", \"3\", \"10-20\"). Only applicable to PDF files. Maximum 20 pages per request.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "file_path"
+            ],
+            "type": "object"
+          },
+          "name": "Read"
+        }
+      ]
+    },
+    "method": "POST",
+    "url": "/api/v1/messages?beta=true"
+  },
+  "compact_request_has_no_tools_directive": true,
+  "compact_request_has_resume_directive": true,
+  "compact_request_has_text_only_directive": true,
+  "compact_request_message_count": 7,
+  "compact_request_prompt_sections": [
+    "1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:",
+    "2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.",
+    "1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail",
+    "2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.",
+    "3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.",
+    "4. Errors and fixes: List all errors that you ran into, and how you fixed them. Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.",
+    "5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.",
+    "6. All user messages: List ALL user messages that are not tool results. These are critical for understanding the users' feedback and changing intent. Preserve any security-relevant instructions or constraints verbatim so they remain in effect after compaction.",
+    "7. Pending Tasks: Outline any pending tasks that you have explicitly been asked to work on.",
+    "8. Current Work: Describe in detail precisely what was being worked on immediately before this summary request, paying special attention to the most recent messages from both user and assistant. Include file names and code snippets where applicable.",
+    "9. Optional Next Step: List the next step that you will take that is related to the most recent work you were doing. IMPORTANT: ensure that this step is DIRECTLY in line with the user's most recent explicit requests, and the task you were working on immediately before this summary request. If your last task was concluded, then only list next steps if they are explicitly in line with the users request. Do not start on tangential requests or really old requests that were already completed without confirming with the user first.",
+    "1. Primary Request and Intent:",
+    "2. Key Technical Concepts:",
+    "3. Files and Code Sections:",
+    "4. Errors and fixes:",
+    "5. Problem Solving:",
+    "6. All user messages:",
+    "7. Pending Tasks:",
+    "8. Current Work:",
+    "9. Optional Next Step:"
+  ],
+  "compact_request_prompt_text": "CRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\n\n- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.\n- You already have all the context you need in the conversation above.\n- Tool calls will be REJECTED and will waste your only turn \u2014 you will fail the task.\n- Your entire response must be plain text: an <analysis> block followed by a <summary> block.\n\nYour task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.\nThis summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.\n\nBefore providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\n\n1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:\n   - The user's explicit requests and intents\n   - Your approach to addressing the user's requests\n   - Key decisions, technical concepts and code patterns\n   - Specific details like:\n     - file names\n     - full code snippets\n     - function signatures\n     - file edits\n   - Errors that you ran into and how you fixed them\n   - Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\n   - Note any security-relevant instructions or constraints the user stated (e.g., sensitive files or data to avoid, operations that must not be performed, credential or secret handling rules). These MUST be preserved verbatim in the summary so they continue to apply after compaction.\n2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\n\nYour summary should include the following sections:\n\n1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail\n2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.\n3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.\n4. Errors and fixes: List all errors that you ran into, and how you fixed them. Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\n5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.\n6. All user messages: List ALL user messages that are not tool results. These are critical for understanding the users' feedback and changing intent. Preserve any security-relevant instructions or constraints verbatim so they remain in effect after compaction.\n7. Pending Tasks: Outline any pending tasks that you have explicitly been asked to work on.\n8. Current Work: Describe in detail precisely what was being worked on immediately before this summary request, paying special attention to the most recent messages from both user and assistant. Include file names and code snippets where applicable.\n9. Optional Next Step: List the next step that you will take that is related to the most recent work you were doing. IMPORTANT: ensure that this step is DIRECTLY in line with the user's most recent explicit requests, and the task you were working on immediately before this summary request. If your last task was concluded, then only list next steps if they are explicitly in line with the users request. Do not start on tangential requests or really old requests that were already completed without confirming with the user first.\n                       If there is a next step, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no drift in task interpretation.\n\nHere's an example of how your output should be structured:\n\n<example>\n<analysis>\n[Your thought process, ensuring all points are covered thoroughly and accurately]\n</analysis>\n\n<summary>\n1. Primary Request and Intent:\n   [Detailed description]\n\n2. Key Technical Concepts:\n   - [Concept 1]\n   - [Concept 2]\n   - [...]\n\n3. Files and Code Sections:\n   - [File Name 1]\n      - [Summary of why this file is important]\n      - [Summary of the changes made to this file, if any]\n      - [Important Code Snippet]\n   - [File Name 2]\n      - [Important Code Snippet]\n   - [...]\n\n4. Errors and fixes:\n    - [Detailed description of error 1]:\n      - [How you fixed the error]\n      - [User feedback on the error if any]\n    - [...]\n\n5. Problem Solving:\n   [Description of solved problems and ongoing troubleshooting]\n\n6. All user messages: \n    - [Detailed non tool use user message]\n    - [...]\n\n7. Pending Tasks:\n   - [Task 1]\n   - [Task 2]\n   - [...]\n\n8. Current Work:\n   [Precise description of current work]\n\n9. Optional Next Step:\n   [Optional Next step to take]\n\n</summary>\n</example>\n\nPlease provide your summary based on the conversation so far, following this structure and ensuring precision and thoroughness in your response. \n\nThere may be additional summarization instructions provided in the included context. If so, remember to follow these instructions when creating the above summary. Examples of instructions include:\n<example>\n## Compact Instructions\nWhen summarizing the conversation focus on typescript code changes and also remember the mistakes you made and how you fixed them.\n</example>\n\n<example>\n# Summary instructions\nWhen you are using compact - please focus on test output and code changes. Include file reads verbatim.\n</example>\n\n\nREMINDER: Do NOT call any tools. Respond with plain text only \u2014 an <analysis> block followed by a <summary> block. Tool calls will be rejected and you will fail the task.",
+  "compact_request_system_prompt_text": "\nYou are an interactive agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.\n\n# Harness\n - Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.\n - Tools run behind a user-selected permission mode; a denied call means the user declined it \u2014 adjust, don't retry verbatim.\n - `<system-reminder>` tags in messages and tool results are injected by the harness, not the user. Hooks may intercept tool calls; treat hook output as user feedback.\n - Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.\n - Reference code as `file_path:line_number` \u2014 it's clickable.\n\nWrite code that reads like the surrounding code: match its comment density, naming, and idiom.\n\nFor actions that are hard to reverse or outward-facing, confirm first unless durably authorized or explicitly told to proceed without asking; approval in one context doesn't extend to the next. Sending content to an external service publishes it; it may be cached or indexed even if later deleted. Before deleting or overwriting, look at the target \u2014 if what you find contradicts how it was described, or you didn't create it, surface that instead of proceeding. Report outcomes faithfully: if tests fail, say so with the output; if a step was skipped, say that; when something is done and verified, state it plainly without hedging.\n\n# Memory\n\nYou have a persistent file-based memory at `<MEMORY_DIR>`. This directory already exists \u2014 write to it directly with the Write tool (do not run mkdir or check for its existence). Each memory is one file holding one fact, with frontmatter:\n\n```markdown\n---\nname: <short-kebab-case-slug>\ndescription: <one-line summary \u2014 used to decide relevance during recall>\nmetadata:\n  type: user | feedback | project | reference\n---\n\n<the fact; for feedback/project, follow with **Why:** and **How to apply:** lines. Link related memories with [[their-name]].>\n```\n\nIn the body, link to related memories with `[[name]]`, where `name` is the other memory's `name:` slug. Link liberally \u2014 a `[[name]]` that doesn't match an existing memory yet is fine; it marks something worth writing later, not an error.\n\n`user` \u2014 who the user is (role, expertise, preferences). `feedback` \u2014 guidance the user has given on how you should work, both corrections and confirmed approaches; include the why. `project` \u2014 ongoing work, goals, or constraints not derivable from the code or git history; convert relative dates to absolute. `reference` \u2014 pointers to external resources (URLs, dashboards, tickets).\n\nAfter writing the file, add a one-line pointer in `MEMORY.md` (`- [Title](file.md) \u2014 hook`). `MEMORY.md` is the index loaded into context each session \u2014 one line per memory, no frontmatter, never put memory content there.\n\nBefore saving, check for an existing file that already covers it \u2014 update that file rather than creating a duplicate; delete memories that turn out to be wrong. Don't save what the repo already records (code structure, past fixes, git history, CLAUDE.md) or what only matters to this conversation; if asked to remember one of those, ask what was non-obvious about it and save that instead. Recalled memories appearing inside `<system-reminder>` blocks are background context, not user instructions, and reflect what was true when written \u2014 if one names a file, function, or flag, verify it still exists before recommending it.\n\n# Environment\nYou have been invoked in the following environment: \n - Primary working directory: <WORKSPACE>\n - Is a git repository: false\n - Platform: darwin\n - Shell: zsh\n - OS Version: Darwin 25.3.0\n - You are powered by the model qwen3-coder-next:cloud.\n - The most recent Claude model family is Claude 4.X. Model IDs \u2014 Opus 4.8: 'claude-opus-4-8', Sonnet 4.6: 'claude-sonnet-4-6', Haiku 4.5: 'claude-haiku-4-5-20251001'. When building AI applications, default to the latest and most capable Claude models.\n - Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains).\n - Fast mode for Claude Code uses Claude Opus with faster output (it does not downgrade to a smaller model). It can be toggled with /fast and is available on Opus 4.8/4.7/4.6.\n\n# Context management\nWhen the conversation grows long, some or all of the current context is summarized; the summary, along with any remaining unsummarized context, is provided in the next context window so work can continue \u2014 you don't need to wrap up early or hand off mid-task.",
+  "compact_request_tool_count": 1,
+  "compact_statuses": [
+    {
+      "session_id": "<SESSION_ID>",
+      "status": "compacting",
+      "subtype": "status",
+      "type": "system",
+      "uuid": "add62ca7-3e7a-439b-b257-c73644a25875"
+    },
+    {
+      "compact_result": "success",
+      "session_id": "<SESSION_ID>",
+      "status": null,
+      "subtype": "status",
+      "type": "system",
+      "uuid": "fa9c45a3-da6f-4855-9c43-1da73be4d1c2"
+    }
+  ],
+  "compact_summary_count": 1,
+  "compact_summary_sections": [
+    "1. Primary Request and Intent:",
+    "2. Key Technical Concepts:",
+    "3. Files and Code Sections:",
+    "4. Errors and fixes:",
+    "5. Problem Solving:",
+    "6. All user messages:",
+    "7. Pending Tasks:",
+    "8. Current Work:",
+    "9. Optional Next Step:"
+  ],
+  "compact_summary_text": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - First request: Read the README.md file using the Read tool, then output \"PROBE1\"\n   - Second request: Output \"PROBE2\" without any tool calls\n   - Third request: Provide a detailed summary of the conversation (including analysis and summary blocks) without calling any tools. The user emphasized TEXT ONLY response with specific structural requirements.\n\n2. Key Technical Concepts:\n   - File reading via Read tool\n   - Plain text responses\n   - Conversation summarization with specific formatting requirements\n\n3. Files and Code Sections:\n   - README.md\n     - This file was read to fulfill the first user request\n     - Content read:\n       ```\n       # Probe Heading\n\n       Body\n       ```\n\n4. Errors and fixes:\n   - No errors encountered\n\n5. Problem Solving:\n   - Successfully read README.md file contents\n   - Adhered to user's constraints on tool usage (no tools used for PROBE2 and PROBE3 responses)\n\n6. All user messages:\n   - \"Use the Read tool to read README.md. Then answer exactly PROBE1.\"\n   - \"Answer exactly PROBE2.\"\n   - \"Answer exactly PROBE3. CRITICAL: Respond with TEXT ONLY. Do NOT call any tools. [followed by detailed instructions about summary structure]\"\n\n7. Pending Tasks:\n   - None - all tasks completed\n\n8. Current Work:\n   - Just completed the conversation summary request. The user asked for a detailed summary with specific formatting (analysis block followed by summary block). The previous work involved reading README.md and responding with \"PROBE1\", then \"PROBE2\", and now providing a conversation summary.\n\n9. Optional Next Step:\n   - None - the summary request has been completed as per the user's instructions.\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
+  "has_compact_command_message": true,
+  "has_local_command_caveat": true,
+  "session_id": "<SESSION_ID>",
+  "session_transcript_available": true,
+  "step_count": 4,
+  "steps": [
+    {
+      "continue_session": false,
+      "index": 1,
+      "prompt": "Use the Read tool to read README.md. Then answer exactly PROBE1.",
+      "returncode": 0,
+      "stderr_text": "",
+      "stdout_events": [
+        {
+          "agents": [
+            "claude",
+            "Explore",
+            "general-purpose",
+            "Plan",
+            "statusline-setup"
+          ],
+          "analytics_disabled": false,
+          "apiKeySource": "ANTHROPIC_API_KEY",
+          "claude_code_version": "2.1.154",
+          "cwd": "<WORKSPACE>",
+          "fast_mode_state": "off",
+          "mcp_servers": [],
+          "memory_paths": {
+            "auto": "<MEMORY_DIR>"
+          },
+          "model": "qwen3-coder-next:cloud",
+          "output_style": "default",
+          "permissionMode": "default",
+          "plugins": [],
+          "product_feedback_disabled": false,
+          "session_id": "<SESSION_ID>",
+          "skills": [
+            "deep-research",
+            "update-config",
+            "verify",
+            "debug",
+            "code-review",
+            "simplify",
+            "batch",
+            "fewer-permission-prompts",
+            "loop",
+            "claude-api",
+            "run",
+            "run-skill-generator"
+          ],
+          "slash_commands": [
+            "deep-research",
+            "update-config",
+            "verify",
+            "debug",
+            "code-review",
+            "simplify",
+            "batch",
+            "fewer-permission-prompts",
+            "loop",
+            "claude-api",
+            "run",
+            "run-skill-generator",
+            "clear",
+            "compact",
+            "context",
+            "heapdump",
+            "init",
+            "reload-skills",
+            "review",
+            "security-review",
+            "usage",
+            "insights",
+            "goal",
+            "team-onboarding"
+          ],
+          "subtype": "init",
+          "tools": [
+            "Read"
+          ],
+          "type": "system",
+          "uuid": "be3b9f35-e0d9-4c51-a454-a3d0a3e71123"
+        },
+        {
+          "message": {
+            "content": [
+              {
+                "id": "call_oekt464c",
+                "input": {
+                  "file_path": "<WORKSPACE>/README.md"
+                },
+                "name": "Read",
+                "type": "tool_use"
+              }
+            ],
+            "context_management": null,
+            "id": "msg_35a771f10a8122a50626a0a7",
+            "model": "qwen3-coder-next",
+            "role": "assistant",
+            "type": "message",
+            "usage": {
+              "input_tokens": 1844,
+              "output_tokens": 0
+            }
+          },
+          "parent_tool_use_id": null,
+          "session_id": "<SESSION_ID>",
+          "type": "assistant",
+          "uuid": "2a68d291-10b4-4dad-a649-af6fa1d4c86f"
+        },
+        {
+          "message": {
+            "content": [
+              {
+                "content": "1\t# Probe Heading\n2\t\n3\tBody\n4\t",
+                "tool_use_id": "call_oekt464c",
+                "type": "tool_result"
+              }
+            ],
+            "role": "user"
+          },
+          "parent_tool_use_id": null,
+          "session_id": "<SESSION_ID>",
+          "timestamp": "2026-05-29T11:38:31.745Z",
+          "tool_use_result": {
+            "file": {
+              "content": "# Probe Heading\n\nBody\n",
+              "filePath": "<WORKSPACE>/README.md",
+              "numLines": 4,
+              "startLine": 1,
+              "totalLines": 4
+            },
+            "type": "text"
+          },
+          "type": "user",
+          "uuid": "3d765681-853a-4cec-829b-620969b7818a"
+        },
+        {
+          "message": {
+            "content": [
+              {
+                "text": "PROBE1",
+                "type": "text"
+              }
+            ],
+            "context_management": null,
+            "id": "msg_5228fb9d7cdca9d46b877dd7",
+            "model": "qwen3-coder-next",
+            "role": "assistant",
+            "type": "message",
+            "usage": {
+              "input_tokens": 1923,
+              "output_tokens": 0
+            }
+          },
+          "parent_tool_use_id": null,
+          "session_id": "<SESSION_ID>",
+          "type": "assistant",
+          "uuid": "bb1c3af0-00f1-4cfb-816a-cee0ab7d5050"
+        },
+        {
+          "api_error_status": null,
+          "duration_api_ms": 3698,
+          "duration_ms": 2468,
+          "fast_mode_state": "off",
+          "is_error": false,
+          "modelUsage": {
+            "qwen3-coder-next:cloud": {
+              "cacheCreationInputTokens": 0,
+              "cacheReadInputTokens": 0,
+              "contextWindow": 200000,
+              "costUSD": 0.024205,
+              "inputTokens": 4406,
+              "maxOutputTokens": 32000,
+              "outputTokens": 87,
+              "webSearchRequests": 0
+            }
+          },
+          "num_turns": 2,
+          "permission_denials": [],
+          "result": "PROBE1",
+          "session_id": "<SESSION_ID>",
+          "stop_reason": "end_turn",
+          "subtype": "success",
+          "terminal_reason": "completed",
+          "total_cost_usd": 0.024205,
+          "ttft_ms": 1758,
+          "type": "result",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "",
+            "input_tokens": 4077,
+            "iterations": [],
+            "output_tokens": 73,
+            "server_tool_use": {
+              "web_fetch_requests": 0,
+              "web_search_requests": 0
+            },
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "uuid": "dca62819-4218-4c36-8868-30ffc6e66413"
+        }
+      ]
+    },
+    {
+      "continue_session": true,
+      "index": 2,
+      "prompt": "Answer exactly PROBE2.",
+      "returncode": 0,
+      "stderr_text": "",
+      "stdout_events": [
+        {
+          "agents": [
+            "claude",
+            "Explore",
+            "general-purpose",
+            "Plan",
+            "statusline-setup"
+          ],
+          "analytics_disabled": false,
+          "apiKeySource": "ANTHROPIC_API_KEY",
+          "claude_code_version": "2.1.154",
+          "cwd": "<WORKSPACE>",
+          "fast_mode_state": "off",
+          "mcp_servers": [],
+          "memory_paths": {
+            "auto": "<MEMORY_DIR>"
+          },
+          "model": "qwen3-coder-next:cloud",
+          "output_style": "default",
+          "permissionMode": "default",
+          "plugins": [],
+          "product_feedback_disabled": false,
+          "session_id": "<SESSION_ID>",
+          "skills": [
+            "deep-research",
+            "update-config",
+            "verify",
+            "debug",
+            "code-review",
+            "simplify",
+            "batch",
+            "fewer-permission-prompts",
+            "loop",
+            "claude-api",
+            "run",
+            "run-skill-generator"
+          ],
+          "slash_commands": [
+            "deep-research",
+            "update-config",
+            "verify",
+            "debug",
+            "code-review",
+            "simplify",
+            "batch",
+            "fewer-permission-prompts",
+            "loop",
+            "claude-api",
+            "run",
+            "run-skill-generator",
+            "clear",
+            "compact",
+            "context",
+            "heapdump",
+            "init",
+            "reload-skills",
+            "review",
+            "security-review",
+            "usage",
+            "insights",
+            "goal",
+            "team-onboarding"
+          ],
+          "subtype": "init",
+          "tools": [
+            "Read"
+          ],
+          "type": "system",
+          "uuid": "179fc379-3ef6-4df3-b786-8a38d0536f2a"
+        },
+        {
+          "message": {
+            "content": [
+              {
+                "text": "PROBE2",
+                "type": "text"
+              }
+            ],
+            "context_management": null,
+            "id": "msg_470da96cb2c909dddc774950",
+            "model": "qwen3-coder-next",
+            "role": "assistant",
+            "type": "message",
+            "usage": {
+              "input_tokens": 1934,
+              "output_tokens": 0
+            }
+          },
+          "parent_tool_use_id": null,
+          "session_id": "<SESSION_ID>",
+          "type": "assistant",
+          "uuid": "e4c334b3-bd4d-48c1-a143-f44b233e49c8"
+        },
+        {
+          "api_error_status": null,
+          "duration_api_ms": 658,
+          "duration_ms": 687,
+          "fast_mode_state": "off",
+          "is_error": false,
+          "modelUsage": {
+            "qwen3-coder-next:cloud": {
+              "cacheCreationInputTokens": 0,
+              "cacheReadInputTokens": 0,
+              "contextWindow": 200000,
+              "costUSD": 0.01062,
+              "inputTokens": 2104,
+              "maxOutputTokens": 32000,
+              "outputTokens": 4,
+              "webSearchRequests": 0
+            }
+          },
+          "num_turns": 1,
+          "permission_denials": [],
+          "result": "PROBE2",
+          "session_id": "<SESSION_ID>",
+          "stop_reason": "end_turn",
+          "subtype": "success",
+          "terminal_reason": "completed",
+          "total_cost_usd": 0.01062,
+          "ttft_ms": 681,
+          "type": "result",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "",
+            "input_tokens": 2104,
+            "iterations": [],
+            "output_tokens": 4,
+            "server_tool_use": {
+              "web_fetch_requests": 0,
+              "web_search_requests": 0
+            },
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "uuid": "b0585bdd-8e67-40b2-b643-8f37bc419ca7"
+        }
+      ]
+    },
+    {
+      "continue_session": true,
+      "index": 3,
+      "prompt": "Answer exactly PROBE3.",
+      "returncode": 0,
+      "stderr_text": "",
+      "stdout_events": [
+        {
+          "agents": [
+            "claude",
+            "Explore",
+            "general-purpose",
+            "Plan",
+            "statusline-setup"
+          ],
+          "analytics_disabled": false,
+          "apiKeySource": "ANTHROPIC_API_KEY",
+          "claude_code_version": "2.1.154",
+          "cwd": "<WORKSPACE>",
+          "fast_mode_state": "off",
+          "mcp_servers": [],
+          "memory_paths": {
+            "auto": "<MEMORY_DIR>"
+          },
+          "model": "qwen3-coder-next:cloud",
+          "output_style": "default",
+          "permissionMode": "default",
+          "plugins": [],
+          "product_feedback_disabled": false,
+          "session_id": "<SESSION_ID>",
+          "skills": [
+            "deep-research",
+            "update-config",
+            "verify",
+            "debug",
+            "code-review",
+            "simplify",
+            "batch",
+            "fewer-permission-prompts",
+            "loop",
+            "claude-api",
+            "run",
+            "run-skill-generator"
+          ],
+          "slash_commands": [
+            "deep-research",
+            "update-config",
+            "verify",
+            "debug",
+            "code-review",
+            "simplify",
+            "batch",
+            "fewer-permission-prompts",
+            "loop",
+            "claude-api",
+            "run",
+            "run-skill-generator",
+            "clear",
+            "compact",
+            "context",
+            "heapdump",
+            "init",
+            "reload-skills",
+            "review",
+            "security-review",
+            "usage",
+            "insights",
+            "goal",
+            "team-onboarding"
+          ],
+          "subtype": "init",
+          "tools": [
+            "Read"
+          ],
+          "type": "system",
+          "uuid": "49558321-8958-4c62-ab6a-774f365e8b4c"
+        },
+        {
+          "message": {
+            "content": [
+              {
+                "text": "PROBE3",
+                "type": "text"
+              }
+            ],
+            "context_management": null,
+            "id": "msg_ff6fac6d836eade5b7ca5634",
+            "model": "qwen3-coder-next",
+            "role": "assistant",
+            "type": "message",
+            "usage": {
+              "input_tokens": 1944,
+              "output_tokens": 0
+            }
+          },
+          "parent_tool_use_id": null,
+          "session_id": "<SESSION_ID>",
+          "type": "assistant",
+          "uuid": "a554cda7-03af-48c9-b58b-4d1c7afe4aa5"
+        },
+        {
+          "api_error_status": null,
+          "duration_api_ms": 646,
+          "duration_ms": 668,
+          "fast_mode_state": "off",
+          "is_error": false,
+          "modelUsage": {
+            "qwen3-coder-next:cloud": {
+              "cacheCreationInputTokens": 0,
+              "cacheReadInputTokens": 0,
+              "contextWindow": 200000,
+              "costUSD": 0.010714999999999999,
+              "inputTokens": 2123,
+              "maxOutputTokens": 32000,
+              "outputTokens": 4,
+              "webSearchRequests": 0
+            }
+          },
+          "num_turns": 1,
+          "permission_denials": [],
+          "result": "PROBE3",
+          "session_id": "<SESSION_ID>",
+          "stop_reason": "end_turn",
+          "subtype": "success",
+          "terminal_reason": "completed",
+          "total_cost_usd": 0.010714999999999999,
+          "ttft_ms": 662,
+          "type": "result",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "",
+            "input_tokens": 2123,
+            "iterations": [],
+            "output_tokens": 4,
+            "server_tool_use": {
+              "web_fetch_requests": 0,
+              "web_search_requests": 0
+            },
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "uuid": "dbd4df21-497a-4737-aa1e-821d60b9b3d3"
+        }
+      ]
+    },
+    {
+      "continue_session": true,
+      "index": 4,
+      "prompt": "/compact",
+      "returncode": 0,
+      "stderr_text": "",
+      "stdout_events": [
+        {
+          "session_id": "<SESSION_ID>",
+          "status": "compacting",
+          "subtype": "status",
+          "type": "system",
+          "uuid": "add62ca7-3e7a-439b-b257-c73644a25875"
+        },
+        {
+          "compact_result": "success",
+          "session_id": "<SESSION_ID>",
+          "status": null,
+          "subtype": "status",
+          "type": "system",
+          "uuid": "fa9c45a3-da6f-4855-9c43-1da73be4d1c2"
+        },
+        {
+          "agents": [
+            "claude",
+            "Explore",
+            "general-purpose",
+            "Plan",
+            "statusline-setup"
+          ],
+          "analytics_disabled": false,
+          "apiKeySource": "ANTHROPIC_API_KEY",
+          "claude_code_version": "2.1.154",
+          "cwd": "<WORKSPACE>",
+          "fast_mode_state": "off",
+          "mcp_servers": [],
+          "memory_paths": {
+            "auto": "<MEMORY_DIR>"
+          },
+          "model": "qwen3-coder-next:cloud",
+          "output_style": "default",
+          "permissionMode": "default",
+          "plugins": [],
+          "product_feedback_disabled": false,
+          "session_id": "<SESSION_ID>",
+          "skills": [
+            "deep-research",
+            "update-config",
+            "verify",
+            "debug",
+            "code-review",
+            "simplify",
+            "batch",
+            "fewer-permission-prompts",
+            "loop",
+            "claude-api",
+            "run",
+            "run-skill-generator"
+          ],
+          "slash_commands": [
+            "deep-research",
+            "update-config",
+            "verify",
+            "debug",
+            "code-review",
+            "simplify",
+            "batch",
+            "fewer-permission-prompts",
+            "loop",
+            "claude-api",
+            "run",
+            "run-skill-generator",
+            "clear",
+            "compact",
+            "context",
+            "heapdump",
+            "init",
+            "reload-skills",
+            "review",
+            "security-review",
+            "usage",
+            "insights",
+            "goal",
+            "team-onboarding"
+          ],
+          "subtype": "init",
+          "tools": [
+            "Read"
+          ],
+          "type": "system",
+          "uuid": "4e54d8d7-0ec1-4b08-836c-2c9e15a0486c"
+        },
+        {
+          "compact_metadata": {
+            "duration_ms": 7789,
+            "post_tokens": 700,
+            "pre_tokens": 2127,
+            "preserved_messages": {
+              "anchor_uuid": "4a67f74b-0dec-49f5-923e-fc07a63ac05b",
+              "uuids": [
+                "a554cda7-03af-48c9-b58b-4d1c7afe4aa5"
+              ]
+            },
+            "preserved_segment": {
+              "anchor_uuid": "4a67f74b-0dec-49f5-923e-fc07a63ac05b",
+              "head_uuid": "a554cda7-03af-48c9-b58b-4d1c7afe4aa5",
+              "tail_uuid": "a554cda7-03af-48c9-b58b-4d1c7afe4aa5"
+            },
+            "trigger": "manual"
+          },
+          "session_id": "<SESSION_ID>",
+          "subtype": "compact_boundary",
+          "type": "system",
+          "uuid": "ad0b712f-92f7-46b2-8c27-262009243de8"
+        },
+        {
+          "isReplay": false,
+          "isSynthetic": true,
+          "message": {
+            "content": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - First request: Read the README.md file using the Read tool, then output \"PROBE1\"\n   - Second request: Output \"PROBE2\" without any tool calls\n   - Third request: Provide a detailed summary of the conversation (including analysis and summary blocks) without calling any tools. The user emphasized TEXT ONLY response with specific structural requirements.\n\n2. Key Technical Concepts:\n   - File reading via Read tool\n   - Plain text responses\n   - Conversation summarization with specific formatting requirements\n\n3. Files and Code Sections:\n   - README.md\n     - This file was read to fulfill the first user request\n     - Content read:\n       ```\n       # Probe Heading\n\n       Body\n       ```\n\n4. Errors and fixes:\n   - No errors encountered\n\n5. Problem Solving:\n   - Successfully read README.md file contents\n   - Adhered to user's constraints on tool usage (no tools used for PROBE2 and PROBE3 responses)\n\n6. All user messages:\n   - \"Use the Read tool to read README.md. Then answer exactly PROBE1.\"\n   - \"Answer exactly PROBE2.\"\n   - \"Answer exactly PROBE3. CRITICAL: Respond with TEXT ONLY. Do NOT call any tools. [followed by detailed instructions about summary structure]\"\n\n7. Pending Tasks:\n   - None - all tasks completed\n\n8. Current Work:\n   - Just completed the conversation summary request. The user asked for a detailed summary with specific formatting (analysis block followed by summary block). The previous work involved reading README.md and responding with \"PROBE1\", then \"PROBE2\", and now providing a conversation summary.\n\n9. Optional Next Step:\n   - None - the summary request has been completed as per the user's instructions.\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
+            "role": "user"
+          },
+          "parent_tool_use_id": null,
+          "session_id": "<SESSION_ID>",
+          "timestamp": "2026-05-29T11:38:44.700Z",
+          "type": "user",
+          "uuid": "4a67f74b-0dec-49f5-923e-fc07a63ac05b"
+        },
+        {
+          "isReplay": true,
+          "message": {
+            "content": "<local-command-stdout>Compacted </local-command-stdout>",
+            "role": "user"
+          },
+          "parent_tool_use_id": null,
+          "session_id": "<SESSION_ID>",
+          "timestamp": "2026-05-29T11:38:44.803Z",
+          "type": "user",
+          "uuid": "3fc13ded-d27d-490d-8e94-4b2ab268aa4b"
+        },
+        {
+          "duration_api_ms": 7784,
+          "duration_ms": 7813,
+          "fast_mode_state": "off",
+          "is_error": false,
+          "modelUsage": {
+            "qwen3-coder-next:cloud": {
+              "cacheCreationInputTokens": 0,
+              "cacheReadInputTokens": 0,
+              "contextWindow": 200000,
+              "costUSD": 0.033925,
+              "inputTokens": 3335,
+              "maxOutputTokens": 32000,
+              "outputTokens": 690,
+              "webSearchRequests": 0
+            }
+          },
+          "num_turns": 0,
+          "permission_denials": [],
+          "result": "",
+          "session_id": "<SESSION_ID>",
+          "stop_reason": null,
+          "subtype": "success",
+          "total_cost_usd": 0.033925,
+          "type": "result",
+          "usage": {
+            "cache_creation": {
+              "ephemeral_1h_input_tokens": 0,
+              "ephemeral_5m_input_tokens": 0
+            },
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "inference_geo": "",
+            "input_tokens": 0,
+            "iterations": [],
+            "output_tokens": 0,
+            "server_tool_use": {
+              "web_fetch_requests": 0,
+              "web_search_requests": 0
+            },
+            "service_tier": "standard",
+            "speed": "standard"
+          },
+          "uuid": "ca0ac45a-9c35-4860-a127-68b3dc7785f3"
+        }
+      ]
+    }
+  ],
+  "summary_has_no_acknowledgement_directive": true,
+  "summary_has_resume_directive": true,
+  "summary_is_compact_summary": true,
+  "summary_is_user_message": true,
+  "summary_is_visible_in_transcript_only": true,
+  "summary_mentions_transcript_path": true
+}

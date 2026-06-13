@@ -6,6 +6,7 @@ import {
   types as DocumentPickerTypes,
 } from '@react-native-documents/picker';
 import type { FileToCopy } from '@react-native-documents/picker';
+import { Platform } from 'react-native';
 import { launchCamera, launchImageLibrary } from 'react-native-image-picker';
 import RNFS from 'react-native-fs';
 
@@ -15,6 +16,8 @@ export type PickedAssetDataUrl = {
   dataUrl: string;
   sizeBytes?: number;
 };
+
+export type AssetPickSource = 'library' | 'camera' | 'files';
 
 function normalizeFilePath(uri: string): string {
   return uri.startsWith('file://') ? uri.slice('file://'.length) : uri;
@@ -62,15 +65,48 @@ function pickTypeForExtensions(exts: string[]): string[] {
   return [DocumentPickerTypes.allFiles];
 }
 
+function normalizeDocumentPickerError(err: any): Error | null {
+  if (isErrorWithCode(err)) {
+    if (err.code === errorCodes.OPERATION_CANCELED) {
+      return null;
+    }
+    if (err.code === errorCodes.IN_PROGRESS) {
+      return new Error(
+        'Another file picker is still active. If no picker is visible, reset the picker and try again.',
+      );
+    }
+    if (err.code === errorCodes.UNABLE_TO_OPEN_FILE_TYPE) {
+      return new Error('Unable to open the file picker for this attachment type.');
+    }
+    if (err.code === errorCodes.NULL_PRESENTER) {
+      return new Error('The file picker could not be displayed right now. Try again in a moment.');
+    }
+  }
+
+  if (err instanceof Error) {
+    return err;
+  }
+  return new Error('Failed to pick attachment.');
+}
+
 async function pickDocumentAsDataUrl(options: {
   supportedFileTypes: string[];
 }): Promise<PickedAssetDataUrl | null> {
   try {
-    const picked = await pick({
-      type: pickTypeForExtensions(options.supportedFileTypes),
-      allowMultiSelection: false,
-      mode: 'import',
-    });
+    const pickerOptions =
+      Platform.OS === 'android'
+        ? {
+            type: pickTypeForExtensions(options.supportedFileTypes),
+            allowMultiSelection: false as const,
+            mode: 'open' as const,
+            requestLongTermAccess: false as const,
+          }
+        : {
+            type: pickTypeForExtensions(options.supportedFileTypes),
+            allowMultiSelection: false as const,
+            mode: 'import' as const,
+          };
+    const picked = await pick(pickerOptions);
 
     const result = picked[0];
 
@@ -117,10 +153,11 @@ async function pickDocumentAsDataUrl(options: {
     const dataUrl = `data:${mimeType};base64,${base64}`;
     return { filename, mimeType, dataUrl, sizeBytes };
   } catch (err: any) {
-    if (isErrorWithCode(err) && err.code === errorCodes.OPERATION_CANCELED) {
+    const normalized = normalizeDocumentPickerError(err);
+    if (!normalized) {
       return null;
     }
-    throw err;
+    throw normalized;
   }
 }
 
@@ -180,18 +217,22 @@ async function pickImageAsDataUrl(options: {
 export async function pickAssetAsDataUrl(options: {
   attachmentType?: string;
   supportedFileTypes?: string[];
-  imageSource?: 'library' | 'camera';
+  source?: AssetPickSource;
 }): Promise<PickedAssetDataUrl | null> {
   const supportedFileTypes = Array.isArray(options.supportedFileTypes)
     ? options.supportedFileTypes
     : [];
   const attachmentType =
     typeof options.attachmentType === 'string' ? options.attachmentType.trim().toLowerCase() : '';
+  const source = options.source ?? 'library';
 
   if (attachmentType === 'image') {
+    if (source === 'files') {
+      return pickDocumentAsDataUrl({ supportedFileTypes });
+    }
     return pickImageAsDataUrl({
       supportedFileTypes,
-      source: options.imageSource === 'camera' ? 'camera' : 'library',
+      source: source === 'camera' ? 'camera' : 'library',
     });
   }
   if (attachmentType === 'pdf') {
@@ -204,9 +245,12 @@ export async function pickAssetAsDataUrl(options: {
   const hasPdf = normalized.includes('pdf');
 
   if (hasImage && !hasPdf) {
+    if (source === 'files') {
+      return pickDocumentAsDataUrl({ supportedFileTypes });
+    }
     return pickImageAsDataUrl({
       supportedFileTypes,
-      source: options.imageSource === 'camera' ? 'camera' : 'library',
+      source: source === 'camera' ? 'camera' : 'library',
     });
   }
   return pickDocumentAsDataUrl({ supportedFileTypes });

@@ -16,9 +16,6 @@ if str(APP_PY) not in sys.path:
 CORE_PY = ROOT / "core/python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
-CODEX_TOOLS_SRC = ROOT / "plugins/codex-tools/src"
-if str(CODEX_TOOLS_SRC) not in sys.path:
-    sys.path.insert(0, str(CODEX_TOOLS_SRC))
 
 from agent_app.application_future import AgentApplication  # noqa: E402
 from agent_app.events import InMemoryEventStore  # noqa: E402
@@ -42,7 +39,7 @@ def _write_config(tmp_path: Path) -> Path:
         },
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            "codex_tools.view_image_tool.ViewImageTool",
+            "path:${env:BUILTIN_PLUGINS}/codex-tools",
         ],
         "agents": {
             "default": {
@@ -64,6 +61,7 @@ def test_tool_loop_persists_asset_backed_view_image_message(tmp_path: Path) -> N
         str(_write_config(tmp_path)),
         str(tmp_path / "sessions"),
         event_store=InMemoryEventStore(),
+        env_overrides={"BUILTIN_PLUGINS": str((ROOT / "plugins").resolve())},
     )
     core, base_config, session = app.create_session("default")
     pending_call = {

@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${TRANSFER_STAGE_DIR:?}"
+
+mkdir -p "${TRANSFER_STAGE_DIR}"
+printf 'broken local stage\n' > "${TRANSFER_STAGE_DIR}/stage.txt"

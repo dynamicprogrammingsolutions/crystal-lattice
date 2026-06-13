@@ -17,6 +17,7 @@ JSON_OUTPUT=0
 KEEP_ON_FAILURE=0
 INSTANCE_TYPE="${CLOUD_ORCHESTRATOR_AWS_INSTANCE_TYPE:-}"
 BUILDER_INSTANCE_TYPE="${CLOUD_ORCHESTRATOR_AWS_BUILDER_INSTANCE_TYPE:-t3.large}"
+DATA_VOLUME_SIZE_GIB="${CLOUD_ORCHESTRATOR_AWS_DATA_VOLUME_SIZE_GIB:-64}"
 KEY_NAME="${CLOUD_ORCHESTRATOR_AWS_KEY_NAME:-}"
 SOURCE_BUCKET="${CLOUD_ORCHESTRATOR_SOURCE_BUCKET:-}"
 SOURCE_BUNDLE_KEY="${CLOUD_ORCHESTRATOR_SOURCE_BUNDLE_KEY:-}"
@@ -27,6 +28,7 @@ IMAGE_TAG="${CLOUD_ORCHESTRATOR_IMAGE_TAG:-latest}"
 ORCHESTRATOR_IMAGE_URI="${CLOUD_ORCHESTRATOR_IMAGE_URI:-}"
 RUNTIME_IMAGE_URI="${CLOUD_AGENT_RUNTIME_IMAGE_URI:-}"
 TRANSFER_SSH_IMAGE_URI="${CLOUD_AGENT_TRANSFER_SSH_IMAGE_URI:-}"
+CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS="${CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS:-1800000}"
 CLOUD_ORCHESTRATOR_CONTROL_TOKEN_VALUE="${CLOUD_ORCHESTRATOR_CONTROL_TOKEN:-}"
 CLOUD_ORCHESTRATOR_TOKEN_SECRET_VALUE="${CLOUD_ORCHESTRATOR_TOKEN_SECRET:-}"
 DOCKER_PLATFORM="${CLOUD_ORCHESTRATOR_DOCKER_PLATFORM:-linux/amd64}"
@@ -41,6 +43,7 @@ Common options:
   --region REGION
   --instance-type INSTANCE_TYPE
   --builder-instance-type INSTANCE_TYPE
+  --data-volume-size-gib SIZE
   --key-name EC2_KEY_PAIR_NAME
   --source-bucket BUCKET
   --source-bundle-key KEY
@@ -51,6 +54,7 @@ Common options:
   --orchestrator-image-uri URI
   --runtime-image-uri URI
   --transfer-ssh-image-uri URI
+  CLOUD_ORCHESTRATOR_RUNTIME_READY_TIMEOUT_MS env var sets the runtime readiness timeout in milliseconds (default: 1800000)
   --docker-platform linux/amd64|linux/arm64
   --cpu-architecture X86_64|ARM64
   --builder codebuild
@@ -80,6 +84,10 @@ parse_common_args() {
         ;;
       --builder-instance-type)
         BUILDER_INSTANCE_TYPE="$2"
+        shift 2
+        ;;
+      --data-volume-size-gib)
+        DATA_VOLUME_SIZE_GIB="$2"
         shift 2
         ;;
       --key-name)

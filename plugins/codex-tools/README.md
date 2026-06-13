@@ -73,6 +73,16 @@ Emits the `codex-variant` tag when the model belongs to the shell-command family
 - **Tag emitted**: `codex-variant` (for `*-codex` models and `gpt-5.4` and later plain/minified GPT models)
 - **Purpose**: Enables automatic shell tool selection based on model type
 
+### CodexSkillsFeature
+Discovers explicit skill roots, renders the upstream Codex available-skills
+developer block, and supports manual skill activation by mention.
+
+- **Plugin name**: `codex_skills`
+- **Prompt behavior**: Populates `CODEX_SKILLS_SECTION` for the Codex system-message template
+- **Manual activation**: Detects mentions like `$skillname` in request user messages
+- **Injection behavior**: Loads the matching `SKILL.md` and appends an upstream-style
+  `<skill>` user message for the current request only
+
 ## Shell Tool Selection
 
 Tools are automatically selected based on:
@@ -136,6 +146,11 @@ shell_tool_mode = "shell_command"
 | `mcp_fail_on_startup_error` | Agent/Provider | Fail tool preparation if an enabled MCP server cannot be started |
 | `mcp_reuse_runtime` | Agent/Provider | Reuse live MCP runtime connections across requests |
 | `mcp_servers` | Agent/Provider | Map of MCP server definitions keyed by server name |
+| `skills_enabled` | Agent | Enable Codex skill discovery and manual activation |
+| `skills_roots` | Agent | Ordered explicit roots scanned for `SKILL.md` files |
+| `skills_follow_symlinks` | Agent | Whether skill discovery follows symlinked directories |
+| `skills_max_scan_depth` | Agent | Maximum discovery depth under each root |
+| `skills_max_dirs_per_root` | Agent | Maximum directories scanned per root |
 | `enabled_plugins` | Agent | List of plugin IDs to enable (re-enables `default_enabled = false` plugins) |
 | `disabled_plugins` | Agent/Provider/Global | List of plugin IDs to disable |
 | `force_enabled_plugins` | Agent | List of plugin IDs to force-enable (overrides tag-based selection) |
@@ -162,11 +177,14 @@ shell_tool_mode = "shell_command"
 5. **Apply patch fallback**: If `apply_patch` is disabled with `disabled_plugins`, shell tools can still route `apply_patch` heredocs internally when `intercept_apply_patch` is enabled
 6. **Legacy tool**: Disabled by default, enable via `enabled_plugins`
 7. **Config override**: `shell_tool_mode` forces specific tool regardless of model
+8. **Skills developer block**: Uses the upstream Codex wording for the available-skills instructions section
+9. **Skills activation**: Explicit mentions such as `$skillname` inject the selected `SKILL.md` into the request as a synthetic user message
 
 ## Dependencies
 
 - `tool-compat-shared` (shared shell execution helpers)
 - `mcp-shared` (shared MCP transport/runtime helpers)
+- `skill-shared` (shared skill discovery and parsing helpers)
 - `agent-core` (plugin framework)
 
 ## Development
@@ -182,4 +200,16 @@ Plugin metadata lives at `agent_plugin.json` in the repo root.
 
 ## License
 
-This directory is available under the [Apache License 2.0](LICENSE).
+Copyright 2026 Dynamic Programming Solutions Kft.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+<http://www.apache.org/licenses/LICENSE-2.0>
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.

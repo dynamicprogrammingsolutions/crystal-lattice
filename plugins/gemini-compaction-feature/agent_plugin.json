@@ -6,5 +6,11 @@
   ],
   "kinds": {
     "gemini_compaction_feature.GeminiCompactionFeaturePlugin": "feature"
-  }
+  },
+  "local_workspace_dependencies": [
+    {
+      "name": "gemini-compaction-app",
+      "path": "../gemini-compaction-app"
+    }
+  ]
 }

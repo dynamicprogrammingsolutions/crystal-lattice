@@ -13,6 +13,9 @@ from openai_responses_plugins.openai_responses_flex_processing_extension import 
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 
 
+pytestmark = pytest.mark.api
+
+
 @pytest.fixture(scope="module")
 def ensure_openai_api_key() -> str:
     repo_root = Path(__file__).resolve().parents[3]

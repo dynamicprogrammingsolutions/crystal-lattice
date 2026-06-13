@@ -1,0 +1,67 @@
+{
+  "assistant_tool_use": {
+    "id": "<TOOL_CALL_ID>",
+    "input": {
+      "query": "x"
+    },
+    "name": "WebSearch",
+    "type": "tool_use"
+  },
+  "case": "error-query-too-short",
+  "claude_returncode": 0,
+  "final_result": "DONE",
+  "raw_artifact_dir": null,
+  "request_count": 3,
+  "request_urls": [
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true"
+  ],
+  "tool_result_message": {
+    "content": [
+      {
+        "cache_control": {
+          "type": "ephemeral"
+        },
+        "content": "<tool_use_error>InputValidationError: [\n  {\n    \"origin\": \"string\",\n    \"code\": \"too_small\",\n    \"minimum\": 2,\n    \"inclusive\": true,\n    \"path\": [\n      \"query\"\n    ],\n    \"message\": \"Too small: expected string to have >=2 characters\"\n  }\n]</tool_use_error>",
+        "is_error": true,
+        "tool_use_id": "<TOOL_CALL_ID>",
+        "type": "tool_result"
+      }
+    ],
+    "role": "user"
+  },
+  "tool_schema": {
+    "description": "\n- Allows Claude to search the web and use the results to inform responses\n- Provides up-to-date information for current events and recent data\n- Returns search result information formatted as search result blocks, including links as markdown hyperlinks\n- Use this tool for accessing information beyond Claude's knowledge cutoff\n- Searches are performed automatically within a single API call\n\nCRITICAL REQUIREMENT - You MUST follow this:\n  - After answering the user's question, you MUST include a \"Sources:\" section at the end of your response\n  - In the Sources section, list all relevant URLs from the search results as markdown hyperlinks: [Title](URL)\n  - This is MANDATORY - never skip including sources in your response\n  - Example format:\n\n    [Your answer here]\n\n    Sources:\n    - [Source Title 1](https://example.com/1)\n    - [Source Title 2](https://example.com/2)\n\nUsage notes:\n  - Domain filtering is supported to include or block specific websites\n  - Web search is only available in the US\n\nIMPORTANT - Use the correct year in search queries:\n  - The current month is May 2026. You MUST use this year when searching for recent information, documentation, or current events.\n  - Example: If the user asks for \"latest React docs\", search for \"React documentation\" with the current year, NOT last year\n",
+    "input_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "properties": {
+        "allowed_domains": {
+          "description": "Only include search results from these domains",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "blocked_domains": {
+          "description": "Never include search results from these domains",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "query": {
+          "description": "The search query to use",
+          "minLength": 2,
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "type": "object"
+    },
+    "name": "WebSearch"
+  }
+}

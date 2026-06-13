@@ -15,6 +15,9 @@ from openai_responses_plugins.openai_responses_websearch_extension import (
 )
 
 
+pytestmark = pytest.mark.api
+
+
 class _ScriptedResponse:
     def __init__(self, payload: Dict[str, Any]) -> None:
         self._payload = payload

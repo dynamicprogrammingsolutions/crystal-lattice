@@ -64,6 +64,15 @@ class ApplicationPlugin(Protocol):
         config-aware UI (e.g. when called with effective session config).
         """
 
+    def get_commands(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """Return CLI/slash command bindings contributed by this plugin.
+
+        Commands are frontend bindings to existing application actions rather
+        than a second execution surface. Each command definition is an opaque
+        dictionary that higher-level frontends can interpret to expose a real
+        CLI command, a slash command, or both.
+        """
+
     # Lifecycle -----------------------------------------------------------------
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
         """Initialize plugin state from the resolved application config.
@@ -168,6 +177,17 @@ class ApplicationPluginWrapper:
         if not isinstance(elements, list):
             return []
         return [e for e in elements if isinstance(e, dict)]
+
+    def get_commands(self) -> List[Dict[str, Any]]:
+        """Return sanitized command definitions from the plugin."""
+
+        fn = getattr(self.plugin, "get_commands", None)
+        if not callable(fn):
+            return []
+        commands = fn(self._state)
+        if not isinstance(commands, list):
+            return []
+        return [c for c in commands if isinstance(c, dict)]
 
     # ------------------------------------------------------------------
     # Action execution

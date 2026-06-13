@@ -12,6 +12,8 @@ from zai_test_utils import (
     zai_model,
 )
 
+pytestmark = pytest.mark.api
+
 
 @pytest.mark.integration
 @pytest.mark.zai

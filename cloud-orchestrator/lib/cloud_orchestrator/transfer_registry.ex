@@ -105,18 +105,9 @@ defmodule CloudOrchestrator.TransferRegistry do
   end
 
   defp attach_endpoint(%{"method" => "managed_ssh"} = transfer, params, state) do
-    port = Map.get(params, "port") || allocate_port(state)
-
-    case ManagedSSH.start(transfer, params, port) do
-      {:ok, service} ->
-        {:ok,
-         transfer
-         |> Map.put("container_id", service["container_id"])
-         |> Map.put("endpoint", service["endpoint"])}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
+    transfer
+    |> candidate_ports(params, state)
+    |> try_attach_endpoint(transfer, params)
   end
 
   defp attach_endpoint(transfer, _params, _state) do
@@ -137,12 +128,53 @@ defmodule CloudOrchestrator.TransferRegistry do
 
   defp maybe_stop_ready_endpoint(transfer), do: transfer
 
-  defp allocate_port(state) do
+  defp candidate_ports(_transfer, params, state) do
+    case Map.get(params, "port") do
+      port when is_integer(port) ->
+        [port]
+
+      _ ->
+        start_port = Application.fetch_env!(:cloud_orchestrator, :transfer_port_start)
+        end_port = Application.fetch_env!(:cloud_orchestrator, :transfer_port_end)
+        used = state |> Map.values() |> Enum.map(&get_in(&1, ["endpoint", "port"])) |> MapSet.new()
+
+        Enum.reject(start_port..end_port, &MapSet.member?(used, &1))
+    end
+  end
+
+  defp try_attach_endpoint([], _transfer, _params) do
+    {:error, no_available_port_error()}
+  end
+
+  defp try_attach_endpoint([port | remaining_ports], transfer, params) do
+    case ManagedSSH.start(transfer, params, port) do
+      {:ok, service} ->
+        {:ok,
+         transfer
+         |> Map.put("container_id", service["container_id"])
+         |> Map.put("endpoint", service["endpoint"])}
+
+      {:error, {:port_unavailable, _reason}} when remaining_ports != [] ->
+        try_attach_endpoint(remaining_ports, transfer, params)
+
+      {:error, {:port_unavailable, reason}} ->
+        {:error, no_available_port_error(reason)}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp no_available_port_error(last_reason \\ nil) do
     start_port = Application.fetch_env!(:cloud_orchestrator, :transfer_port_start)
     end_port = Application.fetch_env!(:cloud_orchestrator, :transfer_port_end)
-    used = state |> Map.values() |> Enum.map(&get_in(&1, ["endpoint", "port"])) |> MapSet.new()
+    base = "no available managed SSH transfer ports in configured range #{start_port}-#{end_port}"
 
-    Enum.find(start_port..end_port, start_port, fn port -> !MapSet.member?(used, port) end)
+    if is_binary(last_reason) do
+      "#{base}; last error: #{last_reason}"
+    else
+      base
+    end
   end
 
   defp now(seconds \\ System.system_time(:second)) do

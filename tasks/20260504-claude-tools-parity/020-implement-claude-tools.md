@@ -5,20 +5,26 @@ Create a `claude-tools` plugin package that reproduces Claude Code's standard to
 ## Requirements checklist
 
 - [x] Add `plugins/claude-tools` with package metadata, `agent_plugin.json`, source package, README, and tests.
-- [ ] Implement `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `WebFetch`, and `WebSearch` with Claude-compatible names and schemas.
-- [ ] Author Claude tools in Anthropic-native schema/call/result format, not primarily in OpenAI Chat Completions function format.
-- [ ] Add tool interop accessors/adapters so Anthropic-native Claude tools can run through OpenAI Chat Completions-style providers.
-- [ ] Reuse `tool-compat-shared` and `web-fetch-shared` for filesystem, search, shell, and web functionality.
+- [x] Implement `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `WebFetch`, and `WebSearch` with Claude-compatible names and schemas.
+- [x] Author Claude tools in Anthropic-native schema/call/result format, not primarily in OpenAI Chat Completions function format.
+- [x] Add tool interop accessors/adapters so Anthropic-native Claude tools can run through OpenAI Chat Completions-style providers.
+- [x] Reuse `tool-compat-shared` and `web-fetch-shared` for filesystem, search, shell, and web functionality.
 - [ ] Add Claude-specific formatting helpers to shared packages only when they are genuinely reusable and covered by tests.
-- [ ] Match observed success, error, and truncation result formatting from the investigation fixtures.
+- [x] Match observed success, error, and truncation result formatting from the investigation fixtures.
 
 ## Task checklist
 
 - [x] Create the `claude-tools` package scaffold and investigation fixture layout.
 - [x] Implement the first Claude `Read` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the second Claude `Write` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the third Claude `Edit` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the fourth Claude `Glob` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the fifth Claude `Grep` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the sixth Claude `Bash` slice with Anthropic-native schema/call/result handling.
+- [x] Implement the Claude `TaskStop` slice for background Bash task termination.
 - [x] Add narrow tool-result interop so Anthropic-native Claude `Read` can run through OpenAI-compatible providers.
-- [ ] Implement the remaining Claude standard tools: `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `WebFetch`, and `WebSearch`.
-- [ ] Expand fixture parity and tests from the `Read` slice to the remaining tools.
+- [x] Implement the remaining Claude standard tools: `WebFetch` and `WebSearch`.
+- [x] Expand fixture parity and tests from the `Read` slice to the remaining tools.
 - [ ] Revisit shared interop/formatting cleanup once the full Claude tool surface is implemented.
 
 Parent Task: tasks/20260504-claude-tools-parity/000-main.md
@@ -251,3 +257,142 @@ pytest core/python/tests/test_core_execute_tool_calls.py core/python/tests/test_
 ```
 
 Result: `17 passed, 1 failed`. The failure is `core/python/tests/test_tool_structured_output.py::test_iter_tool_messages_preserves_structured_tool_output_content`, which expects tool messages to expose `multipartContent`. Current core emits `tool_output_content` metadata and `toolResult`, but does not add top-level `multipartContent` in `iter_tool_messages()`. This appears to be outside the Claude `Read` slice and overlaps the cleanup direction in `tasks/20260508-tool-result-interop-accessors-adapters.md`.
+
+Write slice added during continuation:
+
+- Added `ClaudeWriteTool` in `plugins/claude-tools/src/claude_tools/claude_write_tool.py`.
+- Added cross-tool Claude file-activity tracking in `plugins/claude-tools/src/claude_tools/activity.py` so `Read` can unlock `Write` for existing files within a request-like context.
+- Updated `ClaudeReadTool` to record successful reads for the observed Claude read-before-write guard.
+- Registered `ClaudeWriteTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added `Write` investigation harness, fixtures, and notes:
+  - `plugins/claude-tools/investigation/scripts/investigate_write_tool.py`
+  - `plugins/claude-tools/investigation/fixtures/write/*.json`
+  - `plugins/claude-tools/investigation/notes/write-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_write_tool.py`.
+
+Focused verification run for the write slice:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/activity.py plugins/claude-tools/src/claude_tools/claude_write_tool.py plugins/claude-tools/investigation/scripts/normalize_proxy_log.py plugins/claude-tools/investigation/scripts/investigate_write_tool.py plugins/claude-tools/tests/test_claude_write_tool.py
+python plugins/claude-tools/investigation/scripts/investigate_write_tool.py --case all --discard-raw
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py -q
+```
+
+Edit slice added during continuation:
+
+- Added `ClaudeEditTool` in `plugins/claude-tools/src/claude_tools/claude_edit_tool.py`.
+- Reused the shared Claude file-activity tracking so `Read` unlocks `Edit` for existing files within a request-like context.
+- Registered `ClaudeEditTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added `Edit` investigation harness, fixtures, and notes:
+  - `plugins/claude-tools/investigation/scripts/investigate_edit_tool.py`
+  - `plugins/claude-tools/investigation/fixtures/edit/*.json`
+  - `plugins/claude-tools/investigation/notes/edit-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_edit_tool.py`.
+
+Focused verification run for the edit slice:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/claude_edit_tool.py plugins/claude-tools/investigation/scripts/investigate_edit_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py
+python plugins/claude-tools/investigation/scripts/investigate_edit_tool.py --case all --discard-raw
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py -q
+```
+
+Glob slice added during continuation:
+
+- Added `ClaudeGlobTool` in `plugins/claude-tools/src/claude_tools/claude_glob_tool.py`.
+- Registered `ClaudeGlobTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added `Glob` investigation harness, fixtures, and notes:
+  - `plugins/claude-tools/investigation/scripts/investigate_glob_tool.py`
+  - `plugins/claude-tools/investigation/fixtures/glob/*.json`
+  - `plugins/claude-tools/investigation/notes/glob-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_glob_tool.py`.
+
+Focused verification run for the glob slice:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/claude_glob_tool.py plugins/claude-tools/investigation/scripts/investigate_glob_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py
+python plugins/claude-tools/investigation/scripts/investigate_glob_tool.py --case all --discard-raw
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py -q
+```
+
+Grep slice added during continuation:
+
+- Added `ClaudeGrepTool` in `plugins/claude-tools/src/claude_tools/claude_grep_tool.py`.
+- Registered `ClaudeGrepTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added `Grep` investigation harness, fixtures, and notes:
+  - `plugins/claude-tools/investigation/scripts/investigate_grep_tool.py`
+  - `plugins/claude-tools/investigation/fixtures/grep/*.json`
+  - `plugins/claude-tools/investigation/notes/grep-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_grep_tool.py`.
+
+Focused verification run for the grep slice:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/claude_grep_tool.py plugins/claude-tools/investigation/scripts/investigate_grep_tool.py plugins/claude-tools/tests/test_claude_grep_tool.py
+python plugins/claude-tools/investigation/scripts/investigate_grep_tool.py --case all --discard-raw
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py plugins/claude-tools/tests/test_claude_grep_tool.py -q
+```
+
+Bash slice added during continuation:
+
+- Added `ClaudeBashTool` in `plugins/claude-tools/src/claude_tools/claude_bash_tool.py`.
+- Registered `ClaudeBashTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added `Bash` investigation harness, fixtures, and notes:
+  - `plugins/claude-tools/investigation/scripts/investigate_bash_tool.py`
+  - `plugins/claude-tools/investigation/fixtures/bash/*.json`
+  - `plugins/claude-tools/investigation/notes/bash-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_bash_tool.py`.
+
+Focused verification run for the bash slice:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/claude_bash_tool.py plugins/claude-tools/investigation/scripts/investigate_bash_tool.py plugins/claude-tools/tests/test_claude_bash_tool.py
+python plugins/claude-tools/investigation/scripts/investigate_bash_tool.py --case all --discard-raw
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py plugins/claude-tools/tests/test_claude_grep_tool.py plugins/claude-tools/tests/test_claude_bash_tool.py -q
+```
+
+TaskStop slice added during continuation:
+
+- Added `ClaudeTaskStopTool` in `plugins/claude-tools/src/claude_tools/claude_task_stop_tool.py`.
+- Registered `ClaudeTaskStopTool` in `plugins/claude-tools/agent_plugin.json`.
+- Added focused investigation fixtures and notes:
+  - `plugins/claude-tools/investigation/fixtures/task-stop/*.json`
+  - `plugins/claude-tools/investigation/notes/task-stop-tool.md`
+- Added focused unit tests in `plugins/claude-tools/tests/test_claude_task_stop_tool.py`.
+- Kept `Read` as the primary Claude-shaped way to inspect background Bash output; `TaskStop` is only for termination.
+
+WebFetch and WebSearch slices added during continuation:
+
+- Added `ClaudeWebFetchTool` in `plugins/claude-tools/src/claude_tools/claude_web_fetch_tool.py`.
+- Added `ClaudeWebSearchTool` in `plugins/claude-tools/src/claude_tools/claude_web_search_tool.py`.
+- Registered both tools in `plugins/claude-tools/agent_plugin.json`.
+- Updated package exports in `plugins/claude-tools/src/claude_tools/__init__.py`.
+- Added the explicit shared fetch dependency in `plugins/claude-tools/setup.py`.
+- Added focused unit tests:
+  - `plugins/claude-tools/tests/test_claude_web_fetch_tool.py`
+  - `plugins/claude-tools/tests/test_claude_web_search_tool.py`
+- Updated the focused Claude default-config helper test to assert the `claude` agent exposes both new tool ids.
+
+WebFetch implementation notes:
+
+- Reuses `web-fetch-shared` for fetch, extraction, truncation, rate-limiting, and prompt-based summarization.
+- Preserves the Claude-facing `WebFetch` schema and Anthropic-native result envelope.
+- Matches the investigated `Invalid URL`, `timeout of 60000ms exceeded`, and cross-host `REDIRECT DETECTED` result shapes.
+- Treats private/localhost URLs as invalid in the Claude-shaped layer, matching the observed Claude behavior for the investigated case.
+
+WebSearch implementation notes:
+
+- Reuses `tool_compat_shared.web_search_engine` providers and supports both `gemini_api` and `tavily` backends.
+- Preserves the Claude-facing `WebSearch` schema and Anthropic-native result envelope.
+- Formats successful results into the Claude-shaped plain-text structure with `Links:` and the mandatory reminder about markdown source links.
+- Applies domain filtering in the Claude tool layer even though the captured Claude server behavior did not appear to enforce it strictly.
+
+Focused verification run for the web slices:
+
+```bash
+python -m py_compile plugins/claude-tools/src/claude_tools/claude_web_fetch_tool.py plugins/claude-tools/src/claude_tools/claude_web_search_tool.py plugins/claude-tools/tests/test_claude_web_fetch_tool.py plugins/claude-tools/tests/test_claude_web_search_tool.py
+ruff check plugins/claude-tools/src/claude_tools plugins/claude-tools/tests application/python/tests/test_claude_system_message_helpers.py
+pytest plugins/claude-tools/tests/test_claude_read_tool.py plugins/claude-tools/tests/test_claude_write_tool.py plugins/claude-tools/tests/test_claude_edit_tool.py plugins/claude-tools/tests/test_claude_glob_tool.py plugins/claude-tools/tests/test_claude_grep_tool.py plugins/claude-tools/tests/test_claude_bash_tool.py plugins/claude-tools/tests/test_claude_task_stop_tool.py plugins/claude-tools/tests/test_claude_web_fetch_tool.py plugins/claude-tools/tests/test_claude_web_search_tool.py application/python/tests/test_claude_system_message_helpers.py -q
+```
+
+Result during completion: `66 passed`; `ruff` reported `All checks passed`.

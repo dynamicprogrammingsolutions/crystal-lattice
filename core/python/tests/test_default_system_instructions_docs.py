@@ -290,6 +290,8 @@ def test_portable_default_config_is_self_contained() -> None:
     assert config_path.is_file()
     assert (DEFAULT_CONFIG_ROOT / "system_messages").is_dir()
     assert (DEFAULT_CONFIG_ROOT / "codex").is_dir()
+    claude_plugin_root = REPO_ROOT / "plugins" / "claude-tools"
+    assert claude_plugin_root.is_dir()
 
     config = json.loads(config_path.read_text(encoding="utf-8"))
     cloud_agent = config["application"]["cloud_agent"]
@@ -329,13 +331,6 @@ def test_portable_default_config_is_self_contained() -> None:
         "TASKS_v5.md",
         "TASKS_v6.md",
         "CLAUDE_CODE_DEFAULT.md",
-        "system_messages/claude/template.md",
-        "system_messages/claude/introduction.md",
-        "system_messages/claude/workflow.md",
-        "system_messages/claude/tool-usage.md",
-        "system_messages/claude/tone-and-style.md",
-        "system_messages/claude/memory.md",
-        "system_messages/claude/context-management.md",
         "system_messages/codex/template.md",
         "system_messages/gemini/template.md",
         "system_messages/qwen/template.md",
@@ -346,12 +341,61 @@ def test_portable_default_config_is_self_contained() -> None:
         "system_messages/kimi/general-guidelines-for-coding.md",
         "system_messages/kimi/general-guidelines-for-research-and-data-processing.md",
         "system_messages/kimi/ultimate-reminders.md",
-        "cloud-agent/profiles/working-tree-current-state/transfer-up",
-        "cloud-agent/profiles/repo-install/install",
-        "cloud-agent/profiles/working-tree-patch/export",
-        "cloud-agent/profiles/working-tree-patch/mark-synced",
-        "cloud-agent/profiles/working-tree-patch/apply-down",
+        "cloud-agent/profiles/transfer_up/working-tree-current-state/local_transfer_script",
+        "cloud-agent/profiles/transfer_up/working-tree-current-state/cloud_setup_script",
+        "cloud-agent/profiles/transfer_up/working-tree-current-state-branch/local_transfer_script",
+        "cloud-agent/profiles/transfer_up/working-tree-current-state-branch/cloud_setup_script",
+        "cloud-agent/profiles/transfer_up/clean-head/local_transfer_script",
+        "cloud-agent/profiles/transfer_up/clean-head/cloud_setup_script",
+        "cloud-agent/profiles/sync_down/branch-import/cloud_export_script",
+        "cloud-agent/profiles/sync_down/branch-import/cloud_mark_synced_script",
+        "cloud-agent/profiles/sync_down/branch-import/local_apply_script",
+        "cloud-agent/profiles/sync_down/working-tree-patch/cloud_export_script",
+        "cloud-agent/profiles/sync_down/working-tree-patch/cloud_mark_synced_script",
+        "cloud-agent/profiles/sync_down/working-tree-patch/local_apply_script",
     ]
 
     for relative_path in helper_paths:
         assert (DEFAULT_CONFIG_ROOT / relative_path).is_file(), relative_path
+
+    claude_variables = config["mixins"]["claude_system_message"]["system_message"][
+        "variables"
+    ]
+    for key in (
+        "INTRODUCTION",
+        "WORKFLOW",
+        "TOOL_USAGE",
+        "TONE_AND_STYLE",
+        "MEMORY",
+        "CONTEXT_MANAGEMENT",
+    ):
+        files = claude_variables[key]["files"]
+        assert len(files) == 1
+        value = files[0]
+        assert value.startswith(
+            "${env:BUILTIN_PLUGINS}/claude-tools/system_messages/claude/"
+        ), value
+        relative_path = value[len("${env:BUILTIN_PLUGINS}/") :]
+        assert (REPO_ROOT / "plugins" / relative_path).is_file(), relative_path
+
+    cloud_author_variables = config["mixins"]["cloud_script_author_codex_message"][
+        "system_message"
+    ]["variables"]
+    cloud_author_template = config["mixins"]["cloud_script_author_codex_message"][
+        "system_message"
+    ]["template"]
+    assert "cloud-script-authoring.md" not in cloud_author_template
+    assert "Read the bundled authoring guide" in cloud_author_template
+    assert "before your final response" in cloud_author_template.lower()
+    assert "bash -n" in cloud_author_template
+    assert "no-Docker local harness" in cloud_author_template
+    assert "Do not print secrets" in cloud_author_template
+    authoring_path = cloud_author_variables["CLOUD_SCRIPT_AUTHORING_GUIDE_PATH"][
+        "text"
+    ]
+    assert (
+        authoring_path
+        == "${env:BUILTIN_PLUGINS}/cloud-agent-app/docs/cloud-script-authoring.md"
+    )
+    relative_path = authoring_path[len("${env:BUILTIN_PLUGINS}/") :]
+    assert (REPO_ROOT / "plugins" / relative_path).is_file(), relative_path

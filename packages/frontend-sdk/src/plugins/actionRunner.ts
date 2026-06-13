@@ -37,6 +37,20 @@ export interface RunActionResult {
   errorMessage?: string;
 }
 
+function shouldUseSessionScopedActionEndpoint(
+  element: ActionUiElement,
+  context: RunActionContext,
+  backend: AgentBackend,
+): boolean {
+  return (
+    typeof context.sessionId === 'string' &&
+    context.sessionId.length > 0 &&
+    typeof backend.executeSessionAction === 'function' &&
+    typeof element.ui_type === 'string' &&
+    element.ui_type.length > 0
+  );
+}
+
 function getFromPath(root: any, path: string): any {
   if (!root) return undefined;
   const parts = path.split('.');
@@ -224,7 +238,7 @@ export async function runApplicationAction(options: {
   const inputs = buildActionInputs({ element, actionDefsById: actionsById, context });
 
   try {
-    const rawResponse = await backend.executeAction({
+    const executeParams = {
       pluginId,
       actionId,
       actionOwner:
@@ -232,7 +246,13 @@ export async function runApplicationAction(options: {
           ? element.action_owner
           : undefined,
       inputs,
-    });
+    };
+    const rawResponse = shouldUseSessionScopedActionEndpoint(element, context, backend)
+      ? await backend.executeSessionAction!({
+          sessionId: context.sessionId!,
+          ...executeParams,
+        })
+      : await backend.executeAction(executeParams);
 
     if (!rawResponse || rawResponse.status !== 'ok') {
       return {

@@ -20,5 +20,15 @@
     "qwen_tools.qwen_edit_tool.QwenEditTool": "tools",
     "qwen_tools.qwen_shell_tool.QwenShellTool": "tools",
     "qwen_tools.qwen_web_fetch_tool.QwenWebFetchTool": "tools"
-  }
+  },
+  "local_workspace_dependencies": [
+    {
+      "name": "tool-compat-shared",
+      "path": "../tool-compat-shared"
+    },
+    {
+      "name": "web-fetch-shared",
+      "path": "../web-fetch-shared"
+    }
+  ]
 }
