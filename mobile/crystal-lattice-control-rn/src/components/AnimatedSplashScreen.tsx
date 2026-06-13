@@ -77,7 +77,7 @@ export const AnimatedSplashScreen: React.FC = () => {
             Crystal Lattice
           </Text>
           <Text style={[styles.brandSubtitle, { color: splashSubtext }]}>
-            AI CODE ENGINE
+            CONNECTED AGENT WORKSPACE
           </Text>
 
           <View style={styles.spinnerContainer}>
