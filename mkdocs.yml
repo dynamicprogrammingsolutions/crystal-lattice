@@ -1,15 +1,37 @@
-site_name: AI Agent Platform
-site_description: Functional AI agent platform core SDK with plugin system
-site_url: ""
-repo_url: ""
+site_name: Crystal Lattice Docs
+site_description: Plugin-driven AI agent platform documentation
+site_url: "https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/"
+repo_url: "https://github.com/dynamicprogrammingsolutions/crystal-lattice"
+repo_name: GitHub
 use_directory_urls: true
 
 theme:
   name: material
+  custom_dir: docs_site/overrides
+  logo: assets/brand/icon_dark.svg
+  favicon: assets/brand/icon.svg
+  icon:
+    repo: crystal-lattice/github
   features:
     - navigation.sections
     - navigation.tabs
     - content.code.copy
+  palette:
+    - scheme: slate
+      primary: black
+      accent: blue
+      toggle:
+        icon: crystal-lattice/sun
+        name: Switch to light mode
+    - scheme: default
+      primary: white
+      accent: blue
+      toggle:
+        icon: crystal-lattice/moon
+        name: Switch to dark mode
+
+extra_css:
+  - assets/styles/crystal-lattice.css
 
 plugins:
   - search

@@ -4,12 +4,12 @@ Provision AWS static hosting for the website and documentation site using privat
 
 ## Requirements checklist
 
-- [ ] Confirm or create Route 53 hosted zone for `crystallattice.dev`.
-- [ ] Request/validate ACM certificates in `us-east-1` for `crystallattice.dev` and `docs.crystallattice.dev`.
+- [ ] Confirm Route 53 hosted zone support for `dynamicprogrammingsolutions.com` temporary testing subdomains.
+- [ ] Request/validate ACM certificates in `us-east-1` for `crystallattice.dev.dynamicprogrammingsolutions.com` and `docs.crystallattice.dev.dynamicprogrammingsolutions.com`.
 - [ ] Create private S3 bucket for the website artifacts.
 - [ ] Create private S3 bucket for the docs artifacts.
-- [ ] Create CloudFront distribution for `crystallattice.dev`.
-- [ ] Create CloudFront distribution for `docs.crystallattice.dev`.
+- [ ] Create CloudFront distribution for `crystallattice.dev.dynamicprogrammingsolutions.com`.
+- [ ] Create CloudFront distribution for `docs.crystallattice.dev.dynamicprogrammingsolutions.com`.
 - [ ] Configure CloudFront Origin Access Control for both S3 origins.
 - [ ] Create Route 53 alias records pointing both domains to their CloudFront distributions.
 - [ ] Record bucket names and CloudFront distribution IDs for GitHub Actions.
@@ -22,7 +22,8 @@ Depends On: `tasks/20260614-aws-static-sites-docs-deployment/010-design-and-docs
 
 Website:
 
-- Domain: `crystallattice.dev`
+- Testing domain: `crystallattice.dev.dynamicprogrammingsolutions.com`
+- Final domain later: `crystallattice.dev`
 - Build output: `landing_page/dist`
 - Suggested bucket: `crystallattice-prod-site`
 - CloudFront default root object: `index.html`
@@ -30,7 +31,8 @@ Website:
 
 Docs:
 
-- Domain: `docs.crystallattice.dev`
+- Testing domain: `docs.crystallattice.dev.dynamicprogrammingsolutions.com`
+- Final domain later: `docs.crystallattice.dev`
 - Build output: `site`
 - Suggested bucket: `crystallattice-prod-docs`
 - CloudFront default root object: `index.html`
@@ -87,8 +89,8 @@ aws cloudfront create-invalidation --distribution-id "${DOCS_CLOUDFRONT_DISTRIBU
 
 Manual checks:
 
-- `https://crystallattice.dev` resolves through CloudFront.
-- `https://docs.crystallattice.dev` resolves through CloudFront.
+- `https://crystallattice.dev.dynamicprogrammingsolutions.com` resolves through CloudFront.
+- `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com` resolves through CloudFront.
 - TLS certificate is valid for both domains.
 - S3 buckets are not publicly listable/readable.
 - CloudFront can read bucket objects through OAC.

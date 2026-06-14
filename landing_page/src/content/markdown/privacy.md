@@ -44,10 +44,12 @@ registration, while the bridge session is active.
 
 ## This website
 
-This website (crystallattice.dev) may collect standard web server access logs
-(IP address, browser type, pages visited, referrer) for operational purposes. We
-do not use third-party advertising trackers. If we add any analytics in the
-future, we will update this policy.
+This website, initially available at
+crystallattice.dev.dynamicprogrammingsolutions.com for testing and later at
+crystallattice.dev, may collect standard web server access logs (IP address,
+browser type, pages visited, referrer) for operational purposes. We do not use
+third-party advertising trackers. If we add any analytics in the future, we will
+update this policy.
 
 ## The mobile app
 

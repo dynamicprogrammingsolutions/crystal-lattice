@@ -1,6 +1,6 @@
-# AI Agent Platform Docs
+# Crystal Lattice Docs
 
-Welcome to the API documentation. This site is generated from in-code docstrings using MkDocs + mkdocstrings.
+Welcome to the Crystal Lattice documentation. This site covers the plugin-driven agent platform, Python SDK, terminal and HTTP runtime, and generated API reference.
 
 - Architecture: see ARCHITECTURE.md
 - Types and protocols: see TYPES_AND_PROTOCOLS.md
