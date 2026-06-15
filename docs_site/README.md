@@ -13,6 +13,7 @@ python -m pip install -r docs/requirements.txt
 Build the static docs site:
 
 ```bash
+python docs_site/scripts/prepare_mkdocs_site.py
 mkdocs build
 ```
 
@@ -21,6 +22,7 @@ mkdocs build
 Run the docs site locally with live reload for content, navigation, and theme changes:
 
 ```bash
+python docs_site/scripts/prepare_mkdocs_site.py
 mkdocs serve -a 127.0.0.1:8001
 ```
 
@@ -44,8 +46,25 @@ At the moment, strict mode may still fail on pre-existing documentation warnings
 - `docs/` contains the Markdown and static assets published as documentation content.
 - `docs/assets/styles/crystal-lattice.css` contains the Crystal Lattice Material theme polish.
 - `docs/assets/brand/` contains docs-site logo/favicon assets copied from the landing page.
+- `docs_site/scripts/prepare_mkdocs_site.py` generates publishable docs content from repo-local sources before MkDocs builds.
 - `docs_site/overrides/` is used by Material for MkDocs through `theme.custom_dir`.
 - `docs_site/overrides/.icons/crystal-lattice/` contains custom SVG icons that Material inlines into the generated docs site.
+
+## Generated Docs Content
+
+Run the preparation script before every local or CI docs build:
+
+```bash
+python docs_site/scripts/prepare_mkdocs_site.py
+```
+
+The script generates:
+
+- `docs/plugin-development/` from `plugins/docs/`
+- `docs/built-in-plugins/` from `plugins/*/README.md`
+- `docs/reference/default-config.md` from `application/python/agent_terminal_app/default_config/config.json`
+
+These generated paths are ignored by git. Keep source-of-truth plugin docs and README content in their original repo locations.
 
 ## Theme Assets
 

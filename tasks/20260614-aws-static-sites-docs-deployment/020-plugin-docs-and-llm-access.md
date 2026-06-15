@@ -4,14 +4,14 @@ Include the current plugin documentation from `plugins/docs/` in the MkDocs site
 
 ## Requirements checklist
 
-- [ ] Add `mkdocs-llmstxt` to `docs/requirements.txt`.
-- [ ] Copy `plugins/docs/` into `docs/plugin-development/` during docs builds.
-- [ ] Generate docs-local pages for built-in plugin README files.
-- [ ] Generate a Markdown default-config reference page that wraps the default JSON config in a fenced code block.
-- [ ] Update existing docs links so built-in plugin README references and default config references point to generated docs-local pages.
-- [ ] Add copied plugin docs to the MkDocs nav.
-- [ ] Configure MkDocs to emit `llms.txt`, and `llms-full.txt` if practical.
-- [ ] Verify generated LLM files include overview, plugin docs, API reference, and tool host protocol content.
+- [x] Add `mkdocs-llmstxt` to `docs/requirements.txt`.
+- [x] Copy `plugins/docs/` into `docs/plugin-development/` during docs builds.
+- [x] Generate docs-local pages for built-in plugin README files.
+- [x] Generate a Markdown default-config reference page that wraps the default JSON config in a fenced code block.
+- [x] Update existing docs links so built-in plugin README references and default config references point to generated docs-local pages.
+- [x] Add copied plugin docs to the MkDocs nav.
+- [x] Configure MkDocs to emit `llms.txt`, and `llms-full.txt` if practical.
+- [x] Verify generated LLM files include overview, plugin docs, API reference, and tool host protocol content.
 
 Parent Task: `tasks/20260614-aws-static-sites-docs-deployment/000-main.md`
 
@@ -156,3 +156,48 @@ Manual checks:
 - Links in `docs/plugins/application-config.md` no longer point to repo-root-relative paths that MkDocs resolves as broken docs-local links.
 - `site/llms.txt` references core docs, plugin docs, API reference, and tool host protocol.
 - The LLM docs output does not expose private-only deployment secrets or credentials.
+
+## Execution plan
+
+Added during completion after user approval.
+
+This task will add a repeatable MkDocs preparation step under `docs_site/`, then configure MkDocs to publish generated plugin documentation and LLM-accessible docs files.
+
+Execution approach:
+
+1. Add a docs-site support script at `docs_site/scripts/prepare_mkdocs_site.py`. Keep the script under `docs_site/` because it is implementation/support machinery, while generated publishable content belongs under `docs/`.
+2. Have the script delete and regenerate `docs/plugin-development/` from `plugins/docs/`, excluding internal support files such as `AGENTS.md` and normalizing repo-root-style links where needed.
+3. Have the script delete and regenerate `docs/built-in-plugins/` from every `plugins/*/README.md`, with one page per plugin at `docs/built-in-plugins/<plugin-name>/index.md` and a generated index at `docs/built-in-plugins/index.md`.
+4. Have the script generate `docs/reference/default-config.md` from `application/python/agent_terminal_app/default_config/config.json`, wrapping the full JSON in a fenced `json` code block.
+5. Add the generated docs paths to `.gitignore` so source-of-truth content remains in `plugins/docs/`, `plugins/*/README.md`, and the default config JSON.
+6. Update `docs_site/README.md` to document the preparation step before local and CI MkDocs builds.
+7. Add `mkdocs-llmstxt` to `docs/requirements.txt`.
+8. Update `mkdocs.yml` to include the LLM docs plugin, emit `llms.txt` and `llms-full.txt` if supported cleanly, and add nav sections for current plugin docs, built-in plugin docs, and the generated default configuration reference.
+9. Update broken repo-root-style links in `docs/plugins/application-config.md` so they point to generated docs-local pages.
+10. Validate by running the prep script, installing docs requirements if needed, building MkDocs, checking `site/llms.txt` and `site/llms-full.txt`, and attempting `mkdocs build --strict`. If strict mode still fails only on pre-existing cleanup or mkdocstrings warnings, record those separately in completion notes.
+
+## Completion Notes
+
+Added during completion.
+
+Implemented the docs generation and LLM-access pass:
+
+- Added `docs_site/scripts/prepare_mkdocs_site.py` as the repeatable docs preparation step.
+- The preparation script generates `docs/plugin-development/` from `plugins/docs/`, excluding `AGENTS.md` and normalizing the known copied-doc links/anchors.
+- The preparation script generates `docs/built-in-plugins/<plugin-name>/index.md` for every `plugins/*/README.md`, plus `docs/built-in-plugins/index.md`.
+- The preparation script generates `docs/reference/default-config.md` from `application/python/agent_terminal_app/default_config/config.json` in a fenced `json` block.
+- Added generated docs paths to `.gitignore`.
+- Documented the prep step in `docs_site/README.md`.
+- Added `mkdocs-llmstxt` to `docs/requirements.txt`.
+- Configured `mkdocs.yml` to emit `llms.txt` and `llms-full.txt`, include curated LLM sections, and publish nav entries for current plugin docs, built-in plugin README pages, and the generated default configuration reference.
+- Updated `docs/plugins/application-config.md` links so built-in plugin README references and default config references point to docs-local generated pages.
+
+Validation performed:
+
+- `python docs_site/scripts/prepare_mkdocs_site.py` succeeded.
+- `python -m pip install -r docs/requirements.txt` succeeded; dependencies were already installed, including `mkdocs-llmstxt 0.5.0`.
+- `mkdocs build` succeeded.
+- `test -f site/llms.txt` and `test -f site/llms-full.txt` succeeded.
+- Confirmed `site/llms.txt` references overview, current plugin docs, built-in plugin docs, API reference, tool host protocol, and default configuration content.
+- Ran a targeted secret-pattern scan over `site/llms.txt` and `site/llms-full.txt`; it found no AWS keys, private keys, OpenAI-style `sk-` tokens, GitHub tokens, or Slack tokens. The generated content still includes placeholder environment variable names such as `OPENAI_API_KEY`, as expected.
+- `mkdocs build --strict` was attempted and still fails only on four pre-existing strict warnings from `mkdocstrings`/`mkdocs_autorefs`: three griffe indentation warnings in `core/python/agent_core/core.py` around line 2991 and one unresolved cross-reference target for `"content"`. The old omitted-docs-tree messages remain informational and are tracked by `tasks/20260614-aws-static-sites-docs-deployment/025-docs-content-cleanup.md`.

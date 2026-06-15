@@ -49,13 +49,118 @@ plugins:
             merge_init_into_class: true
             inherited_members: false
             members_order: alphabetical
+  - llmstxt:
+      markdown_description: >-
+        Crystal Lattice is a plugin-driven AI agent platform with a Python SDK,
+        terminal and HTTP runtime, mobile and desktop clients, provider
+        integrations, and first-party plugin packages.
+      full_output: llms-full.txt
+      sections:
+        Overview:
+          - index.md: Crystal Lattice documentation overview.
+        Guides:
+          - plugins/development.md: General plugin authoring and packaging guide.
+          - plugins/application-config.md: Application plugin configuration and examples.
+        Current Plugin Docs:
+          - plugin-development/index.md: Current plugin documentation entry point.
+          - plugin-development/provider-plugins.md: Provider plugin guide.
+          - plugin-development/provider-extensions.md: Provider extension guide.
+          - plugin-development/feature-plugins.md: Feature plugin guide.
+          - plugin-development/application-plugins.md: Application plugin guide.
+          - plugin-development/tool-plugins.md: Tool plugin guide.
+          - plugin-development/tool-interop.md: Tool interop flow.
+          - plugin-development/node-tool-plugins.md: Node tool plugin guide.
+          - plugin-development/bash-tool-plugins.md: Bash tool plugin guide.
+          - plugin-development/actions.md: Plugin actions guide.
+          - plugin-development/plugin-packaging-and-loading.md: Packaging and loading guide.
+          - plugin-development/plugin-execution-order.md: Plugin execution order.
+          - plugin-development/config-schema.md: Plugin configuration schema guide.
+          - plugin-development/ui-elements.md: Plugin UI elements guide.
+          - plugin-development/testing-and-validation.md: Testing and validation guide.
+          - plugin-development/specialized-task-agents.md: Specialized task agents guide.
+        Built-In Plugins:
+          - built-in-plugins/index.md: Generated index of built-in plugin README pages.
+          - built-in-plugins/*/index.md
+        Reference:
+          - reference/agent_core/core.md: AgentCore API reference.
+          - reference/agent_core/types.md: Core types and protocols reference.
+          - reference/agent_core/plugin/provider.md: Provider wrapper API reference.
+          - reference/providers/openai_provider.md: OpenAI-compatible provider reference.
+          - reference/tool-host-protocol.md: Tool host protocol reference.
+          - reference/default-config.md: Generated default application configuration reference.
 
 nav:
   - Overview: index.md
   - Guides:
     - Plugin Development: plugins/development.md
     - Application Configuration: plugins/application-config.md
+  - Current Plugin Docs:
+    - Start Here: plugin-development/index.md
+    - Provider Plugins: plugin-development/provider-plugins.md
+    - Provider Extensions: plugin-development/provider-extensions.md
+    - Feature Plugins: plugin-development/feature-plugins.md
+    - Application Plugins: plugin-development/application-plugins.md
+    - Tool Plugins: plugin-development/tool-plugins.md
+    - Tool Interop Flow: plugin-development/tool-interop.md
+    - Node Tool Plugins: plugin-development/node-tool-plugins.md
+    - Bash Tool Plugins: plugin-development/bash-tool-plugins.md
+    - Plugin Actions: plugin-development/actions.md
+    - Packaging And Loading: plugin-development/plugin-packaging-and-loading.md
+    - Execution Order: plugin-development/plugin-execution-order.md
+    - Configuration Schema: plugin-development/config-schema.md
+    - UI Elements: plugin-development/ui-elements.md
+    - Testing And Validation: plugin-development/testing-and-validation.md
+    - Specialized Task Agents: plugin-development/specialized-task-agents.md
+  - Built-In Plugins:
+    - Index: built-in-plugins/index.md
+    - bash-read-line-range: built-in-plugins/bash-read-line-range/index.md
+    - bash-send-kindle-icloud: built-in-plugins/bash-send-kindle-icloud/index.md
+    - chatgpt-auth-app: built-in-plugins/chatgpt-auth-app/index.md
+    - claude-tools: built-in-plugins/claude-tools/index.md
+    - cloud-agent-app: built-in-plugins/cloud-agent-app/index.md
+    - codex-tools: built-in-plugins/codex-tools/index.md
+    - feature-file-context: built-in-plugins/feature-file-context/index.md
+    - feature-request-options: built-in-plugins/feature-request-options/index.md
+    - feature-system-message: built-in-plugins/feature-system-message/index.md
+    - feature-web-context: built-in-plugins/feature-web-context/index.md
+    - gemini-compaction-app: built-in-plugins/gemini-compaction-app/index.md
+    - gemini-compaction-feature: built-in-plugins/gemini-compaction-feature/index.md
+    - gemini-tools: built-in-plugins/gemini-tools/index.md
+    - generate-title-app: built-in-plugins/generate-title-app/index.md
+    - grok-tools: built-in-plugins/grok-tools/index.md
+    - js-class-tool: built-in-plugins/js-class-tool/index.md
+    - js-echo-tool: built-in-plugins/js-echo-tool/index.md
+    - js-fs-tools: built-in-plugins/js-fs-tools/index.md
+    - js-multi-tools: built-in-plugins/js-multi-tools/index.md
+    - js-single-file-tool: built-in-plugins/js-single-file-tool/index.md
+    - kimi-tools: built-in-plugins/kimi-tools/index.md
+    - mcp-runtime-app: built-in-plugins/mcp-runtime-app/index.md
+    - mcp-shared: built-in-plugins/mcp-shared/index.md
+    - message-export-actions: built-in-plugins/message-export-actions/index.md
+    - openai_responses: built-in-plugins/openai_responses/index.md
+    - openrouter: built-in-plugins/openrouter/index.md
+    - openrouter_responses: built-in-plugins/openrouter_responses/index.md
+    - qwen-tools: built-in-plugins/qwen-tools/index.md
+    - rebuild-native-app: built-in-plugins/rebuild-native-app/index.md
+    - reference-openai-compatible-provider: built-in-plugins/reference-openai-compatible-provider/index.md
+    - session-actions-app: built-in-plugins/session-actions-app/index.md
+    - session-asset-attachments: built-in-plugins/session-asset-attachments/index.md
+    - session-message-count-meta-app: built-in-plugins/session-message-count-meta-app/index.md
+    - session-ordering-buckets-app: built-in-plugins/session-ordering-buckets-app/index.md
+    - session-pinned-app: built-in-plugins/session-pinned-app/index.md
+    - session-timestamp-meta-app: built-in-plugins/session-timestamp-meta-app/index.md
+    - session-title-app: built-in-plugins/session-title-app/index.md
+    - skill-shared: built-in-plugins/skill-shared/index.md
+    - summarize-range-app: built-in-plugins/summarize-range-app/index.md
+    - template-bash-tool: built-in-plugins/template-bash-tool/index.md
+    - template-js-multi-tools: built-in-plugins/template-js-multi-tools/index.md
+    - template-python-provider: built-in-plugins/template-python-provider/index.md
+    - template-python-tools: built-in-plugins/template-python-tools/index.md
+    - timestamp-extension: built-in-plugins/timestamp-extension/index.md
+    - tool-compat-shared: built-in-plugins/tool-compat-shared/index.md
+    - web-fetch-shared: built-in-plugins/web-fetch-shared/index.md
   - Reference:
+    - Default Configuration: reference/default-config.md
     - AgentCore: reference/agent_core/core.md
     - Types & Protocols: reference/agent_core/types.md
     - Provider Wrapper: reference/agent_core/plugin/provider.md
