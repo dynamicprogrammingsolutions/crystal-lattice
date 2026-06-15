@@ -2,7 +2,7 @@
 
 ## Overview
 
-The AI Agent Platform Core SDK provides a **functional**, modular interface for building conversational AI applications with any LLM provider through an extensible plugin system.
+The Crystal Lattice Core SDK provides a **functional**, modular interface for building conversational AI applications with any LLM provider through an extensible plugin system.
 
 **Key Principles:**
 - **Functional Architecture**: Immutable data structures, pure functions
@@ -50,7 +50,7 @@ print(messages[-1]["content"])
 
 ## AgentCore
 
-Stateless processing pipeline for AI Agent Platform.
+Stateless processing pipeline for Crystal Lattice.
 
 **Architecture:**
 - Stores plugin adapters (not state)
