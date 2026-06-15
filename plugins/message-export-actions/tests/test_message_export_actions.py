@@ -158,6 +158,35 @@ def test_ui_schema_exposes_message_and_session_actions(tmp_path: Path) -> None:
     assert ("message_share_as_markdown", "share_session_as_markdown") in session_actions
 
 
+def test_pdf_plugin_ui_schema_exposes_config_elements(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+    session_id, _message_index = _seed_session_with_message(app, content="Hello export")
+
+    loaded = app.load_session(session_id)
+    assert loaded is not None
+    _core, base_config, session = loaded
+    effective_config = app.resolve_effective_config(base_config, session)
+
+    elements = app.get_application_ui_schema(config=effective_config)
+    pdf_config_elements = {
+        el["key"]: el
+        for el in elements
+        if el.get("ui_type") == "config" and el.get("plugin") == "message_share_as_pdf"
+    }
+
+    assert "message_export_pdf_engine" in pdf_config_elements
+    assert "message_export_pdf_style" in pdf_config_elements
+    assert pdf_config_elements["message_export_pdf_engine"]["type"] == "select"
+    assert pdf_config_elements["message_export_pdf_style"]["type"] == "select"
+
+
+def test_pdf_plugin_config_schema_includes_engine_and_style() -> None:
+    schema = MessageShareAsPdfAppPlugin().get_config_schema()
+
+    assert schema["message_export_pdf_engine"]["default"] == "auto"
+    assert schema["message_export_pdf_style"]["default"] == "web"
+
+
 def test_send_to_kindle_uses_optional_title_default_and_bashlike_epub_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -604,3 +633,35 @@ def test_pandoc_web_style_uses_named_link_colors(
     assert "linkcolor=2563EB" not in cmd
     assert "urlcolor=2563EB" not in cmd
     assert "mainfont=Helvetica Neue" in cmd
+
+
+def test_pandoc_pdf_command_does_not_force_gfm_input(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: Dict[str, Any] = {}
+
+    def _fake_run(cmd: list[str], **kwargs: Any) -> Any:
+        captured["cmd"] = cmd
+
+        class Result:
+            returncode = 0
+            stderr = ""
+            stdout = ""
+
+        return Result()
+
+    monkeypatch.setattr(export_utils.subprocess, "run", _fake_run)
+
+    output_path = tmp_path / "out.pdf"
+    export_utils._convert_markdown_to_pdf_pandoc(
+        markdown_text="| a | b |\n| --- | --- |\n| 1 | 2 |",
+        title="Title",
+        output_path=output_path,
+        pdf_engine="xelatex",
+        style="web",
+    )
+
+    cmd = captured["cmd"]
+    assert "--from" not in cmd
+    assert "gfm" not in cmd
