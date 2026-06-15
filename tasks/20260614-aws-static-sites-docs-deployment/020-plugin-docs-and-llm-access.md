@@ -191,6 +191,9 @@ Implemented the docs generation and LLM-access pass:
 - Added `mkdocs-llmstxt` to `docs/requirements.txt`.
 - Configured `mkdocs.yml` to emit `llms.txt` and `llms-full.txt`, include curated LLM sections, and publish nav entries for current plugin docs, built-in plugin README pages, and the generated default configuration reference.
 - Updated `docs/plugins/application-config.md` links so built-in plugin README references and default config references point to docs-local generated pages.
+- Follow-up LLM accessibility UI added after the initial task completion: `docs_site/overrides/partials/actions.html` adds a page-level dropdown for copying the current page as Markdown, opening the current page Markdown, opening `llms.txt`, and opening `llms-full.txt`; `docs/assets/javascripts/llm-actions.js` implements the client behavior.
+- Follow-up AWS deployment note added to `tasks/20260614-aws-static-sites-docs-deployment/040-github-actions-aws-deploy.md`: production docs deploys should upload `site/**/*.md`, `site/llms.txt`, and `site/llms-full.txt` with `Content-Type: text/plain; charset=utf-8` so Markdown/LLM text files open inline in browsers.
+- Follow-up Safari copy fix added after testing the reported `NotAllowedError`: `docs/assets/javascripts/llm-actions.js` now preloads page Markdown, copies only cached Markdown during the click handler, shows `Loading...`/`Ready` if content is not ready yet, and falls back to a hidden textarea plus `document.execCommand("copy")` if the Clipboard API rejects the write.
 
 Validation performed:
 

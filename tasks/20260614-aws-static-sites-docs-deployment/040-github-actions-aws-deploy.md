@@ -10,6 +10,7 @@ Add a GitHub Actions workflow that builds both static sites and deploys them to 
 - [ ] Add a workflow that builds the Astro landing site.
 - [ ] Add a workflow step that prepares and builds the MkDocs site.
 - [ ] Deploy both build outputs to S3 with `--delete`.
+- [ ] Upload generated docs Markdown files and LLM text files with explicit inline-readable content types in S3.
 - [ ] Invalidate both CloudFront distributions.
 - [ ] Keep the disabled GitHub Pages workflow disabled or remove it after confirming the AWS path is live.
 
@@ -100,10 +101,33 @@ aws cloudfront create-invalidation \
   --paths "/*"
 
 aws s3 sync site/ "s3://${DOCS_BUCKET}/" --delete
+find site -name '*.md' -print0 | while IFS= read -r -d '' file; do
+  key="${file#site/}"
+  aws s3 cp "$file" "s3://${DOCS_BUCKET}/${key}" \
+    --content-type "text/plain; charset=utf-8" \
+    --metadata-directive REPLACE
+done
+for file in site/llms.txt site/llms-full.txt; do
+  test -f "$file" || continue
+  key="${file#site/}"
+  aws s3 cp "$file" "s3://${DOCS_BUCKET}/${key}" \
+    --content-type "text/plain; charset=utf-8" \
+    --metadata-directive REPLACE
+done
 aws cloudfront create-invalidation \
   --distribution-id "${DOCS_CLOUDFRONT_DISTRIBUTION_ID}" \
   --paths "/*"
 ```
+
+The second docs upload pass is required so generated Markdown and LLM text files
+open inline in browsers instead of downloading. Apply it to:
+
+- `site/**/*.md`
+- `site/llms.txt`
+- `site/llms-full.txt`
+
+Use `text/plain; charset=utf-8` rather than `text/markdown` for widest browser
+inline rendering behavior.
 
 ## Validation
 
@@ -115,5 +139,6 @@ Check:
 - No AWS access key ID or secret access key is stored in GitHub.
 - The landing build completes.
 - The docs build runs plugin-docs copy before `mkdocs build --strict`.
+- Generated Markdown and LLM text files in S3 have `Content-Type: text/plain; charset=utf-8`.
 - S3 sync deletes removed files.
 - CloudFront invalidations are created for both distributions.

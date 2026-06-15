@@ -79,6 +79,23 @@ The rendered docs header icon sizes are adjusted in `docs/assets/styles/crystal-
 - theme toggle icons: 15px
 - GitHub/source icon: 16px
 
+## LLM Actions
+
+The docs site adds a page-level LLM actions dropdown through
+`docs_site/overrides/partials/actions.html`.
+
+The dropdown actions are:
+
+- Copy the current page as generated Markdown.
+- Open the current page's generated Markdown file.
+- Open `llms.txt`.
+- Open `llms-full.txt`.
+
+The client-side behavior lives in `docs/assets/javascripts/llm-actions.js`.
+Generated Markdown files may download in local `mkdocs serve`; production AWS
+deployment should upload `*.md`, `llms.txt`, and `llms-full.txt` with
+`Content-Type: text/plain; charset=utf-8` so they open inline in browsers.
+
 ## Development Notes
 
 Keep public documentation content under `docs/`. Keep MkDocs implementation assets, source-only theme overrides, and docs-site maintenance notes in `docs_site/`.

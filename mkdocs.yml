@@ -33,6 +33,9 @@ theme:
 extra_css:
   - assets/styles/crystal-lattice.css
 
+extra_javascript:
+  - assets/javascripts/llm-actions.js
+
 plugins:
   - search
   - mkdocstrings:
