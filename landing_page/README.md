@@ -85,8 +85,8 @@ PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev
 For the current AWS testing stack:
 
 ```bash
-PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://cl-static-test.dynamicprogrammingsolutions.com \
-PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.cl-static-test.dynamicprogrammingsolutions.com \
+PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev.dynamicprogrammingsolutions.com \
+PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev.dynamicprogrammingsolutions.com \
 yarn build
 ```
 

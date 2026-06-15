@@ -9,8 +9,8 @@ STACK_NAME="${CRYSTAL_LATTICE_STATIC_STACK_NAME:-crystal-lattice-static-sites-te
 REGION="${AWS_REGION:-us-east-1}"
 HOSTED_ZONE_NAME="${CRYSTAL_LATTICE_STATIC_HOSTED_ZONE_NAME:-dynamicprogrammingsolutions.com}"
 HOSTED_ZONE_ID="${CRYSTAL_LATTICE_STATIC_HOSTED_ZONE_ID:-}"
-LANDING_DOMAIN="${CRYSTAL_LATTICE_STATIC_LANDING_DOMAIN:-cl-static-test.dynamicprogrammingsolutions.com}"
-DOCS_DOMAIN="${CRYSTAL_LATTICE_STATIC_DOCS_DOMAIN:-docs.cl-static-test.dynamicprogrammingsolutions.com}"
+LANDING_DOMAIN="${CRYSTAL_LATTICE_STATIC_LANDING_DOMAIN:-crystallattice.dev.dynamicprogrammingsolutions.com}"
+DOCS_DOMAIN="${CRYSTAL_LATTICE_STATIC_DOCS_DOMAIN:-docs.crystallattice.dev.dynamicprogrammingsolutions.com}"
 BUCKET_NAME_PREFIX="${CRYSTAL_LATTICE_STATIC_BUCKET_PREFIX:-crystal-lattice-static-test}"
 JSON_OUTPUT=0
 
@@ -30,8 +30,8 @@ Defaults:
   stack name:         crystal-lattice-static-sites-test
   region:             us-east-1
   hosted zone name:   dynamicprogrammingsolutions.com
-  landing domain:     cl-static-test.dynamicprogrammingsolutions.com
-  docs domain:        docs.cl-static-test.dynamicprogrammingsolutions.com
+  landing domain:     crystallattice.dev.dynamicprogrammingsolutions.com
+  docs domain:        docs.crystallattice.dev.dynamicprogrammingsolutions.com
   bucket prefix:      crystal-lattice-static-test
 USAGE
 }

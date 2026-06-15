@@ -5,11 +5,11 @@ Provision AWS static hosting for the website and documentation site using privat
 ## Requirements checklist
 
 - [x] Confirm Route 53 hosted zone support for `dynamicprogrammingsolutions.com` temporary testing subdomains.
-- [x] Request/validate ACM certificates in `us-east-1` for `cl-static-test.dynamicprogrammingsolutions.com` and `docs.cl-static-test.dynamicprogrammingsolutions.com`.
+- [x] Request/validate ACM certificates in `us-east-1` for `crystallattice.dev.dynamicprogrammingsolutions.com` and `docs.crystallattice.dev.dynamicprogrammingsolutions.com`.
 - [x] Create private S3 bucket for the website artifacts.
 - [x] Create private S3 bucket for the docs artifacts.
-- [x] Create CloudFront distribution for `cl-static-test.dynamicprogrammingsolutions.com`.
-- [x] Create CloudFront distribution for `docs.cl-static-test.dynamicprogrammingsolutions.com`.
+- [x] Create CloudFront distribution for `crystallattice.dev.dynamicprogrammingsolutions.com`.
+- [x] Create CloudFront distribution for `docs.crystallattice.dev.dynamicprogrammingsolutions.com`.
 - [x] Configure CloudFront Origin Access Control for both S3 origins.
 - [x] Create Route 53 alias records pointing both domains to their CloudFront distributions.
 - [x] Record bucket names and CloudFront distribution IDs for GitHub Actions.
@@ -22,7 +22,7 @@ Depends On: `tasks/20260614-aws-static-sites-docs-deployment/010-design-and-docs
 
 Website:
 
-- Testing domain: `cl-static-test.dynamicprogrammingsolutions.com`
+- Testing domain: `crystallattice.dev.dynamicprogrammingsolutions.com`
 - Final domain later: `crystallattice.dev`
 - Build output: `landing_page/dist`
 - Suggested bucket: `crystallattice-prod-site`
@@ -31,7 +31,7 @@ Website:
 
 Docs:
 
-- Testing domain: `docs.cl-static-test.dynamicprogrammingsolutions.com`
+- Testing domain: `docs.crystallattice.dev.dynamicprogrammingsolutions.com`
 - Final domain later: `docs.crystallattice.dev`
 - Build output: `site`
 - Suggested bucket: `crystallattice-prod-docs`
@@ -89,8 +89,8 @@ aws cloudfront create-invalidation --distribution-id "${DOCS_CLOUDFRONT_DISTRIBU
 
 Manual checks:
 
-- `https://cl-static-test.dynamicprogrammingsolutions.com` resolves through CloudFront.
-- `https://docs.cl-static-test.dynamicprogrammingsolutions.com` resolves through CloudFront.
+- `https://crystallattice.dev.dynamicprogrammingsolutions.com` resolves through CloudFront.
+- `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com` resolves through CloudFront.
 - TLS certificate is valid for both domains.
 - S3 buckets are not publicly listable/readable.
 - CloudFront can read bucket objects through OAC.
@@ -105,8 +105,8 @@ for idempotent deploy/update, content sync, output discovery, and teardown.
 
 Use a separate live testing subdomain from the earlier task defaults:
 
-- Website: `https://cl-static-test.dynamicprogrammingsolutions.com`
-- Docs: `https://docs.cl-static-test.dynamicprogrammingsolutions.com`
+- Website: `https://crystallattice.dev.dynamicprogrammingsolutions.com`
+- Docs: `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com`
 
 Execution approach:
 
@@ -162,8 +162,8 @@ Implemented reproducible AWS static hosting infrastructure under
 
 Live testing deployment left running for user verification:
 
-- Website: `https://cl-static-test.dynamicprogrammingsolutions.com`
-- Docs: `https://docs.cl-static-test.dynamicprogrammingsolutions.com`
+- Website: `https://crystallattice.dev.dynamicprogrammingsolutions.com`
+- Docs: `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com`
 
 AWS outputs:
 
@@ -181,10 +181,10 @@ Domain/config adjustment:
 
 - Switched the active testing domain references from
   `crystallattice.dev.dynamicprogrammingsolutions.com` to
-  `cl-static-test.dynamicprogrammingsolutions.com`.
+  `crystallattice.dev.dynamicprogrammingsolutions.com`.
 - Switched docs testing references from
   `docs.crystallattice.dev.dynamicprogrammingsolutions.com` to
-  `docs.cl-static-test.dynamicprogrammingsolutions.com`.
+  `docs.crystallattice.dev.dynamicprogrammingsolutions.com`.
 - Updated `mkdocs.yml`, landing page config/content, docs home link, and related
   task handoff files so generated canonical URLs and `llms.txt` links match the
   live testing deployment.
@@ -207,12 +207,12 @@ Validation performed:
   fixed inline content types for generated Markdown/LLM text, and invalidated
   both distributions.
 - `curl -I -L` returned HTTP 200 for:
-  `https://cl-static-test.dynamicprogrammingsolutions.com`,
-  `https://cl-static-test.dynamicprogrammingsolutions.com/mobile/`,
-  `https://docs.cl-static-test.dynamicprogrammingsolutions.com`,
-  `https://docs.cl-static-test.dynamicprogrammingsolutions.com/plugin-development/`,
-  `https://docs.cl-static-test.dynamicprogrammingsolutions.com/llms.txt`, and
-  `https://docs.cl-static-test.dynamicprogrammingsolutions.com/llms-full.txt`.
+  `https://crystallattice.dev.dynamicprogrammingsolutions.com`,
+  `https://crystallattice.dev.dynamicprogrammingsolutions.com/mobile/`,
+  `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com`,
+  `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/plugin-development/`,
+  `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/llms.txt`, and
+  `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/llms-full.txt`.
 - Confirmed `llms.txt`, `llms-full.txt`, and generated docs Markdown are served
   from S3 with `Content-Type: text/plain; charset=utf-8`.
 - Confirmed both S3 buckets have all public access block flags enabled and
@@ -233,8 +233,8 @@ Follow-up added after user review:
   - `PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev`
   - `PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev`
 - The current testing deployment should be built with explicit overrides:
-  - `PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://cl-static-test.dynamicprogrammingsolutions.com`
-  - `PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.cl-static-test.dynamicprogrammingsolutions.com`
+  - `PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev.dynamicprogrammingsolutions.com`
+  - `PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev.dynamicprogrammingsolutions.com`
 - Added a **Website Home** top-level docs menu item that points back to the
   configured website URL.
 - Documented local, test, and production build options in

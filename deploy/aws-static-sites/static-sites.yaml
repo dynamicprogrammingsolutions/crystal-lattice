@@ -9,11 +9,11 @@ Parameters:
     Description: Route 53 hosted zone ID for the parent domain.
   LandingDomainName:
     Type: String
-    Default: cl-static-test.dynamicprogrammingsolutions.com
+    Default: crystallattice.dev.dynamicprogrammingsolutions.com
     Description: Fully qualified domain name for the landing website.
   DocsDomainName:
     Type: String
-    Default: docs.cl-static-test.dynamicprogrammingsolutions.com
+    Default: docs.crystallattice.dev.dynamicprogrammingsolutions.com
     Description: Fully qualified domain name for the documentation website.
   BucketNamePrefix:
     Type: String

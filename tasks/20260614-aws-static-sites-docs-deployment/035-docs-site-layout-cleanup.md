@@ -141,7 +141,7 @@ Verification performed:
 
 - `python -m pip install -r docs_site/requirements.txt` succeeded; dependencies
   were already installed.
-- `PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://cl-static-test.dynamicprogrammingsolutions.com PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.cl-static-test.dynamicprogrammingsolutions.com python docs_site/scripts/build_mkdocs_site.py` succeeded.
+- `PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev.dynamicprogrammingsolutions.com PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev.dynamicprogrammingsolutions.com python docs_site/scripts/build_mkdocs_site.py` succeeded.
 - The build produced `docs_site/prepared/` and `docs_site/dist/`.
 - The build refreshed generated reference Markdown under `docs/reference/`; for
   example `docs/reference/agent_core/plugin/provider.md` now contains resolved

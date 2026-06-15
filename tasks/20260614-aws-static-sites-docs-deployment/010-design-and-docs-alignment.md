@@ -4,7 +4,7 @@ Align the public website and documentation site so they feel like one Crystal La
 
 ## Requirements checklist
 
-- [x] Update landing page docs links to point to `https://docs.cl-static-test.dynamicprogrammingsolutions.com/` for the testing phase.
+- [x] Update landing page docs links to point to `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/` for the testing phase.
 - [x] Update MkDocs metadata to Crystal Lattice branding and the temporary testing docs URL.
 - [x] Add shared logo/favicon assets for the docs site.
 - [x] Add a docs-specific CSS bridge that maps Material for MkDocs colors to the Crystal Lattice visual language.
@@ -14,9 +14,9 @@ Parent Task: `tasks/20260614-aws-static-sites-docs-deployment/000-main.md`
 
 ## Repo References
 
-- `landing_page/astro.config.mjs:5-10` currently sets the Astro site URL to `https://crystallattice.dev`; use `https://cl-static-test.dynamicprogrammingsolutions.com` during the testing phase.
+- `landing_page/astro.config.mjs:5-10` currently sets the Astro site URL to `https://crystallattice.dev`; use `https://crystallattice.dev.dynamicprogrammingsolutions.com` during the testing phase.
 - `landing_page/src/components/Nav.astro:6-10` uses the Crystal Lattice logo and brand label.
-- `landing_page/src/components/Nav.astro:12-17` currently sends "Docs" to `https://github.com/dynamicprogrammingsolutions/crystal-lattice#readme`; change this to `https://docs.cl-static-test.dynamicprogrammingsolutions.com/` during the testing phase.
+- `landing_page/src/components/Nav.astro:12-17` currently sends "Docs" to `https://github.com/dynamicprogrammingsolutions/crystal-lattice#readme`; change this to `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/` during the testing phase.
 - `landing_page/src/components/Nav.astro:101-120` shows the website's compact sticky nav structure and sizing.
 - `landing_page/src/styles/global.css` contains the website's theme tokens. Do not import this file directly into MkDocs; use it as a reference for docs theme variables.
 - `mkdocs.yml:1-4` currently needs docs branding and production URLs.
@@ -29,7 +29,7 @@ Update `mkdocs.yml` roughly as follows:
 ```yaml
 site_name: Crystal Lattice Docs
 site_description: Plugin-driven AI agent platform documentation
-site_url: https://docs.cl-static-test.dynamicprogrammingsolutions.com/
+site_url: https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/
 repo_url: https://github.com/dynamicprogrammingsolutions/crystal-lattice
 
 theme:
@@ -71,8 +71,8 @@ Potential docs asset locations:
 
 Use temporary testing domains during this task:
 
-- Website: `https://cl-static-test.dynamicprogrammingsolutions.com`
-- Docs: `https://docs.cl-static-test.dynamicprogrammingsolutions.com`
+- Website: `https://crystallattice.dev.dynamicprogrammingsolutions.com`
+- Docs: `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com`
 
 Leave a clear follow-up note or configuration seam so the final domain switch can later update these to:
 
@@ -110,7 +110,7 @@ yarn build
 
 Manual checks:
 
-- Landing page "Docs" link opens `https://docs.cl-static-test.dynamicprogrammingsolutions.com/`.
+- Landing page "Docs" link opens `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/`.
 - Docs header/sidebar use Crystal Lattice branding.
 - Dark and light docs modes are readable.
 - Code blocks, tables, admonitions, and nav remain usable.
@@ -123,8 +123,8 @@ This task is a contained design and linking pass. It should align the public web
 
 Use the temporary testing domains during this implementation:
 
-- Website: `https://cl-static-test.dynamicprogrammingsolutions.com`
-- Docs: `https://docs.cl-static-test.dynamicprogrammingsolutions.com`
+- Website: `https://crystallattice.dev.dynamicprogrammingsolutions.com`
+- Docs: `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com`
 
 The final production domains remain future cutover targets:
 
@@ -149,8 +149,8 @@ Added during completion.
 
 Implemented the design and docs alignment pass for the temporary testing domains:
 
-- Website canonical URL now uses `https://cl-static-test.dynamicprogrammingsolutions.com`.
-- Website docs links now point to `https://docs.cl-static-test.dynamicprogrammingsolutions.com/` from the nav and home CTA.
+- Website canonical URL now uses `https://crystallattice.dev.dynamicprogrammingsolutions.com`.
+- Website docs links now point to `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/` from the nav and home CTA.
 - Legal prose now names the temporary testing website domain and the later final website domain.
 - MkDocs now uses `Crystal Lattice Docs` branding, the temporary docs `site_url`, a GitHub repo link, Material palette toggles, and Crystal Lattice logo/favicon assets.
 - Added `docs/assets/brand/icon.svg`, `docs/assets/brand/icon_dark.svg`, and `docs/assets/styles/crystal-lattice.css`.

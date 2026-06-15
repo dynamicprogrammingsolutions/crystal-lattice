@@ -119,7 +119,7 @@ Configure the plugin with a concise description and curated sections. Exact opti
 - Include current plugin docs and generated mkdocstrings API reference.
 - Include the generated built-in plugin README pages and generated default configuration page where practical.
 
-Set `site_url` before relying on LLM docs output, because generated absolute links need the deployed docs URL. During the testing phase, use `https://docs.cl-static-test.dynamicprogrammingsolutions.com/`; switch to `https://docs.crystallattice.dev/` only when the final domain cutover happens.
+Set `site_url` before relying on LLM docs output, because generated absolute links need the deployed docs URL. During the testing phase, use `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/`; switch to `https://docs.crystallattice.dev/` only when the final domain cutover happens.
 
 ## Validation
 

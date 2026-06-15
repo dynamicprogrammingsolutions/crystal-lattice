@@ -17,8 +17,8 @@ Deploy the Crystal Lattice website and documentation site to AWS, align the docs
 
 The requested initial testing architecture is:
 
-- `https://cl-static-test.dynamicprogrammingsolutions.com` serves the Astro landing site from `landing_page/dist`.
-- `https://docs.cl-static-test.dynamicprogrammingsolutions.com` serves the MkDocs documentation site from `docs_site/dist`.
+- `https://crystallattice.dev.dynamicprogrammingsolutions.com` serves the Astro landing site from `landing_page/dist`.
+- `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com` serves the MkDocs documentation site from `docs_site/dist`.
 - Both sites deploy to AWS static hosting using private S3 buckets, CloudFront, ACM certificates, and Route 53 records.
 - GitHub Actions should deploy both sites using AWS OIDC and narrowly scoped IAM permissions, not long-lived AWS access keys.
 - The final planned domains remain `https://crystallattice.dev` and `https://docs.crystallattice.dev`, but those should be switched only after testing is complete.
@@ -26,7 +26,7 @@ The requested initial testing architecture is:
 Current repo state:
 
 - The landing site is an Astro static site under `landing_page/`.
-- `landing_page/astro.config.mjs:5-10` currently sets `site: 'https://crystallattice.dev'`; for the testing phase, use `https://cl-static-test.dynamicprogrammingsolutions.com`.
+- `landing_page/astro.config.mjs:5-10` currently sets `site: 'https://crystallattice.dev'`; for the testing phase, use `https://crystallattice.dev.dynamicprogrammingsolutions.com`.
 - `landing_page/src/components/Nav.astro:12-17` currently links "Docs" to the GitHub README instead of a documentation domain.
 - The docs site is MkDocs + Material configured in `docs_site/mkdocs.yml`.
 - `docs_site/mkdocs.yml` uses Crystal Lattice branding, dynamic public URL env vars, Material theme customization, `search`, `mkdocstrings`, and `mkdocs-llmstxt`.
@@ -49,8 +49,8 @@ Current repo state:
 
 - Use AWS for both the website and docs site.
 - Use separate subdomains/sites rather than trying to host docs under a website subpath.
-- Use `docs.cl-static-test.dynamicprogrammingsolutions.com` for documentation during testing, then later switch to `docs.crystallattice.dev`.
-- Use `cl-static-test.dynamicprogrammingsolutions.com` for the main website during testing, then later switch to `crystallattice.dev`.
+- Use `docs.crystallattice.dev.dynamicprogrammingsolutions.com` for documentation during testing, then later switch to `docs.crystallattice.dev`.
+- Use `crystallattice.dev.dynamicprogrammingsolutions.com` for the main website during testing, then later switch to `crystallattice.dev`.
 - Prefer a build-step copy of `plugins/docs/` into `docs/plugin-development/` over a symlink, because it is more predictable in CI and deployment.
 - Prefer Material for MkDocs customization through theme options and `extra_css`, not by importing the Astro/Tailwind global stylesheet.
 - Prefer GitHub Actions OIDC to AWS over static AWS access keys.

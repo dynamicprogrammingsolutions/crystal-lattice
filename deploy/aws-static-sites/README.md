@@ -7,8 +7,8 @@ Route 53.
 The current testing domains are intentionally separate from the later launch
 domains:
 
-- Website: `https://cl-static-test.dynamicprogrammingsolutions.com`
-- Docs: `https://docs.cl-static-test.dynamicprogrammingsolutions.com`
+- Website: `https://crystallattice.dev.dynamicprogrammingsolutions.com`
+- Docs: `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com`
 
 Later launch domains:
 
@@ -55,6 +55,83 @@ aws route53 list-hosted-zones-by-name \
 
 ## Up
 
+### Ready-To-Use Test Deployment
+
+Create or update the AWS testing infrastructure, build both sites for the
+testing domains, upload artifacts, and invalidate CloudFront:
+
+```bash
+export PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev.dynamicprogrammingsolutions.com
+export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev.dynamicprogrammingsolutions.com
+
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/up.sh \
+  --stack-name crystal-lattice-static-sites-test \
+  --region us-east-1 \
+  --hosted-zone-name dynamicprogrammingsolutions.com \
+  --landing-domain crystallattice.dev.dynamicprogrammingsolutions.com \
+  --docs-domain docs.crystallattice.dev.dynamicprogrammingsolutions.com \
+  --bucket-name-prefix crystal-lattice-static-test
+
+yarn --cwd landing_page install --frozen-lockfile
+yarn --cwd landing_page build
+python -m pip install -r docs_site/requirements.txt
+python docs_site/scripts/build_mkdocs_site.py
+
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/sync.sh \
+  --stack-name crystal-lattice-static-sites-test \
+  --region us-east-1
+```
+
+Tear down the testing deployment and remove its stack-managed subdomain records:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/down.sh \
+  --stack-name crystal-lattice-static-sites-test \
+  --region us-east-1
+```
+
+### Ready-To-Use Production Deployment
+
+Production public URLs are the build defaults. This command assumes the
+`crystallattice.dev` public hosted zone already exists in Route 53:
+
+```bash
+unset PUBLIC_CRYSTAL_LATTICE_SITE_URL
+unset PUBLIC_CRYSTAL_LATTICE_DOCS_URL
+
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/up.sh \
+  --stack-name crystal-lattice-static-sites-prod \
+  --region us-east-1 \
+  --hosted-zone-name crystallattice.dev \
+  --landing-domain crystallattice.dev \
+  --docs-domain docs.crystallattice.dev \
+  --bucket-name-prefix crystal-lattice-prod
+
+yarn --cwd landing_page install --frozen-lockfile
+yarn --cwd landing_page build
+python -m pip install -r docs_site/requirements.txt
+python docs_site/scripts/build_mkdocs_site.py
+
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/sync.sh \
+  --stack-name crystal-lattice-static-sites-prod \
+  --region us-east-1
+```
+
+Tear down the production deployment and remove its stack-managed domain records:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/down.sh \
+  --stack-name crystal-lattice-static-sites-prod \
+  --region us-east-1
+```
+
+Use explicit production build URLs if you prefer not to rely on defaults:
+
+```bash
+export PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev
+export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev
+```
+
 Deploy or update the testing stack:
 
 ```bash
@@ -62,8 +139,8 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/up.sh \
   --stack-name crystal-lattice-static-sites-test \
   --region us-east-1 \
   --hosted-zone-name dynamicprogrammingsolutions.com \
-  --landing-domain cl-static-test.dynamicprogrammingsolutions.com \
-  --docs-domain docs.cl-static-test.dynamicprogrammingsolutions.com \
+  --landing-domain crystallattice.dev.dynamicprogrammingsolutions.com \
+  --docs-domain docs.crystallattice.dev.dynamicprogrammingsolutions.com \
   --bucket-name-prefix crystal-lattice-static-test
 ```
 
@@ -76,8 +153,8 @@ LANDING_BUCKET=...
 DOCS_BUCKET=...
 LANDING_CLOUDFRONT_DISTRIBUTION_ID=...
 DOCS_CLOUDFRONT_DISTRIBUTION_ID=...
-LANDING_URL=https://cl-static-test.dynamicprogrammingsolutions.com
-DOCS_URL=https://docs.cl-static-test.dynamicprogrammingsolutions.com
+LANDING_URL=https://crystallattice.dev.dynamicprogrammingsolutions.com
+DOCS_URL=https://docs.crystallattice.dev.dynamicprogrammingsolutions.com
 ```
 
 You can print the same values later:
@@ -102,8 +179,8 @@ canonical URLs, cross-site links, generated Markdown links, and `llms.txt` all
 point at the live testing domains:
 
 ```bash
-export PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://cl-static-test.dynamicprogrammingsolutions.com
-export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.cl-static-test.dynamicprogrammingsolutions.com
+export PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev.dynamicprogrammingsolutions.com
+export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev.dynamicprogrammingsolutions.com
 ```
 
 Build the landing site:
@@ -189,10 +266,10 @@ The sync script:
 Check the live URLs:
 
 ```bash
-curl -I https://cl-static-test.dynamicprogrammingsolutions.com
-curl -I https://docs.cl-static-test.dynamicprogrammingsolutions.com
-curl -I https://docs.cl-static-test.dynamicprogrammingsolutions.com/llms.txt
-curl -I https://docs.cl-static-test.dynamicprogrammingsolutions.com/llms-full.txt
+curl -I https://crystallattice.dev.dynamicprogrammingsolutions.com
+curl -I https://docs.crystallattice.dev.dynamicprogrammingsolutions.com
+curl -I https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/llms.txt
+curl -I https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/llms-full.txt
 ```
 
 Confirm the S3 buckets are not public:
@@ -220,8 +297,8 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/down.sh \
 
 This removes:
 
-- `cl-static-test.dynamicprogrammingsolutions.com` alias records;
-- `docs.cl-static-test.dynamicprogrammingsolutions.com` alias records;
+- `crystallattice.dev.dynamicprogrammingsolutions.com` alias records;
+- `docs.crystallattice.dev.dynamicprogrammingsolutions.com` alias records;
 - ACM DNS validation records managed by the certificate resource;
 - CloudFront distributions and OACs;
 - the stack-managed S3 buckets after they are emptied.
