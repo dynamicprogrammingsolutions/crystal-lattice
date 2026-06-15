@@ -39,5 +39,5 @@ harnesses.
 
 ## Project Links
 
-- [Crystal Lattice website](https://crystallattice.dev.dynamicprogrammingsolutions.com/)
+- Use the **Website Home** menu item to return to the Crystal Lattice website.
 - [GitHub repository](https://github.com/dynamicprogrammingsolutions/crystal-lattice)

@@ -1,9 +1,14 @@
 site_name: Crystal Lattice Docs
 site_description: Plugin-driven AI agent platform documentation
-site_url: "https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/"
+site_url: !ENV [PUBLIC_CRYSTAL_LATTICE_DOCS_URL, "https://docs.crystallattice.dev/"]
 repo_url: "https://github.com/dynamicprogrammingsolutions/crystal-lattice"
 repo_name: GitHub
 use_directory_urls: true
+
+extra:
+  crystal_lattice:
+    site_url: !ENV [PUBLIC_CRYSTAL_LATTICE_SITE_URL, "https://crystallattice.dev"]
+    docs_url: !ENV [PUBLIC_CRYSTAL_LATTICE_DOCS_URL, "https://docs.crystallattice.dev"]
 
 theme:
   name: material
@@ -95,6 +100,7 @@ plugins:
           - reference/default-config.md: Generated default application configuration reference.
 
 nav:
+  - Website Home: !ENV [PUBLIC_CRYSTAL_LATTICE_SITE_URL, "https://crystallattice.dev"]
   - Overview: index.md
   - Guides:
     - Plugin Development: plugins/development.md

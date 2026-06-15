@@ -14,10 +14,9 @@ license files in the repository for the terms that apply to each component.
 
 ## Website terms
 
-These terms govern your use of the Crystal Lattice website, initially available
-at crystallattice.dev.dynamicprogrammingsolutions.com for testing and later at
-crystallattice.dev (the "Site"). By accessing the Site, you agree to these
-terms. If you do not agree, please do not use the Site.
+These terms govern your use of the Crystal Lattice website (the "Site"). By
+accessing the Site, you agree to these terms. If you do not agree, please do not
+use the Site.
 
 The Site provides information about the Crystal Lattice project.
 Content is provided for informational purposes only.

@@ -13,6 +13,8 @@ python -m pip install -r docs/requirements.txt
 Build the static docs site:
 
 ```bash
+export PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev
+export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev
 python docs_site/scripts/prepare_mkdocs_site.py
 mkdocs build
 ```
@@ -22,6 +24,8 @@ mkdocs build
 Run the docs site locally with live reload for content, navigation, and theme changes:
 
 ```bash
+export PUBLIC_CRYSTAL_LATTICE_SITE_URL=http://localhost:4321
+export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=http://localhost:8001
 python docs_site/scripts/prepare_mkdocs_site.py
 mkdocs serve -a 127.0.0.1:8001
 ```
@@ -95,6 +99,29 @@ The client-side behavior lives in `docs/assets/javascripts/llm-actions.js`.
 Generated Markdown files may download in local `mkdocs serve`; production AWS
 deployment should upload `*.md`, `llms.txt`, and `llms-full.txt` with
 `Content-Type: text/plain; charset=utf-8` so they open inline in browsers.
+
+## Public URL Configuration
+
+The docs build reads these build-time environment variables:
+
+- `PUBLIC_CRYSTAL_LATTICE_SITE_URL`: website home URL used by the docs menu.
+- `PUBLIC_CRYSTAL_LATTICE_DOCS_URL`: docs canonical URL used by MkDocs and
+  generated LLM links.
+
+Both default to the future production domains:
+
+```text
+PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev
+PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev
+```
+
+Set them to the temporary AWS testing domains when building for the current test
+stack:
+
+```bash
+export PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://cl-static-test.dynamicprogrammingsolutions.com
+export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.cl-static-test.dynamicprogrammingsolutions.com
+```
 
 ## Development Notes
 

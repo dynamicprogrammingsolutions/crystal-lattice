@@ -7,7 +7,7 @@ Deploy the Crystal Lattice website and documentation site to AWS, align the docs
 - [x] `tasks/20260614-aws-static-sites-docs-deployment/010-design-and-docs-alignment.md`
 - [x] `tasks/20260614-aws-static-sites-docs-deployment/020-plugin-docs-and-llm-access.md`
 - [x] `tasks/20260614-aws-static-sites-docs-deployment/025-docs-content-cleanup.md`
-- [ ] `tasks/20260614-aws-static-sites-docs-deployment/030-aws-static-hosting-infra.md`
+- [x] `tasks/20260614-aws-static-sites-docs-deployment/030-aws-static-hosting-infra.md`
 - [ ] `tasks/20260614-aws-static-sites-docs-deployment/040-github-actions-aws-deploy.md`
 - [ ] `tasks/20260614-aws-static-sites-docs-deployment/050-smoke-test-and-launch.md`
 
@@ -15,8 +15,8 @@ Deploy the Crystal Lattice website and documentation site to AWS, align the docs
 
 The requested initial testing architecture is:
 
-- `https://crystallattice.dev.dynamicprogrammingsolutions.com` serves the Astro landing site from `landing_page/dist`.
-- `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com` serves the MkDocs documentation site from `site`.
+- `https://cl-static-test.dynamicprogrammingsolutions.com` serves the Astro landing site from `landing_page/dist`.
+- `https://docs.cl-static-test.dynamicprogrammingsolutions.com` serves the MkDocs documentation site from `site`.
 - Both sites deploy to AWS static hosting using private S3 buckets, CloudFront, ACM certificates, and Route 53 records.
 - GitHub Actions should deploy both sites using AWS OIDC and narrowly scoped IAM permissions, not long-lived AWS access keys.
 - The final planned domains remain `https://crystallattice.dev` and `https://docs.crystallattice.dev`, but those should be switched only after testing is complete.
@@ -24,7 +24,7 @@ The requested initial testing architecture is:
 Current repo state:
 
 - The landing site is an Astro static site under `landing_page/`.
-- `landing_page/astro.config.mjs:5-10` currently sets `site: 'https://crystallattice.dev'`; for the testing phase, use `https://crystallattice.dev.dynamicprogrammingsolutions.com`.
+- `landing_page/astro.config.mjs:5-10` currently sets `site: 'https://crystallattice.dev'`; for the testing phase, use `https://cl-static-test.dynamicprogrammingsolutions.com`.
 - `landing_page/src/components/Nav.astro:12-17` currently links "Docs" to the GitHub README instead of a documentation domain.
 - The docs site is MkDocs + Material in `mkdocs.yml`.
 - `mkdocs.yml:1-4` currently uses generic `AI Agent Platform` branding and empty `site_url` / `repo_url`.
@@ -46,8 +46,8 @@ Current repo state:
 
 - Use AWS for both the website and docs site.
 - Use separate subdomains/sites rather than trying to host docs under a website subpath.
-- Use `docs.crystallattice.dev.dynamicprogrammingsolutions.com` for documentation during testing, then later switch to `docs.crystallattice.dev`.
-- Use `crystallattice.dev.dynamicprogrammingsolutions.com` for the main website during testing, then later switch to `crystallattice.dev`.
+- Use `docs.cl-static-test.dynamicprogrammingsolutions.com` for documentation during testing, then later switch to `docs.crystallattice.dev`.
+- Use `cl-static-test.dynamicprogrammingsolutions.com` for the main website during testing, then later switch to `crystallattice.dev`.
 - Prefer a build-step copy of `plugins/docs/` into `docs/plugin-development/` over a symlink, because it is more predictable in CI and deployment.
 - Prefer Material for MkDocs customization through theme options and `extra_css`, not by importing the Astro/Tailwind global stylesheet.
 - Prefer GitHub Actions OIDC to AWS over static AWS access keys.

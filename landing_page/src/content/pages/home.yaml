@@ -101,7 +101,7 @@ sections:
         variant: primary
         icon: arrow
       - label: "Read the docs"
-        href: "https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/"
+        href: "$docsUrl/"
         variant: outline
         target: "_blank"
       - label: "View on GitHub"

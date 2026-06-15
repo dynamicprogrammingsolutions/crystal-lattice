@@ -60,8 +60,18 @@ Store these as GitHub repository variables or secrets:
 - `DOCS_BUCKET`
 - `LANDING_CLOUDFRONT_DISTRIBUTION_ID`
 - `DOCS_CLOUDFRONT_DISTRIBUTION_ID`
+- `PUBLIC_CRYSTAL_LATTICE_SITE_URL`
+- `PUBLIC_CRYSTAL_LATTICE_DOCS_URL`
 
 The values are not credentials, but `AWS_ROLE_TO_ASSUME` is often kept as a secret or environment variable by convention.
+
+The public URL values are build-time configuration. They default to the future
+production domains in code (`https://crystallattice.dev` and
+`https://docs.crystallattice.dev`), so the current temporary AWS testing
+workflow should set:
+
+- `PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://cl-static-test.dynamicprogrammingsolutions.com`
+- `PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.cl-static-test.dynamicprogrammingsolutions.com`
 
 ## Workflow Shape
 
@@ -137,6 +147,8 @@ Check:
 
 - AWS credentials are assumed through OIDC.
 - No AWS access key ID or secret access key is stored in GitHub.
+- The Astro and MkDocs build steps receive `PUBLIC_CRYSTAL_LATTICE_SITE_URL`
+  and `PUBLIC_CRYSTAL_LATTICE_DOCS_URL`.
 - The landing build completes.
 - The docs build runs plugin-docs copy before `mkdocs build --strict`.
 - Generated Markdown and LLM text files in S3 have `Content-Type: text/plain; charset=utf-8`.

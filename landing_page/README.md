@@ -67,6 +67,37 @@ yarn build      # outputs to dist/
 yarn preview    # serves dist/ locally (same as production)
 ```
 
+## Public URL Configuration
+
+The landing build reads these build-time environment variables:
+
+- `PUBLIC_CRYSTAL_LATTICE_SITE_URL`: canonical website URL used by Astro.
+- `PUBLIC_CRYSTAL_LATTICE_DOCS_URL`: docs URL used by website navigation and
+  calls to action.
+
+Both default to the future production domains:
+
+```text
+PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev
+PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev
+```
+
+For the current AWS testing stack:
+
+```bash
+PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://cl-static-test.dynamicprogrammingsolutions.com \
+PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.cl-static-test.dynamicprogrammingsolutions.com \
+yarn build
+```
+
+For local development with local docs links:
+
+```bash
+PUBLIC_CRYSTAL_LATTICE_SITE_URL=http://localhost:4321 \
+PUBLIC_CRYSTAL_LATTICE_DOCS_URL=http://localhost:8001 \
+yarn dev
+```
+
 ## Production (Docker + nginx)
 
 ```bash

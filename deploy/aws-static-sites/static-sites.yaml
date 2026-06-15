@@ -1,0 +1,445 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  Crystal Lattice static website and docs hosting with private S3 origins,
+  CloudFront Origin Access Control, ACM, and Route 53.
+
+Parameters:
+  HostedZoneId:
+    Type: String
+    Description: Route 53 hosted zone ID for the parent domain.
+  LandingDomainName:
+    Type: String
+    Default: cl-static-test.dynamicprogrammingsolutions.com
+    Description: Fully qualified domain name for the landing website.
+  DocsDomainName:
+    Type: String
+    Default: docs.cl-static-test.dynamicprogrammingsolutions.com
+    Description: Fully qualified domain name for the documentation website.
+  BucketNamePrefix:
+    Type: String
+    Default: crystal-lattice-static-test
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{1,45}[a-z0-9]$"
+    Description: Lowercase S3 bucket name prefix. Account ID is appended.
+
+Mappings:
+  CloudFront:
+    HostedZone:
+      Id: Z2FDTNDATAQYW2
+
+Resources:
+  LandingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${BucketNamePrefix}-site-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: crystal-lattice
+        - Key: Component
+          Value: static-site
+
+  DocsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${BucketNamePrefix}-docs-${AWS::AccountId}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: crystal-lattice
+        - Key: Component
+          Value: docs-site
+
+  LandingOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-landing-s3-oac"
+        Description: !Sub "OAC for ${LandingDomainName}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  DocsOriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${AWS::StackName}-docs-s3-oac"
+        Description: !Sub "OAC for ${DocsDomainName}"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  StaticSitesCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: !Ref LandingDomainName
+      SubjectAlternativeNames:
+        - !Ref DocsDomainName
+      ValidationMethod: DNS
+      DomainValidationOptions:
+        - DomainName: !Ref LandingDomainName
+          HostedZoneId: !Ref HostedZoneId
+        - DomainName: !Ref DocsDomainName
+          HostedZoneId: !Ref HostedZoneId
+      Tags:
+        - Key: Project
+          Value: crystal-lattice
+        - Key: Component
+          Value: static-sites
+
+  HtmlCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${AWS::StackName}-html-cache"
+        Comment: Short cache policy for HTML and directory-index content.
+        DefaultTTL: 300
+        MaxTTL: 3600
+        MinTTL: 0
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  AssetCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${AWS::StackName}-asset-cache"
+        Comment: Long cache policy for fingerprinted static assets.
+        DefaultTTL: 31536000
+        MaxTTL: 31536000
+        MinTTL: 86400
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          EnableAcceptEncodingBrotli: true
+          EnableAcceptEncodingGzip: true
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+
+  SecurityHeadersPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub "${AWS::StackName}-security-headers"
+        Comment: Conservative security headers for Crystal Lattice static sites.
+        SecurityHeadersConfig:
+          ContentTypeOptions:
+            Override: true
+          FrameOptions:
+            FrameOption: DENY
+            Override: true
+          ReferrerPolicy:
+            ReferrerPolicy: strict-origin-when-cross-origin
+            Override: true
+          StrictTransportSecurity:
+            AccessControlMaxAgeSec: 31536000
+            IncludeSubdomains: true
+            Preload: false
+            Override: true
+          XSSProtection:
+            ModeBlock: true
+            Override: true
+            Protection: true
+
+  DirectoryIndexFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${AWS::StackName}-directory-index-routing"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: Rewrite directory-style static site URLs to nested index.html files.
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+
+          if (uri.endsWith('/')) {
+            request.uri = uri + 'index.html';
+            return request;
+          }
+
+          var lastSegment = uri.substring(uri.lastIndexOf('/') + 1);
+          if (lastSegment.indexOf('.') === -1) {
+            request.uri = uri + '/index.html';
+          }
+
+          return request;
+        }
+
+  LandingDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - !Ref LandingDomainName
+        Comment: !Sub "Crystal Lattice landing site - ${LandingDomainName}"
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: landing-s3-origin
+            DomainName: !GetAtt LandingBucket.RegionalDomainName
+            OriginAccessControlId: !Ref LandingOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachePolicyId: !Ref HtmlCachePolicy
+          Compress: true
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt DirectoryIndexFunction.FunctionMetadata.FunctionARN
+          ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          TargetOriginId: landing-s3-origin
+          ViewerProtocolPolicy: redirect-to-https
+        CacheBehaviors:
+          - PathPattern: /_astro/*
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: !Ref AssetCachePolicy
+            Compress: true
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+            TargetOriginId: landing-s3-origin
+            ViewerProtocolPolicy: redirect-to-https
+        ViewerCertificate:
+          AcmCertificateArn: !Ref StaticSitesCertificate
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+
+  DocsDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Aliases:
+          - !Ref DocsDomainName
+        Comment: !Sub "Crystal Lattice docs site - ${DocsDomainName}"
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ErrorCachingMinTTL: 60
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+          - ErrorCode: 404
+            ErrorCachingMinTTL: 60
+            ResponseCode: 404
+            ResponsePagePath: /404.html
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: docs-s3-origin
+            DomainName: !GetAtt DocsBucket.RegionalDomainName
+            OriginAccessControlId: !Ref DocsOriginAccessControl
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachePolicyId: !Ref HtmlCachePolicy
+          Compress: true
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt DirectoryIndexFunction.FunctionMetadata.FunctionARN
+          ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+          TargetOriginId: docs-s3-origin
+          ViewerProtocolPolicy: redirect-to-https
+        CacheBehaviors:
+          - PathPattern: /assets/*
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: !Ref AssetCachePolicy
+            Compress: true
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+            TargetOriginId: docs-s3-origin
+            ViewerProtocolPolicy: redirect-to-https
+          - PathPattern: /search/*
+            AllowedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachedMethods:
+              - GET
+              - HEAD
+              - OPTIONS
+            CachePolicyId: !Ref AssetCachePolicy
+            Compress: true
+            ResponseHeadersPolicyId: !Ref SecurityHeadersPolicy
+            TargetOriginId: docs-s3-origin
+            ViewerProtocolPolicy: redirect-to-https
+        ViewerCertificate:
+          AcmCertificateArn: !Ref StaticSitesCertificate
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+
+  LandingBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref LandingBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${LandingBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${LandingDistribution}"
+
+  DocsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref DocsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontReadOnly
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${DocsBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DocsDistribution}"
+
+  LandingAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref LandingDomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt LandingDistribution.DomainName
+        EvaluateTargetHealth: false
+        HostedZoneId: !FindInMap [CloudFront, HostedZone, Id]
+
+  LandingAliasIpv6Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref LandingDomainName
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt LandingDistribution.DomainName
+        EvaluateTargetHealth: false
+        HostedZoneId: !FindInMap [CloudFront, HostedZone, Id]
+
+  DocsAliasRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DocsDomainName
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt DocsDistribution.DomainName
+        EvaluateTargetHealth: false
+        HostedZoneId: !FindInMap [CloudFront, HostedZone, Id]
+
+  DocsAliasIpv6Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneId: !Ref HostedZoneId
+      Name: !Ref DocsDomainName
+      Type: AAAA
+      AliasTarget:
+        DNSName: !GetAtt DocsDistribution.DomainName
+        EvaluateTargetHealth: false
+        HostedZoneId: !FindInMap [CloudFront, HostedZone, Id]
+
+Outputs:
+  LandingBucket:
+    Description: S3 bucket for landing website artifacts.
+    Value: !Ref LandingBucket
+  DocsBucket:
+    Description: S3 bucket for documentation website artifacts.
+    Value: !Ref DocsBucket
+  LandingCloudFrontDistributionId:
+    Description: CloudFront distribution ID for the landing website.
+    Value: !Ref LandingDistribution
+  DocsCloudFrontDistributionId:
+    Description: CloudFront distribution ID for the documentation website.
+    Value: !Ref DocsDistribution
+  LandingCloudFrontDomainName:
+    Description: CloudFront generated domain for the landing website.
+    Value: !GetAtt LandingDistribution.DomainName
+  DocsCloudFrontDomainName:
+    Description: CloudFront generated domain for the documentation website.
+    Value: !GetAtt DocsDistribution.DomainName
+  LandingUrl:
+    Description: Public landing website URL.
+    Value: !Sub "https://${LandingDomainName}"
+  DocsUrl:
+    Description: Public documentation website URL.
+    Value: !Sub "https://${DocsDomainName}"
+  CertificateArn:
+    Description: ACM certificate ARN used by both CloudFront distributions.
+    Value: !Ref StaticSitesCertificate
+  HostedZoneId:
+    Description: Route 53 hosted zone ID used for validation and aliases.
+    Value: !Ref HostedZoneId
+  AwsRegion:
+    Description: Region used for this CloudFormation stack.
+    Value: !Ref AWS::Region

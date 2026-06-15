@@ -4,11 +4,11 @@ Verify the deployed website and docs site end to end after AWS infrastructure an
 
 ## Requirements checklist
 
-- [ ] Confirm website loads at `https://crystallattice.dev.dynamicprogrammingsolutions.com`.
-- [ ] Confirm docs load at `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com`.
+- [ ] Confirm website loads at `https://cl-static-test.dynamicprogrammingsolutions.com`.
+- [ ] Confirm docs load at `https://docs.cl-static-test.dynamicprogrammingsolutions.com`.
 - [ ] Confirm docs are reachable from the website nav and CTA links.
 - [ ] Confirm plugin docs are present in the docs nav.
-- [ ] Confirm `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/llms.txt` is generated and useful.
+- [ ] Confirm `https://docs.cl-static-test.dynamicprogrammingsolutions.com/llms.txt` is generated and useful.
 - [ ] Confirm `llms-full.txt` if configured.
 - [ ] Confirm HTTPS, redirects, cache behavior, and CloudFront invalidations.
 - [ ] Confirm GitHub Actions manual deploy succeeds.
@@ -22,16 +22,16 @@ Depends On: `tasks/20260614-aws-static-sites-docs-deployment/040-github-actions-
 
 Website:
 
-- Open `https://crystallattice.dev.dynamicprogrammingsolutions.com`.
+- Open `https://cl-static-test.dynamicprogrammingsolutions.com`.
 - Test desktop and mobile widths.
 - Test dark/light behavior if present.
 - Open `/mobile`, `/privacy`, and `/terms`.
-- Click the Docs nav link and confirm it opens `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/`.
+- Click the Docs nav link and confirm it opens `https://docs.cl-static-test.dynamicprogrammingsolutions.com/`.
 - Confirm GitHub links still point to the repository.
 
 Docs:
 
-- Open `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com`.
+- Open `https://docs.cl-static-test.dynamicprogrammingsolutions.com`.
 - Confirm title/branding says Crystal Lattice Docs.
 - Confirm logo/favicon render.
 - Toggle light/dark docs palette.
@@ -41,9 +41,9 @@ Docs:
 
 LLM access:
 
-- Open `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/llms.txt`.
+- Open `https://docs.cl-static-test.dynamicprogrammingsolutions.com/llms.txt`.
 - Confirm it includes docs URLs and descriptions rather than only raw navigation noise.
-- If configured, open `https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/llms-full.txt`.
+- If configured, open `https://docs.cl-static-test.dynamicprogrammingsolutions.com/llms-full.txt`.
 - Confirm no secrets, deployment credentials, or private-only operational details are exposed.
 
 AWS:
