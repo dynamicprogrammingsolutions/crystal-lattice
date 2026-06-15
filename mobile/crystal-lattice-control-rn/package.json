@@ -11,6 +11,8 @@
     "lint": "eslint .",
     "start": "react-native start --port 8082",
     "test": "jest",
+    "test:components": "jest",
+    "test:components:integration": "jest --config jest.integration.config.js --runInBand",
     "tsc": "tsc --noEmit"
   },
   "dependencies": {
@@ -50,6 +52,7 @@
     "@react-native/eslint-config": "0.82.1",
     "@react-native/metro-config": "0.82.1",
     "@react-native/typescript-config": "0.82.1",
+    "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.13",
     "@types/react": "^19.1.1",
     "@types/react-native-vector-icons": "^6.4.18",

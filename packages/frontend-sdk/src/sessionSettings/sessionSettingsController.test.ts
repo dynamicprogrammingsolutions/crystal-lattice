@@ -22,6 +22,7 @@ async function flushPromises(): Promise<void> {
 function createBackend(overrides?: Partial<AgentBackend>): AgentBackend {
   return {
     getSessionUiSchema: vi.fn(async () => []),
+    getSessionApplicationUiSchema: vi.fn(async () => []),
     getSessionOverrides: vi.fn(async () => ({})),
     getSessionConfigSchema: vi.fn(async () => []),
     getSessionBaseConfig: vi.fn(async () => ({})),
@@ -32,6 +33,43 @@ function createBackend(overrides?: Partial<AgentBackend>): AgentBackend {
 }
 
 describe('SessionSettingsController', () => {
+  it('includes config elements from session application UI schema', async () => {
+    const backend = createBackend({
+      getSessionUiSchema: vi.fn(async () => [
+        { key: 'model', ui_type: 'config', type: 'text' },
+      ]),
+      getSessionApplicationUiSchema: vi.fn(async () => [
+        {
+          key: 'application_setting',
+          ui_type: 'config',
+          type: 'checkbox',
+          label: 'Application setting',
+        },
+        {
+          ui_type: 'status_bar',
+          id: 'application_status',
+          label: 'Application status',
+        },
+      ]),
+    });
+
+    const controller = new SessionSettingsController({ backend, cacheKey: 'c1', sessionId: 's1' });
+    await controller.load();
+
+    expect(controller.getSnapshot().elements).toEqual([
+      { key: 'model', ui_type: 'config', type: 'text' },
+      {
+        key: 'application_setting',
+        ui_type: 'config',
+        type: 'checkbox',
+        label: 'Application setting',
+      },
+    ]);
+    expect(backend.getSessionApplicationUiSchema).toHaveBeenCalledWith('s1');
+
+    controller.dispose();
+  });
+
   it('hydrates from cache and refreshes without blocking existing content', async () => {
     const backend = createBackend({
       getSessionUiSchema: vi

@@ -46,6 +46,22 @@ jest.mock('react-native-image-picker', () => {
   };
 });
 
+jest.mock('react-native-share', () => ({
+  __esModule: true,
+  default: {
+    open: jest.fn(async () => {}),
+  },
+  open: jest.fn(async () => {}),
+}));
+
+jest.mock('@react-native-camera-roll/camera-roll', () => ({
+  __esModule: true,
+  CameraRoll: {
+    saveAsset: jest.fn(async () => {}),
+  },
+  iosRequestAddOnlyGalleryPermission: jest.fn(async () => 'granted'),
+}));
+
 jest.mock('@react-native-async-storage/async-storage', () =>
   require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
 );
@@ -64,6 +80,34 @@ jest.mock('@react-native-clipboard/clipboard', () => {
 
 jest.mock('react-native-vector-icons/Feather', () => 'Icon');
 
+jest.mock('react-native-gesture-handler', () => ({
+  GestureHandlerRootView: ({ children }) => {
+    const React = require('react');
+    const { View } = require('react-native');
+    return React.createElement(View, null, children);
+  },
+  gestureHandlerRootHOC: (Component) => Component,
+}));
+
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    SafeAreaProvider: ({ children }) => React.createElement(View, null, children),
+    SafeAreaView: ({ children, ...props }) => React.createElement(View, props, children),
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+  };
+});
+
+jest.mock('@likashefqet/react-native-image-zoom', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    ImageZoom: (props) => React.createElement(View, { ...props, testID: 'image-zoom' }),
+  };
+});
+
 jest.mock('react-native-zeroconf', () => {
   return {
     __esModule: true,
@@ -73,6 +117,7 @@ jest.mock('react-native-zeroconf', () => {
         stop: jest.fn(),
         on: jest.fn(),
         removeListener: jest.fn(),
+        removeAllListeners: jest.fn(),
         getServices: jest.fn(() => []),
       };
     },
@@ -81,9 +126,52 @@ jest.mock('react-native-zeroconf', () => {
 
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
+  const lightTheme = {
+    typography: {
+      fontSize: {
+        tiny: 11,
+        small: 12,
+        secondary: 13,
+        normal: 14,
+        message: 15,
+        large: 16,
+        title: 18,
+        screenTitle: 24,
+        display: 28,
+        code: 14,
+      },
+    },
+    background: '#F2F2F7',
+    backgroundAlt: '#FFFFFF',
+    surface: '#FFFFFF',
+    surfaceAlt: '#F2F2F7',
+    primary: '#007AFF',
+    primaryMuted: 'rgba(0, 122, 255, 0.1)',
+    border: '#E5E5EA',
+    divider: '#E5E5EA',
+    text: '#000000',
+    textSecondary: '#8E8E93',
+    textMuted: '#8E8E93',
+    textOnPrimary: '#FFFFFF',
+    danger: '#FF3B30',
+    success: '#34C759',
+    bubbleUserBg: 'rgba(0, 122, 255, 0.12)',
+    bubbleSystemBorder: '#E5E5EA',
+    bubbleToolBg: 'rgba(142, 142, 147, 0.08)',
+    modalBackdrop: 'rgba(0, 0, 0, 0.3)',
+    inlineCodeBg: 'rgba(142, 142, 147, 0.16)',
+    codeBlockBg: '#FFFFFF',
+    navBarBg: '#FFFFFF',
+    navBarBorder: '#E5E5EA',
+    navIconActive: '#007AFF',
+    navIconInactive: '#8E8E93',
+  };
+
   return {
     __esModule: true,
     SESSION_ACTIONS: {},
+    ThemeProvider: ({ children }) => React.createElement(React.Fragment, null, children),
+    useTheme: () => lightTheme,
     SessionActionsBar: () => React.createElement(React.Fragment, null),
     ApplicationActionDialog: () => React.createElement(React.Fragment, null),
   };
