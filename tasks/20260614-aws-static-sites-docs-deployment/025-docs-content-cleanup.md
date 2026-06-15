@@ -4,12 +4,12 @@ Clean up the MkDocs source tree so the published documentation site is focused o
 
 ## Requirements checklist
 
-- [ ] Revise `docs/index.md` so it introduces Crystal Lattice and directs users to meaningful docs sections rather than explaining how to run MkDocs locally.
-- [ ] Remove or relocate obsolete files that should not be published as docs content, including `docs/PLUGIN_SYSTEM_DOCS_PLAN.md`.
-- [ ] Remove or relocate obsolete docs directories such as `docs/codex-tools/` and `docs/default-system-instructions/` if they are not intended for the public Crystal Lattice docs site.
-- [ ] Update `mkdocs.yml` navigation after cleanup so it reflects the intended docs information architecture.
-- [ ] Confirm cleanup does not delete source-of-truth content still needed elsewhere; move content to an appropriate non-MkDocs location if it remains useful.
-- [ ] Run MkDocs validation after cleanup and verify the published docs tree no longer emits warnings for obsolete unnaved files.
+- [x] Revise `docs/index.md` so it introduces Crystal Lattice and directs users to meaningful docs sections rather than explaining how to run MkDocs locally.
+- [x] Remove or relocate obsolete files that should not be published as docs content, including `docs/PLUGIN_SYSTEM_DOCS_PLAN.md`.
+- [x] Remove or relocate obsolete docs directories such as `docs/codex-tools/` and `docs/default-system-instructions/` if they are not intended for the public Crystal Lattice docs site.
+- [x] Update `mkdocs.yml` navigation after cleanup so it reflects the intended docs information architecture.
+- [x] Confirm cleanup does not delete source-of-truth content still needed elsewhere; move content to an appropriate non-MkDocs location if it remains useful.
+- [x] Run MkDocs validation after cleanup and verify the published docs tree no longer emits warnings for obsolete unnaved files.
 
 Parent Task: `tasks/20260614-aws-static-sites-docs-deployment/000-main.md`
 
@@ -76,3 +76,85 @@ Manual checks:
 - No obsolete planning/prompt/tool directories are published accidentally.
 - MkDocs nav remains coherent after files are removed or relocated.
 - Cleanup does not remove content that task 020 expects to generate or include.
+
+## Execution plan
+
+Added during completion after user approval.
+
+This task will clean the published MkDocs source tree while preserving useful
+reference material next to the code that uses it.
+
+Execution approach:
+
+1. Replace `docs/index.md` with a public Crystal Lattice documentation overview.
+   The page should describe the product and route readers to guides, current
+   plugin docs, built-in plugin docs, API reference, the website, and GitHub.
+   It should not include local MkDocs build instructions.
+2. Move `docs/PLUGIN_SYSTEM_DOCS_PLAN.md` to `plans/plugin-system-docs.md`,
+   because it is a planning/TODO artifact rather than public documentation.
+3. Move `docs/codex-tools/` to
+   `plugins/codex-tools/reference/codex-cli-tools/`, because those schemas and
+   notes are reference material for the `codex-tools` plugin implementation.
+4. Move `docs/default-system-instructions/` to
+   `application/python/agent_terminal_app/default_config/system_messages/reference/default-system-instructions/`,
+   because those reconstruction/reference files support the bundled default
+   system-message templates and default configuration.
+5. Update direct code, test, and reference-file links affected by those moves:
+   `core/python/tests/test_default_system_instructions_docs.py`,
+   `application/python/agent_terminal_app/default_config/codex/README.md`,
+   `plugins/codex-tools/src/codex_tools/shell_tool.py`,
+   `plugins/codex-tools/src/codex_tools/shell_command_tool.py`, and explicit
+   self-references inside the moved Codex tool reference files.
+6. Leave historical task-file references alone unless documenting this task's
+   own completion. Those are handoff/history records and should not create
+   broad churn.
+7. Review `mkdocs.yml` for stale nav entries. Keep the public docs nav focused
+   on Crystal Lattice docs and do not publish the relocated reference archives.
+8. Run `python docs_site/scripts/prepare_mkdocs_site.py`, `mkdocs build`, and
+   `mkdocs build --strict`. The obsolete unnaved-file warnings from
+   `docs/PLUGIN_SYSTEM_DOCS_PLAN.md`, `docs/codex-tools/`, and
+   `docs/default-system-instructions/` should be gone. Any remaining
+   mkdocstrings/autorefs strict warnings will be classified separately.
+9. Run `pytest core/python/tests/test_default_system_instructions_docs.py -q`.
+10. Update this task checklist, update the parent task checklist if validation
+    passes, and append completion notes summarizing moved paths, validation
+    results, and residual warnings.
+
+## Completion Notes
+
+Added during completion.
+
+Implemented the docs content cleanup:
+
+- Replaced `docs/index.md` with a public Crystal Lattice documentation overview.
+- Moved `docs/PLUGIN_SYSTEM_DOCS_PLAN.md` to `plans/plugin-system-docs.md`.
+- Moved the internal tool streaming/display note from `docs/plugins/tools.md` to
+  `plans/tool-plugin-streaming-display-notes.md`.
+- Moved `docs/codex-tools/` to
+  `plugins/codex-tools/reference/codex-cli-tools/`.
+- Moved `docs/default-system-instructions/` to
+  `application/python/agent_terminal_app/default_config/system_messages/reference/default-system-instructions/`.
+- Updated direct references in Codex tool implementation docstrings, Codex
+  reference README files, and
+  `core/python/tests/test_default_system_instructions_docs.py`.
+- Added `docs/api/core-sdk.md` and `docs/api/events.md` to the MkDocs nav and
+  LLM docs sections, and moved the remaining internal unnaved page out of
+  `docs/`.
+- Updated a few public docs strings from old AI Agent Platform wording to
+  Crystal Lattice wording.
+- Updated stale cloud-script authoring assertions in
+  `core/python/tests/test_default_system_instructions_docs.py` so the focused
+  test matches the current default configuration text.
+
+Validation performed:
+
+- `python docs_site/scripts/prepare_mkdocs_site.py` succeeded.
+- `mkdocs build` succeeded and no longer reports unnaved pages for obsolete
+  docs-tree artifacts. After adding the API/event pages to nav and moving the
+  internal plugin tooling note, it no longer reports any unnaved pages.
+- `mkdocs build --strict` was attempted and still fails only on the existing
+  four mkdocstrings/autorefs warnings from `core/python/agent_core/core.py`:
+  three griffe indentation warnings around line 2991 and one unresolved
+  cross-reference target for `"content"`.
+- `pytest core/python/tests/test_default_system_instructions_docs.py -q`
+  passed.

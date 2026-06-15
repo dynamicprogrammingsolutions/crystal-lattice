@@ -11,7 +11,7 @@ Goal: help you build a harness that is compatible with Codex-style GPT-5 prompti
 Notes:
 
 - Codex CLI’s “tools” are the JSON objects serialized into the Responses API `tools` array.
-- Codex CLI’s effective tool list depends on platform + feature flags + model metadata. See `docs/codex-tools/README.md` and `docs/codex-tools/models.md`.
+- Codex CLI’s effective tool list depends on platform + feature flags + model metadata. See `README.md` and `models.md`.
 
 ## High-level relationship
 
@@ -97,7 +97,7 @@ Codex CLI formats exec outputs in two different shapes:
 
 Codex CLI also applies truncation policies and may inject `Total output lines: <N>`.
 
-See `docs/codex-tools/shared/README.md`.
+See `shared/README.md`.
 
 ### apply_patch outputs
 

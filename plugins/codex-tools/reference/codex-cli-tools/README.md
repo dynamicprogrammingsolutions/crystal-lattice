@@ -35,11 +35,11 @@ Many tools return plain text, but shell-like tools and `apply_patch` run through
 - Truncation policy is applied to large outputs (byte- or token-budget) and may inject a `Total output lines:` header.
 - Shell and apply-patch tool outputs can be returned either as a JSON string (structured) or as a plain, sectioned text format, depending on whether the **freeform** `apply_patch` tool is present in the prompt’s tool list.
 
-See `../codex-tools/shared/` for those shared behaviors.
+See `shared/` for those shared behaviors.
 
 ## Cookbook comparison
 
-- `docs/codex-tools/cookbook-comparison.md` summarizes how the cookbook’s recommended tool schemas relate to Codex CLI’s concrete tool contracts.
+- `plugins/codex-tools/reference/codex-cli-tools/cookbook-comparison.md` summarizes how the cookbook’s recommended tool schemas relate to Codex CLI’s concrete tool contracts.
 
 ## Tool list covered here
 

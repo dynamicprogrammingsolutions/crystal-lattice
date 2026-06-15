@@ -2,7 +2,9 @@
 
 This directory contains the model instruction strings bundled with the **Codex CLI** project.
 
-It was moved from `docs/codex-default-instructions/` into the shared vendor layout at `docs/default-system-instructions/codex/`.
+It was moved from `docs/codex-default-instructions/` into the application-local
+reference archive at
+`application/python/agent_terminal_app/default_config/system_messages/reference/default-system-instructions/codex/`.
 
 Source:
 - Repository: `https://github.com/openai/codex`

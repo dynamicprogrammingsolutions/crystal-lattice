@@ -10,5 +10,5 @@
 ## Handler behavior (implementation notes)
 
 - Runs a command (optionally in a PTY), supports incremental output via `yield_time_ms` and token-budget truncation via `max_output_tokens`.
-- Produces the same structured vs freeform output formatting described in `docs/codex-tools/shared/README.md`.
+- Produces the same structured vs freeform output formatting described in `../shared/README.md`.
 - Non-zero exit code becomes a tool error containing the formatted output.

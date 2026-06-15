@@ -21,7 +21,7 @@ The `shell` handler ultimately runs the command through the shared exec orchestr
 
 Key behaviors that affect outputs and errors:
 
-- Output formatting and truncation follow the shared rules in `docs/codex-tools/shared/README.md`.
+- Output formatting and truncation follow the shared rules in `../shared/README.md`.
 - Non-zero exit codes are converted into a tool error (Codex returns a `RespondToModel` error containing the formatted output).
 - Timeouts and sandbox denials are surfaced as tool errors, using the *same* output format but with timeout/denied info included.
 - If the command payload is detected to be an `apply_patch` invocation (directly or via a shell heredoc), Codex intercepts and routes it through the `apply_patch` flow.

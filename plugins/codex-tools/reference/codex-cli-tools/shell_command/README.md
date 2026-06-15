@@ -17,6 +17,6 @@ Notes:
 ## Handler behavior (implementation notes)
 
 - Builds an argv command via the user shell and forwards into the same exec orchestration as `shell`.
-- Output formatting and truncation follow `docs/codex-tools/shared/README.md`.
+- Output formatting and truncation follow `../shared/README.md`.
 - Non-zero exit code becomes a tool error with the formatted output (so the model sees stderr/stdout in-band).
 - Intercepts embedded `apply_patch` invocations and routes them through `apply_patch`.

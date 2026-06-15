@@ -85,6 +85,8 @@ plugins:
           - built-in-plugins/index.md: Generated index of built-in plugin README pages.
           - built-in-plugins/*/index.md
         Reference:
+          - api/core-sdk.md: Core SDK guide.
+          - api/events.md: Event stream types and API transport notes.
           - reference/agent_core/core.md: AgentCore API reference.
           - reference/agent_core/types.md: Core types and protocols reference.
           - reference/agent_core/plugin/provider.md: Provider wrapper API reference.
@@ -164,6 +166,8 @@ nav:
     - web-fetch-shared: built-in-plugins/web-fetch-shared/index.md
   - Reference:
     - Default Configuration: reference/default-config.md
+    - Core SDK Guide: api/core-sdk.md
+    - Event Stream Types: api/events.md
     - AgentCore: reference/agent_core/core.md
     - Types & Protocols: reference/agent_core/types.md
     - Provider Wrapper: reference/agent_core/plugin/provider.md

@@ -29,6 +29,6 @@ High-level flow:
 Output formatting and error behavior:
 
 - Under the hood, Codex often executes patch application by invoking its own executable with `--codex-run-as-apply-patch` and the patch payload.
-- Output returned to the model uses the same exec formatting rules as shell tools (see `docs/codex-tools/shared/README.md`).
+- Output returned to the model uses the same exec formatting rules as shell tools (see `../shared/README.md`).
 - Rejections are surfaced as tool errors (e.g. `patch rejected: <reason>`).
 - If `apply_patch` is invoked *via* a shell tool (for example `bash -lc "apply_patch <<'EOF' ..."`), Codex intercepts that and records a model warning telling the model to call `apply_patch` directly.
