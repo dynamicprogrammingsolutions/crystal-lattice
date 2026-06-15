@@ -170,7 +170,7 @@ def test_initialize_request_with_required_fields():
     assert request["headers"]["Authorization"] == "Bearer sk-test-key-123"
     assert request["headers"]["Content-Type"] == "application/json"
     assert request["timeout"] == 30
-    assert new_state["partial"] is None
+    assert new_state["accumulator"] is None
 
 
 def test_initialize_request_with_optional_headers():
@@ -234,7 +234,10 @@ def test_to_native_and_from_native_roundtrip_preserves_tool_metadata_without_ext
                     {
                         "id": "call_123",
                         "type": "function",
-                        "function": {"name": "read_file", "arguments": '{"path":"x.txt"}'},
+                        "function": {
+                            "name": "read_file",
+                            "arguments": '{"path":"x.txt"}',
+                        },
                     }
                 ],
                 "trace_id": "assistant-1",
@@ -384,11 +387,12 @@ def test_process_delta_content_accumulation():
     assert new_accumulated["content"] == "Hello"
     assert new_accumulated["role"] == "assistant"
 
+
 def test_finalize_with_accumulated_content():
-    """Finalize emits accumulated partial as final."""
+    """Finalize emits accumulator as final."""
     provider = OpenRouterProvider()
     native_messages = [{"role": "user", "content": "Hi"}]
-    state = {"partial": {"role": "assistant", "content": "Response"}}
+    state = {"accumulator": {"role": "assistant", "content": "Response"}}
 
     finals, new_natives, new_state = provider.finalize(native_messages, state)
 
@@ -402,7 +406,7 @@ def test_finalize_without_partial():
     """Finalize returns empty when no partial accumulated."""
     provider = OpenRouterProvider()
     native_messages = [{"role": "user", "content": "Hi"}]
-    state = {"partial": None}
+    state = {"accumulator": None}
 
     finals, new_natives, new_state = provider.finalize(native_messages, state)
 
@@ -429,7 +433,9 @@ def test_cancel_request_returns_false_for_unknown_request() -> None:
 def test_stream_api_can_be_cancelled_by_request_id(monkeypatch) -> None:
     provider = OpenRouterProvider()
     session = _BlockingSession()
-    monkeypatch.setattr("openrouter_plugins.openrouter_provider.requests.Session", lambda: session)
+    monkeypatch.setattr(
+        "openrouter_plugins.openrouter_provider.requests.Session", lambda: session
+    )
 
     state = provider.init({"model": "test-model", "api_key": "test-key"})
     _native, state = provider.initialize_request(
@@ -467,7 +473,9 @@ def test_stream_api_can_be_cancelled_by_request_id(monkeypatch) -> None:
 def test_call_api_can_be_cancelled_by_request_id(monkeypatch) -> None:
     provider = OpenRouterProvider()
     session = _BlockingSession()
-    monkeypatch.setattr("openrouter_plugins.openrouter_provider.requests.Session", lambda: session)
+    monkeypatch.setattr(
+        "openrouter_plugins.openrouter_provider.requests.Session", lambda: session
+    )
 
     state = provider.init({"model": "test-model", "api_key": "test-key"})
     _native, state = provider.initialize_request(

@@ -30,7 +30,7 @@ Provider extensions run in the provider’s language and share the provider’s 
 Typical responsibilities:
 
 - **Request decoration:** add fields to `state["request"]["payload"]` (tools schemas, reasoning knobs, etc.).
-- **Hot-path accumulation:** during streaming, accumulate deltas into the shared accumulator `state["partial"]`.
+- **Hot-path accumulation:** during streaming, accumulate deltas into the shared accumulator `state["accumulator"]`.
 - **Interop mapping:** map provider-native fields ↔ core `message["metadata"]` so apps and the tool loop can work.
 
 ---
@@ -219,9 +219,9 @@ class OpenAICompatibleToolsExtension(ProviderExtensionPlugin):
         context: dict[str, Any] | None = None,
     ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
         """Sanitize tool_calls before storing in history."""
-        partial = state.get("partial")
-        if isinstance(partial, dict):
-            tool_calls = partial.get("tool_calls")
+        accumulator = state.get("accumulator")
+        if isinstance(accumulator, dict):
+            tool_calls = accumulator.get("tool_calls")
             if isinstance(tool_calls, list):
                 registry = get_registry_from_context(context)
                 sanitized_calls = [
@@ -229,7 +229,7 @@ class OpenAICompatibleToolsExtension(ProviderExtensionPlugin):
                     for tc in tool_calls
                     if isinstance(tc, dict)
                 ]
-                partial["tool_calls"] = sanitized_calls
+                accumulator["tool_calls"] = sanitized_calls
         return final_messages, native_messages, state
 ```
 
@@ -249,7 +249,7 @@ Practical guidance (not exhaustive):
   - Per-turn boundary. The provider usually builds `state["request"]`; extensions typically *modify* its payload.
 
 - `process_chunk(native_chunk, partial_messages, final_messages, native_messages, state) -> (...)`
-  - Hot path for streaming. Keep work minimal. Prefer updating `state["partial"]` (the shared accumulator).
+  - Hot path for streaming. Keep work minimal. Prefer updating `state["accumulator"]` (the shared accumulator).
 
 - `finalize(final_messages, native_messages, state) -> (...)`
   - Cold path after provider finalize. Useful for last-mile normalization.
@@ -260,17 +260,22 @@ Practical guidance (not exhaustive):
 
 ---
 
-## Shared streaming accumulator: `state["partial"]`
+## Shared streaming accumulator: `state["accumulator"]`
 
 The default streaming pattern in this repo uses a shared accumulator:
 
-- Providers build the assistant message over time in `state["partial"]`.
+- Providers build the assistant message over time in `state["accumulator"]`.
 - Extensions add their own accumulated fields into the same dict (`tool_calls`, `reasoning`, `usage`, etc.).
+- Returned `partial_messages` are chunk-local stream emissions. They should
+  contain only data introduced by the current chunk.
 
 Critical interop rule:
 
 - Providers must merge deltas in a way that **preserves unknown keys** already present in the accumulator.
-- Extensions must update `state["partial"]` by **merging**, not by replacing it.
+- Extensions must update `state["accumulator"]` by **merging**, not by replacing it.
+- Extensions must not create a new partial from accumulated state when
+  `partial_messages` is empty. If the provider did not emit a current-chunk
+  partial, update only the accumulator.
 
 Provider-side merge pattern (the important part is `**current`):
 
@@ -333,15 +338,16 @@ class AccumulatorExtensionMixin:
         state: dict[str, Any],
     ):
         delta = self.extract_delta(native_chunk or {})
-        acc = state.get("partial") if isinstance(state.get("partial"), dict) else {}
+        acc = state.get("accumulator") if isinstance(state.get("accumulator"), dict) else {}
         patch, acc = self.process_delta(delta, acc)
 
         # Optional: patch the provider's current partial so streaming UIs can render it.
+        # Do not synthesize a partial from acc when partial_messages is empty.
         new_partials = partial_messages
         if isinstance(patch, dict) and patch and partial_messages:
             new_partials = [*partial_messages[:-1], {**partial_messages[-1], **patch}]
 
-        return new_partials, final_messages, list(native_messages), {**state, "partial": acc}
+        return new_partials, final_messages, list(native_messages), {**state, "accumulator": acc}
 ```
 
 ---

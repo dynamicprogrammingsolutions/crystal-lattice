@@ -1,10 +1,10 @@
 # Streaming Partials Naming And Docs Clarification
 
-Clarify the provider/plugin streaming contract and remove the main naming clash by renaming chunk-local partial outputs and the shared streaming accumulator across the repo.
+Clarify the provider/plugin streaming contract and remove the main naming clash by renaming the shared streaming accumulator state key across the repo.
 
 ## Status
 
-- [ ] Planned
+- [x] Completed
 
 ## Context
 
@@ -14,7 +14,7 @@ Multiple reviewers misread the current streaming contract in the same way:
 - `state["partial"]` was interpreted as the same concept, rather than the accumulator that holds the full provider-native message built so far.
 - That confusion directly led to an implementation in `AccumulatorExtensionMixin.process_chunk(...)` that synthesized a new partial from accumulated state when `partial_messages` was empty.
 
-This task includes repo-wide naming changes plus the associated documentation updates.
+This task includes a repo-wide state key rename plus the associated documentation updates. It intentionally does not rename the `partial_messages` hook parameter.
 
 ## Core problem to document
 
@@ -39,9 +39,8 @@ partial_message.content = previous_partial_message.content + current_chunk.conte
 
 ## Chosen rename scope
 
-This task should perform both renames, not just document them:
+This task should rename only the shared streaming accumulator state key:
 
-- `partial_messages` -> `chunk_partials`
 - `state["partial"]` -> `state["accumulator"]`
 
 Optional local cleanup where touched:
@@ -50,9 +49,14 @@ Optional local cleanup where touched:
 
 Rationale:
 
-- Renaming only `partial_messages` still leaves `state["partial"]` sounding like the same concept.
-- Renaming only `state["partial"]` still leaves `partial_messages` sounding like an accumulated partial message.
-- The pair `chunk_partials` + `accumulator` makes the distinction explicit and consistent.
+- `state["partial"]` is the larger source of confusion because it names the accumulated provider-native assistant message as though it were a returned partial emission.
+- Keeping `partial_messages` avoids broad hook signature churn while docs clarify that returned partial messages are chunk-local outputs.
+- The pair `partial_messages` + `state["accumulator"]` is explicit enough once docs state that returned partials are not accumulated messages.
+
+Compatibility decision:
+
+- No backwards compatibility is needed for outside plugin implementations.
+- Built-in providers and extensions should use `state["accumulator"]` consistently and should not read or write `state["partial"]` as a fallback.
 
 ## Key references
 
@@ -69,32 +73,29 @@ Rationale:
 
 Likely rename touchpoints beyond docs:
 
-- `core/python/agent_core/types.py`
-- `core/python/agent_core/plugin/provider.py`
-- `core/python/agent_core/plugin/extension.py`
-- `core/python/agent_core/plugin/adapters.py`
 - `core/python/plugins/*` provider/extension implementations that currently use `state["partial"]`
 - `plugins/reference-openai-compatible-provider/*`
 - `plugins/template-python-provider/*`
 - `plugins/openrouter/*` and `plugins/openrouter_responses/*` files that currently use `state["partial"]`
-- tests and examples that refer to either old name
+- docs, tests, and examples that refer to the old state key
+- core protocol docstrings only where they mention the old state key; hook parameter signatures should remain unchanged
 
 ## Requirements checklist
 
-- [ ] The repo-wide API/hook parameter name `partial_messages` is renamed to `chunk_partials` in code, tests, examples, and docs.
-- [ ] The repo-wide shared streaming state key `state["partial"]` is renamed to `state["accumulator"]` in code, tests, examples, and docs.
-- [ ] Provider docs explicitly distinguish chunk-local partial emissions from accumulated state.
-- [ ] Extension docs explicitly state that returned partials must not include previously accumulated content.
-- [ ] The accumulator example documents the invariant in normative language, not just as an example.
-- [ ] At least one example shows the intended renderer model for partials.
-- [ ] The docs warn against creating a new partial from accumulated state when `chunk_partials` is empty.
-- [ ] Any touched local variable names that still imply accumulation for chunk-local outputs are updated or explicitly clarified.
+- [x] The repo-wide shared streaming state key `state["partial"]` is renamed to `state["accumulator"]` in code, tests, examples, and docs.
+- [x] Built-in providers and extensions do not read or write `state["partial"]`, including as a compatibility fallback.
+- [x] Provider docs explicitly distinguish chunk-local partial emissions from accumulated state.
+- [x] Extension docs explicitly state that returned partials must not include previously accumulated content.
+- [x] The accumulator example documents the invariant in normative language, not just as an example.
+- [x] At least one example shows the intended renderer model for partials.
+- [x] The docs warn against creating a new partial from accumulated state when `partial_messages` is empty.
+- [x] Any touched local variable names that still imply accumulation for chunk-local outputs are updated or explicitly clarified.
 
 ## Naming decision
 
 Chosen names:
 
-- `partial_messages` -> `chunk_partials`
+- Keep the existing `partial_messages` hook parameter name.
 - `state["partial"]` -> `state["accumulator"]`
 
 Alternative names considered but not chosen:
@@ -104,22 +105,21 @@ Alternative names considered but not chosen:
 
 Reason for the final choice:
 
-- `chunk_partials` keeps the existing idea of partial message outputs while making their chunk-local scope explicit.
 - `accumulator` directly describes the role of the shared state value and avoids suggesting that it is itself a partial emission.
-- The pair removes the ambiguity better than renaming only one side.
+- Keeping `partial_messages` limits the change to the misleading state key while docs clarify that those returned partials are chunk-local.
 
 ## Task checklist
 
-- [ ] Rename `partial_messages` to `chunk_partials` in protocol signatures, wrappers, implementations, examples, tests, and docs.
-- [ ] Rename `state["partial"]` to `state["accumulator"]` in providers, extensions, templates, tests, and docs.
-- [ ] Audit the wording in `plugins/docs/provider-plugins.md`.
-- [ ] Audit the wording in `plugins/docs/provider-extensions.md`.
-- [ ] Check whether matching clarification is needed in `core/python/agent_core/types.py` docstrings or generated reference docs.
-- [ ] Add a short normative definition of returned `chunk_partials` as chunk-local emissions.
-- [ ] Add a short normative definition of `state["accumulator"]` as accumulated provider state.
-- [ ] Rewrite the accumulator example to make the distinction explicit.
-- [ ] Add a "wrong vs right" example showing why not to build a new partial from accumulated state.
-- [ ] Verify no stale `partial_messages` / `state["partial"]` references remain except where historical context is intentional.
+- [x] Rename `state["partial"]` to `state["accumulator"]` in providers, extensions, templates, tests, and docs.
+- [x] Verify built-in providers and extensions do not retain fallback reads from `state["partial"]`.
+- [x] Audit the wording in `plugins/docs/provider-plugins.md`.
+- [x] Audit the wording in `plugins/docs/provider-extensions.md`.
+- [x] Check whether matching clarification is needed in `core/python/agent_core/types.py` docstrings or generated reference docs.
+- [x] Add a short normative definition of returned `partial_messages` as chunk-local emissions.
+- [x] Add a short normative definition of `state["accumulator"]` as accumulated provider state.
+- [x] Rewrite the accumulator example to make the distinction explicit.
+- [x] Add a "wrong vs right" example showing why not to build a new partial from accumulated state.
+- [x] Verify no stale `state["partial"]` references remain except where historical context is intentional.
 
 ## Suggested wording
 
@@ -135,12 +135,35 @@ If accumulated state is needed, store it in state.
 Suggested explicit warning for the accumulator section:
 
 ```text
-Do not create a new partial from accumulated state when chunk_partials is empty.
+Do not create a new partial from accumulated state when partial_messages is empty.
 If the provider did not emit a current-chunk partial, extensions should update only the accumulator in state.
 ```
 
 ## Notes for the implementing agent
 
-- This task includes the repo-wide rename; do not leave it as a docs-only clarification.
+- This task includes the repo-wide state key rename; do not leave it as a docs-only clarification.
+- Do not rename the `partial_messages` hook parameter.
+- Do not add backwards-compatible reads or writes for `state["partial"]`; built-in plugins should move together to `state["accumulator"]`.
 - If examples are updated, prefer using the exact terms "chunk-local partial" and "accumulator" consistently.
 - If generated reference docs mirror protocol docstrings, update the underlying docstrings rather than only editing generated output.
+
+## Execution plan
+
+Added during completion.
+
+1. Rename the shared streaming state key from `partial` to `accumulator` in built-in providers/extensions and their focused tests.
+2. Update current plugin development docs under `plugins/docs` first, then update secondary legacy/reference docs that still describe the old key.
+3. Leave the `partial_messages` hook parameter and public stream event type `"partial"` unchanged.
+4. Verify no active code/docs references to `state["partial"]` remain except task/history notes.
+5. Run focused unit suites for changed providers/extensions, then run selected hosted API tests when the required credentials are available.
+
+## Completion Notes
+
+Added during completion.
+
+- Renamed built-in shared streaming state usage to `state["accumulator"]` across core-packaged providers/extensions, template provider files, OpenRouter, OpenRouter Responses, and the reference OpenAI-compatible provider.
+- Kept `partial_messages` and public stream events named `"partial"` unchanged.
+- Updated current plugin docs under `plugins/docs` with chunk-local partial wording, the renderer mental model, and the warning not to synthesize partials from accumulated state.
+- Verified active code/current docs have no stale `state["partial"]` reads or writes; older task files may still mention historical context.
+- Focused unit tests passed for core OpenAI tools, template provider, reference provider, OpenRouter usage/tools/provider accumulator paths, and OpenRouter Responses provider.
+- Hosted API checks: OpenRouter basic streaming passed and Z.ai reference-provider integration passed. Broader OpenRouter basic integration had one model-specific failure for `x-ai/grok-4.1-fast` returning no responses; Fireworks integration failed because the configured model was not found/deployed.

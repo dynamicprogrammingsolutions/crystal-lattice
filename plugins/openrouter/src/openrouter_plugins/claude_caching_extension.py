@@ -60,7 +60,9 @@ class ClaudeCachingExtension(ProviderExtensionPlugin):
             },
         ]
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         return ["ext:claude_caching"]
 
     def required_tags(self) -> List[str]:
@@ -198,12 +200,12 @@ class ClaudeCachingExtension(ProviderExtensionPlugin):
         if cached_tokens is None:
             return partial_messages, final_messages, native_messages, state
 
-        accumulated = state.get("partial")
+        accumulated = state.get("accumulator")
         if isinstance(accumulated, dict):
             internal_md = dict(accumulated.get("_metadata") or {})
             internal_md["cached_tokens"] = cached_tokens
             accumulated = {**accumulated, "_metadata": internal_md}
-            new_state = {**state, "partial": accumulated}
+            new_state = {**state, "accumulator": accumulated}
         else:
             new_state = state
 

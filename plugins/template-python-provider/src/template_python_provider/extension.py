@@ -55,12 +55,14 @@ class AccumulatorExtensionMixin:
     The mixin provides a generic `process_chunk` that:
 
     - delegates delta parsing and accumulation
-    - updates the shared accumulator at `state["partial"]`
+    - updates the shared accumulator at `state["accumulator"]`
     - optionally patches the provider's current partial message (last element
       of `partial_messages`) so streaming UIs can render extension fields
     """
 
-    def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover
+    def extract_delta(
+        self, native_chunk: Dict[str, Any]
+    ) -> Dict[str, Any]:  # pragma: no cover
         raise NotImplementedError
 
     def process_delta(
@@ -77,16 +79,27 @@ class AccumulatorExtensionMixin:
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         delta = self.extract_delta(native_chunk or {})
-        acc = state.get("partial") if isinstance(state.get("partial"), dict) else {}
+        acc = (
+            state.get("accumulator")
+            if isinstance(state.get("accumulator"), dict)
+            else {}
+        )
         patch, acc = self.process_delta(delta, acc)
 
         new_partials = partial_messages
         if isinstance(patch, dict) and patch and partial_messages:
             new_partials = [*partial_messages[:-1], {**partial_messages[-1], **patch}]
 
-        return new_partials, final_messages, list(native_messages), {**state, "partial": acc}
+        return (
+            new_partials,
+            final_messages,
+            list(native_messages),
+            {**state, "accumulator": acc},
+        )
 
 
 def _merge_shallow(
@@ -150,7 +163,9 @@ class TemplateProviderExtension(ProviderExtensionPlugin):
     ) -> List[Dict[str, Any]]:
         return []
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         # TODO: add tags advertised by this extension.
         return []
 
@@ -173,7 +188,9 @@ class TemplateProviderExtension(ProviderExtensionPlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         return partial_messages, final_messages, native_messages, state
 
     def finalize(

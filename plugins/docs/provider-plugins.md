@@ -80,13 +80,30 @@ Provider-native messages may include provider-specific keys (tool calls, reasoni
 
 ### Partials vs finals
 
-- **partials**: incremental updates during streaming
+- **partials**: chunk-local incremental updates during streaming
 - **finals**: completed assistant messages for the turn
+
+Returned partials are stream emissions, not accumulated in-progress messages.
+Each `process_chunk` call should return only the new data introduced by the
+current chunk. Accumulated provider-native assistant state belongs in
+`state["accumulator"]`.
 
 Partial example (during streaming):
 
 ```python
 {"role": "assistant", "content": "Hel"}
+```
+
+Renderer mental model:
+
+```text
+rendered_content = previous_rendered_content + partial_message.content
+```
+
+Do not use this model:
+
+```text
+partial_message.content = previous_partial_message.content + current_chunk.content
 ```
 
 Final example (after finalize):
@@ -105,7 +122,7 @@ Recommended state shape:
 state = {
   "config": config,
   "request": {"url": "...", "payload": {...}, "headers": {...}, "timeout": 60},
-  "partial": None,
+  "accumulator": None,
 }
 ```
 
@@ -459,7 +476,7 @@ Notes:
 
 ```python
 def init(self, config):
-    return {"config": config, "request": {}, "partial": None}
+    return {"config": config, "request": {}, "accumulator": None}
 
 def initialize_request(self, native_messages, state):
     cfg = state.get("config") or {}
@@ -469,7 +486,7 @@ def initialize_request(self, native_messages, state):
         "headers": {"Authorization": f"Bearer {cfg.get('api_key','')}"},
         "timeout": float(cfg.get("timeout", 60)),
     }
-    return list(native_messages), {**state, "request": request, "partial": None}
+    return list(native_messages), {**state, "request": request, "accumulator": None}
 ```
 
 ### 3) Implement conversion hooks (only when needed)
@@ -589,7 +606,7 @@ Example finalize (custom):
 
 ```python
 def finalize(self, native_messages, state):
-    final = state.get("partial")
+    final = state.get("accumulator")
     if final:
         return [final], [*native_messages, final], state
     return [], list(native_messages), state
@@ -624,7 +641,7 @@ state = {
     "headers": {...},
     "timeout": 60,
   },
-  "partial": None,               # streaming accumulator (dict)
+  "accumulator": None,               # streaming accumulator (dict)
   "debug_stream": False,         # optional
 }
 ```
@@ -714,6 +731,9 @@ def process_delta(self, delta: dict, accumulated: dict | None):
     return frag, new_acc
 ```
 
+The returned `frag` is chunk-local. It should contain only the content from the
+current chunk. The accumulated assistant message is `new_acc`.
+
 ### Recipe 2: Custom `process_chunk` / `finalize` (when the accumulator pattern isn’t a fit)
 
 The accumulator pattern works well when your provider emits clean text/tool/reasoning deltas that can be reduced into a single “final assistant message”.
@@ -768,13 +788,16 @@ Even with fully custom streaming, keep these invariants:
 - Do not append raw stream chunks/events into native history.
 - Append only final provider-native chat messages (assistant/tool/etc.) to native history.
 - Return `native_messages` as a coherent full-history list.
+- Return partial messages only for data introduced by the current chunk.
+- Do not synthesize a new partial from `state["accumulator"]` when the current
+  chunk did not produce a partial.
 
 ### Tool calls and reasoning
 
 Best practice in this repo:
 
 - Provider: transport + base accumulation
-- Extension: tool_call and reasoning delta accumulation (shared `state["partial"]`)
+- Extension: tool_call and reasoning delta accumulation (shared `state["accumulator"]`)
 
 Reference extensions:
 
@@ -825,7 +848,7 @@ For a dedicated guide with recipes and reusable code patterns, see:
 
 Extensions can:
 
-- read and update `state["partial"]` during streaming
+- read and update `state["accumulator"]` during streaming
 - attach provider-native fields to the final message during finalize
 - surface provider-native fields into core `metadata` via `from_native_messages`
 

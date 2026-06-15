@@ -125,11 +125,11 @@ def test_reasoning_extension_process_chunk_updates_accumulator_without_emitting_
         [],
         [],
         [],
-        {"partial": {"role": "assistant", "content": ""}},
+        {"accumulator": {"role": "assistant", "content": ""}},
     )
 
     assert partials == []
-    assert new_state["partial"]["reasoning_content"] == "alpha"
+    assert new_state["accumulator"]["reasoning_content"] == "alpha"
 
 
 # Tests for reasoning_field config functionality
@@ -259,11 +259,11 @@ def test_reasoning_extension_process_chunk_uses_configured_field():
         [],
         [],
         [],
-        {"partial": {"role": "assistant", "content": ""}, **state},
+        {"accumulator": {"role": "assistant", "content": ""}, **state},
     )
 
     assert partials == []
-    assert new_state["partial"]["custom_reasoning"] == "alpha"
+    assert new_state["accumulator"]["custom_reasoning"] == "alpha"
 
 
 def test_reasoning_extension_round_trip_with_configured_field():
@@ -284,7 +284,9 @@ def test_reasoning_extension_round_trip_with_configured_field():
     assert "thinking" not in rebuilt[0]["metadata"]
 
     # Convert back to native - reads from canonical "reasoning", writes to "thinking"
-    native_out = ext.to_native_messages(rebuilt, [{"role": "assistant", "content": "done"}], state)
+    native_out = ext.to_native_messages(
+        rebuilt, [{"role": "assistant", "content": "done"}], state
+    )
 
     # Only thinking field should be present in native
     assert native_out == [

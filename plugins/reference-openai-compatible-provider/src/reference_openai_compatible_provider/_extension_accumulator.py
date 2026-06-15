@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any, Iterable
 
 
-def _merged_override_value(current: dict[str, Any], delta: dict[str, Any], key: str) -> Any:
+def _merged_override_value(
+    current: dict[str, Any], delta: dict[str, Any], key: str
+) -> Any:
     value = delta.get(key)
     if value is None:
         return current.get(key, "")
@@ -53,18 +55,23 @@ class AccumulatorExtensionMixin:
     ):
         delta = self.extract_delta(native_chunk or {})
         accumulated = (
-            state.get("partial") if isinstance(state.get("partial"), dict) else {}
+            state.get("accumulator")
+            if isinstance(state.get("accumulator"), dict)
+            else {}
         )
         patch, new_acc = self.process_delta(delta, accumulated)
 
         new_partials = partial_messages
         if isinstance(patch, dict) and patch:
             if partial_messages:
-                new_partials = [*partial_messages[:-1], {**partial_messages[-1], **patch}]
+                new_partials = [
+                    *partial_messages[:-1],
+                    {**partial_messages[-1], **patch},
+                ]
 
         return (
             new_partials,
             final_messages,
             list(native_messages),
-            {**state, "partial": new_acc},
+            {**state, "accumulator": new_acc},
         )

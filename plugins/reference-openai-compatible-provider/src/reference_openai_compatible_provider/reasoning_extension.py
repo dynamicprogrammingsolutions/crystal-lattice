@@ -78,7 +78,10 @@ class OpenAICompatibleReasoningExtension(
         return choice0 if isinstance(choice0, dict) else {}
 
     def process_delta(
-        self, delta: dict[str, Any], accumulated: dict[str, Any] | None, state: dict[str, Any] | None = None
+        self,
+        delta: dict[str, Any],
+        accumulated: dict[str, Any] | None,
+        state: dict[str, Any] | None = None,
     ):
         base = accumulated or {}
         payload = delta.get("delta") or delta.get("message") or {}
@@ -104,7 +107,11 @@ class OpenAICompatibleReasoningExtension(
         else:
             # Default behavior: use priority order
             patch_reasoning = next(
-                (patch_fragments[key] for key in _PATCH_REASONING_PRIORITY if key in patch_fragments),
+                (
+                    patch_fragments[key]
+                    for key in _PATCH_REASONING_PRIORITY
+                    if key in patch_fragments
+                ),
                 "",
             )
 
@@ -123,24 +130,32 @@ class OpenAICompatibleReasoningExtension(
     ):
         delta = self.extract_delta(native_chunk or {})
         accumulated = (
-            state.get("partial") if isinstance(state.get("partial"), dict) else {}
+            state.get("accumulator")
+            if isinstance(state.get("accumulator"), dict)
+            else {}
         )
         patch, new_acc = self.process_delta(delta, accumulated, state)
 
         new_partials = partial_messages
         if isinstance(patch, dict) and patch:
             if partial_messages:
-                new_partials = [*partial_messages[:-1], {**partial_messages[-1], **patch}]
+                new_partials = [
+                    *partial_messages[:-1],
+                    {**partial_messages[-1], **patch},
+                ]
 
         return (
             new_partials,
             final_messages,
             list(native_messages),
-            {**state, "partial": new_acc},
+            {**state, "accumulator": new_acc},
         )
 
     def to_native_messages(
-        self, messages: list[dict[str, Any]], native_messages: list[dict[str, Any]], state: dict[str, Any] | None = None
+        self,
+        messages: list[dict[str, Any]],
+        native_messages: list[dict[str, Any]],
+        state: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         if len(messages) != len(native_messages):
             return native_messages
@@ -161,7 +176,10 @@ class OpenAICompatibleReasoningExtension(
         return out
 
     def from_native_messages(
-        self, native_messages: list[dict[str, Any]], messages: list[dict[str, Any]], state: dict[str, Any] | None = None
+        self,
+        native_messages: list[dict[str, Any]],
+        messages: list[dict[str, Any]],
+        state: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         if len(messages) != len(native_messages):
             return messages

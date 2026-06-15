@@ -114,7 +114,6 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
         }
         return native_messages, new_state
 
-
     def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
         """Extract a provider-native delta dictionary from a streaming chunk.
 
@@ -134,7 +133,7 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
         """Accumulate reasoning text from streaming deltas.
 
         Updates both the current partial message (when present) and the shared
-        accumulator (state["partial"]) with incremental reasoning fragments.
+        accumulator (state["accumulator"]) with incremental reasoning fragments.
         """
         base = accumulated or {}
         d = delta.get("message") or delta.get("delta") or {}
@@ -175,7 +174,9 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """Update partial messages and accumulator with reasoning for each chunk.
 
         This extension no longer mutates finals or history during streaming; it
@@ -186,7 +187,7 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
         delta = self.extract_delta(native_chunk or {})
 
         new_partial_messages = partial_messages
-        accumulated = state.get("partial", {})
+        accumulated = state.get("accumulator", {})
 
         if partial_messages:
             current_partial = partial_messages[-1]
@@ -201,7 +202,7 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
             new_partial_messages,
             final_messages,
             native_messages,
-            {**state, "partial": accumulated},
+            {**state, "accumulator": accumulated},
         )
 
     def finalize(
@@ -214,15 +215,21 @@ class OllamaThinkingExtension(ProviderExtensionPlugin):
             return final_messages, native_messages, state
 
         # If we accumulated reasoning during streaming, attach it to the last final
-        accumulated = state.get("partial") or {}
-        reasoning_text = accumulated.get("reasoning") if isinstance(accumulated, dict) else None
+        accumulated = state.get("accumulator") or {}
+        reasoning_text = (
+            accumulated.get("reasoning") if isinstance(accumulated, dict) else None
+        )
         if reasoning_text:
             if final_messages:
                 last_final = dict(final_messages[-1])
-                last_final["reasoning"] = last_final.get("reasoning", "") + reasoning_text
+                last_final["reasoning"] = (
+                    last_final.get("reasoning", "") + reasoning_text
+                )
                 final_messages = [*final_messages[:-1], last_final]
             if native_messages:
                 last_native = dict(native_messages[-1])
-                last_native["reasoning"] = last_native.get("reasoning", "") + reasoning_text
+                last_native["reasoning"] = (
+                    last_native.get("reasoning", "") + reasoning_text
+                )
                 native_messages = [*native_messages[:-1], last_native]
         return final_messages, native_messages, state
