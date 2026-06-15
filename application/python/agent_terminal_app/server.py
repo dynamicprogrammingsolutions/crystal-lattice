@@ -3318,9 +3318,16 @@ def _execute_action_request(
     if cached is not None:
         return cached
 
+    plugin_was_omitted = "plugin" not in body
+    resolved_plugin_id = None if plugin_was_omitted else plugin_id
+
     try:
+        if plugin_was_omitted:
+            resolved_plugin_id = app_instance.resolve_application_action_plugin_id(
+                action_id
+            )
         result = app_instance.execute_action(
-            plugin_id=plugin_id,
+            plugin_id=resolved_plugin_id,
             action_id=action_id,
             params=raw_inputs,
             action_owner=action_owner if isinstance(action_owner, str) else None,
@@ -3329,15 +3336,25 @@ def _execute_action_request(
             result = {}
         response: Dict[str, Any] = {
             "status": "ok",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "result": result,
         }
+    except AgentApplication._ApplicationActionResolutionError as exc:  # type: ignore[attr-defined]
+        response = {
+            "status": "error",
+            "plugin": resolved_plugin_id,
+            "action_id": action_id,
+            "action_owner": action_owner,
+            "error_type": getattr(exc, "error_type", "unknown_action"),
+            "message": str(exc),
+            "details": getattr(exc, "details", {}) or {},
+        }
     except AgentApplication._ApplicationActionValidationError as exc:  # type: ignore[attr-defined]
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "validation",
@@ -3347,7 +3364,7 @@ def _execute_action_request(
     except KeyError as exc:
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "not_found",
@@ -3357,7 +3374,7 @@ def _execute_action_request(
     except SessionConflictError as exc:
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "conflict",
@@ -3367,7 +3384,7 @@ def _execute_action_request(
     except ReadonlySessionViewError as exc:
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "readonly",
@@ -3378,7 +3395,7 @@ def _execute_action_request(
         # Includes invalid plugin/action identifiers or non-dict params.
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "validation",
@@ -3389,7 +3406,7 @@ def _execute_action_request(
         _log.exception("unexpected error executing application action")
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "internal",

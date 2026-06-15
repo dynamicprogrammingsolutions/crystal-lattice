@@ -12,11 +12,15 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import { extractByPath } from '@crystal-lattice/frontend-sdk';
+import {
+  extractByPath,
+  normalizeSelectOptions,
+  type NormalizedSelectOption,
+} from '@crystal-lattice/frontend-sdk';
 
 import { useTheme, type Theme } from './theme';
 
-interface DialogInputField {
+export interface DialogInputField {
   name: string;
   type?: string;
   label?: string;
@@ -24,6 +28,7 @@ interface DialogInputField {
   default?: any;
   required?: boolean;
   description?: string;
+  options?: any;
   prefill_from?: string;
   submit_empty?: boolean;
 }
@@ -40,9 +45,34 @@ export interface ApplicationActionDialogProps {
   dialog: any;
   titleFallback?: string;
   prefillContext?: ApplicationActionDialogPrefillContext;
+  fieldRenderers?: ApplicationActionDialogFieldRenderers;
+  renderField?: ApplicationActionDialogFieldRenderer;
   onSubmit: (values: Record<string, any>) => void;
   onCancel: () => void;
 }
+
+export interface ApplicationActionDialogFieldRenderParams {
+  field: DialogInputField;
+  name: string;
+  label: string;
+  description: string;
+  placeholder: string;
+  fieldType: string;
+  value: string;
+  options: NormalizedSelectOption[];
+  isFirstField: boolean;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  renderFallback: () => React.ReactNode;
+}
+
+export type ApplicationActionDialogFieldRenderer = (
+  params: ApplicationActionDialogFieldRenderParams,
+) => React.ReactNode;
+
+export type ApplicationActionDialogFieldRenderers = {
+  fallback?: ApplicationActionDialogFieldRenderer;
+} & Partial<Record<string, ApplicationActionDialogFieldRenderer>>;
 
 export interface ApplicationActionDialogLayoutProps
   extends Omit<ApplicationActionDialogProps, 'visible'> {
@@ -53,6 +83,8 @@ export function ApplicationActionDialogLayout({
   dialog,
   titleFallback,
   prefillContext,
+  fieldRenderers,
+  renderField,
   onSubmit,
   onCancel,
   style,
@@ -244,7 +276,7 @@ export function ApplicationActionDialogLayout({
           return;
         }
         parsed = numberValue;
-      } else if (fieldType === 'boolean') {
+      } else if (fieldType === 'boolean' || fieldType === 'checkbox') {
         const boolValue = parseBoolean(trimmed);
         if (boolValue === null) {
           const label = field.label || name;
@@ -259,6 +291,43 @@ export function ApplicationActionDialogLayout({
 
     setError(null);
     onSubmit(result);
+  };
+
+  const renderDefaultField = (params: ApplicationActionDialogFieldRenderParams) => {
+    const isMultiline = params.fieldType === 'multiline';
+
+    return (
+      <View style={styles.inputGroup}>
+        <Text style={styles.inputLabel}>{params.label}</Text>
+        {params.description ? (
+          <Text style={styles.inputDescription}>{params.description}</Text>
+        ) : null}
+        <TextInput
+          ref={(node) => {
+            if (params.isFirstField) {
+              firstInputRef.current = node;
+            }
+          }}
+          style={isMultiline ? styles.modalInputMultiline : styles.modalInput}
+          value={params.value}
+          onChangeText={params.onChange}
+          placeholder={params.placeholder}
+          placeholderTextColor={theme.textSecondary}
+          multiline={isMultiline}
+          textAlignVertical={isMultiline ? 'top' : 'center'}
+          blurOnSubmit={!isMultiline}
+          onSubmitEditing={() => {
+            if (Platform.OS !== 'macos') {
+              return;
+            }
+            if (isMultiline) {
+              return;
+            }
+            params.onSubmit();
+          }}
+        />
+      </View>
+    );
   };
 
   return (
@@ -288,38 +357,38 @@ export function ApplicationActionDialogLayout({
             const description = field.description || '';
             const value = valuesByName[name] ?? '';
             const fieldType = typeof field.type === 'string' ? field.type : 'string';
-            const isMultiline = fieldType === 'multiline';
             const isFirstField = inputs[0] === field;
+            const baseParams: Omit<ApplicationActionDialogFieldRenderParams, 'renderFallback'> = {
+              field,
+              name,
+              label,
+              description,
+              placeholder,
+              fieldType,
+              value,
+              options: normalizeSelectOptions(field.options),
+              isFirstField,
+              onChange: (nextValue: string) => handleChange(name, nextValue),
+              onSubmit: handlePrimary,
+            };
+            const params: ApplicationActionDialogFieldRenderParams = {
+              ...baseParams,
+              renderFallback: () =>
+                renderDefaultField({
+                  ...baseParams,
+                  renderFallback: () => null,
+                }),
+            };
+
+            const renderer =
+              renderField ||
+              fieldRenderers?.[fieldType] ||
+              fieldRenderers?.fallback;
 
             return (
-              <View key={name} style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>{label}</Text>
-                {description ? <Text style={styles.inputDescription}>{description}</Text> : null}
-                <TextInput
-                  ref={(node) => {
-                    if (isFirstField) {
-                      firstInputRef.current = node;
-                    }
-                  }}
-                  style={isMultiline ? styles.modalInputMultiline : styles.modalInput}
-                  value={value}
-                  onChangeText={(text) => handleChange(name, text)}
-                  placeholder={placeholder}
-                  placeholderTextColor={theme.textSecondary}
-                  multiline={isMultiline}
-                  textAlignVertical={isMultiline ? 'top' : 'center'}
-                  blurOnSubmit={!isMultiline}
-                  onSubmitEditing={() => {
-                    if (Platform.OS !== 'macos') {
-                      return;
-                    }
-                    if (isMultiline) {
-                      return;
-                    }
-                    handlePrimary();
-                  }}
-                />
-              </View>
+              <React.Fragment key={name}>
+                {renderer ? renderer(params) : renderDefaultField(params)}
+              </React.Fragment>
             );
           })
         : null}
@@ -349,6 +418,8 @@ export function ApplicationActionDialog({
   dialog,
   titleFallback,
   prefillContext,
+  fieldRenderers,
+  renderField,
   onSubmit,
   onCancel,
 }: ApplicationActionDialogProps): React.JSX.Element | null {
@@ -370,6 +441,8 @@ export function ApplicationActionDialog({
           dialog={dialog}
           titleFallback={titleFallback}
           prefillContext={prefillContext}
+          fieldRenderers={fieldRenderers}
+          renderField={renderField}
           onSubmit={onSubmit}
           onCancel={onCancel}
           style={styles.modalCard}

@@ -93,6 +93,7 @@ import {
   shouldPromptForAttachmentMetadata,
   type AttachmentMetadataUi,
 } from './components/AttachmentMetadataModal';
+import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
 import {
   createChatScrollAnchor,
   isChatScrollAnchor,
@@ -709,6 +710,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const actionDialogFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
   const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
   const [sendInProgress, setSendInProgress] = useState(false);
   const [attachmentsAbove, setAttachmentsAbove] = useState<MultipartPartDraft[]>([]);
@@ -4110,6 +4112,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	                }
 	              : undefined,
 	        }}
+        fieldRenderers={actionDialogFieldRenderers}
 	        onSubmit={handleSubmitPluginDialog}
 	        onCancel={handleCancelPluginDialog}
 	      />

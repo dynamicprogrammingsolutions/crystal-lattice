@@ -201,7 +201,7 @@ export interface AgentBackend {
     params?: { pluginId?: string },
   ): Promise<ApplicationUiElement[]>;
   executeAction(params: {
-    pluginId: string;
+    pluginId?: string;
     actionId: string;
     actionOwner?: string;
     inputs: Record<string, any>;

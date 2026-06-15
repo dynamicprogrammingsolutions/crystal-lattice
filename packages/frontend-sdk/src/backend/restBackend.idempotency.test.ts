@@ -152,4 +152,28 @@ describe('RestAgentBackend idempotency headers', () => {
       }),
     );
   });
+
+  it('omits plugin in executeAction payloads when pluginId is absent', async () => {
+    const transport: Transport = {
+      request: vi.fn(async () => ({ status: 200, data: { status: 'ok', result: {} } })),
+    };
+
+    const backend = new RestAgentBackend({ transport });
+    await backend.executeAction({
+      actionId: 'mcp_complete_login',
+      inputs: { code: 'abc' },
+    });
+
+    expect(transport.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        path: '/actions',
+        body: {
+          action_id: 'mcp_complete_login',
+          action_owner: undefined,
+          inputs: { code: 'abc' },
+        },
+      }),
+    );
+  });
 });

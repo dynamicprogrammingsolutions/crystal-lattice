@@ -625,19 +625,21 @@ export class RestAgentBackend implements AgentBackend {
   private async executeActionRequest(
     path: string,
     params: {
-      pluginId: string;
+      pluginId?: string;
       actionId: string;
       actionOwner?: string;
       inputs: Record<string, any>;
       idempotencyKey?: string;
     },
   ): Promise<ExecuteActionResponse> {
-    const payload = {
-      plugin: params.pluginId,
+    const payload: Record<string, any> = {
       action_id: params.actionId,
       action_owner: params.actionOwner,
       inputs: params.inputs,
     };
+    if (typeof params.pluginId === 'string' && params.pluginId) {
+      payload.plugin = params.pluginId;
+    }
     const resp = await this.transport.request<ExecuteActionResponse>({
       method: 'POST',
       path,
@@ -650,7 +652,7 @@ export class RestAgentBackend implements AgentBackend {
   }
 
   async executeAction(params: {
-    pluginId: string;
+    pluginId?: string;
     actionId: string;
     actionOwner?: string;
     inputs: Record<string, any>;

@@ -50,6 +50,7 @@ import { handleGeneratedFileFollowupAction } from './utils/generatedFileActions'
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
+import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
 
 const PIN_BUTTON_HIT_SLOP = { top: 4, bottom: 4, left: 4, right: 4 };
 
@@ -110,6 +111,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const actionDialogFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
 
   const { controller: sessionsController, state: sessionsState } = useSessionsController({
     backend,
@@ -734,6 +736,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         prefillContext={{
           session: activePluginDialogContext || undefined,
         }}
+        fieldRenderers={actionDialogFieldRenderers}
         onSubmit={handleSubmitPluginDialog}
         onCancel={handleCancelPluginDialog}
       />

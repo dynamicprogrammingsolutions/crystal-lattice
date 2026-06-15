@@ -2060,6 +2060,19 @@ class AgentApplication:
             super().__init__(message)
             self.details: Dict[str, Any] = details or {}
 
+    class _ApplicationActionResolutionError(Exception):
+        """Internal exception used for action-id-only resolution errors."""
+
+        def __init__(
+            self,
+            error_type: str,
+            message: str,
+            details: Optional[Dict[str, Any]] = None,
+        ) -> None:
+            super().__init__(message)
+            self.error_type = error_type
+            self.details: Dict[str, Any] = details or {}
+
     def _find_application_action_definition(
         self,
         plugin_id: str,
@@ -2073,6 +2086,49 @@ class AgentApplication:
             if action.get("plugin") == plugin_id and action.get("id") == action_id:
                 return action
         return None
+
+    def resolve_application_action_plugin_id(self, action_id: str) -> str:
+        """Resolve an application action id to a unique contributing plugin id."""
+
+        if not isinstance(action_id, str) or not action_id:
+            raise ValueError("action_id must be a non-empty string")
+
+        candidates: List[str] = []
+        seen: set[str] = set()
+        for action in self.get_application_actions():
+            if not isinstance(action, dict):
+                continue
+            if action.get("id") != action_id:
+                continue
+            plugin = action.get("plugin")
+            if not isinstance(plugin, str) or not plugin:
+                continue
+            if plugin in seen:
+                continue
+            seen.add(plugin)
+            candidates.append(plugin)
+
+        if not candidates:
+            raise self._ApplicationActionResolutionError(
+                "unknown_action",
+                f"Unknown application action_id {action_id!r}",
+                {"action_id": action_id},
+            )
+
+        if len(candidates) > 1:
+            raise self._ApplicationActionResolutionError(
+                "ambiguous_action",
+                f"Ambiguous application action_id {action_id!r}",
+                {
+                    "action_id": action_id,
+                    "candidates": [
+                        {"plugin": plugin, "action_id": action_id}
+                        for plugin in candidates
+                    ],
+                },
+            )
+
+        return candidates[0]
 
     @staticmethod
     def _action_param_type_matches(value: Any, expected_type: str) -> bool:

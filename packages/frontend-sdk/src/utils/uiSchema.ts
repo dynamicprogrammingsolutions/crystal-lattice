@@ -1,5 +1,34 @@
 import type { UiSchemaElement } from '../types/uiSchema';
 
+export interface NormalizedSelectOption {
+  value: string;
+  label: string;
+}
+
+export function normalizeSelectOptions(raw: unknown): NormalizedSelectOption[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((option) => {
+      if (typeof option === 'string') {
+        return { value: option, label: option };
+      }
+      if (option && typeof option === 'object') {
+        const record = option as Record<string, unknown>;
+        const value =
+          typeof record.value === 'string'
+            ? record.value
+            : record.value !== undefined && record.value !== null
+              ? String(record.value)
+              : '';
+        if (!value) return null;
+        const label = typeof record.label === 'string' ? record.label : value;
+        return { value, label };
+      }
+      return null;
+    })
+    .filter((value): value is NormalizedSelectOption => value !== null);
+}
+
 /**
  * Evaluate a UI element condition against a message/context object.
  * Matches the Python spec in agent_core.ui_condition: leaf operators

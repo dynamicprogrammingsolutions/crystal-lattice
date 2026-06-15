@@ -207,6 +207,82 @@ def test_execute_action_success_path_calls_plugin(tmp_path: Path) -> None:
     assert last["params"] == {"value": "hello"}
 
 
+def test_execute_action_resolves_omitted_plugin_when_action_id_is_unique(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+    from tests.dummy_app_plugin import DummyAppPlugin
+
+    app = _build_app(tmp_path)
+
+    resp = server_mod.execute_action(
+        {
+            "action_id": "do_dummy",
+            "inputs": {"value": "hello"},
+        },
+        app_instance=app,
+    )
+
+    assert resp["status"] == "ok"
+    assert resp["plugin"] == "dummy_app_plugin"
+    assert resp["action_id"] == "do_dummy"
+    assert (resp.get("result") or {})["echo"] == {"value": "hello"}
+
+    wrappers = getattr(app, "_app_plugins")
+    plugin = wrappers["dummy_app_plugin"].plugin
+    assert isinstance(plugin, DummyAppPlugin)
+    assert plugin.executed[-1]["params"] == {"value": "hello"}
+
+
+def test_execute_action_without_plugin_reports_unknown_action(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_app(tmp_path)
+
+    resp = server_mod.execute_action(
+        {
+            "action_id": "no_such",
+            "inputs": {},
+        },
+        app_instance=app,
+    )
+
+    assert resp["status"] == "error"
+    assert resp["error_type"] == "unknown_action"
+    assert resp["details"]["action_id"] == "no_such"
+
+
+def test_execute_action_without_plugin_reports_ambiguous_action(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_app(tmp_path)
+
+    monkeypatch.setattr(
+        app,
+        "get_application_actions",
+        lambda: [
+            {"plugin": "plugin_one", "id": "same_action", "inputs": {}},
+            {"plugin": "plugin_two", "id": "same_action", "inputs": {}},
+        ],
+    )
+
+    resp = server_mod.execute_action(
+        {
+            "action_id": "same_action",
+            "inputs": {},
+        },
+        app_instance=app,
+    )
+
+    assert resp["status"] == "error"
+    assert resp["error_type"] == "ambiguous_action"
+    candidates = resp["details"]["candidates"]
+    assert candidates == [
+        {"plugin": "plugin_one", "action_id": "same_action"},
+        {"plugin": "plugin_two", "action_id": "same_action"},
+    ]
+
+
 def test_execute_session_action_alias_calls_same_plugin_path(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
     from tests.dummy_app_plugin import DummyAppPlugin

@@ -243,6 +243,11 @@ Maps action parameters to context values using `$` prefixes:
 
 #### Dialog configuration
 
+Action dialog inputs use the same input field model as configuration UI elements,
+with `name` replacing configuration `key`. Shared fields include `type`, `label`,
+`description`, `placeholder`, `default`, `required`, and, for `select`/`dropdown`,
+`options`.
+
 ```python
 "dialog": {
     "kind": "form",  # Currently only "form" is supported
@@ -259,6 +264,26 @@ Maps action parameters to context values using `$` prefixes:
     ],
 }
 ```
+
+For `select` and `dropdown`, use the same option model as config UI:
+
+```python
+{
+    "name": "server_name",
+    "type": "select",
+    "label": "MCP server",
+    "options": [
+        {"value": "figma", "label": "Figma"},
+        "linear",
+    ],
+    "required": True,
+}
+```
+
+`select` is a single-choice control that frontends typically render with all
+options visible, such as chips on mobile. `dropdown` uses the same option model
+but allows frontends to render a collapsed menu. Submitted `select` and
+`dropdown` values are strings.
 
 ### Message actions (`ui_type == "message_action"`)
 
