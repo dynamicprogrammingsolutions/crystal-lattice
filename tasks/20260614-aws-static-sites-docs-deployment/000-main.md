@@ -10,7 +10,7 @@ Deploy the Crystal Lattice website and documentation site to AWS, align the docs
 - [x] `tasks/20260614-aws-static-sites-docs-deployment/030-aws-static-hosting-infra.md`
 - [x] `tasks/20260614-aws-static-sites-docs-deployment/035-docs-site-layout-cleanup.md`
   - BLOCKS `tasks/20260614-aws-static-sites-docs-deployment/040-github-actions-aws-deploy.md`
-- [ ] `tasks/20260614-aws-static-sites-docs-deployment/040-github-actions-aws-deploy.md`
+- [x] `tasks/20260614-aws-static-sites-docs-deployment/040-github-actions-aws-deploy.md`
 - [ ] `tasks/20260614-aws-static-sites-docs-deployment/050-smoke-test-and-launch.md`
 
 ## Context

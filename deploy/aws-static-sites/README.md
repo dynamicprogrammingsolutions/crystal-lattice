@@ -132,6 +132,118 @@ export PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev
 export PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev
 ```
 
+## GitHub Actions Setup
+
+The deploy workflow uses GitHub Actions OIDC to assume a narrow AWS role. Do not
+create long-lived AWS access keys for this deployment path.
+
+The helper scripts read CloudFormation stack outputs automatically. You do not
+need to copy values from `up.sh` into GitHub by hand.
+
+### Ready-To-Use Test GitHub Setup
+
+After the test static stack exists, create or update the AWS OIDC role:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/create-github-oidc-role.sh \
+  --profile test \
+  --static-stack-name crystal-lattice-static-sites-test \
+  --role-stack-name crystal-lattice-static-sites-github-oidc-test \
+  --region us-east-1 \
+  --github-owner dynamicprogrammingsolutions \
+  --github-repo crystal-lattice \
+  --github-branch main
+```
+
+Preview the GitHub repository variable/secret updates:
+
+```bash
+deploy/aws-static-sites/configure-github-actions-vars.sh \
+  --profile test \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --static-stack-name crystal-lattice-static-sites-test \
+  --role-stack-name crystal-lattice-static-sites-github-oidc-test \
+  --region us-east-1 \
+  --dry-run
+```
+
+Apply the GitHub repository variable/secret updates:
+
+```bash
+deploy/aws-static-sites/configure-github-actions-vars.sh \
+  --profile test \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --static-stack-name crystal-lattice-static-sites-test \
+  --role-stack-name crystal-lattice-static-sites-github-oidc-test \
+  --region us-east-1
+```
+
+Run the workflow manually:
+
+```bash
+gh workflow run deploy-static-sites.yml \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --ref main
+```
+
+### Ready-To-Use Production GitHub Setup
+
+After the production static stack exists, create or update the AWS OIDC role:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/create-github-oidc-role.sh \
+  --profile prod \
+  --static-stack-name crystal-lattice-static-sites-prod \
+  --role-stack-name crystal-lattice-static-sites-github-oidc-prod \
+  --region us-east-1 \
+  --github-owner dynamicprogrammingsolutions \
+  --github-repo crystal-lattice \
+  --github-branch main
+```
+
+Preview the GitHub repository variable/secret updates:
+
+```bash
+deploy/aws-static-sites/configure-github-actions-vars.sh \
+  --profile prod \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --static-stack-name crystal-lattice-static-sites-prod \
+  --role-stack-name crystal-lattice-static-sites-github-oidc-prod \
+  --region us-east-1 \
+  --dry-run
+```
+
+Apply the GitHub repository variable/secret updates:
+
+```bash
+deploy/aws-static-sites/configure-github-actions-vars.sh \
+  --profile prod \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --static-stack-name crystal-lattice-static-sites-prod \
+  --role-stack-name crystal-lattice-static-sites-github-oidc-prod \
+  --region us-east-1
+```
+
+Run the workflow manually:
+
+```bash
+gh workflow run deploy-static-sites.yml \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --ref main
+```
+
+The GitHub configuration script sets these repository variables:
+
+- `AWS_REGION`
+- `LANDING_BUCKET`
+- `DOCS_BUCKET`
+- `LANDING_CLOUDFRONT_DISTRIBUTION_ID`
+- `DOCS_CLOUDFRONT_DISTRIBUTION_ID`
+- `PUBLIC_CRYSTAL_LATTICE_SITE_URL`
+- `PUBLIC_CRYSTAL_LATTICE_DOCS_URL`
+
+It sets `AWS_ROLE_TO_ASSUME` as a repository secret.
+
 Deploy or update the testing stack:
 
 ```bash

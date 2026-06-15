@@ -1,0 +1,112 @@
+name: Deploy Static Sites
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - "landing_page/**"
+      - "docs/**"
+      - "plugins/docs/**"
+      - "docs_site/**"
+      - "deploy/aws-static-sites/**"
+      - ".github/workflows/deploy-static-sites.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: static-sites-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build And Deploy
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      LANDING_BUCKET: ${{ vars.LANDING_BUCKET }}
+      DOCS_BUCKET: ${{ vars.DOCS_BUCKET }}
+      LANDING_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.LANDING_CLOUDFRONT_DISTRIBUTION_ID }}
+      DOCS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.DOCS_CLOUDFRONT_DISTRIBUTION_ID }}
+      PUBLIC_CRYSTAL_LATTICE_SITE_URL: ${{ vars.PUBLIC_CRYSTAL_LATTICE_SITE_URL }}
+      PUBLIC_CRYSTAL_LATTICE_DOCS_URL: ${{ vars.PUBLIC_CRYSTAL_LATTICE_DOCS_URL }}
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Deployment Configuration
+        run: |
+          test -n "${AWS_REGION}"
+          test -n "${LANDING_BUCKET}"
+          test -n "${DOCS_BUCKET}"
+          test -n "${LANDING_CLOUDFRONT_DISTRIBUTION_ID}"
+          test -n "${DOCS_CLOUDFRONT_DISTRIBUTION_ID}"
+          test -n "${PUBLIC_CRYSTAL_LATTICE_SITE_URL}"
+          test -n "${PUBLIC_CRYSTAL_LATTICE_DOCS_URL}"
+          test -n "${AWS_ROLE_TO_ASSUME}"
+
+      - name: Set Up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: yarn
+          cache-dependency-path: landing_page/yarn.lock
+
+      - name: Build Landing Site
+        run: |
+          yarn --cwd landing_page install --frozen-lockfile
+          yarn --cwd landing_page build
+
+      - name: Set Up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: docs_site/requirements.txt
+
+      - name: Build Docs Site
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r docs_site/requirements.txt
+          python docs_site/scripts/build_mkdocs_site.py
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Deploy Landing Site
+        run: |
+          aws s3 sync landing_page/dist/ "s3://${LANDING_BUCKET}/" --delete
+          aws cloudfront create-invalidation \
+            --distribution-id "${LANDING_CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths "/*"
+
+      - name: Deploy Docs Site
+        run: |
+          aws s3 sync docs_site/dist/ "s3://${DOCS_BUCKET}/" --delete
+
+          find docs_site/dist -name '*.md' -print0 | while IFS= read -r -d '' file; do
+            key="${file#docs_site/dist/}"
+            aws s3 cp "$file" "s3://${DOCS_BUCKET}/${key}" \
+              --content-type "text/plain; charset=utf-8" \
+              --metadata-directive REPLACE >/dev/null
+          done
+
+          for file in docs_site/dist/llms.txt docs_site/dist/llms-full.txt; do
+            test -f "$file" || continue
+            key="${file#docs_site/dist/}"
+            aws s3 cp "$file" "s3://${DOCS_BUCKET}/${key}" \
+              --content-type "text/plain; charset=utf-8" \
+              --metadata-directive REPLACE >/dev/null
+          done
+
+          aws cloudfront create-invalidation \
+            --distribution-id "${DOCS_CLOUDFRONT_DISTRIBUTION_ID}" \
+            --paths "/*"
