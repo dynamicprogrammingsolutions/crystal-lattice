@@ -186,6 +186,72 @@ gh workflow run deploy-static-sites.yml \
   --ref main
 ```
 
+### Testing Workflow Changes From A Branch
+
+GitHub must know about a workflow before `gh workflow run` can find it. If
+`.github/workflows/deploy-static-sites.yml` exists only on a feature branch and
+has never been merged to the repository default branch, this command can return
+`HTTP 404: Not Found`:
+
+```bash
+gh workflow run deploy-static-sites.yml \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --ref task/20260614-aws-static-sites-docs-deployment
+```
+
+After the workflow file exists on the default branch, you can manually dispatch
+it against another branch:
+
+```bash
+export BRANCH_NAME="task/20260614-aws-static-sites-docs-deployment"
+
+gh workflow run deploy-static-sites.yml \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --ref "$BRANCH_NAME"
+```
+
+When testing from a branch, update the AWS OIDC role trust policy to trust that
+branch:
+
+```bash
+export BRANCH_NAME="task/20260614-aws-static-sites-docs-deployment"
+
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/create-github-oidc-role.sh \
+  --profile test \
+  --static-stack-name crystal-lattice-static-sites-test \
+  --role-stack-name crystal-lattice-static-sites-github-oidc-test \
+  --region us-east-1 \
+  --github-owner dynamicprogrammingsolutions \
+  --github-repo crystal-lattice \
+  --github-branch "$BRANCH_NAME"
+```
+
+After branch testing, restore the role trust policy to `main`:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/create-github-oidc-role.sh \
+  --profile test \
+  --static-stack-name crystal-lattice-static-sites-test \
+  --role-stack-name crystal-lattice-static-sites-github-oidc-test \
+  --region us-east-1 \
+  --github-owner dynamicprogrammingsolutions \
+  --github-repo crystal-lattice \
+  --github-branch main
+```
+
+Check workflow runs and logs:
+
+```bash
+gh run list \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --workflow deploy-static-sites.yml \
+  --limit 5
+
+gh run view \
+  --repo dynamicprogrammingsolutions/crystal-lattice \
+  --log
+```
+
 ### Ready-To-Use Production GitHub Setup
 
 After the production static stack exists, create or update the AWS OIDC role:
