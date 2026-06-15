@@ -20,12 +20,14 @@ Depends On: `tasks/20260614-aws-static-sites-docs-deployment/020-plugin-docs-and
 
 Depends On: `tasks/20260614-aws-static-sites-docs-deployment/030-aws-static-hosting-infra.md`
 
+Depends On: `tasks/20260614-aws-static-sites-docs-deployment/035-docs-site-layout-cleanup.md`
+
 ## Repo References
 
 - `.github/workflows/publish-docs.yml.disabled:1-53` is an old disabled GitHub Pages workflow. It is useful as a reminder that docs builds need Python setup and `mkdocs build --strict`, but deployment should target AWS instead of GitHub Pages.
 - `landing_page/package.json` has `yarn build` for the Astro site.
-- `docs/requirements.txt` is the docs dependency source.
-- The docs workflow must include the plugin docs copy step before `mkdocs build --strict`.
+- `docs_site/requirements.txt` is the docs dependency source.
+- The docs workflow should use `python docs_site/scripts/build_mkdocs_site.py`, which prepares MkDocs inputs, builds `docs_site/dist/`, and refreshes generated reference Markdown under `docs/reference/`.
 
 ## AWS OIDC Notes
 
@@ -89,8 +91,7 @@ on:
       - "landing_page/**"
       - "docs/**"
       - "plugins/docs/**"
-      - "mkdocs.yml"
-      - "docs/requirements.txt"
+      - "docs_site/**"
       - ".github/workflows/deploy-static-sites.yml"
 ```
 
@@ -110,16 +111,16 @@ aws cloudfront create-invalidation \
   --distribution-id "${LANDING_CLOUDFRONT_DISTRIBUTION_ID}" \
   --paths "/*"
 
-aws s3 sync site/ "s3://${DOCS_BUCKET}/" --delete
-find site -name '*.md' -print0 | while IFS= read -r -d '' file; do
-  key="${file#site/}"
+aws s3 sync docs_site/dist/ "s3://${DOCS_BUCKET}/" --delete
+find docs_site/dist -name '*.md' -print0 | while IFS= read -r -d '' file; do
+  key="${file#docs_site/dist/}"
   aws s3 cp "$file" "s3://${DOCS_BUCKET}/${key}" \
     --content-type "text/plain; charset=utf-8" \
     --metadata-directive REPLACE
 done
-for file in site/llms.txt site/llms-full.txt; do
+for file in docs_site/dist/llms.txt docs_site/dist/llms-full.txt; do
   test -f "$file" || continue
-  key="${file#site/}"
+  key="${file#docs_site/dist/}"
   aws s3 cp "$file" "s3://${DOCS_BUCKET}/${key}" \
     --content-type "text/plain; charset=utf-8" \
     --metadata-directive REPLACE
@@ -132,9 +133,9 @@ aws cloudfront create-invalidation \
 The second docs upload pass is required so generated Markdown and LLM text files
 open inline in browsers instead of downloading. Apply it to:
 
-- `site/**/*.md`
-- `site/llms.txt`
-- `site/llms-full.txt`
+- `docs_site/dist/**/*.md`
+- `docs_site/dist/llms.txt`
+- `docs_site/dist/llms-full.txt`
 
 Use `text/plain; charset=utf-8` rather than `text/markdown` for widest browser
 inline rendering behavior.
@@ -150,7 +151,7 @@ Check:
 - The Astro and MkDocs build steps receive `PUBLIC_CRYSTAL_LATTICE_SITE_URL`
   and `PUBLIC_CRYSTAL_LATTICE_DOCS_URL`.
 - The landing build completes.
-- The docs build runs plugin-docs copy before `mkdocs build --strict`.
+- The docs build uses `python docs_site/scripts/build_mkdocs_site.py`.
 - Generated Markdown and LLM text files in S3 have `Content-Type: text/plain; charset=utf-8`.
 - S3 sync deletes removed files.
 - CloudFront invalidations are created for both distributions.

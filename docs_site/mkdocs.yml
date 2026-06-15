@@ -4,6 +4,8 @@ site_url: !ENV [PUBLIC_CRYSTAL_LATTICE_DOCS_URL, "https://docs.crystallattice.de
 repo_url: "https://github.com/dynamicprogrammingsolutions/crystal-lattice"
 repo_name: GitHub
 use_directory_urls: true
+docs_dir: prepared
+site_dir: dist
 
 extra:
   crystal_lattice:
@@ -12,7 +14,7 @@ extra:
 
 theme:
   name: material
-  custom_dir: docs_site/overrides
+  custom_dir: overrides
   logo: assets/brand/icon_dark.svg
   favicon: assets/brand/icon.svg
   icon:
@@ -48,8 +50,8 @@ plugins:
         python:
           # Add the core package path so imports resolve during builds
           paths:
-            - .
-            - core/python
+            - ..
+            - ../core/python
           options:
             docstring_style: google
             show_source: true

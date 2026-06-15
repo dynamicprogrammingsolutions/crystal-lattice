@@ -18,7 +18,7 @@ Later launch domains:
 ## What The Stack Creates
 
 - One private S3 bucket for `landing_page/dist`.
-- One private S3 bucket for `site`.
+- One private S3 bucket for `docs_site/dist`.
 - S3 public access blocks and bucket-owner-enforced object ownership.
 - CloudFront Origin Access Control for both S3 origins.
 - One ACM certificate in `us-east-1` covering both testing domains.
@@ -118,15 +118,22 @@ cd ..
 Build the docs site:
 
 ```bash
-python -m pip install -r docs/requirements.txt
+python -m pip install -r docs_site/requirements.txt
+python docs_site/scripts/build_mkdocs_site.py
+```
+
+The convenience build script runs:
+
+```bash
 python docs_site/scripts/prepare_mkdocs_site.py
-mkdocs build
+(cd docs_site && mkdocs build)
+python docs_site/scripts/refresh_reference_snapshots.py
 ```
 
 For strict validation after docs warnings are cleaned up:
 
 ```bash
-mkdocs build --strict
+(cd docs_site && mkdocs build --strict)
 ```
 
 For local development with local cross-links:
@@ -140,7 +147,8 @@ yarn --cwd landing_page dev
 ```bash
 PUBLIC_CRYSTAL_LATTICE_SITE_URL=http://localhost:4321 \
 PUBLIC_CRYSTAL_LATTICE_DOCS_URL=http://localhost:8001 \
-mkdocs serve -a 127.0.0.1:8001
+python docs_site/scripts/prepare_mkdocs_site.py
+(cd docs_site && mkdocs serve -a 127.0.0.1:8001)
 ```
 
 For final production builds, omit the variables or set them explicitly:
@@ -154,7 +162,7 @@ yarn --cwd landing_page build
 ```bash
 PUBLIC_CRYSTAL_LATTICE_SITE_URL=https://crystallattice.dev \
 PUBLIC_CRYSTAL_LATTICE_DOCS_URL=https://docs.crystallattice.dev \
-mkdocs build
+python docs_site/scripts/build_mkdocs_site.py
 ```
 
 ## Sync Content
@@ -170,10 +178,10 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/sync.sh \
 The sync script:
 
 - uploads `landing_page/dist/` to the landing bucket with `--delete`;
-- uploads `site/` to the docs bucket with `--delete`;
-- re-uploads generated `site/**/*.md`, `site/llms.txt`, and
-  `site/llms-full.txt` as `text/plain; charset=utf-8` so browsers and LLM tools
-  open them inline;
+- uploads `docs_site/dist/` to the docs bucket with `--delete`;
+- re-uploads generated `docs_site/dist/**/*.md`,
+  `docs_site/dist/llms.txt`, and `docs_site/dist/llms-full.txt` as
+  `text/plain; charset=utf-8` so browsers and LLM tools open them inline;
 - invalidates both CloudFront distributions.
 
 ## Validation

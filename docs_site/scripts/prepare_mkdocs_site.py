@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate MkDocs source files from repo-local documentation sources."""
+"""Assemble MkDocs input files from repo-local documentation sources."""
 
 from __future__ import annotations
 
@@ -10,15 +10,19 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+DOCS_SITE_DIR = REPO_ROOT / "docs_site"
 DOCS_DIR = REPO_ROOT / "docs"
+MKDOCS_SOURCE_DIR = DOCS_SITE_DIR / "source"
+PREPARED_DIR = DOCS_SITE_DIR / "prepared"
 PLUGIN_DOCS_DIR = REPO_ROOT / "plugins" / "docs"
-PLUGIN_DEVELOPMENT_DIR = DOCS_DIR / "plugin-development"
-BUILT_IN_PLUGINS_DIR = DOCS_DIR / "built-in-plugins"
+PLUGIN_DEVELOPMENT_DIR = PREPARED_DIR / "plugin-development"
+BUILT_IN_PLUGINS_DIR = PREPARED_DIR / "built-in-plugins"
 DEFAULT_CONFIG_PATH = (
     REPO_ROOT / "application" / "python" / "agent_terminal_app" / "default_config" / "config.json"
 )
-DEFAULT_CONFIG_DOC_PATH = DOCS_DIR / "reference" / "default-config.md"
+DEFAULT_CONFIG_DOC_PATH = PREPARED_DIR / "reference" / "default-config.md"
 GITHUB_BLOB_ROOT = "https://github.com/dynamicprogrammingsolutions/crystal-lattice/blob/main"
+IGNORED_DOCS_DIRS = {"reference", "plugin-development", "built-in-plugins"}
 
 MARKDOWN_LINK_RE = re.compile(r"(!?\[[^\]]*])\(([^)]+)\)")
 REPO_ROOT_PREFIXES = (
@@ -125,6 +129,25 @@ def normalize_plugin_docs_links(content: str) -> str:
     return content
 
 
+def copy_tree_contents(source: Path, destination: Path, *, ignore_dirs: set[str] | None = None) -> None:
+    ignore_dirs = ignore_dirs or set()
+    for child in sorted(source.iterdir()):
+        if child.name in ignore_dirs:
+            continue
+        target = destination / child.name
+        if child.is_dir():
+            shutil.copytree(child, target, dirs_exist_ok=True)
+        else:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(child, target)
+
+
+def assemble_base_docs() -> None:
+    remove_and_recreate(PREPARED_DIR)
+    copy_tree_contents(DOCS_DIR, PREPARED_DIR, ignore_dirs=IGNORED_DOCS_DIRS)
+    copy_tree_contents(MKDOCS_SOURCE_DIR, PREPARED_DIR)
+
+
 def copy_plugin_development_docs() -> None:
     remove_and_recreate(PLUGIN_DEVELOPMENT_DIR)
     for source in sorted(PLUGIN_DOCS_DIR.glob("*.md")):
@@ -190,6 +213,7 @@ def generate_default_config_reference() -> None:
 
 
 def main() -> None:
+    assemble_base_docs()
     copy_plugin_development_docs()
     generate_built_in_plugin_docs()
     generate_default_config_reference()

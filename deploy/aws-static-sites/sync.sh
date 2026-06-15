@@ -9,7 +9,7 @@ STATIC_SITES_DIR="$SCRIPT_DIR"
 source "$SCRIPT_DIR/lib/common.sh"
 
 LANDING_DIST_DIR="$REPO_ROOT/landing_page/dist"
-DOCS_SITE_DIR="$REPO_ROOT/site"
+DOCS_SITE_DIR="$REPO_ROOT/docs_site/dist"
 
 usage() {
   cat <<'USAGE'
@@ -20,7 +20,7 @@ Usage:
 
 Build outputs must already exist:
   landing_page/dist
-  site
+  docs_site/dist
 USAGE
   usage_common
 }
@@ -46,7 +46,7 @@ if [ ! -d "$LANDING_DIST_DIR" ]; then
 fi
 if [ ! -d "$DOCS_SITE_DIR" ]; then
   echo "Missing docs build output: $DOCS_SITE_DIR" >&2
-  echo "Run: python docs_site/scripts/prepare_mkdocs_site.py && mkdocs build" >&2
+  echo "Run: python docs_site/scripts/build_mkdocs_site.py" >&2
   exit 1
 fi
 

@@ -129,9 +129,10 @@ venv.bak/
 
 # mkdocs documentation
 /site
+docs_site/prepared/
+docs_site/dist/
 docs/plugin-development/
 docs/built-in-plugins/
-docs/reference/default-config.md
 
 # mypy
 .mypy_cache/
