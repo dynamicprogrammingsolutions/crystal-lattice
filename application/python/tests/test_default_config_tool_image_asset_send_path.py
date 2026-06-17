@@ -65,6 +65,7 @@ def test_default_config_openrouter_expands_tool_asset_refs_after_system_message_
 ) -> None:
     _set_default_config_env(monkeypatch)
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("WORKING_DIR", str(tmp_path))
 
     captured_payloads: list[dict[str, Any]] = []
 
