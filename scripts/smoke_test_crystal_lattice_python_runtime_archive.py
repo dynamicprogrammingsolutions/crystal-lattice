@@ -112,6 +112,9 @@ def python_path(package_dir: Path) -> Path:
     windows_python = package_dir / "python" / "python.exe"
     if windows_python.exists():
         return windows_python
+    windows_venv_python = package_dir / "python" / "Scripts" / "python.exe"
+    if windows_venv_python.exists():
+        return windows_venv_python
     return package_dir / "python" / "bin" / "python"
 
 
