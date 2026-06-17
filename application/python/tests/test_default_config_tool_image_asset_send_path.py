@@ -44,6 +44,7 @@ PNG_BYTES = base64.b64decode(
 
 def _set_default_config_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CONFIG_DIR", str(CONFIG_PATH.parent.resolve()))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
     monkeypatch.setenv(
         "CLOUD_RUNTIME_BUILD_CONTEXT",
         str(ROOT / "build" / "test-cloud-runtime-context"),
@@ -99,6 +100,9 @@ def test_default_config_openrouter_expands_tool_asset_refs_after_system_message_
         event_store=InMemoryEventStore(),
     )
     assert app.get_config_errors() == []
+    openrouter_provider = sys.modules.get("openrouter_plugins.openrouter_provider")
+    assert openrouter_provider is not None
+    monkeypatch.setattr(openrouter_provider.requests.Session, "post", post)
 
     core, base_config, session = app.create_session("kimi")
     record = app.get_session_asset_store().store_base64(
