@@ -93,6 +93,7 @@ import {
   shouldPromptForAttachmentMetadata,
   type AttachmentMetadataUi,
 } from './components/AttachmentMetadataModal';
+import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
 import {
   createChatScrollAnchor,
   isChatScrollAnchor,
@@ -709,6 +710,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const actionDialogFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
   const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
   const [sendInProgress, setSendInProgress] = useState(false);
   const [attachmentsAbove, setAttachmentsAbove] = useState<MultipartPartDraft[]>([]);
@@ -1590,11 +1592,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
       setPluginActionInProgress(true);
       try {
+        const actionContext = {
+          ...context,
+          connectionId: connectionId ?? undefined,
+        };
         const { ok, effects, display, errorMessage } = await runApplicationAction({
           backend,
           element,
           actionsById,
-          context,
+          context: actionContext,
           effects: {
             currentSessionId: sessionId,
             navigateOnCreatedSession: true,
@@ -1621,7 +1627,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           await loadMessages({ reason: 'action_reload', refreshUiSchema: true });
         }
         if (display) {
-          presentActionDisplay(display, context);
+          presentActionDisplay(display, actionContext);
         }
       } finally {
         setPluginActionInProgress(false);
@@ -1630,6 +1636,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     [
       actionsById,
       backend,
+      connectionId,
       loadMessages,
       onNavigateToSession,
       presentActionDisplay,
@@ -1800,6 +1807,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         const isMessage = context.kind === 'message';
         await executePluginAction(element, {
           sessionId,
+          connectionId: connectionId ?? undefined,
           sessionSummary: context.sessionSummary || currentSessionSummary || undefined,
           messageContext: isMessage
             ? { index: (context as any).index, message: (context as any).message }
@@ -1807,7 +1815,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           dialogValues,
         });
       },
-      [currentSessionSummary, executePluginAction, sessionId],
+      [connectionId, currentSessionSummary, executePluginAction, sessionId],
     ),
   );
 
@@ -4110,6 +4118,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	                }
 	              : undefined,
 	        }}
+        fieldRenderers={actionDialogFieldRenderers}
 	        onSubmit={handleSubmitPluginDialog}
 	        onCancel={handleCancelPluginDialog}
 	      />

@@ -3293,6 +3293,7 @@ def _execute_action_request(
     idempotency_key: Optional[str],
     app_instance: AgentApplication,
     scope_prefix: str,
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Execute an application action request and return the standard envelope."""
 
@@ -3307,26 +3308,42 @@ def _execute_action_request(
     if cached is not None:
         return cached
 
+    resolved_plugin_id = plugin_id
+
     try:
-        result = app_instance.execute_action(
-            plugin_id=plugin_id,
+        action_context = {"session_id": session_id} if session_id else None
+        executed = app_instance.execute_action_with_metadata(
+            plugin_id=plugin_id if "plugin" in body else None,
             action_id=action_id,
             params=raw_inputs,
             action_owner=action_owner if isinstance(action_owner, str) else None,
+            context=action_context,
         )
+        resolved_plugin_id = executed.plugin_id
+        result = executed.result
         if not isinstance(result, dict):
             result = {}
         response: Dict[str, Any] = {
             "status": "ok",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
+            "action_id": executed.action_id,
+            "action_owner": executed.action_owner,
+            "result": result,
+        }
+    except AgentApplication._ApplicationActionResolutionError as exc:  # type: ignore[attr-defined]
+        response = {
+            "status": "error",
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
-            "result": result,
+            "error_type": getattr(exc, "error_type", "unknown_action"),
+            "message": str(exc),
+            "details": getattr(exc, "details", {}) or {},
         }
     except AgentApplication._ApplicationActionValidationError as exc:  # type: ignore[attr-defined]
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "validation",
@@ -3336,7 +3353,7 @@ def _execute_action_request(
     except KeyError as exc:
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "not_found",
@@ -3346,7 +3363,7 @@ def _execute_action_request(
     except SessionConflictError as exc:
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "conflict",
@@ -3356,7 +3373,7 @@ def _execute_action_request(
     except ReadonlySessionViewError as exc:
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "readonly",
@@ -3367,7 +3384,7 @@ def _execute_action_request(
         # Includes invalid plugin/action identifiers or non-dict params.
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "validation",
@@ -3378,7 +3395,7 @@ def _execute_action_request(
         _log.exception("unexpected error executing application action")
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "internal",
@@ -3426,6 +3443,7 @@ def execute_session_action(
         idempotency_key=idempotency_key,
         app_instance=app_instance,
         scope_prefix=f"POST /sessions/{session_id}/actions",
+        session_id=session_id,
     )
 
 

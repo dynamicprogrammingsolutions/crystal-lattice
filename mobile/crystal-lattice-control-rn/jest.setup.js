@@ -124,6 +124,40 @@ jest.mock('react-native-zeroconf', () => {
   };
 });
 
+jest.mock('react-native-gesture-handler', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    GestureHandlerRootView: ({ children }) => React.createElement(React.Fragment, null, children),
+    gestureHandlerRootHOC: (Component) => Component,
+  };
+});
+
+jest.mock('react-native-share', () => ({
+  __esModule: true,
+  default: {
+    open: jest.fn(async () => {}),
+  },
+  open: jest.fn(async () => {}),
+}));
+
+jest.mock('@react-native-camera-roll/camera-roll', () => ({
+  __esModule: true,
+  CameraRoll: {
+    saveAsset: jest.fn(async () => {}),
+  },
+  iosRequestAddOnlyGalleryPermission: jest.fn(async () => 'granted'),
+}));
+
+jest.mock('@likashefqet/react-native-image-zoom', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    __esModule: true,
+    ImageZoom: (props) => React.createElement(View, { ...props, testID: 'image-zoom' }),
+  };
+});
+
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
   const lightTheme = {

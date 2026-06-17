@@ -102,6 +102,53 @@ describe('runApplicationAction effect derivation', () => {
     expect(executeAction).not.toHaveBeenCalled();
   });
 
+  it('maps connection id from generic action context', async () => {
+    const executeSessionAction = vi.fn(async () => ({
+      status: 'ok',
+      plugin: 'generic_callback_app',
+      action_id: 'start_external_flow',
+      result: { mutations: {}, ui_effects: {} },
+    }));
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction: vi.fn(),
+      executeSessionAction,
+    } as any;
+
+    const res = await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'session_action',
+        plugin: 'generic_callback_app',
+        id: 'generic_callback_start_external_flow',
+        label: 'Create callback link',
+        action_id: 'start_external_flow',
+        param_map: {
+          connection_id: '$context.connectionId',
+        },
+      },
+      actionsById: {},
+      context: { sessionId: 's1', connectionId: 'test-connection' },
+    });
+
+    expect(res.ok).toBe(true);
+    expect(executeSessionAction).toHaveBeenCalledWith({
+      sessionId: 's1',
+      pluginId: 'generic_callback_app',
+      actionId: 'start_external_flow',
+      actionOwner: undefined,
+      inputs: { connection_id: 'test-connection' },
+    });
+  });
+
   it('falls back to the generic action endpoint without a session context', async () => {
     const executeAction = vi.fn(async () => ({
       status: 'ok',

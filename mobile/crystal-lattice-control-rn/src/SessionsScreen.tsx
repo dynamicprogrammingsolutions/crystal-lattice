@@ -51,6 +51,7 @@ import { handleGeneratedFileFollowupAction } from './utils/generatedFileActions'
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
+import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
 
 const PIN_BUTTON_HIT_SLOP = { top: 4, bottom: 4, left: 4, right: 4 };
 
@@ -111,6 +112,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const actionDialogFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
 
   const { controller: sessionsController, state: sessionsState } = useSessionsController({
     backend,
@@ -241,11 +243,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 
       setActionLoading(true);
       try {
+        const actionContext = {
+          ...context,
+          connectionId: connectionId ?? undefined,
+        };
         const { ok, effects, display, errorMessage } = await runApplicationAction({
           backend,
           element,
           actionsById,
-          context,
+          context: actionContext,
           effects: { reloadSessionsListOnMutations: true },
         });
         if (!ok) {
@@ -268,13 +274,13 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           host: 'mobile',
         });
         if (normalizedDisplay) {
-          presentActionDisplay(normalizedDisplay, context);
+          presentActionDisplay(normalizedDisplay, actionContext);
         }
       } finally {
         setActionLoading(false);
       }
     },
-    [actionsById, backend, loadSessions, navigateToSession, presentActionDisplay],
+    [actionsById, backend, connectionId, loadSessions, navigateToSession, presentActionDisplay],
   );
 
   const handleDisplayFollowupAction = useCallback(
@@ -348,11 +354,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       ) => {
         await executePluginAction(element, {
           sessionId: session.session_id,
+          connectionId: connectionId ?? undefined,
           sessionSummary: session,
           dialogValues,
         });
       },
-	      [executePluginAction],
+	      [connectionId, executePluginAction],
 	    ),
 	  );
 
@@ -745,6 +752,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         prefillContext={{
           session: activePluginDialogContext || undefined,
         }}
+        fieldRenderers={actionDialogFieldRenderers}
         onSubmit={handleSubmitPluginDialog}
         onCancel={handleCancelPluginDialog}
       />

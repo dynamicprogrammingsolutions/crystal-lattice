@@ -68,7 +68,7 @@ export const AnimatedSplashScreen: React.FC = () => {
             },
           ]}
         >
-          <AppLogo type="square" width={108} height={108} />
+          <AppLogo width={108} height={108} />
         </Animated.View>
 
         {/* Branding & Status Info */}

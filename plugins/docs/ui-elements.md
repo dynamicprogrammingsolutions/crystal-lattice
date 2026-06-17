@@ -313,6 +313,11 @@ Maps action parameters to context values using `$` prefixes:
 
 #### Dialog configuration
 
+Action dialog inputs use the same input field model as configuration UI elements,
+with `name` replacing configuration `key`. Shared fields include `type`, `label`,
+`description`, `placeholder`, `default`, `required`, and, for `select`/`dropdown`,
+`options`.
+
 ```python
 "dialog": {
     "kind": "form",  # Currently only "form" is supported
@@ -329,6 +334,66 @@ Maps action parameters to context values using `$` prefixes:
     ],
 }
 ```
+
+For `select` and `dropdown`, use the same option model as config UI:
+
+```python
+{
+    "name": "server_name",
+    "type": "select",
+    "label": "MCP server",
+    "options": [
+        {"value": "figma", "label": "Figma"},
+        "linear",
+    ],
+    "required": True,
+}
+```
+
+`select` is a single-choice control that frontends typically render with all
+options visible, such as chips on mobile. `dropdown` uses the same option model
+but allows frontends to render a collapsed menu. Submitted `select` and
+`dropdown` values are strings.
+
+#### Action deep links
+
+Mobile action callbacks use a session-scoped route so the frontend can route the
+callback to the intended backend connection and session before invoking the
+action:
+
+```text
+crystal-lattice://action/<connection-id>/<session-id>/<action-id>?result=approved&nonce=n-123
+crystal-lattice://action/<connection-id>/<session-id>/<plugin-id>/<action-id>?result=approved&nonce=n-123
+```
+
+`connection-id` and `session-id` are always required. `plugin-id` is optional so
+callbacks can be produced by one plugin and handled by another plugin exposing
+the same action id. When omitted, the application layer resolves the action id
+against the target session. If no action matches, execution fails with
+`unknown_action`; if more than one action matches, execution fails with
+`ambiguous_action` and candidate details.
+
+Query parameters are submitted as action inputs. Frontends also add
+`redirect_url` with the full original callback URL.
+
+Plugins that generate external callback URLs can return those URLs in display
+actions using the standard `copy_text` action shape:
+
+```python
+{
+    "kind": "copy_text",
+    "id": "copy-callback-link",
+    "label": "Copy link",
+    "text": "crystal-lattice://action/...",
+    "copied_label": "Copied",
+}
+```
+
+Because callback links require a frontend connection id, link-generating session
+actions should request it through generic action context mapping, such as a
+`param_map` entry from `$context.connectionId`. Completion callback links should
+usually omit `plugin-id` when the callback should be handled by whichever plugin
+currently exposes the action id.
 
 ### Message actions (`ui_type == "message_action"`)
 
