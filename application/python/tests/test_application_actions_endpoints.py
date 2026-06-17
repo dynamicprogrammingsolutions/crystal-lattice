@@ -353,7 +353,19 @@ def test_execute_session_action_resolves_generic_callback_action_with_session_co
         f"{session.session_id}/complete_external_flow?result=approved&nonce=n-123"
     )
     assert start_result["callback_url"] == callback_url
-    copy_action = start_result["display"]["actions"][0]
+    open_action = next(
+        action
+        for action in start_result["display"]["actions"]
+        if action["kind"] == "open_url"
+    )
+    assert open_action["id"] == "open-generic-callback-link"
+    assert open_action["label"] == "Open link"
+    assert open_action["url"] == callback_url
+    copy_action = next(
+        action
+        for action in start_result["display"]["actions"]
+        if action["kind"] == "copy_text"
+    )
     assert copy_action["kind"] == "copy_text"
     assert copy_action["id"] == "copy-generic-callback-link"
     assert copy_action["label"] == "Copy link"

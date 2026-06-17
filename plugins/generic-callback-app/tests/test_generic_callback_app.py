@@ -5,7 +5,7 @@ import pytest
 from generic_callback_app import GenericCallbackAppPlugin
 
 
-def test_start_external_flow_returns_copy_link_display() -> None:
+def test_start_external_flow_returns_open_and_copy_link_display() -> None:
     plugin = GenericCallbackAppPlugin()
 
     result = plugin.execute_action(
@@ -27,7 +27,14 @@ def test_start_external_flow_returns_copy_link_display() -> None:
     assert result["callback_url"] == expected_url
     display = result["display"]
     assert display["display_id"] == "generic-callback-flow"
-    copy_action = display["actions"][0]
+    open_action = display["actions"][0]
+    assert open_action == {
+        "kind": "open_url",
+        "id": "open-generic-callback-link",
+        "label": "Open link",
+        "url": expected_url,
+    }
+    copy_action = display["actions"][1]
     assert copy_action == {
         "kind": "copy_text",
         "id": "copy-generic-callback-link",

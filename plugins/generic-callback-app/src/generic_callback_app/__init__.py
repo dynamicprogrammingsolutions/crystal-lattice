@@ -178,12 +178,18 @@ class GenericCallbackAppPlugin:
             "display_id": "generic-callback-flow",
             "actions": [
                 {
+                    "kind": "open_url",
+                    "id": "open-generic-callback-link",
+                    "label": "Open link",
+                    "url": callback_url,
+                },
+                {
                     "kind": "copy_text",
                     "id": "copy-generic-callback-link",
                     "label": "Copy link",
                     "text": callback_url,
                     "copied_label": "Copied",
-                }
+                },
             ],
         }
 
