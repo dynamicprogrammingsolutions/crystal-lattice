@@ -58,7 +58,10 @@ def _make_config_with_generic_callback_plugin(tmp_path: Path) -> Path:
         "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
-            "tests.generic_callback_app_plugin.GenericCallbackAppPlugin",
+            {
+                "path": str(ROOT / "plugins" / "generic-callback-app"),
+                "entry": "generic_callback_app.GenericCallbackAppPlugin",
+            },
         ],
         "agents": {
             "default": {"provider": "echo"},
@@ -330,10 +333,33 @@ def test_execute_session_action_resolves_generic_callback_action_with_session_co
     app = _build_generic_callback_app(tmp_path)
     _core, _base_config, session = app.create_session("default")
 
+    start_resp = server_mod.execute_session_action(
+        session.session_id,
+        {
+            "plugin": "generic_callback_app",
+            "action_id": "start_external_flow",
+            "inputs": {
+                "connection_id": "test-connection",
+                "result": "approved",
+                "nonce": "n-123",
+            },
+        },
+        app_instance=app,
+    )
+    assert start_resp["status"] == "ok"
+    start_result = start_resp["result"]
     callback_url = (
         "crystal-lattice://action/test-connection/"
         f"{session.session_id}/complete_external_flow?result=approved&nonce=n-123"
     )
+    assert start_result["callback_url"] == callback_url
+    copy_action = start_result["display"]["actions"][0]
+    assert copy_action["kind"] == "copy_text"
+    assert copy_action["id"] == "copy-generic-callback-link"
+    assert copy_action["label"] == "Copy link"
+    assert copy_action["text"] == callback_url
+    assert copy_action["copied_label"] == "Copied"
+
     resp = server_mod.execute_session_action(
         session.session_id,
         {

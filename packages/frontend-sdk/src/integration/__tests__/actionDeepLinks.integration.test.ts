@@ -11,7 +11,7 @@ const SERVER_CONFIG = {
   },
   plugins: [
     'plugins.echo_openai_like_provider.EchoOpenAILikeProvider',
-    'tests.generic_callback_app_plugin.GenericCallbackAppPlugin',
+    'path:${env:BUILTIN_PLUGINS}/generic-callback-app',
   ],
   agents: {
     default: { provider: 'echo' },
@@ -29,7 +29,7 @@ describe('generic action deep links against a real backend', () => {
     }
   });
 
-  it('parses and executes an omitted-plugin session action through the SDK', async () => {
+  it('copies, parses, and executes an omitted-plugin session action through the SDK', async () => {
     started = await startBackendServer({
       config: SERVER_CONFIG,
       startupTimeoutMs: 30000,
@@ -39,9 +39,27 @@ describe('generic action deep links against a real backend', () => {
     });
     const created = await backend.createSession({ agentId: 'default' });
     const sessionId = created.session.session_id;
-    const url =
+
+    const start = await backend.executeSessionAction!({
+      sessionId,
+      pluginId: 'generic_callback_app',
+      actionId: 'start_external_flow',
+      inputs: {
+        connection_id: 'test-connection',
+        result: 'approved',
+        nonce: 'n-123',
+      },
+    });
+    expect(start.status).toBe('ok');
+    const copyAction = start.result.display?.actions?.find(
+      (action: any) => action.kind === 'copy_text' && action.id === 'copy-generic-callback-link',
+    ) as any;
+    expect(copyAction).toBeTruthy();
+    const url = copyAction.text;
+    expect(url).toBe(
       `crystal-lattice://action/test-connection/${sessionId}/complete_external_flow` +
-      '?result=approved&nonce=n-123';
+        '?result=approved&nonce=n-123',
+    );
 
     const parsed = parseActionDeepLink(url);
 

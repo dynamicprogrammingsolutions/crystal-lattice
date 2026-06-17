@@ -306,6 +306,25 @@ against the target session. If no action matches, execution fails with
 Query parameters are submitted as action inputs. Frontends also add
 `redirect_url` with the full original callback URL.
 
+Plugins that generate external callback URLs can return those URLs in display
+actions using the standard `copy_text` action shape:
+
+```python
+{
+    "kind": "copy_text",
+    "id": "copy-callback-link",
+    "label": "Copy link",
+    "text": "crystal-lattice://action/...",
+    "copied_label": "Copied",
+}
+```
+
+Because callback links require a frontend connection id, link-generating session
+actions should request it through generic action context mapping, such as a
+`param_map` entry from `$context.connectionId`. Completion callback links should
+usually omit `plugin-id` when the callback should be handled by whichever plugin
+currently exposes the action id.
+
 ### Message actions (`ui_type == "message_action"`)
 
 Message-scoped actions displayed on individual message bubbles. Similar to `session_action` but with additional `$message.*` parameter mappings.

@@ -383,6 +383,410 @@ Added during completion.
   - Passed: `python -m black --check core/python/agent_app/application_future.py core/python/tests/generic_callback_app_plugin.py application/python/tests/test_application_actions_endpoints.py application/python/tests/test_provider_extension_session_actions_endpoints.py application/python/tests/test_feature_plugin_context_enrichment.py`
   - Passed: `git diff --check`
 
+## Follow-up plan: move generic callback plugin to `plugins/` and test generated copy links
+
+Added after completion for explicit approval before implementation.
+
+### Goal
+
+Move the generic callback test plugin out of `core/python/tests` and into
+`plugins/`, modeled after `plugins/dummy-settings-app`, and make it exercise the
+full flow:
+
+1. A plugin action generates a callback deep link.
+2. The action result exposes that link through a copy-link display button.
+3. SDK and mobile integration tests use the generated copied URL as the input to
+   the deep-link parser/routing flow.
+
+This keeps the callback feature generic and verifies it before any real plugin,
+such as an MCP/OAuth plugin, depends on it.
+
+### Plugin location
+
+Create a first-party plugin project:
+
+```text
+plugins/generic-callback-app/
+```
+
+Expected structure:
+
+```text
+plugins/generic-callback-app/
+  README.md
+  pyproject.toml
+  agent_plugin.json
+  src/generic_callback_app/__init__.py
+  tests/test_generic_callback_app.py
+```
+
+This replaces the current test-only fixture:
+
+```text
+core/python/tests/generic_callback_app_plugin.py
+```
+
+After the move, tests should load the plugin via path config:
+
+```json
+"path:${env:BUILTIN_PLUGINS}/generic-callback-app"
+```
+
+or a direct path entry where appropriate, rather than importing
+`tests.generic_callback_app_plugin`.
+
+### Plugin actions
+
+The plugin should expose at least two actions.
+
+#### `start_external_flow`
+
+Purpose: generate a generic callback deep link and return a display payload with
+a copy-link button.
+
+Inputs:
+
+```python
+{
+    "connection_id": {"type": "string", "required": True},
+    "result": {"type": "string", "required": False},
+    "nonce": {"type": "string", "required": False},
+}
+```
+
+Execution context:
+
+- `session_id` comes from the session-scoped route context.
+- `connection_id` comes from action inputs, supplied by the frontend action caller.
+- `result` can default to `"approved"`.
+- `nonce` can default to a generated or deterministic test value.
+
+Generated link:
+
+```text
+crystal-lattice://action/<connection-id>/<session-id>/complete_external_flow?result=approved&nonce=n-123
+```
+
+By default, the generated link should omit `plugin-id`. That is the point of the
+feature: the callback-producing plugin and callback-executing plugin can be
+decoupled.
+
+Optionally, for exact-dispatch coverage, support a boolean or alternate action
+that includes the plugin id:
+
+```text
+crystal-lattice://action/<connection-id>/<session-id>/generic_callback_app/complete_external_flow?result=approved&nonce=n-123
+```
+
+Display payload should follow the ChatGPT login plugin pattern:
+
+```python
+{
+    "display": {
+        "display_id": "generic-callback-flow",
+        "title": "Generic Callback Link",
+        "variant": "info",
+        "markdown": "...",
+        "actions": [
+            {
+                "kind": "copy_text",
+                "id": "copy-generic-callback-link",
+                "label": "Copy link",
+                "text": callback_url,
+                "copied_label": "Copied",
+            }
+        ],
+    }
+}
+```
+
+#### `complete_external_flow`
+
+Purpose: receive the deep-link callback and echo what arrived.
+
+Inputs:
+
+```python
+{
+    "result": {"type": "string", "required": True},
+    "nonce": {"type": "string", "required": False},
+    "redirect_url": {"type": "string", "required": True},
+}
+```
+
+Return shape:
+
+```json
+{
+  "message": "Generic action complete",
+  "handled": true,
+  "action": "complete_external_flow",
+  "inputs": {
+    "result": "approved",
+    "nonce": "n-123",
+    "redirect_url": "..."
+  },
+  "context": {
+    "session_id": "..."
+  }
+}
+```
+
+### Frontend action calling
+
+To let `start_external_flow` generate a correct route, action execution needs
+access to the active mobile connection id.
+
+Add `connectionId` to the frontend action runner context:
+
+```ts
+export interface RunActionContext {
+  sessionId?: string;
+  connectionId?: string;
+  ...
+}
+```
+
+Then update mobile call sites that invoke `runApplicationAction` to pass their
+current connection id.
+
+Relevant call sites include session-list and chat/session action surfaces, where
+the active connection id is already known through screen props or app state.
+
+Expected context shape:
+
+```ts
+context: {
+  ...existingContext,
+  sessionId,
+  connectionId,
+}
+```
+
+Then the plugin UI/action definition can use existing action input mapping if
+available, or a minimal generic mapping extension if needed:
+
+```python
+"params": {
+    "connection_id": "$context.connection_id"
+}
+```
+
+If the current action runner only maps session/message fields and not connection
+id, extend it generically. Do not add plugin-specific frontend logic.
+
+Important distinction:
+
+- `connection_id` is an action input for `start_external_flow`, because the
+  plugin needs it to generate a link.
+- `connection_id` is not an input for `complete_external_flow`, because the
+  callback route already uses connection id for frontend routing.
+
+### UI element for starting the flow
+
+The plugin should expose a session action UI element for `start_external_flow`.
+
+Suggested shape:
+
+```python
+{
+    "ui_type": "session_action",
+    "id": "generic_callback_start_external_flow",
+    "label": "Create callback link",
+    "action_id": "start_external_flow",
+    "params": {
+        "connection_id": "$context.connection_id"
+    }
+}
+```
+
+Exact field names should follow existing action runner mapping conventions, but
+the intent is that the frontend supplies the active connection id automatically.
+
+### Test updates
+
+#### Plugin unit tests
+
+Add tests under:
+
+```text
+plugins/generic-callback-app/tests/
+```
+
+Assert:
+
+- `start_external_flow` receives or requires `connection_id`.
+- Given `connection_id="test-connection"` and context
+  `session_id="session-123"`, it generates:
+
+  ```text
+  crystal-lattice://action/test-connection/session-123/complete_external_flow?...
+  ```
+
+- Display payload includes a copy action:
+  - `kind == "copy_text"`
+  - `id == "copy-generic-callback-link"`
+  - `label == "Copy link"`
+  - `text == generated callback URL`
+  - `copied_label == "Copied"`
+- `complete_external_flow` echoes `result`, `nonce`, `redirect_url`, and context
+  session id.
+
+#### Backend/app tests
+
+Update current tests to load the plugin from `plugins/generic-callback-app`
+instead of `core/python/tests/generic_callback_app_plugin.py`.
+
+Add app-layer/server coverage for:
+
+- calling `start_external_flow` through `/sessions/{session_id}/actions`
+- passing `connection_id`
+- receiving a display payload with the copy-link action
+- parsing/executing the generated URL through omitted-plugin
+  `complete_external_flow`
+
+#### SDK integration test
+
+Upgrade the current SDK integration from “manually build callback URL” to the
+full flow:
+
+1. Start real backend with `generic-callback-app`.
+2. Create a session.
+3. Call:
+
+   ```ts
+   backend.executeSessionAction({
+     sessionId,
+     pluginId: "generic_callback_app",
+     actionId: "start_external_flow",
+     inputs: {
+       connection_id: "test-connection",
+       result: "approved",
+       nonce: "n-123",
+     },
+   })
+   ```
+
+4. Extract the copy-link action from `response.result.display.actions`.
+5. Assert the copy action text is the expected deep link.
+6. Parse the copied link with `parseActionDeepLink`.
+7. Execute the parsed link with omitted plugin id:
+
+   ```ts
+   backend.executeSessionAction({
+     sessionId: parsed.sessionId,
+     pluginId: parsed.pluginId, // undefined
+     actionId: parsed.actionId,
+     inputs: parsed.inputs,
+   })
+   ```
+
+8. Assert resolved plugin is `generic_callback_app` and completion result echoes
+   inputs.
+
+#### React Native integration test
+
+Upgrade the RN integration similarly:
+
+1. Start real backend with `generic-callback-app`.
+2. Create a session.
+3. Use `backend.executeSessionAction` or a rendered session action flow to invoke
+   `start_external_flow` with `connection_id="test-connection"`.
+4. Extract the copy-link text from the display result.
+5. Pass that URL to:
+
+   ```ts
+   handleIncomingUrl(copiedUrl)
+   ```
+
+6. Assert handler routes to:
+   - connection `test-connection`
+   - the created session id
+   - omitted plugin id
+   - session-scoped backend action
+7. Assert completion result is `Generic action complete`.
+
+A fuller RN component test could later press the actual copy button, but this
+integration should stay focused on `handleIncomingUrl(url)` and the generated
+link payload first.
+
+### Documentation updates
+
+Update `plugins/docs/ui-elements.md` action deep-link section to mention:
+
+- Plugins can return `copy_text` display actions containing
+  `crystal-lattice://action/...` links.
+- Link-generating actions need the frontend connection id.
+- The frontend should pass connection id as action context/params when invoking
+  link-generating session actions.
+- Completion links should normally omit plugin id when the callback should be
+  handled by whichever plugin currently provides the action.
+
+Add `plugins/generic-callback-app/README.md` explaining this plugin is a
+test/demo fixture for generic external callback flows.
+
+### Migration from current work
+
+Concrete changes from the current implementation:
+
+- Delete `core/python/tests/generic_callback_app_plugin.py`.
+- Add `plugins/generic-callback-app`.
+- Update Python configs/tests:
+  - replace `"tests.generic_callback_app_plugin.GenericCallbackAppPlugin"`
+  - with a path plugin entry for `plugins/generic-callback-app`
+- Update SDK integration config similarly.
+- Update RN integration backend config similarly.
+- Add `start_external_flow` and copy-link assertions.
+- Extend action runner context to include `connectionId`.
+- Update mobile `runApplicationAction` call sites to pass active connection id.
+
+### Validation plan
+
+After implementation, run:
+
+```bash
+pytest application/python/tests/test_application_actions_endpoints.py application/python/tests/test_provider_extension_session_actions_endpoints.py application/python/tests/test_feature_plugin_context_enrichment.py -q
+pytest plugins/generic-callback-app/tests -q
+npm --workspace @crystal-lattice/frontend-sdk test
+cd packages/frontend-sdk && npx vitest run --config vitest.integration.config.ts src/integration/__tests__/actionDeepLinks.integration.test.ts
+cd mobile/crystal-lattice-control-rn && npm run tsc
+cd mobile/crystal-lattice-control-rn && npm test -- --runInBand
+cd mobile/crystal-lattice-control-rn && npm run test:integration -- --runTestsByPath __integration__/actionDeepLinkRouting.realBackend.integration.test.ts
+git diff --check
+```
+
+This validates the complete generic story: a plugin generates a copyable deep
+link, the SDK/mobile parse and route it by connection/session, and the backend
+resolves the omitted executing plugin id in the app layer.
+
+### Follow-up implementation notes
+
+Added during implementation.
+
+- Moved the generic callback fixture to `plugins/generic-callback-app`.
+- Added `start_external_flow`, which generates a
+  `crystal-lattice://action/<connection>/<session>/complete_external_flow` URL
+  and returns it in a `copy_text` display action.
+- Kept `complete_external_flow` as the omitted-plugin callback target.
+- Updated backend, SDK integration, and React Native integration tests to call
+  `start_external_flow`, extract the generated copy-link text, then execute that
+  generated URL through the deep-link parser/routing path.
+- Added generic `$context.*` action input mapping and passed mobile
+  `connectionId` through action contexts.
+- Installed the new plugin package with
+  `python -m pip install -e "plugins/generic-callback-app[dev]"`.
+- Validation results for this follow-up:
+  - Passed: `pytest plugins/generic-callback-app/tests -q`
+  - Passed: `pytest application/python/tests/test_application_actions_endpoints.py application/python/tests/test_provider_extension_session_actions_endpoints.py application/python/tests/test_feature_plugin_context_enrichment.py -q`
+  - Passed: `npm --workspace @crystal-lattice/frontend-sdk test`
+  - Passed: `cd packages/frontend-sdk && npx vitest run --config vitest.integration.config.ts src/integration/__tests__/actionDeepLinks.integration.test.ts`
+  - Passed: `cd mobile/crystal-lattice-control-rn && npm run tsc`
+  - Passed: `cd mobile/crystal-lattice-control-rn && npm test -- --runInBand`
+  - Passed: `cd mobile/crystal-lattice-control-rn && npm run test:integration -- --runTestsByPath __integration__/actionDeepLinkRouting.realBackend.integration.test.ts`
+  - Passed: `npm --workspace @crystal-lattice/frontend-rn-components test`
+  - Passed: `python -m black --check plugins/generic-callback-app/src/generic_callback_app plugins/generic-callback-app/tests application/python/tests/test_application_actions_endpoints.py`
+  - Passed: `git diff --check`
+
 ## Execution plan
 
 Added during completion.

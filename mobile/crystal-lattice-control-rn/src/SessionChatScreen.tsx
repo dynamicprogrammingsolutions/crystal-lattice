@@ -1592,11 +1592,15 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
       setPluginActionInProgress(true);
       try {
+        const actionContext = {
+          ...context,
+          connectionId: connectionId ?? undefined,
+        };
         const { ok, effects, display, errorMessage } = await runApplicationAction({
           backend,
           element,
           actionsById,
-          context,
+          context: actionContext,
           effects: {
             currentSessionId: sessionId,
             navigateOnCreatedSession: true,
@@ -1623,7 +1627,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           await loadMessages({ reason: 'action_reload', refreshUiSchema: true });
         }
         if (display) {
-          presentActionDisplay(display, context);
+          presentActionDisplay(display, actionContext);
         }
       } finally {
         setPluginActionInProgress(false);
@@ -1632,6 +1636,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     [
       actionsById,
       backend,
+      connectionId,
       loadMessages,
       onNavigateToSession,
       presentActionDisplay,
@@ -1802,6 +1807,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         const isMessage = context.kind === 'message';
         await executePluginAction(element, {
           sessionId,
+          connectionId: connectionId ?? undefined,
           sessionSummary: context.sessionSummary || currentSessionSummary || undefined,
           messageContext: isMessage
             ? { index: (context as any).index, message: (context as any).message }
@@ -1809,7 +1815,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           dialogValues,
         });
       },
-      [currentSessionSummary, executePluginAction, sessionId],
+      [connectionId, currentSessionSummary, executePluginAction, sessionId],
     ),
   );
 
