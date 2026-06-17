@@ -2282,18 +2282,37 @@ class AgentApplication:
         config: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Return flattened UI schema elements from application plugins.
 
         Each element is normalized to include a ``"plugin"`` field naming
         the contributing plugin. Optional config/tags/models are passed
-        through so plugins can return config-aware UI.
+        through so plugins can return config-aware UI. Additional context is
+        delivered through the shared application context channel.
         """
+
+        safe_config: Dict[str, Any] = dict(config or {})
+        safe_tags: List[str] = list(tags or [])
+        safe_models: List[Dict[str, Any]] = [
+            dict(model) for model in (models or []) if isinstance(model, Mapping)
+        ]
+        ui_context_name = "application"
+        if isinstance(context, Mapping) and isinstance(context.get("ui_context"), str):
+            ui_context_name = cast(str, context["ui_context"])
+        application_context = self._context.build_application_ui_context(
+            ui_context=ui_context_name,
+            config=safe_config,
+            tags=safe_tags,
+            models=safe_models,
+            extra=context,
+        )
 
         elements: List[Dict[str, Any]] = []
         for plugin_id, wrapper in self._app_plugins.items():
             for raw_element in wrapper.get_ui_elements(
-                config=config, tags=tags, models=models
+                config=safe_config,
+                context=application_context,
             ):
                 if not isinstance(raw_element, dict):
                     continue
@@ -2304,6 +2323,106 @@ class AgentApplication:
                     element["plugin"] = plugin_id
                     elements.append(element)
         return elements
+
+    @staticmethod
+    def _resolve_ui_tags_and_models(
+        core: AgentCore,
+        config: Dict[str, Any],
+    ) -> Tuple[List[str], List[Dict[str, Any]]]:
+        tags: List[str] = []
+        models: List[Dict[str, Any]] = []
+        try:
+            if hasattr(core, "_resolve_plugins_for_config"):
+                provider, _, _, _, resolved_tags = core._resolve_plugins_for_config(
+                    config
+                )
+                tags = list(resolved_tags or [])
+                if provider is not None and hasattr(core, "_get_models_for_config"):
+                    raw_models = core._get_models_for_config(provider, config)
+                    models = [
+                        dict(model)
+                        for model in (raw_models or [])
+                        if isinstance(model, Mapping)
+                    ]
+        except Exception:
+            return [], []
+        return tags, models
+
+    def get_session_application_ui_schema_for_session(
+        self,
+        core: AgentCore,
+        base_config: Dict[str, Any],
+        session: Session,
+        *,
+        plugin: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return application UI schema for an already-loaded session."""
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = resolve_request_config(base_config, overrides)
+        tags, models = self._resolve_ui_tags_and_models(core, effective_config)
+
+        try:
+            elements = self.get_application_ui_schema(
+                config=effective_config,
+                tags=tags,
+                models=models,
+                context={
+                    "ui_context": "session",
+                    "session": session.to_dict(),
+                    "session_id": session.session_id,
+                    "base_config": base_config,
+                },
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            self._logger.exception("error getting application_ui_schema", error=str(exc))
+            elements = []
+
+        if plugin:
+            return [
+                element
+                for element in elements
+                if isinstance(element, dict) and element.get("plugin") == plugin
+            ]
+        return [element for element in elements if isinstance(element, dict)]
+
+    def get_session_application_ui_schema(
+        self,
+        session_id: str,
+        *,
+        plugin: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return application UI schema for a persisted session id."""
+
+        ctx = self.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        core, base_config, session = ctx
+        return self.get_session_application_ui_schema_for_session(
+            core,
+            base_config,
+            session,
+            plugin=plugin,
+        )
+
+    def get_server_settings_ui_schema(self) -> List[Dict[str, Any]]:
+        """Return application UI schema elements for server settings surfaces."""
+
+        settings = self.get_server_settings()
+        return self.get_application_ui_schema(
+            config={},
+            tags=[],
+            models=[],
+            context={
+                "ui_context": "server_settings",
+                "settings_scope": "server",
+                "settings": settings,
+                "server_settings": settings,
+            },
+        )
 
     def get_application_commands(self) -> List[Dict[str, Any]]:
         """Return flattened command bindings from application plugins.

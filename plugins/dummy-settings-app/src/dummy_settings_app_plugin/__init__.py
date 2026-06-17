@@ -19,11 +19,18 @@ class DummySettingsAppPlugin:
         self,
         state: dict[str, Any],
         config: dict[str, Any] | None = None,
-        tags: list[str] | None = None,
-        models: list[dict[str, Any]] | None = None,
+        context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        _ = state, config, tags, models
-        return [
+        _ = state, config
+        ctx = context or {}
+        server_settings = ctx.get("server_settings")
+        if not isinstance(server_settings, dict):
+            server_settings = ctx.get("settings")
+        if not isinstance(server_settings, dict):
+            server_settings = {}
+        show_more = bool(server_settings.get("dummy_show_more_parameters"))
+
+        elements: list[dict[str, Any]] = [
             {
                 "ui_type": "config",
                 "scope": "server",
@@ -57,6 +64,15 @@ class DummySettingsAppPlugin:
             },
             {
                 "ui_type": "config",
+                "scope": "server",
+                "key": "dummy_show_more_parameters",
+                "type": "checkbox",
+                "label": "Show more parameters",
+                "description": "Reveal additional demo settings to exercise scrolling.",
+                "default": False,
+            },
+            {
+                "ui_type": "config",
                 "scope": "session",
                 "key": "dummy_session_mode",
                 "type": "text",
@@ -64,6 +80,20 @@ class DummySettingsAppPlugin:
                 "description": "Demo session-scoped setting used to verify filtering.",
             },
         ]
+        if show_more:
+            elements.extend(
+                {
+                    "ui_type": "config",
+                    "scope": "server",
+                    "key": f"dummy_extra_text_{index:02d}",
+                    "type": "text",
+                    "label": f"Dummy extra text {index:02d}",
+                    "description": "Additional demo field shown by plugin-side schema logic.",
+                    "default": f"extra-{index:02d}",
+                }
+                for index in range(1, 17)
+            )
+        return elements
 
     def init(self, app_config: dict[str, Any]) -> dict[str, Any]:
         _ = app_config

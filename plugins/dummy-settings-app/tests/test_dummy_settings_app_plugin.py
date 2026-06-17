@@ -18,8 +18,33 @@ def test_dummy_settings_app_plugin_exposes_server_scoped_controls() -> None:
         "dummy_server_mode",
         "dummy_server_enabled",
         "dummy_server_name",
+        "dummy_show_more_parameters",
     }
     assert any(element.get("scope") == "session" for element in elements)
+    assert not any(
+        str(element.get("key", "")).startswith("dummy_extra_text_")
+        for element in elements
+    )
+
+
+def test_dummy_settings_app_plugin_adds_extra_controls_from_server_settings_context() -> None:
+    plugin = DummySettingsAppPlugin()
+    state = plugin.init({})
+
+    elements = plugin.get_ui_elements(
+        state,
+        {},
+        {"server_settings": {"dummy_show_more_parameters": True}},
+    )
+
+    extra_keys = [
+        element["key"]
+        for element in elements
+        if str(element.get("key", "")).startswith("dummy_extra_text_")
+    ]
+    assert len(extra_keys) == 16
+    assert extra_keys[0] == "dummy_extra_text_01"
+    assert extra_keys[-1] == "dummy_extra_text_16"
 
 
 def test_dummy_settings_app_plugin_records_lifecycle_context() -> None:

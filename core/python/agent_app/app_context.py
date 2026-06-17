@@ -111,6 +111,38 @@ class ApplicationContext:
             extra=extra,
         )
 
+    def build_application_ui_context(
+        self,
+        *,
+        ui_context: str,
+        config: Mapping[str, Any],
+        tags: Optional[list[Any]] = None,
+        models: Optional[list[Mapping[str, Any]]] = None,
+        session: Any | None = None,
+        base_config: Optional[Mapping[str, Any]] = None,
+        extra: Optional[Mapping[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        specific_layer: Dict[str, Any] = {
+            "trigger_source": "application",
+            "ui_context": ui_context,
+            "config": dict(config),
+            "tags": list(tags or []),
+            "models": [dict(model) for model in (models or [])],
+        }
+        if base_config is not None:
+            specific_layer["base_config"] = dict(base_config)
+        if session is not None:
+            specific_layer["session"] = session.to_dict()
+            specific_layer["session_id"] = session.session_id
+
+        return merge_context_layers(
+            builder="application",
+            call_path="application_ui",
+            generic_layer=self._generic_layer,
+            specific_layer=specific_layer,
+            extra=extra,
+        )
+
     def build_session_action_context(
         self,
         *,

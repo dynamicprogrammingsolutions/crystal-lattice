@@ -16,6 +16,7 @@ function deferred<T>() {
 function createBackend(overrides?: Partial<AgentBackend>): AgentBackend {
   return {
     listApplicationUiSchema: vi.fn(async () => []),
+    listServerSettingsUiSchema: vi.fn(async () => []),
     getServerSettings: vi.fn(async () => ({})),
     patchServerSettings: vi.fn(async () => {}),
     deleteServerSetting: vi.fn(async () => {}),
@@ -26,7 +27,7 @@ function createBackend(overrides?: Partial<AgentBackend>): AgentBackend {
 describe('ServerSettingsController', () => {
   it('loads only server-scoped config elements from application UI schema', async () => {
     const backend = createBackend({
-      listApplicationUiSchema: vi.fn(async () => [
+      listServerSettingsUiSchema: vi.fn(async () => [
         {
           key: 'server_mode',
           ui_type: 'config',
@@ -66,7 +67,7 @@ describe('ServerSettingsController', () => {
 
   it('hydrates from cache and refreshes live settings', async () => {
     const backend = createBackend({
-      listApplicationUiSchema: vi.fn(async () => [
+      listServerSettingsUiSchema: vi.fn(async () => [
         { key: 'server_mode', ui_type: 'config', scope: 'server', type: 'text' },
       ]),
       getServerSettings: vi.fn(async () => ({ server_mode: 'first' })),
@@ -77,7 +78,7 @@ describe('ServerSettingsController', () => {
 
     const schemaReload = deferred<any[]>();
     const settingsReload = deferred<Record<string, any>>();
-    (backend.listApplicationUiSchema as any).mockImplementationOnce(async () => schemaReload.promise);
+    (backend.listServerSettingsUiSchema as any).mockImplementationOnce(async () => schemaReload.promise);
     (backend.getServerSettings as any).mockImplementationOnce(async () => settingsReload.promise);
 
     const second = new ServerSettingsController({ backend, cacheKey: 'c1' });
@@ -103,7 +104,7 @@ describe('ServerSettingsController', () => {
 
   it('optimistically patches and deletes server settings', async () => {
     const backend = createBackend({
-      listApplicationUiSchema: vi.fn(async () => [
+      listServerSettingsUiSchema: vi.fn(async () => [
         { key: 'enabled', ui_type: 'config', scope: 'server', type: 'checkbox' },
       ]),
       getServerSettings: vi.fn(async () => ({ enabled: false })),
@@ -121,6 +122,44 @@ describe('ServerSettingsController', () => {
     await controller.deleteSetting('enabled');
     expect(backend.deleteServerSetting).toHaveBeenCalledWith('enabled');
     expect(controller.getSnapshot().settings).toEqual({});
+
+    controller.dispose();
+  });
+
+  it('awaits server setting mutations before triggering schema reload', async () => {
+    const patch = deferred<void>();
+    const backend = createBackend({
+      listServerSettingsUiSchema: vi
+        .fn()
+        .mockResolvedValueOnce([
+          { key: 'show_more', ui_type: 'config', scope: 'server', type: 'checkbox' },
+        ])
+        .mockResolvedValueOnce([
+          { key: 'show_more', ui_type: 'config', scope: 'server', type: 'checkbox' },
+          { key: 'extra', ui_type: 'config', scope: 'server', type: 'text' },
+        ]),
+      getServerSettings: vi
+        .fn()
+        .mockResolvedValueOnce({ show_more: false })
+        .mockResolvedValueOnce({ show_more: true }),
+      patchServerSettings: vi.fn(async () => patch.promise),
+    });
+
+    const controller = new ServerSettingsController({ backend, cacheKey: 'awaits' });
+    await controller.load();
+
+    const pendingPatch = controller.patchSetting('show_more', true);
+    expect(backend.listServerSettingsUiSchema).toHaveBeenCalledTimes(1);
+
+    patch.resolve(undefined);
+    await pendingPatch;
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(backend.listServerSettingsUiSchema).toHaveBeenCalledTimes(2);
+    expect(controller.getSnapshot().elements.map((element: any) => element.key)).toEqual([
+      'show_more',
+      'extra',
+    ]);
 
     controller.dispose();
   });

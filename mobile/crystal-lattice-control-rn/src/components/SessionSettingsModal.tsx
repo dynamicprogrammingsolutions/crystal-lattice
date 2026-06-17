@@ -2,9 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
-  Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -24,6 +21,7 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 
 import OptionsPickerModal from './OptionsPickerModal';
+import PanelModalFrame from './PanelModalFrame';
 import { useTheme, type Theme } from '../theme';
 
 export interface SessionSettingsModalProps {
@@ -578,61 +576,34 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const hasLoaded = settingsState?.lastLoadedAt != null;
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onRequestClose}
-    >
-      <View style={styles.overlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onRequestClose} />
-        <View style={styles.content}>
-          <Text style={styles.title}>Session settings</Text>
-          <View style={styles.statusLine}>
-            {showSpinner ? <ActivityIndicator size="small" color={theme.primary} /> : null}
-            {statusText ? (
-              <Text
-                style={[
-                  styles.statusText,
-                  statusTone === 'error'
-                    ? styles.statusTextError
-                    : statusTone === 'success'
-                      ? styles.statusTextSuccess
-                      : null,
-                ]}
-                numberOfLines={1}
-              >
-                {statusText}
-              </Text>
-            ) : null}
-          </View>
-          {!error && hasLoaded && items.length === 0 && (
-            <Text style={styles.helperText}>
-              No configurable settings are available for this session.
-            </Text>
-          )}
-          {!error && items.length > 0 && (
-            <View style={styles.body}>
-              <SessionSettingsHost
-                items={items}
-                actions={{
-                  toggleCheckbox: handleToggleCheckbox,
-                  selectOption: handleSelectOption,
-                  saveText: handleSaveText,
-                  revertToDefault: handleRevertToDefault,
-                }}
-                renderers={renderers}
-                renderFrame={({ children }) => <ScrollView style={styles.list}>{children}</ScrollView>}
-              />
-            </View>
-          )}
-          <View style={styles.footerRow}>
-            <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
+    <>
+      <PanelModalFrame
+        visible={visible}
+        title="Session settings"
+        onRequestClose={onRequestClose}
+        statusText={statusText}
+        statusTone={statusTone}
+        showSpinner={showSpinner}
+        scroll={!error && items.length > 0}
+      >
+        {!error && hasLoaded && items.length === 0 && (
+          <Text style={styles.helperText}>
+            No configurable settings are available for this session.
+          </Text>
+        )}
+        {!error && items.length > 0 && (
+          <SessionSettingsHost
+            items={items}
+            actions={{
+              toggleCheckbox: handleToggleCheckbox,
+              selectOption: handleSelectOption,
+              saveText: handleSaveText,
+              revertToDefault: handleRevertToDefault,
+            }}
+            renderers={renderers}
+          />
+        )}
+      </PanelModalFrame>
       <OptionsPickerModal
         visible={!!dropdownState}
         options={dropdownState?.options ?? []}
@@ -644,7 +615,7 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
         }}
         onRequestClose={() => setDropdownState(null)}
       />
-    </Modal>
+    </>
   );
 };
 
@@ -652,58 +623,10 @@ export default SessionSettingsModal;
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor: theme.modalBackdrop,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    content: {
-      width: '90%',
-      maxHeight: '80%',
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-    },
-    title: {
-      fontSize: 16,
-      fontWeight: '600',
-      color: theme.text,
-      marginBottom: 8,
-      textAlign: 'center',
-    },
-    statusLine: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      marginBottom: 8,
-      minHeight: 20,
-    },
-    statusText: {
-      marginLeft: 8,
-      fontSize: 14,
-      color: theme.textSecondary,
-    },
-    statusTextError: {
-      color: theme.danger,
-    },
-    statusTextSuccess: {
-      color: theme.primary,
-    },
     helperText: {
       fontSize: 14,
       color: theme.textSecondary,
       marginBottom: 8,
-    },
-    body: {
-      flexGrow: 0,
-      flexShrink: 1,
-
-    },
-    list: {
-      flexGrow: 0,
-      flexShrink: 1,
-      marginVertical: 8,
     },
     itemRow: {
       flexDirection: 'row',
@@ -869,22 +792,6 @@ const createStyles = (theme: Theme) =>
       paddingHorizontal: 4,
       paddingVertical: 2,
       marginLeft: 4,
-    },
-    footerRow: {
-      marginTop: 8,
-      flexDirection: 'row',
-      justifyContent: 'flex-end',
-    },
-    closeButton: {
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 8,
-      backgroundColor: theme.surfaceAlt,
-    },
-    closeButtonText: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.text,
     },
     dropdownButton: {
       flexDirection: 'row',

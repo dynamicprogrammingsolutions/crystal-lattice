@@ -1,6 +1,6 @@
 # UI elements (`get_ui_elements`)
 
-Plugins can optionally expose UI metadata via `get_ui_elements(config, tags, models) -> list[dict]`.
+Plugins can optionally expose UI metadata via `get_ui_elements(...) -> list[dict]`.
 
 The core treats UI element dictionaries as **opaque** and flattens them via `AgentCore.get_ui_schema(config)`.
 
@@ -12,16 +12,15 @@ The core treats UI element dictionaries as **opaque** and flattens them via `Age
 def get_ui_elements(
     self,
     config: Dict[str, Any],
-    tags: List[str],
-    models: List[Dict[str, Any]],
+    context: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     ...
 ```
 
 The core passes:
 - `config`: effective configuration for the current agent/request
-- `tags`: capability tags computed for this config (provider + enabled plugins)
-- `models`: model descriptors computed for this config
+- `context["tags"]`: capability tags computed for this config (provider + enabled plugins)
+- `context["models"]`: model descriptors computed for this config
 
 ### Application plugins
 
@@ -30,15 +29,23 @@ def get_ui_elements(
     self,
     state: Dict[str, Any],
     config: Optional[Dict[str, Any]] = None,
-    tags: Optional[List[str]] = None,
-    models: Optional[List[Dict[str, Any]]] = None,
+    context: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     ...
 ```
 
-Application plugins receive `state` first (their internal state), followed by optional context parameters. When called via session-scoped endpoints, `config` contains the session's effective configuration, enabling config-aware UI filtering.
+Application plugins receive `state` first (their internal state), followed by
+optional `config` and `context` parameters. When called via session-scoped
+endpoints, `config` contains the session's effective configuration, enabling
+config-aware UI filtering. When called for server settings, `config` remains
+configuration and current server settings are supplied in
+`context["server_settings"]`.
 
-For backward compatibility, plugin adapters will also accept a legacy `get_ui_elements()` implementation with no arguments, but new plugins should prefer the context-aware signature.
+For backward compatibility, plugin adapters also accept legacy application
+plugin signatures such as `get_ui_elements()`, `get_ui_elements(state)`,
+`get_ui_elements(state, config)`, and
+`get_ui_elements(state, config, tags, models)`, but new plugins should prefer
+the context-aware signature.
 
 Runtime references:
 - Core plugins: `core/python/agent_core/types.py` (`BasePlugin.get_ui_elements`)
@@ -137,7 +144,50 @@ Application plugins can expose server-scoped settings by returning config-like
 elements with `scope: "server"` from `get_ui_elements(...)`.
 
 ```python
-def get_ui_elements(self, state, config=None, tags=None, models=None):
+def get_ui_elements(self, state, config=None, context=None):
+    settings = (context or {}).get("server_settings") or {}
+    elements = [
+        {
+            "ui_type": "config",
+            "scope": "server",
+            "key": "show_advanced",
+            "type": "checkbox",
+            "label": "Show advanced settings",
+            "default": False,
+        }
+    ]
+    if settings.get("show_advanced"):
+        elements.append(
+            {
+                "ui_type": "config",
+                "scope": "server",
+                "key": "keep_awake_enabled",
+                "type": "checkbox",
+                "label": "Keep server awake",
+                "default": False,
+            }
+        )
+    return elements
+```
+
+Frontends retrieve these elements from `GET /server/settings/ui-schema` and
+filter to config-like elements whose `scope` is `"server"`. Current values are
+loaded from `GET /server/settings`; mutations use `PATCH /server/settings` and
+`DELETE /server/settings/{key}`.
+
+Dynamic server settings UI should be plugin-side: the application passes current
+server settings in `context["server_settings"]`, and the plugin returns the
+controls that should be visible for that state. Do not use the session/agent
+`config` argument to carry server settings.
+
+Server-scoped settings are application-owned state. Plugins can react to
+`server_settings_changed`, but should not store a second authoritative copy of
+the same user-editable values.
+
+<!-- Keep a minimal static example for readers who do not need dynamic UI. -->
+
+```python
+def get_ui_elements(self, state, config=None, context=None):
     return [
         {
             "ui_type": "config",
@@ -149,15 +199,6 @@ def get_ui_elements(self, state, config=None, tags=None, models=None):
         }
     ]
 ```
-
-Frontends retrieve these elements from `GET /application/ui-schema` and filter
-to config-like elements whose `scope` is `"server"`. Current values are loaded
-from `GET /server/settings`; mutations use `PATCH /server/settings` and
-`DELETE /server/settings/{key}`.
-
-Server-scoped settings are application-owned state. Plugins can react to
-`server_settings_changed`, but should not store a second authoritative copy of
-the same user-editable values.
 
 #### Input types
 
@@ -578,7 +619,6 @@ GET /application/ui-schema
 ```
 
 Returns global UI elements from application plugins. Used for:
-- `ui_type == "config"` with `scope == "server"`: Server-scoped settings
 - global application actions or display elements that do not require a current
   session
 
@@ -594,6 +634,14 @@ Returns session-contextual UI elements from application plugins. Used for:
 Optional query parameter `?plugin=name` filters elements by plugin.
 
 ### Server settings values
+
+```
+GET /server/settings/ui-schema
+```
+
+Returns server settings UI elements from application plugins. The application
+passes current server settings in UI context so plugins can decide which
+server-scoped controls to return.
 
 ```
 GET /server/settings

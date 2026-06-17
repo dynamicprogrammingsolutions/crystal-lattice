@@ -75,8 +75,7 @@ class ApplicationPlugin(Protocol):
         self,
         state: Dict[str, Any],
         config: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        models: Optional[List[Dict[str, Any]]] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Return UI element definitions."""
 
@@ -97,6 +96,50 @@ class ApplicationPlugin(Protocol):
     ) -> Dict[str, Any]:
         """Execute an action with validated parameters."""
 ```
+
+---
+
+## UI context in `get_ui_elements`
+
+Application plugins should prefer the context-aware UI signature:
+
+```python
+def get_ui_elements(
+    self,
+    state: dict[str, Any],
+    config: dict[str, Any] | None = None,
+    context: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    ...
+```
+
+The application wrapper keeps older signatures working for compatibility,
+including:
+
+- `get_ui_elements()`
+- `get_ui_elements(state)`
+- `get_ui_elements(state, config)`
+- `get_ui_elements(state, config, tags, models)`
+
+New plugins should read `tags`, `models`, and surface-specific data from
+`context`, not as positional parameters.
+
+Common UI context keys:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `ui_context` | `str` | UI surface name, such as `"application"`, `"session"`, or `"server_settings"` |
+| `config` | `dict` | Effective configuration for the current UI surface |
+| `tags` | `list[str]` | Capability tags computed for this config, when available |
+| `models` | `list[dict]` | Model descriptors computed for this config, when available |
+| `session` | `dict` | Serialized session for session-contextual UI schema |
+| `session_id` | `str` | Session id for session-contextual UI schema |
+| `server_settings` | `dict` | Current application-owned server settings for server settings UI schema |
+| `settings` | `dict` | Generic alias for the active settings scope |
+| `settings_scope` | `str` | Settings scope, such as `"server"` |
+
+Server settings are supplied through `context["server_settings"]`; they are not
+configuration and should not be read from `config`.
 
 ---
 
@@ -319,7 +362,7 @@ def get_ui_elements(
 
 Application plugins can expose server-scoped settings by returning config-like
 UI elements with `scope: "server"`. Frontends read these from
-`GET /application/ui-schema`, then read and write current values through the
+`GET /server/settings/ui-schema`, then read and write current values through the
 server settings API.
 
 ```python
@@ -337,16 +380,19 @@ class KeepAwakePlugin:
         self,
         state: dict[str, Any],
         config: dict[str, Any] | None = None,
-        tags: list[str] | None = None,
-        models: list[dict[str, Any]] | None = None,
+        context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
+        settings = (context or {}).get("server_settings") or {}
+        label = "Keep server awake"
+        if settings.get("keep_awake_enabled"):
+            label = "Keep server awake (enabled)"
         return [
             {
                 "ui_type": "config",
                 "scope": "server",
                 "key": "keep_awake_enabled",
                 "type": "checkbox",
-                "label": "Keep server awake",
+                "label": label,
                 "default": False,
             }
         ]

@@ -3,7 +3,10 @@ import type {
   AgentBackend,
   ServerSettingsControllerState,
 } from '@crystal-lattice/frontend-sdk';
-import { ServerSettingsController } from '@crystal-lattice/frontend-sdk';
+import {
+  ServerSettingsController,
+  subscribeServerSettingsInvalidated,
+} from '@crystal-lattice/frontend-sdk';
 
 export interface UseServerSettingsControllerOptions {
   backend: AgentBackend | null;
@@ -36,6 +39,19 @@ export function useServerSettingsController(
       // State captures errors.
     });
   }, [controller, enabled]);
+
+  useEffect(() => {
+    if (!controller || !enabled || !backend) {
+      return;
+    }
+
+    return subscribeServerSettingsInvalidated(backend, () => {
+      controller.invalidate();
+      controller.load().catch(() => {
+        // State captures errors.
+      });
+    });
+  }, [backend, controller, enabled]);
 
   useEffect(() => {
     return () => {

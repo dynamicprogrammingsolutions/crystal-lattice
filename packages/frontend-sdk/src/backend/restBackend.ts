@@ -17,6 +17,7 @@ import type {
 } from './backend';
 import { generateIdempotencyKey } from '../utils/idempotency';
 import { emitSessionUiSchemaInvalidated } from '../uiSchema/sessionUiSchemaInvalidation';
+import { emitServerSettingsInvalidated } from '../serverSettings/serverSettingsInvalidation';
 
 const HEAVY_REQUEST_TIMEOUT_MS = 120_000;
 
@@ -579,6 +580,8 @@ export class RestAgentBackend implements AgentBackend {
       headers: this.buildIdempotencyHeaders(options.idempotencyKey),
       body: { values },
     });
+
+    emitServerSettingsInvalidated(this, { reason: 'server_settings_updated' });
   }
 
   async deleteServerSetting(
@@ -590,6 +593,17 @@ export class RestAgentBackend implements AgentBackend {
       path: `/server/settings/${encodeURIComponent(key)}`,
       headers: this.buildIdempotencyHeaders(options.idempotencyKey),
     });
+
+    emitServerSettingsInvalidated(this, { reason: 'server_settings_updated' });
+  }
+
+  async listServerSettingsUiSchema(): Promise<ApplicationUiElement[]> {
+    const resp = await this.transport.request<{ elements?: ApplicationUiElement[] }>({
+      method: 'GET',
+      path: '/server/settings/ui-schema',
+    });
+    const elements = Array.isArray(resp.data?.elements) ? resp.data.elements : [];
+    return elements;
   }
 
   async listApplicationActions(params: { pluginId?: string } = {}): Promise<ApplicationActionDefinition[]> {

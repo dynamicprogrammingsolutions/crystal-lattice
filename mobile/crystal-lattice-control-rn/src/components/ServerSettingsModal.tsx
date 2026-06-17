@@ -2,8 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  Modal,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -19,6 +17,7 @@ import {
 } from '@crystal-lattice/frontend-sdk-react';
 import Icon from 'react-native-vector-icons/Feather';
 
+import PanelModalFrame from './PanelModalFrame';
 import { useTheme, type Theme } from '../theme';
 
 export interface ServerSettingsModalProps {
@@ -145,6 +144,7 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             </TouchableOpacity>
           ) : null}
           <Switch
+            accessibilityLabel={item.label}
             value={Boolean(item.effectiveValue ?? false)}
             disabled={item.disabled || isSaving}
             onValueChange={(next) => handlePatch(item.key, next)}
@@ -246,101 +246,39 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     );
   };
 
+  const error = !backend ? 'No active connection' : state?.error ?? null;
+  const statusText = error || state?.statusMessage;
+  const statusTone = error ? 'error' : state?.statusTone ?? 'idle';
+  const showSpinner = !error && (state?.loading || statusTone === 'busy');
+
   return (
-    <Modal
+    <PanelModalFrame
       visible={visible}
-      animationType="slide"
-      transparent
+      title="Server settings"
       onRequestClose={onRequestClose}
+      statusText={statusText}
+      statusTone={statusTone}
+      showSpinner={showSpinner}
+      scroll
+      scrollTestID="server-settings-scroll"
     >
-      <View style={styles.overlay}>
-        <View style={styles.content}>
-          <View style={styles.headerRow}>
-            <Text style={styles.title}>Server settings</Text>
-            <TouchableOpacity
-              accessibilityLabel="Close server settings"
-              style={styles.closeButton}
-              onPress={onRequestClose}
-            >
-              <Icon name="x" size={20} color={theme.text} />
-            </TouchableOpacity>
-          </View>
-
-          {state?.statusMessage ? (
-            <Text
-              style={[
-                styles.statusText,
-                state.statusTone === 'error' && styles.statusError,
-              ]}
-            >
-              {state.statusMessage}
-            </Text>
-          ) : null}
-
-          <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-            {state?.loading ? (
-              <View style={styles.loadingRow}>
-                <ActivityIndicator size="small" color={theme.primary} />
-                <Text style={styles.loadingText}>Loading settings...</Text>
-              </View>
-            ) : null}
-            {!state?.loading && items.length === 0 ? (
-              <Text style={styles.emptyText}>No server settings available.</Text>
-            ) : (
-              items.map(renderItem)
-            )}
-          </ScrollView>
+      {state?.loading ? (
+        <View style={styles.loadingRow}>
+          <ActivityIndicator size="small" color={theme.primary} />
+          <Text style={styles.loadingText}>Loading settings...</Text>
         </View>
-      </View>
-    </Modal>
+      ) : null}
+      {!state?.loading && items.length === 0 ? (
+        <Text style={styles.emptyText}>No server settings available.</Text>
+      ) : (
+        items.map(renderItem)
+      )}
+    </PanelModalFrame>
   );
 };
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
-    overlay: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.35)',
-      justifyContent: 'flex-end',
-    },
-    content: {
-      maxHeight: '86%',
-      backgroundColor: theme.background,
-      borderTopLeftRadius: 8,
-      borderTopRightRadius: 8,
-      padding: 16,
-    },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      marginBottom: 12,
-    },
-    title: {
-      fontSize: 18,
-      fontWeight: '700',
-      color: theme.text,
-    },
-    closeButton: {
-      width: 40,
-      height: 40,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    scroll: {
-      flexGrow: 0,
-    },
-    scrollContent: {
-      paddingBottom: 16,
-    },
-    statusText: {
-      marginBottom: 10,
-      color: theme.textSecondary,
-      fontSize: 13,
-    },
-    statusError: {
-      color: theme.danger,
-    },
     loadingRow: {
       flexDirection: 'row',
       alignItems: 'center',

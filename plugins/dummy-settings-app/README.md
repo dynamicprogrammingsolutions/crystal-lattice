@@ -34,6 +34,8 @@ The plugin exposes:
 - `dummy_server_mode`: select, values `fast` / `careful`
 - `dummy_server_enabled`: checkbox
 - `dummy_server_name`: text
+- `dummy_show_more_parameters`: checkbox that makes the plugin return extra
+  server-scoped settings from `get_ui_elements(...)`
 
 It also exposes one session-scoped setting, `dummy_session_mode`, so clients can
 verify that server settings UIs filter it out.

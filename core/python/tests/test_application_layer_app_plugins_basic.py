@@ -13,6 +13,7 @@ from typing import Any, Dict, List
 import pytest
 
 from agent_app.application_future import AgentApplication
+from agent_app.app_plugins import ApplicationPluginWrapper
 from agent_core import AgentCore
 
 # Import dummy plugins so they are available for dotted-path loading.
@@ -88,6 +89,156 @@ def test_get_application_actions_and_ui_schema_attach_plugin_id(tmp_path: Path) 
     assert command["name"] == "dummy-command"
     assert command["action_id"] == "do_dummy"
     assert command["args"][0]["name"] == "value"
+
+
+def test_get_session_application_ui_schema_delegates_session_context_and_filters_plugin(
+    tmp_path: Path,
+) -> None:
+    config_path = _make_config_with_app_plugin(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    _core, _base_config, session = app.create_session("default")
+
+    elements = app.get_session_application_ui_schema(
+        session.session_id,
+        plugin="dummy_app_plugin",
+    )
+
+    assert len(elements) == 1
+    assert elements[0]["plugin"] == "dummy_app_plugin"
+    assert elements[0]["id"] == "dummy_ui"
+    assert app.get_session_application_ui_schema(
+        session.session_id,
+        plugin="missing",
+    ) == []
+
+
+def test_application_plugin_ui_wrapper_passes_context_to_new_signature() -> None:
+    class ContextAwareAppPlugin:
+        name = "context_aware"
+        version = "1.0.0"
+
+        def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
+            return {"initialized": True}
+
+        def get_config_schema(self) -> Dict[str, Any]:
+            return {}
+
+        def get_ui_elements(
+            self,
+            state: Dict[str, Any],
+            config: Dict[str, Any] | None = None,
+            context: Dict[str, Any] | None = None,
+        ) -> List[Dict[str, Any]]:
+            return [
+                {
+                    "ui_type": "config",
+                    "key": "server_mode",
+                    "state_initialized": state.get("initialized"),
+                    "config_model": (config or {}).get("model"),
+                    "server_mode": (context or {})
+                    .get("server_settings", {})
+                    .get("server_mode"),
+                    "tags": (context or {}).get("tags"),
+                    "models": (context or {}).get("models"),
+                }
+            ]
+
+        def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+            return []
+
+        def execute_action(
+            self,
+            app: Any,
+            action_id: str,
+            params: Dict[str, Any],
+            context: Dict[str, Any] | None,
+            state: Dict[str, Any],
+        ) -> Dict[str, Any]:
+            return {}
+
+    wrapper = ApplicationPluginWrapper("context_aware", ContextAwareAppPlugin)
+    wrapper.init({})
+
+    elements = wrapper.get_ui_elements(
+        config={"model": "test-model"},
+        context={
+            "server_settings": {"server_mode": "careful"},
+            "tags": ["demo"],
+            "models": [{"id": "m"}],
+        },
+    )
+
+    assert elements == [
+        {
+            "ui_type": "config",
+            "key": "server_mode",
+            "state_initialized": True,
+            "config_model": "test-model",
+            "server_mode": "careful",
+            "tags": ["demo"],
+            "models": [{"id": "m"}],
+        }
+    ]
+
+
+def test_application_plugin_ui_wrapper_keeps_legacy_tags_models_signature() -> None:
+    class LegacyAppPlugin:
+        name = "legacy"
+        version = "1.0.0"
+
+        def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
+            return {}
+
+        def get_config_schema(self) -> Dict[str, Any]:
+            return {}
+
+        def get_ui_elements(
+            self,
+            state: Dict[str, Any],
+            config: Dict[str, Any] | None = None,
+            tags: List[str] | None = None,
+            models: List[Dict[str, Any]] | None = None,
+        ) -> List[Dict[str, Any]]:
+            return [
+                {
+                    "ui_type": "config",
+                    "key": "legacy",
+                    "tags": tags or [],
+                    "models": models or [],
+                }
+            ]
+
+        def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+            return []
+
+        def execute_action(
+            self,
+            app: Any,
+            action_id: str,
+            params: Dict[str, Any],
+            context: Dict[str, Any] | None,
+            state: Dict[str, Any],
+        ) -> Dict[str, Any]:
+            return {}
+
+    wrapper = ApplicationPluginWrapper("legacy", LegacyAppPlugin)
+    wrapper.init({})
+
+    elements = wrapper.get_ui_elements(
+        config={},
+        context={"tags": ["legacy-tag"], "models": [{"id": "legacy-model"}]},
+    )
+
+    assert elements == [
+        {
+            "ui_type": "config",
+            "key": "legacy",
+            "tags": ["legacy-tag"],
+            "models": [{"id": "legacy-model"}],
+        }
+    ]
 
 
 def test_execute_application_action_invokes_plugin(tmp_path: Path) -> None:

@@ -161,18 +161,79 @@ def test_runtime_dummy_settings_plugin_path_is_config_loadable(tmp_path: Path) -
         event_store=InMemoryEventStore(),
     )
 
-    elements = app.get_application_ui_schema()
+    elements = app.get_server_settings_ui_schema()
     assert any(
         element.get("key") == "dummy_server_mode"
         and element.get("scope") == "server"
         for element in elements
     )
+    assert not any(
+        str(element.get("key", "")).startswith("dummy_extra_text_")
+        for element in elements
+    )
 
-    app.patch_server_settings({"dummy_server_mode": "careful"}, source="test")
+    app.patch_server_settings(
+        {
+            "dummy_server_mode": "careful",
+            "dummy_show_more_parameters": True,
+        },
+        source="test",
+    )
+    updated_elements = app.get_server_settings_ui_schema()
+    assert any(
+        element.get("key") == "dummy_extra_text_16"
+        for element in updated_elements
+    )
 
     wrapper = getattr(app, "_app_plugins")["dummy_settings_app_plugin"]
     plugin = wrapper.plugin
     assert plugin.executed[-1]["action_id"] == "record_server_settings_changed"
     assert plugin.executed[-1]["context"]["new_settings"] == {
-        "dummy_server_mode": "careful"
+        "dummy_server_mode": "careful",
+        "dummy_show_more_parameters": True,
     }
+
+
+def test_server_settings_ui_schema_route_uses_settings_context(tmp_path: Path) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = AgentApplication(
+        str(_make_config_with_runtime_dummy_settings_plugin(tmp_path)),
+        str(tmp_path / "sessions"),
+        event_store=InMemoryEventStore(),
+    )
+
+    initial = server_mod.get_server_settings_ui_schema(app_instance=app)
+    initial_keys = {
+        element.get("key")
+        for element in initial["elements"]
+        if isinstance(element, dict)
+    }
+    assert "dummy_show_more_parameters" in initial_keys
+    assert "dummy_extra_text_01" not in initial_keys
+
+    app.patch_server_settings({"dummy_show_more_parameters": True}, source="test")
+    updated = server_mod.get_server_settings_ui_schema(app_instance=app)
+    updated_keys = {
+        element.get("key")
+        for element in updated["elements"]
+        if isinstance(element, dict)
+    }
+
+    assert "dummy_extra_text_01" in updated_keys
+    assert "dummy_extra_text_16" in updated_keys
+
+
+def test_session_application_ui_schema_route_delegates_not_found(tmp_path: Path) -> None:
+    from fastapi import HTTPException
+    from agent_terminal_app import server as server_mod
+
+    app = _build_app(tmp_path)
+
+    with pytest.raises(HTTPException) as exc_info:
+        server_mod.get_session_application_ui_schema(
+            "missing-session",
+            app_instance=app,
+        )
+
+    assert exc_info.value.status_code == 404

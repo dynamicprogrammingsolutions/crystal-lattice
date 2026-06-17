@@ -172,6 +172,11 @@ export type {
   ServerSettingsStatusTone,
 } from './serverSettings/serverSettingsController';
 export { ServerSettingsController } from './serverSettings/serverSettingsController';
+export type { ServerSettingsInvalidationEvent } from './serverSettings/serverSettingsInvalidation';
+export {
+  emitServerSettingsInvalidated,
+  subscribeServerSettingsInvalidated,
+} from './serverSettings/serverSettingsInvalidation';
 
 export type { SessionUiSchemaInvalidationEvent } from './uiSchema/sessionUiSchemaInvalidation';
 export {

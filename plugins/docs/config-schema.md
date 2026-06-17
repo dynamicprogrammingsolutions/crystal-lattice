@@ -115,8 +115,12 @@ Because `get_ui_elements` receives `tags` and `models`, the set of UI-exposed ke
 
 Application plugins can also expose editable server-scoped settings via
 `get_ui_elements(...)` by returning config-like elements with
-`scope: "server"`. Those values are persisted by `AgentApplication` server
-settings helpers and are not part of `AgentCore.get_config_schema()`.
+`scope: "server"`. Frontends retrieve those controls from
+`GET /server/settings/ui-schema`. The application passes current server
+settings through UI context, so plugins can dynamically choose which
+server-scoped controls to return. Those values are persisted by
+`AgentApplication` server settings helpers and are not part of
+`AgentCore.get_config_schema()`.
 
 Use server-scoped UI elements for user-editable, server-global settings. Use
 plugin-owned sidecar files only for private plugin state such as caches,

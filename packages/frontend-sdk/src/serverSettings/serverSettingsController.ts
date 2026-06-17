@@ -116,18 +116,19 @@ function findElementByKey(elements: UiSchemaElement[], key: string): UiSchemaEle
 
 function ensureServerSettingsBackend(backend: AgentBackend): Required<Pick<
   AgentBackend,
-  'getServerSettings' | 'patchServerSettings' | 'deleteServerSetting'
+  'getServerSettings' | 'patchServerSettings' | 'deleteServerSetting' | 'listServerSettingsUiSchema'
 >> {
   if (
     typeof backend.getServerSettings !== 'function' ||
     typeof backend.patchServerSettings !== 'function' ||
-    typeof backend.deleteServerSetting !== 'function'
+    typeof backend.deleteServerSetting !== 'function' ||
+    typeof backend.listServerSettingsUiSchema !== 'function'
   ) {
     throw new Error('Server settings are not supported by this backend.');
   }
   return backend as Required<Pick<
     AgentBackend,
-    'getServerSettings' | 'patchServerSettings' | 'deleteServerSetting'
+    'getServerSettings' | 'patchServerSettings' | 'deleteServerSetting' | 'listServerSettingsUiSchema'
   >>;
 }
 
@@ -208,7 +209,7 @@ export class ServerSettingsController extends SimpleSubscribable<ServerSettingsC
       try {
         const serverSettingsBackend = ensureServerSettingsBackend(this.backend!);
         const [applicationUiSchema, settings] = await Promise.all([
-          this.backend!.listApplicationUiSchema(),
+          serverSettingsBackend.listServerSettingsUiSchema(),
           serverSettingsBackend.getServerSettings(),
         ]);
 
@@ -285,7 +286,7 @@ export class ServerSettingsController extends SimpleSubscribable<ServerSettingsC
     this.commit(optimistic);
 
     try {
-      ensureServerSettingsBackend(this.backend).patchServerSettings({ [key]: coercedValue });
+      await ensureServerSettingsBackend(this.backend).patchServerSettings({ [key]: coercedValue });
       this.markMutationSaved(key);
       this.load().catch(() => {});
     } catch (error) {
@@ -338,7 +339,7 @@ export class ServerSettingsController extends SimpleSubscribable<ServerSettingsC
     this.commit(optimistic);
 
     try {
-      ensureServerSettingsBackend(this.backend).deleteServerSetting(key);
+      await ensureServerSettingsBackend(this.backend).deleteServerSetting(key);
       this.markMutationSaved(key);
       this.load().catch(() => {});
     } catch (error) {

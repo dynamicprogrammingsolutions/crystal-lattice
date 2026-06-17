@@ -54,7 +54,10 @@ describe('ServerSettingsModal real-backend component integration', () => {
     expect(screen.getByText('Fast')).toBeTruthy();
     expect(screen.getByText('Careful')).toBeTruthy();
     expect(screen.getByText('Dummy server enabled')).toBeTruthy();
+    expect(screen.getByText('Show more parameters')).toBeTruthy();
     expect(screen.queryByText('Dummy session mode')).toBeNull();
+    expect(screen.queryByText('Dummy extra text 01')).toBeNull();
+    expect(screen.getByTestId('server-settings-scroll')).toBeTruthy();
 
     fireEvent.press(screen.getByText('Careful'));
 
@@ -62,5 +65,15 @@ describe('ServerSettingsModal real-backend component integration', () => {
       const settings = await started!.backend.getServerSettings();
       expect(settings.dummy_server_mode).toBe('careful');
     });
+
+    fireEvent(screen.getByLabelText('Show more parameters'), 'valueChange', true);
+
+    await waitFor(async () => {
+      const settings = await started!.backend.getServerSettings();
+      expect(settings.dummy_show_more_parameters).toBe(true);
+    });
+
+    expect(await screen.findByText('Dummy extra text 01')).toBeTruthy();
+    expect(await screen.findByText('Dummy extra text 16')).toBeTruthy();
   });
 });

@@ -201,6 +201,7 @@ export interface AgentBackend {
     key: string,
     options?: { idempotencyKey?: string },
   ): Promise<void>;
+  listServerSettingsUiSchema?(): Promise<ApplicationUiElement[]>;
 
   // --- Application plugins/actions ---
   listApplicationActions(params?: { pluginId?: string }): Promise<ApplicationActionDefinition[]>;
