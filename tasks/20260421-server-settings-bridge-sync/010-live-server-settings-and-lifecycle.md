@@ -441,3 +441,4 @@ Added during follow-up implementation.
 - Canonical plugin docs in `plugins/docs` were updated for the context-aware application UI contract and server settings schema endpoint.
 - Follow-up verification passed for targeted Python tests, SDK tests, React hook tests, mobile component tests, and the real-backend mobile component integration. Mobile `tsc` still fails on the pre-existing `AnimatedSplashScreen`/`AppLogoProps` issue.
 - After review, session application UI schema assembly was centralized in `AgentApplication`; HTTP and terminal callers now delegate instead of resolving config/tags/models themselves.
+- Snapshot popup follow-up extracted the snapshots modal to the shared popup frame and restored the pre-`25d3b9aa` vertical snapshot item layout while keeping per-snapshot action buttons horizontal.

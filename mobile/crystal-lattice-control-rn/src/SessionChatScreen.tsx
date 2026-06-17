@@ -77,6 +77,7 @@ import {
 import OptionsPickerModal from './components/OptionsPickerModal';
 import SessionSettingsModal from './components/SessionSettingsModal';
 import SessionPluginsModal from './components/SessionPluginsModal';
+import SessionSnapshotsModal from './components/SessionSnapshotsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
@@ -3973,94 +3974,18 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          </View>
 	        </Modal>
 	      )}
-        <Modal
+        <SessionSnapshotsModal
           visible={snapshotsVisible}
-          transparent
-          animationType="fade"
+          snapshotsLoading={snapshotsLoading}
+          snapshotItems={snapshotItems}
+          selectedSnapshotId={selectedSnapshotId}
           onRequestClose={() => setSnapshotsVisible(false)}
-        >
-          <TouchableWithoutFeedback onPress={() => setSnapshotsVisible(false)}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback onPress={() => {}}>
-                <View style={styles.modalContent}>
-                  <Text style={styles.modalTitle}>Snapshots</Text>
-                  <Text style={styles.modalSubtitle}>
-                    Browse readonly snapshots, restore one, or return to the live session.
-                  </Text>
-                  <View style={styles.modalButtonsRow}>
-                    <TouchableOpacity
-                      style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                      onPress={() => {
-                        void handleCreateSnapshot();
-                      }}
-                      disabled={snapshotsLoading}
-                    >
-                      <Text style={styles.buttonTextSecondary}>Create</Text>
-                    </TouchableOpacity>
-                    {selectedSnapshotId ? (
-                      <TouchableOpacity
-                        style={[styles.button, styles.secondaryButton, styles.modalButton]}
-                        onPress={() => {
-                          void handleClearSelectedSnapshot();
-                        }}
-                      >
-                        <Text style={styles.buttonTextSecondary}>Live session</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                  <ScrollView style={styles.settingsScroll}>
-                    {snapshotsLoading ? (
-                      <ActivityIndicator size="small" color={theme.textSecondary} />
-                    ) : snapshotItems.length === 0 ? (
-                      <Text style={styles.modalSubtitle}>No snapshots yet.</Text>
-                    ) : (
-                      snapshotItems.map((item) => {
-                        const isSelected = selectedSnapshotId === item.snapshot_id;
-                        return (
-                          <View key={item.snapshot_id} style={styles.pluginRow}>
-                            <View style={styles.pluginRowContent}>
-                              <Text style={styles.pluginName}>{item.reason || 'snapshot'}</Text>
-                              <Text style={styles.pluginMeta}>{item.created_at}</Text>
-                              <Text style={styles.pluginMeta}>{item.snapshot_id}</Text>
-                            </View>
-                            <View style={styles.modalButtonsRow}>
-                              <TouchableOpacity
-                                style={[styles.button, styles.secondaryButton, styles.smallButton]}
-                                onPress={() => {
-                                  void handleSelectSnapshot(item.snapshot_id);
-                                }}
-                              >
-                                <Text style={styles.buttonTextSecondary}>
-                                  {isSelected ? 'Selected' : 'Select'}
-                                </Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={[styles.button, styles.secondaryButton, styles.smallButton]}
-                                onPress={() => {
-                                  void handleRestoreSnapshot(item.snapshot_id);
-                                }}
-                              >
-                                <Text style={styles.buttonTextSecondary}>Restore</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={[styles.button, styles.secondaryButton, styles.smallButton]}
-                                onPress={() => {
-                                  void handleDeleteSnapshot(item.snapshot_id);
-                                }}
-                              >
-                                <Text style={styles.buttonTextSecondary}>Delete</Text>
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                        );
-                      })
-                    )}
-                  </ScrollView>
-                </View>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
+          onCreateSnapshot={handleCreateSnapshot}
+          onClearSelectedSnapshot={handleClearSelectedSnapshot}
+          onSelectSnapshot={handleSelectSnapshot}
+          onRestoreSnapshot={handleRestoreSnapshot}
+          onDeleteSnapshot={handleDeleteSnapshot}
+        />
 	      <AgentSwitchModal
 	        visible={agentModalVisible}
 	        loading={agentsLoading || agentSwitchInProgress}
@@ -4389,33 +4314,6 @@ const createStyles = (theme: Theme) =>
       fontSize: 12,
       color: theme.textSecondary,
       marginBottom: 12,
-    },
-    settingsScroll: {
-      maxHeight: 320,
-      marginBottom: 12,
-    },
-    pluginRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      borderBottomWidth: 1,
-      borderBottomColor: theme.divider,
-      paddingVertical: 10,
-      gap: 8,
-    },
-    pluginRowContent: {
-      flex: 1,
-      minWidth: 0,
-    },
-    pluginName: {
-      fontSize: 14,
-      fontWeight: '600',
-      color: theme.text,
-    },
-    pluginMeta: {
-      fontSize: 12,
-      color: theme.textSecondary,
-      marginTop: 2,
     },
     modalInput: {
       backgroundColor: theme.surface,
