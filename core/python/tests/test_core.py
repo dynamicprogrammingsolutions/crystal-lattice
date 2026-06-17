@@ -632,13 +632,13 @@ def test_modify_message_shared_indices_cardinality_change_removes_first():
     original_to_native = core._core_messages_to_native_for_config
     original_rebuild = core._rebuild_core_from_native
 
-    def fake_core_to_native(core_messages, config):  # type: ignore[override]
+    def fake_core_to_native(core_messages, config, **_kwargs):  # type: ignore[override]
         msg = core_messages[0]
         return [
             {"role": msg["role"], "content": f"n:{msg['content']}", "metadata": {}},
         ]
 
-    def fake_rebuild(native_messages, config):  # type: ignore[override]
+    def fake_rebuild(native_messages, config, **_kwargs):  # type: ignore[override]
         # Return tuple of (core_messages, post_init_native_messages)
         core_msgs = [
             Message(
