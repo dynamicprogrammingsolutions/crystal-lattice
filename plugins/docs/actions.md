@@ -162,6 +162,10 @@ The meaning of common triggers is:
   another and may need pre-switch adjustments
 - `agent_switch_complete`: a session has completed an agent switch and may need
   post-switch adjustments
+- `session_settings_changed`: application-owned per-session settings have
+  changed and plugins may need to re-apply session-scoped derived state
+- `server_settings_changed`: application-owned server settings have changed and
+  application plugins may need to apply process-wide behavior
 - `session_delete_prepare`: a session is about to be deleted and plugins may
   need to record or clean up related state
 
@@ -182,6 +186,8 @@ The standard built-in lifecycles are:
 - `session_fork`
 - `agent_switch_prepare`
 - `agent_switch_complete`
+- `session_settings_changed`
+- `server_settings_changed`
 - `session_delete_prepare`
 
 Lifecycle meanings:
@@ -204,6 +210,12 @@ Lifecycle meanings:
   to another
 - `agent_switch_complete`: run after the session has been updated to its new
   agent assignment
+- `session_settings_changed`: run after application-owned session settings
+  have changed; context includes the previous settings, updated settings,
+  changed keys, and source
+- `server_settings_changed`: run after application-owned server settings have
+  changed; context includes the previous settings, updated settings, changed
+  keys, and source
 - `session_delete_prepare`: run before a session is deleted; intended for any
   last-chance session-scoped cleanup or bookkeeping
 
@@ -236,6 +248,12 @@ The standard lifecycles are triggered at these points:
   is written to the session
 - `agent_switch_complete`: owned by agent-switch flows after the new agent id
   has been written
+- `session_settings_changed`: owned by `AgentApplication` session settings
+  helpers such as `patch_session_settings(...)` and
+  `delete_session_setting(...)`
+- `server_settings_changed`: owned by `AgentApplication` server settings
+  helpers such as `patch_server_settings(...)` and
+  `delete_server_setting(...)`; it can run without a session
 - `session_delete_prepare`: owned by application-layer delete-session flows
 
 `AgentCore` does not decide when any of these lifecycles happen. It only
@@ -264,23 +282,24 @@ Reasons:
 accepts:
 
 - a lifecycle name
-- the current session
-- the effective config
+- the current session and effective config for session-scoped lifecycles
 - optional extra context
 
-This is what allows future application implementations to run arbitrary
-lifecycle names beyond the built-in set.
+It also provides an application-scoped lifecycle path for lifecycles that do
+not have a current session, such as `server_settings_changed`. This is what
+allows future application implementations to run arbitrary lifecycle names
+beyond the built-in set.
 
 The intended flow is:
 
 1. `AgentApplication` decides that a lifecycle trigger should run.
 2. `AgentApplication` executes matching application-plugin actions.
-3. `AgentApplication` calls a high-level `AgentCore` helper for matching
-   provider-extension or feature actions.
-4. `AgentApplication` persists any changed session through the normal
-   application-layer save/checkpoint path.
+3. For session-scoped lifecycles, `AgentApplication` calls a high-level
+   `AgentCore` helper for matching provider-extension or feature actions.
+4. For session-scoped lifecycles, `AgentApplication` persists any changed
+   session through the normal application-layer save/checkpoint path.
 
-For the standard built-in set, the generic flow is:
+For session-scoped lifecycles in the standard built-in set, the generic flow is:
 
 1. determine the lifecycle name and effective config
 2. build serializable execution context
@@ -289,6 +308,15 @@ For the standard built-in set, the generic flow is:
 5. merge resulting session mutations
 6. continue the owning application operation such as save, request, fork, or
    agent switch
+
+For application-scoped lifecycles such as `server_settings_changed`, the flow
+does not include a session or a core-side pass:
+
+1. determine the lifecycle name
+2. build serializable application context
+3. run matching application-plugin actions
+4. continue the owning application operation such as applying server settings
+   or replaying persisted settings on startup
 
 For `response_finalize`, the flow is slightly different:
 
@@ -323,6 +351,8 @@ Recommended examples:
 - `{"lifecycle": "agent_switch_prepare", "previous_agent_id": "a", "next_agent_id": "b"}`
 - `{"lifecycle": "request_error", "error": {"type": "RuntimeError", "message": "tool loop failed"}}`
 - `{"lifecycle": "session_delete_prepare", "delete_reason": "user_request"}`
+- `{"lifecycle": "session_settings_changed", "scope": "session", "changed_keys": ["temperature"]}`
+- `{"lifecycle": "server_settings_changed", "scope": "server", "source": "api"}`
 
 When a fork lifecycle is triggered, the original session is passed in a
 serialized form such as the result of `Session.to_dict()`, not as a live
@@ -339,6 +369,12 @@ The runtime may populate these commonly used keys in `context`:
 - `previous_agent_id`: source agent id for agent-switch flows
 - `next_agent_id`: destination agent id for agent-switch flows
 - `error`: serialized error payload for failure lifecycles
+- `scope`: lifecycle scope such as `session` or `server`
+- `old_settings`: previous settings map for settings-change lifecycles
+- `new_settings`: updated settings map for settings-change lifecycles
+- `changed_keys`: list of setting keys that changed
+- `source`: serializable string describing the change source, such as `api`,
+  `startup`, or `bridge_sync`
 
 Plugins may also use additional serializable context keys supplied by the
 caller.
@@ -402,6 +438,11 @@ context = {
 | `app` / `application` | `AgentApplication` | Application instance for enhanced capabilities |
 | `base_config` | `dict` | Full application configuration (all agents) |
 | `session_asset_store` | `SessionAssetStore` | File attachment store (optional) |
+
+For application-scoped lifecycle actions that do not have a session, such as
+`server_settings_changed`, application-plugin actions receive the application
+keys (`app`, `application`, `base_config`, runtime stores, and supplied extra
+context) but no `session` or `session_id`.
 
 When application and core both contribute context, ownership is explicit:
 application contributes application-owned keys such as `app`,

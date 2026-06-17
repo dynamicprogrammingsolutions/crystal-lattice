@@ -91,6 +91,26 @@ class ApplicationContext:
             extra=extra,
         )
 
+    def build_application_lifecycle_context(
+        self,
+        *,
+        lifecycle: str,
+        config: Mapping[str, Any],
+        extra: Optional[Mapping[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return merge_context_layers(
+            builder="application",
+            call_path="application_lifecycle",
+            generic_layer=self._generic_layer,
+            specific_layer={
+                "lifecycle": lifecycle,
+                "trigger_source": "application",
+                "config": dict(config),
+                "base_config": dict(config),
+            },
+            extra=extra,
+        )
+
     def build_session_action_context(
         self,
         *,

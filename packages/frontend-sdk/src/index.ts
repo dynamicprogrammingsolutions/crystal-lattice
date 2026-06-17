@@ -167,6 +167,11 @@ export type {
   SessionSettingsStatusTone,
 } from './sessionSettings/sessionSettingsController';
 export { SessionSettingsController } from './sessionSettings/sessionSettingsController';
+export type {
+  ServerSettingsControllerState,
+  ServerSettingsStatusTone,
+} from './serverSettings/serverSettingsController';
+export { ServerSettingsController } from './serverSettings/serverSettingsController';
 
 export type { SessionUiSchemaInvalidationEvent } from './uiSchema/sessionUiSchemaInvalidation';
 export {

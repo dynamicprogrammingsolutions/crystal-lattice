@@ -1636,22 +1636,22 @@ def get_session_overrides(
     """
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
-
-        _core, _base_config, session = ctx
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        raw_overrides = metadata.get("overrides")
-        overrides: Dict[str, Any] = (
-            raw_overrides if isinstance(raw_overrides, dict) else {}
-        )
+        overrides = app_instance.get_session_settings(session_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ReadonlySessionViewError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return {"overrides": overrides}
+
+
+@app.get("/server/settings")
+def get_server_settings(
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return application-owned server-scoped settings."""
+
+    return {"settings": app_instance.get_server_settings()}
 
 
 @app.get("/sessions/{session_id}/plugins")
@@ -1846,32 +1846,51 @@ def patch_session_overrides(
         updates = {key: body.get("value")}
 
     try:
-        with app_instance.acquire_session_lock(session_id):
-            ctx = app_instance.load_session(session_id)
-            if ctx is None:
-                raise KeyError(f"Session {session_id!r} not found")
-
-            _core, _base_config, session = ctx
-            metadata = session.metadata if isinstance(session.metadata, dict) else {}
-            raw_overrides = metadata.get("overrides")
-            overrides: Dict[str, Any] = (
-                raw_overrides if isinstance(raw_overrides, dict) else {}
-            )
-
-            new_overrides = {**overrides, **updates}
-            new_metadata = {**metadata, "overrides": new_overrides}
-
-            new_session = Session(
-                session_id=session.session_id,
-                messages=session.messages,
-                metadata=new_metadata,
-            )
-            app_instance.save_session(new_session)
+        new_session = app_instance.patch_session_settings(
+            session_id,
+            updates,
+            source="api",
+        )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     response = {"session": new_session.to_dict()}
+    _idempotency_store(scope, idempotency_key, body, response)
+    return response
+
+
+@app.patch("/server/settings")
+def patch_server_settings(
+    payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Upsert one or more server-scoped settings."""
+
+    body = payload or {}
+    scope = "PATCH /server/settings"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, body)
+    if cached is not None:
+        return cached
+
+    values = body.get("values", body)
+    if not isinstance(values, dict):
+        raise HTTPException(
+            status_code=400,
+            detail="server settings body must be an object or {'values': object}",
+        )
+
+    try:
+        settings = app_instance.patch_server_settings(values, source="api")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    response = {"settings": settings}
     _idempotency_store(scope, idempotency_key, body, response)
     return response
 
@@ -1953,42 +1972,43 @@ def delete_session_override(
         return cached
 
     try:
-        with app_instance.acquire_session_lock(session_id):
-            ctx = app_instance.load_session(session_id)
-            if ctx is None:
-                raise KeyError(f"Session {session_id!r} not found")
-
-            _core, _base_config, session = ctx
-            metadata = session.metadata if isinstance(session.metadata, dict) else {}
-            raw_overrides = metadata.get("overrides")
-            overrides: Dict[str, Any] = (
-                raw_overrides if isinstance(raw_overrides, dict) else {}
-            )
-
-            if key not in overrides:
-                result_session = session
-            else:
-                new_overrides = dict(overrides)
-                new_overrides.pop(key, None)
-
-                new_metadata = dict(metadata)
-                if new_overrides:
-                    new_metadata["overrides"] = new_overrides
-                else:
-                    new_metadata.pop("overrides", None)
-
-                result_session = Session(
-                    session_id=session.session_id,
-                    messages=session.messages,
-                    metadata=new_metadata,
-                )
-                app_instance.save_session(result_session)
-
-            response = {"session": result_session.to_dict()}
+        result_session = app_instance.delete_session_setting(
+            session_id,
+            key,
+            source="api",
+        )
+        response = {"session": result_session.to_dict()}
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
+@app.delete("/server/settings/{key}")
+def delete_server_setting(
+    key: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Remove one server-scoped setting."""
+
+    scope = f"DELETE /server/settings/{key}"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+
+    try:
+        settings = app_instance.delete_server_setting(key, source="api")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    response = {"settings": settings}
     _idempotency_store(scope, idempotency_key, {}, response)
     return response
 

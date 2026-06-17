@@ -36,6 +36,7 @@ import {
 } from '@crystal-lattice/frontend-sdk-react';
 import { useTheme, type Theme } from './theme';
 import SessionSettingsModal from './components/SessionSettingsModal';
+import ServerSettingsModal from './components/ServerSettingsModal';
 import SessionPluginsModal from './components/SessionPluginsModal';
 import {
   type ActionDisplayFollowupAction,
@@ -182,6 +183,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const [agentSwitchCurrentId, setAgentSwitchCurrentId] = useState<string | null>(null);
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsSessionId, setSettingsSessionId] = useState<string | null>(null);
+  const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [pluginsSessionId, setPluginsSessionId] = useState<string | null>(null);
 
@@ -189,6 +191,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     setAgentPickerVisible(false);
     setAgentSwitchVisible(false);
     setSettingsVisible(false);
+    setServerSettingsVisible(false);
     setPluginsVisible(false);
   }, []);
 
@@ -622,6 +625,14 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.headerButtons}>
+          <TouchableOpacity
+            accessibilityLabel="Open server settings"
+            style={[styles.iconHeaderButton, styles.secondaryButton]}
+            onPress={() => setServerSettingsVisible(true)}
+            disabled={!backend}
+          >
+            <Icon name="settings" size={18} color={theme.text} />
+          </TouchableOpacity>
           <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={loadSessions}>
             <Text style={styles.buttonTextSecondary}>Reload</Text>
           </TouchableOpacity>
@@ -771,6 +782,13 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         />
       )}
 
+      <ServerSettingsModal
+        backend={backend}
+        cacheKey={connectionId ?? 'default'}
+        visible={serverSettingsVisible}
+        onRequestClose={() => setServerSettingsVisible(false)}
+      />
+
       {pluginsSessionId && (
         <SessionPluginsModal
           backend={backend}
@@ -812,6 +830,14 @@ const createStyles = (theme: Theme) =>
     button: {
       paddingHorizontal: 12,
       paddingVertical: 8,
+      borderRadius: 8,
+      marginLeft: 8,
+    },
+    iconHeaderButton: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
       borderRadius: 8,
       marginLeft: 8,
     },

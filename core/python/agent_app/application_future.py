@@ -509,6 +509,8 @@ class AgentApplication:
         )
         self._runtime_state_root = session_root_path.parent / "runtime"
         self._runtime_state_root.mkdir(parents=True, exist_ok=True)
+        self._server_settings_path = self._runtime_state_root / "server_settings.json"
+        self._server_settings_lock = threading.RLock()
         self._runtime_store = RuntimeStore()
         self._runtime_store.set("agent_core.model_discovery_cache", self._model_cache)
         self._tool_runtime = self._runtime_store
@@ -624,6 +626,7 @@ class AgentApplication:
             self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
 
         self._raise_for_fatal_config_errors()
+        self._replay_server_settings_on_startup()
 
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
@@ -1493,6 +1496,284 @@ class AgentApplication:
             current_session, overrides
         )
         return core, base_config, current_session, results
+
+    def _build_application_lifecycle_context(
+        self,
+        lifecycle: str,
+        extra_context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        context = self._ensure_serializable_context(extra_context)
+        return self._context.build_application_lifecycle_context(
+            lifecycle=lifecycle,
+            config=self._config,
+            extra=context,
+        )
+
+    def run_application_lifecycle(
+        self,
+        lifecycle: str,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        if not isinstance(lifecycle, str) or not lifecycle:
+            raise ValueError("lifecycle must be a non-empty string")
+
+        results: List[Dict[str, Any]] = []
+        for action in self.get_application_actions():
+            if not isinstance(action, dict) or not self._action_matches_trigger(
+                action, lifecycle
+            ):
+                continue
+            plugin_id = action.get("plugin")
+            action_id = action.get("id")
+            if not isinstance(plugin_id, str) or not isinstance(action_id, str):
+                continue
+
+            action_context = self._build_application_lifecycle_context(
+                lifecycle,
+                context,
+            )
+            result = self.execute_application_action(
+                plugin_id,
+                action_id,
+                {},
+                context=action_context,
+            )
+            results.append(
+                {
+                    "plugin": plugin_id,
+                    "action_id": action_id,
+                    "action_owner": "application",
+                    "result": result,
+                }
+            )
+        return results
+
+    @staticmethod
+    def _normalized_settings(value: Any) -> Dict[str, Any]:
+        return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _validate_settings_updates(updates: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(updates, dict):
+            raise ValueError("settings updates must be a mapping")
+        for key in updates.keys():
+            if not isinstance(key, str) or not key:
+                raise ValueError("settings keys must be non-empty strings")
+        try:
+            json.dumps(updates)
+        except Exception as exc:
+            raise ValueError("settings values must be JSON-serializable") from exc
+        return dict(updates)
+
+    @staticmethod
+    def _changed_setting_keys(
+        old_settings: Dict[str, Any],
+        new_settings: Dict[str, Any],
+    ) -> List[str]:
+        keys = set(old_settings) | set(new_settings)
+        return sorted(
+            key
+            for key in keys
+            if old_settings.get(key, AgentApplication._MISSING_METADATA)
+            != new_settings.get(key, AgentApplication._MISSING_METADATA)
+        )
+
+    def _read_server_settings_unlocked(self) -> Dict[str, Any]:
+        path = self._server_settings_path
+        if not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        settings = payload.get("settings") if isinstance(payload, dict) else None
+        return dict(settings) if isinstance(settings, dict) else {}
+
+    def _write_server_settings_unlocked(self, settings: Dict[str, Any]) -> None:
+        payload = {"settings": dict(settings)}
+        tmp_path = self._server_settings_path.with_suffix(
+            self._server_settings_path.suffix + ".tmp"
+        )
+        tmp_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        tmp_path.replace(self._server_settings_path)
+
+    def get_server_settings(self) -> Dict[str, Any]:
+        with self._server_settings_lock:
+            return self._read_server_settings_unlocked()
+
+    def patch_server_settings(
+        self,
+        updates: Dict[str, Any],
+        *,
+        source: str = "api",
+    ) -> Dict[str, Any]:
+        normalized_updates = self._validate_settings_updates(updates)
+        with self._server_settings_lock:
+            old_settings = self._read_server_settings_unlocked()
+            new_settings = {**old_settings, **normalized_updates}
+            changed_keys = self._changed_setting_keys(old_settings, new_settings)
+            if not changed_keys:
+                return new_settings
+            self._write_server_settings_unlocked(new_settings)
+
+        self.run_application_lifecycle(
+            "server_settings_changed",
+            context={
+                "scope": "server",
+                "old_settings": old_settings,
+                "new_settings": new_settings,
+                "changed_keys": changed_keys,
+                "source": source,
+            },
+        )
+        return new_settings
+
+    def delete_server_setting(
+        self,
+        key: str,
+        *,
+        source: str = "api",
+    ) -> Dict[str, Any]:
+        if not isinstance(key, str) or not key:
+            raise ValueError("key must be a non-empty string")
+        with self._server_settings_lock:
+            old_settings = self._read_server_settings_unlocked()
+            if key not in old_settings:
+                return old_settings
+            new_settings = dict(old_settings)
+            new_settings.pop(key, None)
+            changed_keys = [key]
+            self._write_server_settings_unlocked(new_settings)
+
+        self.run_application_lifecycle(
+            "server_settings_changed",
+            context={
+                "scope": "server",
+                "old_settings": old_settings,
+                "new_settings": new_settings,
+                "changed_keys": changed_keys,
+                "source": source,
+            },
+        )
+        return new_settings
+
+    def _replay_server_settings_on_startup(self) -> None:
+        settings = self.get_server_settings()
+        if not settings:
+            return
+        self.run_application_lifecycle(
+            "server_settings_changed",
+            context={
+                "scope": "server",
+                "old_settings": {},
+                "new_settings": settings,
+                "changed_keys": sorted(settings.keys()),
+                "source": "startup",
+            },
+        )
+
+    def get_session_settings(self, session_id: str) -> Dict[str, Any]:
+        ctx = self.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        _core, _base_config, session = ctx
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        return dict(self._normalized_settings(metadata.get("overrides")))
+
+    def patch_session_settings(
+        self,
+        session_id: str,
+        updates: Dict[str, Any],
+        *,
+        source: str = "api",
+    ) -> Session:
+        normalized_updates = self._validate_settings_updates(updates)
+        with self.acquire_session_lock(session_id):
+            ctx = self.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            core, base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            old_settings = dict(self._normalized_settings(metadata.get("overrides")))
+            new_settings = {**old_settings, **normalized_updates}
+            changed_keys = self._changed_setting_keys(old_settings, new_settings)
+            if not changed_keys:
+                return session
+
+            updated = Session(
+                session_id=session.session_id,
+                messages=session.messages,
+                metadata={**metadata, "overrides": new_settings},
+            )
+            saved = self.save_session(updated)
+            core, base_config, saved, _results = self.run_session_lifecycle(
+                "session_settings_changed",
+                saved,
+                core=core,
+                base_config=base_config,
+                context={
+                    "scope": "session",
+                    "old_settings": old_settings,
+                    "new_settings": new_settings,
+                    "changed_keys": changed_keys,
+                    "source": source,
+                },
+            )
+            return self.save_session(saved)
+
+    def delete_session_setting(
+        self,
+        session_id: str,
+        key: str,
+        *,
+        source: str = "api",
+    ) -> Session:
+        if not isinstance(key, str) or not key:
+            raise ValueError("key must be a non-empty string")
+        with self.acquire_session_lock(session_id):
+            ctx = self.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            core, base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            old_settings = dict(self._normalized_settings(metadata.get("overrides")))
+            if key not in old_settings:
+                return session
+
+            new_settings = dict(old_settings)
+            new_settings.pop(key, None)
+            new_metadata = dict(metadata)
+            if new_settings:
+                new_metadata["overrides"] = new_settings
+            else:
+                new_metadata.pop("overrides", None)
+
+            updated = Session(
+                session_id=session.session_id,
+                messages=session.messages,
+                metadata=new_metadata,
+            )
+            saved = self.save_session(updated)
+            core, base_config, saved, _results = self.run_session_lifecycle(
+                "session_settings_changed",
+                saved,
+                core=core,
+                base_config=base_config,
+                context={
+                    "scope": "session",
+                    "old_settings": old_settings,
+                    "new_settings": new_settings,
+                    "changed_keys": [key],
+                    "source": source,
+                },
+            )
+            return self.save_session(saved)
 
     def _load_session_required(self, session_id: str) -> Session:
         session = self._session_store.load(session_id)

@@ -558,6 +558,40 @@ export class RestAgentBackend implements AgentBackend {
     return {};
   }
 
+  async getServerSettings(): Promise<Record<string, any>> {
+    const resp = await this.transport.request<{ settings?: Record<string, any> }>({
+      method: 'GET',
+      path: '/server/settings',
+    });
+    if (resp.data && resp.data.settings && typeof resp.data.settings === 'object') {
+      return resp.data.settings;
+    }
+    return {};
+  }
+
+  async patchServerSettings(
+    values: Record<string, any>,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    await this.transport.request({
+      method: 'PATCH',
+      path: '/server/settings',
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: { values },
+    });
+  }
+
+  async deleteServerSetting(
+    key: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    await this.transport.request({
+      method: 'DELETE',
+      path: `/server/settings/${encodeURIComponent(key)}`,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+    });
+  }
+
   async listApplicationActions(params: { pluginId?: string } = {}): Promise<ApplicationActionDefinition[]> {
     const query = buildQuery({ plugin: params.pluginId });
     const resp = await this.transport.request<{ actions?: ApplicationActionDefinition[] }>({

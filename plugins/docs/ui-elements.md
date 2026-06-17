@@ -106,6 +106,7 @@ def get_ui_elements(self, config, tags, models):
 | `type` | string | Input type: `text`, `checkbox`, `select`, `dropdown`, `multiline`, `number` |
 | `label` | string | Human-readable label |
 | `description` | string | Optional help text |
+| `scope` | string | Optional setting scope; application plugins use `"server"` for server-scoped settings |
 | `options` | array | For `select`/`dropdown`: `["value", ...]` or `[{"value": "...", "label": "..."}, ...]` |
 | `default` | any | Default value shown when no override or config value exists |
 | `required` | boolean | Whether the field is required |
@@ -129,6 +130,34 @@ The frontend SDK tags each setting with a source indicator:
 - `"ui_default"`: Value comes from element's `default` field
 - `"schema_default"`: Value comes from config schema default
 - `"none"`: No value found
+
+#### Server-scoped configuration elements
+
+Application plugins can expose server-scoped settings by returning config-like
+elements with `scope: "server"` from `get_ui_elements(...)`.
+
+```python
+def get_ui_elements(self, state, config=None, tags=None, models=None):
+    return [
+        {
+            "ui_type": "config",
+            "scope": "server",
+            "key": "keep_awake_enabled",
+            "type": "checkbox",
+            "label": "Keep server awake",
+            "default": False,
+        }
+    ]
+```
+
+Frontends retrieve these elements from `GET /application/ui-schema` and filter
+to config-like elements whose `scope` is `"server"`. Current values are loaded
+from `GET /server/settings`; mutations use `PATCH /server/settings` and
+`DELETE /server/settings/{key}`.
+
+Server-scoped settings are application-owned state. Plugins can react to
+`server_settings_changed`, but should not store a second authoritative copy of
+the same user-editable values.
 
 #### Input types
 
@@ -545,15 +574,35 @@ Returns UI elements from core plugins (provider, extensions, features, tools). F
 ### Application plugin UI schema
 
 ```
+GET /application/ui-schema
+```
+
+Returns global UI elements from application plugins. Used for:
+- `ui_type == "config"` with `scope == "server"`: Server-scoped settings
+- global application actions or display elements that do not require a current
+  session
+
+```
 GET /sessions/{session_id}/application/ui-schema
 ```
 
-Returns UI elements from application plugins. Used for:
+Returns session-contextual UI elements from application plugins. Used for:
 - `ui_type == "session_action"`: Session-scoped actions
 - `ui_type == "message_action"`: Message-scoped actions
 - `ui_type == "session_list_field"`: Session list fields
 
 Optional query parameter `?plugin=name` filters elements by plugin.
+
+### Server settings values
+
+```
+GET /server/settings
+PATCH /server/settings
+DELETE /server/settings/{key}
+```
+
+These endpoints read and mutate application-owned server settings. They are the
+value channel for application plugin config elements with `scope: "server"`.
 
 ---
 
