@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "start": "react-native start --port 8082",
     "test": "jest",
+    "test:integration": "jest --config jest.integration.config.js --runInBand",
     "tsc": "tsc --noEmit"
   },
   "dependencies": {

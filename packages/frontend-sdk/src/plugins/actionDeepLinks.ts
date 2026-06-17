@@ -1,4 +1,6 @@
 export interface ParsedActionDeepLink {
+  connectionId: string;
+  sessionId: string;
   pluginId?: string;
   actionId: string;
   inputs: Record<string, string>;
@@ -73,7 +75,7 @@ export function parseActionDeepLink(rawUrl: string): ParsedActionDeepLink | null
   }
 
   const decodedSegments = segments as string[];
-  if (decodedSegments.length !== 1 && decodedSegments.length !== 2) {
+  if (decodedSegments.length !== 3 && decodedSegments.length !== 4) {
     return null;
   }
 
@@ -83,17 +85,21 @@ export function parseActionDeepLink(rawUrl: string): ParsedActionDeepLink | null
   }
   inputs.redirect_url = rawUrl;
 
-  if (decodedSegments.length === 1) {
+  if (decodedSegments.length === 3) {
     return {
-      actionId: decodedSegments[0],
+      connectionId: decodedSegments[0],
+      sessionId: decodedSegments[1],
+      actionId: decodedSegments[2],
       inputs,
       redirectUrl: rawUrl,
     };
   }
 
   return {
-    pluginId: decodedSegments[0],
-    actionId: decodedSegments[1],
+    connectionId: decodedSegments[0],
+    sessionId: decodedSegments[1],
+    pluginId: decodedSegments[2],
+    actionId: decodedSegments[3],
     inputs,
     redirectUrl: rawUrl,
   };

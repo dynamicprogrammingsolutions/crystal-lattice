@@ -209,7 +209,7 @@ export interface AgentBackend {
   }): Promise<ExecuteActionResponse>;
   executeSessionAction?(params: {
     sessionId: string;
-    pluginId: string;
+    pluginId?: string;
     actionId: string;
     actionOwner?: string;
     inputs: Record<string, any>;

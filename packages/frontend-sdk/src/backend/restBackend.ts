@@ -663,7 +663,7 @@ export class RestAgentBackend implements AgentBackend {
 
   async executeSessionAction(params: {
     sessionId: string;
-    pluginId: string;
+    pluginId?: string;
     actionId: string;
     actionOwner?: string;
     inputs: Record<string, any>;

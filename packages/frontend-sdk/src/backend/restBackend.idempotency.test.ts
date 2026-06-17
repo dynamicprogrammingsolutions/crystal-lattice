@@ -176,4 +176,29 @@ describe('RestAgentBackend idempotency headers', () => {
       }),
     );
   });
+
+  it('omits plugin in executeSessionAction payloads when pluginId is absent', async () => {
+    const transport: Transport = {
+      request: vi.fn(async () => ({ status: 200, data: { status: 'ok', result: {} } })),
+    };
+
+    const backend = new RestAgentBackend({ transport });
+    await backend.executeSessionAction!({
+      sessionId: 's1',
+      actionId: 'complete_external_flow',
+      inputs: { result: 'approved' },
+    });
+
+    expect(transport.request).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: 'POST',
+        path: '/sessions/s1/actions',
+        body: {
+          action_id: 'complete_external_flow',
+          action_owner: undefined,
+          inputs: { result: 'approved' },
+        },
+      }),
+    );
+  });
 });

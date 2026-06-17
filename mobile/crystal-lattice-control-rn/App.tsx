@@ -21,7 +21,6 @@ import {
   BridgeTransport,
   CloudTransport,
   FetchTransport,
-  parseActionDeepLink,
   parseCloudConnectionLink,
   type KeyValueStore,
   loadConnections,
@@ -49,6 +48,7 @@ import {
 } from './src/debugTimeline';
 import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
 import { PinnedActionsProvider } from './src/PinnedActionsContext';
+import { createActionDeepLinkHandler } from './src/actionDeepLinkRouting';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
@@ -246,91 +246,76 @@ function App(): React.JSX.Element {
   );
 
   const executeActionDeepLink = useCallback(
-    async (parsed: ParsedActionDeepLink) => {
-      const activeBackend = backendRef.current;
-      if (!activeBackend) {
-        setPendingActionDeepLink(parsed);
+    async (url: string) => {
+      const handler = createActionDeepLinkHandler({
+        hasConnection: (connectionId) =>
+          connections.some((connection) => connection.id === connectionId),
+        getBackendForConnection: (connectionId) =>
+          connectionId === selectedConnectionId ? backendRef.current : null,
+        queuePendingAction: setPendingActionDeepLink,
+      });
+
+      const outcome = await handler(url);
+      if (!outcome.handled) {
+        return;
+      }
+
+      if (outcome.status === 'queued') {
         appendDebugNote({
           scope: 'app',
           title: 'Action link queued',
-          detail: parsed.actionId,
+          detail: outcome.parsed.actionId,
           meta: {
-            pluginId: parsed.pluginId ?? null,
+            connectionId: outcome.parsed.connectionId,
+            sessionId: outcome.parsed.sessionId,
+            pluginId: outcome.parsed.pluginId ?? null,
           },
         });
         Alert.alert(
           'Action Pending',
-          'Connect to a server to finish this action.',
+          'Connect to the linked server to finish this action.',
         );
+        return;
+      }
+
+      if (outcome.status === 'ok') {
+        appendDebugNote({
+          scope: 'app',
+          title: 'Action link execution succeeded',
+          detail: outcome.parsed.actionId,
+          meta: {
+            connectionId: outcome.parsed.connectionId,
+            sessionId: outcome.parsed.sessionId,
+            pluginId: outcome.response.plugin,
+            actionId: outcome.response.action_id,
+          },
+        });
+
+        const resultMessage =
+          outcome.response.result && typeof outcome.response.result.message === 'string'
+            ? outcome.response.result.message
+            : '';
+        if (resultMessage) {
+          Alert.alert('Action Complete', resultMessage);
+        }
         return;
       }
 
       appendDebugNote({
         scope: 'app',
-        title: 'Action link execution started',
-        detail: parsed.actionId,
+        title: 'Action link execution failed',
+        detail: outcome.message,
         meta: {
-          pluginId: parsed.pluginId ?? null,
+          connectionId: outcome.parsed?.connectionId ?? null,
+          sessionId: outcome.parsed?.sessionId ?? null,
+          pluginId: outcome.parsed?.pluginId ?? null,
+          actionId: outcome.parsed?.actionId ?? null,
+          errorType: outcome.errorType,
         },
       });
-
-      try {
-        const response = await activeBackend.executeAction({
-          pluginId: parsed.pluginId,
-          actionId: parsed.actionId,
-          inputs: parsed.inputs,
-        });
-
-        if (!response || response.status !== 'ok') {
-          const message =
-            response?.message ||
-            (response?.error_type ? `Action failed: ${response.error_type}` : 'Action failed');
-          appendDebugNote({
-            scope: 'app',
-            title: 'Action link execution failed',
-            detail: message,
-            meta: {
-              pluginId: parsed.pluginId ?? null,
-              actionId: parsed.actionId,
-              errorType: response?.error_type ?? null,
-            },
-          });
-          Alert.alert('Action Failed', message);
-          return;
-        }
-
-        appendDebugNote({
-          scope: 'app',
-          title: 'Action link execution succeeded',
-          detail: parsed.actionId,
-          meta: {
-            pluginId: response.plugin,
-            actionId: response.action_id,
-          },
-        });
-
-        const resultMessage =
-          response.result && typeof response.result.message === 'string'
-            ? response.result.message
-            : '';
-        if (resultMessage) {
-          Alert.alert('Action Complete', resultMessage);
-        }
-      } catch (error: any) {
-        const message = error?.message || 'Action failed';
-        appendDebugNote({
-          scope: 'app',
-          title: 'Action link execution errored',
-          detail: message,
-          meta: {
-            pluginId: parsed.pluginId ?? null,
-            actionId: parsed.actionId,
-          },
-        });
-        Alert.alert('Action Failed', message);
-      }
+      Alert.alert('Action Failed', outcome.message);
     },
-    [appendDebugNote],
+    [appendDebugNote, connections, selectedConnectionId],
   );
 
   const handleIncomingUrl = useCallback(
@@ -338,23 +323,23 @@ function App(): React.JSX.Element {
       if (!url) {
         return;
       }
-      const parsed = parseActionDeepLink(url);
-      if (!parsed) {
-        return;
-      }
-      await executeActionDeepLink(parsed);
+      await executeActionDeepLink(url);
     },
     [executeActionDeepLink],
   );
 
   useEffect(() => {
-    if (!pendingActionDeepLink || !backend) {
+    if (
+      !pendingActionDeepLink ||
+      !backend ||
+      pendingActionDeepLink.connectionId !== selectedConnectionId
+    ) {
       return;
     }
     const parsed = pendingActionDeepLink;
     setPendingActionDeepLink(null);
-    void executeActionDeepLink(parsed);
-  }, [backend, executeActionDeepLink, pendingActionDeepLink]);
+    void executeActionDeepLink(parsed.redirectUrl);
+  }, [backend, executeActionDeepLink, pendingActionDeepLink, selectedConnectionId]);
 
   useEffect(() => {
     if (!initialUrlHandledRef.current) {

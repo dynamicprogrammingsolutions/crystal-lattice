@@ -77,6 +77,21 @@ class _AgentPluginRuntime:
     default_enabled_ids: Optional[List[str]]
 
 
+@dataclass(frozen=True)
+class ExecutedAction:
+    plugin_id: str
+    action_id: str
+    action_owner: Optional[str]
+    result: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _ResolvedActionCandidate:
+    plugin_id: str
+    action_id: str
+    action_owner: str
+
+
 @dataclass
 class _CheckpointBaseline:
     session: Session
@@ -2087,48 +2102,185 @@ class AgentApplication:
                 return action
         return None
 
-    def resolve_application_action_plugin_id(self, action_id: str) -> str:
-        """Resolve an application action id to a unique contributing plugin id."""
+    def _action_session_id(
+        self,
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Optional[str]:
+        session_id = params.get("session_id") if isinstance(params, dict) else None
+        if isinstance(session_id, str) and session_id:
+            return session_id
+        if isinstance(context, dict):
+            context_session_id = context.get("session_id")
+            if isinstance(context_session_id, str) and context_session_id:
+                return context_session_id
+        return None
 
-        if not isinstance(action_id, str) or not action_id:
-            raise ValueError("action_id must be a non-empty string")
+    def _session_action_definitions(self, session_id: str) -> List[Dict[str, Any]]:
+        ctx = self.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        core, base_config, session = ctx
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = self.resolve_effective_config(
+            base_config, session, overrides
+        )
+        return core.get_session_actions(effective_config)
 
-        candidates: List[str] = []
-        seen: set[str] = set()
+    def _application_action_candidates(
+        self,
+        action_id: str,
+    ) -> List[_ResolvedActionCandidate]:
+        candidates: List[_ResolvedActionCandidate] = []
+        seen: set[Tuple[str, str, str]] = set()
         for action in self.get_application_actions():
-            if not isinstance(action, dict):
-                continue
-            if action.get("id") != action_id:
+            if not isinstance(action, dict) or action.get("id") != action_id:
                 continue
             plugin = action.get("plugin")
             if not isinstance(plugin, str) or not plugin:
                 continue
-            if plugin in seen:
+            key = (plugin, action_id, "application")
+            if key in seen:
                 continue
-            seen.add(plugin)
-            candidates.append(plugin)
+            seen.add(key)
+            candidates.append(
+                _ResolvedActionCandidate(
+                    plugin_id=plugin,
+                    action_id=action_id,
+                    action_owner="application",
+                )
+            )
+        return candidates
+
+    def _session_action_candidates(
+        self,
+        session_id: str,
+        action_id: str,
+        *,
+        action_owner: Optional[str] = None,
+    ) -> List[_ResolvedActionCandidate]:
+        candidates: List[_ResolvedActionCandidate] = []
+        seen: set[Tuple[str, str, str]] = set()
+        for action in self._session_action_definitions(session_id):
+            if not isinstance(action, dict) or action.get("id") != action_id:
+                continue
+            owner = action.get("action_owner")
+            if not isinstance(owner, str) or not owner:
+                owner = "provider_extension"
+            if action_owner is not None and owner != action_owner:
+                continue
+            plugin = action.get("plugin")
+            if not isinstance(plugin, str) or not plugin:
+                continue
+            key = (plugin, action_id, owner)
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append(
+                _ResolvedActionCandidate(
+                    plugin_id=plugin,
+                    action_id=action_id,
+                    action_owner=owner,
+                )
+            )
+        return candidates
+
+    def _candidate_to_details(
+        self,
+        candidate: _ResolvedActionCandidate,
+    ) -> Dict[str, Any]:
+        return {
+            "plugin": candidate.plugin_id,
+            "action_id": candidate.action_id,
+            "action_owner": candidate.action_owner,
+        }
+
+    def _resolve_action_candidate(
+        self,
+        plugin_id: Optional[str],
+        action_id: str,
+        params: Dict[str, Any],
+        *,
+        action_owner: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> _ResolvedActionCandidate:
+        if not isinstance(action_id, str) or not action_id:
+            raise ValueError("action_id must be a non-empty string")
+        if not isinstance(params, dict):
+            raise ValueError("params must be a mapping of action inputs")
+
+        session_id = self._action_session_id(params, context)
+
+        if plugin_id is not None:
+            if not isinstance(plugin_id, str) or not plugin_id:
+                raise ValueError("plugin_id must be a non-empty string")
+            if action_owner == "application":
+                return _ResolvedActionCandidate(plugin_id, action_id, "application")
+            if action_owner in {"provider_extension", "feature"}:
+                return _ResolvedActionCandidate(plugin_id, action_id, action_owner)
+            if (
+                self._find_application_action_definition(plugin_id, action_id)
+                is not None
+            ):
+                return _ResolvedActionCandidate(plugin_id, action_id, "application")
+            if session_id is not None:
+                for candidate in self._session_action_candidates(session_id, action_id):
+                    if candidate.plugin_id == plugin_id:
+                        return candidate
+            return _ResolvedActionCandidate(plugin_id, action_id, "application")
+
+        candidates: List[_ResolvedActionCandidate] = []
+        if action_owner in {None, "application"}:
+            candidates.extend(self._application_action_candidates(action_id))
+
+        if session_id is not None and action_owner in {
+            None,
+            "provider_extension",
+            "feature",
+        }:
+            candidates.extend(
+                self._session_action_candidates(
+                    session_id,
+                    action_id,
+                    action_owner=action_owner,
+                )
+            )
 
         if not candidates:
             raise self._ApplicationActionResolutionError(
                 "unknown_action",
-                f"Unknown application action_id {action_id!r}",
+                f"Unknown action_id {action_id!r}",
                 {"action_id": action_id},
             )
 
         if len(candidates) > 1:
             raise self._ApplicationActionResolutionError(
                 "ambiguous_action",
-                f"Ambiguous application action_id {action_id!r}",
+                f"Ambiguous action_id {action_id!r}",
                 {
                     "action_id": action_id,
                     "candidates": [
-                        {"plugin": plugin, "action_id": action_id}
-                        for plugin in candidates
+                        self._candidate_to_details(candidate)
+                        for candidate in candidates
                     ],
                 },
             )
 
         return candidates[0]
+
+    def resolve_application_action_plugin_id(self, action_id: str) -> str:
+        """Resolve an application action id to a unique contributing plugin id."""
+
+        candidate = self._resolve_action_candidate(
+            None,
+            action_id,
+            {},
+            action_owner="application",
+        )
+        return candidate.plugin_id
 
     @staticmethod
     def _action_param_type_matches(value: Any, expected_type: str) -> bool:
@@ -2279,6 +2431,9 @@ class AgentApplication:
 
         session_id = params.get("session_id")
         if not isinstance(session_id, str) or not session_id:
+            if isinstance(context, dict):
+                session_id = context.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
         self._require_live_session_writable(session_id)
 
@@ -2363,38 +2518,65 @@ class AgentApplication:
             },
         }
 
+    def execute_action_with_metadata(
+        self,
+        plugin_id: Optional[str],
+        action_id: str,
+        params: Dict[str, Any],
+        *,
+        action_owner: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> ExecutedAction:
+        """Execute either an application action or a provider-extension session action."""
+
+        candidate = self._resolve_action_candidate(
+            plugin_id,
+            action_id,
+            params,
+            action_owner=action_owner,
+            context=context,
+        )
+
+        if candidate.action_owner == "application":
+            result = self.execute_application_action(
+                candidate.plugin_id,
+                candidate.action_id,
+                params,
+                context=context,
+            )
+        else:
+            result = self.execute_session_action(
+                candidate.plugin_id,
+                candidate.action_id,
+                params,
+                context=context,
+            )
+
+        return ExecutedAction(
+            plugin_id=candidate.plugin_id,
+            action_id=candidate.action_id,
+            action_owner=candidate.action_owner,
+            result=result if isinstance(result, dict) else {},
+        )
+
     def execute_action(
         self,
-        plugin_id: str,
+        plugin_id: Optional[str],
         action_id: str,
         params: Dict[str, Any],
         *,
         action_owner: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Execute either an application action or a provider-extension session action."""
+        """Execute an action and return only the plugin-provided result."""
 
-        if action_owner == "application":
-            return self.execute_application_action(
-                plugin_id, action_id, params, context=context
-            )
-        if action_owner in {"provider_extension", "feature"}:
-            return self.execute_session_action(
-                plugin_id, action_id, params, context=context
-            )
-
-        try:
-            return self.execute_application_action(
-                plugin_id, action_id, params, context=context
-            )
-        except KeyError:
-            if not (
-                isinstance(params, dict) and isinstance(params.get("session_id"), str)
-            ):
-                raise
-            return self.execute_session_action(
-                plugin_id, action_id, params, context=context
-            )
+        return self.execute_action_with_metadata(
+            plugin_id,
+            action_id,
+            params,
+            action_owner=action_owner,
+            context=context,
+        ).result
 
     def load_session(
         self,

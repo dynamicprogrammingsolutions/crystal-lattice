@@ -3304,6 +3304,7 @@ def _execute_action_request(
     idempotency_key: Optional[str],
     app_instance: AgentApplication,
     scope_prefix: str,
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Execute an application action request and return the standard envelope."""
 
@@ -3318,27 +3319,26 @@ def _execute_action_request(
     if cached is not None:
         return cached
 
-    plugin_was_omitted = "plugin" not in body
-    resolved_plugin_id = None if plugin_was_omitted else plugin_id
+    resolved_plugin_id = plugin_id
 
     try:
-        if plugin_was_omitted:
-            resolved_plugin_id = app_instance.resolve_application_action_plugin_id(
-                action_id
-            )
-        result = app_instance.execute_action(
-            plugin_id=resolved_plugin_id,
+        action_context = {"session_id": session_id} if session_id else None
+        executed = app_instance.execute_action_with_metadata(
+            plugin_id=plugin_id if "plugin" in body else None,
             action_id=action_id,
             params=raw_inputs,
             action_owner=action_owner if isinstance(action_owner, str) else None,
+            context=action_context,
         )
+        resolved_plugin_id = executed.plugin_id
+        result = executed.result
         if not isinstance(result, dict):
             result = {}
         response: Dict[str, Any] = {
             "status": "ok",
             "plugin": resolved_plugin_id,
-            "action_id": action_id,
-            "action_owner": action_owner,
+            "action_id": executed.action_id,
+            "action_owner": executed.action_owner,
             "result": result,
         }
     except AgentApplication._ApplicationActionResolutionError as exc:  # type: ignore[attr-defined]
@@ -3454,6 +3454,7 @@ def execute_session_action(
         idempotency_key=idempotency_key,
         app_instance=app_instance,
         scope_prefix=f"POST /sessions/{session_id}/actions",
+        session_id=session_id,
     )
 
 

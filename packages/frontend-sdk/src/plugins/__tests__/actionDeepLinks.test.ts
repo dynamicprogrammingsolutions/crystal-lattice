@@ -3,33 +3,43 @@ import { describe, expect, it } from 'vitest';
 import { parseActionDeepLink } from '../actionDeepLinks';
 
 describe('parseActionDeepLink', () => {
-  it('parses plugin-qualified action links', () => {
+  it('parses plugin-qualified session action links', () => {
     expect(
       parseActionDeepLink(
-        'crystal-lattice://action/mcp_runtime_app/mcp_complete_login?code=a&state=b',
+        'crystal-lattice://action/test-connection/session-123/generic_callback_app/complete_external_flow?result=approved&nonce=n-123',
       ),
     ).toEqual({
-      pluginId: 'mcp_runtime_app',
-      actionId: 'mcp_complete_login',
+      connectionId: 'test-connection',
+      sessionId: 'session-123',
+      pluginId: 'generic_callback_app',
+      actionId: 'complete_external_flow',
       inputs: {
-        code: 'a',
-        state: 'b',
+        result: 'approved',
+        nonce: 'n-123',
         redirect_url:
-          'crystal-lattice://action/mcp_runtime_app/mcp_complete_login?code=a&state=b',
+          'crystal-lattice://action/test-connection/session-123/generic_callback_app/complete_external_flow?result=approved&nonce=n-123',
       },
       redirectUrl:
-        'crystal-lattice://action/mcp_runtime_app/mcp_complete_login?code=a&state=b',
+        'crystal-lattice://action/test-connection/session-123/generic_callback_app/complete_external_flow?result=approved&nonce=n-123',
     });
   });
 
-  it('parses action links without plugin ids', () => {
-    expect(parseActionDeepLink('crystal-lattice://action/mcp_complete_login?code=a')).toEqual({
-      actionId: 'mcp_complete_login',
+  it('parses session action links without plugin ids', () => {
+    expect(
+      parseActionDeepLink(
+        'crystal-lattice://action/test-connection/session-123/complete_external_flow?result=approved',
+      ),
+    ).toEqual({
+      connectionId: 'test-connection',
+      sessionId: 'session-123',
+      actionId: 'complete_external_flow',
       inputs: {
-        code: 'a',
-        redirect_url: 'crystal-lattice://action/mcp_complete_login?code=a',
+        result: 'approved',
+        redirect_url:
+          'crystal-lattice://action/test-connection/session-123/complete_external_flow?result=approved',
       },
-      redirectUrl: 'crystal-lattice://action/mcp_complete_login?code=a',
+      redirectUrl:
+        'crystal-lattice://action/test-connection/session-123/complete_external_flow?result=approved',
     });
   });
 
@@ -37,7 +47,11 @@ describe('parseActionDeepLink', () => {
     expect(parseActionDeepLink('https://example.com/action/a')).toBeNull();
     expect(parseActionDeepLink('crystal-lattice://settings/a')).toBeNull();
     expect(parseActionDeepLink('crystal-lattice://action')).toBeNull();
-    expect(parseActionDeepLink('crystal-lattice://action/a/b/c')).toBeNull();
+    expect(parseActionDeepLink('crystal-lattice://action/connection-only')).toBeNull();
+    expect(parseActionDeepLink('crystal-lattice://action/connection/session')).toBeNull();
+    expect(
+      parseActionDeepLink('crystal-lattice://action/a/b/c/d/e'),
+    ).toBeNull();
     expect(parseActionDeepLink('not a url')).toBeNull();
   });
 });

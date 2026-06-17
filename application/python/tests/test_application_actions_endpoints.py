@@ -37,9 +37,7 @@ def _make_config_with_dummy_app_plugin(tmp_path: Path) -> Path:
     """
 
     cfg: Dict[str, Any] = {
-        "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"}
-        },
+        "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
             "tests.dummy_app_plugin.DummyAppPlugin",
@@ -51,6 +49,23 @@ def _make_config_with_dummy_app_plugin(tmp_path: Path) -> Path:
     }
 
     path = tmp_path / "config_app_actions.json"
+    path.write_text(__import__("json").dumps(cfg), encoding="utf-8")
+    return path
+
+
+def _make_config_with_generic_callback_plugin(tmp_path: Path) -> Path:
+    cfg: Dict[str, Any] = {
+        "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            "tests.generic_callback_app_plugin.GenericCallbackAppPlugin",
+        ],
+        "agents": {
+            "default": {"provider": "echo"},
+        },
+        "application": {},
+    }
+    path = tmp_path / "config_generic_callback_actions.json"
     path.write_text(__import__("json").dumps(cfg), encoding="utf-8")
     return path
 
@@ -71,6 +86,20 @@ def _build_app(tmp_path: Path) -> AgentApplication:
     return app
 
 
+def _build_generic_callback_app(tmp_path: Path) -> AgentApplication:
+    from agent_terminal_app import server as server_mod
+
+    previous = getattr(server_mod, "_agent_app", None)
+    if previous is not None:
+        previous.close()
+    config_path = _make_config_with_generic_callback_plugin(tmp_path)
+    session_root = tmp_path / "sessions"
+    events = InMemoryEventStore()
+    app = AgentApplication(str(config_path), str(session_root), event_store=events)
+    server_mod._agent_app = app
+    return app
+
+
 def _plugin_entry(repo_name: str, entry: str) -> Dict[str, str]:
     return {"path": str(ROOT / "plugins" / repo_name), "entry": entry}
 
@@ -85,12 +114,12 @@ def _make_config_with_chatgpt_auth(tmp_path: Path, *, auth_mode: str) -> Path:
         provider_config["api_key"] = "test-openai-api-key"
 
     cfg: Dict[str, Any] = {
-        "providers": {
-            "chatgpt": provider_config
-        },
+        "providers": {"chatgpt": provider_config},
         "plugins": [
             _plugin_entry("chatgpt-auth-app", "chatgpt_auth_app.ChatGPTAuthAppPlugin"),
-            _plugin_entry("openai_responses", "openai_responses_plugins.OpenAIResponsesProvider"),
+            _plugin_entry(
+                "openai_responses", "openai_responses_plugins.OpenAIResponsesProvider"
+            ),
         ],
         "agents": {
             "default": {"provider": "chatgpt"},
@@ -207,7 +236,9 @@ def test_execute_action_success_path_calls_plugin(tmp_path: Path) -> None:
     assert last["params"] == {"value": "hello"}
 
 
-def test_execute_action_resolves_omitted_plugin_when_action_id_is_unique(tmp_path: Path) -> None:
+def test_execute_action_resolves_omitted_plugin_when_action_id_is_unique(
+    tmp_path: Path,
+) -> None:
     from agent_terminal_app import server as server_mod
     from tests.dummy_app_plugin import DummyAppPlugin
 
@@ -278,9 +309,56 @@ def test_execute_action_without_plugin_reports_ambiguous_action(
     assert resp["error_type"] == "ambiguous_action"
     candidates = resp["details"]["candidates"]
     assert candidates == [
-        {"plugin": "plugin_one", "action_id": "same_action"},
-        {"plugin": "plugin_two", "action_id": "same_action"},
+        {
+            "plugin": "plugin_one",
+            "action_id": "same_action",
+            "action_owner": "application",
+        },
+        {
+            "plugin": "plugin_two",
+            "action_id": "same_action",
+            "action_owner": "application",
+        },
     ]
+
+
+def test_execute_session_action_resolves_generic_callback_action_with_session_context(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_generic_callback_app(tmp_path)
+    _core, _base_config, session = app.create_session("default")
+
+    callback_url = (
+        "crystal-lattice://action/test-connection/"
+        f"{session.session_id}/complete_external_flow?result=approved&nonce=n-123"
+    )
+    resp = server_mod.execute_session_action(
+        session.session_id,
+        {
+            "action_id": "complete_external_flow",
+            "inputs": {
+                "result": "approved",
+                "nonce": "n-123",
+                "redirect_url": callback_url,
+            },
+        },
+        app_instance=app,
+    )
+
+    assert resp["status"] == "ok"
+    assert resp["plugin"] == "generic_callback_app"
+    assert resp["action_id"] == "complete_external_flow"
+    assert resp["action_owner"] == "application"
+    result = resp["result"]
+    assert result["message"] == "Generic action complete"
+    assert result["inputs"] == {
+        "result": "approved",
+        "nonce": "n-123",
+        "redirect_url": callback_url,
+    }
+    assert result["context"]["session_id"] == session.session_id
 
 
 def test_execute_session_action_alias_calls_same_plugin_path(tmp_path: Path) -> None:
@@ -434,27 +512,35 @@ def test_execute_action_envelope_never_embeds_sessions(tmp_path: Path) -> None:
     assert "session" not in result
 
 
-def test_session_application_ui_schema_hides_chatgpt_actions_for_api_mode(tmp_path: Path) -> None:
+def test_session_application_ui_schema_hides_chatgpt_actions_for_api_mode(
+    tmp_path: Path,
+) -> None:
     from agent_terminal_app import server as server_mod
 
     app = _build_chatgpt_auth_app(tmp_path, auth_mode="api")
     _core, _base_config, session = app.create_session("default")
     app.save_session(session)
 
-    resp = server_mod.get_session_application_ui_schema(session.session_id, app_instance=app)
+    resp = server_mod.get_session_application_ui_schema(
+        session.session_id, app_instance=app
+    )
     labels = {element.get("label") for element in resp["elements"]}
     assert "Sign in with ChatGPT" not in labels
     assert "Show ChatGPT account status" not in labels
 
 
-def test_session_application_ui_schema_shows_chatgpt_actions_for_auto_mode(tmp_path: Path) -> None:
+def test_session_application_ui_schema_shows_chatgpt_actions_for_auto_mode(
+    tmp_path: Path,
+) -> None:
     from agent_terminal_app import server as server_mod
 
     app = _build_chatgpt_auth_app(tmp_path, auth_mode="auto")
     _core, _base_config, session = app.create_session("default")
     app.save_session(session)
 
-    resp = server_mod.get_session_application_ui_schema(session.session_id, app_instance=app)
+    resp = server_mod.get_session_application_ui_schema(
+        session.session_id, app_instance=app
+    )
     labels = {element.get("label") for element in resp["elements"]}
     assert "Sign in with ChatGPT" in labels
     assert "Show ChatGPT account status" in labels
