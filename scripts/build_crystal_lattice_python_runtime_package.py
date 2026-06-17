@@ -255,12 +255,22 @@ def install_preinstalled_default_plugins(package_dir: Path) -> None:
     local_project_names = resolve_local_project_names(
         selected_plugin_names, plugins_root
     )
-    projects = [
-        plugins_root / name
-        for name in sorted(local_project_names)
-        if is_python_project(plugins_root / name)
+    dependency_project_names = local_project_names - selected_plugin_names
+    install_project_groups = [
+        [
+            plugins_root / name
+            for name in sorted(dependency_project_names)
+            if is_python_project(plugins_root / name)
+        ],
+        [
+            plugins_root / name
+            for name in sorted(selected_plugin_names)
+            if is_python_project(plugins_root / name)
+        ],
     ]
-    if projects:
+    for projects in install_project_groups:
+        if not projects:
+            continue
         subprocess.run(
             [
                 str(package_python(package_dir)),
