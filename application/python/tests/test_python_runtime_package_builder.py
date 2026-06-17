@@ -175,9 +175,16 @@ def test_python_runtime_preinstalled_default_plugins_manifest_and_install(
             "pip",
             "install",
             "--upgrade",
-            str(plugins / "selected"),
             str(plugins / "shared"),
-        ]
+        ],
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            str(plugins / "selected"),
+        ],
     ]
     manifest = json.loads(
         (package_dir / "preinstalled-plugins.json").read_text(encoding="utf-8")
