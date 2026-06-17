@@ -29,7 +29,7 @@ jobs:
           cache: pip
 
       - name: Install test dependencies
-        run: python -m pip install -e "core/python[dev]" -e application/python -e "plugins/openai_responses[dev]" -e plugins/tool-compat-shared
+        run: python -m pip install -e "core/python[dev]" -e application/python -e "plugins/openai_responses[dev]" -e plugins/tool-compat-shared -e plugins/mcp-shared
 
       - name: Validate release tag version
         if: startsWith(github.ref, 'refs/tags/')
