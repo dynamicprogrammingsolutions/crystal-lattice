@@ -4,9 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Mapping, Protocol
+from typing import Any, Dict, BinaryIO, Iterator, List, Mapping, Protocol
 
-import fcntl
 import json
 import os
 import shutil
@@ -142,12 +141,39 @@ class PipTargetInstallStrategy:
         lock_dir = cache_dir / ".locks"
         lock_dir.mkdir(parents=True, exist_ok=True)
         lock_path = lock_dir / f"{safe_id}@{revision}.lock"
-        with lock_path.open("w", encoding="utf-8") as lock_file:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        with lock_path.open("a+b") as lock_file:
+            self._acquire_file_lock(lock_file)
             try:
                 yield
             finally:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                self._release_file_lock(lock_file)
+
+    def _acquire_file_lock(self, lock_file: BinaryIO) -> None:
+        if os.name == "nt":
+            import msvcrt
+
+            lock_file.seek(0)
+            lock_file.write(b"\0")
+            lock_file.flush()
+            lock_file.seek(0)
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+            return
+
+        import fcntl
+
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+
+    def _release_file_lock(self, lock_file: BinaryIO) -> None:
+        if os.name == "nt":
+            import msvcrt
+
+            lock_file.seek(0)
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+            return
+
+        import fcntl
+
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     def _activate_sys_path(self, install_dir: Path) -> None:
         value = str(install_dir)
