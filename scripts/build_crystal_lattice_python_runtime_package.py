@@ -164,7 +164,7 @@ def write_runtime_layout(package_dir: Path) -> None:
         / "runtime_layout.json"
     )
     python_executable = (
-        "../../../python/python.exe"
+        "../../../python/Scripts/python.exe"
         if os.name == "nt"
         else "../../../python/bin/python"
     )
@@ -204,9 +204,9 @@ def write_launchers(package_dir: Path, *, platform_name: str) -> None:
             "@echo off\r\n"
             "set ROOT=%~dp0..\\\r\n"
             "set CRYSTAL_RUNTIME_LAYOUT=%ROOT%application\\python\\agent_terminal_app\\runtime_layout.json\r\n"
-            "set CRYSTAL_PLUGIN_PYTHON=%ROOT%python\\python.exe\r\n"
+            "set CRYSTAL_PLUGIN_PYTHON=%ROOT%python\\Scripts\\python.exe\r\n"
             "set PYTHONPATH=%ROOT%core\\python;%ROOT%application\\python;%PYTHONPATH%\r\n"
-            '"%ROOT%python\\python.exe" -m agent_terminal_app %*\r\n',
+            '"%ROOT%python\\Scripts\\python.exe" -m agent_terminal_app %*\r\n',
             encoding="utf-8",
         )
         return
@@ -300,6 +300,9 @@ def package_python(package_dir: Path) -> Path:
     windows_python = package_dir / "python" / "python.exe"
     if windows_python.is_file():
         return windows_python
+    windows_venv_python = package_dir / "python" / "Scripts" / "python.exe"
+    if windows_venv_python.is_file():
+        return windows_venv_python
     return package_dir / "python" / "bin" / "python"
 
 
