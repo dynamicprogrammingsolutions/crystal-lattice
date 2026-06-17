@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  GitHub Actions OIDC deploy role for Crystal Lattice CLI release downloads.
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Default: dynamicprogrammingsolutions
+    Description: GitHub organization or user that owns the repository.
+  GitHubRepo:
+    Type: String
+    Default: crystal-lattice
+    Description: GitHub repository name.
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: Branch allowed to assume this role for workflow testing.
+  RoleName:
+    Type: String
+    Default: CrystalLatticeCliDownloadsGitHubDeployRole
+    Description: IAM role name for GitHub Actions CLI download publishing.
+  CreateOidcProvider:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Create token.actions.githubusercontent.com OIDC provider in this stack.
+  ExistingOidcProviderArn:
+    Type: String
+    Default: ""
+    Description: Existing GitHub OIDC provider ARN when CreateOidcProvider is false.
+  DownloadsBucket:
+    Type: String
+    Description: S3 bucket name for CLI download artifacts.
+  DownloadsPrefix:
+    Type: String
+    Description: S3 prefix for CLI download artifacts.
+  DownloadsDistributionId:
+    Type: String
+    Description: CloudFront distribution ID for CLI downloads.
+
+Conditions:
+  ShouldCreateOidcProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  GitHubActionsDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - ShouldCreateOidcProvider
+                - !Ref GitHubOidcProvider
+                - !Ref ExistingOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              ForAnyValue:StringLike:
+                token.actions.githubusercontent.com:sub:
+                  - !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/tags/crystal-lattice-cli-v*"
+                  - !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/${GitHubBranch}"
+      Policies:
+        - PolicyName: CrystalLatticeCliDownloadsPublish
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListDownloadsBucketPrefix
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !Sub "arn:aws:s3:::${DownloadsBucket}"
+                Condition:
+                  StringLike:
+                    s3:prefix:
+                      - !Sub "${DownloadsPrefix}"
+                      - !Sub "${DownloadsPrefix}/*"
+              - Sid: WriteDownloadsObjects
+                Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:PutObjectTagging
+                Resource: !Sub "arn:aws:s3:::${DownloadsBucket}/${DownloadsPrefix}/*"
+              - Sid: InvalidateDownloadsDistribution
+                Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                Resource: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DownloadsDistributionId}"
+      Tags:
+        - Key: Project
+          Value: crystal-lattice
+        - Key: Component
+          Value: cli-downloads-github-actions
+
+Outputs:
+  AwsRoleToAssume:
+    Description: IAM role ARN for GitHub Actions AWS OIDC.
+    Value: !GetAtt GitHubActionsDeployRole.Arn
+  GitHubOwner:
+    Description: GitHub owner trusted by this role.
+    Value: !Ref GitHubOwner
+  GitHubRepo:
+    Description: GitHub repository trusted by this role.
+    Value: !Ref GitHubRepo
+  GitHubBranch:
+    Description: GitHub branch trusted by this role for workflow testing.
+    Value: !Ref GitHubBranch
+  OidcProviderArn:
+    Description: GitHub OIDC provider used by this role.
+    Value: !If
+      - ShouldCreateOidcProvider
+      - !Ref GitHubOidcProvider
+      - !Ref ExistingOidcProviderArn

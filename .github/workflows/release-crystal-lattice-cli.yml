@@ -155,8 +155,8 @@ jobs:
           files: release-assets/*
           generate_release_notes: true
 
-  publish-s3:
-    name: Publish S3 Downloads
+  publish-downloads:
+    name: Publish Downloads
     needs: publish
     if: startsWith(github.ref, 'refs/tags/crystal-lattice-cli-v')
     runs-on: ubuntu-latest
@@ -175,8 +175,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::874087778966:role/CrystalLatticeReleaseS3Publisher
-          aws-region: us-east-1
+          role-to-assume: ${{ secrets.CLI_DOWNLOADS_AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ vars.AWS_REGION }}
 
       - name: Download release archive artifacts
         uses: actions/download-artifact@v4
@@ -185,10 +185,23 @@ jobs:
           pattern: crystal-lattice-cli-*
           merge-multiple: true
 
-      - name: Publish S3 downloads
+      - name: Publish downloads
+        env:
+          CLI_DOWNLOADS_BUCKET: ${{ vars.CLI_DOWNLOADS_BUCKET }}
+          CLI_DOWNLOADS_PREFIX: ${{ vars.CLI_DOWNLOADS_PREFIX }}
+          CLI_DOWNLOADS_BASE_URL: ${{ vars.CLI_DOWNLOADS_BASE_URL }}
+          CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID: ${{ vars.CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID }}
+          ALLOW_AWS_DEPLOY: "1"
         run: |
-          python scripts/publish_crystal_lattice_s3.py \
+          : "${CLI_DOWNLOADS_BUCKET:?CLI_DOWNLOADS_BUCKET repository variable is required}"
+          : "${CLI_DOWNLOADS_PREFIX:?CLI_DOWNLOADS_PREFIX repository variable is required}"
+          : "${CLI_DOWNLOADS_BASE_URL:?CLI_DOWNLOADS_BASE_URL repository variable is required}"
+          version="${GITHUB_REF_NAME#crystal-lattice-cli-v}"
+          bash deploy/aws-cli-downloads/publish-assets.sh \
             --assets-dir release-assets \
-            --bucket crystal-lattice-downloads-874087778966 \
-            --prefix crystal-lattice-cli \
-            --region us-east-1
+            --version "$version" \
+            --region "${{ vars.AWS_REGION }}" \
+            --bucket "$CLI_DOWNLOADS_BUCKET" \
+            --prefix "$CLI_DOWNLOADS_PREFIX" \
+            --base-url "$CLI_DOWNLOADS_BASE_URL" \
+            --distribution-id "$CLI_DOWNLOADS_CLOUDFRONT_DISTRIBUTION_ID"
