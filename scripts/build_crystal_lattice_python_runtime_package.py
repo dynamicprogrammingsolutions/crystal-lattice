@@ -232,9 +232,7 @@ def write_runtime_layout(package_dir: Path) -> None:
         / "runtime_layout.json"
     )
     python_executable = (
-        "../../../python/Scripts/python.exe"
-        if os.name == "nt"
-        else "../../../python/bin/python"
+        "../../../" + package_python(package_dir).relative_to(package_dir).as_posix()
     )
     manifest = {
         "schema_version": 1,
@@ -266,15 +264,18 @@ def write_launchers(package_dir: Path, *, platform_name: str) -> None:
     bin_dir = package_dir / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     if platform_name == "windows":
+        python_executable = str(
+            package_python(package_dir).relative_to(package_dir)
+        ).replace("/", "\\")
         scripts_dir = package_dir / "Scripts"
         scripts_dir.mkdir(parents=True, exist_ok=True)
         (scripts_dir / "crystal-lattice.cmd").write_text(
             "@echo off\r\n"
             "set ROOT=%~dp0..\\\r\n"
             "set CRYSTAL_RUNTIME_LAYOUT=%ROOT%application\\python\\agent_terminal_app\\runtime_layout.json\r\n"
-            "set CRYSTAL_PLUGIN_PYTHON=%ROOT%python\\Scripts\\python.exe\r\n"
+            f"set CRYSTAL_PLUGIN_PYTHON=%ROOT%{python_executable}\r\n"
             "set PYTHONPATH=%ROOT%core\\python;%ROOT%application\\python;%PYTHONPATH%\r\n"
-            '"%ROOT%python\\Scripts\\python.exe" -m agent_terminal_app %*\r\n',
+            f'"%ROOT%{python_executable}" -m agent_terminal_app %*\r\n',
             encoding="utf-8",
         )
         return

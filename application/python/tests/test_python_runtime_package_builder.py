@@ -286,3 +286,24 @@ def test_stage_python_runtime_copies_runtime_build_directories(
     runtime_builder.stage_python_runtime(destination, python_runtime=source)
 
     assert (destination / pip_build.relative_to(source)).is_file()
+
+
+def test_windows_launcher_uses_actual_packaged_python_path(tmp_path: Path) -> None:
+    package_dir = tmp_path / "package"
+    manifest_dir = package_dir / "application" / "python" / "agent_terminal_app"
+    manifest_dir.mkdir(parents=True)
+    python = package_dir / "python" / "python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+
+    runtime_builder.write_runtime_layout(package_dir)
+    runtime_builder.write_launchers(package_dir, platform_name="windows")
+
+    layout = json.loads((manifest_dir / "runtime_layout.json").read_text())
+    assert layout["bundle_paths"]["python_executable"] == "../../../python/python.exe"
+
+    launcher = (package_dir / "Scripts" / "crystal-lattice.cmd").read_text(
+        encoding="utf-8"
+    )
+    assert "set CRYSTAL_PLUGIN_PYTHON=%ROOT%python\\python.exe" in launcher
+    assert '"%ROOT%python\\python.exe" -m agent_terminal_app %*' in launcher
