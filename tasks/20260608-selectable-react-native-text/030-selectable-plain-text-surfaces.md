@@ -4,13 +4,13 @@ Introduce a reusable selectable text component for non-markdown text in the mobi
 
 ## Requirements checklist
 
-- [ ] Create a custom selectable plain-text component so the implementation can be replaced later without touching every call site.
-- [ ] Apply it to non-markdown message content such as user, system, tool, raw text, reasoning/thinking, footers, titles, and snippets.
-- [ ] Apply it to session footer/title/subtitle text where long-press selection is useful.
-- [ ] Handle text that is also clickable/tappable, including session rows and link-like labels.
-- [ ] Preserve current styling and layout.
+- [x] Create a custom selectable plain-text component so the implementation can be replaced later without touching every call site.
+- [x] Apply it to non-markdown message content such as user, system, tool, raw text, reasoning/thinking, footers, titles, and snippets.
+- [x] Apply it to session footer/title/subtitle text where long-press selection is useful.
+- [x] Handle text that is also clickable/tappable, including session rows and link-like labels.
+- [x] Preserve current styling and layout.
 - [ ] Manually verify long-press selection does not break normal tap/click behavior.
-- [ ] Add focused tests for rendered states where feasible.
+- [x] Add focused tests for rendered states where feasible.
 
 Parent Task: `tasks/20260608-selectable-react-native-text/000-main.md`
 

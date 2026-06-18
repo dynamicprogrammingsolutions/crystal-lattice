@@ -3,6 +3,7 @@ import ReactTestRenderer from 'react-test-renderer';
 
 import MessageBubble from '../src/components/MessageBubble';
 import { AttachmentThumbnailStrip } from '../src/components/AttachmentThumbnailStrip';
+import SelectablePlainText from '../src/components/SelectablePlainText';
 import { ThemeProvider, lightTheme } from '../src/theme';
 
 
@@ -72,8 +73,8 @@ test('system message shows collapsible compiled content when metadata is present
   });
 
   const toggle = renderer.root.findByProps({ testID: 'system-compiled-toggle' });
-  const hiddenHint = renderer.root.findAll((node) => {
-    return node.props?.children === 'Compiled system prompt hidden (tap chevron to expand).';
+  const hiddenHint = renderer.root.findAllByType(SelectablePlainText).filter((node) => {
+    return node.props.text === 'Compiled system prompt hidden (tap chevron to expand).';
   });
   expect(hiddenHint.length).toBeGreaterThan(0);
 
@@ -81,8 +82,10 @@ test('system message shows collapsible compiled content when metadata is present
     toggle.props.onPress();
   });
 
-  const compiledContent = renderer.root.findByProps({ testID: 'system-compiled-content' });
-  expect(compiledContent.props.children).toBe('Template Alice');
+  const compiledContent = renderer.root.findAllByProps({ testID: 'system-compiled-content' });
+  expect(
+    compiledContent.some((node) => node.props.text === 'Template Alice' || node.props.value === 'Template Alice'),
+  ).toBe(true);
 });
 
 
@@ -157,6 +160,58 @@ test('message attachment preview opens a stable attachment snapshot', () => {
 });
 
 
+test('user markdown mode renders selectable enriched markdown prose by default', () => {
+  const renderer = renderMessageBubble({
+    role: 'user',
+    content: 'Hello **selectable** user.',
+    metadata: {},
+  });
+
+  const enrichedMarkdown = renderer.root.find((node) => String(node.type) === 'EnrichedMarkdownText');
+
+  expect(enrichedMarkdown.props.markdown).toBe('Hello **selectable** user.');
+  expect(enrichedMarkdown.props.selectable).toBe(true);
+  expect(enrichedMarkdown.props.markdownStyle.paragraph).toEqual(
+    expect.objectContaining({
+      fontSize: lightTheme.typography.fontSize.message,
+      color: lightTheme.text,
+    }),
+  );
+});
+
+
+test('user raw mode renders selectable plain text', () => {
+  const renderer = renderMessageBubble(
+    {
+      role: 'user',
+      content: 'Raw user text',
+      metadata: {},
+    },
+    { renderMode: 'raw' },
+  );
+
+  const selectableText = renderer.root.findByType(SelectablePlainText);
+
+  expect(selectableText.props.text).toBe('Raw user text');
+});
+
+
+test('assistant raw mode renders selectable plain text', () => {
+  const renderer = renderMessageBubble(
+    {
+      role: 'assistant',
+      content: 'Raw assistant text',
+      metadata: {},
+    },
+    { renderMode: 'raw' },
+  );
+
+  const selectableText = renderer.root.findByType(SelectablePlainText);
+
+  expect(selectableText.props.text).toBe('Raw assistant text');
+});
+
+
 test('assistant markdown mode renders selectable enriched markdown prose', () => {
   const renderer = renderMessageBubble({
     role: 'assistant',
@@ -212,10 +267,16 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
       lineHeight: Math.round(lightTheme.typography.fontSize.message * 1.25),
       marginTop: 2,
       marginBottom: 2,
-      bulletSize: 6,
+      bulletSize: 3,
       markerFontWeight: 'normal',
-      gapWidth: 20,
-      marginLeft: 10,
+      gapWidth: 10,
+      marginLeft: 37,
+      unorderedGapWidth: 15,
+      unorderedMarginLeft: 30,
+      unorderedMarkerMarginBefore: 10,
+      orderedGapWidth: 10,
+      orderedMarginLeft: 27,
+      orderedMarkerMarginBefore: 0,
     }),
   );
 });

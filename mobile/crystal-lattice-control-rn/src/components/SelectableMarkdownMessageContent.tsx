@@ -10,17 +10,18 @@ import { splitMarkdownIntoSegments, type MarkdownSegment } from './markdownSegme
 const LIST_STYLE_TUNING = {
   marginTop: 2,
   marginBottom: 2,
-  // Unordered top-level indent uses bulletSize / 2 + gapWidth.
-  // Increasing this also makes the bullet visually larger.
   bulletSize: 3,
-  // Space between marker and content. This moves top-level list text right,
-  // but does not add left padding before unordered bullets.
-  gapWidth: 11,
-  // Nested list indent increment. In enriched-markdown this does not affect
-  // top-level unordered bullets, but it does affect deeper levels.
+  // Shared fallback values kept for compatibility with the upstream list style.
+  gapWidth: 10,
   marginLeft: 37,
-  // Ordered marker width is measured using the list font size/family and this weight.
   markerFontWeight: 'normal',
+  // Fork-only list controls. Marker margin is leading/start-side space before the marker.
+  unorderedGapWidth: 15,
+  unorderedMarginLeft: 30,
+  unorderedMarkerMarginBefore: 10,
+  orderedGapWidth: 10,
+  orderedMarginLeft: 27,
+  orderedMarkerMarginBefore: 0,
 } as const;
 
 export interface SelectableMarkdownMessageContentProps {
@@ -92,13 +93,12 @@ const HighlightedCodeBlock: React.FC<HighlightedCodeBlockProps> = ({
 
 const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageContentProps> = ({
   text,
-  variant = 'assistant',
 }) => {
   const theme = useTheme();
   const segments = useMemo(() => splitMarkdownIntoSegments(text), [text]);
 
   const markdownStyle = useMemo<MarkdownStyle>(() => {
-    const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
+    const baseTextColor = theme.text;
     const messageFontSize = theme.typography.fontSize.message;
     const lineHeightFor = (fontSize: number) => Math.round(fontSize * 1.25);
 
@@ -154,6 +154,12 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
         markerFontWeight: LIST_STYLE_TUNING.markerFontWeight,
         gapWidth: LIST_STYLE_TUNING.gapWidth,
         marginLeft: LIST_STYLE_TUNING.marginLeft,
+        unorderedGapWidth: LIST_STYLE_TUNING.unorderedGapWidth,
+        unorderedMarginLeft: LIST_STYLE_TUNING.unorderedMarginLeft,
+        unorderedMarkerMarginBefore: LIST_STYLE_TUNING.unorderedMarkerMarginBefore,
+        orderedGapWidth: LIST_STYLE_TUNING.orderedGapWidth,
+        orderedMarginLeft: LIST_STYLE_TUNING.orderedMarginLeft,
+        orderedMarkerMarginBefore: LIST_STYLE_TUNING.orderedMarkerMarginBefore,
       },
       code: {
         fontFamily: 'Courier',
@@ -167,7 +173,7 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
         underline: true,
       },
     };
-  }, [theme, variant]);
+  }, [theme]);
 
   const openLink = useCallback(async ({ url }: { url: string }) => {
     try {

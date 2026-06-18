@@ -29,7 +29,7 @@
     "markdown-it": "^10.0.0",
     "react": "19.1.1",
     "react-native": "0.82.1",
-    "react-native-enriched-markdown": "^0.4.1",
+    "react-native-enriched-markdown": "git+https://github.com/ferenci84/react-native-enriched-markdown.git#23390431a92a82fddac781bbfbd5c3ba0a8d1c15",
     "react-native-fs": "^2.20.0",
     "react-native-gesture-handler": "^2.31.2",
     "react-native-image-picker": "^8.2.1",
