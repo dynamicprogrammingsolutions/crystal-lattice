@@ -13,7 +13,7 @@ Add scripts that generate and upload a domain-correct `install.sh` for the selec
 - [x] Invalidate CloudFront paths for `install.sh` and `latest.txt`.
 - [x] Document installer generation and override behavior.
 - [x] Test generated installer content against the testing domain.
-- [ ] Test current-platform installer run against the testing domain when matching artifacts exist.
+- [x] Test current-platform installer run against the testing domain when matching artifacts exist.
 
 Parent Task: `tasks/20260617-cli-download-domain-release-automation/000-main.md`
 
@@ -128,4 +128,10 @@ Added during completion on 2026-06-18.
 DEFAULT_DOWNLOAD_BASE_URL="https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli"
 ```
 
-The current-platform installer run was attempted after publishing matching artifacts. It failed on macOS because the packaged `darwin-arm64` Python runtime depends on `/Library/Frameworks/Python.framework/Versions/3.11/Python`, which was not present on the smoke-test machine. This is a release-blocking packaging issue, not an installer URL/domain issue.
+The current-platform installer run was attempted after publishing matching artifacts. It initially failed on macOS because the packaged `darwin-arm64` Python runtime depended on `/Library/Frameworks/Python.framework/Versions/3.11/Python`, which was not present on the smoke-test machine. This was fixed by switching the release workflow to uv-managed standalone Python runtimes and adding portability smoke checks.
+
+After publishing artifacts from green workflow run `27746631545`, the current-platform installer smoke passed against:
+
+```text
+https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli
+```

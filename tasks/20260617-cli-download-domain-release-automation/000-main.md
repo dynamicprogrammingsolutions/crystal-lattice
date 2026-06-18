@@ -6,17 +6,16 @@ Create a reproducible AWS/GitHub deployment path for Crystal Lattice CLI downloa
 
 - [x] `tasks/20260617-cli-download-domain-release-automation/010-design-download-hosting-and-release-boundaries.md`
 - [x] `tasks/20260617-cli-download-domain-release-automation/020-add-download-domain-infra-bootstrap.md`
-- [ ] `tasks/20260617-cli-download-domain-release-automation/030-add-domain-aware-installer-upload.md`
-  - Test-domain URLs are updated to `download.` and serving correctly; full installer smoke is pending a rebuilt archive from a green workflow run.
+- [x] `tasks/20260617-cli-download-domain-release-automation/030-add-domain-aware-installer-upload.md`
 - [x] `tasks/20260617-cli-download-domain-release-automation/040-add-github-oidc-role-and-vars-setup.md`
 - [ ] `tasks/20260617-cli-download-domain-release-automation/050-update-release-workflow-to-use-configured-download-target.md`
-  - Workflow dispatch run `27745015177` passed test/Linux/macOS jobs but failed Windows archive smoke; tag-triggered publish still needs validation after the Windows launcher fix.
+  - Workflow dispatch run `27746631545` passed; tag-triggered publish still needs validation.
 - [ ] `tasks/20260617-cli-download-domain-release-automation/060-add-release-orchestration-script.md`
   - Script exists; full release orchestration still needs tag/publish validation after the workflow is green.
 - [ ] `tasks/20260617-cli-download-domain-release-automation/070-add-promote-existing-github-release-script.md`
   - Script exists; existing GitHub Release assets for `0.1.0` used older names, so promotion was not used for the live test.
 - [ ] `tasks/20260617-cli-download-domain-release-automation/080-add-smoke-tests-and-domain-cutover-docs.md`
-  - URL-level smoke checks passed on the `download.` testing domain; install-run smoke needs rebuilt artifacts from a green workflow.
+  - Testing-domain public installer smoke passed; production cutover/final docs remain.
 
 ## Goal
 
@@ -296,3 +295,28 @@ Additional status update added during completion on 2026-06-18:
   ```
 
 - Copied these task files into the `main` worktree and cleaned duplicate CLI-release changes out of the original `develop` worktree. The original worktree still has unrelated staged doc edits in `deploy/aws-static-sites/README.md` and `docs/reference/providers/openai_provider.md`, which were left untouched.
+
+Final status update added during completion on 2026-06-18:
+
+- Pushed `543dc933 Use actual packaged Python path in Windows runtime launcher`.
+- Workflow dispatch run `27746631545` on `main` passed:
+  - test job
+  - `linux-amd64`
+  - `darwin-amd64`
+  - `darwin-arm64`
+  - `windows-amd64`
+- Published artifacts from run `27746631545` to the testing download domain.
+- Public testing-domain smoke passed:
+
+  ```bash
+  deploy/aws-cli-downloads/smoke.sh \
+    --base-url https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
+    --version 0.1.0
+  ```
+
+Remaining work after this update:
+
+1. Run a tag-triggered release to verify GitHub Release publication and the `publish-downloads` job through OIDC.
+2. Decide when to create/update the production stack for `download.crystallattice.dev`.
+3. Configure GitHub variables/secrets for production when ready.
+4. Promote or release to production and run `smoke.sh --profile prod`.

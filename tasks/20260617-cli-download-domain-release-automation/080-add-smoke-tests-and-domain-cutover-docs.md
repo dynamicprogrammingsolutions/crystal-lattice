@@ -6,14 +6,14 @@ Add a smoke-test script and final documentation that explains test-domain valida
 
 - [x] Add `deploy/aws-cli-downloads/smoke.sh`.
 - [x] Smoke-test `install.sh`, `latest.txt`, expected archive URLs, and content types.
-- [ ] On macOS/Linux, optionally run the current-platform installer into isolated paths.
-- [ ] Verify installed command reports `python-runtime` when an installer run is possible.
+- [x] On macOS/Linux, optionally run the current-platform installer into isolated paths.
+- [x] Verify installed command reports `python-runtime` when an installer run is possible.
 - [x] Document full test-domain validation.
 - [x] Document production cutover from testing domain to production domain.
 - [x] Document how and when to update `scripts/install.sh` default URL.
 - [ ] Update root/application README install commands if production domain becomes canonical.
 - [x] Document rollback/promotion of previous release.
-- [ ] Run smoke tests against the testing domain.
+- [x] Run smoke tests against the testing domain.
 - [ ] Run final docs checks.
 
 Parent Task: `tasks/20260617-cli-download-domain-release-automation/000-main.md`
@@ -119,5 +119,9 @@ deploy/aws-cli-downloads/smoke.sh \
   --base-url https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
   --version 0.1.0
 ```
+
+Final update added during completion on 2026-06-18:
+
+After workflow run `27746631545` passed and its artifacts were published to the testing domain, the public smoke command above passed. It verified `install.sh`, `latest.txt`, all expected archive URLs, a temp-path install on macOS arm64, `--help`, and `--runtime-layout-json`.
 
 If README command examples are executable in the current environment, run the testing-domain variants with temp install paths.

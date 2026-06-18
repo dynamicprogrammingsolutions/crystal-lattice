@@ -15,7 +15,7 @@ Update the CLI release GitHub Actions workflow so the matrix-built release artif
 - [x] Invalidate CloudFront when a distribution ID is configured.
 - [x] Document workflow variables/secrets in `deploy/aws-cli-downloads/README.md`.
 - [x] Test workflow syntax locally.
-- [ ] Test workflow from the main-branch worktree on the testing domain.
+- [x] Test workflow from the main-branch worktree on the testing domain.
 
 Parent Task: `tasks/20260617-cli-download-domain-release-automation/000-main.md`
 
@@ -128,3 +128,7 @@ Workflow dispatch run `27725996534` on `main` passed tests and all four matrix b
 Later update added during completion on 2026-06-18:
 
 Workflow dispatch run `27745015177` on `main` tested the uv-managed Python runtime changes. It passed test, Linux, `darwin-amd64`, and `darwin-arm64`, but failed `windows-amd64` archive smoke because the generated Windows launcher could not execute the packaged `python\Scripts\python.exe` path. The remaining workflow task is to fix that Windows launcher/runtime path issue, rerun the matrix, and then validate tag-triggered publish.
+
+Final update added during completion on 2026-06-18:
+
+Workflow dispatch run `27746631545` passed all tests and all four matrix build/archive-smoke jobs from `main`. Artifacts from that run were manually published to the testing download domain because `workflow_dispatch` intentionally skips tag-only publish jobs. The remaining workflow validation is a real tag-triggered publish path, including GitHub Release publication and OIDC upload through `publish-downloads`.
