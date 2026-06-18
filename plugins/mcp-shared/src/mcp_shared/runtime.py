@@ -1,15 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import timedelta
 from typing import Any, Dict, Literal
 
 
 TransportName = Literal["stdio", "sse", "http"]
-ServerStateName = Literal["disabled", "connected", "failed"]
+ServerStateName = Literal["disabled", "connected", "failed", "auth_required"]
+
+DEFAULT_STARTUP_TIMEOUT_SECONDS = 30.0
 
 
 @dataclass(frozen=True)
@@ -23,7 +26,7 @@ class MCPServerRuntimeSpec:
     cwd: str | None = None
     url: str | None = None
     headers: dict[str, str] = field(default_factory=dict)
-    startup_timeout_seconds: int | None = None
+    startup_timeout_seconds: int | float | None = None
     tool_timeout_seconds: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -125,12 +128,13 @@ class MCPRuntimeManager:
             try:
                 entry = await self._connect_server(spec)
             except Exception as exc:
+                state = _classify_startup_state(exc)
                 self._snapshots[server_name] = MCPServerSnapshot(
                     name=server_name,
                     enabled=True,
                     transport=spec.transport,
-                    state="failed",
-                    error=str(exc),
+                    state=state,
+                    error=_format_startup_error(exc, state),
                 )
                 if config.fail_on_startup_error:
                     await self.close()
@@ -206,17 +210,30 @@ class MCPRuntimeManager:
         self._started = False
 
     async def _connect_server(self, spec: MCPServerRuntimeSpec) -> _RuntimeEntry:
+        timeout = _startup_timeout_seconds(spec)
+        try:
+            async with _fail_after(timeout):
+                return await self._connect_server_once(spec)
+        except TimeoutError as exc:
+            raise TimeoutError(
+                f"Timed out while starting MCP server '{spec.name}' "
+                f"after {timeout:g}s"
+            ) from exc
+
+    async def _connect_server_once(self, spec: MCPServerRuntimeSpec) -> _RuntimeEntry:
         stack = AsyncExitStack()
         try:
             session = await self._open_session(spec, stack)
             raw_tools = await session.list_tools()
             tools = _extract_discovered_tools(spec.name, raw_tools)
             return _RuntimeEntry(spec=spec, stack=stack, session=session, tools=tools)
-        except Exception:
+        except BaseException:
             await stack.aclose()
             raise
 
-    async def _open_session(self, spec: MCPServerRuntimeSpec, stack: AsyncExitStack) -> Any:
+    async def _open_session(
+        self, spec: MCPServerRuntimeSpec, stack: AsyncExitStack
+    ) -> Any:
         client_session_cls, transport_factory = _resolve_sdk_primitives(spec.transport)
 
         if spec.transport == "stdio":
@@ -256,7 +273,9 @@ def _resolve_sdk_primitives(transport: TransportName) -> tuple[Any, Any]:
     client_module = import_module("mcp")
     client_session_cls = getattr(client_module, "ClientSession", None)
     if client_session_cls is None:
-        client_session_cls = getattr(import_module("mcp.client.session"), "ClientSession")
+        client_session_cls = getattr(
+            import_module("mcp.client.session"), "ClientSession"
+        )
 
     if transport == "stdio":
         transport_module = import_module("mcp.client.stdio")
@@ -290,7 +309,86 @@ def _resolve_stdio_server_parameters() -> Any:
     return params_cls
 
 
-def _extract_discovered_tools(server_name: str, raw_tools: Any) -> list[MCPDiscoveredTool]:
+def _startup_timeout_seconds(spec: MCPServerRuntimeSpec) -> float:
+    value = spec.startup_timeout_seconds
+    if isinstance(value, (int, float)) and value > 0:
+        return float(value)
+    return DEFAULT_STARTUP_TIMEOUT_SECONDS
+
+
+@asynccontextmanager
+async def _fail_after(seconds: float):
+    task = asyncio.current_task()
+    if task is None:
+        yield
+        return
+
+    did_timeout = False
+    loop = asyncio.get_running_loop()
+
+    def cancel_task() -> None:
+        nonlocal did_timeout
+        did_timeout = True
+        task.cancel()
+
+    handle = loop.call_later(seconds, cancel_task)
+    try:
+        yield
+    except asyncio.CancelledError as exc:
+        if did_timeout:
+            raise TimeoutError() from exc
+        raise
+    finally:
+        handle.cancel()
+
+
+def _classify_startup_state(exc: BaseException) -> ServerStateName:
+    return "auth_required" if _is_auth_required_error(exc) else "failed"
+
+
+def _format_startup_error(exc: BaseException, state: ServerStateName) -> str:
+    detail = str(exc)
+    if state == "auth_required":
+        if detail:
+            return (
+                "Authentication required for this MCP server. "
+                f"Open MCP status to sign in. {detail}"
+            )
+        return (
+            "Authentication required for this MCP server. Open MCP status to sign in."
+        )
+    return detail
+
+
+def _is_auth_required_error(exc: BaseException) -> bool:
+    current: BaseException | None = exc
+    while current is not None:
+        response = getattr(current, "response", None)
+        status_code = getattr(response, "status_code", None)
+        if status_code == 401:
+            return True
+
+        current_name = type(current).__name__.lower()
+        current_text = str(current).lower()
+        if "oauth" in current_name:
+            return True
+        if "unauthorized" in current_name or "authrequired" in current_name:
+            return True
+        if "401" in current_text and (
+            "unauthorized" in current_text or "www-authenticate" in current_text
+        ):
+            return True
+        if "authentication required" in current_text:
+            return True
+        if "authorization required" in current_text:
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _extract_discovered_tools(
+    server_name: str, raw_tools: Any
+) -> list[MCPDiscoveredTool]:
     tools = getattr(raw_tools, "tools", raw_tools)
     discovered: list[MCPDiscoveredTool] = []
     for tool in list(tools or []):
@@ -365,7 +463,11 @@ def _resource_to_dict(resource: Any) -> dict[str, Any]:
         "text": getattr(resource, "text", None),
         "blob": getattr(resource, "blob", None),
         "mimeType": getattr(resource, "mimeType", None),
-        "uri": str(getattr(resource, "uri", "")) if getattr(resource, "uri", None) else None,
+        "uri": (
+            str(getattr(resource, "uri", ""))
+            if getattr(resource, "uri", None)
+            else None
+        ),
     }
 
 

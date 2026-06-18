@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import shutil
+import time
+from contextlib import asynccontextmanager
 
 import pytest
+import mcp_shared.runtime as runtime_mod
 
 from mcp_shared import (
     MCPDiscoveredTool,
@@ -60,6 +64,175 @@ def test_discovered_tool_dataclass_fields() -> None:
     assert tool.raw_name == "read_file"
 
 
+class _StallingClientSession:
+    def __init__(self, read_stream, write_stream) -> None:
+        _ = read_stream, write_stream
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        _ = exc_type, exc, tb
+
+    async def initialize(self) -> None:
+        await asyncio.sleep(60)
+
+    async def list_tools(self):
+        raise AssertionError("list_tools should not run after startup timeout")
+
+
+class _StallingListToolsClientSession:
+    def __init__(self, read_stream, write_stream) -> None:
+        _ = read_stream, write_stream
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        _ = exc_type, exc, tb
+
+    async def initialize(self) -> None:
+        return None
+
+    async def list_tools(self):
+        await asyncio.sleep(60)
+
+
+class _UnauthorizedResponse:
+    status_code = 401
+
+
+class _UnauthorizedMCPError(Exception):
+    response = _UnauthorizedResponse()
+
+
+class _UnauthorizedClientSession:
+    def __init__(self, read_stream, write_stream) -> None:
+        _ = read_stream, write_stream
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        _ = exc_type, exc, tb
+
+    async def initialize(self) -> None:
+        raise _UnauthorizedMCPError(
+            "401 Unauthorized: WWW-Authenticate Bearer resource_metadata"
+        )
+
+    async def list_tools(self):
+        raise AssertionError("list_tools should not run after unauthorized startup")
+
+
+@asynccontextmanager
+async def _fake_http_transport(url: str, **kwargs):
+    _ = url, kwargs
+    yield "read-stream", "write-stream"
+
+
+@pytest.mark.asyncio
+async def test_http_mcp_auth_required_does_not_hang_startup(monkeypatch) -> None:
+    monkeypatch.setattr(
+        runtime_mod,
+        "_resolve_sdk_primitives",
+        lambda transport: (_StallingClientSession, _fake_http_transport),
+    )
+
+    manager = MCPRuntimeManager()
+    config = MCPRuntimeConfig(
+        servers={
+            "protected": MCPServerRuntimeSpec(
+                name="protected",
+                enabled=True,
+                transport="http",
+                url="http://127.0.0.1:1/mcp",
+                startup_timeout_seconds=0.1,
+            )
+        },
+        fail_on_startup_error=False,
+    )
+
+    started_at = time.monotonic()
+    await asyncio.wait_for(manager.start(config), timeout=1)
+    elapsed = time.monotonic() - started_at
+
+    assert elapsed < 0.8
+    assert await manager.list_tools() == []
+    snapshots = manager.status_snapshot()
+    assert len(snapshots) == 1
+    snapshot = snapshots[0]
+    assert snapshot.name == "protected"
+    assert snapshot.state in {"failed", "auth_required"}
+    assert snapshot.error
+    assert "timed out" in snapshot.error.lower()
+
+
+@pytest.mark.asyncio
+async def test_runtime_manager_startup_timeout_covers_initial_list_tools(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        runtime_mod,
+        "_resolve_sdk_primitives",
+        lambda transport: (_StallingListToolsClientSession, _fake_http_transport),
+    )
+
+    manager = MCPRuntimeManager()
+    config = MCPRuntimeConfig(
+        servers={
+            "protected": MCPServerRuntimeSpec(
+                name="protected",
+                enabled=True,
+                transport="http",
+                url="http://127.0.0.1:1/mcp",
+                startup_timeout_seconds=0.1,
+            )
+        },
+        fail_on_startup_error=False,
+    )
+
+    await asyncio.wait_for(manager.start(config), timeout=1)
+
+    snapshot = manager.status_snapshot()[0]
+    assert snapshot.state == "failed"
+    assert snapshot.error
+    assert "timed out" in snapshot.error.lower()
+
+
+@pytest.mark.asyncio
+async def test_runtime_manager_marks_unauthorized_startup_as_auth_required(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        runtime_mod,
+        "_resolve_sdk_primitives",
+        lambda transport: (_UnauthorizedClientSession, _fake_http_transport),
+    )
+
+    manager = MCPRuntimeManager()
+    config = MCPRuntimeConfig(
+        servers={
+            "protected": MCPServerRuntimeSpec(
+                name="protected",
+                enabled=True,
+                transport="http",
+                url="http://127.0.0.1:1/mcp",
+                startup_timeout_seconds=1,
+            )
+        },
+        fail_on_startup_error=False,
+    )
+
+    await manager.start(config)
+
+    assert await manager.list_tools() == []
+    snapshot = manager.status_snapshot()[0]
+    assert snapshot.state == "auth_required"
+    assert snapshot.error
+    assert "unauthorized" in snapshot.error.lower()
+
+
 class _FakeApp:
     def run_awaitable_blocking(self, awaitable):
         import asyncio
@@ -89,10 +262,17 @@ class _FakeRuntimeManager:
             )
         ]
 
-    async def call_tool(self, *, server_name: str, tool_name: str, arguments: dict, timeout_seconds=None):
+    async def call_tool(
+        self, *, server_name: str, tool_name: str, arguments: dict, timeout_seconds=None
+    ):
         return MCPToolCallResult(
             is_error=False,
-            content=[{"type": "text", "text": f"{server_name}:{tool_name}:{arguments['path']}"}],
+            content=[
+                {
+                    "type": "text",
+                    "text": f"{server_name}:{tool_name}:{arguments['path']}",
+                }
+            ],
             structured_content=None,
         )
 
@@ -162,7 +342,9 @@ def test_registry_close_closes_all_runtimes() -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_runtime_manager_can_connect_to_real_filesystem_mcp_server(tmp_path) -> None:
+async def test_runtime_manager_can_connect_to_real_filesystem_mcp_server(
+    tmp_path,
+) -> None:
     if shutil.which("npx") is None:
         pytest.skip("npx not available")
 

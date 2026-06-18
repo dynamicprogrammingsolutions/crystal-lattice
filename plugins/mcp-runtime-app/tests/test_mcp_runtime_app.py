@@ -59,6 +59,31 @@ class _EmptyStoreApp(_DummyApp):
         self.store.items = {}
 
 
+class _AuthRequiredRegistry:
+    def snapshot(self):
+        return [
+            {
+                "runtime_key": "abc",
+                "servers": [
+                    {
+                        "name": "protected",
+                        "state": "auth_required",
+                        "tool_count": 0,
+                        "enabled": True,
+                        "transport": "http",
+                        "error": "Authentication required for this MCP server. Open MCP status to sign in.",
+                    }
+                ],
+            }
+        ]
+
+
+class _AuthRequiredStoreApp(_DummyApp):
+    def __init__(self) -> None:
+        self.store = _DummyStore()
+        self.store.items = {"mcp_registry": _AuthRequiredRegistry()}
+
+
 def test_get_ui_elements_hidden_without_mcp_servers() -> None:
     plugin = MCPRuntimeAppPlugin()
     assert plugin.get_ui_elements({}, config={}) == []
@@ -66,7 +91,12 @@ def test_get_ui_elements_hidden_without_mcp_servers() -> None:
 
 def test_get_ui_elements_hidden_when_mcp_disabled() -> None:
     plugin = MCPRuntimeAppPlugin()
-    assert plugin.get_ui_elements({}, config={"mcp_enabled": False, "mcp_servers": {"filesystem": {}}}) == []
+    assert (
+        plugin.get_ui_elements(
+            {}, config={"mcp_enabled": False, "mcp_servers": {"filesystem": {}}}
+        )
+        == []
+    )
 
 
 def test_show_status_returns_display_payload() -> None:
@@ -75,6 +105,17 @@ def test_show_status_returns_display_payload() -> None:
     display = result["display"]
     assert display["title"] == "MCP Runtime Status"
     assert "filesystem" in display["body"]
+
+
+def test_show_status_exposes_auth_required_server() -> None:
+    plugin = MCPRuntimeAppPlugin()
+    result = plugin.execute_action(
+        _AuthRequiredStoreApp(), "mcp_show_status", {}, None, {}
+    )
+    body = result["display"]["body"]
+    assert "protected" in body
+    assert "auth_required" in body
+    assert "Open MCP status to sign in" in body
 
 
 def test_clear_runtime_clears_registry_runtimes() -> None:
