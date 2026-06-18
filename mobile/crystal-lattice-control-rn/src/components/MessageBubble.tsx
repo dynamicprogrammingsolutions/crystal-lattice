@@ -14,7 +14,7 @@ import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
 import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
-import MarkdownMessageContent from './MarkdownMessageContent';
+import SelectableMarkdownMessageContent from './SelectableMarkdownMessageContent';
 import { AttachmentThumbnailStrip } from './AttachmentThumbnailStrip';
 import {
   selectMultipartAttachments,
@@ -674,7 +674,7 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
               multiline
             />
           ) : (
-            <MarkdownMessageContent
+            <SelectableMarkdownMessageContent
               text={content}
               variant="assistant"
             />
