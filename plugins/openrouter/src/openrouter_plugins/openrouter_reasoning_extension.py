@@ -16,6 +16,7 @@ from .model_capabilities import (
     get_reasoning_effort_options_and_default,
 )
 
+
 class OpenRouterReasoningExtension(ProviderExtensionPlugin):
     """Provider extension to enable OpenRouter reasoning.
 
@@ -32,9 +33,9 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
     priority: int = 50  # Run before RequestOptionsFeature
 
     def get_tags(
-            self,
-            config: Dict[str, Any],
-            models: List[Dict[str, Any]],
+        self,
+        config: Dict[str, Any],
+        models: List[Dict[str, Any]],
     ) -> List[str]:
         """Identify this extension for dependency resolution."""
         return ["ext:openrouter_reasoning"]
@@ -60,7 +61,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
                 "type": "number",
                 "required": False,
                 "description": "Specific token limit (Anthropic-style)",
-            }
+            },
         }
 
     def get_ui_elements(
@@ -85,22 +86,22 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         if config and config.get("enable_reasoning") is False:
             return ui_elements
         if tags is not None and "supports_reasoning_effort" in tags and options:
-            ui_elements.append({
-                "type": "select",
-                "key": "reasoning_effort",
-                "label": "Reasoning Effort",
-                "options": options,
-                "default": default,
-            })
+            ui_elements.append(
+                {
+                    "type": "select",
+                    "key": "reasoning_effort",
+                    "label": "Reasoning Effort",
+                    "options": options,
+                    "default": default,
+                }
+            )
         return ui_elements
 
     def init(self, config: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         if config.get("enable_reasoning") is False:
             return state
 
-        reasoning_config = {
-            "reasoning": {}
-        }
+        reasoning_config = {"reasoning": {}}
 
         selected_model = config.get("model")
         _options, default = get_reasoning_effort_options_and_default(selected_model)
@@ -109,13 +110,15 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         if "enable_reasoning" in config:
             reasoning_config["reasoning"]["enabled"] = config["enable_reasoning"]
         if not has_reasoning_max_tokens and ("reasoning_effort" in config or default):
-            reasoning_config["reasoning"]["effort"] = config.get("reasoning_effort", default)
+            reasoning_config["reasoning"]["effort"] = config.get(
+                "reasoning_effort", default
+            )
         if has_reasoning_max_tokens:
             reasoning_config["reasoning"]["max_tokens"] = config["reasoning_max_tokens"]
 
         if not reasoning_config["reasoning"]:
             return state
-    
+
         return {
             **state,
             "openrouter_reasoning": reasoning_config,
@@ -133,7 +136,6 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         retention.
         """
         return native_messages
-
 
     def from_native_messages(
         self, native_messages: List[Dict[str, Any]], messages: List[Dict[str, Any]]
@@ -162,7 +164,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         return enhanced_messages
 
     def initialize_request(
-            self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
+        self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         reasoning_config = state.get("openrouter_reasoning")
         if not reasoning_config:
@@ -172,7 +174,7 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         request_options = dict(config.get("request_options", {}))
         request_options["reasoning"] = {
             **request_options.get("reasoning", {}),
-            **reasoning_config["reasoning"]
+            **reasoning_config["reasoning"],
         }
 
         new_state = {
@@ -297,7 +299,6 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
 
         return accumulated
 
-
     def process_delta(
         self,
         delta: Dict[str, Any],
@@ -311,23 +312,40 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         """
 
         match delta, accumulated:
-            case ({"delta": {"reasoning": reasoning, "reasoning_details": list(reasoning_details)}}, dict(acc)) | ({"message": {"reasoning": reasoning, "reasoning_details": list(reasoning_details)}}, dict(acc)):
+            case (
+                {
+                    "delta": {
+                        "reasoning": reasoning,
+                        "reasoning_details": list(reasoning_details),
+                    }
+                },
+                dict(acc),
+            ) | (
+                {
+                    "message": {
+                        "reasoning": reasoning,
+                        "reasoning_details": list(reasoning_details),
+                    }
+                },
+                dict(acc),
+            ):
                 return current_partial, {
                     **acc,
                     "reasoning": acc.get("reasoning", "") + (reasoning or ""),
                     "reasoning_details": self._accumulate_reasoning_details(
                         acc.get("reasoning_details", []), reasoning_details
-                    )
+                    ),
                 }
-            case ({"delta": {"reasoning": reasoning}}, dict(acc)) | ({"message": {"reasoning": reasoning}}, dict(acc)):
+            case ({"delta": {"reasoning": reasoning}}, dict(acc)) | (
+                {"message": {"reasoning": reasoning}},
+                dict(acc),
+            ):
                 return current_partial, {
                     **acc,
-                    "reasoning": acc.get("reasoning", "") + (reasoning or "")
+                    "reasoning": acc.get("reasoning", "") + (reasoning or ""),
                 }
             case _:
                 return current_partial, accumulated
-
-
 
     def process_chunk(
         self,
@@ -336,13 +354,17 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        accumulated=state.get("partial", {})
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        accumulated = state.get("accumulator", {})
         partial, accumulated = self.process_delta(
-            delta=self.extract_delta(native_chunk), current_partial=partial_messages[-1] if len(partial_messages) > 0 else None, accumulated=state.get("partial", {})
+            delta=self.extract_delta(native_chunk),
+            current_partial=partial_messages[-1] if partial_messages else None,
+            accumulated=accumulated,
         )
-        new_state = {**state, "partial": accumulated}
-        return  [partial] if partial else [], [], native_messages, new_state
+        new_state = {**state, "accumulator": accumulated}
+        return [partial] if partial else [], [], native_messages, new_state
 
     def finalize(
         self,

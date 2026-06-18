@@ -1,0 +1,22 @@
+{
+  "name": "crystal-lattice-landing",
+  "type": "module",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.0",
+    "astro": "^5.8.0",
+    "hast-util-to-html": "^9.0.5",
+    "js-yaml": "^4.1.1",
+    "mdast-util-to-hast": "^13.2.1",
+    "mdast-util-to-string": "^4.0.0",
+    "remark-parse": "^11.0.0",
+    "tailwindcss": "^4.3.0",
+    "unified": "^11.0.5"
+  }
+}

@@ -187,7 +187,7 @@ class OpenAIToolsExtension:
     ):
         """Accumulate tool_calls across deltas into the shared accumulator.
 
-        Updates only the accumulator (``state["partial"]``) and leaves
+        Updates only the accumulator (``state["accumulator"]``) and leaves
         partial/final messages to the provider.
         """
         accumulated = accumulated or {"tool_calls": []}
@@ -243,12 +243,12 @@ class OpenAIToolsExtension:
 
         This extension does not emit its own finals or mutate history; it only
         enriches the shared accumulator so that the provider's final message
-        (built from state["partial"]) carries the full tool_calls list.
+        (built from state["accumulator"]) carries the full tool_calls list.
         """
         delta = self.extract_delta(native_chunk or {})
 
         new_partial_messages = partial_messages
-        accumulated = state.get("partial", {})
+        accumulated = state.get("accumulator", {})
 
         if partial_messages:
             _current_partial = partial_messages[-1]
@@ -262,7 +262,7 @@ class OpenAIToolsExtension:
             new_partial_messages,
             final_messages,
             native_messages,
-            {**state, "partial": accumulated},
+            {**state, "accumulator": accumulated},
         )
 
     def finalize(
@@ -273,14 +273,14 @@ class OpenAIToolsExtension:
         *,
         context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """Sanitize tool_calls in the accumulated partial before history storage.
+        """Sanitize tool_calls in the accumulator before history storage.
 
         This ensures that corrupted JSON arguments don't get stored in history
         and cause subsequent API calls to fail.
         """
-        partial = state.get("partial")
-        if isinstance(partial, dict):
-            tool_calls = partial.get("tool_calls")
+        accumulator = state.get("accumulator")
+        if isinstance(accumulator, dict):
+            tool_calls = accumulator.get("tool_calls")
             if isinstance(tool_calls, list):
                 registry = get_registry_from_context(context)
                 # Sanitize each tool call to ensure valid JSON arguments
@@ -289,5 +289,5 @@ class OpenAIToolsExtension:
                     for tc in tool_calls
                     if isinstance(tc, dict)
                 ]
-                partial["tool_calls"] = sanitized_calls
+                accumulator["tool_calls"] = sanitized_calls
         return final_messages, native_messages, state

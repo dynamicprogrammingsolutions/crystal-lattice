@@ -16,16 +16,22 @@ class _ReasoningExtensionExample:
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        partial = state.get("partial")
-        if not isinstance(partial, dict) or not isinstance(native_chunk, dict):
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        accumulator = state.get("accumulator")
+        if not isinstance(accumulator, dict) or not isinstance(native_chunk, dict):
             return partial_messages, final_messages, native_messages, state
 
         frag = native_chunk.get("reasoning")
         if not isinstance(frag, str) or not frag:
             return partial_messages, final_messages, native_messages, state
 
-        internal = partial.get("_metadata") if isinstance(partial.get("_metadata"), dict) else {}
+        internal = (
+            accumulator.get("_metadata")
+            if isinstance(accumulator.get("_metadata"), dict)
+            else {}
+        )
         prior = internal.get("reasoning")
         prior_text = prior if isinstance(prior, str) else ""
         internal = {**internal, "reasoning": prior_text + frag}
@@ -34,7 +40,7 @@ class _ReasoningExtensionExample:
             partial_messages,
             final_messages,
             native_messages,
-            {**state, "partial": {**partial, "_metadata": internal}},
+            {**state, "accumulator": {**accumulator, "_metadata": internal}},
         )
 
     def from_native_messages(
@@ -43,7 +49,11 @@ class _ReasoningExtensionExample:
         out: List[Dict[str, Any]] = []
         for native, msg in zip(native_messages, messages):
             md = dict(msg.get("metadata") or {})
-            internal = native.get("_metadata") if isinstance(native.get("_metadata"), dict) else {}
+            internal = (
+                native.get("_metadata")
+                if isinstance(native.get("_metadata"), dict)
+                else {}
+            )
             reasoning = internal.get("reasoning")
             if isinstance(reasoning, str) and reasoning:
                 md["reasoning"] = reasoning
@@ -108,22 +118,28 @@ class _UsageExtensionExample:
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        partial = state.get("partial")
-        if not isinstance(partial, dict) or not isinstance(native_chunk, dict):
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
+        accumulator = state.get("accumulator")
+        if not isinstance(accumulator, dict) or not isinstance(native_chunk, dict):
             return partial_messages, final_messages, native_messages, state
 
         usage = native_chunk.get("usage")
         if not isinstance(usage, dict) or not usage:
             return partial_messages, final_messages, native_messages, state
 
-        internal = partial.get("_metadata") if isinstance(partial.get("_metadata"), dict) else {}
+        internal = (
+            accumulator.get("_metadata")
+            if isinstance(accumulator.get("_metadata"), dict)
+            else {}
+        )
         internal = {**internal, "usage": usage}
         return (
             partial_messages,
             final_messages,
             native_messages,
-            {**state, "partial": {**partial, "_metadata": internal}},
+            {**state, "accumulator": {**accumulator, "_metadata": internal}},
         )
 
     def from_native_messages(
@@ -132,7 +148,11 @@ class _UsageExtensionExample:
         out: List[Dict[str, Any]] = []
         for native, msg in zip(native_messages, messages):
             md = dict(msg.get("metadata") or {})
-            internal = native.get("_metadata") if isinstance(native.get("_metadata"), dict) else {}
+            internal = (
+                native.get("_metadata")
+                if isinstance(native.get("_metadata"), dict)
+                else {}
+            )
             usage = internal.get("usage")
             if isinstance(usage, dict) and usage:
                 md["usage"] = usage
@@ -142,19 +162,21 @@ class _UsageExtensionExample:
 
 def test_reasoning_accumulates_into_partial_metadata() -> None:
     ext = _ReasoningExtensionExample()
-    state = {"partial": {"role": "assistant", "content": "", "_metadata": {}}}
+    state = {"accumulator": {"role": "assistant", "content": "", "_metadata": {}}}
 
     _, _, _, state = ext.process_chunk({"reasoning": "Step 1. "}, [], [], [], state)
     _, _, _, state = ext.process_chunk({"reasoning": "Step 2."}, [], [], [], state)
 
-    internal = state["partial"]["_metadata"]
+    internal = state["accumulator"]["_metadata"]
     assert internal["reasoning"] == "Step 1. Step 2."
 
 
 def test_reasoning_surfaces_from_native_metadata() -> None:
     ext = _ReasoningExtensionExample()
 
-    native = [{"role": "assistant", "content": "Answer", "_metadata": {"reasoning": "R"}}]
+    native = [
+        {"role": "assistant", "content": "Answer", "_metadata": {"reasoning": "R"}}
+    ]
     core = [{"role": "assistant", "content": "Answer", "metadata": {}}]
 
     out = ext.from_native_messages(native, core)
@@ -168,7 +190,7 @@ def test_tools_maps_tool_call_fields_round_trip() -> None:
         {
             "id": "c1",
             "type": "function",
-            "function": {"name": "add", "arguments": "{\"a\": 1, \"b\": 2}"},
+            "function": {"name": "add", "arguments": '{"a": 1, "b": 2}'},
         }
     ]
 
@@ -196,13 +218,19 @@ def test_tools_maps_tool_call_fields_round_trip() -> None:
 
 def test_usage_attaches_via_internal_metadata() -> None:
     ext = _UsageExtensionExample()
-    state = {"partial": {"role": "assistant", "content": "", "_metadata": {}}}
+    state = {"accumulator": {"role": "assistant", "content": "", "_metadata": {}}}
 
     native_chunk = {"usage": {"total_tokens": 10, "cost": 0.1}}
     _, _, _, new_state = ext.process_chunk(native_chunk, [], [], [], state)
-    assert new_state["partial"]["_metadata"]["usage"]["total_tokens"] == 10
+    assert new_state["accumulator"]["_metadata"]["usage"]["total_tokens"] == 10
 
-    native = [{"role": "assistant", "content": "Hi", "_metadata": {"usage": {"total_tokens": 10}}}]
+    native = [
+        {
+            "role": "assistant",
+            "content": "Hi",
+            "_metadata": {"usage": {"total_tokens": 10}},
+        }
+    ]
     core = [{"role": "assistant", "content": "Hi", "metadata": {}}]
     out = ext.from_native_messages(native, core)
     assert out[0]["metadata"]["usage"]["total_tokens"] == 10

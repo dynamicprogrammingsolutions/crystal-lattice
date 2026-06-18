@@ -349,7 +349,9 @@ class AccumulatorStreamingMixin:
     ):
         delta = self.extract_delta(native_chunk or {})
         accumulated = (
-            state.get("partial") if isinstance(state.get("partial"), dict) else {}
+            state.get("accumulator")
+            if isinstance(state.get("accumulator"), dict)
+            else {}
         )
         patch, new_acc = self.process_delta(delta, accumulated)
 
@@ -357,10 +359,10 @@ class AccumulatorStreamingMixin:
         if isinstance(patch, dict) and patch:
             partials = [patch]
 
-        return partials, [], list(native_messages), {**state, "partial": new_acc}
+        return partials, [], list(native_messages), {**state, "accumulator": new_acc}
 
     def finalize(self, native_messages: list[dict[str, Any]], state: dict[str, Any]):
-        final = state.get("partial")
+        final = state.get("accumulator")
         if isinstance(final, dict) and final:
             return [final], [*native_messages, final], state
         return [], list(native_messages), state
@@ -547,9 +549,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             raw_metadata = msg.get("metadata")
             metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
             native_tool_content = (
-                openai_chat_tool_result_content(tool_result)
-                if role == "tool"
-                else None
+                openai_chat_tool_result_content(tool_result) if role == "tool" else None
             )
             content = raw_content
             if not isinstance(content, str):
@@ -893,7 +893,7 @@ class OpenAICompatibleProvider(AccumulatorStreamingMixin, ProviderPlugin):
             **state,
             "request": request,
             "rate_limit_policy": _rate_limit_policy_from_config(cfg),
-            "partial": None,
+            "accumulator": None,
             "debug_stream": bool(cfg.get("debug_stream", False)),
         }
 

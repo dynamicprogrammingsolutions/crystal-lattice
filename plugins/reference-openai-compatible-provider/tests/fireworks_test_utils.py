@@ -11,7 +11,7 @@ import requests
 from agent_core.core import AgentCore
 from hosted_test_utils import (
     REASONING_TEST_DIR,
-    build_reference_core,
+    build_reference_core,  # noqa: F401 - re-exported for Fireworks tests
     load_root_env,
 )
 
@@ -23,7 +23,7 @@ _FIREWORKS_RATE_LIMIT_RETRY_DELAYS_SECONDS = (1.0, 2.0, 4.0)
 _next_fireworks_request_time = 0.0
 
 FIREWORKS_QWEN_MODEL = "fireworks/qwen3-8b"
-FIREWORKS_GLM_MODEL = "fireworks/glm-4p7"
+FIREWORKS_GLM_MODEL = "accounts/fireworks/models/glm-5p1"
 FIREWORKS_KIMI_MODEL = "fireworks/kimi-k2p5"
 
 

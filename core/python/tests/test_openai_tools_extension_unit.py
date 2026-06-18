@@ -11,8 +11,12 @@ from plugins.openai_tools_extension import OpenAIToolsExtension
 
 def test_openai_tools_extension_declares_chat_tool_formats() -> None:
     ext = OpenAIToolsExtension()
-    assert ext.accepted_tool_schema_formats({}, None) == [OpenAIChatToolSchemaAccessor.format_id]
-    assert ext.emitted_tool_call_formats({}, None) == [OpenAIChatToolCallAccessor.format_id]
+    assert ext.accepted_tool_schema_formats({}, None) == [
+        OpenAIChatToolSchemaAccessor.format_id
+    ]
+    assert ext.emitted_tool_call_formats({}, None) == [
+        OpenAIChatToolCallAccessor.format_id
+    ]
 
 
 class _SanitizingAccessor:
@@ -52,7 +56,7 @@ def test_openai_tools_extension_finalize_uses_context_registry() -> None:
     ext = OpenAIToolsExtension()
     registry = ToolInteropRegistry(call_accessors=[_SanitizingAccessor()])
     state = {
-        "partial": {
+        "accumulator": {
             "tool_calls": [
                 {"type": "test_call", "id": "call_1", "name": "test", "payload": "bad"}
             ]
@@ -66,7 +70,7 @@ def test_openai_tools_extension_finalize_uses_context_registry() -> None:
         context={"tool_interop": {"registry": registry}},
     )
 
-    assert new_state["partial"]["tool_calls"][0]["payload"] == "sanitized"
+    assert new_state["accumulator"]["tool_calls"][0]["payload"] == "sanitized"
 
 
 class _CustomSchemaAccessor:

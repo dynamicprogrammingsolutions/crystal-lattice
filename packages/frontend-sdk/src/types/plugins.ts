@@ -127,6 +127,7 @@ export interface ExecuteActionResponseOk {
   status: 'ok';
   plugin: string;
   action_id: string;
+  action_owner?: string;
   result: StandardActionResult;
 }
 

@@ -120,7 +120,7 @@ def test_finalize_uses_tool_interop_context_for_sanitization() -> None:
     ext = OpenAICompatibleToolsExtension()
     registry = ToolInteropRegistry(call_accessors=[_SanitizingAccessor()])
     state = {
-        "partial": {
+        "accumulator": {
             "tool_calls": [
                 {"type": "test_call", "id": "call_1", "name": "test", "payload": "bad"}
             ]
@@ -134,4 +134,4 @@ def test_finalize_uses_tool_interop_context_for_sanitization() -> None:
         context={"tool_interop": {"registry": registry}},
     )
 
-    assert new_state["partial"]["tool_calls"][0]["payload"] == "sanitized"
+    assert new_state["accumulator"]["tool_calls"][0]["payload"] == "sanitized"

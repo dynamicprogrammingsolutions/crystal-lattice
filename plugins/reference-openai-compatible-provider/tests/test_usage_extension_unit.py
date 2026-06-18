@@ -142,7 +142,13 @@ def test_usage_extension_normalizes_cached_and_cost_fields_with_turn_totals():
         {
             "role": "assistant",
             "content": "thinking",
-            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "lookup", "arguments": "{}"}}],
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "lookup", "arguments": "{}"},
+                }
+            ],
             "_metadata": {
                 "usage": {
                     "prompt_tokens": 8,
@@ -190,10 +196,18 @@ def test_usage_extension_normalizes_cached_and_cost_fields_with_turn_totals():
     assert final_metadata["usage_total_cost_cumulative_formatted"] == "$0.000579"
     assert final_metadata["usage_turn_cost_cumulative_formatted"] == "$0.000579"
     # Turn token breakdown
-    assert final_metadata["usage_turn_input_tokens_cumulative_formatted"] == "1,208"  # 8 + 1200
-    assert final_metadata["usage_turn_cached_tokens_cumulative_formatted"] == "256"  # 256
-    assert final_metadata["usage_turn_output_tokens_cumulative_formatted"] == "304"  # 4 + 300
-    assert final_metadata["usage_turn_reasoning_tokens_cumulative_formatted"] == "10"  # 3 + 7
+    assert (
+        final_metadata["usage_turn_input_tokens_cumulative_formatted"] == "1,208"
+    )  # 8 + 1200
+    assert (
+        final_metadata["usage_turn_cached_tokens_cumulative_formatted"] == "256"
+    )  # 256
+    assert (
+        final_metadata["usage_turn_output_tokens_cumulative_formatted"] == "304"
+    )  # 4 + 300
+    assert (
+        final_metadata["usage_turn_reasoning_tokens_cumulative_formatted"] == "10"
+    )  # 3 + 7
 
 
 def test_usage_extension_finalize_stamps_turn_metadata() -> None:
@@ -213,15 +227,21 @@ def test_usage_extension_finalize_stamps_turn_metadata() -> None:
     ]
     native_messages = [{"role": "user", "content": "hi"}, *final_messages]
 
-    new_finals, _new_native, _state = ext.finalize(final_messages, native_messages, {"config": {}})
+    new_finals, _new_native, _state = ext.finalize(
+        final_messages, native_messages, {"config": {}}
+    )
     metadata = new_finals[0].get("_metadata") or {}
-    assert metadata.get("turn") == {"id": 1, "has_tool_calls": False, "is_terminal": True}
+    assert metadata.get("turn") == {
+        "id": 1,
+        "has_tool_calls": False,
+        "is_terminal": True,
+    }
 
 
 def test_usage_extension_captures_streaming_usage_into_partial_state():
     ext = OpenAICompatibleUsageExtension()
     partial_messages = [{"role": "assistant", "content": "hi"}]
-    state = {"partial": {"role": "assistant", "content": "hi"}}
+    state = {"accumulator": {"role": "assistant", "content": "hi"}}
 
     _partials, _finals, _native, new_state = ext.process_chunk(
         {"usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}},
@@ -231,7 +251,7 @@ def test_usage_extension_captures_streaming_usage_into_partial_state():
         state,
     )
 
-    assert new_state["partial"]["_metadata"]["usage"] == {
+    assert new_state["accumulator"]["_metadata"]["usage"] == {
         "prompt_tokens": 3,
         "completion_tokens": 2,
         "total_tokens": 5,
@@ -249,7 +269,7 @@ def test_usage_extension_finalize_preserves_native_history_when_no_final_message
                 {
                     "id": "call_1",
                     "type": "function",
-                    "function": {"name": "add", "arguments": "{\"a\":2,\"b\":3}"},
+                    "function": {"name": "add", "arguments": '{"a":2,"b":3}'},
                 }
             ],
             "_metadata": {
@@ -288,7 +308,12 @@ def test_provider_call_api_preserves_non_streaming_usage_for_extensions(monkeypa
             },
         )
 
-    monkeypatch.setattr("requests.sessions.Session.post", lambda self, url, headers, json, timeout, stream: fake_post(url, headers, json, timeout))
+    monkeypatch.setattr(
+        "requests.sessions.Session.post",
+        lambda self, url, headers, json, timeout, stream: fake_post(
+            url, headers, json, timeout
+        ),
+    )
 
     provider = OpenAICompatibleProvider()
     native_messages, state = provider.initialize_request(
@@ -561,7 +586,13 @@ def test_usage_extension_session_total_across_multiple_turns():
         {
             "role": "assistant",
             "content": "tool call",
-            "tool_calls": [{"id": "call_1", "type": "function", "function": {"name": "test", "arguments": "{}"}}],
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "test", "arguments": "{}"},
+                }
+            ],
             "_metadata": {
                 "usage": {
                     "prompt_tokens": 200,
@@ -623,4 +654,6 @@ def test_usage_extension_session_total_across_multiple_turns():
 
     # Last message should have session total
     assert rebuilt[-1]["metadata"]["usage_total_cost_cumulative"] == 0.006
-    assert rebuilt[-1]["metadata"]["usage_total_cost_cumulative_formatted"] == "$0.006000"
+    assert (
+        rebuilt[-1]["metadata"]["usage_total_cost_cumulative_formatted"] == "$0.006000"
+    )

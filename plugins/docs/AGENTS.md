@@ -97,7 +97,7 @@ When writing provider extension docs (tools/reasoning/usage/etc.):
   - which core `metadata[...]` keys are produced/consumed (tools + UIs)
   - what tool-call shape is expected by the tool loop and `AgentCore.execute_tool_calls`
 - Call out the core interop pitfall explicitly:
-  - providers must merge into `state["partial"]` without dropping unknown keys written by extensions
+  - providers must merge into `state["accumulator"]` without dropping unknown keys written by extensions
 
 ### Prefer OpenAI-compatible shapes for generic docs
 

@@ -1,0 +1,291 @@
+---
+const { section } = Astro.props;
+const platforms = Array.isArray(section.platforms) ? section.platforms : [];
+const buttons = Array.isArray(section.storeButtons) ? section.storeButtons : [];
+const icons14 = {
+  apple: `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>`,
+  android: `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.523 15.341l1.26 2.183a.5.5 0 0 1-.183.683.5.5 0 0 1-.683-.183l-1.276-2.21A7.99 7.99 0 0 1 12 17a7.99 7.99 0 0 1-4.641-1.186l-1.276 2.21a.5.5 0 0 1-.683.183.5.5 0 0 1-.183-.683l1.26-2.183C4.948 13.9 4 11.837 4 9.5h16c0 2.337-.948 4.4-2.477 5.841zM8.5 12a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zm7 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1zM6.225 5.985l-1.26-2.183a.5.5 0 0 1 .866-.5l1.276 2.21A7.99 7.99 0 0 1 12 4a7.99 7.99 0 0 1 4.893 1.512l1.276-2.21a.5.5 0 0 1 .866.5l-1.26 2.183C19.052 7.1 20 9.163 20 11.5H4c0-2.337.948-4.4 2.225-5.515z"/></svg>`,
+};
+const icons20 = {
+  apple: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>`,
+  play: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M3 20.5v-17c0-.83.94-1.3 1.6-.8l14 8.5c.6.37.6 1.23 0 1.6l-14 8.5c-.66.5-1.6.03-1.6-.8z"/></svg>`,
+  github: `<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>`,
+};
+---
+
+<section class="hero">
+  <div class="container">
+    <div class="text-col">
+      <p class="label">{section.label}</p>
+      <h1 set:html={section.titleHtml}></h1>
+      <p class="subtitle">{section.subtitle}</p>
+
+      <div class="platforms">
+        {platforms.map((platform) => (
+          <span class="platform-chip">
+            <Fragment set:html={icons14[platform.icon] ?? ""} />
+            {platform.label}
+          </span>
+        ))}
+      </div>
+
+      <div class="download-btns">
+        {buttons.map((button) => (
+          button.comingSoon ? (
+            <span class={`store-btn ${button.className} is-disabled`} aria-disabled="true">
+              <Fragment set:html={icons20[button.icon] ?? ""} />
+              <div class="store-text">
+                <span class="store-sub">{button.sub}</span>
+                <span class="store-name">{button.name}</span>
+              </div>
+            </span>
+          ) : (
+            <a href={button.href} class={`store-btn ${button.className}`} target="_blank" rel="noopener">
+              <Fragment set:html={icons20[button.icon] ?? ""} />
+              <div class="store-text">
+                <span class="store-sub">{button.sub}</span>
+                <span class="store-name">{button.name}</span>
+              </div>
+            </a>
+          )
+        ))}
+      </div>
+
+      <p class="free-note">{section.note}</p>
+    </div>
+
+    <div class="phone-col">
+      <div class="bubbles-wrap">
+        <div class="bubble b1"></div>
+        <div class="bubble b2"></div>
+        <div class="bubble b3"></div>
+        <div class="phone-frame">
+          <img
+            src={section.image.src}
+            alt={section.image.alt}
+            class="phone-img"
+            onerror="this.closest('.phone-col').style.display='none';"
+          />
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .hero {
+    padding: 5rem 0 4rem;
+    overflow: hidden;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 4rem;
+    align-items: center;
+  }
+
+  .text-col {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-soft);
+  }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.25rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.03em;
+    color: var(--text);
+  }
+
+  .subtitle {
+    font-size: 1rem;
+    color: var(--text-4);
+    line-height: 1.65;
+    max-width: 480px;
+  }
+
+  .platforms {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .platform-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--text-4);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 0.375rem;
+    padding: 0.25rem 0.625rem;
+  }
+
+  .download-btns {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .store-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.625rem 1.125rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+    background: var(--bg-surface);
+    color: var(--text);
+    transition: border-color 0.15s, background 0.15s;
+    cursor: pointer;
+  }
+
+  .store-btn:hover {
+    border-color: var(--border-strong);
+    background: var(--bg-surface-2);
+    color: var(--text);
+  }
+
+  .store-btn.is-disabled {
+    cursor: default;
+    opacity: 0.72;
+  }
+
+  .store-btn.is-disabled:hover {
+    border-color: var(--border);
+    background: var(--bg-surface);
+    color: var(--text);
+  }
+
+  .store-text {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .store-sub {
+    font-size: 0.6875rem;
+    color: var(--text-4);
+    line-height: 1;
+  }
+
+  .store-name {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+
+  .free-note {
+    font-size: 0.8125rem;
+    color: var(--text-5);
+  }
+
+  /* Phone + bubbles */
+  .phone-col {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .bubbles-wrap {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2rem;
+  }
+
+  .bubble {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(52px);
+    opacity: 0.28;
+    pointer-events: none;
+  }
+
+  .b1 {
+    width: 200px;
+    height: 200px;
+    background: #6366f1;
+    top: 8%;
+    left: -5%;
+    animation: blob1 10s ease-in-out infinite;
+  }
+
+  .b2 {
+    width: 160px;
+    height: 160px;
+    background: #8b5cf6;
+    bottom: 5%;
+    right: -8%;
+    animation: blob2 13s ease-in-out infinite;
+  }
+
+  .b3 {
+    width: 130px;
+    height: 130px;
+    background: #06b6d4;
+    top: 52%;
+    left: 38%;
+    animation: blob3 9s ease-in-out infinite;
+  }
+
+  @keyframes blob1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33%       { transform: translate(24px, -28px) scale(1.06); }
+    66%       { transform: translate(-18px, 14px) scale(0.94); }
+  }
+
+  @keyframes blob2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    40%       { transform: translate(-20px, 22px) scale(1.08); }
+    70%       { transform: translate(12px, -12px) scale(0.96); }
+  }
+
+  @keyframes blob3 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%       { transform: translate(16px, 20px) scale(1.05); }
+  }
+
+  .phone-frame {
+    width: 100%;
+    max-width: 280px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .phone-img {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+
+  @media (max-width: 860px) {
+    .container {
+      grid-template-columns: 1fr;
+      text-align: center;
+    }
+
+    .text-col { align-items: center; }
+    .subtitle { margin: 0 auto; }
+
+    .phone-col { order: -1; }
+
+    .phone-frame {
+      max-width: 240px;
+    }
+  }
+</style>

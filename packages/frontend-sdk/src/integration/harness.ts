@@ -153,7 +153,8 @@ export async function startBackendServer(options: {
   const port = options.port ?? await getFreePort();
   const baseUrl = `http://127.0.0.1:${port}`;
 
-  const python = process.env.PYTHON || 'python';
+  const repoVenvPython = path.join(repoRoot, '.venv', 'bin', 'python');
+  const python = process.env.PYTHON || (fs.existsSync(repoVenvPython) ? repoVenvPython : 'python');
   const args = [runnerPath, '--config', configPath, '--sessions', sessionsRoot, '--port', String(port)];
   if (typeof options.eventStoreOptions?.maxEventsGlobal === 'number') {
     args.push('--max-events-global', String(options.eventStoreOptions.maxEventsGlobal));

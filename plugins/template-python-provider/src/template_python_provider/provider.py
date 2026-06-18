@@ -49,7 +49,7 @@ class AccumulatorStreamingMixin:
     - ``process_delta(delta, accumulated) -> (partial_fragment|None, new_accumulated)``
 
     Contract conventions used by this mixin:
-    - ``state['partial']`` is the accumulator (a provider-native assistant message dict)
+    - ``state['accumulator']`` is the accumulator (a provider-native assistant message dict)
     - partial fragments emitted per chunk should be provider-native message-like dicts
       (at least ``{"role":"assistant","content":"..."}``) so the wrapper can
       convert them to core messages for UI streaming.
@@ -57,7 +57,9 @@ class AccumulatorStreamingMixin:
       per-chunk artifacts into native history.
     """
 
-    def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover
+    def extract_delta(
+        self, native_chunk: Dict[str, Any]
+    ) -> Dict[str, Any]:  # pragma: no cover
         raise NotImplementedError("extract_delta must be implemented by the provider")
 
     def process_delta(
@@ -72,12 +74,14 @@ class AccumulatorStreamingMixin:
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """Default streaming chunk reducer.
 
         This generic implementation:
         - extracts a delta
-        - merges it into ``state['partial']``
+        - merges it into ``state['accumulator']``
         - emits a single partial fragment per chunk when present
         """
 
@@ -88,7 +92,11 @@ class AccumulatorStreamingMixin:
         if state.get("debug_stream"):
             logger.info("delta", delta=_truncate(delta, 2000))
 
-        accumulated = state.get("partial") if isinstance(state.get("partial"), dict) else {}
+        accumulated = (
+            state.get("accumulator")
+            if isinstance(state.get("accumulator"), dict)
+            else {}
+        )
         fragment, new_accumulated = self.process_delta(delta, accumulated)
 
         if state.get("debug_stream"):
@@ -98,7 +106,7 @@ class AccumulatorStreamingMixin:
         finals: List[Dict[str, Any]] = []
         # IMPORTANT: keep the baseline native history unchanged on hot path.
         full_history = list(native_messages)
-        return partials, finals, full_history, {**state, "partial": new_accumulated}
+        return partials, finals, full_history, {**state, "accumulator": new_accumulated}
 
     def finalize(
         self,
@@ -107,12 +115,12 @@ class AccumulatorStreamingMixin:
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         """Default finalize for accumulator-based providers."""
 
-        partial = state.get("partial")
-        if isinstance(partial, dict) and partial.get("content"):
-            final = dict(partial)
+        accumulator = state.get("accumulator")
+        if isinstance(accumulator, dict) and accumulator.get("content"):
+            final = dict(accumulator)
             full_history = [*native_messages, final]
-            return [final], full_history, {**state, "partial": None}
-        return [], list(native_messages), {**state, "partial": None}
+            return [final], full_history, {**state, "accumulator": None}
+        return [], list(native_messages), {**state, "accumulator": None}
 
 
 class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
@@ -159,7 +167,9 @@ class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
         ]
 
     # ---- Tags / capabilities ----
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         # TODO: define stable tags for dependency enablement.
         return ["provider:template_provider", "supports_streaming"]
 
@@ -168,7 +178,7 @@ class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
         return {
             "config": config,
             "request": {},
-            "partial": None,
+            "accumulator": None,
             "debug_stream": bool(config.get("debug_stream")),
         }
 
@@ -177,7 +187,7 @@ class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         # TODO: build state["request"] with url/payload/headers/timeout.
         # Also reset per-turn accumulators.
-        return list(native_messages), {**state, "partial": None}
+        return list(native_messages), {**state, "accumulator": None}
 
     # ---- Conversion ----
     # You may omit these and rely on adapter defaults if OpenAI-like role/content
@@ -189,7 +199,9 @@ class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """Make a non-streaming API call.
 
         Recommended first step: implement this method to learn request/response
@@ -229,7 +241,7 @@ class TemplateProvider(AccumulatorStreamingMixin, ProviderPlugin):
 
         Returns:
         - partial_fragment: a provider-native message-like dict for UI streaming (or None)
-        - new_accumulated: the updated accumulator stored in ``state['partial']``
+        - new_accumulated: the updated accumulator stored in ``state['accumulator']``
         """
 
         raise NotImplementedError("TODO: implement process_delta")
@@ -255,7 +267,9 @@ class TemplateCustomStreamingProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         raise NotImplementedError("TODO: implement call_api")
 
     def stream_api(
@@ -268,7 +282,9 @@ class TemplateCustomStreamingProvider(ProviderPlugin):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         raise NotImplementedError("TODO: implement process_chunk")
 
     def finalize(

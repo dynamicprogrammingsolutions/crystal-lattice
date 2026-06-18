@@ -12,8 +12,15 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from agent_core.tool_interop import OpenAIChatToolCallAccessor, OpenAIChatToolSchemaAccessor, ToolInteropRegistry, ToolInteropTarget  # noqa: E402
-from openrouter_plugins.openrouter_tools_extension import OpenRouterToolsExtension as Ext  # noqa: E402
+from agent_core.tool_interop import (
+    OpenAIChatToolCallAccessor,
+    OpenAIChatToolSchemaAccessor,
+    ToolInteropRegistry,
+    ToolInteropTarget,
+)  # noqa: E402
+from openrouter_plugins.openrouter_tools_extension import (
+    OpenRouterToolsExtension as Ext,
+)  # noqa: E402
 
 
 def test_extension_metadata():
@@ -28,8 +35,12 @@ def test_extension_metadata():
 
 def test_extension_declares_chat_tool_formats():
     ext = Ext()
-    assert ext.accepted_tool_schema_formats({}, None) == [OpenAIChatToolSchemaAccessor.format_id]
-    assert ext.emitted_tool_call_formats({}, None) == [OpenAIChatToolCallAccessor.format_id]
+    assert ext.accepted_tool_schema_formats({}, None) == [
+        OpenAIChatToolSchemaAccessor.format_id
+    ]
+    assert ext.emitted_tool_call_formats({}, None) == [
+        OpenAIChatToolCallAccessor.format_id
+    ]
 
 
 def test_init_stores_tools_in_state():
@@ -162,7 +173,10 @@ def test_to_native_messages_maps_tool_call_id_and_tool_calls():
                     {
                         "id": "c1",
                         "type": "function",
-                        "function": {"name": "read_file", "arguments": '{"file_path": "x"}'},
+                        "function": {
+                            "name": "read_file",
+                            "arguments": '{"file_path": "x"}',
+                        },
                     }
                 ]
             },
@@ -193,7 +207,10 @@ def test_from_native_messages_attaches_metadata_tool_calls():
                 {
                     "id": "x1",
                     "type": "function",
-                    "function": {"name": "read_file", "arguments": '{"file_path": "baz.txt"}'},
+                    "function": {
+                        "name": "read_file",
+                        "arguments": '{"file_path": "baz.txt"}',
+                    },
                 }
             ],
         }
@@ -210,7 +227,6 @@ def test_from_native_messages_attaches_metadata_tool_calls():
     else:
         args = args_raw or {}
     assert args.get("file_path") == "baz.txt"
-
 
 
 def test_finalize_is_noop():
@@ -257,7 +273,7 @@ def test_finalize_uses_context_registry():
     ext = Ext()
     registry = ToolInteropRegistry(call_accessors=[_SanitizingAccessor()])
     state = {
-        "partial": {
+        "accumulator": {
             "tool_calls": [
                 {"type": "test_call", "id": "call_1", "name": "test", "payload": "bad"}
             ]
@@ -271,4 +287,4 @@ def test_finalize_uses_context_registry():
         context={"tool_interop": {"registry": registry}},
     )
 
-    assert new_state["partial"]["tool_calls"][0]["payload"] == "sanitized"
+    assert new_state["accumulator"]["tool_calls"][0]["payload"] == "sanitized"

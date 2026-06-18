@@ -4,13 +4,13 @@ Track the cleanup of local-path plugin dependency handling so `agent_app` no lon
 
 ## Requirements checklist
 
-- [ ] Add explicit plugin-owned metadata for local workspace sibling dependencies.
-- [ ] Remove hardcoded shared dependency names from `core/python/agent_app/plugin_sources/local_path.py`.
-- [ ] Remove the broad `--no-cache-dir` workaround for local sibling dependencies.
-- [ ] Preserve stale-cache correctness by expanding plugin fingerprints to declared local workspace dependencies.
-- [ ] Preserve latest-install `sys.path` precedence and stale module eviction behavior.
-- [ ] Update tests to cover descriptor metadata, cache-key expansion, and install orchestration.
-- [ ] Update plugin packaging/loading documentation and affected plugin descriptors.
+- [x] Add explicit plugin-owned metadata for local workspace sibling dependencies.
+- [x] Remove hardcoded shared dependency names from `core/python/agent_app/plugin_sources/local_path.py`.
+- [x] Remove the broad `--no-cache-dir` workaround for local sibling dependencies.
+- [x] Preserve stale-cache correctness by expanding plugin fingerprints to declared local workspace dependencies.
+- [x] Preserve latest-install `sys.path` precedence and stale module eviction behavior.
+- [x] Update tests to cover descriptor metadata, cache-key expansion, and install orchestration.
+- [x] Update plugin packaging/loading documentation and affected plugin descriptors.
 
 ## Background
 
@@ -403,3 +403,9 @@ Document:
 - Do not remove the `sys.path` precedence and stale module eviction behavior from `install.py`; that solved a different but related correctness problem.
 - The cleanup target is the heuristic shared-package-name list and the broad no-cache workaround, not the later import freshness fixes.
 - Prefer making descriptor metadata the single source of truth for local workspace sibling dependencies.
+
+## Completion notes
+
+- Completed in commit `3748f277` (`Use metadata for local plugin workspace dependencies`).
+- Landed on `develop` via merge commit `f9dd4d2d` (`Merge branch 'task/local-path-plugin-metadata-deps' into develop`).
+- This work was incorporated as a dependency/input for `tasks/20260429-cloud-agent-orchestrator/0121.6-selected-bundled-plugin-preinstall-and-bundle-e2e.md`, whose requirements and completion notes explicitly reference this task's metadata model.

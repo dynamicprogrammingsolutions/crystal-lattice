@@ -50,11 +50,11 @@ def test_default_message_conversion_shapes() -> None:
 def test_init_and_initialize_request_reset_partial_state() -> None:
     provider = TemplateProvider()
     state = provider.init({"model": "m", "debug_stream": True})
-    assert state.get("partial") is None
+    assert state.get("accumulator") is None
     assert state.get("debug_stream") is True
 
     native_messages = [{"role": "user", "content": "hi"}]
     native_after, new_state = provider.initialize_request(native_messages, state)
 
     assert native_after == native_messages
-    assert new_state.get("partial") is None
+    assert new_state.get("accumulator") is None

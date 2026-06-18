@@ -31,7 +31,11 @@ def _current_turn_id(native_messages: list[dict[str, Any]]) -> int:
         if not _message_has_tool_calls(native_message):
             current_open = None
 
-    return current_open if current_open is not None else (last_assigned + 1 if last_assigned > 0 else 1)
+    return (
+        current_open
+        if current_open is not None
+        else (last_assigned + 1 if last_assigned > 0 else 1)
+    )
 
 
 def _as_int(value: Any) -> int | None:
@@ -226,8 +230,10 @@ def _session_totals(native_messages: list[dict[str, Any]]) -> dict[str, Any]:
     - usage_total_cost_cumulative: total cost across all assistant messages
     - usage_total_cost_cumulative_formatted: formatted string
     """
-    total_cost = _sum_assistant_metric(native_messages, len(native_messages) - 1, _usage_cost)
-    
+    total_cost = _sum_assistant_metric(
+        native_messages, len(native_messages) - 1, _usage_cost
+    )
+
     result: dict[str, Any] = {}
     if total_cost is not None:
         result["usage_total_cost_cumulative"] = total_cost
@@ -255,47 +261,65 @@ def _turn_totals(
     """
     if not final_messages:
         return {}
-    
+
     # Find the last assistant message in final_messages to determine turn boundaries
     # The turn includes all assistant messages after the last separator
     # We need to map final_messages back to native_messages indices
-    
+
     # Get the end index in native_messages for the last final message
     end_index = len(native_messages) - 1
-    
+
     # Find the separator (turn starts after this)
     separator_index = _last_turn_separator_index(native_messages, end_index)
     turn_start = separator_index + 1
-    
+
     # Sum metrics for the turn (from turn_start to end_index)
-    turn_cost = _sum_assistant_metric(native_messages, end_index, _usage_cost, start_index=turn_start)
-    turn_input = _sum_assistant_metric(native_messages, end_index, _usage_input_tokens, start_index=turn_start)
-    turn_cached = _sum_assistant_metric(native_messages, end_index, _usage_cached_tokens, start_index=turn_start)
-    turn_output = _sum_assistant_metric(native_messages, end_index, _usage_output_tokens, start_index=turn_start)
-    turn_reasoning = _sum_assistant_metric(native_messages, end_index, _usage_reasoning_tokens, start_index=turn_start)
-    
+    turn_cost = _sum_assistant_metric(
+        native_messages, end_index, _usage_cost, start_index=turn_start
+    )
+    turn_input = _sum_assistant_metric(
+        native_messages, end_index, _usage_input_tokens, start_index=turn_start
+    )
+    turn_cached = _sum_assistant_metric(
+        native_messages, end_index, _usage_cached_tokens, start_index=turn_start
+    )
+    turn_output = _sum_assistant_metric(
+        native_messages, end_index, _usage_output_tokens, start_index=turn_start
+    )
+    turn_reasoning = _sum_assistant_metric(
+        native_messages, end_index, _usage_reasoning_tokens, start_index=turn_start
+    )
+
     result: dict[str, Any] = {}
-    
+
     if turn_cost is not None:
         result["usage_turn_cost_cumulative"] = turn_cost
         result["usage_turn_cost_cumulative_formatted"] = _format_cost(turn_cost)
-    
+
     if turn_input is not None:
         result["usage_turn_input_tokens_cumulative"] = turn_input
-        result["usage_turn_input_tokens_cumulative_formatted"] = _format_token_count(turn_input)
-    
+        result["usage_turn_input_tokens_cumulative_formatted"] = _format_token_count(
+            turn_input
+        )
+
     if turn_cached is not None:
         result["usage_turn_cached_tokens_cumulative"] = turn_cached
-        result["usage_turn_cached_tokens_cumulative_formatted"] = _format_token_count(turn_cached)
-    
+        result["usage_turn_cached_tokens_cumulative_formatted"] = _format_token_count(
+            turn_cached
+        )
+
     if turn_output is not None:
         result["usage_turn_output_tokens_cumulative"] = turn_output
-        result["usage_turn_output_tokens_cumulative_formatted"] = _format_token_count(turn_output)
-    
+        result["usage_turn_output_tokens_cumulative_formatted"] = _format_token_count(
+            turn_output
+        )
+
     if turn_reasoning is not None:
         result["usage_turn_reasoning_tokens_cumulative"] = turn_reasoning
-        result["usage_turn_reasoning_tokens_cumulative_formatted"] = _format_token_count(turn_reasoning)
-    
+        result["usage_turn_reasoning_tokens_cumulative_formatted"] = (
+            _format_token_count(turn_reasoning)
+        )
+
     return result
 
 
@@ -445,17 +469,17 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
         if not isinstance(usage, dict):
             return partial_messages, final_messages, native_messages, state
 
-        partial = state.get("partial")
-        partial_dict = dict(partial) if isinstance(partial, dict) else {}
-        internal_md = partial_dict.get("_metadata")
+        accumulator = state.get("accumulator")
+        accumulator_dict = dict(accumulator) if isinstance(accumulator, dict) else {}
+        internal_md = accumulator_dict.get("_metadata")
         base_internal_md = internal_md if isinstance(internal_md, dict) else {}
-        partial_dict["_metadata"] = {**base_internal_md, "usage": usage}
+        accumulator_dict["_metadata"] = {**base_internal_md, "usage": usage}
 
         return (
             partial_messages,
             final_messages,
             native_messages,
-            {**state, "partial": partial_dict},
+            {**state, "accumulator": accumulator_dict},
         )
 
     def finalize(
@@ -484,13 +508,15 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
 
         # Calculate session-level totals (cumulative across all history)
         session_metadata = _session_totals(native_messages)
-        
+
         # Calculate turn-level totals
         turn_metadata = _turn_totals(native_messages, final_messages)
 
         # Process each final message
         history_before_current = (
-            native_messages[: -len(final_messages)] if len(native_messages) >= len(final_messages) else []
+            native_messages[: -len(final_messages)]
+            if len(native_messages) >= len(final_messages)
+            else []
         )
         current_turn_id = _current_turn_id(history_before_current)
         new_finals: list[dict[str, Any]] = []
@@ -518,7 +544,7 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
 
             # Build the full metadata for this message
             per_msg_metadata = _per_message_metadata(usage)
-            
+
             # Combine: per-message + session totals + turn totals
             # Note: turn totals only make sense for the last message in a turn
             # (non-tool-call assistant message), but we attach to all for simplicity
@@ -562,7 +588,7 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
         This method handles two scenarios:
         1. Normal flow: receives only new messages, reads pre-computed metadata from _metadata
         2. Rebuild flow: receives full history, computes metadata on-the-fly
-        
+
         Also handles length mismatches where native_messages may be longer than messages.
         """
         if not native_messages or not messages:
@@ -572,8 +598,7 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
         # vs normal flow (new messages that went through finalize)
         has_precomputed_metadata = False
         first_with_metadata = next(
-            (m for m in native_messages if isinstance(m.get("_metadata"), dict)),
-            None
+            (m for m in native_messages if isinstance(m.get("_metadata"), dict)), None
         )
         if first_with_metadata:
             internal_md = first_with_metadata["_metadata"]
@@ -585,15 +610,15 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
             out: list[dict[str, Any]] = []
             for native_msg, core_msg in zip(native_messages, messages):
                 metadata = dict(core_msg.get("metadata") or {})
-                
+
                 internal_md = native_msg.get("_metadata")
                 if isinstance(internal_md, dict):
                     for key, value in internal_md.items():
                         if key.startswith("usage_") or key == "usage":
                             metadata[key] = value
-                
+
                 out.append({**core_msg, "metadata": metadata})
-            
+
             # Handle length mismatch: if native_messages longer, attach trailing metadata
             if len(native_messages) > len(messages):
                 # Get metadata from the last native message and merge into last output
@@ -606,27 +631,30 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                     if trailing_metadata and out:
                         out[-1] = {
                             **out[-1],
-                            "metadata": {**out[-1].get("metadata", {}), **trailing_metadata},
+                            "metadata": {
+                                **out[-1].get("metadata", {}),
+                                **trailing_metadata,
+                            },
                         }
-            
+
             return out
 
         # Rebuild path: compute metadata on-the-fly for full history
         # This handles the case where from_native_messages is called with full history
         # without finalize having run (e.g., session rebuild)
-        
+
         # Calculate session totals
         session_metadata = _session_totals(native_messages)
-        
+
         # Calculate turn totals for the last message
         turn_metadata = _turn_totals(native_messages, native_messages)
-        
+
         # Handle length mismatch
         if len(messages) != len(native_messages):
             # Only process the last message with trailing native metadata
             out = list(messages)
             trailing_metadata = {}
-            
+
             last_native = native_messages[-1]
             if isinstance(last_native.get("_metadata"), dict):
                 internal_md = last_native["_metadata"]
@@ -635,7 +663,7 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                     trailing_metadata = _per_message_metadata(usage)
                     trailing_metadata |= session_metadata
                     trailing_metadata |= turn_metadata
-            
+
             if trailing_metadata:
                 out[-1] = {
                     **out[-1],
@@ -647,24 +675,24 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
         out: list[dict[str, Any]] = []
         for index, (native_msg, core_msg) in enumerate(zip(native_messages, messages)):
             metadata = dict(core_msg.get("metadata") or {})
-            
+
             internal_md = native_msg.get("_metadata")
             if not isinstance(internal_md, dict):
                 out.append(core_msg)
                 continue
-            
+
             usage = internal_md.get("usage")
             if not isinstance(usage, dict):
                 out.append(core_msg)
                 continue
-            
+
             # Per-message metadata
             per_msg = _per_message_metadata(usage)
             metadata |= per_msg
-            
+
             # Session totals (same for all messages)
             metadata |= session_metadata
-            
+
             # Turn totals only for the last assistant message in a turn
             if native_msg.get("role") == "assistant":
                 separator_index = _last_turn_separator_index(native_messages, index)
@@ -692,27 +720,54 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                     if isinstance(next_msg, dict):
                         next_role = next_msg.get("role")
                         next_is_separator = next_role in ("user", "system")
-                
-                if is_last or (next_is_separator and not _message_has_tool_calls(native_msg)):
+
+                if is_last or (
+                    next_is_separator and not _message_has_tool_calls(native_msg)
+                ):
                     # Calculate turn totals ending at this message
-                    turn_cost = _sum_assistant_metric(native_messages, index, _usage_cost, start_index=turn_start)
-                    turn_input = _sum_assistant_metric(native_messages, index, _usage_input_tokens, start_index=turn_start)
-                    turn_cached = _sum_assistant_metric(native_messages, index, _usage_cached_tokens, start_index=turn_start)
-                    turn_output = _sum_assistant_metric(native_messages, index, _usage_output_tokens, start_index=turn_start)
-                    
+                    turn_cost = _sum_assistant_metric(
+                        native_messages, index, _usage_cost, start_index=turn_start
+                    )
+                    turn_input = _sum_assistant_metric(
+                        native_messages,
+                        index,
+                        _usage_input_tokens,
+                        start_index=turn_start,
+                    )
+                    turn_cached = _sum_assistant_metric(
+                        native_messages,
+                        index,
+                        _usage_cached_tokens,
+                        start_index=turn_start,
+                    )
+                    turn_output = _sum_assistant_metric(
+                        native_messages,
+                        index,
+                        _usage_output_tokens,
+                        start_index=turn_start,
+                    )
+
                     if turn_cost is not None:
                         metadata["usage_turn_cost_cumulative"] = turn_cost
-                        metadata["usage_turn_cost_cumulative_formatted"] = _format_cost(turn_cost)
+                        metadata["usage_turn_cost_cumulative_formatted"] = _format_cost(
+                            turn_cost
+                        )
                     if turn_input is not None:
                         metadata["usage_turn_input_tokens_cumulative"] = turn_input
-                        metadata["usage_turn_input_tokens_cumulative_formatted"] = _format_token_count(turn_input)
+                        metadata["usage_turn_input_tokens_cumulative_formatted"] = (
+                            _format_token_count(turn_input)
+                        )
                     if turn_cached is not None:
                         metadata["usage_turn_cached_tokens_cumulative"] = turn_cached
-                        metadata["usage_turn_cached_tokens_cumulative_formatted"] = _format_token_count(turn_cached)
+                        metadata["usage_turn_cached_tokens_cumulative_formatted"] = (
+                            _format_token_count(turn_cached)
+                        )
                     if turn_output is not None:
                         metadata["usage_turn_output_tokens_cumulative"] = turn_output
-                        metadata["usage_turn_output_tokens_cumulative_formatted"] = _format_token_count(turn_output)
-            
+                        metadata["usage_turn_output_tokens_cumulative_formatted"] = (
+                            _format_token_count(turn_output)
+                        )
+
             out.append({**core_msg, "metadata": metadata})
-        
+
         return out

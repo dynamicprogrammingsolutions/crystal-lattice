@@ -195,8 +195,13 @@ export class SessionSettingsController extends SimpleSubscribable<SessionSetting
 
     const promise = (async () => {
       try {
-        const [uiSchema, overrides, configSchema, baseConfig] = await Promise.all([
+        const applicationUiSchemaPromise =
+          typeof this.backend!.getSessionApplicationUiSchema === 'function'
+            ? this.backend!.getSessionApplicationUiSchema(this.sessionId)
+            : Promise.resolve([]);
+        const [uiSchema, applicationUiSchema, overrides, configSchema, baseConfig] = await Promise.all([
           this.backend!.getSessionUiSchema(this.sessionId),
+          applicationUiSchemaPromise,
           this.backend!.getSessionOverrides(this.sessionId),
           this.backend!.getSessionConfigSchema(this.sessionId),
           this.backend!.getSessionBaseConfig(this.sessionId),
@@ -208,7 +213,10 @@ export class SessionSettingsController extends SimpleSubscribable<SessionSetting
 
         const next: BaseState = {
           ...this.getBaseState(),
-          elements: filterConfigUiSchemaElements(Array.isArray(uiSchema) ? uiSchema : []),
+          elements: filterConfigUiSchemaElements([
+            ...(Array.isArray(uiSchema) ? uiSchema : []),
+            ...(Array.isArray(applicationUiSchema) ? applicationUiSchema : []),
+          ]),
           overrides: overrides && typeof overrides === 'object' ? overrides : {},
           configSchema: Array.isArray(configSchema) ? configSchema : [],
           baseConfig: baseConfig && typeof baseConfig === 'object' ? baseConfig : {},

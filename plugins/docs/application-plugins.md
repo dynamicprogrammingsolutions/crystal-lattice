@@ -21,6 +21,8 @@ Application plugins are ideal for features that need:
 
 - **Session persistence**: Load and save sessions to the session store
 - **Multi-session coordination**: Create, fork, delete, or coordinate multiple sessions
+- **Application-owned settings**: Read and update server-scoped settings or
+  per-session settings without owning separate persistence
 - **LLM requests**: Send requests through the application layer with full tool loop support
 - **Session locking**: Acquire locks for safe concurrent session modifications
 - **Event publishing**: Publish events for UI updates or other subscribers
@@ -35,6 +37,12 @@ Application plugins are ideal for features that need:
 |------------|---------------|-------------|
 | Load sessions | `app.load_session(session_id)` | Load a session from the session store |
 | Save sessions | `app.save_session(session)` | Persist a session to the session store |
+| Server settings | `app.get_server_settings()` | Read application-owned server-scoped settings |
+| Update server settings | `app.patch_server_settings(values, source=...)` | Persist server-scoped setting updates and run lifecycle triggers |
+| Delete server setting | `app.delete_server_setting(key, source=...)` | Remove one server-scoped setting and run lifecycle triggers |
+| Session settings | `app.get_session_settings(session_id)` | Read per-session settings stored in session overrides |
+| Update session settings | `app.patch_session_settings(session_id, values, source=...)` | Persist per-session setting updates and run lifecycle triggers |
+| Delete session setting | `app.delete_session_setting(session_id, key, source=...)` | Remove one per-session setting and run lifecycle triggers |
 | LLM requests | `app.send_request(core, session, config, overrides)` | Send an LLM request with tool loop |
 | Session locking | `app.acquire_session_lock(session_id)` | Context manager for safe concurrent access |
 | Event publishing | `app.publish_event(event)` | Publish events to subscribers |
@@ -42,6 +50,12 @@ Application plugins are ideal for features that need:
 | Full config access | `self._config` (via `init`) | Access to the full application configuration |
 | Runtime env access | `os.environ[...]` | Real process environment installed from config resolution env |
 | Request config resolution | `resolve_request_config(base_config, overrides)` | Resolve effective config for a request |
+
+Server settings are application-owned state. Plugins may expose UI controls for
+those settings and react to `server_settings_changed`, but should not maintain a
+second authoritative copy in plugin-owned persistence. Plugin-owned sidecar
+files are still appropriate for private caches, credentials, or implementation
+state that is not user-editable server configuration.
 
 ---
 
@@ -61,8 +75,7 @@ class ApplicationPlugin(Protocol):
         self,
         state: Dict[str, Any],
         config: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        models: Optional[List[Dict[str, Any]]] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Return UI element definitions."""
 
@@ -83,6 +96,62 @@ class ApplicationPlugin(Protocol):
     ) -> Dict[str, Any]:
         """Execute an action with validated parameters."""
 ```
+
+Plugins that hold process resources may also implement an optional cleanup
+hook:
+
+```python
+def close(self, state: Dict[str, Any]) -> None:
+    ...
+```
+
+`AgentApplication.close()` calls this hook when present. The hook should be
+idempotent and release resources owned by the plugin, such as background
+processes or OS handles.
+
+---
+
+## UI context in `get_ui_elements`
+
+Application plugins should prefer the context-aware UI signature:
+
+```python
+def get_ui_elements(
+    self,
+    state: dict[str, Any],
+    config: dict[str, Any] | None = None,
+    context: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    ...
+```
+
+The application wrapper keeps older signatures working for compatibility,
+including:
+
+- `get_ui_elements()`
+- `get_ui_elements(state)`
+- `get_ui_elements(state, config)`
+- `get_ui_elements(state, config, tags, models)`
+
+New plugins should read `tags`, `models`, and surface-specific data from
+`context`, not as positional parameters.
+
+Common UI context keys:
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `ui_context` | `str` | UI surface name, such as `"application"`, `"session"`, or `"server_settings"` |
+| `config` | `dict` | Effective configuration for the current UI surface |
+| `tags` | `list[str]` | Capability tags computed for this config, when available |
+| `models` | `list[dict]` | Model descriptors computed for this config, when available |
+| `session` | `dict` | Serialized session for session-contextual UI schema |
+| `session_id` | `str` | Session id for session-contextual UI schema |
+| `server_settings` | `dict` | Current application-owned server settings for server settings UI schema |
+| `settings` | `dict` | Generic alias for the active settings scope |
+| `settings_scope` | `str` | Settings scope, such as `"server"` |
+
+Server settings are supplied through `context["server_settings"]`; they are not
+configuration and should not be read from `config`.
 
 ---
 
@@ -139,11 +208,13 @@ def execute_action(
     app.send_request(core, session, config, overrides)
     
     # Context (for lifecycle-triggered actions)
-    lifecycle = context.get("lifecycle")  # e.g., "session_create"
-    trigger_source = context.get("trigger_source")  # "application"
-    session_dict = context.get("session")  # Serialized session
-    config = context.get("config")  # Effective config
-    base_config = context.get("base_config")  # Full app config
+    ctx = context or {}
+    lifecycle = ctx.get("lifecycle")  # e.g., "session_create"
+    trigger_source = ctx.get("trigger_source")  # "application"
+    session_dict = ctx.get("session")  # Serialized session
+    config = ctx.get("config")  # Effective config
+    base_config = ctx.get("base_config")  # Full app config
+    changed_keys = ctx.get("changed_keys", [])  # Settings lifecycles
 ```
 
 ### Context keys
@@ -156,6 +227,15 @@ def execute_action(
 | `config` | `dict` | Effective config for the current agent |
 | `app` / `application` | `AgentApplication` | Application instance |
 | `base_config` | `dict` | Full application configuration (all agents) |
+| `scope` | `str` | Settings lifecycle scope, usually `"session"` or `"server"` |
+| `old_settings` | `dict` | Previous settings map for settings-change lifecycles |
+| `new_settings` | `dict` | Updated settings map for settings-change lifecycles |
+| `changed_keys` | `list[str]` | Setting keys changed by the lifecycle owner |
+| `source` | `str` | Change source, such as `"api"`, `"startup"`, or `"bridge_sync"` |
+
+Application-scoped lifecycles such as `server_settings_changed` do not include
+`session` or `session_id`. Plugins should check for those keys before using
+them.
 
 ---
 
@@ -196,6 +276,8 @@ Actions can include a `trigger` field to be automatically invoked during applica
 | `session_fork` | After a session is forked |
 | `agent_switch_prepare` | Before switching agents |
 | `agent_switch_complete` | After switching agents |
+| `session_settings_changed` | After application-owned per-session settings change |
+| `server_settings_changed` | After application-owned server settings change |
 | `session_delete_prepare` | Before a session is deleted |
 
 See [Plugin actions](actions.md) for detailed lifecycle documentation.
@@ -285,6 +367,80 @@ def get_ui_elements(
         },
     ]
 ```
+
+---
+
+### Server-scoped settings UI
+
+Application plugins can expose server-scoped settings by returning config-like
+UI elements with `scope: "server"`. Frontends read these from
+`GET /server/settings/ui-schema`, then read and write current values through the
+server settings API.
+
+```python
+from typing import Any
+
+
+class KeepAwakePlugin:
+    name = "keep_awake"
+    version = "1.0.0"
+
+    def init(self, app_config: dict[str, Any]) -> dict[str, Any]:
+        return {"enabled": False}
+
+    def get_ui_elements(
+        self,
+        state: dict[str, Any],
+        config: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        settings = (context or {}).get("server_settings") or {}
+        label = "Keep server awake"
+        if settings.get("keep_awake_enabled"):
+            label = "Keep server awake (enabled)"
+        return [
+            {
+                "ui_type": "config",
+                "scope": "server",
+                "key": "keep_awake_enabled",
+                "type": "checkbox",
+                "label": label,
+                "default": False,
+            }
+        ]
+
+    def get_actions(self, state: dict[str, Any]) -> list[dict[str, Any]]:
+        return [
+            {
+                "id": "apply_keep_awake",
+                "label": "Apply keep-awake setting",
+                "inputs": {},
+                "trigger": "server_settings_changed",
+            }
+        ]
+
+    def execute_action(
+        self,
+        app: Any,
+        action_id: str,
+        params: dict[str, Any],
+        context: dict[str, Any] | None,
+        state: dict[str, Any],
+    ) -> dict[str, Any]:
+        settings = (context or {}).get("new_settings") or app.get_server_settings()
+        enabled = bool(settings.get("keep_awake_enabled", False))
+        state["enabled"] = enabled
+        return {"message": "Keep-awake state applied.", "enabled": enabled}
+```
+
+Settings lifecycle handlers should be idempotent. `server_settings_changed` may
+also run during startup replay when persisted server settings already exist, so
+plugins should apply the desired state rather than assuming every call came from
+a fresh user interaction.
+
+The built-in `sleep-prevention-app` plugin is a concrete example of this
+pattern: it exposes a `sleep_prevention_enabled` server setting and applies or
+releases the local OS sleep-prevention hold from `server_settings_changed`.
 
 ---
 

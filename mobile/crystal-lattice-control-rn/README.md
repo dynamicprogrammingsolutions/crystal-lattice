@@ -258,6 +258,36 @@ interface AgentBackend {
 **Implementations used by the mobile app:**
 - `FetchTransport`: Used for manual and discovery connections (standard HTTP/fetch)
 - `BridgeTransport`: Used for bridge connections (Phoenix/WebSocket-based)
+
+## Testing
+
+Run the default mobile Jest suite from the app root:
+
+```bash
+cd mobile/crystal-lattice-control-rn
+npm test
+```
+
+Fast component tests live under `__tests__/` and use React Native Testing Library through
+`src/testUtils/renderWithMobileProviders.tsx`. Use this tier for generic UI behavior such as
+rendering settings controls, pressing chips/buttons, text input changes, and callback behavior.
+These tests should use small in-memory fixtures and should not start a backend.
+
+Real-backend component integration tests live under `__integration__/` and run explicitly:
+
+```bash
+cd mobile/crystal-lattice-control-rn
+npm run test:components:integration
+```
+
+This tier starts a real FastAPI backend with the shared frontend SDK integration harness,
+connects through `FetchTransport` and `RestAgentBackend`, creates real sessions, and then
+renders only the mobile component under test. Use it when the source of truth is backend or
+plugin code, such as plugin-provided settings UI schema or session override persistence.
+
+The real-backend tier is heavier than default Jest because it starts Python/FastAPI and may
+install path plugin dependencies into a temporary plugin cache on first run. Keep it explicit
+in CI until runtime and cache behavior are known to be stable.
 - `RestAgentBackend`: Implements `AgentBackend` on top of a `Transport`
 
 ### Key Components

@@ -248,7 +248,7 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
         delta = self.extract_delta(native_chunk or {})
 
         new_partial_messages = partial_messages
-        accumulated = state.get("partial", {})
+        accumulated = state.get("accumulator", {})
 
         new_partial_message, accumulated = self.process_delta(
             delta=delta,
@@ -260,7 +260,7 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
             new_partial_messages,
             final_messages,
             native_messages,
-            {**state, "partial": accumulated},
+            {**state, "accumulator": accumulated},
         )
 
     def finalize(
@@ -271,14 +271,14 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
         *,
         context: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """Sanitize tool_calls in the accumulated partial before history storage.
+        """Sanitize tool_calls in the accumulator before history storage.
 
         This ensures that corrupted JSON arguments don't get stored in history
         and cause subsequent API calls to fail.
         """
-        partial = state.get("partial")
-        if isinstance(partial, dict):
-            tool_calls = partial.get("tool_calls")
+        accumulator = state.get("accumulator")
+        if isinstance(accumulator, dict):
+            tool_calls = accumulator.get("tool_calls")
             if isinstance(tool_calls, list):
                 registry = get_registry_from_context(context)
                 # Sanitize each tool call to ensure valid JSON arguments
@@ -287,5 +287,5 @@ class OpenRouterToolsExtension(ProviderExtensionPlugin):
                     for tc in tool_calls
                     if isinstance(tc, dict)
                 ]
-                partial["tool_calls"] = sanitized_calls
+                accumulator["tool_calls"] = sanitized_calls
         return final_messages, native_messages, state
