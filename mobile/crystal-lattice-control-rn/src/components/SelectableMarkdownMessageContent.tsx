@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
 import { Alert, Linking, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { EnrichedMarkdownText } from 'react-native-enriched-markdown';
+import { EnrichedMarkdownText, type MarkdownStyle } from 'react-native-enriched-markdown';
 import SyntaxHighlighter from 'react-native-syntax-highlighter';
 import * as hljsStyles from 'react-syntax-highlighter/styles/hljs';
 import { useTheme } from '../theme';
@@ -76,8 +76,77 @@ const HighlightedCodeBlock: React.FC<HighlightedCodeBlockProps> = ({
 
 const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageContentProps> = ({
   text,
+  variant = 'assistant',
 }) => {
+  const theme = useTheme();
   const segments = useMemo(() => splitMarkdownIntoSegments(text), [text]);
+
+  const markdownStyle = useMemo<MarkdownStyle>(() => {
+    const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
+    const messageFontSize = theme.typography.fontSize.message;
+
+    const baseTextBlock = {
+      fontSize: messageFontSize,
+      color: baseTextColor,
+    };
+
+    const headingBase = {
+      color: baseTextColor,
+      fontWeight: '700',
+      marginTop: 4,
+      marginBottom: 2,
+    } as const;
+
+    return {
+      paragraph: {
+        ...baseTextBlock,
+        marginTop: 10,
+        marginBottom: 10,
+      },
+      h1: { ...headingBase, fontSize: 32 },
+      h2: { ...headingBase, fontSize: 24 },
+      h3: { ...headingBase, fontSize: 18 },
+      h4: { ...headingBase, fontSize: 16 },
+      h5: { ...headingBase, fontSize: 13 },
+      h6: { ...headingBase, fontSize: 11 },
+      strong: {
+        fontWeight: 'bold',
+      },
+      em: {
+        fontStyle: 'italic',
+      },
+      blockquote: {
+        ...baseTextBlock,
+        marginTop: 0,
+        marginBottom: 10,
+        backgroundColor: theme.surfaceAlt,
+        borderColor: theme.border,
+        borderWidth: 4,
+        gapWidth: 8,
+      },
+      list: {
+        ...baseTextBlock,
+        marginTop: 2,
+        marginBottom: 2,
+        bulletColor: baseTextColor,
+        markerColor: baseTextColor,
+        markerFontWeight: '500',
+        gapWidth: 10,
+        marginLeft: 20,
+      },
+      code: {
+        fontFamily: 'Courier',
+        fontSize: messageFontSize,
+        color: baseTextColor,
+        backgroundColor: theme.inlineCodeBg,
+        borderColor: theme.border,
+      },
+      link: {
+        color: baseTextColor,
+        underline: true,
+      },
+    };
+  }, [theme, variant]);
 
   const openLink = useCallback(async ({ url }: { url: string }) => {
     try {
@@ -103,6 +172,7 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
       <EnrichedMarkdownText
         key={`markdown-${index}`}
         markdown={segment.markdown}
+        markdownStyle={markdownStyle}
         onLinkPress={openLink}
         selectable
         flavor="commonmark"

@@ -170,7 +170,23 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   expect(enrichedMarkdown.props.selectable).toBe(true);
   expect(enrichedMarkdown.props.flavor).toBe('commonmark');
   expect(enrichedMarkdown.props.onLinkPress).toEqual(expect.any(Function));
-  expect(enrichedMarkdown.props.markdownStyle).toBeUndefined();
+  expect(enrichedMarkdown.props.markdownStyle.paragraph).toEqual(
+    expect.objectContaining({
+      fontSize: lightTheme.typography.fontSize.message,
+      color: lightTheme.text,
+      marginTop: 10,
+      marginBottom: 10,
+    }),
+  );
+  expect(enrichedMarkdown.props.markdownStyle.h1).toEqual(
+    expect.objectContaining({ fontSize: 32, fontWeight: '700', marginTop: 4, marginBottom: 2 }),
+  );
+  expect(enrichedMarkdown.props.markdownStyle.h2).toEqual(
+    expect.objectContaining({ fontSize: 24, fontWeight: '700', marginTop: 4, marginBottom: 2 }),
+  );
+  expect(enrichedMarkdown.props.markdownStyle.h6).toEqual(
+    expect.objectContaining({ fontSize: 11, fontWeight: '700', marginTop: 4, marginBottom: 2 }),
+  );
 });
 
 
