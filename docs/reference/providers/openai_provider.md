@@ -50,9 +50,9 @@ def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
 finalize(native_messages, state)
 ```
 
-Finalize streaming by emitting the accumulated partial as a final.
+Finalize streaming by emitting the accumulator as a final.
 
-When streaming was used, `state["partial"]` holds the merged assistant message (content, role, reasoning, tool_calls, etc.) built up across chunks by the provider and any extensions. Non-streaming calls leave it as `None`.
+When streaming was used, `state["accumulator"]` holds the merged assistant message (content, role, reasoning, tool_calls, etc.) built up across chunks by the provider and any extensions. Non-streaming calls leave it as `None`.
 
 Source code in `plugins/openai_provider.py`
 
@@ -62,17 +62,17 @@ def finalize(
     native_messages: List[Dict[str, Any]],
     state: Dict[str, Any],
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-    """Finalize streaming by emitting the accumulated partial as a final.
+    """Finalize streaming by emitting the accumulator as a final.
 
-    When streaming was used, `state["partial"]` holds the merged assistant
+    When streaming was used, `state["accumulator"]` holds the merged assistant
     message (content, role, reasoning, tool_calls, etc.) built up across
     chunks by the provider and any extensions. Non-streaming calls leave it
     as ``None``.
     """
-    current_partial = state.get("partial", None)
+    accumulator = state.get("accumulator", None)
 
-    if current_partial:
-        return [current_partial], [*native_messages, current_partial], state
+    if accumulator:
+        return [accumulator], [*native_messages, accumulator], state
 
     return [], native_messages, state
 ```
@@ -187,7 +187,7 @@ Pattern:
 
 - Extract a delta from the chunk
 - Reduce it into a partial fragment and update the accumulator
-- Do not emit finals or modify history; :meth:`finalize` is responsible for producing the final message from the accumulated partial.
+- Do not emit finals or modify history; :meth:`finalize` is responsible for producing the final message from the accumulator.
 
 Source code in `plugins/openai_provider.py`
 
@@ -197,22 +197,25 @@ def process_chunk(
     native_chunk: Dict[str, Any],
     native_messages: List[Dict[str, Any]],
     state: Dict[str, Any],
-) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+) -> Tuple[
+    List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+]:
     """Process a streaming chunk into provider-native partials.
 
     Pattern:
     - Extract a delta from the chunk
     - Reduce it into a partial fragment and update the accumulator
     - Do not emit finals or modify history; :meth:`finalize` is responsible
-      for producing the final message from the accumulated partial.
+      for producing the final message from the accumulator.
     """
     partial_msg, accumulated = self.process_delta(
-        delta=self.extract_delta(native_chunk), accumulated=state.get("partial", {})
+        delta=self.extract_delta(native_chunk),
+        accumulated=state.get("accumulator", {}),
     )
 
     partials = [partial_msg] if partial_msg else []
     finals: List[Dict[str, Any]] = []
-    new_state = {**state, "partial": accumulated}
+    new_state = {**state, "accumulator": accumulated}
 
     return partials, finals, native_messages, new_state
 ```

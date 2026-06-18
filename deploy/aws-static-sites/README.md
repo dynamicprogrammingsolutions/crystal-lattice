@@ -40,7 +40,9 @@ changed infrastructure is updated in place.
 - AWS CLI configured locally.
 - Permission to create S3 buckets, CloudFront distributions, CloudFront
   functions, CloudFront policies, ACM certificates, and Route 53 records.
-- A public Route 53 hosted zone for `dynamicprogrammingsolutions.com`.
+- A public Route 53 hosted zone for the target parent domain:
+  - test: `dynamicprogrammingsolutions.com`
+  - production: `crystallattice.dev`
 - Deploy in `us-east-1`; CloudFront requires ACM certificates in `us-east-1`.
 - `ALLOW_AWS_DEPLOY=1` for commands that create, sync, or delete AWS resources.
 
@@ -50,6 +52,15 @@ Confirm the hosted zone:
 aws route53 list-hosted-zones-by-name \
   --dns-name dynamicprogrammingsolutions.com. \
   --query "HostedZones[?Name=='dynamicprogrammingsolutions.com.' && Config.PrivateZone==\`false\`].[Id,Name]" \
+  --output table
+```
+
+Confirm the production hosted zone:
+
+```bash
+aws route53 list-hosted-zones-by-name \
+  --dns-name crystallattice.dev. \
+  --query "HostedZones[?Name=='crystallattice.dev.' && Config.PrivateZone==\`false\`].[Id,Name]" \
   --output table
 ```
 
@@ -322,6 +333,18 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/up.sh \
   --bucket-name-prefix crystal-lattice-static-test
 ```
 
+Deploy or update the production stack:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/up.sh \
+  --stack-name crystal-lattice-static-sites-prod \
+  --region us-east-1 \
+  --hosted-zone-name crystallattice.dev \
+  --landing-domain crystallattice.dev \
+  --docs-domain docs.crystallattice.dev \
+  --bucket-name-prefix crystal-lattice-prod
+```
+
 The command prints values needed by GitHub Actions:
 
 ```text
@@ -340,6 +363,14 @@ You can print the same values later:
 ```bash
 deploy/aws-static-sites/outputs.sh \
   --stack-name crystal-lattice-static-sites-test \
+  --region us-east-1
+```
+
+Print the production stack values:
+
+```bash
+deploy/aws-static-sites/outputs.sh \
+  --stack-name crystal-lattice-static-sites-prod \
   --region us-east-1
 ```
 
@@ -422,11 +453,19 @@ python docs_site/scripts/build_mkdocs_site.py
 
 ## Sync Content
 
-Upload both built sites and invalidate CloudFront:
+Upload both built sites and invalidate CloudFront for the testing stack:
 
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/sync.sh \
   --stack-name crystal-lattice-static-sites-test \
+  --region us-east-1
+```
+
+Upload both built sites and invalidate CloudFront for the production stack:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/sync.sh \
+  --stack-name crystal-lattice-static-sites-prod \
   --region us-east-1
 ```
 
@@ -441,7 +480,7 @@ The sync script:
 
 ## Validation
 
-Check the live URLs:
+Check the live testing URLs:
 
 ```bash
 curl -I https://crystallattice.dev.dynamicprogrammingsolutions.com
@@ -450,7 +489,16 @@ curl -I https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/llms.txt
 curl -I https://docs.crystallattice.dev.dynamicprogrammingsolutions.com/llms-full.txt
 ```
 
-Confirm the S3 buckets are not public:
+Check the live production URLs:
+
+```bash
+curl -I https://crystallattice.dev
+curl -I https://docs.crystallattice.dev
+curl -I https://docs.crystallattice.dev/llms.txt
+curl -I https://docs.crystallattice.dev/llms-full.txt
+```
+
+Confirm the testing S3 buckets are not public:
 
 ```bash
 LANDING_BUCKET="$(deploy/aws-static-sites/outputs.sh --stack-name crystal-lattice-static-sites-test --region us-east-1 | awk -F= '/^LANDING_BUCKET=/{print $2}')"
@@ -462,10 +510,24 @@ aws s3api get-bucket-policy-status --bucket "$LANDING_BUCKET"
 aws s3api get-bucket-policy-status --bucket "$DOCS_BUCKET"
 ```
 
+Confirm the production S3 buckets are not public:
+
+```bash
+LANDING_BUCKET="$(deploy/aws-static-sites/outputs.sh --stack-name crystal-lattice-static-sites-prod --region us-east-1 | awk -F= '/^LANDING_BUCKET=/{print $2}')"
+DOCS_BUCKET="$(deploy/aws-static-sites/outputs.sh --stack-name crystal-lattice-static-sites-prod --region us-east-1 | awk -F= '/^DOCS_BUCKET=/{print $2}')"
+
+aws s3api get-public-access-block --bucket "$LANDING_BUCKET"
+aws s3api get-public-access-block --bucket "$DOCS_BUCKET"
+aws s3api get-bucket-policy-status --bucket "$LANDING_BUCKET"
+aws s3api get-bucket-policy-status --bucket "$DOCS_BUCKET"
+```
+
 ## Down
 
 `down.sh` empties the two stack-managed buckets, deletes the CloudFormation
-stack, and removes the stack-managed Route 53 testing subdomain records:
+stack, and removes the stack-managed Route 53 records.
+
+Tear down the testing stack:
 
 ```bash
 ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/down.sh \
@@ -473,7 +535,15 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/down.sh \
   --region us-east-1
 ```
 
-This removes:
+Tear down the production stack:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-static-sites/down.sh \
+  --stack-name crystal-lattice-static-sites-prod \
+  --region us-east-1
+```
+
+The testing teardown removes:
 
 - `crystallattice.dev.dynamicprogrammingsolutions.com` alias records;
 - `docs.crystallattice.dev.dynamicprogrammingsolutions.com` alias records;
@@ -481,13 +551,29 @@ This removes:
 - CloudFront distributions and OACs;
 - the stack-managed S3 buckets after they are emptied.
 
+The production teardown removes:
+
+- `crystallattice.dev` alias records;
+- `docs.crystallattice.dev` alias records;
+- ACM DNS validation records managed by the certificate resource;
+- CloudFront distributions and OACs;
+- the stack-managed S3 buckets after they are emptied.
+
 ## GitHub Actions Values
 
-For the later GitHub Actions deployment task, use:
+For the testing GitHub Actions deployment values, use:
 
 ```bash
 deploy/aws-static-sites/outputs.sh \
   --stack-name crystal-lattice-static-sites-test \
+  --region us-east-1
+```
+
+For the production GitHub Actions deployment values, use:
+
+```bash
+deploy/aws-static-sites/outputs.sh \
+  --stack-name crystal-lattice-static-sites-prod \
   --region us-east-1
 ```
 
