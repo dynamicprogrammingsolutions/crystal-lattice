@@ -16,6 +16,8 @@ Create a reproducible AWS/GitHub deployment path for Crystal Lattice CLI downloa
   - Script exists; existing GitHub Release assets for `0.1.0` used older names, so promotion was not used for the live test.
 - [x] `tasks/20260617-cli-download-domain-release-automation/080-add-smoke-tests-and-domain-cutover-docs.md`
   - Testing-domain and production-domain public installer smoke passed; production website/docs were updated and deployed.
+- [ ] `tasks/20260617-cli-download-domain-release-automation/090-add-aws-and-real-device-cli-install-lab.md`
+  - Follow-up for Linux/Windows AWS install lab and equivalent real-device manual testing. macOS EC2 is intentionally out of scope for now.
 
 ## Goal
 
@@ -355,3 +357,8 @@ Git Bash installer update added during completion on 2026-06-18:
 - Uploaded the updated generated installer to both the testing and production download domains.
 - Added focused installer tests for Linux tarball installs, Windows Git Bash zip installs, and unsupported Windows architectures.
 - Production endpoint smoke with `--skip-install` passed after upload.
+
+CLI install lab follow-up added during completion on 2026-06-18:
+
+- Added `tasks/20260617-cli-download-domain-release-automation/090-add-aws-and-real-device-cli-install-lab.md`.
+- Scope: create a scripted AWS lab for Linux and Windows EC2, using SSM access and Git Bash on Windows, plus an equivalent real-device manual method for Linux, macOS, and Windows.

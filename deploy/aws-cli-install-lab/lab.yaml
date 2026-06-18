@@ -1,0 +1,136 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Crystal Lattice CLI install lab for Linux and Windows manual release testing.
+
+Parameters:
+  NamePrefix:
+    Type: String
+    Default: crystal-lattice-cli-install-lab
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+  LinuxAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  WindowsAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-windows-latest/Windows_Server-2022-English-Full-Base
+  LinuxInstanceType:
+    Type: String
+    Default: t3.small
+  WindowsInstanceType:
+    Type: String
+    Default: t3.large
+
+Resources:
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${NamePrefix}-${AWS::Region}-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Tags:
+        - Key: Project
+          Value: crystal-lattice
+        - Key: Component
+          Value: cli-install-lab
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref InstanceRole
+
+  SecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Crystal Lattice CLI install lab, SSM only, no inbound access.
+      VpcId: !Ref VpcId
+      SecurityGroupIngress: []
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${NamePrefix}-sg"
+        - Key: Project
+          Value: crystal-lattice
+        - Key: Component
+          Value: cli-install-lab
+
+  LinuxInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref LinuxAmiId
+      InstanceType: !Ref LinuxInstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${NamePrefix}-linux"
+        - Key: Project
+          Value: crystal-lattice
+        - Key: Component
+          Value: cli-install-lab
+        - Key: OS
+          Value: linux
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+          dnf install -y amazon-ssm-agent curl tar gzip unzip shadow-utils || true
+          systemctl enable --now amazon-ssm-agent || true
+
+  WindowsInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref WindowsAmiId
+      InstanceType: !Ref WindowsInstanceType
+      IamInstanceProfile: !Ref InstanceProfile
+      SubnetId: !Ref SubnetId
+      SecurityGroupIds:
+        - !Ref SecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub "${NamePrefix}-windows"
+        - Key: Project
+          Value: crystal-lattice
+        - Key: Component
+          Value: cli-install-lab
+        - Key: OS
+          Value: windows
+      UserData:
+        Fn::Base64: !Sub |
+          <powershell>
+          Set-Service -Name AmazonSSMAgent -StartupType Automatic
+          Start-Service -Name AmazonSSMAgent
+          </powershell>
+
+Outputs:
+  LinuxInstanceId:
+    Description: Linux EC2 instance ID.
+    Value: !Ref LinuxInstance
+  WindowsInstanceId:
+    Description: Windows EC2 instance ID.
+    Value: !Ref WindowsInstance
+  LinuxPrivateIp:
+    Description: Linux private IP address.
+    Value: !GetAtt LinuxInstance.PrivateIp
+  WindowsPrivateIp:
+    Description: Windows private IP address.
+    Value: !GetAtt WindowsInstance.PrivateIp
+  SecurityGroupId:
+    Description: SSM-only security group.
+    Value: !Ref SecurityGroup
+  InstanceRoleArn:
+    Description: IAM role ARN used by lab instances.
+    Value: !GetAtt InstanceRole.Arn
