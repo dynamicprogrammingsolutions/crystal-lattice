@@ -402,7 +402,7 @@ async def _on_startup() -> None:
     use environment variables as a fallback.
     """
 
-    global _bonjour_handle, _bridge_client, _bridge_task
+    global _agent_app, _bonjour_handle, _bridge_client, _bridge_task
 
     explicit_config = _integration_config if _integration_config_explicit else None
 
@@ -509,6 +509,13 @@ async def _on_shutdown() -> None:
         await asyncio.to_thread(bonjour_mod.stop_bonjour, _bonjour_handle)
         _bonjour_handle = None
         _log.info("[bonjour] registration stopped")
+
+    if _agent_app is not None:
+        try:
+            _agent_app.close()
+        except Exception:  # pragma: no cover - defensive
+            pass
+        _agent_app = None
 
 
 # ---------------------------------------------------------------------------

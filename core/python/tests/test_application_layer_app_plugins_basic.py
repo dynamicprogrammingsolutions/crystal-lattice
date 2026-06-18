@@ -241,6 +241,76 @@ def test_application_plugin_ui_wrapper_keeps_legacy_tags_models_signature() -> N
     ]
 
 
+def test_application_plugin_wrapper_close_passes_state() -> None:
+    class ClosingAppPlugin:
+        name = "closing"
+        version = "1.0.0"
+
+        def __init__(self) -> None:
+            self.closed_state: Dict[str, Any] | None = None
+
+        def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
+            _ = app_config
+            return {"resource": "open"}
+
+        def get_config_schema(self) -> Dict[str, Any]:
+            return {}
+
+        def get_ui_elements(
+            self,
+            state: Dict[str, Any],
+            config: Dict[str, Any] | None = None,
+            context: Dict[str, Any] | None = None,
+        ) -> List[Dict[str, Any]]:
+            _ = state, config, context
+            return []
+
+        def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+            _ = state
+            return []
+
+        def execute_action(
+            self,
+            app: Any,
+            action_id: str,
+            params: Dict[str, Any],
+            context: Dict[str, Any] | None,
+            state: Dict[str, Any],
+        ) -> Dict[str, Any]:
+            _ = app, action_id, params, context, state
+            return {}
+
+        def close(self, state: Dict[str, Any]) -> None:
+            self.closed_state = dict(state)
+
+    wrapper = ApplicationPluginWrapper("closing", ClosingAppPlugin)
+    wrapper.init({})
+    wrapper.close()
+
+    plugin = wrapper.plugin
+    assert isinstance(plugin, ClosingAppPlugin)
+    assert plugin.closed_state == {"resource": "open"}
+
+
+def test_agent_application_close_closes_application_plugins(tmp_path: Path) -> None:
+    config_path = _make_config_with_app_plugin(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    wrappers = getattr(app, "_app_plugins")
+    wrapper = wrappers["dummy_app_plugin"]
+    closed: List[str] = []
+
+    def close_wrapper() -> None:
+        closed.append(wrapper.plugin_id)
+
+    wrapper.close = close_wrapper  # type: ignore[method-assign]
+
+    app.close()
+
+    assert closed == ["dummy_app_plugin"]
+
+
 def test_execute_application_action_invokes_plugin(tmp_path: Path) -> None:
     config_path = _make_config_with_app_plugin(tmp_path)
     session_root = tmp_path / "sessions"

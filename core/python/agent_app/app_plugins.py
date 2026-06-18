@@ -152,6 +152,41 @@ class ApplicationPluginWrapper:
             state = {}
         self._state = state
 
+    def close(self) -> None:
+        """Release resources held by the underlying plugin when supported."""
+
+        fn = getattr(self.plugin, "close", None)
+        if not callable(fn):
+            return
+
+        try:
+            sig = inspect.signature(fn)
+        except (TypeError, ValueError):
+            fn(self._state)
+            return
+
+        params_sig = list(sig.parameters.values())
+        if any(
+            p.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+            for p in params_sig
+        ):
+            fn(self._state)
+            return
+
+        positional = [
+            p
+            for p in params_sig
+            if p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+        if positional:
+            fn(self._state)
+        else:
+            fn()
+
     @property
     def state(self) -> Dict[str, Any]:
         """Return the current plugin state dictionary."""
