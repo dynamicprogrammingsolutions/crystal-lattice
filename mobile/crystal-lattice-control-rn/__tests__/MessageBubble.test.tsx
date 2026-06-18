@@ -155,3 +155,48 @@ test('message attachment preview opens a stable attachment snapshot', () => {
     }),
   );
 });
+
+
+test('assistant markdown mode renders selectable enriched markdown prose', () => {
+  const renderer = renderMessageBubble({
+    role: 'assistant',
+    content: 'Hello **selectable** [world](https://example.com).',
+    metadata: {},
+  });
+
+  const enrichedMarkdown = renderer.root.find((node) => String(node.type) === 'EnrichedMarkdownText');
+
+  expect(enrichedMarkdown.props.markdown).toBe('Hello **selectable** [world](https://example.com).');
+  expect(enrichedMarkdown.props.selectable).toBe(true);
+  expect(enrichedMarkdown.props.flavor).toBe('commonmark');
+  expect(enrichedMarkdown.props.onLinkPress).toEqual(expect.any(Function));
+});
+
+
+test('assistant markdown mode preserves syntax-highlighted fenced code blocks', () => {
+  const renderer = renderMessageBubble({
+    role: 'assistant',
+    content: [
+      'Intro paragraph.',
+      '',
+      '```ts',
+      'const value = 1;',
+      '```',
+      '',
+      'Outro paragraph.',
+    ].join('\n'),
+    metadata: {},
+  });
+
+  const enrichedMarkdown = renderer.root.findAll((node) => String(node.type) === 'EnrichedMarkdownText');
+  const syntaxHighlighters = renderer.root.findAll((node) => String(node.type) === 'SyntaxHighlighter');
+
+  expect(enrichedMarkdown).toHaveLength(2);
+  expect(enrichedMarkdown.map((node) => node.props.markdown.trim())).toEqual([
+    'Intro paragraph.',
+    'Outro paragraph.',
+  ]);
+  expect(syntaxHighlighters).toHaveLength(1);
+  expect(syntaxHighlighters[0].props.language).toBe('ts');
+  expect(syntaxHighlighters[0].props.children).toBe('const value = 1;\n');
+});
