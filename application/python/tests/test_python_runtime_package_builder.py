@@ -175,12 +175,135 @@ def test_python_runtime_preinstalled_default_plugins_manifest_and_install(
             "pip",
             "install",
             "--upgrade",
-            str(plugins / "selected"),
             str(plugins / "shared"),
-        ]
+        ],
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            str(plugins / "selected"),
+        ],
     ]
     manifest = json.loads(
         (package_dir / "preinstalled-plugins.json").read_text(encoding="utf-8")
     )
     assert manifest["plugin_paths"] == ["plugins/selected", "plugins/shared"]
     assert "plugins/non-default" not in manifest["plugin_paths"]
+
+
+def test_prepare_copied_python_runtime_removes_external_management_marker(
+    tmp_path: Path, monkeypatch
+) -> None:
+    runtime_dir = tmp_path / "python"
+    python = runtime_dir / "bin" / "python"
+    marker = runtime_dir / "lib" / "python3.11" / "EXTERNALLY-MANAGED"
+    python.parent.mkdir(parents=True)
+    marker.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    marker.write_text("managed by uv\n", encoding="utf-8")
+
+    calls: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        calls.append([str(value) for value in command])
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(runtime_builder.subprocess, "run", fake_run)
+
+    runtime_builder.prepare_copied_python_runtime(runtime_dir)
+
+    assert not marker.exists()
+    assert calls == [
+        [str(python), "-m", "ensurepip", "--upgrade"],
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "pip",
+            "setuptools",
+            "wheel",
+        ],
+    ]
+
+
+def test_prepare_copied_python_runtime_creates_posix_python_aliases(
+    tmp_path: Path, monkeypatch
+) -> None:
+    runtime_dir = tmp_path / "python"
+    versioned_python = runtime_dir / "bin" / "python3.11"
+    config_script = runtime_dir / "bin" / "python3.11-config"
+    versioned_python.parent.mkdir(parents=True)
+    versioned_python.write_text("", encoding="utf-8")
+    versioned_python.chmod(0o755)
+    config_script.write_text("", encoding="utf-8")
+    config_script.chmod(0o755)
+
+    monkeypatch.setattr(
+        runtime_builder.subprocess,
+        "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0),
+    )
+
+    runtime_builder.prepare_copied_python_runtime(runtime_dir)
+
+    assert (runtime_dir / "bin" / "python").resolve() == versioned_python
+    assert (runtime_dir / "bin" / "python3").resolve() == versioned_python
+
+
+def test_stage_python_runtime_copies_runtime_build_directories(
+    tmp_path: Path, monkeypatch
+) -> None:
+    source = tmp_path / "source-python"
+    destination = tmp_path / "destination-python"
+    python = source / "bin" / "python"
+    pip_build = (
+        source
+        / "lib"
+        / "python3.11"
+        / "site-packages"
+        / "pip"
+        / "_internal"
+        / "operations"
+        / "build"
+        / "__init__.py"
+    )
+    python.parent.mkdir(parents=True)
+    pip_build.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+    python.chmod(0o755)
+    pip_build.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(
+        runtime_builder.subprocess,
+        "run",
+        lambda command, **kwargs: subprocess.CompletedProcess(command, 0),
+    )
+
+    runtime_builder.stage_python_runtime(destination, python_runtime=source)
+
+    assert (destination / pip_build.relative_to(source)).is_file()
+
+
+def test_windows_launcher_uses_actual_packaged_python_path(tmp_path: Path) -> None:
+    package_dir = tmp_path / "package"
+    manifest_dir = package_dir / "application" / "python" / "agent_terminal_app"
+    manifest_dir.mkdir(parents=True)
+    python = package_dir / "python" / "python.exe"
+    python.parent.mkdir(parents=True)
+    python.write_text("", encoding="utf-8")
+
+    runtime_builder.write_runtime_layout(package_dir)
+    runtime_builder.write_launchers(package_dir, platform_name="windows")
+
+    layout = json.loads((manifest_dir / "runtime_layout.json").read_text())
+    assert layout["bundle_paths"]["python_executable"] == "../../../python/python.exe"
+
+    launcher = (package_dir / "Scripts" / "crystal-lattice.cmd").read_text(
+        encoding="utf-8"
+    )
+    assert "set CRYSTAL_PLUGIN_PYTHON=%ROOT%python\\python.exe" in launcher
+    assert '"%ROOT%python\\python.exe" -m agent_terminal_app %*' in launcher

@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Dict, List
 
+from agent_app.app_context import ApplicationContext
 from agent_app.application_future import AgentApplication
 from agent_app.tool_loop import ToolLoopRunner
 from agent_core import AgentCore, Session
@@ -117,6 +118,8 @@ def test_pending_tool_calls_ignored_after_follow_up_user_message() -> None:
         config={},
         request_id="req_pending",
         tool_loop_cfg=SimpleNamespace(max_loops=8),
+        app_context=ApplicationContext(app=None),
+        base_config={},
     )
 
     tool_call: Dict[str, object] = {
@@ -139,6 +142,8 @@ def test_pending_tool_calls_returned_for_unresolved_tail_assistant() -> None:
         config={},
         request_id="req_pending_tail",
         tool_loop_cfg=SimpleNamespace(max_loops=8),
+        app_context=ApplicationContext(app=None),
+        base_config={},
     )
 
     tool_call: Dict[str, object] = {

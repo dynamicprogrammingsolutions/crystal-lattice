@@ -88,6 +88,7 @@ import { selectDisplayContent } from './messageUtils';
 import { pickAssetAsDataUrl, type AssetPickSource } from './attachmentPicking';
 import { AttachmentThumbnailStrip, type AttachmentLike } from './components/AttachmentThumbnailStrip';
 import { ComposerAttachmentsManageModal } from './components/ComposerAttachmentsManageModal';
+import SelectablePlainText from './components/SelectablePlainText';
 import {
   AttachmentMetadataModal,
   buildAttachmentMetadataDefaults,
@@ -339,7 +340,7 @@ const ChatTranscript = React.memo(({
 
         const role = row.message.role || 'unknown';
         const defaultModeForRole: 'markdown' | 'raw' =
-          role === 'assistant' ? 'markdown' : 'raw';
+          role === 'assistant' || role === 'user' ? 'markdown' : 'raw';
         const renderMode = messageViewModeByIndex[row.index] ?? defaultModeForRole;
         const isEditing = editingIndex === row.index;
         return [
@@ -361,7 +362,10 @@ const ChatTranscript = React.memo(({
             }
             return (
               <View style={styles.statusBarContainer}>
-                <Text style={styles.statusBarText}>{statusBarParts.join('   ')}</Text>
+                <SelectablePlainText
+                  text={statusBarParts.join('   ')}
+                  style={styles.statusBarText}
+                />
               </View>
             );
           }
@@ -404,7 +408,7 @@ const ChatTranscript = React.memo(({
         const pinnedForRole = getPinnedActionsForRole(role);
         const isEditing = editingIndex === m.index;
         const defaultModeForRole: 'markdown' | 'raw' =
-          role === 'assistant' ? 'markdown' : 'raw';
+          role === 'assistant' || role === 'user' ? 'markdown' : 'raw';
         const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
         return (
           <MessageBubble
@@ -815,6 +819,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [snapshotsVisible, setSnapshotsVisible] = useState(false);
   const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [sessionDetailsVisible, setSessionDetailsVisible] = useState(false);
   const [snapshotItems, setSnapshotItems] = useState<SessionSnapshotSummary[]>([]);
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
   const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
@@ -3187,7 +3192,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
     if (action === 'toggleMarkdown') {
       const role = message.role || 'unknown';
-      if (role !== 'assistant') {
+      if (role !== 'assistant' && role !== 'user') {
         return;
       }
       setMessageViewModeByIndex((prev) => {
@@ -3227,11 +3232,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
 	  const sessionLabel = `Session ${sessionId.slice(0, 8)}`;
 
-	  const sessionHeaderTitle = useMemo(() => {
+	  const sessionHeaderPresentation = useMemo(() => {
 	    if (!currentSessionSummary) {
-	      return sessionLabel;
+	      return { title: sessionLabel, subtitle: '' };
 	    }
-	    return deriveSessionListPresentationFromGroups(currentSessionSummary, sessionListFieldGroups).title;
+	    return deriveSessionListPresentationFromGroups(currentSessionSummary, sessionListFieldGroups);
 	  }, [currentSessionSummary, sessionListFieldGroups, sessionLabel]);
 
 	  const footerElements = useMemo(
@@ -3417,37 +3422,78 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            androidKeyboardHeight > 0 && { paddingBottom: androidKeyboardHeight },
 	        ]}
 	      >
-	        <View style={styles.headerRow}>
-	          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-	            <Text style={styles.backButtonText}>← Sessions</Text>
-	          </TouchableOpacity>
-	          <Text style={styles.title} numberOfLines={1}>
-	            {sessionHeaderTitle}
-	          </Text>
-          <View style={styles.headerButtons}>
-            <SessionActionsBar
-              renderIcon={({ name, size, color }) => (
-                <Icon name={name} size={size} color={color} />
-              )}
-              renderPinIcon={({ size, color }) => (
-                <Icon name="star" size={size} color={color} />
-              )}
-              renderCloseIcon={({ size, color, renderIcon }) =>
-                renderIcon ? renderIcon({ name: 'x', size, color }) : null
-              }
-              pinned={pinnedSessionActions}
-              onChangePinned={setPinnedSessionActions}
-              onAction={handleSessionAction}
-              onOpenMenu={refreshSessionContextInBackground}
-              isActionDisabled={(action) =>
-                pluginActionInProgress ||
-                ((sendInProgress || resumeRecoveryInProgress) && action === 'reload')
-              }
-              extraActions={pluginSessionActionDefs}
-              isActive={isActive}
-              modalContentStyle={styles.sessionActionsModalContent}
-            />
-          </View>
+	        <View style={styles.headerContainer}>
+	          <View style={styles.headerRow}>
+	            <View style={styles.headerNavigation}>
+	              <TouchableOpacity
+	                style={styles.headerIconButton}
+	                onPress={handleBack}
+	                accessibilityRole="button"
+	                accessibilityLabel="Back to sessions"
+	              >
+	                <Icon name="arrow-left" size={22} color={theme.primary} />
+	              </TouchableOpacity>
+	            </View>
+	            <View style={styles.titleContainer}>
+	              <Text style={styles.title} numberOfLines={1}>
+	                {sessionId}
+	              </Text>
+	              <TouchableOpacity
+	                style={styles.titleChevronButton}
+	                onPress={() => setSessionDetailsVisible((visible) => !visible)}
+	                accessibilityRole="button"
+	                accessibilityLabel="Show session details"
+	              >
+	                <Icon
+	                  name={sessionDetailsVisible ? 'chevron-up' : 'chevron-down'}
+	                  size={20}
+	                  color={theme.primary}
+	                />
+	              </TouchableOpacity>
+	            </View>
+	            <View style={styles.headerButtons}>
+	              <SessionActionsBar
+	                renderIcon={({ name, size, color }) => (
+	                  <Icon name={name} size={size} color={color} />
+	                )}
+	                renderPinIcon={({ size, color }) => (
+	                  <Icon name="star" size={size} color={color} />
+	                )}
+	                renderCloseIcon={({ size, color, renderIcon }) =>
+	                  renderIcon ? renderIcon({ name: 'x', size, color }) : null
+	                }
+	                pinned={pinnedSessionActions}
+	                onChangePinned={setPinnedSessionActions}
+	                onAction={handleSessionAction}
+	                onOpenMenu={refreshSessionContextInBackground}
+	                isActionDisabled={(action) =>
+	                  pluginActionInProgress ||
+	                  ((sendInProgress || resumeRecoveryInProgress) && action === 'reload')
+	                }
+	                extraActions={pluginSessionActionDefs}
+	                isActive={isActive}
+	                modalContentStyle={styles.sessionActionsModalContent}
+	              />
+	            </View>
+	          </View>
+	          {sessionDetailsVisible && (
+	            <View style={styles.sessionDetailsDropdown}>
+	              <SelectablePlainText
+	                text={sessionHeaderPresentation.title}
+	                style={styles.sessionDetailsTitle}
+	              />
+	              {sessionHeaderPresentation.subtitle ? (
+	                <SelectablePlainText
+	                  text={sessionHeaderPresentation.subtitle}
+	                  style={styles.sessionDetailsSubtitle}
+	                />
+	              ) : null}
+	              <SelectablePlainText
+	                text={sessionId}
+	                style={styles.sessionDetailsId}
+	              />
+	            </View>
+	          )}
 	        </View>
 
 	      {sessionDirty && (
@@ -4080,11 +4126,26 @@ const createStyles = (theme: Theme) =>
     container: {
       flex: 1,
     },
+    headerContainer: {
+      position: 'relative',
+      zIndex: 10,
+      marginBottom: 8,
+    },
     headerRow: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      marginBottom: 8,
+    },
+    headerNavigation: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginTop: 5
+    },
+    headerIconButton: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     backButton: {
       paddingHorizontal: 8,
@@ -4095,15 +4156,61 @@ const createStyles = (theme: Theme) =>
       fontSize: 14,
     },
     title: {
-      flex: 1,
+      flexShrink: 1,
+      minWidth: 0,
       textAlign: 'center',
-      fontSize: 18,
-      fontWeight: '600',
+      fontSize: theme.typography.fontSize.normal,
+      fontWeight: '400',
       color: theme.text,
+    },
+    titleContainer: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 5,
+    },
+    titleChevronButton: {
+      width: 36,
+      height: 36,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 2,
     },
     headerButtons: {
       flexDirection: 'row',
       alignItems: 'center',
+    },
+    sessionDetailsDropdown: {
+      position: 'absolute',
+      top: 44,
+      left: 0,
+      right: 0,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+      zIndex: 20,
+    },
+    sessionDetailsTitle: {
+      fontSize: theme.typography.fontSize.normal,
+      fontWeight: '700',
+      color: theme.text,
+      marginBottom: 4,
+    },
+    sessionDetailsSubtitle: {
+      fontSize: theme.typography.fontSize.normal,
+      fontWeight: '400',
+      color: theme.text,
+      marginBottom: 6,
+    },
+    sessionDetailsId: {
+      fontSize: theme.typography.fontSize.small,
+      color: theme.textSecondary,
+      fontFamily: 'Courier',
     },
     sessionActionsModalContent: {
       width: '90%',

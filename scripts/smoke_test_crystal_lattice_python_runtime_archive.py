@@ -47,6 +47,9 @@ def find_package_dir(extract_dir: Path) -> Path:
 
 def validate_package(package_dir: Path) -> None:
     launcher = launcher_path(package_dir)
+    manifest = json.loads(
+        (package_dir / "runtime-package.json").read_text(encoding="utf-8")
+    )
     required = [
         launcher,
         python_path(package_dir),
@@ -66,6 +69,8 @@ def validate_package(package_dir: Path) -> None:
     for path in required:
         if not path.exists():
             raise RuntimeError(f"Expected package path is missing: {path}")
+
+    validate_portable_python_links(package_dir, manifest)
 
     output = subprocess.check_output(
         [str(launcher), "--runtime-layout-json"],
@@ -102,6 +107,32 @@ def validate_package(package_dir: Path) -> None:
         )
 
 
+def validate_portable_python_links(
+    package_dir: Path, manifest: dict[str, object]
+) -> None:
+    if manifest.get("platform") != "darwin":
+        return
+    python = python_path(package_dir)
+    output = subprocess.check_output(["otool", "-L", str(python)], text=True)
+    unsafe = [
+        line.strip().split(" ", 1)[0]
+        for line in output.splitlines()[1:]
+        if is_unsafe_macos_library_reference(line.strip().split(" ", 1)[0])
+    ]
+    if unsafe:
+        formatted = "\n".join(f"- {path}" for path in unsafe)
+        raise RuntimeError(
+            "Packaged macOS Python has non-portable library references:\n"
+            f"{formatted}"
+        )
+
+
+def is_unsafe_macos_library_reference(path: str) -> bool:
+    return path.startswith("/") and not (
+        path.startswith("/System/Library/") or path.startswith("/usr/lib/")
+    )
+
+
 def launcher_path(package_dir: Path) -> Path:
     if os.name == "nt":
         return package_dir / "Scripts" / "crystal-lattice.cmd"
@@ -112,6 +143,9 @@ def python_path(package_dir: Path) -> Path:
     windows_python = package_dir / "python" / "python.exe"
     if windows_python.exists():
         return windows_python
+    windows_venv_python = package_dir / "python" / "Scripts" / "python.exe"
+    if windows_venv_python.exists():
+        return windows_venv_python
     return package_dir / "python" / "bin" / "python"
 
 

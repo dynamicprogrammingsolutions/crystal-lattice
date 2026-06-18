@@ -19,7 +19,7 @@ material follows after that.
 On macOS or Linux, install the bundled CLI:
 
 ```bash
-curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash
+curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
 ```
 
 The installer links the command as `~/.local/bin/crystal-lattice`. If that

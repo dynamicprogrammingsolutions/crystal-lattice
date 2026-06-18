@@ -14,7 +14,8 @@ import type { ApiMessage, UiSchemaElement } from '../api';
 import MessageActionsBar from './MessageActionsBar';
 import type { MessageActionKey, MessageActionDefinition } from '../messageActions';
 import { selectDisplayContent, selectSingleLineContent } from '../messageUtils';
-import MarkdownMessageContent from './MarkdownMessageContent';
+import SelectableMarkdownMessageContent from './SelectableMarkdownMessageContent';
+import SelectablePlainText from './SelectablePlainText';
 import { AttachmentThumbnailStrip } from './AttachmentThumbnailStrip';
 import {
   selectMultipartAttachments,
@@ -178,16 +179,24 @@ const UserMessageBubble: React.FC<MessageBubbleProps> = ({
           onOpenAttachment={onOpenAttachment}
         />
         {content ? (
-          <Text
-            style={[styles.contentText, styles.userContentText]}
-            selectable
-          >
-            {content}
-          </Text>
+          renderMode === 'raw' ? (
+            <SelectablePlainText
+              text={content}
+              style={[styles.contentText, styles.userContentText, styles.rawReadonlyInput]}
+            />
+          ) : (
+            <SelectableMarkdownMessageContent
+              text={content}
+              variant="user"
+            />
+          )
         ) : null}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <SelectablePlainText
+              text={footerParts.join('   ')}
+              style={styles.footerText}
+            />
           </View>
         )}
         {pinnedActions && onAction && onChangePinnedForRole && (
@@ -305,12 +314,10 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
           onOpenAttachment={onOpenAttachment}
         />
         {content ? (
-          <Text
+          <SelectablePlainText
+            text={content}
             style={styles.systemText}
-            selectable
-          >
-            {content}
-          </Text>
+          />
         ) : null}
         {compiledContent && compiledExpanded && (
           <View style={styles.collapsibleContainerReasoning}>
@@ -318,27 +325,26 @@ const SystemMessageBubble: React.FC<MessageBubbleProps> = ({
               style={styles.collapsibleScroll}
               nestedScrollEnabled
             >
-              <Text
+              <SelectablePlainText
+                text={compiledContent}
                 style={styles.reasoningText}
-                selectable
                 testID="system-compiled-content"
-              >
-                {compiledContent}
-              </Text>
+              />
             </ScrollView>
           </View>
         )}
         {compiledContent && !compiledExpanded && (
-          <Text
+          <SelectablePlainText
+            text="Compiled system prompt hidden (tap chevron to expand)."
             style={styles.collapsedHintText}
-            selectable
-          >
-            Compiled system prompt hidden (tap chevron to expand).
-          </Text>
+          />
         )}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <SelectablePlainText
+              text={footerParts.join('   ')}
+              style={styles.footerText}
+            />
           </View>
         )}
         {pinnedActions && onAction && onChangePinnedForRole && (
@@ -431,36 +437,33 @@ const ToolMessageBubble: React.FC<MessageBubbleProps> = ({
               style={styles.collapsibleScroll}
               nestedScrollEnabled
             >
-              <Text
+              <SelectablePlainText
+                text={content}
                 style={styles.contentText}
-                selectable
-              >
-                {content}
-              </Text>
+              />
             </ScrollView>
           </View>
         )}
 
         {hasContent && !expanded && (
-          <Text
+          <SelectablePlainText
+            text={singleLine || 'Tool result hidden (tap to expand).'}
             style={styles.collapsedHintText}
-            selectable
-          >
-            {singleLine || 'Tool result hidden (tap to expand).'}
-          </Text>
+          />
         )}
 
         {!hasContent && (
-          <Text
+          <SelectablePlainText
+            text="No tool output."
             style={styles.collapsedHintText}
-            selectable
-          >
-            No tool output.
-          </Text>
+          />
         )}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <SelectablePlainText
+              text={footerParts.join('   ')}
+              style={styles.footerText}
+            />
           </View>
         )}
         {pinnedActions && onAction && onChangePinnedForRole && (
@@ -645,36 +648,30 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
               style={styles.collapsibleScroll}
               nestedScrollEnabled
             >
-              <Text
+              <SelectablePlainText
+                text={reasoning}
                 style={styles.reasoningText}
-                selectable
-              >
-                {reasoning}
-              </Text>
+              />
             </ScrollView>
           </View>
         )}
 
         {reasoning && !reasoningExpanded && (
-          <Text
+          <SelectablePlainText
+            text={reasoningSingleLine ? `Reasoning: ${reasoningSingleLine}` : 'Reasoning'}
             style={styles.collapsedHintText}
-            selectable
             numberOfLines={1}
-          >
-            {reasoningSingleLine ? `Reasoning: ${reasoningSingleLine}` : 'Reasoning'}
-          </Text>
+          />
         )}
 
         {content ? (
           renderMode === 'raw' ? (
-            <TextInput
+            <SelectablePlainText
+              text={content}
               style={[styles.contentText, styles.rawReadonlyInput]}
-              value={content}
-              editable={false}
-              multiline
             />
           ) : (
-            <MarkdownMessageContent
+            <SelectableMarkdownMessageContent
               text={content}
               variant="assistant"
             />
@@ -746,13 +743,11 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
 
         {toolCallNames.length > 0 && (reasoning || hasContent) && (
           <View style={styles.disclosureRow}>
-            <Text
+            <SelectablePlainText
+              text={`${toolCallNames.length} tool call${toolCallNames.length !== 1 ? 's' : ''}: ${distinctToolCallNames.join(', ')}`}
               style={[styles.collapsedHintText, styles.disclosureText]}
-              selectable
               numberOfLines={1}
-            >
-              {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {distinctToolCallNames.join(', ')}
-            </Text>
+            />
             <TouchableOpacity
               style={[styles.collapseIconButton, styles.disclosureChevronButton]}
               hitSlop={CHEVRON_HIT_SLOP}
@@ -811,12 +806,10 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
                     style={styles.toolCallItem}
                   >
                     <Text style={styles.toolCallName}>{toolName}</Text>
-                    <Text
+                    <SelectablePlainText
+                      text={displayText}
                       style={styles.toolCallArgs}
-                      selectable
-                    >
-                      {displayText}
-                    </Text>
+                    />
                   </View>
                 );
               })}
@@ -824,13 +817,17 @@ const AssistantMessageBubble: React.FC<MessageBubbleProps> = ({
           </View>
         )}
         {toolCallNames.length > 0 && !toolCallsExpanded && !reasoning && !hasContent && (
-          <Text style={styles.collapsedHintText}>
-            {toolCallNames.length} tool call{toolCallNames.length !== 1 ? 's' : ''}: {distinctToolCallNames.join(', ')}
-          </Text>
+          <SelectablePlainText
+            text={`${toolCallNames.length} tool call${toolCallNames.length !== 1 ? 's' : ''}: ${distinctToolCallNames.join(', ')}`}
+            style={styles.collapsedHintText}
+          />
         )}
         {footerParts.length > 0 && (
           <View style={styles.footerRow}>
-            <Text style={styles.footerText}>{footerParts.join('   ')}</Text>
+            <SelectablePlainText
+              text={footerParts.join('   ')}
+              style={styles.footerText}
+            />
           </View>
         )}
         {pinnedActions && onAction && onChangePinnedForRole && (
@@ -888,6 +885,7 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
         onChangeEditingText={onChangeEditingText}
         onSubmitEdit={onSubmitEdit}
         onCancelEdit={onCancelEdit}
+        renderMode={renderMode}
         footerElements={footerElements}
         pluginActionDefs={pluginActionDefs}
       />
@@ -962,12 +960,10 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
       <View style={[styles.bubble, styles.otherBubble]}>
         <Text style={styles.headerText}>{`[${index}] ${role}`}</Text>
         {content ? (
-          <Text
+          <SelectablePlainText
+            text={content}
             style={styles.contentText}
-            selectable
-          >
-            {content}
-          </Text>
+          />
         ) : null}
         {/* Footer elements are not rendered for unknown roles. */}
         {pinnedActions && onAction && onChangePinnedForRole && (

@@ -216,9 +216,25 @@ jest.mock('react-native-markdown-display', () => {
   return ({ children }) => React.createElement(React.Fragment, null, children);
 });
 
+jest.mock('react-native-enriched-markdown', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    EnrichedMarkdownText: (props) => React.createElement('EnrichedMarkdownText', props),
+  };
+});
+
 jest.mock('react-native-syntax-highlighter', () => 'SyntaxHighlighter');
 
 jest.mock('react-syntax-highlighter/styles/hljs', () => ({}));
+
+jest.mock('@rob117/react-native-selectable-text', () => {
+  const React = require('react');
+  return {
+    __esModule: true,
+    SelectableTextView: (props) => React.createElement('SelectableTextView', props, props.children),
+  };
+});
 
 jest.mock('react-native-fs', () => {
   return {

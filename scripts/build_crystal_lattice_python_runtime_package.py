@@ -129,11 +129,79 @@ def build_python_runtime_package(
 
 def stage_python_runtime(destination: Path, *, python_runtime: Path | None) -> None:
     if python_runtime is not None:
-        copytree_sanitized(python_runtime.expanduser().resolve(), destination)
+        shutil.copytree(
+            python_runtime.expanduser().resolve(),
+            destination,
+            symlinks=True,
+            ignore_dangling_symlinks=True,
+        )
+        prepare_copied_python_runtime(destination)
         return
 
     builder = venv.EnvBuilder(with_pip=True, symlinks=False, clear=True)
     builder.create(destination)
+
+
+def prepare_copied_python_runtime(destination: Path) -> None:
+    ensure_runtime_python_aliases(destination)
+    python = runtime_python(destination)
+    for marker in destination.glob("lib/python*/EXTERNALLY-MANAGED"):
+        marker.unlink()
+    windows_marker = destination / "Lib" / "EXTERNALLY-MANAGED"
+    if windows_marker.exists():
+        windows_marker.unlink()
+    subprocess.run([str(python), "-m", "ensurepip", "--upgrade"], check=True)
+    subprocess.run(
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "pip",
+            "setuptools",
+            "wheel",
+        ],
+        check=True,
+    )
+
+
+def runtime_python(runtime_dir: Path) -> Path:
+    candidates = [
+        runtime_dir / "python.exe",
+        runtime_dir / "Scripts" / "python.exe",
+        runtime_dir / "bin" / "python",
+        runtime_dir / "bin" / "python3",
+    ]
+    candidates.extend(sorted(iter_versioned_python_binaries(runtime_dir / "bin")))
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise RuntimeError(f"Could not find Python executable in runtime: {runtime_dir}")
+
+
+def ensure_runtime_python_aliases(runtime_dir: Path) -> None:
+    bin_dir = runtime_dir / "bin"
+    if not bin_dir.is_dir():
+        return
+    versioned = sorted(iter_versioned_python_binaries(bin_dir))
+    if not versioned:
+        return
+    target = versioned[-1]
+    for alias_name in ("python", "python3"):
+        alias = bin_dir / alias_name
+        if not alias.exists():
+            alias.symlink_to(target.name)
+
+
+def iter_versioned_python_binaries(bin_dir: Path) -> list[Path]:
+    return [
+        path
+        for path in bin_dir.glob("python3.*")
+        if path.is_file()
+        and os.access(path, os.X_OK)
+        and path.name.removeprefix("python").replace(".", "").isdigit()
+    ]
 
 
 def stage_repo_like_runtime(package_dir: Path) -> None:
@@ -164,9 +232,7 @@ def write_runtime_layout(package_dir: Path) -> None:
         / "runtime_layout.json"
     )
     python_executable = (
-        "../../../python/python.exe"
-        if os.name == "nt"
-        else "../../../python/bin/python"
+        "../../../" + package_python(package_dir).relative_to(package_dir).as_posix()
     )
     manifest = {
         "schema_version": 1,
@@ -198,15 +264,18 @@ def write_launchers(package_dir: Path, *, platform_name: str) -> None:
     bin_dir = package_dir / "bin"
     bin_dir.mkdir(parents=True, exist_ok=True)
     if platform_name == "windows":
+        python_executable = str(
+            package_python(package_dir).relative_to(package_dir)
+        ).replace("/", "\\")
         scripts_dir = package_dir / "Scripts"
         scripts_dir.mkdir(parents=True, exist_ok=True)
         (scripts_dir / "crystal-lattice.cmd").write_text(
             "@echo off\r\n"
             "set ROOT=%~dp0..\\\r\n"
             "set CRYSTAL_RUNTIME_LAYOUT=%ROOT%application\\python\\agent_terminal_app\\runtime_layout.json\r\n"
-            "set CRYSTAL_PLUGIN_PYTHON=%ROOT%python\\python.exe\r\n"
+            f"set CRYSTAL_PLUGIN_PYTHON=%ROOT%{python_executable}\r\n"
             "set PYTHONPATH=%ROOT%core\\python;%ROOT%application\\python;%PYTHONPATH%\r\n"
-            '"%ROOT%python\\python.exe" -m agent_terminal_app %*\r\n',
+            f'"%ROOT%{python_executable}" -m agent_terminal_app %*\r\n',
             encoding="utf-8",
         )
         return
@@ -255,12 +324,22 @@ def install_preinstalled_default_plugins(package_dir: Path) -> None:
     local_project_names = resolve_local_project_names(
         selected_plugin_names, plugins_root
     )
-    projects = [
-        plugins_root / name
-        for name in sorted(local_project_names)
-        if is_python_project(plugins_root / name)
+    dependency_project_names = local_project_names - selected_plugin_names
+    install_project_groups = [
+        [
+            plugins_root / name
+            for name in sorted(dependency_project_names)
+            if is_python_project(plugins_root / name)
+        ],
+        [
+            plugins_root / name
+            for name in sorted(selected_plugin_names)
+            if is_python_project(plugins_root / name)
+        ],
     ]
-    if projects:
+    for projects in install_project_groups:
+        if not projects:
+            continue
         subprocess.run(
             [
                 str(package_python(package_dir)),
@@ -300,6 +379,9 @@ def package_python(package_dir: Path) -> Path:
     windows_python = package_dir / "python" / "python.exe"
     if windows_python.is_file():
         return windows_python
+    windows_venv_python = package_dir / "python" / "Scripts" / "python.exe"
+    if windows_venv_python.is_file():
+        return windows_venv_python
     return package_dir / "python" / "bin" / "python"
 
 
