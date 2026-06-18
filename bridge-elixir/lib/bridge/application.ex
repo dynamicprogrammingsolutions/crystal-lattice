@@ -5,7 +5,9 @@ defmodule Bridge.Application do
   def start(_type, _args) do
     children = [
       {Phoenix.PubSub, name: Bridge.PubSub},
-      {Cluster.Supervisor, [Application.get_env(:libcluster, :topologies), [name: Bridge.ClusterSupervisor]]},
+      {Task.Supervisor, name: Bridge.HttpProxyTaskSupervisor},
+      {Cluster.Supervisor,
+       [Application.get_env(:libcluster, :topologies), [name: Bridge.ClusterSupervisor]]},
       Bridge.ServerRegistry,
       Bridge.PairingManager,
       Bridge.PersistentPairingManager,
