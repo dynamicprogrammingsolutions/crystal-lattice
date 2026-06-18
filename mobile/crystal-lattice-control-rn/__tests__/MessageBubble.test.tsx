@@ -306,6 +306,21 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
       cellPaddingVertical: 7,
     }),
   );
+  expect(enrichedMarkdown.props.markdownStyle.codeBlock).toEqual(
+    expect.objectContaining({
+      fontFamily: 'Courier',
+      fontSize: lightTheme.typography.fontSize.code,
+      lineHeight: Math.round(lightTheme.typography.fontSize.code * 1.25),
+      color: lightTheme.text,
+      marginTop: 4,
+      marginBottom: 4,
+      backgroundColor: lightTheme.codeBlockBg,
+      borderColor: lightTheme.border,
+      borderRadius: 6,
+      borderWidth: 1,
+      padding: 8,
+    }),
+  );
 });
 
 

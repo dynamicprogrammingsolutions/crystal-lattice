@@ -7,6 +7,8 @@ import { useTheme } from '../theme';
 import type { MarkdownMessageVariant } from './MarkdownMessageContent';
 import { splitMarkdownIntoSegments, type MarkdownSegment } from './markdownSegments';
 
+const USE_CUSTOM_CODE_BLOCKS = true;
+
 const LIST_STYLE_TUNING = {
   marginTop: 2,
   marginBottom: 2,
@@ -95,7 +97,13 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
   text,
 }) => {
   const theme = useTheme();
-  const segments = useMemo(() => splitMarkdownIntoSegments(text), [text]);
+  const segments = useMemo<MarkdownSegment[]>(() => {
+    if (USE_CUSTOM_CODE_BLOCKS) {
+      return splitMarkdownIntoSegments(text);
+    }
+
+    return text ? [{ type: 'markdown', markdown: text }] : [];
+  }, [text]);
 
   const markdownStyle = useMemo<MarkdownStyle>(() => {
     const baseTextColor = theme.text;
@@ -192,6 +200,19 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
         backgroundColor: theme.inlineCodeBg,
         borderColor: theme.border,
       },
+      codeBlock: {
+        fontFamily: 'Courier',
+        fontSize: theme.typography.fontSize.code,
+        lineHeight: lineHeightFor(theme.typography.fontSize.code),
+        color: baseTextColor,
+        marginTop: 4,
+        marginBottom: 4,
+        backgroundColor: theme.codeBlockBg,
+        borderColor: theme.border,
+        borderRadius: 6,
+        borderWidth: 1,
+        padding: 8,
+      },
       link: {
         color: baseTextColor,
         underline: true,
@@ -209,7 +230,7 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
   }, []);
 
   const renderSegment = (segment: MarkdownSegment, index: number) => {
-    if (segment.type === 'code') {
+    if (USE_CUSTOM_CODE_BLOCKS && segment.type === 'code') {
       return (
         <HighlightedCodeBlock
           key={`code-${index}`}
@@ -217,6 +238,10 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
           content={segment.content}
         />
       );
+    }
+
+    if (segment.type === 'code') {
+      return null;
     }
 
     return (
