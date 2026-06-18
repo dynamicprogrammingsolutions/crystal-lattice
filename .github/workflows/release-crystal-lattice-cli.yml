@@ -99,11 +99,26 @@ jobs:
       - name: Install build dependencies
         run: python -m pip install -e core/python -e "application/python[binary]"
 
+      - name: Prepare relocatable Python runtime
+        run: |
+          python -m pip install uv
+          uv python install \
+            --install-dir "$RUNNER_TEMP/uv-python" \
+            --python-preference only-managed \
+            3.11
+          runtime_root="$(find "$RUNNER_TEMP/uv-python" -mindepth 1 -maxdepth 1 -type d | sort | tail -n 1)"
+          if [ -z "$runtime_root" ]; then
+            echo "Could not locate uv-managed Python runtime" >&2
+            exit 1
+          fi
+          echo "CRYSTAL_PYTHON_RUNTIME=$runtime_root" >> "$GITHUB_ENV"
+
       - name: Build bundled-Python runtime archive
         run: |
           python scripts/build_crystal_lattice_python_runtime_package.py \
             --platform "${{ matrix.platform }}" \
-            --arch "${{ matrix.arch }}"
+            --arch "${{ matrix.arch }}" \
+            --python-runtime "$CRYSTAL_PYTHON_RUNTIME"
 
       - name: Locate release archive
         env:

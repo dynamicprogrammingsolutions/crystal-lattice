@@ -129,11 +129,79 @@ def build_python_runtime_package(
 
 def stage_python_runtime(destination: Path, *, python_runtime: Path | None) -> None:
     if python_runtime is not None:
-        copytree_sanitized(python_runtime.expanduser().resolve(), destination)
+        shutil.copytree(
+            python_runtime.expanduser().resolve(),
+            destination,
+            symlinks=True,
+            ignore_dangling_symlinks=True,
+        )
+        prepare_copied_python_runtime(destination)
         return
 
     builder = venv.EnvBuilder(with_pip=True, symlinks=False, clear=True)
     builder.create(destination)
+
+
+def prepare_copied_python_runtime(destination: Path) -> None:
+    ensure_runtime_python_aliases(destination)
+    python = runtime_python(destination)
+    for marker in destination.glob("lib/python*/EXTERNALLY-MANAGED"):
+        marker.unlink()
+    windows_marker = destination / "Lib" / "EXTERNALLY-MANAGED"
+    if windows_marker.exists():
+        windows_marker.unlink()
+    subprocess.run([str(python), "-m", "ensurepip", "--upgrade"], check=True)
+    subprocess.run(
+        [
+            str(python),
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "pip",
+            "setuptools",
+            "wheel",
+        ],
+        check=True,
+    )
+
+
+def runtime_python(runtime_dir: Path) -> Path:
+    candidates = [
+        runtime_dir / "python.exe",
+        runtime_dir / "Scripts" / "python.exe",
+        runtime_dir / "bin" / "python",
+        runtime_dir / "bin" / "python3",
+    ]
+    candidates.extend(sorted(iter_versioned_python_binaries(runtime_dir / "bin")))
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise RuntimeError(f"Could not find Python executable in runtime: {runtime_dir}")
+
+
+def ensure_runtime_python_aliases(runtime_dir: Path) -> None:
+    bin_dir = runtime_dir / "bin"
+    if not bin_dir.is_dir():
+        return
+    versioned = sorted(iter_versioned_python_binaries(bin_dir))
+    if not versioned:
+        return
+    target = versioned[-1]
+    for alias_name in ("python", "python3"):
+        alias = bin_dir / alias_name
+        if not alias.exists():
+            alias.symlink_to(target.name)
+
+
+def iter_versioned_python_binaries(bin_dir: Path) -> list[Path]:
+    return [
+        path
+        for path in bin_dir.glob("python3.*")
+        if path.is_file()
+        and os.access(path, os.X_OK)
+        and path.name.removeprefix("python").replace(".", "").isdigit()
+    ]
 
 
 def stage_repo_like_runtime(package_dir: Path) -> None:
