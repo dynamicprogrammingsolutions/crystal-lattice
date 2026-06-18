@@ -4,13 +4,16 @@
   "private": true,
   "license": "Apache-2.0",
   "scripts": {
-    "android": "react-native run-android",
+    "android": "react-native run-android --port 8082",
     "pod-install": "cd ios && pod install",
     "ios": "react-native run-ios",
     "ios-device": "react-native run-ios --device --port 8082",
     "lint": "eslint .",
     "start": "react-native start --port 8082",
     "test": "jest",
+    "test:components": "jest",
+    "test:components:integration": "jest --config jest.integration.config.js --runInBand",
+    "test:integration": "jest --config jest.integration.config.js --runInBand",
     "tsc": "tsc --noEmit"
   },
   "dependencies": {
@@ -34,6 +37,7 @@
     "react-native-reanimated": "^4.3.0",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-share": "^12.2.6",
+    "react-native-svg": "^15.15.5",
     "react-native-syntax-highlighter": "^2.1.0",
     "react-native-url-polyfill": "^3.0.0",
     "react-native-vector-icons": "^10.2.0",
@@ -51,6 +55,7 @@
     "@react-native/eslint-config": "0.82.1",
     "@react-native/metro-config": "0.82.1",
     "@react-native/typescript-config": "0.82.1",
+    "@testing-library/react-native": "^13.3.3",
     "@types/jest": "^29.5.13",
     "@types/markdown-it": "^14.1.2",
     "@types/react": "^19.1.1",

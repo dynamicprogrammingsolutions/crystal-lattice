@@ -4,7 +4,8 @@ This tool accepts an array of strings representing the command and its arguments
 passed directly to execvp (no shell wrapper). Used by the non-shell-command
 family such as gpt-5 and gpt-5-mini.
 
-Schema matches docs/codex-tools/shell/schema.without_request_permissions.json
+Schema matches:
+plugins/codex-tools/reference/codex-cli-tools/shell/schema.without_request_permissions.json
 """
 
 from __future__ import annotations

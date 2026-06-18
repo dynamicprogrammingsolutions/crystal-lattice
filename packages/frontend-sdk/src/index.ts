@@ -55,10 +55,12 @@ export {
   renderTemplate,
   formatValueForElement,
   coerceValueForElement,
+  normalizeSelectOptions,
   filterFooterElements,
   filterStatusBarElements,
   evaluateCondition,
 } from './utils/uiSchema';
+export type { NormalizedSelectOption } from './utils/uiSchema';
 
 export { selectDisplayContent, selectSingleLineContent } from './utils/messages';
 
@@ -114,6 +116,8 @@ export {
 
 export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
+export type { ParsedActionDeepLink } from './plugins/actionDeepLinks';
+export { parseActionDeepLink } from './plugins/actionDeepLinks';
 export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';
 export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
 export type {
@@ -167,6 +171,16 @@ export type {
   SessionSettingsStatusTone,
 } from './sessionSettings/sessionSettingsController';
 export { SessionSettingsController } from './sessionSettings/sessionSettingsController';
+export type {
+  ServerSettingsControllerState,
+  ServerSettingsStatusTone,
+} from './serverSettings/serverSettingsController';
+export { ServerSettingsController } from './serverSettings/serverSettingsController';
+export type { ServerSettingsInvalidationEvent } from './serverSettings/serverSettingsInvalidation';
+export {
+  emitServerSettingsInvalidated,
+  subscribeServerSettingsInvalidated,
+} from './serverSettings/serverSettingsInvalidation';
 
 export type { SessionUiSchemaInvalidationEvent } from './uiSchema/sessionUiSchemaInvalidation';
 export {

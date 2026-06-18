@@ -100,18 +100,22 @@ def test_extension_accumulator_does_not_emit_new_partial_from_accumulated_state(
     partials, finals, native, new_state = ext.process_chunk(
         {
             "patch": {"reasoning": "next"},
-            "accumulated": {"role": "assistant", "content": "Hello", "reasoning": "next"},
+            "accumulated": {
+                "role": "assistant",
+                "content": "Hello",
+                "reasoning": "next",
+            },
         },
         partial_messages=[],
         final_messages=[],
         native_messages=[],
-        state={"partial": {"role": "assistant", "content": "Hello"}},
+        state={"accumulator": {"role": "assistant", "content": "Hello"}},
     )
 
     assert partials == []
     assert finals == []
     assert native == []
-    assert new_state["partial"] == {
+    assert new_state["accumulator"] == {
         "role": "assistant",
         "content": "Hello",
         "reasoning": "next",
@@ -129,11 +133,11 @@ def test_extension_accumulator_merges_patch_into_existing_current_chunk_partial(
         partial_messages=[{"role": "assistant", "content": "Hel"}],
         final_messages=[],
         native_messages=[],
-        state={"partial": {"role": "assistant", "content": "Hello"}},
+        state={"accumulator": {"role": "assistant", "content": "Hello"}},
     )
 
     assert partials == [{"role": "assistant", "content": "Hel", "reasoning": "step"}]
-    assert new_state["partial"] == {
+    assert new_state["accumulator"] == {
         "role": "assistant",
         "content": "Hello",
         "reasoning": "step",

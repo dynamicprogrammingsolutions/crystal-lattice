@@ -220,8 +220,8 @@ This makes it possible to keep model- or provider-specific prompt routing in con
 
 For a complete example, see:
 
-- [application/python/agent_terminal_app/default_config/config.json](application/python/agent_terminal_app/default_config/config.json)
-- [plugins/feature-system-message/README.md](plugins/feature-system-message/README.md)
+- [Default configuration](../reference/default-config.md)
+- [feature-system-message](../built-in-plugins/feature-system-message/index.md)
 
 ### Merge Order
 
@@ -580,10 +580,10 @@ for err in app.get_config_errors():
 ```
 
 ## See Also
-- docs/plugins/development.md — authoring, packaging, and wiring guidelines
-- plugins/docs/plugin-packaging-and-loading.md — packaging and loader behavior for local/git plugin packages
-- plugins/codex-tools/README.md — Codex-style tool package quickstart
-- plugins/gemini-tools/README.md — Gemini-style tool package quickstart
-- plugins/qwen-tools/README.md — Qwen-style tool package quickstart
-- plugins/grok-tools/README.md — Grok-style tool package quickstart
-- docs/reference/tool-host-protocol.md — the NDJSON tool host protocol
+- [Plugin development](development.md) — authoring, packaging, and wiring guidelines
+- [Packaging and loading plugins](../plugin-development/plugin-packaging-and-loading.md) — packaging and loader behavior for local/git plugin packages
+- [codex-tools](../built-in-plugins/codex-tools/index.md) — Codex-style tool package quickstart
+- [gemini-tools](../built-in-plugins/gemini-tools/index.md) — Gemini-style tool package quickstart
+- [qwen-tools](../built-in-plugins/qwen-tools/index.md) — Qwen-style tool package quickstart
+- [grok-tools](../built-in-plugins/grok-tools/index.md) — Grok-style tool package quickstart
+- [Tool host protocol](../reference/tool-host-protocol.md) — the NDJSON tool host protocol

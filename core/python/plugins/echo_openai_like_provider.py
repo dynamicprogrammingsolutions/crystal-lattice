@@ -48,9 +48,9 @@ class EchoOpenAILikeProvider(ProviderPlugin):
     # ---------- State lifecycle ----------
     def init(self, config: Dict[str, Any]) -> Dict[str, Any]:
         # Provider state is opaque; this provider tracks configuration,
-        # request metadata, and a partial accumulator for compatibility
+        # request metadata, and a streaming accumulator for compatibility
         # with the OpenAI-style streaming helpers.
-        return {"config": config, "request": {}, "partial": None}
+        return {"config": config, "request": {}, "accumulator": None}
 
     # ---------- Message conversion ----------
     def to_native_messages(
@@ -113,7 +113,6 @@ class EchoOpenAILikeProvider(ProviderPlugin):
         new_state: Dict[str, Any] = {**state, "request": request}
         return native_messages, new_state
 
-
     # ---------- Core API calls ----------
     def _select_messages_for_call(
         self, native_messages: List[Dict[str, Any]], state: Dict[str, Any]
@@ -140,7 +139,9 @@ class EchoOpenAILikeProvider(ProviderPlugin):
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         messages_to_use = self._select_messages_for_call(native_messages, state)
         sys_content, user_content = self._extract_system_and_user(messages_to_use)
         content = f"SYS={sys_content} | USER={user_content}"
@@ -163,10 +164,14 @@ class EchoOpenAILikeProvider(ProviderPlugin):
             yield msg
 
     # ---------- Helpers for streaming protocol compatibility ----------
-    def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover
+    def extract_delta(
+        self, native_chunk: Dict[str, Any]
+    ) -> Dict[str, Any]:  # pragma: no cover
         return {"message": native_chunk}
 
-    def process_delta(self, delta: Dict[str, Any], accumulated: Any):  # pragma: no cover
+    def process_delta(
+        self, delta: Dict[str, Any], accumulated: Any
+    ):  # pragma: no cover
         return None, delta.get("message"), accumulated
 
     def process_chunk(

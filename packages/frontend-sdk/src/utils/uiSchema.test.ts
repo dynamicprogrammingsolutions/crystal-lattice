@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { coerceValueForElement, formatValueForElement } from './uiSchema';
+import { coerceValueForElement, formatValueForElement, normalizeSelectOptions } from './uiSchema';
 
 describe('formatValueForElement', () => {
   it('formats epoch seconds as a locale datetime string', () => {
@@ -189,5 +189,28 @@ describe('coerceValueForElement', () => {
       expect(coerceValueForElement(noTypeElement, '42')).toBe('42');
       expect(coerceValueForElement(noTypeElement, 42)).toBe(42);
     });
+  });
+});
+
+describe('normalizeSelectOptions', () => {
+  it('normalizes string and object option schemas', () => {
+    expect(
+      normalizeSelectOptions([
+        'low',
+        { value: 'medium', label: 'Medium' },
+        { value: 3, label: 'High' },
+        { label: 'Missing value' },
+        null,
+      ]),
+    ).toEqual([
+      { value: 'low', label: 'low' },
+      { value: 'medium', label: 'Medium' },
+      { value: '3', label: 'High' },
+    ]);
+  });
+
+  it('returns an empty list for non-array input', () => {
+    expect(normalizeSelectOptions(undefined)).toEqual([]);
+    expect(normalizeSelectOptions({ value: 'x' })).toEqual([]);
   });
 });

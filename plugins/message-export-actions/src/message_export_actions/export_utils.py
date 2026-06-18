@@ -586,8 +586,6 @@ def _convert_markdown_to_pdf_pandoc(
 
         cmd = [
             "pandoc",
-            "--from",
-            "gfm",
             "--metadata",
             f"title={title}",
             "--pdf-engine",

@@ -17,6 +17,7 @@ export type ActionEffect =
 
 export interface RunActionContext {
   sessionId?: string;
+  connectionId?: string;
   sessionSummary?: SessionSummary;
   messageContext?: { index: number; message: ApiMessage };
   dialogValues?: Record<string, any>;
@@ -109,6 +110,9 @@ function buildActionInputs(options: {
         if (value === undefined && context.dialogValues && getDialogFieldSubmitEmpty(element, path)) {
           value = '';
         }
+      } else if (source.startsWith('$context.')) {
+        const path = source.slice('$context.'.length);
+        value = getFromPath(context, path);
       }
 
       if (value !== undefined) {

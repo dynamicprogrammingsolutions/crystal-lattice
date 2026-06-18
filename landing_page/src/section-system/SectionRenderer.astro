@@ -1,0 +1,14 @@
+---
+import { sectionDefinitionByType } from "./registry";
+
+const { sections } = Astro.props;
+---
+
+{sections.map((section) => {
+  const definition = sectionDefinitionByType.get(section.type);
+  if (!definition) {
+    return null;
+  }
+  const Component = definition.Component;
+  return <Component section={section} />;
+})}

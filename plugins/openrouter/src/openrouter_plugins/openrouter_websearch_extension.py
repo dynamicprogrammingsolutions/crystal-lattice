@@ -128,7 +128,7 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
             "openrouter_websearch": {
                 "enabled": True,
                 "plugin_id": str(plugin_id),
-                "engine": engine
+                "engine": engine,
             },
         }
 
@@ -157,7 +157,6 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
                 enhanced.append(msg)
 
         return enhanced
-
 
     # # ---- Stateless transforms ----
     # def to_native_messages(
@@ -347,6 +346,7 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
             out.append(item)
 
         return out
+
     #
     # # ---- Streaming helpers ----
     # def extract_delta(self, native_chunk: Dict[str, Any]) -> Dict[str, Any]:
@@ -395,14 +395,14 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
     #     state: Dict[str, Any],
     # ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
     #     delta = self.extract_delta(native_chunk or {})
-    #     accumulated = state.get("partial") or {}
+    #     accumulated = state.get("accumulator") or {}
     #     _partial, accumulated = self.process_delta(delta, None, accumulated)
     #
     #     return (
     #         partial_messages,
     #         final_messages,
     #         native_messages,
-    #         {**state, "partial": accumulated},
+    #         {**state, "accumulator": accumulated},
     #     )
     #
     # def finalize(
@@ -414,16 +414,16 @@ class OpenRouterWebSearchExtension(ProviderExtensionPlugin):
     #     """Attach accumulated citations to provider-native finals.
     #
     #     During streaming, URL citations are accumulated into
-    #     ``state["partial"]["url_citations"]`` from deltas. This
+    #     ``state["accumulator"]["url_citations"]`` from deltas. This
     #     method attaches those citations as ``annotations`` on the final
     #     provider-native messages so that :meth:`from_native_messages`
     #     can surface them into core metadata.
     #     """
     #
-    #     partial = state.get("partial") or {}
+    #     accumulator = state.get("accumulator") or {}
     #     citations = None
-    #     if isinstance(partial, dict):
-    #         val = partial.get("url_citations")
+    #     if isinstance(accumulator, dict):
+    #         val = accumulator.get("url_citations")
     #         if isinstance(val, list) and val:
     #             citations = list(val)
     #

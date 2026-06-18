@@ -1013,32 +1013,15 @@ class TerminalApplication:
         - tasks/20260130-openrouter-usage-round-cost-and-ui-schema/010-config-aware-ui-schema-and-conditions.md
         """
         core, base_config, session = self.require_session()
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        raw = metadata.get("overrides")
-        overrides = raw if isinstance(raw, dict) else {}
-        effective_config = resolve_request_config(base_config, overrides)
-
-        # Get tags and models from the core's resolved plugins
-        tags: list[str] = []
-        models: list[dict[str, Any]] = []
-
-        try:
-            if hasattr(core, "_resolve_plugins_for_config"):
-                provider, _, _, _, resolved_tags = core._resolve_plugins_for_config(effective_config)
-                tags = resolved_tags
-                if provider is not None and hasattr(core, "_get_models_for_config"):
-                    models = core._get_models_for_config(provider, effective_config)
-        except Exception:
-            pass  # Tags/models are optional
-
-        try:
-            elements = self._app.get_application_ui_schema(
-                config=effective_config, tags=tags, models=models
+        return [
+            el
+            for el in self._app.get_session_application_ui_schema_for_session(
+                core,
+                base_config,
+                session,
             )
-        except Exception:
-            return []
-
-        return [el for el in elements or [] if isinstance(el, dict)]
+            if isinstance(el, dict)
+        ]
 
     def get_last_assistant_message(self) -> Optional[Dict[str, Any]]:
         """Get the last assistant message from the active session.

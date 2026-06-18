@@ -1,0 +1,10 @@
+{
+  "module": "sleep_prevention_app",
+  "subdirectory": ".",
+  "entries": [
+    "sleep_prevention_app.SleepPreventionAppPlugin"
+  ],
+  "kinds": {
+    "sleep_prevention_app.SleepPreventionAppPlugin": "application"
+  }
+}

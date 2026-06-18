@@ -1,7 +1,6 @@
 # Tool Host Protocol (NDJSON)
 
-This repo supports out-of-process tool plugins executed by external “tool hosts”.
-The first implementation is the Node.js tool host used for JavaScript/TypeScript tools.
+This repo supports out-of-process tool plugins executed by external “tool hosts”. The first implementation is the Node.js tool host used for JavaScript/TypeScript tools.
 
 ## Transport
 
@@ -14,13 +13,13 @@ The first implementation is the Node.js tool host used for JavaScript/TypeScript
 
 All messages include a protocol version field:
 
-```json
+```
 { "v": 1, "id": "uuid", "method": "execute_tool", "params": { ... } }
 ```
 
 ### Request
 
-```json
+```
 { "v": 1, "id": "uuid", "method": "<method>", "params": { ... } }
 ```
 
@@ -31,7 +30,7 @@ All messages include a protocol version field:
 
 ### Response
 
-```json
+```
 { "v": 1, "id": "uuid", "ok": true, "result": { "value": <any>, "state": <object?> } }
 { "v": 1, "id": "uuid", "ok": false, "error": { "type": "Error", "detail": "...", "stack": "..." } }
 ```
@@ -42,7 +41,7 @@ When a request includes `params.state` (or when calling `init`), the host should
 
 Tool execution can emit streaming events before the final response:
 
-```json
+```
 { "v": 1, "id": "uuid", "event": { "type": "part", "payload": { ... } } }
 ```
 
@@ -50,7 +49,7 @@ For Node.js tools, events are produced by calling the `emit(event)` callback.
 
 The Python core maps `event.type == "part"` into partial chunks yielded as:
 
-```json
+```
 { "part": <payload> }
 ```
 
@@ -60,15 +59,11 @@ The Python core maps `event.type == "part"` into partial chunks yielded as:
 - `get_tool_schemas({"state": <object>}) -> [schema]`
 - `execute_tool({"tool_name": "...", "arguments": <object>, "state": <object>}) -> result`
 
-Note: the in-process Python tool API is now payload-first and can execute raw
-text / freeform tool calls. The v1 host protocol remains object-arguments-based
-for compatibility with existing Node-hosted tools. If host-side freeform/custom
-tool execution is added later, this page should be updated as part of that
-protocol change.
+Note: the in-process Python tool API is now payload-first and can execute raw text / freeform tool calls. The v1 host protocol remains object-arguments-based for compatibility with existing Node-hosted tools. If host-side freeform/custom tool execution is added later, this page should be updated as part of that protocol change.
 
 The `execute_tool` result is expected to be the same shape as a Python tool result:
 
-```json
+```
 { "success": true, "result": <any> }
 { "success": false, "error": "..." }
 ```
@@ -81,16 +76,11 @@ The `execute_tool` result is expected to be the same shape as a Python tool resu
 - `required_tags() -> [string]`
 - `format_tool_result({"result": <object>, "state": <object>}) -> string | provider-native envelope`
 
-`format_tool_result` should normally return a string. A tool host may opt into
-structured provider-native tool output by returning an explicit JSON object with
-`type: "provider_native_tool_result"` and a supported `format`, such as
-`openai.chat_completions` or `openai.responses`. The Python host preserves only
-that explicit envelope shape as structured model-facing content; ordinary
-objects are compatibility text.
+`format_tool_result` should normally return a string. A tool host may opt into structured provider-native tool output by returning an explicit JSON object with `type: "provider_native_tool_result"` and a supported `format`, such as `openai.chat_completions` or `openai.responses`. The Python host preserves only that explicit envelope shape as structured model-facing content; ordinary objects are compatibility text.
+
 - `format_tool_call_preview({"tool_name": "...", "arguments": <object>, "state": <object>}) -> string`
 - `to_display_format({"text": "...", "result": <object>, "state": <object>}) -> object`
 
 ## Node.js implementation
 
-The tool host runner lives at `packages/tool-host-node/host.mjs`.
-The Python proxy tool plugin lives at `core/python/agent_core/tool_hosts/node_tool_plugin.py`.
+The tool host runner lives at `packages/tool-host-node/host.mjs`. The Python proxy tool plugin lives at `core/python/agent_core/tool_hosts/node_tool_plugin.py`.

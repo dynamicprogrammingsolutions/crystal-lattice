@@ -113,6 +113,20 @@ Because `get_ui_elements` receives `tags` and `models`, the set of UI-exposed ke
 - `/help config` may list keys that do not appear in `/set` for a given session, and
 - keys may appear/disappear when you change the session’s effective config.
 
+Application plugins can also expose editable server-scoped settings via
+`get_ui_elements(...)` by returning config-like elements with
+`scope: "server"`. Frontends retrieve those controls from
+`GET /server/settings/ui-schema`. The application passes current server
+settings through UI context, so plugins can dynamically choose which
+server-scoped controls to return. Those values are persisted by
+`AgentApplication` server settings helpers and are not part of
+`AgentCore.get_config_schema()`.
+
+Use server-scoped UI elements for user-editable, server-global settings. Use
+plugin-owned sidecar files only for private plugin state such as caches,
+credentials, or implementation metadata that is not meant to be edited through
+the generic settings UI.
+
 ## Application-level schema (terminal app)
 
 The terminal app also exposes and renders a separate schema for keys under `config["application"]` (settings consumed by the terminal app itself, not by plugins). See `application/python/agent_terminal_app/terminal_app.py` (`TerminalApplication.get_application_config_schema`).
