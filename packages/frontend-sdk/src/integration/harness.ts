@@ -177,6 +177,10 @@ export async function startBackendServer(options: {
     cwd: options.cwd,
     env: {
       ...process.env,
+	      SERVER_HOST: '127.0.0.1',
+	      SERVER_PORT: String(port),
+	      PORT: String(port),
+	      BRIDGE_LOCAL_HTTP_BASE: baseUrl,
       ...(options.env || {}),
       REPO_ROOT: repoRoot,
       BUILTIN_PLUGINS: path.join(repoRoot, 'plugins'),
@@ -650,7 +654,7 @@ export async function startBridgeDocker(): Promise<StartedBridge> {
 
   await runCommand({
     cmd: composeCmd,
-    args: [...baseArgs, '-f', composeFile, 'up', '-d'],
+    args: [...baseArgs, '-f', composeFile, 'up', '-d', '--build'],
     cwd,
   });
 

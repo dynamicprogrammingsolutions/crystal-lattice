@@ -28,29 +28,122 @@ defmodule Bridge.AppChannel do
     end
   end
 
-  defp await_http_response(socket, request_id) do
+  defp max_pending_http_requests() do
+    case System.get_env("BRIDGE_MAX_PENDING_HTTP_REQUESTS") do
+      nil ->
+        128
+
+      "" ->
+        128
+
+      value ->
+        case Integer.parse(value) do
+          {n, _} when n > 0 -> n
+          _ -> 128
+        end
+    end
+  end
+
+  defp pending_http_waiters(socket) do
+    socket.assigns[:pending_http_waiters] || MapSet.new()
+  end
+
+  defp start_http_response_waiter(socket, request_id, server_pid, server_message) do
+    waiters = pending_http_waiters(socket)
+
+    if MapSet.size(waiters) >= max_pending_http_requests() do
+      {:reply, {:error, %{reason: "too_many_requests"}}, socket}
+    else
+      channel_pid = self()
+      socket_ref = socket_ref(socket)
+
+      case Task.Supervisor.start_child(Bridge.HttpProxyTaskSupervisor, fn ->
+             await_http_response(channel_pid, socket_ref, request_id, server_pid, server_message)
+           end) do
+        {:ok, _pid} ->
+          socket = assign(socket, :pending_http_waiters, MapSet.put(waiters, request_id))
+          {:noreply, socket}
+
+        {:error, reason} ->
+          Logger.warning(
+            "bridge app failed to start response waiter request_id=#{request_id} reason=#{inspect(reason)}"
+          )
+
+          {:reply, {:error, %{reason: "internal_error"}}, socket}
+      end
+    end
+  end
+
+  defp await_http_response(channel_pid, socket_ref, request_id, server_pid, server_message) do
+    topic = "tunnel:request:#{request_id}"
+    Phoenix.PubSub.subscribe(Bridge.PubSub, topic)
+
+    try do
+      case safe_send(server_pid, server_message) do
+        :ok ->
+          monitor_ref = Process.monitor(channel_pid)
+          await_http_response_loop(channel_pid, socket_ref, request_id, topic, monitor_ref)
+
+        :error ->
+          Phoenix.PubSub.unsubscribe(Bridge.PubSub, topic)
+
+          send(channel_pid, {
+            :http_response_reply,
+            request_id,
+            socket_ref,
+            :error,
+            %{reason: "server_not_found"}
+          })
+      end
+    after
+      send(channel_pid, {:http_response_waiter_done, request_id})
+    end
+  end
+
+  defp await_http_response_loop(channel_pid, socket_ref, request_id, topic, monitor_ref) do
     receive do
       {:http_response, response} ->
-        Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
-        {:reply, {:ok, response}, socket}
+        Phoenix.PubSub.unsubscribe(Bridge.PubSub, topic)
+        Process.demonitor(monitor_ref, [:flush])
+        send(channel_pid, {:http_response_reply, request_id, socket_ref, :ok, response})
 
       {:http_response_init, payload} ->
-        push(socket, "http_response_init", payload)
-        await_http_response(socket, request_id)
+        send(channel_pid, {:http_response_push, request_id, "http_response_init", payload})
+        await_http_response_loop(channel_pid, socket_ref, request_id, topic, monitor_ref)
 
       {:http_response_chunk, payload} ->
-        push(socket, "http_response_chunk", payload)
-        await_http_response(socket, request_id)
+        send(channel_pid, {:http_response_push, request_id, "http_response_chunk", payload})
+        await_http_response_loop(channel_pid, socket_ref, request_id, topic, monitor_ref)
 
       {:http_response_end, payload} ->
-        push(socket, "http_response_end", payload)
-        Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
-        {:reply, {:ok, %{type: "http_response_chunked", request_id: request_id}}, socket}
+        Phoenix.PubSub.unsubscribe(Bridge.PubSub, topic)
+        Process.demonitor(monitor_ref, [:flush])
+        send(channel_pid, {:http_response_push, request_id, "http_response_end", payload})
+
+        send(
+          channel_pid,
+          {:http_response_reply, request_id, socket_ref, :ok,
+           %{type: "http_response_chunked", request_id: request_id}}
+        )
+
+      {:DOWN, ^monitor_ref, :process, ^channel_pid, _reason} ->
+        Phoenix.PubSub.unsubscribe(Bridge.PubSub, topic)
     after
       http_timeout_ms() ->
-        Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
-        Logger.warning("bridge app request timed out while awaiting response request_id=#{request_id}")
-        {:reply, {:error, %{reason: "timeout"}}, socket}
+        Phoenix.PubSub.unsubscribe(Bridge.PubSub, topic)
+        Process.demonitor(monitor_ref, [:flush])
+
+        Logger.warning(
+          "bridge app request timed out while awaiting response request_id=#{request_id}"
+        )
+
+        send(channel_pid, {
+          :http_response_reply,
+          request_id,
+          socket_ref,
+          :error,
+          %{reason: "timeout"}
+        })
     end
   end
 
@@ -208,16 +301,12 @@ defmodule Bridge.AppChannel do
 
         case Bridge.ServerRegistry.get_server(session.server_id) do
           {:ok, server_info} ->
-            Phoenix.PubSub.subscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
-
-            case safe_send(server_info.channel_pid, {:http_request, request}) do
-              :ok ->
-                await_http_response(socket, request_id)
-
-              :error ->
-                Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
-                {:reply, {:error, %{reason: "server_not_found"}}, socket}
-            end
+            start_http_response_waiter(
+              socket,
+              request_id,
+              server_info.channel_pid,
+              {:http_request, request}
+            )
 
           {:error, :not_found} ->
             {:reply, {:error, %{reason: "server_not_found"}}, socket}
@@ -335,16 +424,12 @@ defmodule Bridge.AppChannel do
 
         case Bridge.ServerRegistry.get_server(session.server_id) do
           {:ok, server_info} ->
-            Phoenix.PubSub.subscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
-
-            case safe_send(server_info.channel_pid, {:http_request_end, request}) do
-              :ok ->
-                await_http_response(socket, request_id)
-
-              :error ->
-                Phoenix.PubSub.unsubscribe(Bridge.PubSub, "tunnel:request:#{request_id}")
-                {:reply, {:error, %{reason: "server_not_found"}}, socket}
-            end
+            start_http_response_waiter(
+              socket,
+              request_id,
+              server_info.channel_pid,
+              {:http_request_end, request}
+            )
 
           {:error, :not_found} ->
             {:reply, {:error, %{reason: "server_not_found"}}, socket}
@@ -353,6 +438,24 @@ defmodule Bridge.AppChannel do
       {:error, :not_found} ->
         {:reply, {:error, %{reason: "invalid_session"}}, socket}
     end
+  end
+
+  @impl true
+  def handle_info({:http_response_push, _request_id, event, payload}, socket) do
+    push(socket, event, payload)
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:http_response_reply, _request_id, socket_ref, status, payload}, socket) do
+    reply(socket_ref, {status, payload})
+    {:noreply, socket}
+  end
+
+  @impl true
+  def handle_info({:http_response_waiter_done, request_id}, socket) do
+    waiters = pending_http_waiters(socket)
+    {:noreply, assign(socket, :pending_http_waiters, MapSet.delete(waiters, request_id))}
   end
 
   @impl true
