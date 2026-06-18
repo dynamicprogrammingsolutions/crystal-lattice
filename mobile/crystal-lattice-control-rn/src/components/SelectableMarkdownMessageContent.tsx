@@ -7,6 +7,22 @@ import { useTheme } from '../theme';
 import type { MarkdownMessageVariant } from './MarkdownMessageContent';
 import { splitMarkdownIntoSegments, type MarkdownSegment } from './markdownSegments';
 
+const LIST_STYLE_TUNING = {
+  marginTop: 2,
+  marginBottom: 2,
+  // Unordered top-level indent uses bulletSize / 2 + gapWidth.
+  // Increasing this also makes the bullet visually larger.
+  bulletSize: 3,
+  // Space between marker and content. This moves top-level list text right,
+  // but does not add left padding before unordered bullets.
+  gapWidth: 11,
+  // Nested list indent increment. In enriched-markdown this does not affect
+  // top-level unordered bullets, but it does affect deeper levels.
+  marginLeft: 37,
+  // Ordered marker width is measured using the list font size/family and this weight.
+  markerFontWeight: 'normal',
+} as const;
+
 export interface SelectableMarkdownMessageContentProps {
   text: string;
   variant?: MarkdownMessageVariant;
@@ -128,12 +144,16 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
       },
       list: {
         ...baseTextBlock,
-        marginTop: 2,
-        marginBottom: 2,
+        fontFamily: '',
+        fontWeight: '',
+        marginTop: LIST_STYLE_TUNING.marginTop,
+        marginBottom: LIST_STYLE_TUNING.marginBottom,
         bulletColor: baseTextColor,
+        bulletSize: LIST_STYLE_TUNING.bulletSize,
         markerColor: baseTextColor,
-        gapWidth: 10,
-        marginLeft: 10,
+        markerFontWeight: LIST_STYLE_TUNING.markerFontWeight,
+        gapWidth: LIST_STYLE_TUNING.gapWidth,
+        marginLeft: LIST_STYLE_TUNING.marginLeft,
       },
       code: {
         fontFamily: 'Courier',

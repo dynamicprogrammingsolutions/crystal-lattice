@@ -212,11 +212,12 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
       lineHeight: Math.round(lightTheme.typography.fontSize.message * 1.25),
       marginTop: 2,
       marginBottom: 2,
-      gapWidth: 10,
+      bulletSize: 6,
+      markerFontWeight: 'normal',
+      gapWidth: 20,
       marginLeft: 10,
     }),
   );
-  expect(enrichedMarkdown.props.markdownStyle.list.markerFontWeight).toBeUndefined();
 });
 
 
