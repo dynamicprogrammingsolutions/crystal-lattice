@@ -223,7 +223,7 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
 
   expect(enrichedMarkdown.props.markdown).toBe('Hello **selectable** [world](https://example.com).');
   expect(enrichedMarkdown.props.selectable).toBe(true);
-  expect(enrichedMarkdown.props.flavor).toBe('commonmark');
+  expect(enrichedMarkdown.props.flavor).toBe('github');
   expect(enrichedMarkdown.props.onLinkPress).toEqual(expect.any(Function));
   expect(enrichedMarkdown.props.markdownStyle.paragraph).toEqual(
     expect.objectContaining({
@@ -277,6 +277,33 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
       orderedGapWidth: 10,
       orderedMarginLeft: 27,
       orderedMarkerMarginBefore: 0,
+    }),
+  );
+  expect(enrichedMarkdown.props.markdownStyle.taskList).toEqual(
+    expect.objectContaining({
+      checkedColor: lightTheme.primary,
+      borderColor: lightTheme.border,
+      checkmarkColor: lightTheme.textOnPrimary,
+      checkedTextColor: lightTheme.text,
+      checkedStrikethrough: false,
+    }),
+  );
+  expect(enrichedMarkdown.props.markdownStyle.table).toEqual(
+    expect.objectContaining({
+      fontSize: lightTheme.typography.fontSize.message,
+      lineHeight: Math.round(lightTheme.typography.fontSize.message * 1.25),
+      color: lightTheme.text,
+      marginTop: 8,
+      marginBottom: 12,
+      headerBackgroundColor: lightTheme.surfaceAlt,
+      headerTextColor: lightTheme.text,
+      rowEvenBackgroundColor: lightTheme.surface,
+      rowOddBackgroundColor: lightTheme.surfaceAlt,
+      borderColor: lightTheme.border,
+      borderWidth: 1,
+      borderRadius: 6,
+      cellPaddingHorizontal: 10,
+      cellPaddingVertical: 7,
     }),
   );
 });

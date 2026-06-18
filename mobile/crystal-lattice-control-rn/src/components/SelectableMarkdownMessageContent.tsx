@@ -161,6 +161,30 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
         orderedMarginLeft: LIST_STYLE_TUNING.orderedMarginLeft,
         orderedMarkerMarginBefore: LIST_STYLE_TUNING.orderedMarkerMarginBefore,
       },
+      taskList: {
+        checkedColor: theme.primary,
+        borderColor: theme.border,
+        checkmarkColor: theme.textOnPrimary,
+        checkedTextColor: baseTextColor,
+        checkedStrikethrough: false,
+      },
+      table: {
+        ...baseTextBlock,
+        fontFamily: '',
+        fontWeight: '',
+        marginTop: 8,
+        marginBottom: 12,
+        headerFontFamily: '',
+        headerBackgroundColor: theme.surfaceAlt,
+        headerTextColor: baseTextColor,
+        rowEvenBackgroundColor: theme.surface,
+        rowOddBackgroundColor: theme.surfaceAlt,
+        borderColor: theme.border,
+        borderWidth: 1,
+        borderRadius: 6,
+        cellPaddingHorizontal: 10,
+        cellPaddingVertical: 7,
+      },
       code: {
         fontFamily: 'Courier',
         fontSize: messageFontSize,
@@ -202,7 +226,7 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
         markdownStyle={markdownStyle}
         onLinkPress={openLink}
         selectable
-        flavor="commonmark"
+        flavor="github"
         md4cFlags={{ underline: false, latexMath: false }}
         testID="selectable-markdown-prose"
       />
