@@ -2156,8 +2156,17 @@ class AgentApplication:
         overlay.close()
 
     def close(self) -> None:
-        """Release process-global runtime env overlay owned by this app."""
+        """Release plugin and process-global runtime resources owned by this app."""
 
+        for wrapper in list(self._app_plugins.values()):
+            try:
+                wrapper.close()
+            except Exception as exc:  # pragma: no cover - defensive cleanup
+                self._logger.warning(
+                    "application_plugin_close_failed",
+                    plugin_id=wrapper.plugin_id,
+                    error=str(exc),
+                )
         self._runtime_store.close()
         self._async_runtime_host.close()
         if self._runtime_env_finalizer.alive:

@@ -97,6 +97,18 @@ class ApplicationPlugin(Protocol):
         """Execute an action with validated parameters."""
 ```
 
+Plugins that hold process resources may also implement an optional cleanup
+hook:
+
+```python
+def close(self, state: Dict[str, Any]) -> None:
+    ...
+```
+
+`AgentApplication.close()` calls this hook when present. The hook should be
+idempotent and release resources owned by the plugin, such as background
+processes or OS handles.
+
 ---
 
 ## UI context in `get_ui_elements`
@@ -425,6 +437,10 @@ Settings lifecycle handlers should be idempotent. `server_settings_changed` may
 also run during startup replay when persisted server settings already exist, so
 plugins should apply the desired state rather than assuming every call came from
 a fresh user interaction.
+
+The built-in `sleep-prevention-app` plugin is a concrete example of this
+pattern: it exposes a `sleep_prevention_enabled` server setting and applies or
+releases the local OS sleep-prevention hold from `server_settings_changed`.
 
 ---
 

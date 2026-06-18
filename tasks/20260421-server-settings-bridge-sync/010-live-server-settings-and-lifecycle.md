@@ -9,7 +9,7 @@ Build a complete live server-settings slice that is testable from the mobile UI 
 - [x] Add live server settings HTTP routes that mirror the existing session settings routes.
 - [x] Extend the frontend SDK with server settings backend methods and a live server settings controller modeled after the session settings controller.
 - [x] Add a minimal mobile server settings modal reachable from the connected sessions screen.
-- [ ] Implement the first application plugin consumer: sleep prevention with `caffeinate` on macOS and `wakepy` elsewhere.
+- [x] Implement the first application plugin consumer: sleep prevention with `caffeinate` on macOS and `wakepy` elsewhere.
 - [x] Add tests and docs covering the new server settings and lifecycle model.
 
 Parent Task: `tasks/20260421-server-settings-bridge-sync/000-main.md`
@@ -441,4 +441,5 @@ Added during follow-up implementation.
 - Canonical plugin docs in `plugins/docs` were updated for the context-aware application UI contract and server settings schema endpoint.
 - Follow-up verification passed for targeted Python tests, SDK tests, React hook tests, mobile component tests, and the real-backend mobile component integration. Mobile `tsc` still fails on the pre-existing `AnimatedSplashScreen`/`AppLogoProps` issue.
 - After review, session application UI schema assembly was centralized in `AgentApplication`; HTTP and terminal callers now delegate instead of resolving config/tags/models themselves.
+- The remaining sleep-prevention consumer was split into and completed through `tasks/20260421-server-settings-bridge-sync/015-sleep-prevention-app.md`.
 - Snapshot popup follow-up extracted the snapshots modal to the shared popup frame and restored the pre-`25d3b9aa` vertical snapshot item layout while keeping per-snapshot action buttons horizontal.
