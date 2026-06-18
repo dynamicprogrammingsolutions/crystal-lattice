@@ -9,7 +9,7 @@ Introduce a reusable selectable text component for non-markdown text in the mobi
 - [x] Apply it to session footer/title/subtitle text where long-press selection is useful.
 - [x] Handle text that is also clickable/tappable, including session rows and link-like labels.
 - [x] Preserve current styling and layout.
-- [ ] Manually verify long-press selection does not break normal tap/click behavior.
+- [x] Manually verify long-press selection does not break normal tap/click behavior.
 - [x] Add focused tests for rendered states where feasible.
 
 Parent Task: `tasks/20260608-selectable-react-native-text/000-main.md`

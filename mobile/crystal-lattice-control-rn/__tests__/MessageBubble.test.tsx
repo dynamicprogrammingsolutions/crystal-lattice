@@ -340,6 +340,10 @@ test('assistant markdown mode preserves syntax-highlighted fenced code blocks', 
   });
 
   const enrichedMarkdown = renderer.root.findAll((node) => String(node.type) === 'EnrichedMarkdownText');
+  const selectableCodeBlocks = renderer.root.findAll((node) => (
+    String(node.type) === 'View' && node.props.testID === 'selectable-markdown-code-block'
+  ));
+  const selectableTextViews = renderer.root.findAll((node) => String(node.type) === 'SelectableTextView');
   const syntaxHighlighters = renderer.root.findAll((node) => String(node.type) === 'SyntaxHighlighter');
 
   expect(enrichedMarkdown).toHaveLength(2);
@@ -347,7 +351,8 @@ test('assistant markdown mode preserves syntax-highlighted fenced code blocks', 
     'Intro paragraph.',
     'Outro paragraph.',
   ]);
-  expect(syntaxHighlighters).toHaveLength(1);
-  expect(syntaxHighlighters[0].props.language).toBe('ts');
-  expect(syntaxHighlighters[0].props.children).toBe('const value = 1;\n');
+  expect(selectableCodeBlocks).toHaveLength(1);
+  expect(selectableTextViews).toHaveLength(1);
+  expect(selectableTextViews[0].props.menuOptions).toEqual(['Copy']);
+  expect(syntaxHighlighters).toHaveLength(0);
 });

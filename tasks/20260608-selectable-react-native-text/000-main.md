@@ -5,9 +5,9 @@ Improve text selection in the React Native mobile chat UI so users can long-pres
 ## Task checklist
 
 - [x] `tasks/20260608-selectable-react-native-text/010-replace-markdown-renderer.md`
-- [ ] `tasks/20260608-selectable-react-native-text/020-selectable-highlighted-code-blocks.md`
+- [x] `tasks/20260608-selectable-react-native-text/020-selectable-highlighted-code-blocks.md`
   - Depends on `tasks/20260608-selectable-react-native-text/010-replace-markdown-renderer.md`
-- [ ] `tasks/20260608-selectable-react-native-text/030-selectable-plain-text-surfaces.md`
+- [x] `tasks/20260608-selectable-react-native-text/030-selectable-plain-text-surfaces.md`
   - Depends on `tasks/20260608-selectable-react-native-text/010-replace-markdown-renderer.md`
 
 ## Background
