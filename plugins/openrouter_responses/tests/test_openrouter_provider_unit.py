@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from openrouter_responses_plugins.openrouter_responses_provider import OpenRouterResponsesProvider
+from openrouter_responses_plugins.openrouter_responses_provider import (
+    OpenRouterResponsesProvider,
+)
 
 
 def test_provider_name_and_version():
@@ -118,7 +120,11 @@ def test_initialize_request_with_required_fields():
     }
     state = provider.init(config)
     native_messages = [
-        {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Hello"}]}
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Hello"}],
+        }
     ]
 
     native_after, new_state = provider.initialize_request(native_messages, state)
@@ -198,7 +204,11 @@ def test_from_native_messages():
     """Convert provider-native messages to core format."""
     provider = OpenRouterResponsesProvider()
     native_messages = [
-        {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Test"}]},
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Test"}],
+        },
         {
             "type": "message",
             "role": "assistant",
@@ -221,8 +231,15 @@ def test_from_native_messages_ignores_reasoning_field():
     """Base provider conversion ignores reasoning; extensions handle it."""
     provider = OpenRouterResponsesProvider()
     native_messages = [
-        {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Answer"}]},
-        {"type": "reasoning", "summary": [{"type": "summary_text", "text": "Thought process"}]},
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Answer"}],
+        },
+        {
+            "type": "reasoning",
+            "summary": [{"type": "summary_text", "text": "Thought process"}],
+        },
     ]
     state = {}
 
@@ -235,14 +252,16 @@ def test_from_native_messages_ignores_reasoning_field():
     assert "reasoning" not in messages[0]
 
 
-def test_from_native_messages_aggregates_function_calls_to_last_assistant_message() -> None:
+def test_from_native_messages_aggregates_function_calls_to_last_assistant_message() -> (
+    None
+):
     provider = OpenRouterResponsesProvider()
     native_messages = [
         {
             "type": "function_call",
             "call_id": "call_1",
             "name": "add",
-            "arguments": "{\"a\":1}",
+            "arguments": '{"a":1}',
             "_metadata": {"response_id": "resp_1"},
         },
         {
@@ -262,7 +281,9 @@ def test_from_native_messages_aggregates_function_calls_to_last_assistant_messag
     assert md.get("native_indices") == [0, 1]
 
 
-def test_from_native_messages_assigns_segment_native_indices_to_final_answer_assistant() -> None:
+def test_from_native_messages_assigns_segment_native_indices_to_final_answer_assistant() -> (
+    None
+):
     provider = OpenRouterResponsesProvider()
     native_messages = [
         {
@@ -296,11 +317,16 @@ def test_from_native_messages_assigns_segment_native_indices_to_final_answer_ass
     assert md.get("phase") == "final_answer"
     assert md.get("native_indices") == [0, 1, 2]
     phase_messages = md.get("phase_messages") or []
-    assert [entry.get("phase") for entry in phase_messages] == ["commentary", "final_answer"]
+    assert [entry.get("phase") for entry in phase_messages] == [
+        "commentary",
+        "final_answer",
+    ]
     assert [entry.get("content") for entry in phase_messages] == ["thinking", "answer"]
 
 
-def test_from_native_messages_assigns_segment_native_indices_to_tool_call_assistant() -> None:
+def test_from_native_messages_assigns_segment_native_indices_to_tool_call_assistant() -> (
+    None
+):
     provider = OpenRouterResponsesProvider()
     native_messages = [
         {
@@ -319,7 +345,7 @@ def test_from_native_messages_assigns_segment_native_indices_to_tool_call_assist
             "type": "function_call",
             "call_id": "call_1",
             "name": "add",
-            "arguments": "{\"a\":1}",
+            "arguments": '{"a":1}',
             "_metadata": {"response_id": "resp_1"},
         },
     ]
@@ -345,8 +371,16 @@ def test_validate_message_list_valid():
     """Validate message list accepts valid messages."""
     provider = OpenRouterResponsesProvider()
     messages = [
-        {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Hello"}]},
-        {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Hi"}]},
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Hello"}],
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Hi"}],
+        },
     ]
 
     provider._validate_message_list(messages)
@@ -356,7 +390,11 @@ def test_validate_message_list_invalid_type():
     """Validate message list raises on non-dict items."""
     provider = OpenRouterResponsesProvider()
     messages = [
-        {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Hello"}]},
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Hello"}],
+        },
         "invalid",
     ]
 
@@ -385,9 +423,13 @@ def test_finalize_with_accumulated_content():
     """Finalize is a no-op for `/responses` streaming."""
     provider = OpenRouterResponsesProvider()
     native_messages = [
-        {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Hi"}]}
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Hi"}],
+        }
     ]
-    state = {"partial": {"role": "assistant", "content": "Response"}}
+    state = {"accumulator": {"role": "assistant", "content": "Response"}}
 
     finals, new_natives, new_state = provider.finalize(native_messages, state)
 
@@ -399,9 +441,13 @@ def test_finalize_without_partial():
     """Finalize returns empty when no partial accumulated."""
     provider = OpenRouterResponsesProvider()
     native_messages = [
-        {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "Hi"}]}
+        {
+            "type": "message",
+            "role": "user",
+            "content": [{"type": "input_text", "text": "Hi"}],
+        }
     ]
-    state = {"partial": None}
+    state = {"accumulator": None}
 
     finals, new_natives, new_state = provider.finalize(native_messages, state)
 

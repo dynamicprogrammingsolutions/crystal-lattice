@@ -49,9 +49,8 @@ class ApplicationPlugin(Protocol):
         self,
         state: Dict[str, Any],
         config: Optional[Dict[str, Any]] = None,
-        tags: Optional[List[str]] = None,
-        models: Optional[List[Dict[str, Any]]] = None,
-    ) :
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """Return UI element definitions contributed by this plugin.
 
         Elements describe configuration controls and display elements as well
@@ -60,8 +59,9 @@ class ApplicationPlugin(Protocol):
         such as the ``"plugin"`` identifier.
 
         The ``state`` argument is the plugin state dictionary returned from
-        :meth:`init`. Optional ``config``, ``tags``, and ``models`` allow
-        config-aware UI (e.g. when called with effective session config).
+        :meth:`init`. ``config`` is the effective configuration for the UI
+        surface when available. ``context`` contains additional application
+        context such as tags, models, session information, or server settings.
         """
 
     def get_commands(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -152,6 +152,41 @@ class ApplicationPluginWrapper:
             state = {}
         self._state = state
 
+    def close(self) -> None:
+        """Release resources held by the underlying plugin when supported."""
+
+        fn = getattr(self.plugin, "close", None)
+        if not callable(fn):
+            return
+
+        try:
+            sig = inspect.signature(fn)
+        except (TypeError, ValueError):
+            fn(self._state)
+            return
+
+        params_sig = list(sig.parameters.values())
+        if any(
+            p.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+            for p in params_sig
+        ):
+            fn(self._state)
+            return
+
+        positional = [
+            p
+            for p in params_sig
+            if p.kind
+            in (
+                inspect.Parameter.POSITIONAL_ONLY,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            )
+        ]
+        if positional:
+            fn(self._state)
+        else:
+            fn()
+
     @property
     def state(self) -> Dict[str, Any]:
         """Return the current plugin state dictionary."""
@@ -170,10 +205,82 @@ class ApplicationPluginWrapper:
             return []
         return [a for a in actions if isinstance(a, dict)]
 
-    def get_ui_elements(self, config: Optional[Dict[str, Any]] = None, tags: Optional[List[str]] = None, models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
+    def get_ui_elements(
+        self,
+        config: Optional[Dict[str, Any]] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """Return sanitized UI element definitions from the plugin."""
 
-        elements = self.plugin.get_ui_elements(self._state, config, tags, models)
+        fn = getattr(self.plugin, "get_ui_elements", None)
+        if not callable(fn):
+            return []
+
+        safe_config: Dict[str, Any] = dict(config or {})
+        safe_context: Dict[str, Any] = dict(context or {})
+        tags = safe_context.get("tags")
+        models = safe_context.get("models")
+        if not isinstance(tags, list):
+            tags = []
+        if not isinstance(models, list):
+            models = []
+
+        try:
+            sig = inspect.signature(fn)
+        except (TypeError, ValueError):
+            elements = fn(self._state, safe_config, safe_context)
+        else:
+            params_sig = list(sig.parameters.values())
+            has_var_keyword = any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in params_sig
+            )
+            has_var_positional = any(
+                p.kind == inspect.Parameter.VAR_POSITIONAL for p in params_sig
+            )
+            positional = [
+                p
+                for p in params_sig
+                if p.kind
+                in (
+                    inspect.Parameter.POSITIONAL_ONLY,
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                )
+            ]
+
+            if has_var_positional:
+                args = [self._state, safe_config]
+                kwargs = {"context": safe_context} if has_var_keyword else {}
+                elements = fn(*args, **kwargs)
+            elif not positional:
+                kwargs = {"context": safe_context} if has_var_keyword else {}
+                elements = fn(**kwargs)
+            else:
+                names = [p.name for p in positional]
+                accepts_context_kw = has_var_keyword or "context" in sig.parameters
+                accepts_tags_models = "tags" in sig.parameters or "models" in sig.parameters
+
+                if names[0] == "config":
+                    # New no-state shape: get_ui_elements(config, context=None)
+                    if accepts_context_kw:
+                        elements = fn(safe_config, context=safe_context)
+                    elif len(positional) >= 2:
+                        elements = fn(safe_config, safe_context)
+                    else:
+                        elements = fn(safe_config)
+                elif accepts_context_kw:
+                    # Preferred application shape:
+                    # get_ui_elements(state, config=None, context=None)
+                    elements = fn(self._state, safe_config, context=safe_context)
+                elif "context" in names:
+                    elements = fn(self._state, safe_config, safe_context)
+                elif accepts_tags_models or len(positional) >= 4:
+                    # Legacy shape:
+                    # get_ui_elements(state, config=None, tags=None, models=None)
+                    elements = fn(self._state, safe_config, tags, models)
+                elif len(positional) >= 2:
+                    elements = fn(self._state, safe_config)
+                else:
+                    elements = fn(self._state)
         if not isinstance(elements, list):
             return []
         return [e for e in elements if isinstance(e, dict)]

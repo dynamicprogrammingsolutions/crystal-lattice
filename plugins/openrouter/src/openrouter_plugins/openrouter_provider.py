@@ -420,7 +420,7 @@ class OpenRouterProvider(ProviderPlugin):
                 "headers": headers,
                 "timeout": timeout,
             },
-            "partial": None,
+            "accumulator": None,
         }
 
     # ---------- Message conversion ----------
@@ -439,9 +439,7 @@ class OpenRouterProvider(ProviderPlugin):
             raw_metadata = msg.get("metadata")
             metadata = raw_metadata if isinstance(raw_metadata, dict) else {}
             native_tool_content = (
-                openai_chat_tool_result_content(tool_result)
-                if role == "tool"
-                else None
+                openai_chat_tool_result_content(tool_result) if role == "tool" else None
             )
             content = raw_content
             if not isinstance(content, str):
@@ -573,9 +571,8 @@ class OpenRouterProvider(ProviderPlugin):
                         continue
                     content_index = raw_source.get("content_index")
                     multipart_part = raw_source.get("multipart_part")
-                    if (
-                        isinstance(content_index, int)
-                        and isinstance(multipart_part, dict)
+                    if isinstance(content_index, int) and isinstance(
+                        multipart_part, dict
                     ):
                         source_by_index[content_index] = multipart_part
 
@@ -950,7 +947,7 @@ class OpenRouterProvider(ProviderPlugin):
         self, delta: Dict[str, Any], accumulated
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
-        Reduce a delta dict into a new partial accumulator, and optionally a final.
+        Reduce a delta dict into a current partial and an updated accumulator.
         Returns (partial_message_or_none, final_message_or_none, new_accumulated).
         """
         content = delta.get("message") or delta.get("delta") or {}
@@ -984,9 +981,10 @@ class OpenRouterProvider(ProviderPlugin):
     ]:
         # print("chunk:", native_chunk)
         partial, accumulated = self.process_delta(
-            delta=self.extract_delta(native_chunk), accumulated=state.get("partial", {})
+            delta=self.extract_delta(native_chunk),
+            accumulated=state.get("accumulator", {}),
         )
-        new_state = {**state, "partial": accumulated}
+        new_state = {**state, "accumulator": accumulated}
         return_values = [partial] if partial else [], [], native_messages, new_state
         return return_values
 
@@ -995,10 +993,10 @@ class OpenRouterProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        current_partial = state.get("partial", None)
-        finals = [current_partial] if current_partial else []
+        accumulator = state.get("accumulator", None)
+        finals = [accumulator] if accumulator else []
         full_history = (
-            [*native_messages, current_partial] if current_partial else native_messages
+            [*native_messages, accumulator] if accumulator else native_messages
         )
         return finals, full_history, state
 

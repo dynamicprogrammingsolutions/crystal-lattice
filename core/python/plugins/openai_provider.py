@@ -61,7 +61,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
                 self._inflight_requests[request_id] = runtime
         return runtime
 
-    def _clear_inflight(self, request_id: str | None, runtime: _InflightRequest) -> None:
+    def _clear_inflight(
+        self, request_id: str | None, runtime: _InflightRequest
+    ) -> None:
         runtime.done.set()
         if isinstance(request_id, str) and request_id:
             with self._inflight_lock:
@@ -135,7 +137,7 @@ class OpenAICompatibleProvider(ProviderPlugin):
 
         # Provider state is an opaque dict owned by the provider and its
         # extensions/features. This implementation only needs configuration,
-        # request metadata, and a partial accumulator for streaming.
+        # request metadata, and a streaming accumulator.
         return {"config": config}
 
     def initialize_request(
@@ -168,9 +170,8 @@ class OpenAICompatibleProvider(ProviderPlugin):
                 "headers": headers,
                 "timeout": timeout,
             },
-            "partial": None,
+            "accumulator": None,
         }
-
 
     # ---------- Message conversion ----------
     def to_native_messages(
@@ -185,7 +186,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
             internal_md.pop("native_indices", None)
 
             if internal_md:
-                native.append({"role": role, "content": content, "_metadata": internal_md})
+                native.append(
+                    {"role": role, "content": content, "_metadata": internal_md}
+                )
             else:
                 native.append({"role": role, "content": content})
         return native
@@ -239,7 +242,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
         state: Dict[str, Any],
         *,
         request_id: str | None = None,
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         request = state["request"]
         # Validate native_messages are proper message objects
         self._validate_message_list(native_messages)
@@ -416,7 +421,9 @@ class OpenAICompatibleProvider(ProviderPlugin):
                 if isinstance(exc, ProviderRequestCancelled):
                     raise exc
                 if isinstance(exc, requests.RequestException):
-                    raise RuntimeError(f"OpenAI-compatible stream failed: {exc}") from exc
+                    raise RuntimeError(
+                        f"OpenAI-compatible stream failed: {exc}"
+                    ) from exc
                 raise RuntimeError(f"OpenAI-compatible stream failed: {exc}") from exc
         finally:
             self._clear_inflight(request_id, runtime)
@@ -478,22 +485,25 @@ class OpenAICompatibleProvider(ProviderPlugin):
         native_chunk: Dict[str, Any],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         """Process a streaming chunk into provider-native partials.
 
         Pattern:
         - Extract a delta from the chunk
         - Reduce it into a partial fragment and update the accumulator
         - Do not emit finals or modify history; :meth:`finalize` is responsible
-          for producing the final message from the accumulated partial.
+          for producing the final message from the accumulator.
         """
         partial_msg, accumulated = self.process_delta(
-            delta=self.extract_delta(native_chunk), accumulated=state.get("partial", {})
+            delta=self.extract_delta(native_chunk),
+            accumulated=state.get("accumulator", {}),
         )
 
         partials = [partial_msg] if partial_msg else []
         finals: List[Dict[str, Any]] = []
-        new_state = {**state, "partial": accumulated}
+        new_state = {**state, "accumulator": accumulated}
 
         return partials, finals, native_messages, new_state
 
@@ -502,19 +512,21 @@ class OpenAICompatibleProvider(ProviderPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        """Finalize streaming by emitting the accumulated partial as a final.
+        """Finalize streaming by emitting the accumulator as a final.
 
-        When streaming was used, `state["partial"]` holds the merged assistant
+        When streaming was used, `state["accumulator"]` holds the merged assistant
         message (content, role, reasoning, tool_calls, etc.) built up across
         chunks by the provider and any extensions. Non-streaming calls leave it
         as ``None``.
         """
-        current_partial = state.get("partial", None)
+        accumulator = state.get("accumulator", None)
 
-        if current_partial:
-            return [current_partial], [*native_messages, current_partial], state
+        if accumulator:
+            return [accumulator], [*native_messages, accumulator], state
 
         return [], native_messages, state
 
-    def to_display_format(self, message: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+    def to_display_format(
+        self, message: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
         return message

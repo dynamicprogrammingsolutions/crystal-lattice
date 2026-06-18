@@ -6,7 +6,7 @@ and exposes it on final assistant messages via metadata.
 Behavior:
 - During :meth:`process_chunk`, looks for a top-level ``usage`` object on
   the streaming chunk and, when present, attaches it to the provider's
-  internal ``state["partial"]`` accumulator under its internal
+  internal ``state["accumulator"]`` accumulator under its internal
   ``_metadata`` key.
 - Adds two human-friendly, formatted fields for the total tokens and
   total cost to the same internal metadata so that UI layers can render
@@ -15,7 +15,7 @@ Behavior:
   formatted strings into core-message ``metadata``.
 
 This extension is intended for the OpenRouter provider and relies on the
-provider's use of ``state["partial"]`` as the final assistant message
+provider's use of ``state["accumulator"]`` as the final assistant message
 for streaming responses.
 """
 
@@ -125,7 +125,11 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
             if not cls._message_turn_has_tool_calls(message):
                 current_open = None
 
-        return current_open if current_open is not None else (last_assigned + 1 if last_assigned > 0 else 1)
+        return (
+            current_open
+            if current_open is not None
+            else (last_assigned + 1 if last_assigned > 0 else 1)
+        )
 
     # ---- Config / UI ----
     def get_config_schema(self) -> Dict[str, Any]:
@@ -277,41 +281,61 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                                 "usage_turn_cost_cumulative"
                             ]
                         if "usage_turn_cost_cumulative_formatted" in internal_md:
-                            core_md["usage_turn_cost_cumulative_formatted"] = internal_md[
-                                "usage_turn_cost_cumulative_formatted"
-                            ]
+                            core_md["usage_turn_cost_cumulative_formatted"] = (
+                                internal_md["usage_turn_cost_cumulative_formatted"]
+                            )
                         if "usage_turn_reasoning_tokens_cumulative" in internal_md:
-                            core_md["usage_turn_reasoning_tokens_cumulative"] = internal_md[
-                                "usage_turn_reasoning_tokens_cumulative"
-                            ]
-                        if "usage_turn_reasoning_tokens_cumulative_formatted" in internal_md:
-                            core_md["usage_turn_reasoning_tokens_cumulative_formatted"] = internal_md[
+                            core_md["usage_turn_reasoning_tokens_cumulative"] = (
+                                internal_md["usage_turn_reasoning_tokens_cumulative"]
+                            )
+                        if (
+                            "usage_turn_reasoning_tokens_cumulative_formatted"
+                            in internal_md
+                        ):
+                            core_md[
+                                "usage_turn_reasoning_tokens_cumulative_formatted"
+                            ] = internal_md[
                                 "usage_turn_reasoning_tokens_cumulative_formatted"
                             ]
                         if "usage_turn_input_tokens_cumulative" in internal_md:
                             core_md["usage_turn_input_tokens_cumulative"] = internal_md[
                                 "usage_turn_input_tokens_cumulative"
                             ]
-                        if "usage_turn_input_tokens_cumulative_formatted" in internal_md:
-                            core_md["usage_turn_input_tokens_cumulative_formatted"] = internal_md[
-                                "usage_turn_input_tokens_cumulative_formatted"
-                            ]
+                        if (
+                            "usage_turn_input_tokens_cumulative_formatted"
+                            in internal_md
+                        ):
+                            core_md["usage_turn_input_tokens_cumulative_formatted"] = (
+                                internal_md[
+                                    "usage_turn_input_tokens_cumulative_formatted"
+                                ]
+                            )
                         if "usage_turn_cached_tokens_cumulative" in internal_md:
-                            core_md["usage_turn_cached_tokens_cumulative"] = internal_md[
-                                "usage_turn_cached_tokens_cumulative"
-                            ]
-                        if "usage_turn_cached_tokens_cumulative_formatted" in internal_md:
-                            core_md["usage_turn_cached_tokens_cumulative_formatted"] = internal_md[
-                                "usage_turn_cached_tokens_cumulative_formatted"
-                            ]
+                            core_md["usage_turn_cached_tokens_cumulative"] = (
+                                internal_md["usage_turn_cached_tokens_cumulative"]
+                            )
+                        if (
+                            "usage_turn_cached_tokens_cumulative_formatted"
+                            in internal_md
+                        ):
+                            core_md["usage_turn_cached_tokens_cumulative_formatted"] = (
+                                internal_md[
+                                    "usage_turn_cached_tokens_cumulative_formatted"
+                                ]
+                            )
                         if "usage_turn_output_tokens_cumulative" in internal_md:
-                            core_md["usage_turn_output_tokens_cumulative"] = internal_md[
-                                "usage_turn_output_tokens_cumulative"
-                            ]
-                        if "usage_turn_output_tokens_cumulative_formatted" in internal_md:
-                            core_md["usage_turn_output_tokens_cumulative_formatted"] = internal_md[
-                                "usage_turn_output_tokens_cumulative_formatted"
-                            ]
+                            core_md["usage_turn_output_tokens_cumulative"] = (
+                                internal_md["usage_turn_output_tokens_cumulative"]
+                            )
+                        if (
+                            "usage_turn_output_tokens_cumulative_formatted"
+                            in internal_md
+                        ):
+                            core_md["usage_turn_output_tokens_cumulative_formatted"] = (
+                                internal_md[
+                                    "usage_turn_output_tokens_cumulative_formatted"
+                                ]
+                            )
                 enhanced.append({**msg, "metadata": core_md})
             return enhanced
 
@@ -319,7 +343,9 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         # back to copying only onto the last core message.
         enhanced.extend(messages)
         if native_messages and messages:
-            native_last = native_messages[-1] if isinstance(native_messages[-1], dict) else {}
+            native_last = (
+                native_messages[-1] if isinstance(native_messages[-1], dict) else {}
+            )
             internal_md = native_last.get("_metadata") or {}
             if isinstance(internal_md, dict) and "usage" in internal_md:
                 last_msg = dict(messages[-1])
@@ -369,34 +395,39 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                         core_md["usage_turn_reasoning_tokens_cumulative"] = internal_md[
                             "usage_turn_reasoning_tokens_cumulative"
                         ]
-                    if "usage_turn_reasoning_tokens_cumulative_formatted" in internal_md:
-                        core_md["usage_turn_reasoning_tokens_cumulative_formatted"] = internal_md[
-                            "usage_turn_reasoning_tokens_cumulative_formatted"
-                        ]
+                    if (
+                        "usage_turn_reasoning_tokens_cumulative_formatted"
+                        in internal_md
+                    ):
+                        core_md["usage_turn_reasoning_tokens_cumulative_formatted"] = (
+                            internal_md[
+                                "usage_turn_reasoning_tokens_cumulative_formatted"
+                            ]
+                        )
                     if "usage_turn_input_tokens_cumulative" in internal_md:
                         core_md["usage_turn_input_tokens_cumulative"] = internal_md[
                             "usage_turn_input_tokens_cumulative"
                         ]
                     if "usage_turn_input_tokens_cumulative_formatted" in internal_md:
-                        core_md["usage_turn_input_tokens_cumulative_formatted"] = internal_md[
-                            "usage_turn_input_tokens_cumulative_formatted"
-                        ]
+                        core_md["usage_turn_input_tokens_cumulative_formatted"] = (
+                            internal_md["usage_turn_input_tokens_cumulative_formatted"]
+                        )
                     if "usage_turn_cached_tokens_cumulative" in internal_md:
                         core_md["usage_turn_cached_tokens_cumulative"] = internal_md[
                             "usage_turn_cached_tokens_cumulative"
                         ]
                     if "usage_turn_cached_tokens_cumulative_formatted" in internal_md:
-                        core_md["usage_turn_cached_tokens_cumulative_formatted"] = internal_md[
-                            "usage_turn_cached_tokens_cumulative_formatted"
-                        ]
+                        core_md["usage_turn_cached_tokens_cumulative_formatted"] = (
+                            internal_md["usage_turn_cached_tokens_cumulative_formatted"]
+                        )
                     if "usage_turn_output_tokens_cumulative" in internal_md:
                         core_md["usage_turn_output_tokens_cumulative"] = internal_md[
                             "usage_turn_output_tokens_cumulative"
                         ]
                     if "usage_turn_output_tokens_cumulative_formatted" in internal_md:
-                        core_md["usage_turn_output_tokens_cumulative_formatted"] = internal_md[
-                            "usage_turn_output_tokens_cumulative_formatted"
-                        ]
+                        core_md["usage_turn_output_tokens_cumulative_formatted"] = (
+                            internal_md["usage_turn_output_tokens_cumulative_formatted"]
+                        )
 
                 enhanced[-1] = {**last_msg, "metadata": core_md}
 
@@ -429,7 +460,7 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         """Capture usage details from streaming chunks.
 
         The full ``usage`` object is attached to the provider-native
-        assistant message stored in ``state["partial"]`` under its
+        assistant message stored in ``state["accumulator"]`` under its
         internal ``_metadata`` key. A formatted representation of the
         total tokens and total cost is also stored alongside it for
         better display in UIs.
@@ -445,7 +476,9 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
         # Format totals for easier display. Keep this defensive so that
         # missing or malformed usage fields never break the provider.
         total_tokens = usage.get("total_tokens")
-        total_cost = usage.get("cost") or usage.get("cost_details",{}).get("upstream_inference_cost",0)
+        total_cost = usage.get("cost") or usage.get("cost_details", {}).get(
+            "upstream_inference_cost", 0
+        )
 
         # Per-message token breakdown: prompt (input), cached, completion.
         prompt_tokens_str = None
@@ -462,7 +495,9 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
             prompt_tokens_str = None
 
         try:
-            cached_tokens = (usage.get("prompt_tokens_details") or {}).get("cached_tokens")
+            cached_tokens = (usage.get("prompt_tokens_details") or {}).get(
+                "cached_tokens"
+            )
             if isinstance(cached_tokens, (int, float)):
                 try:
                     cached_tokens_str = f"{int(cached_tokens):,}"
@@ -537,7 +572,10 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                         if not isinstance(md_prev, dict):
                             continue
                         turn = md_prev.get("turn")
-                        if not isinstance(turn, dict) or turn.get("id") != current_turn_id:
+                        if (
+                            not isinstance(turn, dict)
+                            or turn.get("id") != current_turn_id
+                        ):
                             continue
                         usage_prev = md_prev.get("usage") or {}
                         if not isinstance(usage_prev, dict):
@@ -615,14 +653,18 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                                 base_total_turn_reasoning + current_reasoning_int
                             )
                             try:
-                                usage_turn_reasoning_cumulative_str = f"{int(usage_turn_reasoning_cumulative):,}"
+                                usage_turn_reasoning_cumulative_str = (
+                                    f"{int(usage_turn_reasoning_cumulative):,}"
+                                )
                             except Exception:
-                                usage_turn_reasoning_cumulative_str = str(usage_turn_reasoning_cumulative)
+                                usage_turn_reasoning_cumulative_str = str(
+                                    usage_turn_reasoning_cumulative
+                                )
                 except Exception:
                     usage_turn_reasoning_cumulative = None
                     usage_turn_reasoning_cumulative_str = None
 
-        accumulated = state.get("partial")
+        accumulated = state.get("accumulator")
         if isinstance(accumulated, dict):
             internal_md = dict(accumulated.get("_metadata") or {})
             internal_md["usage"] = usage
@@ -657,23 +699,37 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                         usage_turn_cumulative_str
                     )
                 if "usage_turn_input_cumulative" in locals():
-                    internal_md["usage_turn_input_tokens_cumulative"] = usage_turn_input_cumulative
+                    internal_md["usage_turn_input_tokens_cumulative"] = (
+                        usage_turn_input_cumulative
+                    )
                     internal_md["usage_turn_input_tokens_cumulative_formatted"] = (
                         self._format_token_count(usage_turn_input_cumulative)
                     )
                 if "usage_turn_cached_cumulative" in locals():
-                    internal_md["usage_turn_cached_tokens_cumulative"] = usage_turn_cached_cumulative
+                    internal_md["usage_turn_cached_tokens_cumulative"] = (
+                        usage_turn_cached_cumulative
+                    )
                     internal_md["usage_turn_cached_tokens_cumulative_formatted"] = (
                         self._format_token_count(usage_turn_cached_cumulative)
                     )
                 if "usage_turn_output_cumulative" in locals():
-                    internal_md["usage_turn_output_tokens_cumulative"] = usage_turn_output_cumulative
+                    internal_md["usage_turn_output_tokens_cumulative"] = (
+                        usage_turn_output_cumulative
+                    )
                     internal_md["usage_turn_output_tokens_cumulative_formatted"] = (
                         self._format_token_count(usage_turn_output_cumulative)
                     )
-                if "usage_turn_reasoning_cumulative" in locals() and usage_turn_reasoning_cumulative is not None:
-                    internal_md["usage_turn_reasoning_tokens_cumulative"] = usage_turn_reasoning_cumulative
-                if "usage_turn_reasoning_cumulative_str" in locals() and usage_turn_reasoning_cumulative_str is not None:
+                if (
+                    "usage_turn_reasoning_cumulative" in locals()
+                    and usage_turn_reasoning_cumulative is not None
+                ):
+                    internal_md["usage_turn_reasoning_tokens_cumulative"] = (
+                        usage_turn_reasoning_cumulative
+                    )
+                if (
+                    "usage_turn_reasoning_cumulative_str" in locals()
+                    and usage_turn_reasoning_cumulative_str is not None
+                ):
                     internal_md["usage_turn_reasoning_tokens_cumulative_formatted"] = (
                         usage_turn_reasoning_cumulative_str
                     )
@@ -681,7 +737,7 @@ class OpenRouterUsageExtension(ProviderExtensionPlugin):
                 # Be defensive; do not fail the provider because of UI fields.
                 pass
             accumulated = {**accumulated, "_metadata": internal_md}
-            new_state: Dict[str, Any] = {**state, "partial": accumulated}
+            new_state: Dict[str, Any] = {**state, "accumulator": accumulated}
         else:
             new_state = state
 

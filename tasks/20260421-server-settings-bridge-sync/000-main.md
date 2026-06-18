@@ -3,7 +3,8 @@ Add server-scoped settings with lifecycle hooks, a live mobile UI path, bridge-b
 
 ## Task checklist
 
-- [ ] `tasks/20260421-server-settings-bridge-sync/010-live-server-settings-and-lifecycle.md`
+- [x] `tasks/20260421-server-settings-bridge-sync/010-live-server-settings-and-lifecycle.md`
+- [x] `tasks/20260421-server-settings-bridge-sync/015-sleep-prevention-app.md`
 - [ ] `tasks/20260421-server-settings-bridge-sync/020-bridge-server-state-and-sync.md`
 - [ ] `tasks/20260421-server-settings-bridge-sync/030-offline-server-settings-ui-and-cache.md`
 

@@ -3,7 +3,7 @@
 This page is an older/general overview. For the current shared plugin docs, start at
 `plugins/docs/index.md`.
 
-This guide explains how to build provider, provider extension, feature, and tool plugins for the AI Agent Platform. It includes minimal examples and links to the full API reference generated from docstrings.
+This guide explains how to build provider, provider extension, feature, and tool plugins for Crystal Lattice. It includes minimal examples and links to the full API reference generated from docstrings.
 
 - Core principles
   - Functional style: methods are pure; state is passed explicitly.
@@ -97,7 +97,7 @@ Streaming providers are expected to follow a simple accumulator-based pattern fo
     `choices[0]`).
   - Reduce that delta into:
     - A provider-native **partial** message for this chunk (or `None`).
-    - An updated **accumulator** stored in `state["partial"]`.
+    - An updated **accumulator** stored in `state["accumulator"]`.
   - Return `(partials, finals, native_messages, new_state)`, where:
     - `partials` is a list of provider-native partial messages (often at most
       one item per chunk).
@@ -106,10 +106,10 @@ Streaming providers are expected to follow a simple accumulator-based pattern fo
     - `native_messages` is typically left unchanged during streaming; the full
       history is updated when finalization completes.
     - `new_state` is `state` with the updated accumulator under
-      `state["partial"]`.
+      `state["accumulator"]`.
 - `finalize(native_messages, state)` is called once after streaming completes
   and must:
-  - Read the accumulated partial from `state["partial"]`.
+  - Read the accumulated assistant message from `state["accumulator"]`.
   - If present, emit it as the single final provider-native assistant message.
   - Append that final to `native_messages` when returning.
 
@@ -144,24 +144,24 @@ class MyProvider(ProviderPlugin):
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         partial, accumulated = self.process_delta(
-            self.extract_delta(native_chunk), state.get("partial", {}),
+            self.extract_delta(native_chunk), state.get("accumulator", {}),
         )
         partials = [partial] if partial else []
         finals: List[Dict[str, Any]] = []
-        return partials, finals, native_messages, {**state, "partial": accumulated}
+        return partials, finals, native_messages, {**state, "accumulator": accumulated}
 
     def finalize(
         self,
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
-        partial = state.get("partial")
-        if partial:
-            return [partial], [*native_messages, partial], state
+        accumulator = state.get("accumulator")
+        if accumulator:
+            return [accumulator], [*native_messages, accumulator], state
         return [], native_messages, state
 ```
 
-This pattern keeps all accumulation in `state["partial"]` and makes it easy for
+This pattern keeps all accumulation in `state["accumulator"]` and makes it easy for
 extensions to collaborate by reading and updating the same accumulator.
 
 ## Provider Extension Plugin
@@ -213,15 +213,15 @@ As with providers, extension adapters supply default identity implementations fo
 
 ### Recommended streaming pattern (extensions)
 
-For streaming providers that use an accumulator in `state["partial"]`,
+For streaming providers that use an accumulator in `state["accumulator"]`,
 extensions are encouraged to follow a similar pattern:
 
 - Treat `partial_messages` as provider-native partials for the current chunk.
-- Use `state["partial"]` as the shared accumulator for extension-specific
+- Use `state["accumulator"]` as the shared accumulator for extension-specific
   fields (for example, `tool_calls`, `reasoning`, or provider-native metadata).
 - Prefer updating only:
   - The last entry in `partial_messages` (to enrich the current partial), and
-  - The accumulator in `state["partial"]`.
+  - The accumulator in `state["accumulator"]`.
 - Avoid mutating `final_messages` or `native_messages` during streaming unless
   there is a very strong reason; use `finalize` for cold-path adjustments.
 
@@ -270,7 +270,7 @@ class MyStreamingExtension(ProviderExtensionPlugin):
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
         delta = self.extract_delta(native_chunk or {})
-        accumulated = state.get("partial", {})
+        accumulated = state.get("accumulator", {})
 
         new_partials = partial_messages
         if new_partials:
@@ -278,7 +278,7 @@ class MyStreamingExtension(ProviderExtensionPlugin):
             updated_last, accumulated = self.process_delta(delta, last, accumulated)
             new_partials[-1] = updated_last or last
 
-        return new_partials, final_messages, native_messages, {**state, "partial": accumulated}
+        return new_partials, final_messages, native_messages, {**state, "accumulator": accumulated}
 
     def finalize(
         self,

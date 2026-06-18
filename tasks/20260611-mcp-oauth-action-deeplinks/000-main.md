@@ -3,7 +3,7 @@ Add generic mobile action-deep-link handling and action-dialog selection capabil
 
 ## Task checklist
 
-- [ ] `tasks/20260611-mcp-oauth-action-deeplinks/010-generic-action-deeplinks-and-dialog-select.md`
+- [x] `tasks/20260611-mcp-oauth-action-deeplinks/010-generic-action-deeplinks-and-dialog-select.md`
   - SHARED CAPABILITY: Provides generic frontend/backend building blocks that `tasks/20260605-mobile-oauth-login-flows/000-main.md` should reuse for Codex login.
 - [ ] `tasks/20260611-mcp-oauth-action-deeplinks/020-mcp-oauth-shared-runtime-and-actions.md`
   - DEPENDS ON `tasks/20260611-mcp-oauth-action-deeplinks/010-generic-action-deeplinks-and-dialog-select.md`

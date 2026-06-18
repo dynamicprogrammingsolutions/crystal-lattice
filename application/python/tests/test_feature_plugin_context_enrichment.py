@@ -73,7 +73,9 @@ def _minimal_config() -> Dict[str, Any]:
 
 def _config_with_request_marker() -> Dict[str, Any]:
     config = _minimal_config()
-    config["providers"]["echo"]["context_recording_request_marker"] = "request-initialized"
+    config["providers"]["echo"][
+        "context_recording_request_marker"
+    ] = "request-initialized"
     return config
 
 
@@ -167,6 +169,32 @@ class TestApplicationContextEnrichment:
         assert ctx["application"] is app, "'application' should be the same as 'app'"
         assert isinstance(ctx["base_config"], dict), "'base_config' should be a dict"
 
+    def test_application_execute_action_resolves_omitted_feature_plugin(
+        self, tmp_path: Path, clear_captured_contexts: None
+    ) -> None:
+        plugin_class = _get_plugin_class()
+        assert plugin_class is not None, "Could not load ContextRecordingPlugin"
+
+        app = _make_app(tmp_path, _minimal_config())
+        core, base_config, session = app.create_session("default")
+        session = core.add_message(session, "user", "Test", None, base_config)
+        app.save_session(session)
+
+        result = app.execute_action(
+            plugin_id=None,
+            action_id="record_context",
+            params={},
+            context={"session_id": session.session_id},
+        )
+
+        assert result["mutations"]["updated_session_ids"] == [session.session_id]
+        stored = app.load_session_record(session.session_id)
+        assert stored is not None
+        assert stored.metadata["action_id"] == "record_context"
+        contexts = plugin_class.get_captured_contexts()
+        assert len(contexts) == 1
+        assert contexts[0]["_action_id"] == "record_context"
+
     def test_application_session_action_sees_request_initialized_state(
         self, tmp_path: Path, clear_captured_contexts: None
     ) -> None:
@@ -248,8 +276,12 @@ class TestApplicationContextEnrichment:
         for ctx in contexts:
             if ctx.get("_action_id") == "record_context_with_trigger":
                 assert "app" in ctx, "Lifecycle context should include 'app'"
-                assert "base_config" in ctx, "Lifecycle context should include 'base_config'"
-                assert "lifecycle" in ctx, "Lifecycle context should include 'lifecycle'"
+                assert (
+                    "base_config" in ctx
+                ), "Lifecycle context should include 'base_config'"
+                assert (
+                    "lifecycle" in ctx
+                ), "Lifecycle context should include 'lifecycle'"
                 assert ctx["lifecycle"] == "request_complete"
                 assert isinstance(ctx.get("request_context"), dict)
                 assert isinstance(ctx.get("request_runtime"), dict)

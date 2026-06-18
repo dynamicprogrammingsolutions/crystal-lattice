@@ -1,0 +1,10 @@
+{
+  "module": "dummy_settings_app_plugin",
+  "subdirectory": ".",
+  "entries": [
+    "dummy_settings_app_plugin.DummySettingsAppPlugin"
+  ],
+  "kinds": {
+    "dummy_settings_app_plugin.DummySettingsAppPlugin": "application"
+  }
+}

@@ -510,12 +510,12 @@ from agent_core.tool_interop import get_registry_from_context
 
 
 def finalize(self, final_messages, native_messages, state, *, context=None):
-    partial = state.get("partial")
-    if isinstance(partial, dict):
-        tool_calls = partial.get("tool_calls")
+    accumulator = state.get("accumulator")
+    if isinstance(accumulator, dict):
+        tool_calls = accumulator.get("tool_calls")
         if isinstance(tool_calls, list):
             registry = get_registry_from_context(context)
-            partial["tool_calls"] = [
+            accumulator["tool_calls"] = [
                 registry.sanitize_tool_call(call)
                 for call in tool_calls
                 if isinstance(call, dict)

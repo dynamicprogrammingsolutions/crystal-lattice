@@ -8,9 +8,9 @@ from agent_core.types import ProviderExtensionPlugin
 class OpenRouterResponsesClaudeCachingExtension(ProviderExtensionPlugin):
     """Inject Anthropic cache_control blocks when using Claude via OpenRouter `/responses`.
 
-This mirrors the chat-completions ClaudeCachingExtension but uses Responses-style
-input parts.
-"""
+    This mirrors the chat-completions ClaudeCachingExtension but uses Responses-style
+    input parts.
+    """
 
     name: str = "openrouter_responses_claude_caching"
     version: str = "0.1.0"
@@ -44,7 +44,9 @@ input parts.
             },
         ]
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         return ["ext:openrouter_responses_claude_caching"]
 
     def required_tags(self) -> List[str]:
@@ -158,12 +160,17 @@ input parts.
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         if not self._should_enable_for_state(state):
             return partial_messages, final_messages, native_messages, state
 
         cached_tokens = None
-        if isinstance(native_chunk, dict) and native_chunk.get("type") == "response.completed":
+        if (
+            isinstance(native_chunk, dict)
+            and native_chunk.get("type") == "response.completed"
+        ):
             resp = native_chunk.get("response") or {}
             if isinstance(resp, dict):
                 usage = resp.get("usage") or {}
@@ -175,12 +182,12 @@ input parts.
         if cached_tokens is None:
             return partial_messages, final_messages, native_messages, state
 
-        accumulated = state.get("partial")
+        accumulated = state.get("accumulator")
         if isinstance(accumulated, dict):
             internal_md = dict(accumulated.get("_metadata") or {})
             internal_md["cached_tokens"] = cached_tokens
             accumulated = {**accumulated, "_metadata": internal_md}
-            state = {**state, "partial": accumulated}
+            state = {**state, "accumulator": accumulated}
 
         return partial_messages, final_messages, native_messages, state
 

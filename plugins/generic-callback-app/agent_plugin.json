@@ -1,0 +1,10 @@
+{
+  "module": "generic_callback_app",
+  "subdirectory": ".",
+  "entries": [
+    "generic_callback_app.GenericCallbackAppPlugin"
+  ],
+  "kinds": {
+    "generic_callback_app.GenericCallbackAppPlugin": "application"
+  }
+}

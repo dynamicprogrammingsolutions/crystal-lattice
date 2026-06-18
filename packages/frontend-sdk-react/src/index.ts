@@ -77,6 +77,12 @@ export type {
 export { useSessionSettingsController } from './useSessionSettingsController';
 
 export type {
+  UseServerSettingsControllerOptions,
+  UseServerSettingsControllerResult,
+} from './useServerSettingsController';
+export { useServerSettingsController } from './useServerSettingsController';
+
+export type {
   SessionPluginsState,
   UseSessionPluginsControllerOptions,
   UseSessionPluginsControllerResult,

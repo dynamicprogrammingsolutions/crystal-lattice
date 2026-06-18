@@ -3,12 +3,12 @@ Implement the shared frontend/backend capabilities for generic action deep links
 
 ## Requirements checklist
 
-- [ ] Add action-dialog support for `select` inputs rendered as chip-style single-choice controls.
-- [ ] Document action-dialog `select` and `dropdown` behavior in `plugins/docs/ui-elements.md`.
-- [ ] Add generic mobile handling for `crystal-lattice://action/...` deep links.
-- [ ] Add a backend action-resolution path for optional plugin ids.
-- [ ] Pass query parameters and the full callback URL to the invoked action.
-- [ ] Add tests for dialog selection, action-deep-link parsing, successful routing, unknown actions, and ambiguous action ids.
+- [x] Add action-dialog support for `select` inputs rendered as chip-style single-choice controls.
+- [x] Document action-dialog `select` and `dropdown` behavior in `plugins/docs/ui-elements.md`.
+- [x] Add generic mobile handling for `crystal-lattice://action/...` deep links.
+- [x] Add a backend action-resolution path for optional plugin ids.
+- [x] Pass query parameters and the full callback URL to the invoked action.
+- [x] Add tests for dialog selection, action-deep-link parsing, successful routing, unknown actions, and ambiguous action ids.
 
 Parent Task: `tasks/20260611-mcp-oauth-action-deeplinks/000-main.md`
 
@@ -16,6 +16,19 @@ Parent Task: `tasks/20260611-mcp-oauth-action-deeplinks/000-main.md`
 
 - `tasks/20260605-mobile-oauth-login-flows/020-auth-ux-and-framework-capability-audit.md`
 - `tasks/20260605-mobile-oauth-login-flows/040-frontend-app-link-routing-and-action-resume.md`
+
+## Execution plan
+
+Added during completion.
+
+- Preserve the standard plugin UI input schema: action-dialog inputs use the same field model as config UI elements, with `name` replacing config `key` and with dialog-only fields such as `prefill_from` and `submit_empty`.
+- Add shared SDK helpers/types only for schema-level behavior, including standard `select`/`dropdown` option normalization and generic action deep-link parsing.
+- Reshape `packages/frontend-rn-components/src/ApplicationActionDialog.tsx` like the existing `ActionsMenu` pattern: keep shared dialog state, initialization, validation, submit parsing, and modal/layout behavior, while allowing applications to supply per-field renderers.
+- Add mobile-local action-dialog field renderers for chip-style `select` controls, and wire them through the mobile app's session-list and chat action-dialog call sites.
+- Add optional-plugin action execution support through the SDK REST backend and Python application/server layers, preserving exact plugin dispatch and adding unknown/ambiguous resolution errors when plugin id is omitted.
+- Add mobile top-level generic `crystal-lattice://action/...` handling, including initial URL and foreground URL events, with pending callback execution when no backend is connected.
+- Update plugin UI docs for action-dialog `select`/`dropdown`.
+- Add targeted tests for schema option normalization, dialog select rendering/submission, deep-link parsing, REST optional plugin payloads, and backend action resolution.
 
 ## Design
 
@@ -116,3 +129,26 @@ When completing this task, record:
 - The endpoint or SDK method used for optional-plugin action execution.
 - Any frontend behavior when no backend connection is available.
 - Test commands and results.
+
+## Completion Notes
+
+Added during completion.
+
+- Final deep-link route grammar:
+  - `crystal-lattice://action/<plugin-id>/<action-id>?code=...&state=...`
+  - `crystal-lattice://action/<action-id>?code=...&state=...`
+- The frontend SDK parser returns optional `pluginId`, required `actionId`, query parameters as string inputs, and `redirect_url` containing the full original callback URL.
+- Optional-plugin execution uses the existing `AgentBackend.executeAction` / `RestAgentBackend.executeAction` path and `POST /actions`; the SDK now allows `pluginId` to be omitted for that endpoint.
+- Backend optional-plugin resolution is handled by `AgentApplication.resolve_application_action_plugin_id`. Exact plugin/action dispatch is unchanged. Omitted plugin ids execute only when exactly one application plugin exposes the action id; otherwise the server returns `unknown_action` or `ambiguous_action` with candidate plugin ids.
+- Mobile handles `crystal-lattice://action/...` links at the app shell through React Native `Linking`, for both initial URLs and foreground URL events. If no backend connection is active, the parsed action link is queued and retried after a backend becomes available; the app shows an "Action Pending" alert.
+- Action-dialog rendering was reshaped like the `ActionsMenu` pattern: shared dialog behavior stays in `packages/frontend-rn-components`, while mobile supplies app-local field renderers for chip-style `select` and switch-style booleans.
+- Test results:
+  - Installed worktree-local packages with `npm ci` at the repo root and in `mobile/crystal-lattice-control-rn`.
+  - Passed: `npm --workspace @crystal-lattice/frontend-sdk test`
+  - Passed: `npm --workspace @crystal-lattice/frontend-rn-components test`
+  - Passed: `npm --workspace @crystal-lattice/frontend-sdk test -- src/plugins/__tests__/actionDeepLinks.test.ts src/utils/uiSchema.test.ts src/backend/restBackend.idempotency.test.ts`
+  - Passed: `npm run tsc` from `mobile/crystal-lattice-control-rn`
+  - Passed: `npm test -- --runTestsByPath __tests__/ApplicationActionDialog.test.tsx` from `mobile/crystal-lattice-control-rn`
+  - Passed: `npm test -- --runInBand` from `mobile/crystal-lattice-control-rn`
+  - Passed: `pytest application/python/tests/test_application_actions_endpoints.py -q`
+  - Passed: `git diff --check`

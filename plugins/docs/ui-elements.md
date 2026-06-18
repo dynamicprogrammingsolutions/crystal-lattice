@@ -1,6 +1,6 @@
 # UI elements (`get_ui_elements`)
 
-Plugins can optionally expose UI metadata via `get_ui_elements(config, tags, models) -> list[dict]`.
+Plugins can optionally expose UI metadata via `get_ui_elements(...) -> list[dict]`.
 
 The core treats UI element dictionaries as **opaque** and flattens them via `AgentCore.get_ui_schema(config)`.
 
@@ -12,16 +12,15 @@ The core treats UI element dictionaries as **opaque** and flattens them via `Age
 def get_ui_elements(
     self,
     config: Dict[str, Any],
-    tags: List[str],
-    models: List[Dict[str, Any]],
+    context: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     ...
 ```
 
 The core passes:
 - `config`: effective configuration for the current agent/request
-- `tags`: capability tags computed for this config (provider + enabled plugins)
-- `models`: model descriptors computed for this config
+- `context["tags"]`: capability tags computed for this config (provider + enabled plugins)
+- `context["models"]`: model descriptors computed for this config
 
 ### Application plugins
 
@@ -30,15 +29,23 @@ def get_ui_elements(
     self,
     state: Dict[str, Any],
     config: Optional[Dict[str, Any]] = None,
-    tags: Optional[List[str]] = None,
-    models: Optional[List[Dict[str, Any]]] = None,
+    context: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     ...
 ```
 
-Application plugins receive `state` first (their internal state), followed by optional context parameters. When called via session-scoped endpoints, `config` contains the session's effective configuration, enabling config-aware UI filtering.
+Application plugins receive `state` first (their internal state), followed by
+optional `config` and `context` parameters. When called via session-scoped
+endpoints, `config` contains the session's effective configuration, enabling
+config-aware UI filtering. When called for server settings, `config` remains
+configuration and current server settings are supplied in
+`context["server_settings"]`.
 
-For backward compatibility, plugin adapters will also accept a legacy `get_ui_elements()` implementation with no arguments, but new plugins should prefer the context-aware signature.
+For backward compatibility, plugin adapters also accept legacy application
+plugin signatures such as `get_ui_elements()`, `get_ui_elements(state)`,
+`get_ui_elements(state, config)`, and
+`get_ui_elements(state, config, tags, models)`, but new plugins should prefer
+the context-aware signature.
 
 Runtime references:
 - Core plugins: `core/python/agent_core/types.py` (`BasePlugin.get_ui_elements`)
@@ -106,6 +113,7 @@ def get_ui_elements(self, config, tags, models):
 | `type` | string | Input type: `text`, `checkbox`, `select`, `dropdown`, `multiline`, `number` |
 | `label` | string | Human-readable label |
 | `description` | string | Optional help text |
+| `scope` | string | Optional setting scope; application plugins use `"server"` for server-scoped settings |
 | `options` | array | For `select`/`dropdown`: `["value", ...]` or `[{"value": "...", "label": "..."}, ...]` |
 | `default` | any | Default value shown when no override or config value exists |
 | `required` | boolean | Whether the field is required |
@@ -129,6 +137,68 @@ The frontend SDK tags each setting with a source indicator:
 - `"ui_default"`: Value comes from element's `default` field
 - `"schema_default"`: Value comes from config schema default
 - `"none"`: No value found
+
+#### Server-scoped configuration elements
+
+Application plugins can expose server-scoped settings by returning config-like
+elements with `scope: "server"` from `get_ui_elements(...)`.
+
+```python
+def get_ui_elements(self, state, config=None, context=None):
+    settings = (context or {}).get("server_settings") or {}
+    elements = [
+        {
+            "ui_type": "config",
+            "scope": "server",
+            "key": "show_advanced",
+            "type": "checkbox",
+            "label": "Show advanced settings",
+            "default": False,
+        }
+    ]
+    if settings.get("show_advanced"):
+        elements.append(
+            {
+                "ui_type": "config",
+                "scope": "server",
+                "key": "keep_awake_enabled",
+                "type": "checkbox",
+                "label": "Keep server awake",
+                "default": False,
+            }
+        )
+    return elements
+```
+
+Frontends retrieve these elements from `GET /server/settings/ui-schema` and
+filter to config-like elements whose `scope` is `"server"`. Current values are
+loaded from `GET /server/settings`; mutations use `PATCH /server/settings` and
+`DELETE /server/settings/{key}`.
+
+Dynamic server settings UI should be plugin-side: the application passes current
+server settings in `context["server_settings"]`, and the plugin returns the
+controls that should be visible for that state. Do not use the session/agent
+`config` argument to carry server settings.
+
+Server-scoped settings are application-owned state. Plugins can react to
+`server_settings_changed`, but should not store a second authoritative copy of
+the same user-editable values.
+
+<!-- Keep a minimal static example for readers who do not need dynamic UI. -->
+
+```python
+def get_ui_elements(self, state, config=None, context=None):
+    return [
+        {
+            "ui_type": "config",
+            "scope": "server",
+            "key": "keep_awake_enabled",
+            "type": "checkbox",
+            "label": "Keep server awake",
+            "default": False,
+        }
+    ]
+```
 
 #### Input types
 
@@ -243,6 +313,11 @@ Maps action parameters to context values using `$` prefixes:
 
 #### Dialog configuration
 
+Action dialog inputs use the same input field model as configuration UI elements,
+with `name` replacing configuration `key`. Shared fields include `type`, `label`,
+`description`, `placeholder`, `default`, `required`, and, for `select`/`dropdown`,
+`options`.
+
 ```python
 "dialog": {
     "kind": "form",  # Currently only "form" is supported
@@ -259,6 +334,66 @@ Maps action parameters to context values using `$` prefixes:
     ],
 }
 ```
+
+For `select` and `dropdown`, use the same option model as config UI:
+
+```python
+{
+    "name": "server_name",
+    "type": "select",
+    "label": "MCP server",
+    "options": [
+        {"value": "figma", "label": "Figma"},
+        "linear",
+    ],
+    "required": True,
+}
+```
+
+`select` is a single-choice control that frontends typically render with all
+options visible, such as chips on mobile. `dropdown` uses the same option model
+but allows frontends to render a collapsed menu. Submitted `select` and
+`dropdown` values are strings.
+
+#### Action deep links
+
+Mobile action callbacks use a session-scoped route so the frontend can route the
+callback to the intended backend connection and session before invoking the
+action:
+
+```text
+crystal-lattice://action/<connection-id>/<session-id>/<action-id>?result=approved&nonce=n-123
+crystal-lattice://action/<connection-id>/<session-id>/<plugin-id>/<action-id>?result=approved&nonce=n-123
+```
+
+`connection-id` and `session-id` are always required. `plugin-id` is optional so
+callbacks can be produced by one plugin and handled by another plugin exposing
+the same action id. When omitted, the application layer resolves the action id
+against the target session. If no action matches, execution fails with
+`unknown_action`; if more than one action matches, execution fails with
+`ambiguous_action` and candidate details.
+
+Query parameters are submitted as action inputs. Frontends also add
+`redirect_url` with the full original callback URL.
+
+Plugins that generate external callback URLs can return those URLs in display
+actions using the standard `copy_text` action shape:
+
+```python
+{
+    "kind": "copy_text",
+    "id": "copy-callback-link",
+    "label": "Copy link",
+    "text": "crystal-lattice://action/...",
+    "copied_label": "Copied",
+}
+```
+
+Because callback links require a frontend connection id, link-generating session
+actions should request it through generic action context mapping, such as a
+`param_map` entry from `$context.connectionId`. Completion callback links should
+usually omit `plugin-id` when the callback should be handled by whichever plugin
+currently exposes the action id.
 
 ### Message actions (`ui_type == "message_action"`)
 
@@ -545,15 +680,42 @@ Returns UI elements from core plugins (provider, extensions, features, tools). F
 ### Application plugin UI schema
 
 ```
+GET /application/ui-schema
+```
+
+Returns global UI elements from application plugins. Used for:
+- global application actions or display elements that do not require a current
+  session
+
+```
 GET /sessions/{session_id}/application/ui-schema
 ```
 
-Returns UI elements from application plugins. Used for:
+Returns session-contextual UI elements from application plugins. Used for:
 - `ui_type == "session_action"`: Session-scoped actions
 - `ui_type == "message_action"`: Message-scoped actions
 - `ui_type == "session_list_field"`: Session list fields
 
 Optional query parameter `?plugin=name` filters elements by plugin.
+
+### Server settings values
+
+```
+GET /server/settings/ui-schema
+```
+
+Returns server settings UI elements from application plugins. The application
+passes current server settings in UI context so plugins can decide which
+server-scoped controls to return.
+
+```
+GET /server/settings
+PATCH /server/settings
+DELETE /server/settings/{key}
+```
+
+These endpoints read and mutate application-owned server settings. They are the
+value channel for application plugin config elements with `scope: "server"`.
 
 ---
 

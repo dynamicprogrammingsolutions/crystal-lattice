@@ -28,9 +28,7 @@ from tests.dummy_provider_extension_session_action import (  # noqa: E402
 
 def _make_config(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
-        "providers": {
-            "echo": {"provider": "echo_openai_like", "model": "test-model"}
-        },
+        "providers": {"echo": {"provider": "echo_openai_like", "model": "test-model"}},
         "plugins": [
             "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
         ],
@@ -53,13 +51,17 @@ def _build_app(tmp_path: Path) -> AgentApplication:
         previous.close()
     config_path = _make_config(tmp_path)
     session_root = tmp_path / "sessions"
-    app = AgentApplication(str(config_path), str(session_root), event_store=InMemoryEventStore())
+    app = AgentApplication(
+        str(config_path), str(session_root), event_store=InMemoryEventStore()
+    )
     app._plugin_classes.setdefault("extensions", []).append(DummySessionActionExtension)
     app._plugins_by_kind_and_id.setdefault("extensions", {})[
         DummySessionActionExtension.name
     ] = DummySessionActionExtension
     runtime = app._agent_plugin_runtimes["default"]
-    runtime.plugin_classes.setdefault("extensions", []).append(DummySessionActionExtension)
+    runtime.plugin_classes.setdefault("extensions", []).append(
+        DummySessionActionExtension
+    )
     runtime.plugins_by_kind_and_id.setdefault("extensions", {})[
         DummySessionActionExtension.name
     ] = DummySessionActionExtension
@@ -84,7 +86,9 @@ def test_session_ui_schema_includes_provider_extension_action(tmp_path: Path) ->
     assert matching[0]["action_owner"] == "provider_extension"
 
 
-def test_actions_endpoint_executes_provider_extension_session_action(tmp_path: Path) -> None:
+def test_actions_endpoint_executes_provider_extension_session_action(
+    tmp_path: Path,
+) -> None:
     from agent_terminal_app import server as server_mod
 
     app = _build_app(tmp_path)
@@ -120,6 +124,35 @@ def test_actions_endpoint_executes_provider_extension_session_action(tmp_path: P
     native_history = (loaded.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
     assert native_history[-1] == {"role": "assistant", "content": "MARKER=server-path"}
+
+
+def test_session_actions_endpoint_resolves_omitted_provider_extension_plugin(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+
+    app = _build_app(tmp_path)
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "hello from app", config=base_config)
+    app.save_session(session)
+
+    resp = server_mod.execute_session_action(
+        session.session_id,
+        {
+            "action_id": "append_native_marker",
+            "inputs": {
+                "marker": "resolved-provider-extension",
+            },
+        },
+        app_instance=app,
+    )
+
+    assert resp["status"] == "ok"
+    assert resp["plugin"] == "dummy_session_action"
+    assert resp["action_owner"] == "provider_extension"
+    result = resp["result"]
+    assert result["message"] == "Appended marker resolved-provider-extension"
+    assert result["mutations"]["updated_session_ids"] == [session.session_id]
 
 
 def test_actions_endpoint_surfaces_conflict_for_provider_extension_session_action(
@@ -187,7 +220,10 @@ def test_actions_endpoint_surfaces_conflict_for_provider_extension_session_actio
 
     assert resp["status"] == "error"
     assert resp["error_type"] == "conflict"
-    assert "Concurrent session modification detected while executing action" in resp["message"]
+    assert (
+        "Concurrent session modification detected while executing action"
+        in resp["message"]
+    )
 
     loaded = app.load_session_record(session.session_id)
     assert loaded is not None
