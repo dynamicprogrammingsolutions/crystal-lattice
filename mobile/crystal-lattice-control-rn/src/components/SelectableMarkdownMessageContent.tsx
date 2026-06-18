@@ -84,9 +84,11 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
   const markdownStyle = useMemo<MarkdownStyle>(() => {
     const baseTextColor = variant === 'user' ? theme.textOnPrimary : theme.text;
     const messageFontSize = theme.typography.fontSize.message;
+    const lineHeightFor = (fontSize: number) => Math.round(fontSize * 1.25);
 
     const baseTextBlock = {
       fontSize: messageFontSize,
+      lineHeight: lineHeightFor(messageFontSize),
       color: baseTextColor,
     };
 
@@ -103,12 +105,12 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
         marginTop: 10,
         marginBottom: 10,
       },
-      h1: { ...headingBase, fontSize: 32 },
-      h2: { ...headingBase, fontSize: 24 },
-      h3: { ...headingBase, fontSize: 18 },
-      h4: { ...headingBase, fontSize: 16 },
-      h5: { ...headingBase, fontSize: 13 },
-      h6: { ...headingBase, fontSize: 11 },
+      h1: { ...headingBase, fontSize: 32, lineHeight: lineHeightFor(32) },
+      h2: { ...headingBase, fontSize: 24, lineHeight: lineHeightFor(24) },
+      h3: { ...headingBase, fontSize: 18, lineHeight: lineHeightFor(18) },
+      h4: { ...headingBase, fontSize: 16, lineHeight: lineHeightFor(16) },
+      h5: { ...headingBase, fontSize: 13, lineHeight: lineHeightFor(13) },
+      h6: { ...headingBase, fontSize: 11, lineHeight: lineHeightFor(11) },
       strong: {
         fontWeight: 'bold',
       },
@@ -130,9 +132,8 @@ const SelectableMarkdownMessageContent: React.FC<SelectableMarkdownMessageConten
         marginBottom: 2,
         bulletColor: baseTextColor,
         markerColor: baseTextColor,
-        markerFontWeight: '500',
         gapWidth: 10,
-        marginLeft: 20,
+        marginLeft: 10,
       },
       code: {
         fontFamily: 'Courier',

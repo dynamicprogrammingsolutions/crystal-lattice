@@ -173,20 +173,50 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   expect(enrichedMarkdown.props.markdownStyle.paragraph).toEqual(
     expect.objectContaining({
       fontSize: lightTheme.typography.fontSize.message,
+      lineHeight: Math.round(lightTheme.typography.fontSize.message * 1.25),
       color: lightTheme.text,
       marginTop: 10,
       marginBottom: 10,
     }),
   );
   expect(enrichedMarkdown.props.markdownStyle.h1).toEqual(
-    expect.objectContaining({ fontSize: 32, fontWeight: '700', marginTop: 4, marginBottom: 2 }),
+    expect.objectContaining({
+      fontSize: 32,
+      lineHeight: 40,
+      fontWeight: '700',
+      marginTop: 4,
+      marginBottom: 2,
+    }),
   );
   expect(enrichedMarkdown.props.markdownStyle.h2).toEqual(
-    expect.objectContaining({ fontSize: 24, fontWeight: '700', marginTop: 4, marginBottom: 2 }),
+    expect.objectContaining({
+      fontSize: 24,
+      lineHeight: 30,
+      fontWeight: '700',
+      marginTop: 4,
+      marginBottom: 2,
+    }),
   );
   expect(enrichedMarkdown.props.markdownStyle.h6).toEqual(
-    expect.objectContaining({ fontSize: 11, fontWeight: '700', marginTop: 4, marginBottom: 2 }),
+    expect.objectContaining({
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: '700',
+      marginTop: 4,
+      marginBottom: 2,
+    }),
   );
+  expect(enrichedMarkdown.props.markdownStyle.list).toEqual(
+    expect.objectContaining({
+      fontSize: lightTheme.typography.fontSize.message,
+      lineHeight: Math.round(lightTheme.typography.fontSize.message * 1.25),
+      marginTop: 2,
+      marginBottom: 2,
+      gapWidth: 10,
+      marginLeft: 10,
+    }),
+  );
+  expect(enrichedMarkdown.props.markdownStyle.list.markerFontWeight).toBeUndefined();
 });
 
 

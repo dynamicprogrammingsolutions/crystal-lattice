@@ -4,12 +4,12 @@ Replace assistant markdown rendering with `react-native-enriched-markdown` so ri
 
 ## Requirements checklist
 
-- [ ] Install and wire a React Native compatible `react-native-enriched-markdown` version.
-- [ ] Replace `react-native-markdown-display` usage in assistant markdown rendering with enriched markdown.
-- [ ] Preserve current custom code block rendering behavior and syntax highlighting for fenced code blocks.
-- [ ] Preserve styling, theme colors, link behavior, inline code appearance, headings, lists, blockquotes, and message layout as closely as practical.
-- [ ] Add or update focused component tests where feasible.
-- [ ] Manually verify selection behavior for markdown prose on iOS and Android.
+- [x] Install and wire a React Native compatible `react-native-enriched-markdown` version.
+- [x] Replace `react-native-markdown-display` usage in assistant markdown rendering with enriched markdown.
+- [x] Preserve current custom code block rendering behavior and syntax highlighting for fenced code blocks.
+- [x] Preserve styling, theme colors, link behavior, inline code appearance, headings, lists, blockquotes, and message layout as closely as practical.
+- [x] Add or update focused component tests where feasible.
+- [x] Manually verify selection behavior for markdown prose on iOS and Android.
 
 Parent Task: `tasks/20260608-selectable-react-native-text/000-main.md`
 
