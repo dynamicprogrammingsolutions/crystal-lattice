@@ -26,8 +26,7 @@ sections:
         target: "_blank"
     install:
       prompt: "$"
-      command: "curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.\
-        amazonaws.com/crystal-lattice-cli/install.sh | bash"
+      command: "curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash"
       altHtml: "or <code>pipx install crystal-lattice-cli</code>"
 
   - type: providers
@@ -59,8 +58,7 @@ sections:
         body:
           - html: "One-line installer for macOS & Linux:"
         codeBlocks:
-          - "curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.\
-            amazonaws.com/crystal-lattice-cli/install.sh | bash"
+          - "curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash"
         after:
           - html: "Or via pipx:"
         afterCodeBlocks:

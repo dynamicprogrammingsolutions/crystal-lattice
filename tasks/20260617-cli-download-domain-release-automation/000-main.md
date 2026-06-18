@@ -14,8 +14,8 @@ Create a reproducible AWS/GitHub deployment path for Crystal Lattice CLI downloa
   - Script exists; full release orchestration still needs tag/publish validation after the workflow is green.
 - [ ] `tasks/20260617-cli-download-domain-release-automation/070-add-promote-existing-github-release-script.md`
   - Script exists; existing GitHub Release assets for `0.1.0` used older names, so promotion was not used for the live test.
-- [ ] `tasks/20260617-cli-download-domain-release-automation/080-add-smoke-tests-and-domain-cutover-docs.md`
-  - Testing-domain public installer smoke passed; production cutover/final docs remain.
+- [x] `tasks/20260617-cli-download-domain-release-automation/080-add-smoke-tests-and-domain-cutover-docs.md`
+  - Testing-domain and production-domain public installer smoke passed; production website/docs were updated and deployed.
 
 ## Goal
 
@@ -317,6 +317,34 @@ Final status update added during completion on 2026-06-18:
 Remaining work after this update:
 
 1. Run a tag-triggered release to verify GitHub Release publication and the `publish-downloads` job through OIDC.
-2. Decide when to create/update the production stack for `download.crystallattice.dev`.
-3. Configure GitHub variables/secrets for production when ready.
-4. Promote or release to production and run `smoke.sh --profile prod`.
+2. Decide whether to tag a follow-up release now that source defaults and website commands point at production.
+
+Production cutover update added during completion on 2026-06-18:
+
+- Created/updated production download infrastructure for `https://download.crystallattice.dev/crystal-lattice-cli`.
+- Created/updated production GitHub OIDC role:
+
+  ```text
+  arn:aws:iam::874087778966:role/CrystalLatticeCliDownloadsGitHubDeployRoleProd
+  ```
+
+- Configured GitHub Actions variables/secrets for production downloads.
+- Tried the documented `promote-github-release.sh --profile prod --version 0.1.0` path. It failed with:
+
+  ```text
+  no assets match the file pattern
+  ```
+
+  The existing `0.1.0` GitHub Release used older asset names, so the README was corrected to document `publish-assets.sh` for validated workflow artifacts.
+- Published the already-validated artifacts from workflow run `27746631545` to production with `publish-assets.sh`.
+- Ran and passed:
+
+  ```bash
+  deploy/aws-cli-downloads/smoke.sh --profile prod
+  ```
+
+- Updated and deployed the production landing website install command to:
+
+  ```bash
+  curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
+  ```

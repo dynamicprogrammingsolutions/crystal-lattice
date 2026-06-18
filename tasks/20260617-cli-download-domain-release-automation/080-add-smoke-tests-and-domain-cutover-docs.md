@@ -11,10 +11,10 @@ Add a smoke-test script and final documentation that explains test-domain valida
 - [x] Document full test-domain validation.
 - [x] Document production cutover from testing domain to production domain.
 - [x] Document how and when to update `scripts/install.sh` default URL.
-- [ ] Update root/application README install commands if production domain becomes canonical.
+- [x] Update root/application README install commands if production domain becomes canonical.
 - [x] Document rollback/promotion of previous release.
 - [x] Run smoke tests against the testing domain.
-- [ ] Run final docs checks.
+- [x] Run final docs checks.
 
 Parent Task: `tasks/20260617-cli-download-domain-release-automation/000-main.md`
 
@@ -68,7 +68,7 @@ README must include a step-by-step cutover:
 4. Run `smoke.sh --profile test`.
 5. Deploy/update production download stack.
 6. Configure GitHub variables/secrets for production.
-7. Promote same GitHub Release to production.
+7. Promote same GitHub Release to production, or publish validated workflow artifacts if the existing GitHub Release asset names do not match the current archive names.
 8. Run `smoke.sh --profile prod`.
 9. Update `scripts/install.sh` default base URL if production is now canonical.
 10. Update README install commands.
@@ -123,5 +123,18 @@ deploy/aws-cli-downloads/smoke.sh \
 Final update added during completion on 2026-06-18:
 
 After workflow run `27746631545` passed and its artifacts were published to the testing domain, the public smoke command above passed. It verified `install.sh`, `latest.txt`, all expected archive URLs, a temp-path install on macOS arm64, `--help`, and `--runtime-layout-json`.
+
+Production cutover update added during completion on 2026-06-18:
+
+- Updated `README.md`, `application/python/README.md`, `scripts/install.sh`, and `landing_page/src/content/pages/home.yaml` to use `https://download.crystallattice.dev/crystal-lattice-cli`.
+- Updated `deploy/aws-cli-downloads/README.md` because `promote-github-release.sh` cannot promote the old `0.1.0` GitHub Release assets; use `publish-assets.sh` for validated workflow-dispatch artifacts in that case.
+- Built and synced the production landing/docs static site.
+- Verified the live website contains:
+
+  ```bash
+  curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
+  ```
+
+- Production `smoke.sh --profile prod` passed.
 
 If README command examples are executable in the current environment, run the testing-domain variants with temp install paths.

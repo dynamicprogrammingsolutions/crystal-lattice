@@ -123,3 +123,22 @@ Verify:
 Added during completion on 2026-06-18.
 
 The promotion script exists, but it was not used for the live testing-domain publish because the existing `crystal-lattice-cli-v0.1.0` GitHub Release assets use older asset names. The current installer and `publish-assets.sh` expect `crystal-lattice-python-runtime-v0.1.0-*` archive names.
+
+Production update added during completion on 2026-06-18.
+
+The documented production promotion command was run:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/promote-github-release.sh \
+  --profile prod \
+  --version 0.1.0 \
+  --repo dynamicprogrammingsolutions/crystal-lattice
+```
+
+It failed before mutating AWS with:
+
+```text
+no assets match the file pattern
+```
+
+The production endpoint was populated with the validated workflow-dispatch artifacts via `publish-assets.sh` instead. The README now documents this fallback for old releases whose GitHub Release asset names do not match the current runtime archive names.

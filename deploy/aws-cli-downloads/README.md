@@ -257,6 +257,18 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/promote-github-release.sh \
 Use promotion when the artifacts already exist and only the download domain or
 `latest.txt` target needs to change.
 
+For `0.1.0`, the original GitHub Release used older asset names and cannot be
+promoted with `promote-github-release.sh`. If you validated artifacts from a
+workflow-dispatch run instead, download those artifacts and publish the local
+asset directory:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/publish-assets.sh \
+  --profile prod \
+  --assets-dir /path/to/release-assets \
+  --version 0.1.0
+```
+
 ## Smoke Testing
 
 Smoke-test the testing download URL:
@@ -297,7 +309,9 @@ Recommended cutover:
 4. Run `deploy/aws-cli-downloads/smoke.sh --profile test`.
 5. Deploy/update the production stack.
 6. Configure GitHub variables/secrets for production.
-7. Promote the same GitHub Release to production.
+7. Promote the same GitHub Release to production, or publish the validated
+   workflow artifacts with `publish-assets.sh` if the GitHub Release assets do
+   not use the current `crystal-lattice-python-runtime-v<version>-...` names.
 8. Run `deploy/aws-cli-downloads/smoke.sh --profile prod`.
 9. Update `scripts/install.sh` `DEFAULT_DOWNLOAD_BASE_URL` if production is now
    the canonical default.
