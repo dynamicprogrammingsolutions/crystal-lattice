@@ -16,7 +16,7 @@ material follows after that.
 
 ### 1. Install The Terminal/Server App
 
-On macOS or Linux, install the bundled CLI:
+On macOS, Linux, or Git Bash on Windows, install the bundled CLI:
 
 ```bash
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash

@@ -348,3 +348,10 @@ Production cutover update added during completion on 2026-06-18:
   ```bash
   curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
   ```
+
+Git Bash installer update added during completion on 2026-06-18:
+
+- Extended `scripts/install.sh` so Git Bash/MSYS/Cygwin on Windows detects `windows-amd64`, downloads the `.zip` runtime archive, and writes a Bash shim that calls `Scripts/crystal-lattice.cmd`.
+- Uploaded the updated generated installer to both the testing and production download domains.
+- Added focused installer tests for Linux tarball installs, Windows Git Bash zip installs, and unsupported Windows architectures.
+- Production endpoint smoke with `--skip-install` passed after upload.
