@@ -170,6 +170,7 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
   expect(enrichedMarkdown.props.selectable).toBe(true);
   expect(enrichedMarkdown.props.flavor).toBe('commonmark');
   expect(enrichedMarkdown.props.onLinkPress).toEqual(expect.any(Function));
+  expect(enrichedMarkdown.props.markdownStyle).toBeUndefined();
 });
 
 
