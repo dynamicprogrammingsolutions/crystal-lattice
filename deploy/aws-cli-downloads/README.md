@@ -15,19 +15,13 @@ the public download URL.
 Testing profile default:
 
 ```text
-https://crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli
+https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli
 ```
 
 Production profile default:
 
 ```text
-https://downloads.crystallattice.dev/crystal-lattice-cli
-```
-
-If production downloads should instead live at the apex domain, pass:
-
-```bash
---download-domain crystallattice.dev
+https://download.crystallattice.dev/crystal-lattice-cli
 ```
 
 The scripts keep the host and path prefix configurable so the cutover from the
@@ -96,7 +90,7 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/up.sh \
   --stack-name crystal-lattice-cli-downloads-test \
   --region us-east-1 \
   --hosted-zone-name dynamicprogrammingsolutions.com \
-  --download-domain crystallattice.dev.dynamicprogrammingsolutions.com \
+  --download-domain download.crystallattice.dev.dynamicprogrammingsolutions.com \
   --bucket-name-prefix crystal-lattice-cli-downloads-test \
   --prefix crystal-lattice-cli
 ```
@@ -129,7 +123,7 @@ Inspect the generated installer without uploading:
 ```bash
 deploy/aws-cli-downloads/upload-installer.sh \
   --profile test \
-  --base-url https://crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
+  --base-url https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
   --print
 ```
 
@@ -143,19 +137,9 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/up.sh \
   --stack-name crystal-lattice-cli-downloads-prod \
   --region us-east-1 \
   --hosted-zone-name crystallattice.dev \
-  --download-domain downloads.crystallattice.dev \
+  --download-domain download.crystallattice.dev \
   --bucket-name-prefix crystal-lattice-cli-downloads-prod \
   --prefix crystal-lattice-cli
-```
-
-If production should use `https://crystallattice.dev/crystal-lattice-cli`
-instead, change only `--download-domain`:
-
-```bash
-ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/up.sh \
-  --profile prod \
-  --hosted-zone-name crystallattice.dev \
-  --download-domain crystallattice.dev
 ```
 
 ## GitHub Actions Setup
@@ -285,7 +269,7 @@ Smoke-test a specific URL/version:
 
 ```bash
 deploy/aws-cli-downloads/smoke.sh \
-  --base-url https://crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
+  --base-url https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
   --version 0.1.0
 ```
 
@@ -324,7 +308,7 @@ Recommended cutover:
 Pinned install examples should set `VERSION` for the `bash` process:
 
 ```bash
-curl -fsSL https://downloads.crystallattice.dev/crystal-lattice-cli/install.sh | \
+curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | \
   VERSION=0.1.0 \
   bash
 ```
@@ -332,8 +316,8 @@ curl -fsSL https://downloads.crystallattice.dev/crystal-lattice-cli/install.sh |
 Override the base URL without changing the installer default:
 
 ```bash
-curl -fsSL https://downloads.crystallattice.dev/crystal-lattice-cli/install.sh | \
-  CRYSTAL_LATTICE_DOWNLOAD_BASE_URL=https://crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
+curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | \
+  CRYSTAL_LATTICE_DOWNLOAD_BASE_URL=https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli \
   bash
 ```
 

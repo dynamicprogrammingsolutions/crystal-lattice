@@ -32,12 +32,12 @@ Common options:
 Defaults:
   test stack:          crystal-lattice-cli-downloads-test
   test hosted zone:    dynamicprogrammingsolutions.com
-  test domain:         crystallattice.dev.dynamicprogrammingsolutions.com
+  test domain:         download.crystallattice.dev.dynamicprogrammingsolutions.com
   test bucket prefix:  crystal-lattice-cli-downloads-test
 
   prod stack:          crystal-lattice-cli-downloads-prod
   prod hosted zone:    crystallattice.dev
-  prod domain:         downloads.crystallattice.dev
+  prod domain:         download.crystallattice.dev
   prod bucket prefix:  crystal-lattice-cli-downloads-prod
 
   region:              us-east-1
@@ -69,13 +69,13 @@ apply_profile_defaults() {
     prod)
       STACK_NAME="${STACK_NAME:-crystal-lattice-cli-downloads-prod}"
       HOSTED_ZONE_NAME="${HOSTED_ZONE_NAME:-crystallattice.dev}"
-      DOWNLOAD_DOMAIN="${DOWNLOAD_DOMAIN:-downloads.crystallattice.dev}"
+      DOWNLOAD_DOMAIN="${DOWNLOAD_DOMAIN:-download.crystallattice.dev}"
       BUCKET_NAME_PREFIX="${BUCKET_NAME_PREFIX:-crystal-lattice-cli-downloads-prod}"
       ;;
     test)
       STACK_NAME="${STACK_NAME:-crystal-lattice-cli-downloads-test}"
       HOSTED_ZONE_NAME="${HOSTED_ZONE_NAME:-dynamicprogrammingsolutions.com}"
-      DOWNLOAD_DOMAIN="${DOWNLOAD_DOMAIN:-crystallattice.dev.dynamicprogrammingsolutions.com}"
+      DOWNLOAD_DOMAIN="${DOWNLOAD_DOMAIN:-download.crystallattice.dev.dynamicprogrammingsolutions.com}"
       BUCKET_NAME_PREFIX="${BUCKET_NAME_PREFIX:-crystal-lattice-cli-downloads-test}"
       ;;
     *)

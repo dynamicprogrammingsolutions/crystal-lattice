@@ -9,7 +9,7 @@ Parameters:
     Description: Route 53 hosted zone ID for the download domain.
   DownloadDomainName:
     Type: String
-    Default: crystallattice.dev.dynamicprogrammingsolutions.com
+    Default: download.crystallattice.dev.dynamicprogrammingsolutions.com
     Description: Fully qualified domain name for CLI downloads.
   BucketNamePrefix:
     Type: String
