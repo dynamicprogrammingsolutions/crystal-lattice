@@ -307,3 +307,41 @@ def test_windows_launcher_uses_actual_packaged_python_path(tmp_path: Path) -> No
     )
     assert "set CRYSTAL_PLUGIN_PYTHON=%ROOT%python\\python.exe" in launcher
     assert '"%ROOT%python\\python.exe" -m agent_terminal_app %*' in launcher
+
+
+def test_windows_long_path_manifest_preserves_existing_manifest(tmp_path: Path) -> None:
+    manifest = tmp_path / "python.manifest"
+    root = runtime_builder.ET.Element(
+        f"{{{runtime_builder.MANIFEST_NS}}}assembly",
+        {"manifestVersion": "1.0"},
+    )
+    runtime_builder.ET.SubElement(root, f"{{{runtime_builder.MANIFEST_NS}}}dependency")
+
+    runtime_builder.ensure_long_path_aware(root)
+    runtime_builder.ET.ElementTree(root).write(manifest, encoding="utf-8")
+    text = manifest.read_text(encoding="utf-8")
+
+    assert "dependency" in text
+    assert "longPathAware" in text
+    assert "true" in text
+
+
+def test_windows_runtime_build_embeds_long_path_manifest(
+    tmp_path: Path, monkeypatch
+) -> None:
+    runtime_dir = tmp_path / "python"
+    python = runtime_dir / "python.exe"
+    python.parent.mkdir()
+    python.write_text("", encoding="utf-8")
+    calls: list[tuple[Path, Path]] = []
+
+    monkeypatch.setattr(
+        runtime_builder,
+        "embed_manifest",
+        lambda exe, manifest: calls.append((exe, manifest)),
+    )
+
+    runtime_builder.make_windows_python_long_path_aware(runtime_dir, "windows")
+
+    assert calls == [(python, runtime_dir / runtime_builder.WINDOWS_LONG_PATH_MANIFEST)]
+    assert "longPathAware" in calls[0][1].read_text(encoding="utf-8")

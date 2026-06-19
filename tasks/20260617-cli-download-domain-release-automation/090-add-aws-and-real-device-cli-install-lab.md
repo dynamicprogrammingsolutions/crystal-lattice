@@ -66,7 +66,7 @@ Linux:
 Windows:
   aws ssm start-session --target <windows-instance-id> --document-name AWS-StartInteractiveCommand --parameters command="powershell.exe"
   & "C:\Program Files\Git\bin\bash.exe" -l
-  cd /c/cl-lab
+  cd /c/crystal-lattice-cli-manual-lab
   ./run-cli-api-smoke.sh
 ```
 
@@ -84,7 +84,7 @@ The smoke script should:
 
 1. Load `.env` when present.
 2. Install with `curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash`.
-3. Set isolated install paths. Linux/macOS use `.install/`; Windows Git Bash uses short `.i/` and `.b/` paths to avoid Windows path-length failures in deeply nested bundled config files.
+3. Set isolated install paths under workspace-local `.install/`.
 4. Run `crystal-lattice --help`.
 5. Run `crystal-lattice --runtime-layout-json`.
 6. Create `tool-target.txt`.
@@ -178,7 +178,7 @@ Agent: codex-openrouter
 Session: c054a4e8-9ae2-4481-939b-b32e683cbeaf
 ```
 
-Windows EC2 Git Bash behavioral smoke passed after switching the Windows lab to short paths (`C:\cl-lab`, `.i`, `.b`) and updating the public installer verification to accept Windows backslash plugin paths. The independent final assertion returned:
+Windows EC2 Git Bash behavioral smoke passed after switching the Windows lab to short paths (`C:\cl-lab`, `.i`, `.b`) and updating the public installer verification to accept Windows backslash plugin paths. That short-path workaround was later reverted for a manifest-level long-path retest. The independent final assertion from the short-path run returned:
 
 ```text
 PASS-MESSAGES
@@ -195,7 +195,7 @@ Session: edf3aeb1-d2b9-440b-90e3-c53196af8e1f
 Important findings/fixes from this run:
 
 - The public Windows Git Bash installer initially failed because `scripts/install.sh` checked only `/plugins`; Windows runtime layout paths use backslashes. Fixed the check to accept `/plugins` or `\plugins`, added a focused regression test, and uploaded the corrected installer to both production and testing download domains.
-- The Windows lab initially used `C:\crystal-lattice-cli-manual-lab`, which made deeply nested default-config paths too long for Windows during first-run config copy. The lab now defaults to `C:\cl-lab`, and the smoke script uses short `.i`/`.b` paths on Windows.
+- The Windows lab initially used `C:\crystal-lattice-cli-manual-lab`, which made deeply nested default-config paths too long for Windows during first-run config copy. A temporary short-path workaround was tried and then reverted so the manifest-level fix can be tested against the original long path.
 - The smoke script initially checked session history too early by relying on `active_request_id`; it now polls for the actual acceptance condition.
 - The non-interactive Windows SSM wrapper still has a cleanup/reporting issue: the installed CLI behavior reaches `PASS`, but the wrapper can remain open or report failure during server cleanup. Manual Git Bash use is still valid, and the message-history assertion confirms the Windows product behavior passed.
 

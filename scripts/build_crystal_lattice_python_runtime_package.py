@@ -10,8 +10,10 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import tempfile
 import venv
 import zipfile
+import xml.etree.ElementTree as ET
 
 from build_plugin_packaging_support import copytree_sanitized
 from build_plugin_packaging_support import (
@@ -36,6 +38,13 @@ SCRIPTS_DIR = ROOT / "scripts"
 BUILD_DIR = ROOT / "build" / "crystal-lattice-python-runtime"
 RELEASES_DIR = ROOT / "dist" / "crystal-lattice-python-runtime"
 PREINSTALLED_PLUGIN_MANIFEST = "preinstalled-plugins.json"
+WINDOWS_LONG_PATH_MANIFEST = "python-long-path-aware.manifest"
+MANIFEST_NS = "urn:schemas-microsoft-com:asm.v1"
+MANIFEST_V3_NS = "urn:schemas-microsoft-com:asm.v3"
+WINDOWS_SETTINGS_NS = "http://schemas.microsoft.com/SMI/2016/WindowsSettings"
+ET.register_namespace("", MANIFEST_NS)
+ET.register_namespace("asmv3", MANIFEST_V3_NS)
+ET.register_namespace("ws2", WINDOWS_SETTINGS_NS)
 
 
 def main() -> None:
@@ -111,6 +120,7 @@ def build_python_runtime_package(
     package_dir.mkdir(parents=True)
 
     stage_python_runtime(package_dir / "python", python_runtime=python_runtime)
+    make_windows_python_long_path_aware(package_dir / "python", platform_name)
     stage_repo_like_runtime(package_dir)
     write_preinstalled_plugins_manifest(package_dir, set())
     write_launchers(package_dir, platform_name=platform_name)
@@ -162,6 +172,85 @@ def prepare_copied_python_runtime(destination: Path) -> None:
             "setuptools",
             "wheel",
         ],
+        check=True,
+    )
+
+
+def make_windows_python_long_path_aware(runtime_dir: Path, platform_name: str) -> None:
+    if platform_name != "windows":
+        return
+    python = runtime_python(runtime_dir)
+    manifest = runtime_dir / WINDOWS_LONG_PATH_MANIFEST
+    write_long_path_manifest(manifest, executable=python)
+    embed_manifest(python, manifest)
+
+
+def write_long_path_manifest(path: Path, *, executable: Path | None = None) -> None:
+    root = extract_manifest_root(executable) if executable is not None else None
+    if root is None:
+        root = ET.Element(
+            f"{{{MANIFEST_NS}}}assembly",
+            {"manifestVersion": "1.0"},
+        )
+    ensure_long_path_aware(root)
+    tree = ET.ElementTree(root)
+    ET.indent(tree, space="  ")
+    path.write_text(
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n',
+        encoding="utf-8",
+    )
+    with path.open("ab") as f:
+        tree.write(f, encoding="utf-8", xml_declaration=False)
+
+
+def extract_manifest_root(executable: Path | None) -> ET.Element | None:
+    if executable is None:
+        return None
+    mt = shutil.which("mt")
+    if mt is None:
+        return None
+    with tempfile.TemporaryDirectory() as tmp:
+        extracted = Path(tmp) / "existing.manifest"
+        result = subprocess.run(
+            [mt, f"-inputresource:{executable};#1", f"-out:{extracted}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        if result.returncode != 0 or not extracted.is_file():
+            return None
+        return ET.parse(extracted).getroot()
+
+
+def ensure_long_path_aware(root: ET.Element) -> None:
+    application = root.find(f"{{{MANIFEST_V3_NS}}}application")
+    if application is None:
+        application = ET.SubElement(root, f"{{{MANIFEST_V3_NS}}}application")
+    windows_settings = application.find(f"{{{MANIFEST_V3_NS}}}windowsSettings")
+    if windows_settings is None:
+        windows_settings = ET.SubElement(
+            application, f"{{{MANIFEST_V3_NS}}}windowsSettings"
+        )
+    existing = windows_settings.find(f"{{{WINDOWS_SETTINGS_NS}}}longPathAware")
+    if existing is not None:
+        existing.text = "true"
+        return
+    long_path_aware = ET.SubElement(
+        windows_settings,
+        f"{{{WINDOWS_SETTINGS_NS}}}longPathAware",
+    )
+    long_path_aware.text = "true"
+
+
+def embed_manifest(executable: Path, manifest: Path) -> None:
+    mt = shutil.which("mt")
+    if mt is None:
+        raise RuntimeError(
+            "Windows manifest tool 'mt' is required to mark packaged Python "
+            "as longPathAware, but it was not found on PATH."
+        )
+    subprocess.run(
+        [mt, "-manifest", str(manifest), f"-outputresource:{executable};#1"],
         check=True,
     )
 

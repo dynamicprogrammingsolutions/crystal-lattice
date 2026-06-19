@@ -13,10 +13,7 @@ The lab uses:
 - no inbound SSH or RDP rules
 - Git Bash on Windows, so Windows uses the same `install.sh` path as Linux and
   macOS
-- workspace-local `.install/`, `.crystal`, and `logs/` directories on
-  Linux/macOS
-- short `C:\cl-lab`, `.i/`, and `.b/` paths on Windows Git Bash to avoid
-  Windows path-length issues in deeply nested bundled config files
+- workspace-local `.install/`, `.crystal`, and `logs/` directories
 
 ## Prerequisites
 
@@ -88,7 +85,7 @@ Then open Git Bash and run the same smoke script:
 ```
 
 ```bash
-cd /c/cl-lab
+cd /c/crystal-lattice-cli-manual-lab
 ./run-cli-api-smoke.sh
 ```
 
@@ -99,15 +96,14 @@ Bash exit code:
 aws --region us-east-1 ssm send-command \
   --instance-ids <windows-instance-id> \
   --document-name AWS-RunPowerShellScript \
-  --parameters commands='["& \"C:\\Program Files\\Git\\bin\\bash.exe\" -lc \"cd /c/cl-lab && ./run-cli-api-smoke.sh\"; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"]'
+  --parameters commands='["& \"C:\\Program Files\\Git\\bin\\bash.exe\" -lc \"cd /c/crystal-lattice-cli-manual-lab && ./run-cli-api-smoke.sh\"; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }"]'
 ```
 
 The smoke script:
 
 1. Loads `.env` if present.
 2. Installs from `https://download.crystallattice.dev/crystal-lattice-cli/install.sh`.
-3. Uses workspace-local `.install/` paths on Linux/macOS and short `.i/` plus
-   `.b/` paths on Windows.
+3. Uses workspace-local `.install/` paths.
 4. Starts `crystal-lattice --server --config-local`.
 5. Sends a real HTTP API request.
 6. Asks the model to use tools to read `./tool-target.txt`.
@@ -157,12 +153,12 @@ Windows:
 
 1. Install Git for Windows.
 2. Open Git Bash.
-3. Copy `run-cli-api-smoke.sh` into `C:\cl-lab`.
+3. Copy `run-cli-api-smoke.sh` into `C:\crystal-lattice-cli-manual-lab`.
 4. Optionally copy `.env` into the same directory.
 5. Run:
 
 ```bash
-cd /c/cl-lab
+cd /c/crystal-lattice-cli-manual-lab
 ./run-cli-api-smoke.sh
 ```
 

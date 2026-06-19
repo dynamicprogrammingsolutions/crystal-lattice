@@ -20,13 +20,8 @@ is_windows_bash() {
   esac
 }
 
-if is_windows_bash; then
-  INSTALL_ROOT="${INSTALL_ROOT:-$ROOT/.i}"
-  BIN_DIR="${BIN_DIR:-$ROOT/.b}"
-else
-  INSTALL_ROOT="${INSTALL_ROOT:-$ROOT/.install/opt/crystal-lattice-cli}"
-  BIN_DIR="${BIN_DIR:-$ROOT/.install/bin}"
-fi
+INSTALL_ROOT="${INSTALL_ROOT:-$ROOT/.install/opt/crystal-lattice-cli}"
+BIN_DIR="${BIN_DIR:-$ROOT/.install/bin}"
 
 json_extract_session_id() {
   if command -v python3 >/dev/null 2>&1; then
