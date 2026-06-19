@@ -14,6 +14,8 @@ The lab uses:
 - Git Bash on Windows, so Windows uses the same `install.sh` path as Linux and
   macOS
 - workspace-local `.install/`, `.crystal`, and `logs/` directories
+- Windows long-path support enabled in the EC2 instance bootstrap so the lab can
+  test the normal workspace/install path instead of a shortened workaround
 
 ## Prerequisites
 
@@ -152,10 +154,21 @@ cd ~/crystal-lattice-cli-manual-lab
 Windows:
 
 1. Install Git for Windows.
-2. Open Git Bash.
-3. Copy `run-cli-api-smoke.sh` into `C:\crystal-lattice-cli-manual-lab`.
-4. Optionally copy `.env` into the same directory.
-5. Run:
+2. Enable Windows long-path support if it is not already enabled:
+
+   ```powershell
+   New-ItemProperty `
+     -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+     -Name "LongPathsEnabled" `
+     -Value 1 `
+     -PropertyType DWORD `
+     -Force
+   ```
+
+3. Open a new Git Bash session.
+4. Copy `run-cli-api-smoke.sh` into `C:\crystal-lattice-cli-manual-lab`.
+5. Optionally copy `.env` into the same directory.
+6. Run:
 
 ```bash
 cd /c/crystal-lattice-cli-manual-lab

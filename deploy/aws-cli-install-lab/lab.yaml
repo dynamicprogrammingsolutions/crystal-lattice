@@ -111,6 +111,12 @@ Resources:
       UserData:
         Fn::Base64: !Sub |
           <powershell>
+          New-ItemProperty `
+            -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+            -Name "LongPathsEnabled" `
+            -Value 1 `
+            -PropertyType DWORD `
+            -Force
           Set-Service -Name AmazonSSMAgent -StartupType Automatic
           Start-Service -Name AmazonSSMAgent
           </powershell>

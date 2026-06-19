@@ -383,3 +383,4 @@ Windows long-path manifest retest update added during completion on 2026-06-19:
 - Restored the Windows lab to the original long path and `.install/opt/crystal-lattice-cli` install path for an honest retest.
 - The retest still failed while copying bundled default config. The installed artifact contained `longPathAware=true`, but the AWS Windows host had `LongPathsEnabled = 0`.
 - Conclusion: manifest-only is insufficient on a default Windows Server host where system long-path support is disabled. The manifest remains a useful prerequisite, but the remaining options are system opt-in, path shortening/flattening, or code-level extended path handling.
+- Updated the AWS install lab stack descriptor so Windows EC2 UserData enables `LongPathsEnabled=1`, allowing the lab to keep testing the normal long workspace/install path without the short-path workaround.

@@ -21,6 +21,7 @@ Create a repeatable isolated manual testing lab for installed CLI releases. The 
 - [x] Run `run-cli-api-smoke.sh` on Windows EC2 from Git Bash.
 - [ ] Fix non-interactive Windows SSM wrapper cleanup/reporting so the SSM command returns `Success` after the script prints `PASS`.
 - [x] Try a Windows `longPathAware` manifest-only packaging fix and retest from the original long lab path.
+- [x] Enable Windows system long-path support in the AWS lab stack descriptor.
 
 Parent Task: `tasks/20260617-cli-download-domain-release-automation/000-main.md`
 
@@ -256,3 +257,13 @@ LongPathsEnabled = 0
 ```
 
 Conclusion: the manifest change is a useful package-level prerequisite, but Windows still requires system long-path opt-in on this host. Manifest-only does not solve the long-path issue for a default Windows Server environment with `LongPathsEnabled=0`.
+
+AWS lab stack descriptor update added during completion on 2026-06-19:
+
+- Updated `deploy/aws-cli-install-lab/lab.yaml` so Windows EC2 UserData sets:
+
+  ```powershell
+  New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+  ```
+
+- This keeps the normal long lab/install path under test while making the AWS test host satisfy the Windows system-level prerequisite for the packaged `longPathAware` Python runtime.
