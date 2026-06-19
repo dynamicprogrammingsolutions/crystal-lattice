@@ -2947,6 +2947,7 @@ class AgentApplication:
         )
 
         if candidate.action_owner == "application":
+            context = self._session_scoped_application_action_context(context)
             result = self.execute_application_action(
                 candidate.plugin_id,
                 candidate.action_id,
@@ -2986,6 +2987,27 @@ class AgentApplication:
             action_owner=action_owner,
             context=context,
         ).result
+
+    def _session_scoped_application_action_context(
+        self,
+        context: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(context, dict):
+            return context
+        if isinstance(context.get("base_config"), dict):
+            return context
+        session_id = context.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            return context
+        loaded = self.load_session(session_id)
+        if loaded is None:
+            return context
+        _core, base_config, session = loaded
+        return self._context.build_session_action_context(
+            session=session,
+            base_config=base_config,
+            extra=context,
+        )
 
     def load_session(
         self,

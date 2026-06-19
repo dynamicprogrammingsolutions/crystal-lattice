@@ -9,6 +9,7 @@ import pytest
 import mcp_shared.runtime as runtime_mod
 
 from mcp_shared import (
+    MCP_OAUTH_TOKENS_STORE_KEY,
     MCPDiscoveredTool,
     MCPRuntimeConfig,
     MCPRegistry,
@@ -16,6 +17,7 @@ from mcp_shared import (
     MCPServerRuntimeSpec,
     MCPServerSnapshot,
     MCPToolCallResult,
+    apply_oauth_tokens_to_runtime_config,
     fingerprint_runtime_config,
 )
 
@@ -62,6 +64,39 @@ def test_discovered_tool_dataclass_fields() -> None:
     )
     assert tool.server_name == "filesystem"
     assert tool.raw_name == "read_file"
+
+
+def test_apply_oauth_tokens_to_runtime_config_adds_authorization_header() -> None:
+    config = MCPRuntimeConfig(
+        servers={
+            "protected": MCPServerRuntimeSpec(
+                name="protected",
+                enabled=True,
+                transport="http",
+                url="https://mcp.example.test/mcp",
+                headers={"X-Test": "yes"},
+            ),
+            "public": MCPServerRuntimeSpec(
+                name="public",
+                enabled=True,
+                transport="http",
+                url="https://public.example.test/mcp",
+            ),
+        }
+    )
+    runtime_store = {
+        MCP_OAUTH_TOKENS_STORE_KEY: {
+            "protected": {"access_token": "access-123"},
+        }
+    }
+
+    updated = apply_oauth_tokens_to_runtime_config(config, runtime_store)
+
+    assert updated.servers["protected"].headers == {
+        "X-Test": "yes",
+        "Authorization": "Bearer access-123",
+    }
+    assert updated.servers["public"].headers == {}
 
 
 class _StallingClientSession:

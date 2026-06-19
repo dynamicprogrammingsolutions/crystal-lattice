@@ -9,10 +9,10 @@ Add regression coverage and implementation steps for MCP servers that require OA
 - [x] Surface MCP startup failures as actionable runtime status instead of silently blocking or returning no user-visible feedback.
 - [x] Detect authentication-required MCP failures where practical, including HTTP `401` / `WWW-Authenticate` challenges and MCP SDK OAuth/auth errors.
 - [x] Expose auth-required MCP server status through the existing MCP runtime status action.
-- [ ] Add a login affordance for auth-required MCP servers that uses generic application actions and display payloads.
-- [ ] Implement OAuth login using the MCP SDK auth primitives where possible, rather than hand-rolling OAuth protocol behavior.
-- [ ] Route OAuth callback completion through the generic action deep-link format with required connection id and session id.
-- [ ] Keep mobile deep-link routing generic; do not add MCP-specific routing logic to the frontend.
+- [x] Add a login affordance for auth-required MCP servers that uses generic application actions and display payloads.
+- [x] Implement OAuth login using the MCP SDK auth primitives where possible, rather than hand-rolling OAuth protocol behavior.
+- [x] Route OAuth callback completion through the generic action deep-link format with required connection id and session id.
+- [x] Keep mobile deep-link routing generic; do not add MCP-specific routing logic to the frontend.
 - [x] Add deterministic tests for timeout/status/auth-required behavior before adding heavier OAuth integration coverage.
 
 Parent Task: `tasks/20260611-mcp-oauth-action-deeplinks/000-main.md`
@@ -319,4 +319,29 @@ Progress update during completion:
 - Validation passed:
   - `pytest plugins/mcp-shared/tests/test_runtime.py plugins/mcp-runtime-app/tests/test_mcp_runtime_app.py plugins/claude-tools/tests/test_claude_mcp_tool.py plugins/codex-tools/tests/test_mcp_tool.py -q`
   - `python -m black --check plugins/mcp-shared/src/mcp_shared/runtime.py plugins/mcp-shared/tests/test_runtime.py plugins/mcp-runtime-app/tests/test_mcp_runtime_app.py`
+  - `git diff --check`
+
+Progress update during completion:
+
+- Added `mcp_start_login` and `mcp_complete_login` application actions to `mcp_runtime_app`.
+- Updated `mcp_show_status` so `auth_required` servers include a generic `run_action` follow-up button:
+  - `kind: "run_action"`
+  - `action_id: "mcp_start_login"`
+  - fixed params include `server_name` and, when available, `connection_id`
+- Updated the `mcp_show_status` session action UI element to map `$context.connectionId` into action inputs so the login action can build a session-specific callback URL.
+- Added split OAuth login support:
+  - `mcp_start_login` builds a callback redirect URI using the existing generic route:
+    `crystal-lattice://action/<connection-id>/<session-id>/mcp_runtime_app/mcp_complete_login?server_name=<server>`
+  - it uses MCP SDK OAuth helpers for protected resource metadata discovery, authorization-server metadata discovery, dynamic client registration, scope selection, PKCE generation, and token parsing where applicable.
+  - it also supports explicit test/config fields (`oauth_authorization_url`, `oauth_token_endpoint`, `oauth_client_id`, optional `oauth_client_secret`, `oauth_token_endpoint_auth_method`, `oauth_scope`) so deterministic tests do not need an external OAuth provider.
+  - it returns standard `open_url` and `copy_text` display actions for the generated authorization URL.
+  - `mcp_complete_login` validates pending state, exchanges the authorization code for a token, stores the token in the application runtime store, and clears MCP runtimes so the next request reconnects.
+- Added shared MCP OAuth runtime-store helpers in `mcp_shared.oauth`.
+- Updated Claude and Codex MCP tool plugins to apply stored OAuth tokens as `Authorization: Bearer ...` headers before computing the runtime fingerprint and reconnecting.
+- Updated application action execution so session-scoped application actions receive a context enriched with the session's base config. This lets `mcp_start_login` find the configured MCP server URL without adding config lookup logic to the HTTP server or frontend.
+- Token storage is currently application runtime-store scoped, not durable across process restarts. Durable token persistence should be considered as a follow-up once the flow shape is validated with real providers.
+- Validation passed:
+  - `python -m pip install -e "plugins/mcp-runtime-app[dev]"`
+  - `pytest plugins/mcp-shared/tests/test_runtime.py plugins/mcp-runtime-app/tests/test_mcp_runtime_app.py plugins/claude-tools/tests/test_claude_mcp_tool.py plugins/codex-tools/tests/test_mcp_tool.py application/python/tests/test_application_actions_endpoints.py -q`
+  - `python -m black --check plugins/mcp-runtime-app/setup.py plugins/mcp-runtime-app/src/mcp_runtime_app/__init__.py plugins/mcp-runtime-app/tests/test_mcp_runtime_app.py plugins/mcp-shared/src/mcp_shared/__init__.py plugins/mcp-shared/src/mcp_shared/oauth.py plugins/mcp-shared/src/mcp_shared/runtime.py plugins/mcp-shared/tests/test_runtime.py plugins/claude-tools/src/claude_tools/claude_mcp_tool.py`
   - `git diff --check`

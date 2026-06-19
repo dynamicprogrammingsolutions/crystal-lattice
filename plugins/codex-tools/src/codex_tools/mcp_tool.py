@@ -16,6 +16,7 @@ from mcp_shared import (
     MCPRuntimeManager,
     MCPServerRuntimeSpec,
     MCPToolCallResult,
+    apply_oauth_tokens_to_runtime_config,
     fingerprint_runtime_config,
 )
 
@@ -261,8 +262,9 @@ class CodexMCPTool(ToolPlugin):
         if not runtime_config.servers:
             return {"runtime_key": None, "tools": []}
 
-        runtime_key = fingerprint_runtime_config(runtime_config)
         store = self._runtime_store(context)
+        runtime_config = apply_oauth_tokens_to_runtime_config(runtime_config, store)
+        runtime_key = fingerprint_runtime_config(runtime_config)
         registry = self._registry_from_store(store, context=context)
         if registry is not None:
             discovered = await registry.list_tools(runtime_key, runtime_config)
