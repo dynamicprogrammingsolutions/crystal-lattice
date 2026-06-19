@@ -20,6 +20,7 @@ Create a repeatable isolated manual testing lab for installed CLI releases. The 
 - [x] Run `run-cli-api-smoke.sh` on Linux EC2.
 - [x] Run `run-cli-api-smoke.sh` on Windows EC2 from Git Bash.
 - [ ] Fix non-interactive Windows SSM wrapper cleanup/reporting so the SSM command returns `Success` after the script prints `PASS`.
+- [x] Try a Windows `longPathAware` manifest-only packaging fix and retest from the original long lab path.
 
 Parent Task: `tasks/20260617-cli-download-domain-release-automation/000-main.md`
 
@@ -206,3 +207,52 @@ ALLOW_AWS_DEPLOY=1 deploy/aws-cli-install-lab/down.sh \
   --stack-name crystal-lattice-cli-install-lab \
   --region us-east-1
 ```
+
+Manifest-only long-path retest update added during completion on 2026-06-19.
+
+Implemented a packaging-level manifest change in `scripts/build_crystal_lattice_python_runtime_package.py`:
+
+- When building the Windows Python-runtime archive, the builder now extracts the existing embedded `python.exe` manifest when possible.
+- It merges in:
+
+  ```xml
+  <ws2:longPathAware>true</ws2:longPathAware>
+  ```
+
+- It embeds the merged manifest back into packaged `python.exe` using `mt.exe`, located either from `PATH` or standard Windows Kits / Visual Studio install directories.
+- Focused tests were added in `application/python/tests/test_python_runtime_package_builder.py`.
+
+Validation:
+
+```bash
+pytest application/python/tests/test_python_runtime_package_builder.py \
+  application/python/tests/test_install_script.py -q
+```
+
+GitHub workflow-dispatch run `27831862789` passed the full release matrix, including `windows-amd64`, and produced candidate artifacts. Those candidate artifacts were published to the testing download domain:
+
+```text
+https://download.crystallattice.dev.dynamicprogrammingsolutions.com/crystal-lattice-cli
+```
+
+The AWS Windows long-path retest restored the original long lab path and `.install/opt/crystal-lattice-cli` install path:
+
+```text
+C:\crystal-lattice-cli-manual-lab\.install\opt\crystal-lattice-cli\...
+```
+
+Result: manifest-only was not sufficient on the AWS Windows Server test host. The same default-config copy failure remained:
+
+```text
+Could not create default config at C:\crystal-lattice-cli-manual-lab\.crystal\config.json
+[Errno 2] No such file or directory:
+C:\crystal-lattice-cli-manual-lab\.install\opt\crystal-lattice-cli\crystal-lattice-python-runtime-v0.1.0-windows-amd64\application\python\agent_terminal_app\default_config\cloud-agent\profiles\transfer_up\working-tree-current-state-branch\local_transfer_script
+```
+
+The installed candidate artifact did include the manifest file with `longPathAware=true`, but the host registry setting was:
+
+```text
+LongPathsEnabled = 0
+```
+
+Conclusion: the manifest change is a useful package-level prerequisite, but Windows still requires system long-path opt-in on this host. Manifest-only does not solve the long-path issue for a default Windows Server environment with `LongPathsEnabled=0`.

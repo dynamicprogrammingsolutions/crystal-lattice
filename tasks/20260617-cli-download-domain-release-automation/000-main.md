@@ -374,3 +374,12 @@ Standard install smoke update added during completion on 2026-06-19:
 - Windows EC2 installed CLI behavior passed by message-history assertion (`PASS-MESSAGES`) and produced tool + assistant messages with the file marker. The non-interactive SSM wrapper still has a cleanup/reporting issue after the script reaches `PASS`.
 - Uploaded the corrected generated `install.sh` to both production and testing download domains.
 - Deleted the AWS lab stack after testing.
+
+Windows long-path manifest retest update added during completion on 2026-06-19:
+
+- Added a packaging-level `longPathAware` manifest merge/embed step for the bundled Windows `python.exe`.
+- Release workflow-dispatch run `27831862789` passed the full matrix, including `windows-amd64`.
+- Published those candidate artifacts to the testing download domain.
+- Restored the Windows lab to the original long path and `.install/opt/crystal-lattice-cli` install path for an honest retest.
+- The retest still failed while copying bundled default config. The installed artifact contained `longPathAware=true`, but the AWS Windows host had `LongPathsEnabled = 0`.
+- Conclusion: manifest-only is insufficient on a default Windows Server host where system long-path support is disabled. The manifest remains a useful prerequisite, but the remaining options are system opt-in, path shortening/flattening, or code-level extended path handling.
