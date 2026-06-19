@@ -345,3 +345,15 @@ def test_windows_runtime_build_embeds_long_path_manifest(
 
     assert calls == [(python, runtime_dir / runtime_builder.WINDOWS_LONG_PATH_MANIFEST)]
     assert "longPathAware" in calls[0][1].read_text(encoding="utf-8")
+
+
+def test_find_manifest_tool_checks_windows_kits(tmp_path: Path, monkeypatch) -> None:
+    mt = tmp_path / "Windows Kits" / "10" / "bin" / "10.0.26100.0" / "x64" / "mt.exe"
+    mt.parent.mkdir(parents=True)
+    mt.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(runtime_builder.shutil, "which", lambda _name: None)
+
+    assert runtime_builder.find_manifest_tool(
+        windows_roots=[tmp_path], assume_windows=True
+    ) == str(mt)

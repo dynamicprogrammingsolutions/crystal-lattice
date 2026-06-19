@@ -206,7 +206,7 @@ def write_long_path_manifest(path: Path, *, executable: Path | None = None) -> N
 def extract_manifest_root(executable: Path | None) -> ET.Element | None:
     if executable is None:
         return None
-    mt = shutil.which("mt")
+    mt = find_manifest_tool()
     if mt is None:
         return None
     with tempfile.TemporaryDirectory() as tmp:
@@ -243,16 +243,43 @@ def ensure_long_path_aware(root: ET.Element) -> None:
 
 
 def embed_manifest(executable: Path, manifest: Path) -> None:
-    mt = shutil.which("mt")
+    mt = find_manifest_tool()
     if mt is None:
         raise RuntimeError(
             "Windows manifest tool 'mt' is required to mark packaged Python "
-            "as longPathAware, but it was not found on PATH."
+            "as longPathAware, but it was not found on PATH or under the "
+            "standard Windows Kits / Visual Studio install directories."
         )
     subprocess.run(
         [mt, "-manifest", str(manifest), f"-outputresource:{executable};#1"],
         check=True,
     )
+
+
+def find_manifest_tool(
+    *, windows_roots: list[Path] | None = None, assume_windows: bool | None = None
+) -> str | None:
+    mt = shutil.which("mt")
+    if mt is not None:
+        return mt
+    if assume_windows is None:
+        assume_windows = os.name == "nt"
+    if not assume_windows:
+        return None
+    candidates: list[Path] = []
+    if windows_roots is None:
+        windows_roots = [
+            Path(root_raw)
+            for root_env in ("ProgramFiles(x86)", "ProgramFiles")
+            if (root_raw := os.environ.get(root_env))
+        ]
+    for root in windows_roots:
+        candidates.extend((root / "Windows Kits" / "10" / "bin").glob("*/*/mt.exe"))
+        candidates.extend((root / "Microsoft Visual Studio").glob("**/mt.exe"))
+    for candidate in sorted(candidates, reverse=True):
+        if candidate.is_file():
+            return str(candidate)
+    return None
 
 
 def runtime_python(runtime_dir: Path) -> Path:
