@@ -11,30 +11,21 @@ SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 ROOT="$PWD"
-INSTALL_ROOT="${INSTALL_ROOT:-$ROOT/.install/opt/crystal-lattice-cli}"
-BIN_DIR="${BIN_DIR:-$ROOT/.install/bin}"
 LOG_DIR="${LOG_DIR:-$ROOT/logs}"
 
-mkdir -p "$INSTALL_ROOT" "$BIN_DIR" "$LOG_DIR"
+is_windows_bash() {
+  case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 
-if [ -f "$ROOT/.env" ]; then
-  set -a
-  # shellcheck disable=SC1091
-  . "$ROOT/.env"
-  set +a
-fi
-
-if [ -z "${OPENROUTER_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
-  echo "Set OPENROUTER_API_KEY or OPENAI_API_KEY in .env or the environment." >&2
-  exit 1
-fi
-
-if [ -n "${AGENT_ID:-}" ]; then
-  selected_agent="$AGENT_ID"
-elif [ -n "${OPENROUTER_API_KEY:-}" ]; then
-  selected_agent="codex-openrouter"
+if is_windows_bash; then
+  INSTALL_ROOT="${INSTALL_ROOT:-$ROOT/.i}"
+  BIN_DIR="${BIN_DIR:-$ROOT/.b}"
 else
-  selected_agent="codex-openai"
+  INSTALL_ROOT="${INSTALL_ROOT:-$ROOT/.install/opt/crystal-lattice-cli}"
+  BIN_DIR="${BIN_DIR:-$ROOT/.install/bin}"
 fi
 
 json_extract_session_id() {
@@ -63,22 +54,84 @@ json_extract_active_request_id() {
   fi
 }
 
-is_windows_bash() {
-  case "$(uname -s 2>/dev/null || true)" in
-    MINGW*|MSYS*|CYGWIN*) return 0 ;;
-    *) return 1 ;;
-  esac
+messages_have_expected_result() {
+  local messages_path="$LOG_DIR/messages.json"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$messages_path" "$marker" <<'PY'
+import json
+import sys
+
+path, marker = sys.argv[1:3]
+with open(path, encoding="utf-8") as f:
+    data = json.load(f)
+raw = json.dumps(data)
+roles = {
+    entry.get("message", {}).get("role")
+    for entry in data.get("messages", [])
+    if isinstance(entry, dict)
+}
+sys.exit(0 if {"user", "tool", "assistant"} <= roles and marker in raw else 1)
+PY
+  elif command -v python >/dev/null 2>&1; then
+    python - "$messages_path" "$marker" <<'PY'
+import json
+import sys
+
+path, marker = sys.argv[1:3]
+with open(path) as f:
+    data = json.load(f)
+raw = json.dumps(data)
+roles = set()
+for entry in data.get("messages", []):
+    if isinstance(entry, dict):
+        roles.add(entry.get("message", {}).get("role"))
+sys.exit(0 if {"user", "tool", "assistant"} <= roles and marker in raw else 1)
+PY
+  elif command -v powershell.exe >/dev/null 2>&1; then
+    if command -v cygpath >/dev/null 2>&1; then
+      messages_path="$(cygpath -w "$messages_path")"
+    fi
+    powershell.exe -NoProfile -Command "\$raw = Get-Content '$messages_path' -Raw; \$json = \$raw | ConvertFrom-Json; \$roles = @(\$json.messages | ForEach-Object { \$_.message.role }); if ((\$roles -contains 'user') -and (\$roles -contains 'tool') -and (\$roles -contains 'assistant') -and (\$raw -like '*$marker*')) { exit 0 } else { exit 1 }"
+  else
+    grep -q '"role"[[:space:]]*:[[:space:]]*"user"' "$LOG_DIR/messages.json" &&
+      grep -q '"role"[[:space:]]*:[[:space:]]*"tool"' "$LOG_DIR/messages.json" &&
+      grep -q '"role"[[:space:]]*:[[:space:]]*"assistant"' "$LOG_DIR/messages.json" &&
+      grep -q "$marker" "$LOG_DIR/messages.json"
+  fi
 }
 
 stop_server() {
   if [ -n "${SERVER_PID:-}" ]; then
-    if is_windows_bash && command -v taskkill.exe >/dev/null 2>&1; then
-      taskkill.exe //PID "$SERVER_PID" //T //F >/dev/null 2>&1 || true
+    if is_windows_bash && command -v powershell.exe >/dev/null 2>&1; then
+      powershell.exe -NoProfile -Command "\$pidToStop = $SERVER_PID; Get-CimInstance Win32_Process | Where-Object { \$_.ProcessId -eq \$pidToStop -or \$_.ParentProcessId -eq \$pidToStop } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }" >/dev/null 2>&1 || true
     else
       kill "$SERVER_PID" >/dev/null 2>&1 || true
     fi
   fi
 }
+
+rm -rf "$ROOT/.crystal" "$LOG_DIR"
+mkdir -p "$INSTALL_ROOT" "$BIN_DIR" "$LOG_DIR"
+
+if [ -f "$ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$ROOT/.env"
+  set +a
+fi
+
+if [ -z "${OPENROUTER_API_KEY:-}" ] && [ -z "${OPENAI_API_KEY:-}" ]; then
+  echo "Set OPENROUTER_API_KEY or OPENAI_API_KEY in .env or the environment." >&2
+  exit 1
+fi
+
+if [ -n "${AGENT_ID:-}" ]; then
+  selected_agent="$AGENT_ID"
+elif [ -n "${OPENROUTER_API_KEY:-}" ]; then
+  selected_agent="codex-openrouter"
+else
+  selected_agent="codex-openai"
+fi
 
 curl -fsSL "$BASE_URL/install.sh" | \
   VERSION="$VERSION" \
@@ -136,15 +189,18 @@ curl -fsS -X POST "http://127.0.0.1:$PORT/sessions/$SESSION_ID/send_message" \
 
 for _ in $(seq 1 120); do
   curl -fsS "http://127.0.0.1:$PORT/sessions/$SESSION_ID/messages" > "$LOG_DIR/messages.json"
+  if messages_have_expected_result; then
+    break
+  fi
   active_request_id="$(json_extract_active_request_id < "$LOG_DIR/messages.json" | tr -d '\r')"
-  [ -z "$active_request_id" ] && break
+  if [ -z "$active_request_id" ]; then
+    sleep 2
+    continue
+  fi
   sleep 2
 done
 
-grep -q '"role"[[:space:]]*:[[:space:]]*"user"' "$LOG_DIR/messages.json"
-grep -q '"role"[[:space:]]*:[[:space:]]*"tool"' "$LOG_DIR/messages.json"
-grep -q '"role"[[:space:]]*:[[:space:]]*"assistant"' "$LOG_DIR/messages.json"
-grep -q "$marker" "$LOG_DIR/messages.json"
+messages_have_expected_result
 
 echo "PASS: installed CLI made a real LLM request with a tool call."
 echo "Agent: $selected_agent"

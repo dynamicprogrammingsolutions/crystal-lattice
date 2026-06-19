@@ -181,7 +181,7 @@ verify_install() {
   layout="$("$command_path" --runtime-layout-json)"
   printf '%s\n' "$layout" | grep -q '"layout": "python-runtime"' \
     || fail "installed command did not report python-runtime layout"
-  printf '%s\n' "$layout" | grep -q '/plugins' \
+  printf '%s\n' "$layout" | grep -Eq '[/\\]plugins' \
     || fail "installed command did not report bundled plugin source path"
 }
 

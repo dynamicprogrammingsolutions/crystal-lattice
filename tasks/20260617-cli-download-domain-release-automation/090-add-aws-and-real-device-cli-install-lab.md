@@ -16,9 +16,10 @@ Create a repeatable isolated manual testing lab for installed CLI releases. The 
 - [x] Document equivalent real-device testing for Linux, macOS, and Windows Git Bash.
 - [x] Add `up.sh`, `down.sh`, and `outputs.sh` commands similar to other `deploy/` helpers.
 - [x] Add validation/testing notes and run local syntax/template checks.
-- [ ] Run `up.sh` against AWS and verify Linux/Windows instances reach SSM.
-- [ ] Run `run-cli-api-smoke.sh` on Linux EC2.
-- [ ] Run `run-cli-api-smoke.sh` on Windows EC2 from Git Bash.
+- [x] Run `up.sh` against AWS and verify Linux/Windows instances reach SSM.
+- [x] Run `run-cli-api-smoke.sh` on Linux EC2.
+- [x] Run `run-cli-api-smoke.sh` on Windows EC2 from Git Bash.
+- [ ] Fix non-interactive Windows SSM wrapper cleanup/reporting so the SSM command returns `Success` after the script prints `PASS`.
 
 Parent Task: `tasks/20260617-cli-download-domain-release-automation/000-main.md`
 
@@ -65,7 +66,7 @@ Linux:
 Windows:
   aws ssm start-session --target <windows-instance-id> --document-name AWS-StartInteractiveCommand --parameters command="powershell.exe"
   & "C:\Program Files\Git\bin\bash.exe" -l
-  cd /c/crystal-lattice-cli-manual-lab
+  cd /c/cl-lab
   ./run-cli-api-smoke.sh
 ```
 
@@ -83,7 +84,7 @@ The smoke script should:
 
 1. Load `.env` when present.
 2. Install with `curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash`.
-3. Set `INSTALL_ROOT="$PWD/.install/opt/crystal-lattice-cli"` and `BIN_DIR="$PWD/.install/bin"`.
+3. Set isolated install paths. Linux/macOS use `.install/`; Windows Git Bash uses short `.i/` and `.b/` paths to avoid Windows path-length failures in deeply nested bundled config files.
 4. Run `crystal-lattice --help`.
 5. Run `crystal-lattice --runtime-layout-json`.
 6. Create `tool-target.txt`.
@@ -133,7 +134,7 @@ Implemented `deploy/aws-cli-install-lab/`:
 - `up.sh` deploys the stack, waits for both instances to register with SSM, installs/prepares the lab workspace on both machines, installs Git for Windows when needed, and optionally copies `.env`.
 - `outputs.sh` prints SSM connection commands and per-OS run instructions.
 - `down.sh` deletes the stack.
-- `run-cli-api-smoke.sh` is the shared isolated smoke script for Linux, macOS real devices, and Windows Git Bash. It installs from the production download domain into `.install/`, starts `crystal-lattice --server --config-local`, sends a real request, and checks for user/tool/assistant messages plus the file marker.
+- `run-cli-api-smoke.sh` is the shared isolated smoke script for Linux, macOS real devices, and Windows Git Bash. It installs from the production download domain into isolated local paths, starts `crystal-lattice --server --config-local`, sends a real request, and checks for user/tool/assistant messages plus the file marker.
 - `README.md` documents AWS usage, real-device usage, `.env` handling, and Windows Git Bash as the primary Windows path.
 
 Local validation completed:
@@ -144,4 +145,64 @@ aws --region us-east-1 cloudformation validate-template \
   --template-body file://deploy/aws-cli-install-lab/lab.yaml
 ```
 
-AWS lab creation and real API smoke execution were not run yet in this completion step.
+AWS lab creation and real API smoke execution update added during completion on 2026-06-19.
+
+Ran:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-cli-install-lab/up.sh \
+  --stack-name crystal-lattice-cli-install-lab \
+  --region us-east-1 \
+  --version 0.1.0 \
+  --include-env-file /Users/ferenci84/Dev/Mine/ai-agent-platform/.env
+```
+
+The lab created/reused:
+
+- Linux EC2: `i-0b4167d3b3f248460`
+- Windows EC2: `i-0259b62e98c6f8d01`
+
+macOS local real-device smoke passed from `/tmp/crystal-lattice-local-macos-smoke`:
+
+```text
+PASS: installed CLI made a real LLM request with a tool call.
+Agent: codex-openrouter
+Session: a77fabaf-2439-495d-b01b-f8956c8489d5
+```
+
+Linux EC2 smoke passed:
+
+```text
+PASS: installed CLI made a real LLM request with a tool call.
+Agent: codex-openrouter
+Session: c054a4e8-9ae2-4481-939b-b32e683cbeaf
+```
+
+Windows EC2 Git Bash behavioral smoke passed after switching the Windows lab to short paths (`C:\cl-lab`, `.i`, `.b`) and updating the public installer verification to accept Windows backslash plugin paths. The independent final assertion returned:
+
+```text
+PASS-MESSAGES
+```
+
+and the SSM command output from an earlier short-path run included:
+
+```text
+PASS: installed CLI made a real LLM request with a tool call.
+Agent: codex-openrouter
+Session: edf3aeb1-d2b9-440b-90e3-c53196af8e1f
+```
+
+Important findings/fixes from this run:
+
+- The public Windows Git Bash installer initially failed because `scripts/install.sh` checked only `/plugins`; Windows runtime layout paths use backslashes. Fixed the check to accept `/plugins` or `\plugins`, added a focused regression test, and uploaded the corrected installer to both production and testing download domains.
+- The Windows lab initially used `C:\crystal-lattice-cli-manual-lab`, which made deeply nested default-config paths too long for Windows during first-run config copy. The lab now defaults to `C:\cl-lab`, and the smoke script uses short `.i`/`.b` paths on Windows.
+- The smoke script initially checked session history too early by relying on `active_request_id`; it now polls for the actual acceptance condition.
+- The non-interactive Windows SSM wrapper still has a cleanup/reporting issue: the installed CLI behavior reaches `PASS`, but the wrapper can remain open or report failure during server cleanup. Manual Git Bash use is still valid, and the message-history assertion confirms the Windows product behavior passed.
+
+The AWS lab was torn down after testing:
+
+```bash
+ALLOW_AWS_DEPLOY=1 deploy/aws-cli-install-lab/down.sh \
+  --stack-name crystal-lattice-cli-install-lab \
+  --region us-east-1
+```

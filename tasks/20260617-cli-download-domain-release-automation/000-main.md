@@ -17,7 +17,7 @@ Create a reproducible AWS/GitHub deployment path for Crystal Lattice CLI downloa
 - [x] `tasks/20260617-cli-download-domain-release-automation/080-add-smoke-tests-and-domain-cutover-docs.md`
   - Testing-domain and production-domain public installer smoke passed; production website/docs were updated and deployed.
 - [ ] `tasks/20260617-cli-download-domain-release-automation/090-add-aws-and-real-device-cli-install-lab.md`
-  - Follow-up for Linux/Windows AWS install lab and equivalent real-device manual testing. macOS EC2 is intentionally out of scope for now.
+  - Linux EC2 and macOS local smoke passed. Windows EC2 Git Bash installed CLI behavior passed, but non-interactive SSM wrapper cleanup/reporting still needs a follow-up fix.
 
 ## Goal
 
@@ -362,3 +362,15 @@ CLI install lab follow-up added during completion on 2026-06-18:
 
 - Added `tasks/20260617-cli-download-domain-release-automation/090-add-aws-and-real-device-cli-install-lab.md`.
 - Scope: create a scripted AWS lab for Linux and Windows EC2, using SSM access and Git Bash on Windows, plus an equivalent real-device manual method for Linux, macOS, and Windows.
+
+Standard install smoke update added during completion on 2026-06-19:
+
+- Ran macOS local smoke from `/tmp/crystal-lattice-local-macos-smoke`; it passed with a real OpenRouter request and tool call.
+- Created the AWS Linux/Windows install lab, verified both instances reached SSM, and copied `.env` from `/Users/ferenci84/Dev/Mine/ai-agent-platform/.env`.
+- Linux EC2 smoke passed with a real OpenRouter request and tool call.
+- Windows EC2 Git Bash smoke required two fixes:
+  - installer verification must accept Windows backslash plugin paths;
+  - Windows lab/install paths must be short enough for deeply nested bundled default-config files.
+- Windows EC2 installed CLI behavior passed by message-history assertion (`PASS-MESSAGES`) and produced tool + assistant messages with the file marker. The non-interactive SSM wrapper still has a cleanup/reporting issue after the script reaches `PASS`.
+- Uploaded the corrected generated `install.sh` to both production and testing download domains.
+- Deleted the AWS lab stack after testing.

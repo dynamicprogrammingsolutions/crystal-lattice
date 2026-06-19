@@ -18,7 +18,7 @@ VERSION="0.1.0"
 BASE_URL="https://download.crystallattice.dev/crystal-lattice-cli"
 INCLUDE_ENV_FILE=""
 LINUX_LAB_DIR="/home/ssm-user/crystal-lattice-cli-manual-lab"
-WINDOWS_LAB_DIR='C:\crystal-lattice-cli-manual-lab'
+WINDOWS_LAB_DIR='C:\cl-lab'
 JSON_OUTPUT=0
 SKIP_SETUP=0
 
@@ -47,7 +47,7 @@ Defaults:
   Windows instance type:  t3.large
   download base URL:      https://download.crystallattice.dev/crystal-lattice-cli
   Linux lab dir:          /home/ssm-user/crystal-lattice-cli-manual-lab
-  Windows lab dir:        C:\crystal-lattice-cli-manual-lab
+  Windows lab dir:        C:\cl-lab
 
 If --vpc-id/--subnet-id are omitted, up.sh uses the default VPC and one default
 public subnet in the selected region.

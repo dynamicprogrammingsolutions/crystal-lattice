@@ -52,12 +52,12 @@ fi
     return fake_bin
 
 
-def _launcher_text() -> str:
-    return """#!/usr/bin/env sh
+def _launcher_text(plugin_path: str = "/tmp/plugins") -> str:
+    return f"""#!/usr/bin/env sh
 case "$1" in
   --help) exit 0 ;;
   --runtime-layout-json)
-    printf '%s\\n' '{"layout": "python-runtime", "bundle_paths": {"builtin_plugins": "/tmp/plugins"}}'
+    printf '%s\\n' '{{"layout": "python-runtime", "bundle_paths": {{"builtin_plugins": "{plugin_path}"}}}}'
     ;;
   *) exit 0 ;;
 esac
@@ -75,7 +75,10 @@ def _make_posix_archive(tmp_path: Path, stem: str) -> Path:
 
 def _make_windows_archive(tmp_path: Path, stem: str) -> Path:
     bundle = tmp_path / "bundle-src" / stem
-    _write_executable(bundle / "Scripts" / "crystal-lattice.cmd", _launcher_text())
+    _write_executable(
+        bundle / "Scripts" / "crystal-lattice.cmd",
+        _launcher_text("C:\\\\crystal-lattice\\\\plugins"),
+    )
     archive = tmp_path / f"{stem}.zip"
     with zipfile.ZipFile(archive, "w") as zf:
         launcher = bundle / "Scripts" / "crystal-lattice.cmd"
