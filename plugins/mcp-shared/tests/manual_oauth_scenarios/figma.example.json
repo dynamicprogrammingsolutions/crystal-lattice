@@ -20,7 +20,7 @@
         "client_uri": null,
         "software_id": null,
         "software_version": null,
-        "token_endpoint_auth_method": "none",
+        "token_endpoint_auth_method": "client_secret_post",
         "scope": "mcp:connect",
         "redirect_uri": "http://127.0.0.1:{port}/callback"
       }

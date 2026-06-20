@@ -121,6 +121,14 @@ def _render_redirect_uri(scenario: dict[str, Any], server_name: str, spec: dict[
     )
 
 
+def _configured_token_endpoint_auth_method(spec: dict[str, Any]) -> str | None:
+    oauth = spec.get("oauth") if isinstance(spec.get("oauth"), dict) else {}
+    value = oauth.get("token_endpoint_auth_method")
+    if value in {"none", "client_secret_post", "client_secret_basic"}:
+        return str(value)
+    return None
+
+
 async def start_flow(args: argparse.Namespace) -> None:
     scenario = _load_json(args.config)
     server_name = _server_name(scenario)
@@ -206,7 +214,12 @@ async def finish_flow(args: argparse.Namespace) -> None:
         form["resource"] = pending["resource"]
 
     headers = {"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}
-    auth_method = client_info.get("token_endpoint_auth_method") or "none"
+    server_spec = pending.get("server_spec") if isinstance(pending.get("server_spec"), dict) else {}
+    auth_method = (
+        _configured_token_endpoint_auth_method(server_spec)
+        or client_info.get("token_endpoint_auth_method")
+        or "none"
+    )
     client_secret = client_info.get("client_secret")
     if auth_method == "client_secret_post" and client_secret:
         form["client_secret"] = client_secret
