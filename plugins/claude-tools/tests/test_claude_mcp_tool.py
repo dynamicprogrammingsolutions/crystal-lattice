@@ -162,6 +162,31 @@ def test_prepare_respects_per_server_disabled_toggle(tmp_path: Path) -> None:
     assert prepared["tools"] == []
 
 
+def test_prepare_treats_missing_server_enabled_as_disabled(tmp_path: Path) -> None:
+    tool = ClaudeMCPTool()
+    tool._runtime_manager_factory = _FakeRuntimeManager
+    config = _config(tmp_path)
+    config["mcp_servers"]["filesystem"].pop("enabled")
+
+    prepared = asyncio.run(tool.prepare_async(config, {"config": config}))
+
+    assert prepared["tools"] == []
+
+
+def test_prepare_server_enabled_override_can_enable_missing_enabled(
+    tmp_path: Path,
+) -> None:
+    tool = ClaudeMCPTool()
+    tool._runtime_manager_factory = _FakeRuntimeManager
+    config = _config(tmp_path)
+    config["mcp_servers"]["filesystem"].pop("enabled")
+    config["mcp_server__filesystem__enabled"] = True
+
+    prepared = asyncio.run(tool.prepare_async(config, {"config": config}))
+
+    assert prepared["tools"]
+
+
 def test_execute_and_format_success_matches_fixture(tmp_path: Path) -> None:
     _FakeRuntimeManager.result = MCPToolCallResult(
         is_error=False,

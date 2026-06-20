@@ -26,18 +26,26 @@ class _FakeRuntimeManager:
         self.config = config
 
     async def list_tools(self):
+        if not self.config.servers["filesystem"].enabled:
+            return []
         return [
             MCPDiscoveredTool(
                 server_name="filesystem",
                 raw_name="read-file",
                 description="Read a file",
-                input_schema={"type": "object", "properties": {"path": {"type": "string"}}},
+                input_schema={
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                },
             ),
             MCPDiscoveredTool(
                 server_name="filesystem",
                 raw_name="read_file",
                 description="Read a file via alias",
-                input_schema={"type": "object", "properties": {"path": {"type": "string"}}},
+                input_schema={
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                },
             ),
         ]
 
@@ -56,7 +64,9 @@ class _FakeRuntimeManager:
     async def close(self):
         return None
 
-    async def call_tool(self, *, server_name: str, tool_name: str, arguments: dict, timeout_seconds=None):
+    async def call_tool(
+        self, *, server_name: str, tool_name: str, arguments: dict, timeout_seconds=None
+    ):
         assert server_name == "filesystem"
         assert tool_name in {"read-file", "read_file"}
         assert arguments == {"path": "/tmp/notes.txt"}
@@ -104,6 +114,41 @@ def test_codex_mcp_prepare_builds_unique_tool_names_and_schemas() -> None:
     assert names[0].startswith("mcp__filesystem__")
     assert names[1].startswith("mcp__filesystem__")
     assert len(set(names)) == 2
+
+
+def test_codex_mcp_prepare_treats_missing_server_enabled_as_disabled() -> None:
+    tool = CodexMCPTool()
+    tool._runtime_manager_factory = _FakeRuntimeManager
+    config = _config()
+    config["mcp_servers"]["filesystem"].pop("enabled")
+
+    prepared = asyncio.run(
+        tool.prepare_async(
+            config,
+            {"config": config},
+            context={"tool_runtime": _DummyStore()},
+        )
+    )
+
+    assert prepared["tools"] == []
+
+
+def test_codex_mcp_prepare_server_enabled_override_can_enable_missing_enabled() -> None:
+    tool = CodexMCPTool()
+    tool._runtime_manager_factory = _FakeRuntimeManager
+    config = _config()
+    config["mcp_servers"]["filesystem"].pop("enabled")
+    config["mcp_server__filesystem__enabled"] = True
+
+    prepared = asyncio.run(
+        tool.prepare_async(
+            config,
+            {"config": config},
+            context={"tool_runtime": _DummyStore()},
+        )
+    )
+
+    assert prepared["tools"]
 
 
 def test_codex_mcp_execute_and_format_returns_provider_native_tool_result() -> None:

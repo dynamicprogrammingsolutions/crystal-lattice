@@ -499,7 +499,7 @@ class ClaudeMCPTool(ToolPlugin):
         enabled = (
             enabled_override
             if isinstance(enabled_override, bool)
-            else bool(raw_spec.get("enabled", True))
+            else bool(raw_spec.get("enabled", False))
         )
         return MCPServerRuntimeSpec(
             name=server_name,

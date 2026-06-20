@@ -509,7 +509,7 @@ def _build_server_spec_from_config(
     enabled = (
         enabled_override
         if isinstance(enabled_override, bool)
-        else bool(raw_spec.get("enabled", True))
+        else bool(raw_spec.get("enabled", False))
     )
     args = raw_spec.get("args")
     env = raw_spec.get("env")

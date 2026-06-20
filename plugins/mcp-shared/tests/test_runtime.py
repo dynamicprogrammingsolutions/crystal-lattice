@@ -100,6 +100,45 @@ def test_apply_oauth_tokens_to_runtime_config_adds_authorization_header() -> Non
     assert updated.servers["public"].headers == {}
 
 
+def test_build_runtime_config_treats_missing_server_enabled_as_disabled() -> None:
+    config = runtime_mod.build_runtime_config_from_config(
+        {
+            "mcp_servers": {
+                "implicit": {
+                    "transport": "http",
+                    "url": "https://implicit.example.test/mcp",
+                },
+                "explicit": {
+                    "enabled": True,
+                    "transport": "http",
+                    "url": "https://explicit.example.test/mcp",
+                },
+            }
+        }
+    )
+
+    assert config.servers["implicit"].enabled is False
+    assert config.servers["explicit"].enabled is True
+
+
+def test_build_runtime_config_server_enabled_override_can_enable_missing_enabled() -> (
+    None
+):
+    config = runtime_mod.build_runtime_config_from_config(
+        {
+            "mcp_server__implicit__enabled": True,
+            "mcp_servers": {
+                "implicit": {
+                    "transport": "http",
+                    "url": "https://implicit.example.test/mcp",
+                },
+            },
+        }
+    )
+
+    assert config.servers["implicit"].enabled is True
+
+
 class _StallingClientSession:
     def __init__(self, read_stream, write_stream) -> None:
         _ = read_stream, write_stream
