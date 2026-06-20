@@ -1,36 +1,23 @@
 from __future__ import annotations
 
-import secrets
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote, urlencode, urljoin
+from urllib.parse import quote, urlencode
 
 import httpx
-from mcp.client.auth.oauth2 import (
-    PKCEParameters,
-    build_oauth_authorization_server_metadata_discovery_urls,
-    build_protected_resource_metadata_discovery_urls,
-    create_client_info_from_metadata_url,
-    create_client_registration_request,
-    create_oauth_metadata_request,
-    extract_resource_metadata_from_www_auth,
-    extract_scope_from_www_auth,
-    get_client_metadata_scopes,
-    handle_auth_metadata_response,
-    handle_protected_resource_response,
-    handle_registration_response,
-    handle_token_response_scopes,
-    resource_url_from_server_url,
-    should_use_client_metadata_url,
-)
-from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata
+from mcp.client.auth.oauth2 import handle_token_response_scopes
+from mcp.shared.auth import OAuthClientInformationFull
 from mcp_shared import (
     MCP_OAUTH_PENDING_STORE_KEY,
     MCP_OAUTH_TOKENS_STORE_KEY,
     MCPRegistry,
     apply_oauth_tokens_to_runtime_config,
+    build_oauth_server_config,
+    build_mcp_oauth_login_request,
     build_runtime_config_from_config,
     fingerprint_runtime_config,
     get_runtime_store_mapping,
+    oauth_string,
+    render_oauth_redirect_uri,
     set_runtime_store_mapping,
 )
 
@@ -385,6 +372,7 @@ class MCPRuntimeAppPlugin:
             )
 
         redirect_uri = self._build_callback_url(
+            raw_spec=raw_spec,
             connection_id=connection_id,
             session_id=session_id,
             server_name=server_name,
@@ -609,189 +597,12 @@ class MCPRuntimeAppPlugin:
         raw_spec: Dict[str, Any],
         redirect_uri: str,
     ) -> Dict[str, Any]:
-        client_metadata = OAuthClientMetadata(
-            redirect_uris=[redirect_uri],
-            client_name="Crystal Lattice Control",
-        )
-
-        auth_url = raw_spec.get("oauth_authorization_url") or raw_spec.get(
-            "authorization_url"
-        )
-        token_endpoint = raw_spec.get("oauth_token_endpoint") or raw_spec.get(
-            "token_endpoint"
-        )
-        client_id = raw_spec.get("oauth_client_id") or raw_spec.get("client_id")
-        if (
-            isinstance(auth_url, str)
-            and auth_url
-            and isinstance(token_endpoint, str)
-            and token_endpoint
-            and isinstance(client_id, str)
-            and client_id
-        ):
-            client_info = OAuthClientInformationFull(
-                client_id=client_id,
-                client_secret=(
-                    raw_spec.get("oauth_client_secret")
-                    if isinstance(raw_spec.get("oauth_client_secret"), str)
-                    else None
-                ),
-                token_endpoint_auth_method=(
-                    raw_spec.get("oauth_token_endpoint_auth_method")
-                    if raw_spec.get("oauth_token_endpoint_auth_method")
-                    in {"none", "client_secret_post", "client_secret_basic"}
-                    else "none"
-                ),
-                redirect_uris=[redirect_uri],
-            )
-            return self._authorization_payload(
-                auth_endpoint=auth_url,
-                token_endpoint=token_endpoint,
-                client_info=client_info,
-                redirect_uri=redirect_uri,
-                resource=resource_url_from_server_url(server_url),
-                scope=(
-                    raw_spec.get("oauth_scope")
-                    if isinstance(raw_spec.get("oauth_scope"), str)
-                    else None
-                ),
-            )
-
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            challenge = await client.post(
-                server_url,
-                headers={
-                    "Accept": "application/json, text/event-stream",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "jsonrpc": "2.0",
-                    "id": "mcp-login-probe",
-                    "method": "initialize",
-                    "params": {
-                        "protocolVersion": "2025-06-18",
-                        "capabilities": {},
-                        "clientInfo": {
-                            "name": "crystal-lattice-control",
-                            "version": "0.1.0",
-                        },
-                    },
-                },
-            )
-            if challenge.status_code != 401:
-                raise RuntimeError(
-                    f"MCP server did not request OAuth login (status {challenge.status_code})"
-                )
-
-            protected_metadata = None
-            prm_urls = build_protected_resource_metadata_discovery_urls(
-                extract_resource_metadata_from_www_auth(challenge),
-                server_url,
-            )
-            for url in prm_urls:
-                response = await client.send(create_oauth_metadata_request(url))
-                protected_metadata = await handle_protected_resource_response(response)
-                if protected_metadata is not None:
-                    break
-            if (
-                protected_metadata is None
-                or not protected_metadata.authorization_servers
-            ):
-                raise RuntimeError("MCP protected resource metadata was not available")
-
-            auth_server_url = str(protected_metadata.authorization_servers[0])
-            oauth_metadata = None
-            for url in build_oauth_authorization_server_metadata_discovery_urls(
-                auth_server_url,
-                server_url,
-            ):
-                response = await client.send(create_oauth_metadata_request(url))
-                should_continue, metadata = await handle_auth_metadata_response(
-                    response
-                )
-                if metadata is not None:
-                    oauth_metadata = metadata
-                    break
-                if not should_continue:
-                    break
-
-            client_metadata.scope = get_client_metadata_scopes(
-                extract_scope_from_www_auth(challenge),
-                protected_metadata,
-                oauth_metadata,
-            )
-
-            client_metadata_url = (
-                raw_spec.get("oauth_client_metadata_url")
-                if isinstance(raw_spec.get("oauth_client_metadata_url"), str)
-                else None
-            )
-            if should_use_client_metadata_url(oauth_metadata, client_metadata_url):
-                client_info = create_client_info_from_metadata_url(
-                    client_metadata_url,
-                    redirect_uris=client_metadata.redirect_uris,
-                )
-            else:
-                registration_request = create_client_registration_request(
-                    oauth_metadata,
-                    client_metadata,
-                    self._authorization_base_url(auth_server_url or server_url),
-                )
-                registration_response = await client.send(registration_request)
-                client_info = await handle_registration_response(registration_response)
-
-        auth_endpoint = (
-            str(oauth_metadata.authorization_endpoint)
-            if oauth_metadata is not None and oauth_metadata.authorization_endpoint
-            else urljoin(self._authorization_base_url(auth_server_url), "/authorize")
-        )
-        token_endpoint = (
-            str(oauth_metadata.token_endpoint)
-            if oauth_metadata is not None and oauth_metadata.token_endpoint
-            else urljoin(self._authorization_base_url(auth_server_url), "/token")
-        )
-        return self._authorization_payload(
-            auth_endpoint=auth_endpoint,
-            token_endpoint=token_endpoint,
-            client_info=client_info,
+        _ = server_name
+        return await build_mcp_oauth_login_request(
+            server_url=server_url,
+            raw_spec=raw_spec,
             redirect_uri=redirect_uri,
-            resource=resource_url_from_server_url(server_url),
-            scope=client_metadata.scope,
         )
-
-    def _authorization_payload(
-        self,
-        *,
-        auth_endpoint: str,
-        token_endpoint: str,
-        client_info: OAuthClientInformationFull,
-        redirect_uri: str,
-        resource: str,
-        scope: Optional[str],
-    ) -> Dict[str, Any]:
-        pkce = PKCEParameters.generate()
-        state = secrets.token_urlsafe(32)
-        if not isinstance(client_info.client_id, str) or not client_info.client_id:
-            raise RuntimeError("OAuth client registration did not return a client id")
-        params = {
-            "response_type": "code",
-            "client_id": client_info.client_id,
-            "redirect_uri": redirect_uri,
-            "state": state,
-            "code_challenge": pkce.code_challenge,
-            "code_challenge_method": "S256",
-            "resource": resource,
-        }
-        if scope:
-            params["scope"] = scope
-        return {
-            "authorization_url": f"{auth_endpoint}?{urlencode(params)}",
-            "token_endpoint": token_endpoint,
-            "code_verifier": pkce.code_verifier,
-            "state": state,
-            "client_info": client_info.model_dump(mode="json", exclude_none=True),
-            "resource": resource,
-        }
 
     async def _exchange_code_for_token(self, login: Dict[str, Any], code: str):
         client_info_raw = login.get("client_info")
@@ -844,10 +655,22 @@ class MCPRuntimeAppPlugin:
     def _build_callback_url(
         self,
         *,
+        raw_spec: Dict[str, Any],
         connection_id: str,
         session_id: str,
         server_name: str,
     ) -> str:
+        oauth_config = build_oauth_server_config(raw_spec)
+        template = oauth_string(oauth_config, "redirect_uri")
+        if template:
+            return render_oauth_redirect_uri(
+                template,
+                connection_id=connection_id,
+                session_id=session_id,
+                plugin_id=self.name,
+                action_id="mcp_complete_login",
+                server_name=server_name,
+            )
         base = "/".join(
             [
                 "crystal-lattice://action",
@@ -858,12 +681,6 @@ class MCPRuntimeAppPlugin:
             ]
         )
         return f"{base}?{urlencode({'server_name': server_name})}"
-
-    def _authorization_base_url(self, url: str) -> str:
-        parsed = httpx.URL(url)
-        return (
-            f"{parsed.scheme}://{parsed.host}{f':{parsed.port}' if parsed.port else ''}"
-        )
 
     def _login_error(self, message: str) -> Dict[str, Any]:
         return {

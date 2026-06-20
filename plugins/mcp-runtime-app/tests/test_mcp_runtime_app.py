@@ -349,6 +349,58 @@ def test_start_login_returns_open_and_copy_actions_and_stores_pending() -> None:
     login = pending[query["state"][0]]
     assert login["server_name"] == "protected"
     assert login["token_endpoint"] == "https://auth.example.test/token"
+    assert login["client_info"]["token_endpoint_auth_method"] == "none"
+
+
+def test_start_login_uses_nested_oauth_config_and_redirect_template() -> None:
+    plugin = MCPRuntimeAppPlugin()
+    app = _DummyApp()
+
+    result = plugin.execute_action(
+        app,
+        "mcp_start_login",
+        {"server_name": "protected", "connection_id": "test-connection"},
+        {
+            "session_id": "session-123",
+            "base_config": {
+                "mcp_servers": {
+                    "protected": {
+                        "transport": "http",
+                        "url": "https://mcp.example.test/mcp",
+                        "oauth": {
+                            "authorization_url": "https://auth.example.test/authorize",
+                            "token_endpoint": "https://auth.example.test/token",
+                            "client_id": "client-123",
+                            "client_secret": "secret-123",
+                            "token_endpoint_auth_method": "client_secret_post",
+                            "scope": "mcp:connect",
+                            "redirect_uri": "https://crystallattice.dev/oauth/{connection_id}/{session_id}/{server_name}/callback",
+                        },
+                    }
+                }
+            },
+        },
+        {},
+    )
+
+    authorization_url = result["authorization_url"]
+    query = parse_qs(urlparse(authorization_url).query)
+    assert query["redirect_uri"] == [
+        "https://crystallattice.dev/oauth/test-connection/session-123/protected/callback"
+    ]
+    assert query["scope"] == ["mcp:connect"]
+
+    pending = app.store.items[MCP_OAUTH_PENDING_STORE_KEY]
+    login = pending[query["state"][0]]
+    assert login["redirect_uri"] == (
+        "https://crystallattice.dev/oauth/test-connection/session-123/protected/callback"
+    )
+    assert login["client_info"]["client_id"] == "client-123"
+    assert login["client_info"]["client_secret"] == "secret-123"
+    assert login["client_info"]["redirect_uris"] == [
+        "https://crystallattice.dev/oauth/test-connection/session-123/protected/callback"
+    ]
+    assert login["client_info"]["token_endpoint_auth_method"] == "client_secret_post"
 
 
 class _FakeToken:

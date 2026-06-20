@@ -8,6 +8,7 @@ def pytest_configure() -> None:
     root = Path(__file__).resolve().parents[3]
     for rel in (
         "plugins/mcp-runtime-app/src",
+        "plugins/mcp-shared/src",
         "core/python",
         "application/python",
     ):

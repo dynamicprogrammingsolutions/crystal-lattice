@@ -1,9 +1,18 @@
 from .registry import MCPRegistry
 from .oauth import (
+    DEFAULT_OAUTH_CLIENT_NAME,
+    DEFAULT_OAUTH_CLIENT_URI,
+    DEFAULT_OAUTH_SOFTWARE_ID,
+    DEFAULT_OAUTH_SOFTWARE_VERSION,
+    DEFAULT_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD,
     MCP_OAUTH_PENDING_STORE_KEY,
     MCP_OAUTH_TOKENS_STORE_KEY,
     apply_oauth_tokens_to_runtime_config,
+    build_oauth_client_metadata,
+    build_oauth_server_config,
     get_runtime_store_mapping,
+    oauth_string,
+    render_oauth_redirect_uri,
     set_runtime_store_mapping,
 )
 from .runtime import (
@@ -16,11 +25,17 @@ from .runtime import (
     build_runtime_config_from_config,
     fingerprint_runtime_config,
 )
+from .oauth_flow import build_mcp_oauth_login_request
 
 __all__ = [
     "MCPRegistry",
     "MCP_OAUTH_PENDING_STORE_KEY",
     "MCP_OAUTH_TOKENS_STORE_KEY",
+    "DEFAULT_OAUTH_CLIENT_NAME",
+    "DEFAULT_OAUTH_CLIENT_URI",
+    "DEFAULT_OAUTH_SOFTWARE_ID",
+    "DEFAULT_OAUTH_SOFTWARE_VERSION",
+    "DEFAULT_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD",
     "MCPDiscoveredTool",
     "MCPRuntimeConfig",
     "MCPRuntimeManager",
@@ -28,8 +43,13 @@ __all__ = [
     "MCPServerSnapshot",
     "MCPToolCallResult",
     "apply_oauth_tokens_to_runtime_config",
+    "build_oauth_client_metadata",
+    "build_oauth_server_config",
+    "build_mcp_oauth_login_request",
     "build_runtime_config_from_config",
     "fingerprint_runtime_config",
     "get_runtime_store_mapping",
+    "oauth_string",
+    "render_oauth_redirect_uri",
     "set_runtime_store_mapping",
 ]

@@ -10,6 +10,11 @@ import pytest
 import mcp_shared.runtime as runtime_mod
 
 from mcp_shared import (
+    DEFAULT_OAUTH_CLIENT_NAME,
+    DEFAULT_OAUTH_CLIENT_URI,
+    DEFAULT_OAUTH_SOFTWARE_ID,
+    DEFAULT_OAUTH_SOFTWARE_VERSION,
+    DEFAULT_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD,
     MCP_OAUTH_TOKENS_STORE_KEY,
     MCPDiscoveredTool,
     MCPRuntimeConfig,
@@ -19,7 +24,10 @@ from mcp_shared import (
     MCPServerSnapshot,
     MCPToolCallResult,
     apply_oauth_tokens_to_runtime_config,
+    build_oauth_client_metadata,
+    build_oauth_server_config,
     fingerprint_runtime_config,
+    render_oauth_redirect_uri,
 )
 
 
@@ -98,6 +106,90 @@ def test_apply_oauth_tokens_to_runtime_config_adds_authorization_header() -> Non
         "Authorization": "Bearer access-123",
     }
     assert updated.servers["public"].headers == {}
+
+
+def test_build_oauth_server_config_defaults_and_nested_overrides() -> None:
+    config = build_oauth_server_config(
+        {
+            "oauth_client_id": "legacy-client",
+            "oauth_scope": "legacy-scope",
+            "oauth": {
+                "client_name": "Custom Client",
+                "client_uri": "https://client.example.test",
+                "client_id": "nested-client",
+                "scope": "nested-scope",
+                "token_endpoint_auth_method": "client_secret_post",
+            },
+        }
+    )
+
+    assert config["client_name"] == "Custom Client"
+    assert config["client_uri"] == "https://client.example.test"
+    assert config["client_id"] == "nested-client"
+    assert config["scope"] == "nested-scope"
+    assert config["software_id"] == DEFAULT_OAUTH_SOFTWARE_ID
+    assert config["software_version"] == DEFAULT_OAUTH_SOFTWARE_VERSION
+    assert config["token_endpoint_auth_method"] == "client_secret_post"
+
+
+def test_build_oauth_client_metadata_uses_crystal_lattice_defaults() -> None:
+    config = build_oauth_server_config({})
+
+    metadata = build_oauth_client_metadata(
+        config,
+        redirect_uri="crystal-lattice://action/connection/session/plugin/action",
+    )
+
+    assert metadata.client_name == DEFAULT_OAUTH_CLIENT_NAME
+    assert str(metadata.client_uri).rstrip("/") == DEFAULT_OAUTH_CLIENT_URI
+    assert metadata.software_id == DEFAULT_OAUTH_SOFTWARE_ID
+    assert metadata.software_version == DEFAULT_OAUTH_SOFTWARE_VERSION
+    assert metadata.token_endpoint_auth_method == DEFAULT_OAUTH_TOKEN_ENDPOINT_AUTH_METHOD
+    assert [str(uri) for uri in metadata.redirect_uris] == [
+        "crystal-lattice://action/connection/session/plugin/action"
+    ]
+
+
+def test_build_oauth_server_config_nested_null_omits_default_metadata() -> None:
+    config = build_oauth_server_config(
+        {
+            "oauth": {
+                "client_name": "Codex",
+                "client_uri": None,
+                "software_id": None,
+                "software_version": None,
+            }
+        }
+    )
+
+    metadata = build_oauth_client_metadata(
+        config,
+        redirect_uri="http://127.0.0.1:41793/callback",
+    )
+
+    assert metadata.model_dump(mode="json", exclude_none=True) == {
+        "redirect_uris": ["http://127.0.0.1:41793/callback"],
+        "token_endpoint_auth_method": "none",
+        "grant_types": ["authorization_code", "refresh_token"],
+        "response_types": ["code"],
+        "client_name": "Codex",
+    }
+
+
+def test_render_oauth_redirect_uri_substitutes_supported_placeholders() -> None:
+    rendered = render_oauth_redirect_uri(
+        "https://crystallattice.dev/{connection_id}/{session_id}/{plugin_id}/{action_id}/{server_name}",
+        connection_id="connection-123",
+        session_id="session-123",
+        plugin_id="mcp_runtime_app",
+        action_id="mcp_complete_login",
+        server_name="protected",
+    )
+
+    assert rendered == (
+        "https://crystallattice.dev/connection-123/session-123/"
+        "mcp_runtime_app/mcp_complete_login/protected"
+    )
 
 
 def test_build_runtime_config_treats_missing_server_enabled_as_disabled() -> None:
