@@ -420,7 +420,7 @@ def _classify_startup_state(exc: BaseException) -> ServerStateName:
 
 
 def _format_startup_error(exc: BaseException, state: ServerStateName) -> str:
-    detail = str(exc)
+    detail = _clean_startup_error_detail(str(exc))
     if isinstance(exc, asyncio.CancelledError):
         return "MCP server startup was cancelled."
     if state == "auth_required":
@@ -433,6 +433,13 @@ def _format_startup_error(exc: BaseException, state: ServerStateName) -> str:
             "Authentication required for this MCP server. Open MCP status to sign in."
         )
     return detail
+
+
+def _clean_startup_error_detail(detail: str) -> str:
+    normalized = detail.strip()
+    if normalized.lower().startswith("unhandled errors in a taskgroup"):
+        return ""
+    return normalized
 
 
 def _is_auth_required_error(exc: BaseException) -> bool:

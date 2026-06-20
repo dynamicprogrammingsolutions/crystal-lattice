@@ -465,6 +465,21 @@ class MCPRuntimeAppPlugin:
         pending = get_runtime_store_mapping(runtime_store, MCP_OAUTH_PENDING_STORE_KEY)
         login = pending.get(state)
         if not isinstance(login, dict):
+            tokens = get_runtime_store_mapping(
+                runtime_store, MCP_OAUTH_TOKENS_STORE_KEY
+            )
+            token_entry = tokens.get(server_name)
+            if (
+                isinstance(token_entry, dict)
+                and isinstance(token_entry.get("access_token"), str)
+                and token_entry.get("access_token")
+            ):
+                return self._login_success_result(
+                    server_name=server_name,
+                    cleared=0,
+                    refreshed=None,
+                    body="The MCP server is already signed in.",
+                )
             return self._login_error("No pending MCP login matches this callback.")
         if login.get("server_name") != server_name:
             return self._login_error("MCP login callback server mismatch.")
@@ -484,30 +499,58 @@ class MCPRuntimeAppPlugin:
 
         registry = runtime_store.get(self.runtime_store_key)
         cleared = 0
+        cleanup_error = None
         if registry is not None:
-            cleared = await registry.clear_all()
+            try:
+                cleared = await registry.clear_all()
+            except Exception as exc:
+                cleanup_error = str(exc) or type(exc).__name__
 
         refreshed = None
         if isinstance(self._effective_config(context), dict):
-            check_params: Dict[str, Any] = {}
-            connection_id = login.get("connection_id")
-            if isinstance(connection_id, str) and connection_id:
-                check_params["connection_id"] = connection_id
-            refreshed = await self._check_servers(
-                app,
-                params=check_params,
-                context=context,
-                clear=False,
+            try:
+                check_params: Dict[str, Any] = {}
+                connection_id = login.get("connection_id")
+                if isinstance(connection_id, str) and connection_id:
+                    check_params["connection_id"] = connection_id
+                refreshed = await self._check_servers(
+                    app,
+                    params=check_params,
+                    context=context,
+                    clear=False,
+                )
+            except Exception as exc:
+                cleanup_error = cleanup_error or (str(exc) or type(exc).__name__)
+
+        body = (
+            "MCP runtimes were refreshed with the stored token."
+            if refreshed is not None
+            else "MCP runtimes will reconnect with the stored token on the next request."
+        )
+        if cleanup_error:
+            body += (
+                "\n\nThe token was stored, but runtime refresh will be retried later."
             )
 
+        return self._login_success_result(
+            server_name=server_name,
+            cleared=cleared,
+            refreshed=refreshed,
+            body=body,
+        )
+
+    def _login_success_result(
+        self,
+        *,
+        server_name: str,
+        cleared: int,
+        refreshed: Optional[Dict[str, Any]],
+        body: str,
+    ) -> Dict[str, Any]:
         display = {
             "format": "markdown",
             "title": f"Signed in to {server_name}",
-            "body": (
-                "MCP runtimes were refreshed with the stored token."
-                if refreshed is not None
-                else "MCP runtimes were cleared and will reconnect with the stored token on the next request."
-            ),
+            "body": body,
             "variant": "success",
             "presentation": "inline",
             "display_id": f"mcp-login-complete-{server_name}",
@@ -517,10 +560,7 @@ class MCPRuntimeAppPlugin:
             if isinstance(refreshed_display, dict):
                 refreshed_body = refreshed_display.get("body")
                 if isinstance(refreshed_body, str) and refreshed_body:
-                    display["body"] = (
-                        "MCP runtimes were refreshed with the stored token.\n\n"
-                        f"{refreshed_body}"
-                    )
+                    display["body"] = f"{body}\n\n{refreshed_body}"
                 actions = refreshed_display.get("actions")
                 if isinstance(actions, list) and actions:
                     display["actions"] = actions

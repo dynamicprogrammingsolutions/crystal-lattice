@@ -39,6 +39,12 @@ class _DummyRegistry:
         self.closed = True
 
 
+class _FailingClearRegistry(_DummyRegistry):
+    async def clear_all(self):
+        self.closed = True
+        raise RuntimeError("Attempted to exit cancel scope in a different task")
+
+
 class _DummyStore:
     def __init__(self) -> None:
         self.items = {"mcp_registry": _DummyRegistry()}
@@ -356,6 +362,25 @@ class _FakeToken:
         }
 
 
+def _pending_login(server_name: str = "protected") -> dict:
+    return {
+        "server_name": server_name,
+        "server_url": "https://mcp.example.test/mcp",
+        "redirect_uri": f"crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name={server_name}",
+        "connection_id": "test-connection",
+        "token_endpoint": "https://auth.example.test/token",
+        "code_verifier": "verifier",
+        "client_info": {
+            "client_id": "client-123",
+            "token_endpoint_auth_method": "none",
+            "redirect_uris": [
+                f"crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name={server_name}"
+            ],
+        },
+        "resource": "https://mcp.example.test/mcp",
+    }
+
+
 def test_complete_login_stores_token_and_clears_runtime(monkeypatch) -> None:
     plugin = MCPRuntimeAppPlugin()
     app = _DummyApp()
@@ -403,6 +428,72 @@ def test_complete_login_stores_token_and_clears_runtime(monkeypatch) -> None:
     assert token["access_token"] == "access-123"
     assert token["server_url"] == "https://mcp.example.test/mcp"
     assert app.store.items["mcp_registry"].closed is True
+
+
+def test_complete_login_succeeds_when_runtime_cleanup_fails(monkeypatch) -> None:
+    plugin = MCPRuntimeAppPlugin()
+    app = _DummyApp()
+    app.store.items["mcp_registry"] = _FailingClearRegistry()
+    app.store.items[MCP_OAUTH_PENDING_STORE_KEY] = {
+        "state-123": _pending_login(),
+    }
+
+    async def fake_exchange(login, code):
+        assert login["server_name"] == "protected"
+        assert code == "code-123"
+        return _FakeToken()
+
+    monkeypatch.setattr(plugin, "_exchange_code_for_token", fake_exchange)
+
+    result = plugin.execute_action(
+        app,
+        "mcp_complete_login",
+        {
+            "server_name": "protected",
+            "code": "code-123",
+            "state": "state-123",
+            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected&code=code-123&state=state-123",
+        },
+        {"session_id": "session-123"},
+        {},
+    )
+
+    assert result["message"] == "Signed in to protected."
+    assert app.store.items[MCP_OAUTH_PENDING_STORE_KEY] == {}
+    assert app.store.items[MCP_OAUTH_TOKENS_STORE_KEY]["protected"]["access_token"] == (
+        "access-123"
+    )
+    assert "runtime refresh will be retried" in result["display"]["body"]
+
+
+def test_complete_login_replayed_callback_is_idempotent_after_token_stored() -> None:
+    plugin = MCPRuntimeAppPlugin()
+    app = _DummyApp()
+    app.store.items[MCP_OAUTH_PENDING_STORE_KEY] = {}
+    app.store.items[MCP_OAUTH_TOKENS_STORE_KEY] = {
+        "protected": {
+            "access_token": "access-123",
+            "token_type": "Bearer",
+            "server_url": "https://mcp.example.test/mcp",
+        }
+    }
+
+    result = plugin.execute_action(
+        app,
+        "mcp_complete_login",
+        {
+            "server_name": "protected",
+            "code": "code-123",
+            "state": "state-123",
+            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected&code=code-123&state=state-123",
+        },
+        {"session_id": "session-123"},
+        {},
+    )
+
+    assert result["message"] == "Signed in to protected."
+    assert result["display"]["variant"] == "success"
+    assert "already signed in" in result["display"]["body"]
 
 
 def test_complete_login_refreshes_runtime_when_session_config_available(
