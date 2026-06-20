@@ -1,84 +1,102 @@
-# MCP OAuth Manual Start Matrix
+# MCP OAuth Manual Flow
 
-This manual integration test validates the first half of OAuth login for any
-OAuth-protected MCP server. It probes the MCP server, discovers OAuth metadata,
-attempts client registration or metadata-url client creation, and asserts that a
-successful start produces an authorization URL with the exact redirect URI under
-test.
+This manual helper validates an OAuth-protected MCP server end to end:
 
-The test is intentionally JSON-driven. Client identity and redirect choices are
-tester-provided data, not hardcoded product behavior.
+1. start OAuth and produce an authorization URL
+2. finish OAuth by pasting the browser callback URL
+3. verify the saved login by connecting to the MCP server and listing tools
 
-## Run
+The default scenario targets Figma MCP with Codex-like client metadata and a
+localhost redirect. That shape is intentional: current Figma diagnostics showed
+that Figma accepts `client_name: "Codex"` with loopback redirects, while it
+rejects the Crystal custom scheme and public HTTPS callback unless Figma
+explicitly allows that client/redirect combination.
 
-From the repository root:
+## Commands
 
-```bash
-MCP_OAUTH_MANUAL_SCENARIO=plugins/mcp-shared/tests/manual_oauth_scenarios/figma.example.json \
-pytest plugins/mcp-shared/tests/test_mcp_oauth_manual_integration.py \
-  -m "manual_integration" -s
-```
+Run from the repository root.
 
-Run one redirect variant:
+Start the login:
 
 ```bash
-MCP_OAUTH_MANUAL_SCENARIO=plugins/mcp-shared/tests/manual_oauth_scenarios/figma.example.json \
-MCP_OAUTH_MANUAL_VARIANT=in-app \
-pytest plugins/mcp-shared/tests/test_mcp_oauth_manual_integration.py \
-  -m "manual_integration" -s
+python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py start
 ```
 
-Use a custom callback port for redirect templates containing `{port}`:
+The command prints an authorization URL. Open it in your browser, approve the
+login, then copy the full callback URL from the browser address bar. The
+browser may show a connection error for `127.0.0.1`; that is expected because no
+local callback server is running.
+
+Finish the login:
 
 ```bash
-MCP_OAUTH_MANUAL_CALLBACK_PORT=41800 ...
+python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py finish
 ```
 
-## Scenario Shape
+Paste the full callback URL when prompted.
+
+Verify the saved login:
+
+```bash
+python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py verify
+```
+
+Expected success:
+
+```text
+MCP verification succeeded.
+Status:
+- figma: connected (... tools)
+
+Tool count: ...
+```
+
+## Alternate Config
+
+Use `--config` for another MCP server:
+
+```bash
+python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py start --config /path/to/server.json
+python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py finish --config /path/to/server.json
+python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py verify --config /path/to/server.json
+```
+
+The config shape is intentionally close to application MCP config. Test-only
+metadata lives under `mcp_oauth_manual`; server configuration lives under
+`mcp_servers`.
 
 ```json
 {
   "id": "provider-name",
-  "server": {
-    "name": "provider",
-    "config": {
+  "mcp_oauth_manual": {
+    "server_name": "provider",
+    "connection_id": "manual-connection",
+    "session_id": "manual-session",
+    "plugin_id": "mcp_runtime_app",
+    "action_id": "mcp_complete_login",
+    "callback_port": 41793
+  },
+  "mcp_servers": {
+    "provider": {
       "enabled": true,
       "transport": "http",
       "url": "https://mcp.example.test/mcp",
+      "startup_timeout_seconds": 30,
       "oauth": {
         "client_name": "Crystal Lattice Control",
         "client_uri": "https://crystallattice.dev",
         "software_id": "crystal-lattice-control",
         "software_version": "0.1.0",
         "token_endpoint_auth_method": "none",
-        "scope": "mcp:connect"
+        "scope": "mcp:connect",
+        "redirect_uri": "http://127.0.0.1:{port}/callback"
       }
     }
-  },
-  "defaults": {
-    "connection_id": "manual-connection",
-    "session_id": "manual-session",
-    "plugin_id": "mcp_runtime_app",
-    "action_id": "mcp_complete_login",
-    "callback_port": 41793,
-    "expected_start_outcomes": ["authorization_url"]
-  },
-  "redirect_matrix": [
-    {
-      "id": "in-app",
-      "oauth": {
-        "redirect_uri": "crystal-lattice://action/{connection_id}/{session_id}/{plugin_id}/{action_id}?server_name={server_name}"
-      }
-    }
-  ]
+  }
 }
 ```
 
-Each redirect matrix entry is merged over `server.config.oauth`. This lets one
-scenario test custom schemes, localhost callbacks, public HTTPS callbacks, and
-provider-specific client metadata without changing code.
-
-Supported redirect placeholders:
+Supported `redirect_uri` placeholders:
 
 - `{connection_id}`
 - `{session_id}`
@@ -87,36 +105,47 @@ Supported redirect placeholders:
 - `{server_name}`
 - `{port}`
 
-The `{port}` placeholder is handled by the manual test before redirect-template
-rendering.
+`{port}` comes from `mcp_oauth_manual.callback_port`.
 
-## Assertions
+## Saved State
 
-For a successful start, the test asserts:
-
-- the authorization URL contains the exact redirect URI for the variant
-- the authorization URL state matches the stored pending state
-- PKCE uses `S256`
-- token endpoint, client info, resource, state, and code verifier are written to
-  a local pending-state file
-
-For provider diagnostics, a scenario may allow `"start_error"` in
-`expected_start_outcomes`. This is useful for redirect/client matrices where a
-provider may reject dynamic registration, for example with `403 Forbidden`.
-
-## Local State
-
-The test writes reports to:
+The helper writes local state to:
 
 ```text
-plugins/mcp-shared/.manual-state/<scenario-id>/<variant-id>.json
+plugins/mcp-shared/.manual-state/<scenario-id>/
 ```
 
-Override with:
+Files:
+
+- `<server>.pending.json`: authorization URL, PKCE verifier, dynamic client
+  metadata, and token endpoint from `start`
+- `<server>.token.json`: saved token from `finish`
+
+`.manual-state/` is gitignored. Treat these files as local secrets because they
+can contain OAuth client secrets and access tokens.
+
+To use another state directory:
 
 ```bash
-MCP_OAUTH_MANUAL_STATE_DIR=/tmp/mcp-oauth-state
+python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py start --state-root /tmp/mcp-oauth-state
+python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py finish --state-root /tmp/mcp-oauth-state
+python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py verify --state-root /tmp/mcp-oauth-state
 ```
 
-`.manual-state/` is gitignored. These files can contain OAuth pending state such
-as PKCE verifiers and client information, so treat them as local test artifacts.
+## Noninteractive Finish
+
+If you prefer not to paste at the prompt:
+
+```bash
+python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py finish \
+  --callback-url 'http://127.0.0.1:41793/callback?code=...&state=...'
+```
+
+## Pytest Guard
+
+The accompanying pytest file no longer contacts the provider. It only guards
+that the default scenario and convenient command parser exist:
+
+```bash
+pytest plugins/mcp-shared/tests/test_mcp_oauth_manual_integration.py -q
+```

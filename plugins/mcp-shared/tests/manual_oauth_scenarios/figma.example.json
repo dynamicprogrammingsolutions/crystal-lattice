@@ -1,54 +1,29 @@
 {
   "id": "figma-remote-mcp",
-  "description": "Manual start-phase matrix for Figma remote MCP OAuth. Adjust client fields to an identity you are authorized to test.",
-  "server": {
-    "name": "figma",
-    "config": {
-      "enabled": true,
-      "transport": "http",
-      "url": "https://mcp.figma.com/mcp",
-      "oauth": {
-        "client_name": "Crystal Lattice Control",
-        "client_uri": "https://crystallattice.dev",
-        "software_id": "crystal-lattice-control",
-        "software_version": "0.1.0",
-        "token_endpoint_auth_method": "none",
-        "scope": "mcp:connect"
-      }
-    }
-  },
-  "defaults": {
+  "description": "Manual Figma remote MCP OAuth flow. This intentionally uses Codex-like client metadata because Figma currently accepts that shape with a localhost redirect.",
+  "mcp_oauth_manual": {
+    "server_name": "figma",
     "connection_id": "manual-connection",
     "session_id": "manual-session",
     "plugin_id": "mcp_runtime_app",
     "action_id": "mcp_complete_login",
-    "callback_port": 41793,
-    "expected_start_outcomes": [
-      "authorization_url",
-      "start_error"
-    ]
+    "callback_port": 41793
   },
-  "redirect_matrix": [
-    {
-      "id": "in-app",
-      "description": "Crystal Lattice custom-scheme callback used by the mobile app.",
+  "mcp_servers": {
+    "figma": {
+      "enabled": true,
+      "transport": "http",
+      "url": "https://mcp.figma.com/mcp",
+      "startup_timeout_seconds": 30,
       "oauth": {
-        "redirect_uri": "crystal-lattice://action/{connection_id}/{session_id}/{plugin_id}/{action_id}?server_name={server_name}"
-      }
-    },
-    {
-      "id": "localhost",
-      "description": "Localhost callback shape used by desktop CLI flows.",
-      "oauth": {
+        "client_name": "Codex",
+        "client_uri": null,
+        "software_id": null,
+        "software_version": null,
+        "token_endpoint_auth_method": "none",
+        "scope": "mcp:connect",
         "redirect_uri": "http://127.0.0.1:{port}/callback"
       }
-    },
-    {
-      "id": "public-https",
-      "description": "Public HTTPS callback shape for provider allowlist checks.",
-      "oauth": {
-        "redirect_uri": "https://crystallattice.dev/oauth/mcp/callback"
-      }
     }
-  ]
+  }
 }
