@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
 import json
 import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 from urllib.parse import parse_qs, urlparse
 
 import httpx
@@ -202,14 +204,23 @@ async def finish_flow(args: argparse.Namespace) -> None:
     }
     if pending.get("resource"):
         form["resource"] = pending["resource"]
-    if client_info.get("client_secret"):
-        form["client_secret"] = client_info["client_secret"]
+
+    headers = {"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}
+    auth_method = client_info.get("token_endpoint_auth_method") or "none"
+    client_secret = client_info.get("client_secret")
+    if auth_method == "client_secret_post" and client_secret:
+        form["client_secret"] = client_secret
+    elif auth_method == "client_secret_basic" and client_secret:
+        encoded_id = quote(str(client_info["client_id"]), safe="")
+        encoded_secret = quote(str(client_secret), safe="")
+        credentials = base64.b64encode(f"{encoded_id}:{encoded_secret}".encode()).decode()
+        headers["Authorization"] = f"Basic {credentials}"
 
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.post(
             pending["token_endpoint"],
             data=form,
-            headers={"Accept": "application/json"},
+            headers=headers,
         )
 
     if response.status_code >= 400:
