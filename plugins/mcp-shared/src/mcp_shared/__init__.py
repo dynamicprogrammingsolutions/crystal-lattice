@@ -13,6 +13,7 @@ from .runtime import (
     MCPServerRuntimeSpec,
     MCPServerSnapshot,
     MCPToolCallResult,
+    build_runtime_config_from_config,
     fingerprint_runtime_config,
 )
 
@@ -27,6 +28,7 @@ __all__ = [
     "MCPServerSnapshot",
     "MCPToolCallResult",
     "apply_oauth_tokens_to_runtime_config",
+    "build_runtime_config_from_config",
     "fingerprint_runtime_config",
     "get_runtime_store_mapping",
     "set_runtime_store_mapping",

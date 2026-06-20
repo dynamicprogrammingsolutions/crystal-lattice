@@ -345,3 +345,247 @@ Progress update during completion:
   - `pytest plugins/mcp-shared/tests/test_runtime.py plugins/mcp-runtime-app/tests/test_mcp_runtime_app.py plugins/claude-tools/tests/test_claude_mcp_tool.py plugins/codex-tools/tests/test_mcp_tool.py application/python/tests/test_application_actions_endpoints.py -q`
   - `python -m black --check plugins/mcp-runtime-app/setup.py plugins/mcp-runtime-app/src/mcp_runtime_app/__init__.py plugins/mcp-runtime-app/tests/test_mcp_runtime_app.py plugins/mcp-shared/src/mcp_shared/__init__.py plugins/mcp-shared/src/mcp_shared/oauth.py plugins/mcp-shared/src/mcp_shared/runtime.py plugins/mcp-shared/tests/test_runtime.py plugins/claude-tools/src/claude_tools/claude_mcp_tool.py`
   - `git diff --check`
+
+## Follow-Up: MCP Login UX On Generic Session Notifications
+
+This follow-up should consume the generic platform feature planned in:
+
+`tasks/20260619-generic-session-notifications/000-main.md`
+
+The first MCP UX target is Mode A: requests continue safely with available tools, while users receive persistent, actionable notifications when an MCP server is unavailable or requires login. Blocking request interactions can wait for the generic Stage 2 interaction flow.
+
+## Follow-up requirements checklist
+
+- [ ] Fix auth-required classification for `ExceptionGroup` / `BaseExceptionGroup` wrappers such as `unhandled errors in a TaskGroup (1 sub-exception)`.
+- [ ] Add a usable MCP check/reconnect flow that works before sending any chat request.
+- [ ] Emit generic session notifications when MCP request preparation finds auth-required or failed servers.
+- [ ] Keep requests safe: unavailable MCP servers contribute zero tools and must not abort or hang requests.
+- [ ] De-duplicate MCP notifications so repeated requests do not spam the user.
+- [ ] Resolve or update MCP notifications when the server reconnects successfully.
+- [ ] Add SDK real-backend integration tests for MCP auth notification, login, callback, and reconnect.
+- [ ] Add React Native real-backend integration tests for MCP notification rendering and sign-in action flow.
+
+## Follow-Up Plan
+
+### 1. Fix wrapped auth classification
+
+The observed Figma status can look like:
+
+```text
+figma: failed (0 tools) - unhandled errors in a TaskGroup (1 sub-exception)
+```
+
+This likely means the real `401` / OAuth challenge is wrapped in `ExceptionGroup` or `BaseExceptionGroup`. Update MCP auth classification to traverse:
+
+- the direct exception
+- `__cause__`
+- `__context__`
+- grouped sub-exceptions
+
+Add regression tests in `plugins/mcp-shared/tests/test_runtime.py`:
+
+- startup raises `ExceptionGroup("unhandled errors in a TaskGroup", [_UnauthorizedMCPError(...)])`
+- snapshot state is `auth_required`
+- error text is actionable
+- `manager.list_tools()` returns an empty list
+
+### 2. Make MCP status/check usable before a chat request
+
+The current `mcp_reconnect_servers` behavior clears runtimes and relies on the next request to reconnect. This is confusing because `MCP status` may then show no runtimes.
+
+Add or adjust an action such as:
+
+- `mcp_check_servers`
+- or an improved `mcp_reconnect_servers`
+
+It should:
+
+- build MCP runtime config from the current session config
+- clear stale runtimes when reconnecting
+- actively start/discover configured MCP servers
+- return a fresh `MCP Runtime Status` display
+- show `auth_required` and `Sign in` without requiring a prior chat request
+
+Tests should cover:
+
+- configured servers are checked from session `base_config`
+- disabled servers are shown as disabled, not lost
+- auth-required servers produce status with `mcp_start_login`
+- no configured MCP servers produces a clear display
+
+### 3. Emit generic notifications during request preparation
+
+After generic session notifications Stage 1 exists, MCP tool preparation should emit notifications for problematic servers.
+
+Notification behavior:
+
+- `auth_required` server emits warning notification with `Sign in`, `MCP status`, and optional `Dismiss` / `Continue without this server`.
+- failed server emits warning/error notification with `MCP status` and `Reconnect MCP servers`.
+- request continues with available tools.
+- notification is persisted in `Session.metadata`.
+- notification lifecycle events are published.
+- repeated requests update an existing pending notification by stable key instead of appending duplicates.
+- notification emission failure is caught and does not fail the request.
+
+Suggested stable keys:
+
+```text
+mcp:<server-name>:auth_required
+mcp:<server-name>:failed
+```
+
+### 4. Safe request behavior
+
+When the user sends a request and one MCP server cannot start:
+
+- the request must not hang
+- other MCP servers should still connect and expose tools
+- the unavailable server contributes zero tools
+- the LLM request continues with available tools
+- the user sees a notification explaining the missing server
+- no OAuth token, code, state, or secret should appear in notification body/events
+
+### 5. SDK real-backend integration tests
+
+Use deterministic local protected MCP/OAuth fixture, not Figma.
+
+Follow the pattern in:
+
+`packages/frontend-sdk/src/integration/__tests__/actionDeepLinks.integration.test.ts`
+
+Add SDK integration coverage for:
+
+1. Check/reconnect without sending a request:
+   - start backend with protected MCP fixture
+   - create session
+   - execute `mcp_check_servers` or active reconnect
+   - assert status shows auth required
+   - assert notification event/metadata exists if generic notifications are enabled
+
+2. Request flow:
+   - send a request with one protected MCP server and at least one available server
+   - assert request completes
+   - assert protected server did not hang/abort the request
+   - assert notification event is emitted and persisted
+
+3. Login callback flow:
+   - execute `mcp_start_login`
+   - extract auth URL and callback redirect URI
+   - synthesize deep-link callback with `code` and `state`
+   - parse/execute via generic session action
+   - assert token is stored
+   - active reconnect/check succeeds
+   - fixture observes `Authorization: Bearer ...`
+
+### 6. React Native real-backend integration tests
+
+Follow the patterns in:
+
+- `mobile/crystal-lattice-control-rn/__integration__/actionDeepLinkRouting.realBackend.integration.test.ts`
+- `mobile/crystal-lattice-control-rn/__integration__/ServerSettingsModal.realBackend.integration.test.tsx`
+- `mobile/crystal-lattice-control-rn/__integration__/SessionSettingsModal.realBackend.integration.test.tsx`
+
+Add RN integration coverage for:
+
+1. Notification rendering:
+   - real backend emits MCP auth-required notification
+   - RN renders notification title/body/action using generic notification host
+   - pressing `Sign in` executes `mcp_start_login`
+   - sign-in display shows `Open sign-in` and `Copy sign-in link`
+
+2. Deep-link callback:
+   - use `handleIncomingUrl(url)` with the synthesized callback
+   - assert it routes to the named connection and session
+   - assert `mcp_complete_login` response is successful
+
+3. Post-login refresh:
+   - execute active MCP check/reconnect
+   - assert notification is resolved/updated and status is connected
+
+### 7. Stage 2 interaction flow later
+
+After generic interaction flow Stage 2 exists, MCP can add a blocking prompt variant:
+
+- Cancel the request
+- Continue without login
+- Start login
+
+This should not be implemented in the first MCP notification pass. Mode A should remain non-blocking and safe.
+
+## Follow-Up Slice Completion Notes
+
+Added during completion after deciding to proceed with the task-015-only slice that does not depend on the generic session notification platform.
+
+### Follow-up slice checklist
+
+- [x] Fix auth-required classification for grouped startup failures such as `unhandled errors in a TaskGroup (1 sub-exception)`.
+- [x] Add an active MCP check action that can be used before sending a chat request.
+- [x] Make `mcp_reconnect_servers` actively clear, reconnect/check configured MCP servers, and return fresh status instead of only scheduling reconnect for the next request.
+- [x] Make `mcp_complete_login` refresh MCP runtime status immediately when session config is available.
+- [x] Add SDK real-backend integration coverage for check-before-request, login link generation, callback completion, token exchange, and bearer-token reuse.
+- [x] Add React Native real-backend integration coverage for routing the MCP callback through `handleIncomingUrl(url)`.
+
+### Implementation details
+
+- `plugins/mcp-shared/src/mcp_shared/runtime.py`
+  - `_is_auth_required_error` now recursively traverses grouped exceptions through the `exceptions` tuple in addition to direct exception text, `response.status_code`, `__cause__`, and `__context__`.
+  - Added `build_runtime_config_from_config(config)` so application-level MCP actions can build the same runtime config shape used by tool preparation without requiring a request first.
+
+- `plugins/mcp-runtime-app/src/mcp_runtime_app/__init__.py`
+  - Added `mcp_check_servers`.
+  - Changed `mcp_reconnect_servers` to clear existing runtimes, start/check configured MCP servers immediately, and return the same fresh status display shape as `mcp_show_status`.
+  - Added `connection_id` mapping to check/reconnect UI elements so auth-required status can still include a working `Sign in` follow-up.
+  - `mcp_complete_login` stores the token, clears runtimes, and when `base_config` is present performs an immediate MCP check using the stored token.
+  - Login error displays now use the standard `error` variant.
+
+- `packages/frontend-sdk/src/integration/mcpAuthFixture.ts`
+  - Added a deterministic local HTTP fixture used by SDK and RN integration tests.
+  - The fixture exposes a protected `/mcp`, `/authorize`, and `/token`.
+  - It records token exchange form fields and `Authorization` headers observed on MCP attempts.
+
+### Test assertions added
+
+- Python runtime test:
+  - grouped auth startup failure is classified as `auth_required`
+  - no tools are exposed
+  - snapshot error is actionable
+
+- Python runtime app tests:
+  - `mcp_check_servers` starts runtime discovery from session `base_config`
+  - `mcp_reconnect_servers` clears and then starts runtime discovery immediately
+  - `mcp_complete_login` refreshes runtime status immediately when session config is available
+
+- SDK real-backend integration:
+  - `mcp_check_servers` works before sending any chat request
+  - status body includes protected server and `auth_required`
+  - status display exposes a generic `mcp_start_login` follow-up action
+  - `mcp_start_login` returns a copyable authorization URL
+  - generated callback parses through generic action deep-link parsing
+  - `mcp_complete_login` exchanges `code=code-123`
+  - refreshed MCP attempt sends `Authorization: Bearer access-123`
+
+- React Native real-backend integration:
+  - generated MCP callback parses with connection id, session id, plugin id, and action id
+  - `handleIncomingUrl(url)` routes to the named connection/session backend
+  - response is the generic `mcp_complete_login` application action result
+  - fixture observes token exchange and bearer-token reuse
+
+### Validation passed
+
+```bash
+pytest plugins/mcp-shared/tests/test_runtime.py plugins/mcp-runtime-app/tests/test_mcp_runtime_app.py -q
+pytest plugins/mcp-shared/tests/test_runtime.py plugins/mcp-runtime-app/tests/test_mcp_runtime_app.py plugins/claude-tools/tests/test_claude_mcp_tool.py plugins/codex-tools/tests/test_mcp_tool.py application/python/tests/test_application_actions_endpoints.py -q
+python -m black --check plugins/mcp-shared/src/mcp_shared/runtime.py plugins/mcp-shared/src/mcp_shared/__init__.py plugins/mcp-shared/tests/test_runtime.py plugins/mcp-runtime-app/src/mcp_runtime_app/__init__.py plugins/mcp-runtime-app/tests/test_mcp_runtime_app.py
+npm --workspace @crystal-lattice/frontend-sdk test
+npm --workspace @crystal-lattice/frontend-sdk exec -- vitest run --config vitest.integration.config.ts src/integration/__tests__/mcpRuntimeLogin.integration.test.ts
+cd mobile/crystal-lattice-control-rn && npm run test:integration -- __integration__/mcpRuntimeLoginDeepLink.realBackend.integration.test.ts
+cd mobile/crystal-lattice-control-rn && npm run tsc
+git diff --check
+```
+
+Package setup performed in the worktree:
+
+```bash
+npm install
+cd mobile/crystal-lattice-control-rn && npm install
+```

@@ -361,8 +361,15 @@ def _format_startup_error(exc: BaseException, state: ServerStateName) -> str:
 
 
 def _is_auth_required_error(exc: BaseException) -> bool:
-    current: BaseException | None = exc
-    while current is not None:
+    seen: set[int] = set()
+
+    def visit(current: BaseException | None) -> bool:
+        if current is None:
+            return False
+        if id(current) in seen:
+            return False
+        seen.add(id(current))
+
         response = getattr(current, "response", None)
         status_code = getattr(response, "status_code", None)
         if status_code == 401:
@@ -382,8 +389,103 @@ def _is_auth_required_error(exc: BaseException) -> bool:
             return True
         if "authorization required" in current_text:
             return True
-        current = current.__cause__ or current.__context__
-    return False
+
+        grouped = getattr(current, "exceptions", None)
+        if isinstance(grouped, tuple):
+            for child in grouped:
+                if isinstance(child, BaseException) and visit(child):
+                    return True
+
+        return visit(current.__cause__) or visit(current.__context__)
+
+    return visit(exc)
+
+
+def build_runtime_config_from_config(config: Dict[str, Any]) -> MCPRuntimeConfig:
+    raw_servers = config.get("mcp_servers")
+    server_specs: Dict[str, MCPServerRuntimeSpec] = {}
+    if isinstance(raw_servers, dict):
+        for server_name, raw_spec in raw_servers.items():
+            if not isinstance(server_name, str) or not server_name:
+                continue
+            if not isinstance(raw_spec, dict):
+                continue
+            spec = _build_server_spec_from_config(server_name, raw_spec, config=config)
+            if spec is not None:
+                server_specs[server_name] = spec
+
+    return MCPRuntimeConfig(
+        servers=server_specs,
+        fail_on_startup_error=bool(config.get("mcp_fail_on_startup_error", False)),
+        reuse_runtime=bool(config.get("mcp_reuse_runtime", True)),
+    )
+
+
+def _build_server_spec_from_config(
+    server_name: str,
+    raw_spec: Dict[str, Any],
+    *,
+    config: Dict[str, Any],
+) -> MCPServerRuntimeSpec | None:
+    transport = raw_spec.get("transport", raw_spec.get("type", "stdio"))
+    if transport not in {"stdio", "sse", "http"}:
+        return None
+    enabled_override = config.get(_server_enabled_override_key(server_name))
+    enabled = (
+        enabled_override
+        if isinstance(enabled_override, bool)
+        else bool(raw_spec.get("enabled", True))
+    )
+    args = raw_spec.get("args")
+    env = raw_spec.get("env")
+    headers = raw_spec.get("headers")
+    command = raw_spec.get("command")
+    cwd = raw_spec.get("cwd")
+    url = raw_spec.get("url")
+    return MCPServerRuntimeSpec(
+        name=server_name,
+        enabled=enabled,
+        transport=transport,
+        command=command if isinstance(command, str) else None,
+        args=(
+            [str(item) for item in args if isinstance(item, (str, int, float))]
+            if isinstance(args, list)
+            else []
+        ),
+        env=(
+            {str(key): str(value) for key, value in env.items() if isinstance(key, str)}
+            if isinstance(env, dict)
+            else {}
+        ),
+        cwd=cwd if isinstance(cwd, str) else None,
+        url=url if isinstance(url, str) else None,
+        headers=(
+            {
+                str(key): str(value)
+                for key, value in headers.items()
+                if isinstance(key, str)
+            }
+            if isinstance(headers, dict)
+            else {}
+        ),
+        startup_timeout_seconds=_coerce_positive_int(
+            raw_spec.get("startup_timeout_seconds")
+        ),
+        tool_timeout_seconds=_coerce_positive_int(raw_spec.get("tool_timeout_seconds")),
+        metadata={},
+    )
+
+
+def _server_enabled_override_key(server_name: str) -> str:
+    return f"mcp_server__{server_name}__enabled"
+
+
+def _coerce_positive_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value > 0:
+        return value
+    return None
 
 
 def _extract_discovered_tools(
