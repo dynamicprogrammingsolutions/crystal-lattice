@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from urllib.parse import parse_qs, urlparse
 
+import mcp_runtime_app as mcp_runtime_app_mod
 from mcp_runtime_app import MCPRuntimeAppPlugin
-from mcp_shared import MCP_OAUTH_PENDING_STORE_KEY, MCP_OAUTH_TOKENS_STORE_KEY
+from mcp_shared import (
+    MCP_OAUTH_PENDING_STORE_KEY,
+    MCP_OAUTH_TOKENS_STORE_KEY,
+)
 
 
 class _DummyRegistry:
@@ -44,6 +48,11 @@ class _DummyStore:
 
     def set(self, key, value):
         self.items[key] = value
+
+    def get_or_create(self, key, factory):
+        if key not in self.items:
+            self.items[key] = factory()
+        return self.items[key]
 
 
 class _DummyApp:
@@ -88,6 +97,41 @@ class _AuthRequiredStoreApp(_DummyApp):
     def __init__(self) -> None:
         self.store = _DummyStore()
         self.store.items = {"mcp_registry": _AuthRequiredRegistry()}
+
+
+class _CheckingRegistry:
+    instances = []
+
+    def __init__(self, *, app) -> None:
+        self.app = app
+        self.cleared = 0
+        self.started = []
+        _CheckingRegistry.instances.append(self)
+
+    async def list_tools(self, runtime_key, runtime_config):
+        self.started.append((runtime_key, runtime_config))
+        return []
+
+    async def clear_all(self):
+        self.cleared += 1
+        return 1
+
+    def snapshot(self):
+        return [
+            {
+                "runtime_key": self.started[-1][0] if self.started else "missing",
+                "servers": [
+                    {
+                        "name": "protected",
+                        "state": "auth_required",
+                        "tool_count": 0,
+                        "enabled": True,
+                        "transport": "http",
+                        "error": "Authentication required for this MCP server. Open MCP status to sign in.",
+                    }
+                ],
+            }
+        ]
 
 
 def test_get_ui_elements_hidden_without_mcp_servers() -> None:
@@ -141,6 +185,77 @@ def test_show_status_exposes_auth_required_server() -> None:
             "preserve_display": True,
         }
     ]
+
+
+def test_check_servers_starts_runtime_from_session_config(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_runtime_app_mod, "MCPRegistry", _CheckingRegistry)
+    _CheckingRegistry.instances = []
+    plugin = MCPRuntimeAppPlugin()
+    app = _DummyApp()
+    app.store.items = {}
+
+    result = plugin.execute_action(
+        app,
+        "mcp_check_servers",
+        {"connection_id": "test-connection"},
+        {
+            "session_id": "session-123",
+            "base_config": {
+                "mcp_enabled": True,
+                "mcp_servers": {
+                    "protected": {
+                        "transport": "http",
+                        "url": "https://mcp.example.test/mcp",
+                    }
+                },
+            },
+        },
+        {},
+    )
+
+    assert result["cleared"] == 0
+    assert _CheckingRegistry.instances
+    registry = _CheckingRegistry.instances[0]
+    assert len(registry.started) == 1
+    runtime_config = registry.started[0][1]
+    assert runtime_config.servers["protected"].url == "https://mcp.example.test/mcp"
+    assert "protected" in result["display"]["body"]
+    assert result["display"]["actions"][0]["action_id"] == "mcp_start_login"
+
+
+def test_reconnect_servers_clears_then_starts_runtime_from_session_config(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(mcp_runtime_app_mod, "MCPRegistry", _CheckingRegistry)
+    _CheckingRegistry.instances = []
+    plugin = MCPRuntimeAppPlugin()
+    app = _DummyApp()
+    existing = _CheckingRegistry(app=app)
+    app.store.items = {"mcp_registry": existing}
+
+    result = plugin.execute_action(
+        app,
+        "mcp_reconnect_servers",
+        {"connection_id": "test-connection"},
+        {
+            "session_id": "session-123",
+            "base_config": {
+                "mcp_enabled": True,
+                "mcp_servers": {
+                    "protected": {
+                        "transport": "http",
+                        "url": "https://mcp.example.test/mcp",
+                    }
+                },
+            },
+        },
+        {},
+    )
+
+    assert result["cleared"] == 1
+    assert existing.cleared == 1
+    assert len(existing.started) == 1
+    assert "protected" in result["display"]["body"]
 
 
 def test_start_login_returns_open_and_copy_actions_and_stores_pending() -> None:
@@ -251,6 +366,72 @@ def test_complete_login_stores_token_and_clears_runtime(monkeypatch) -> None:
     assert token["access_token"] == "access-123"
     assert token["server_url"] == "https://mcp.example.test/mcp"
     assert app.store.items["mcp_registry"].closed is True
+
+
+def test_complete_login_refreshes_runtime_when_session_config_available(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(mcp_runtime_app_mod, "MCPRegistry", _CheckingRegistry)
+    plugin = MCPRuntimeAppPlugin()
+    app = _DummyApp()
+    existing = _CheckingRegistry(app=app)
+    app.store.items["mcp_registry"] = existing
+    app.store.items[MCP_OAUTH_PENDING_STORE_KEY] = {
+        "state-123": {
+            "server_name": "protected",
+            "server_url": "https://mcp.example.test/mcp",
+            "redirect_uri": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected",
+            "connection_id": "test-connection",
+            "token_endpoint": "https://auth.example.test/token",
+            "code_verifier": "verifier",
+            "client_info": {
+                "client_id": "client-123",
+                "token_endpoint_auth_method": "none",
+                "redirect_uris": [
+                    "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected"
+                ],
+            },
+            "resource": "https://mcp.example.test/mcp",
+        }
+    }
+
+    async def fake_exchange(login, code):
+        assert login["server_name"] == "protected"
+        assert code == "code-123"
+        return _FakeToken()
+
+    monkeypatch.setattr(plugin, "_exchange_code_for_token", fake_exchange)
+
+    result = plugin.execute_action(
+        app,
+        "mcp_complete_login",
+        {
+            "server_name": "protected",
+            "code": "code-123",
+            "state": "state-123",
+            "redirect_url": "crystal-lattice://action/test-connection/session-123/mcp_runtime_app/mcp_complete_login?server_name=protected&code=code-123&state=state-123",
+        },
+        {
+            "session_id": "session-123",
+            "base_config": {
+                "mcp_enabled": True,
+                "mcp_servers": {
+                    "protected": {
+                        "transport": "http",
+                        "url": "https://mcp.example.test/mcp",
+                    }
+                },
+            },
+        },
+        {},
+    )
+
+    assert result["message"] == "Signed in to protected."
+    assert result["cleared"] == 1
+    assert existing.cleared == 1
+    assert len(existing.started) == 1
+    assert result["runtimes"][0]["servers"][0]["name"] == "protected"
+    assert "MCP runtimes were refreshed" in result["display"]["body"]
 
 
 def test_clear_runtime_clears_registry_runtimes() -> None:

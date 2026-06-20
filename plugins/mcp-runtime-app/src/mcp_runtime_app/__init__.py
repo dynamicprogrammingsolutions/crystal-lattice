@@ -26,6 +26,10 @@ from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata
 from mcp_shared import (
     MCP_OAUTH_PENDING_STORE_KEY,
     MCP_OAUTH_TOKENS_STORE_KEY,
+    MCPRegistry,
+    apply_oauth_tokens_to_runtime_config,
+    build_runtime_config_from_config,
+    fingerprint_runtime_config,
     get_runtime_store_mapping,
     set_runtime_store_mapping,
 )
@@ -70,20 +74,36 @@ class MCPRuntimeAppPlugin:
             },
             {
                 "ui_type": "session_action",
+                "id": "mcp_check_servers",
+                "label": "Check MCP servers",
+                "icon": "activity",
+                "order": 71,
+                "action_id": "mcp_check_servers",
+                "fixed_params": {},
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "connection_id": "$context.connectionId",
+                },
+            },
+            {
+                "ui_type": "session_action",
                 "id": "mcp_reconnect_servers",
                 "label": "Reconnect MCP servers",
                 "icon": "refresh",
-                "order": 71,
+                "order": 72,
                 "action_id": "mcp_reconnect_servers",
                 "fixed_params": {},
-                "param_map": {"session_id": "$session.session_id"},
+                "param_map": {
+                    "session_id": "$session.session_id",
+                    "connection_id": "$context.connectionId",
+                },
             },
             {
                 "ui_type": "session_action",
                 "id": "mcp_clear_runtime",
                 "label": "Clear MCP runtime",
                 "icon": "trash",
-                "order": 72,
+                "order": 73,
                 "action_id": "mcp_clear_runtime",
                 "fixed_params": {},
                 "param_map": {"session_id": "$session.session_id"},
@@ -129,9 +149,19 @@ class MCPRuntimeAppPlugin:
             {
                 "id": "mcp_reconnect_servers",
                 "label": "Reconnect MCP servers",
-                "description": "Clear MCP runtimes so they reconnect on the next request.",
+                "description": "Clear MCP runtimes, reconnect configured servers, and show fresh status.",
                 "inputs": {
                     "session_id": {"type": "string", "required": False},
+                    "connection_id": {"type": "string", "required": False},
+                },
+            },
+            {
+                "id": "mcp_check_servers",
+                "label": "Check MCP servers",
+                "description": "Connect configured MCP servers if needed and show fresh status.",
+                "inputs": {
+                    "session_id": {"type": "string", "required": False},
+                    "connection_id": {"type": "string", "required": False},
                 },
             },
             {
@@ -190,20 +220,80 @@ class MCPRuntimeAppPlugin:
                 body=f"Cleared {cleared} stored MCP runtime(s).",
                 cleared=cleared,
             )
+        if action_id == "mcp_check_servers":
+            return app.run_awaitable_blocking(
+                self._check_servers(app, params=params, context=context, clear=False)
+            )
         if action_id == "mcp_reconnect_servers":
-            if registry is None:
-                cleared = 0
-            else:
-                cleared = app.run_awaitable_blocking(registry.clear_all())
-            return self._status_message(
-                title="MCP reconnect scheduled",
-                body=(
-                    f"Cleared {cleared} stored MCP runtime(s). "
-                    "The next request will reconnect configured MCP servers."
-                ),
-                cleared=cleared,
+            return app.run_awaitable_blocking(
+                self._check_servers(app, params=params, context=context, clear=True)
             )
         return {"error": f"Unknown action: {action_id}"}
+
+    async def _check_servers(
+        self,
+        app: Any,
+        *,
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+        clear: bool,
+    ) -> Dict[str, Any]:
+        runtime_store = app.get_runtime_store()
+        registry = runtime_store.get(self.runtime_store_key)
+        cleared = 0
+        if clear and registry is not None:
+            cleared = await registry.clear_all()
+
+        base_config = context.get("base_config") if isinstance(context, dict) else None
+        if not isinstance(base_config, dict):
+            return self._status_message(
+                title="MCP status unavailable",
+                body="The session configuration was not available for this action.",
+                cleared=cleared,
+            )
+        if not bool(base_config.get("mcp_enabled", True)):
+            return self._status_message(
+                title="MCP servers disabled",
+                body="MCP is disabled for this session.",
+                cleared=cleared,
+            )
+
+        runtime_config = build_runtime_config_from_config(base_config)
+        if not runtime_config.servers:
+            return self._status_message(
+                title="No MCP servers configured",
+                body="This session does not have configured MCP servers.",
+                cleared=cleared,
+            )
+
+        runtime_config = apply_oauth_tokens_to_runtime_config(
+            runtime_config,
+            runtime_store,
+        )
+        runtime_key = fingerprint_runtime_config(runtime_config)
+        registry = runtime_store.get_or_create(
+            self.runtime_store_key,
+            lambda: MCPRegistry(app=app),
+        )
+        await registry.list_tools(runtime_key, runtime_config)
+        runtimes = self._collect_runtime_rows(registry)
+        display: Dict[str, Any] = {
+            "format": "markdown",
+            "title": "MCP Runtime Status",
+            "body": self._format_status_body(runtimes),
+            "variant": "info",
+            "presentation": "inline",
+            "display_id": "mcp-runtime-status",
+        }
+        actions = self._status_followup_actions(runtimes, params)
+        if actions:
+            display["actions"] = actions
+        return {
+            "display": display,
+            "runtimes": runtimes,
+            "cleared": cleared,
+            "runtime_key": runtime_key,
+        }
 
     def _collect_runtime_rows(self, registry: Any) -> List[Dict[str, Any]]:
         if registry is None:
@@ -316,6 +406,7 @@ class MCPRuntimeAppPlugin:
             "server_name": server_name,
             "server_url": server_url,
             "redirect_uri": redirect_uri,
+            "connection_id": connection_id,
             "token_endpoint": login["token_endpoint"],
             "code_verifier": login["code_verifier"],
             "client_info": login["client_info"],
@@ -396,20 +487,55 @@ class MCPRuntimeAppPlugin:
         if registry is not None:
             cleared = await registry.clear_all()
 
-        return {
+        refreshed = None
+        if isinstance(context, dict) and isinstance(context.get("base_config"), dict):
+            check_params: Dict[str, Any] = {}
+            connection_id = login.get("connection_id")
+            if isinstance(connection_id, str) and connection_id:
+                check_params["connection_id"] = connection_id
+            refreshed = await self._check_servers(
+                app,
+                params=check_params,
+                context=context,
+                clear=False,
+            )
+
+        display = {
+            "format": "markdown",
+            "title": f"Signed in to {server_name}",
+            "body": (
+                "MCP runtimes were refreshed with the stored token."
+                if refreshed is not None
+                else "MCP runtimes were cleared and will reconnect with the stored token on the next request."
+            ),
+            "variant": "success",
+            "presentation": "inline",
+            "display_id": f"mcp-login-complete-{server_name}",
+        }
+        if isinstance(refreshed, dict):
+            refreshed_display = refreshed.get("display")
+            if isinstance(refreshed_display, dict):
+                refreshed_body = refreshed_display.get("body")
+                if isinstance(refreshed_body, str) and refreshed_body:
+                    display["body"] = (
+                        "MCP runtimes were refreshed with the stored token.\n\n"
+                        f"{refreshed_body}"
+                    )
+                actions = refreshed_display.get("actions")
+                if isinstance(actions, list) and actions:
+                    display["actions"] = actions
+
+        result = {
             "message": f"Signed in to {server_name}.",
             "server_name": server_name,
             "cleared": cleared,
             "ui_effects": {"reload_sessions_list": True},
-            "display": {
-                "format": "markdown",
-                "title": f"Signed in to {server_name}",
-                "body": "MCP runtimes were cleared and will reconnect with the stored token on the next request.",
-                "variant": "success",
-                "presentation": "inline",
-                "display_id": f"mcp-login-complete-{server_name}",
-            },
+            "display": display,
         }
+        if isinstance(refreshed, dict):
+            result["runtimes"] = refreshed.get("runtimes", [])
+            result["runtime_key"] = refreshed.get("runtime_key")
+        return result
 
     def _server_config(
         self,
@@ -694,7 +820,7 @@ class MCPRuntimeAppPlugin:
                 "format": "markdown",
                 "title": "MCP login unavailable",
                 "body": message,
-                "variant": "danger",
+                "variant": "error",
                 "presentation": "inline",
             },
         }

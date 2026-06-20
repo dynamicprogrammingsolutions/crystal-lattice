@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import builtins
 import shutil
 import time
 from contextlib import asynccontextmanager
@@ -160,6 +161,23 @@ class _UnauthorizedClientSession:
         raise AssertionError("list_tools should not run after unauthorized startup")
 
 
+class _GroupedUnauthorizedClientSession(_UnauthorizedClientSession):
+    async def initialize(self) -> None:
+        exception_group_cls = getattr(builtins, "ExceptionGroup", None)
+        if exception_group_cls is None:
+            raise _UnauthorizedMCPError(
+                "401 Unauthorized: WWW-Authenticate Bearer resource_metadata"
+            )
+        raise exception_group_cls(
+            "unhandled errors in a TaskGroup",
+            [
+                _UnauthorizedMCPError(
+                    "401 Unauthorized: WWW-Authenticate Bearer resource_metadata"
+                )
+            ],
+        )
+
+
 @asynccontextmanager
 async def _fake_http_transport(url: str, **kwargs):
     _ = url, kwargs
@@ -266,6 +284,39 @@ async def test_runtime_manager_marks_unauthorized_startup_as_auth_required(
     assert snapshot.state == "auth_required"
     assert snapshot.error
     assert "unauthorized" in snapshot.error.lower()
+
+
+@pytest.mark.asyncio
+async def test_runtime_manager_marks_grouped_unauthorized_startup_as_auth_required(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        runtime_mod,
+        "_resolve_sdk_primitives",
+        lambda transport: (_GroupedUnauthorizedClientSession, _fake_http_transport),
+    )
+
+    manager = MCPRuntimeManager()
+    config = MCPRuntimeConfig(
+        servers={
+            "protected": MCPServerRuntimeSpec(
+                name="protected",
+                enabled=True,
+                transport="http",
+                url="http://127.0.0.1:1/mcp",
+                startup_timeout_seconds=1,
+            )
+        },
+        fail_on_startup_error=False,
+    )
+
+    await manager.start(config)
+
+    assert await manager.list_tools() == []
+    snapshot = manager.status_snapshot()[0]
+    assert snapshot.state == "auth_required"
+    assert snapshot.error
+    assert "authentication required" in snapshot.error.lower()
 
 
 class _FakeApp:

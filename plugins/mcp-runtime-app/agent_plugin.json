@@ -6,5 +6,11 @@
   ],
   "kinds": {
     "mcp_runtime_app.MCPRuntimeAppPlugin": "application"
-  }
+  },
+  "local_workspace_dependencies": [
+    {
+      "name": "mcp-shared",
+      "path": "../mcp-shared"
+    }
+  ]
 }
