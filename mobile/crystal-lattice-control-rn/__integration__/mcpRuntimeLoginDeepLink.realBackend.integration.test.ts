@@ -22,7 +22,7 @@ function serverConfig(fixture: McpAuthFixture) {
     agents: {
       default: {
         provider: 'echo',
-        mcp_enabled: true,
+        mcp_enabled: false,
         mcp_fail_on_startup_error: false,
         mcp_servers: {
           protected: {
@@ -72,6 +72,7 @@ describe('mobile MCP login deep-link routing with a real backend', () => {
     });
     const created = await backend.createSession({ agentId: 'default' });
     const sessionId = created.session.session_id;
+    await backend.patchSessionOverrides(sessionId, { mcp_enabled: true });
 
     const login = await backend.executeSessionAction!({
       sessionId,

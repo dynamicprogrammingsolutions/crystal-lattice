@@ -2402,7 +2402,9 @@ class AgentApplication:
                 },
             )
         except Exception as exc:  # pragma: no cover - defensive
-            self._logger.exception("error getting application_ui_schema", error=str(exc))
+            self._logger.exception(
+                "error getting application_ui_schema", error=str(exc)
+            )
             elements = []
 
         if plugin:
@@ -2873,6 +2875,7 @@ class AgentApplication:
                 action_params,
                 context=self._context.build_core_handoff_context(
                     base_config=base_config,
+                    config=effective_config,
                     extra=context,
                 ),
             )
@@ -2994,18 +2997,32 @@ class AgentApplication:
     ) -> Optional[Dict[str, Any]]:
         if not isinstance(context, dict):
             return context
-        if isinstance(context.get("base_config"), dict):
-            return context
         session_id = context.get("session_id")
         if not isinstance(session_id, str) or not session_id:
+            if isinstance(context.get("config"), dict):
+                return context
+            if isinstance(context.get("base_config"), dict):
+                return {**context, "config": dict(context["base_config"])}
             return context
         loaded = self.load_session(session_id)
         if loaded is None:
+            if isinstance(context.get("config"), dict):
+                return context
+            if isinstance(context.get("base_config"), dict):
+                return {**context, "config": dict(context["base_config"])}
             return context
         _core, base_config, session = loaded
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = self.resolve_effective_config(
+            base_config, session, overrides
+        )
         return self._context.build_session_action_context(
             session=session,
             base_config=base_config,
+            config=effective_config,
             extra=context,
         )
 
@@ -3423,6 +3440,7 @@ class AgentApplication:
                 session=session,
                 request_id=rid,
                 base_config=base_config,
+                config=config,
             ),
         )
         return core, base_config, session, config, rid
@@ -3459,6 +3477,7 @@ class AgentApplication:
                 session=session,
                 request_id=rid,
                 base_config=base_config,
+                config=config,
             ),
         )
         return core, base_config, session, config, rid
@@ -3561,6 +3580,7 @@ class AgentApplication:
             session=session,
             request_id=rid,
             base_config=base_config,
+            config=config,
         )
         core.prepare_tools(config, context=tool_context)
 
@@ -3581,6 +3601,7 @@ class AgentApplication:
                         session=current_session,
                         request_id=rid,
                         base_config=base_config,
+                        config=refreshed,
                     ),
                     "cancellation": cancellation,
                 },

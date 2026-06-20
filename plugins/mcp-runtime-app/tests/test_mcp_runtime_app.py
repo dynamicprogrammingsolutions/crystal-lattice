@@ -223,6 +223,43 @@ def test_check_servers_starts_runtime_from_session_config(monkeypatch) -> None:
     assert result["display"]["actions"][0]["action_id"] == "mcp_start_login"
 
 
+def test_check_servers_prefers_effective_config_over_base_config(monkeypatch) -> None:
+    monkeypatch.setattr(mcp_runtime_app_mod, "MCPRegistry", _CheckingRegistry)
+    _CheckingRegistry.instances = []
+    plugin = MCPRuntimeAppPlugin()
+    app = _DummyApp()
+    app.store.items = {}
+
+    result = plugin.execute_action(
+        app,
+        "mcp_check_servers",
+        {"connection_id": "test-connection"},
+        {
+            "session_id": "session-123",
+            "base_config": {
+                "mcp_enabled": False,
+                "mcp_servers": {},
+            },
+            "config": {
+                "mcp_enabled": True,
+                "mcp_servers": {
+                    "protected": {
+                        "transport": "http",
+                        "url": "https://mcp.example.test/mcp",
+                    }
+                },
+            },
+        },
+        {},
+    )
+
+    assert result["cleared"] == 0
+    assert _CheckingRegistry.instances
+    runtime_config = _CheckingRegistry.instances[0].started[0][1]
+    assert runtime_config.servers["protected"].url == "https://mcp.example.test/mcp"
+    assert "MCP is disabled for this session" not in result["display"]["body"]
+
+
 def test_reconnect_servers_clears_then_starts_runtime_from_session_config(
     monkeypatch,
 ) -> None:

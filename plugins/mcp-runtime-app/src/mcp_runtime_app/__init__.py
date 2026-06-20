@@ -244,21 +244,21 @@ class MCPRuntimeAppPlugin:
         if clear and registry is not None:
             cleared = await registry.clear_all()
 
-        base_config = context.get("base_config") if isinstance(context, dict) else None
-        if not isinstance(base_config, dict):
+        config = self._effective_config(context)
+        if not isinstance(config, dict):
             return self._status_message(
                 title="MCP status unavailable",
                 body="The session configuration was not available for this action.",
                 cleared=cleared,
             )
-        if not bool(base_config.get("mcp_enabled", True)):
+        if not bool(config.get("mcp_enabled", True)):
             return self._status_message(
                 title="MCP servers disabled",
                 body="MCP is disabled for this session.",
                 cleared=cleared,
             )
 
-        runtime_config = build_runtime_config_from_config(base_config)
+        runtime_config = build_runtime_config_from_config(config)
         if not runtime_config.servers:
             return self._status_message(
                 title="No MCP servers configured",
@@ -488,7 +488,7 @@ class MCPRuntimeAppPlugin:
             cleared = await registry.clear_all()
 
         refreshed = None
-        if isinstance(context, dict) and isinstance(context.get("base_config"), dict):
+        if isinstance(self._effective_config(context), dict):
             check_params: Dict[str, Any] = {}
             connection_id = login.get("connection_id")
             if isinstance(connection_id, str) and connection_id:
@@ -542,12 +542,24 @@ class MCPRuntimeAppPlugin:
         context: Optional[Dict[str, Any]],
         server_name: str,
     ) -> Optional[Dict[str, Any]]:
-        base_config = context.get("base_config") if isinstance(context, dict) else None
-        servers = (
-            base_config.get("mcp_servers") if isinstance(base_config, dict) else None
-        )
+        config = self._effective_config(context)
+        servers = config.get("mcp_servers") if isinstance(config, dict) else None
         raw_spec = servers.get(server_name) if isinstance(servers, dict) else None
         return dict(raw_spec) if isinstance(raw_spec, dict) else None
+
+    def _effective_config(
+        self,
+        context: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(context, dict):
+            return None
+        config = context.get("config")
+        if isinstance(config, dict):
+            return config
+        base_config = context.get("base_config")
+        if isinstance(base_config, dict):
+            return base_config
+        return None
 
     async def _build_login_request(
         self,
