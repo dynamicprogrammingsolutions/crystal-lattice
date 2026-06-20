@@ -248,6 +248,15 @@ async def _stalling_exit_transport(url: str, **kwargs):
         await asyncio.sleep(60)
 
 
+@asynccontextmanager
+async def _failing_exit_transport(url: str, **kwargs):
+    _ = url, kwargs
+    try:
+        yield "read-stream", "write-stream"
+    finally:
+        raise RuntimeError("Attempted to exit cancel scope in a different task")
+
+
 @pytest.mark.asyncio
 async def test_http_mcp_auth_required_does_not_hang_startup(monkeypatch) -> None:
     monkeypatch.setattr(
@@ -620,6 +629,29 @@ async def test_runtime_manager_close_does_not_wait_forever_for_cleanup(
     elapsed = time.monotonic() - started_at
 
     assert elapsed < 0.8
+    assert manager.status_snapshot() == []
+
+
+@pytest.mark.asyncio
+async def test_runtime_manager_close_suppresses_cleanup_errors() -> None:
+    spec = MCPServerRuntimeSpec(
+        name="protected",
+        enabled=True,
+        transport="http",
+        url="http://127.0.0.1:1/mcp",
+    )
+    stack = AsyncExitStack()
+    await stack.enter_async_context(_failing_exit_transport("http://127.0.0.1:1/mcp"))
+    manager = MCPRuntimeManager()
+    manager._entries["protected"] = runtime_mod._RuntimeEntry(  # noqa: SLF001
+        spec=spec,
+        stack=stack,
+        session=object(),
+        tools=[],
+    )
+
+    await asyncio.wait_for(manager.close(), timeout=1)
+
     assert manager.status_snapshot() == []
 
 

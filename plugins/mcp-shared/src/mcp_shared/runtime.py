@@ -343,6 +343,8 @@ async def _close_stack_bounded(stack: AsyncExitStack, _server_name: str) -> None
             await stack.aclose()
     except TimeoutError:
         return
+    except Exception:
+        return
 
 
 @asynccontextmanager
