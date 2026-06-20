@@ -13,6 +13,8 @@ TransportName = Literal["stdio", "sse", "http"]
 ServerStateName = Literal["disabled", "connected", "failed", "auth_required"]
 
 DEFAULT_STARTUP_TIMEOUT_SECONDS = 30.0
+DEFAULT_CLEANUP_TIMEOUT_SECONDS = 5.0
+_TIMEOUT_CANCEL_ATTR = "_mcp_runtime_timeout_cancelled"
 
 
 @dataclass(frozen=True)
@@ -127,6 +129,20 @@ class MCPRuntimeManager:
                 continue
             try:
                 entry = await self._connect_server(spec)
+            except asyncio.CancelledError as exc:
+                self._snapshots[server_name] = MCPServerSnapshot(
+                    name=server_name,
+                    enabled=True,
+                    transport=spec.transport,
+                    state="failed",
+                    error=_format_startup_error(exc, "failed"),
+                )
+                if config.fail_on_startup_error:
+                    await self.close()
+                    raise RuntimeError(
+                        f"MCP server '{server_name}' startup was cancelled"
+                    ) from exc
+                continue
             except Exception as exc:
                 state = _classify_startup_state(exc)
                 self._snapshots[server_name] = MCPServerSnapshot(
@@ -206,7 +222,7 @@ class MCPRuntimeManager:
         entries = list(self._entries.values())
         self._entries = {}
         for entry in entries:
-            await entry.stack.aclose()
+            await _close_stack_bounded(entry.stack, entry.spec.name)
         self._started = False
 
     async def _connect_server(self, spec: MCPServerRuntimeSpec) -> _RuntimeEntry:
@@ -227,8 +243,13 @@ class MCPRuntimeManager:
             raw_tools = await session.list_tools()
             tools = _extract_discovered_tools(spec.name, raw_tools)
             return _RuntimeEntry(spec=spec, stack=stack, session=session, tools=tools)
+        except asyncio.CancelledError:
+            task = asyncio.current_task()
+            if task is None or not bool(getattr(task, _TIMEOUT_CANCEL_ATTR, False)):
+                await _close_stack_bounded(stack, spec.name)
+            raise
         except BaseException:
-            await stack.aclose()
+            await _close_stack_bounded(stack, spec.name)
             raise
 
     async def _open_session(
@@ -316,6 +337,14 @@ def _startup_timeout_seconds(spec: MCPServerRuntimeSpec) -> float:
     return DEFAULT_STARTUP_TIMEOUT_SECONDS
 
 
+async def _close_stack_bounded(stack: AsyncExitStack, _server_name: str) -> None:
+    try:
+        async with _fail_after_repeating(DEFAULT_CLEANUP_TIMEOUT_SECONDS):
+            await stack.aclose()
+    except TimeoutError:
+        return
+
+
 @asynccontextmanager
 async def _fail_after(seconds: float):
     task = asyncio.current_task()
@@ -329,6 +358,7 @@ async def _fail_after(seconds: float):
     def cancel_task() -> None:
         nonlocal did_timeout
         did_timeout = True
+        setattr(task, _TIMEOUT_CANCEL_ATTR, True)
         task.cancel()
 
     handle = loop.call_later(seconds, cancel_task)
@@ -340,6 +370,49 @@ async def _fail_after(seconds: float):
         raise
     finally:
         handle.cancel()
+        if bool(getattr(task, _TIMEOUT_CANCEL_ATTR, False)):
+            try:
+                delattr(task, _TIMEOUT_CANCEL_ATTR)
+            except AttributeError:
+                pass
+
+
+@asynccontextmanager
+async def _fail_after_repeating(seconds: float, interval: float = 0.05):
+    task = asyncio.current_task()
+    if task is None:
+        yield
+        return
+
+    did_timeout = False
+    loop = asyncio.get_running_loop()
+    handle: asyncio.TimerHandle | None = None
+
+    def cancel_task() -> None:
+        nonlocal did_timeout
+        nonlocal handle
+        did_timeout = True
+        setattr(task, _TIMEOUT_CANCEL_ATTR, True)
+        task.cancel()
+        handle = loop.call_later(interval, cancel_task)
+
+    handle = loop.call_later(seconds, cancel_task)
+    try:
+        yield
+    except asyncio.CancelledError as exc:
+        if did_timeout:
+            raise TimeoutError() from exc
+        raise
+    finally:
+        if handle is not None:
+            handle.cancel()
+        if bool(getattr(task, _TIMEOUT_CANCEL_ATTR, False)):
+            try:
+                delattr(task, _TIMEOUT_CANCEL_ATTR)
+            except AttributeError:
+                pass
+    if did_timeout:
+        raise TimeoutError()
 
 
 def _classify_startup_state(exc: BaseException) -> ServerStateName:
@@ -348,6 +421,8 @@ def _classify_startup_state(exc: BaseException) -> ServerStateName:
 
 def _format_startup_error(exc: BaseException, state: ServerStateName) -> str:
     detail = str(exc)
+    if isinstance(exc, asyncio.CancelledError):
+        return "MCP server startup was cancelled."
     if state == "auth_required":
         if detail:
             return (

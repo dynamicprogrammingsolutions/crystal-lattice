@@ -3582,7 +3582,27 @@ class AgentApplication:
             base_config=base_config,
             config=config,
         )
-        core.prepare_tools(config, context=tool_context)
+        try:
+            core.prepare_tools(config, context=tool_context)
+        except (
+            Exception,
+            asyncio.CancelledError,
+            concurrent.futures.CancelledError,
+        ) as exc:
+            detail = str(exc) or type(exc).__name__
+            yield {
+                "type": "error",
+                "session_id": session.session_id,
+                "request_id": rid,
+                "detail": f"Tool preparation failed: {detail}",
+            }
+            yield {
+                "type": "request_completed",
+                "session_id": session.session_id,
+                "request_id": rid,
+            }
+            self.record_checkpoint(session.session_id, None)
+            return
 
         cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
         self._request_cancellations[rid] = cancellation

@@ -4,7 +4,7 @@ import asyncio
 import builtins
 import shutil
 import time
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 
 import pytest
 import mcp_shared.runtime as runtime_mod
@@ -134,6 +134,22 @@ class _StallingListToolsClientSession:
         await asyncio.sleep(60)
 
 
+class _StallingExitClientSession(_StallingClientSession):
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        _ = exc_type, exc, tb
+        await asyncio.sleep(60)
+
+
+class _FailingStallingExitClientSession(_StallingExitClientSession):
+    async def initialize(self) -> None:
+        raise RuntimeError("startup failed")
+
+
+class _CancelledClientSession(_StallingClientSession):
+    async def initialize(self) -> None:
+        raise asyncio.CancelledError()
+
+
 class _UnauthorizedResponse:
     status_code = 401
 
@@ -184,6 +200,15 @@ async def _fake_http_transport(url: str, **kwargs):
     yield "read-stream", "write-stream"
 
 
+@asynccontextmanager
+async def _stalling_exit_transport(url: str, **kwargs):
+    _ = url, kwargs
+    try:
+        yield "read-stream", "write-stream"
+    finally:
+        await asyncio.sleep(60)
+
+
 @pytest.mark.asyncio
 async def test_http_mcp_auth_required_does_not_hang_startup(monkeypatch) -> None:
     monkeypatch.setattr(
@@ -219,6 +244,109 @@ async def test_http_mcp_auth_required_does_not_hang_startup(monkeypatch) -> None
     assert snapshot.state in {"failed", "auth_required"}
     assert snapshot.error
     assert "timed out" in snapshot.error.lower()
+
+
+@pytest.mark.asyncio
+async def test_runtime_manager_startup_timeout_does_not_wait_forever_for_cleanup(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(runtime_mod, "DEFAULT_CLEANUP_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(
+        runtime_mod,
+        "_resolve_sdk_primitives",
+        lambda transport: (_StallingExitClientSession, _stalling_exit_transport),
+    )
+
+    manager = MCPRuntimeManager()
+    config = MCPRuntimeConfig(
+        servers={
+            "protected": MCPServerRuntimeSpec(
+                name="protected",
+                enabled=True,
+                transport="http",
+                url="http://127.0.0.1:1/mcp",
+                startup_timeout_seconds=0.1,
+            )
+        },
+        fail_on_startup_error=False,
+    )
+
+    started_at = time.monotonic()
+    await asyncio.wait_for(manager.start(config), timeout=1)
+    elapsed = time.monotonic() - started_at
+
+    assert elapsed < 0.8
+    snapshot = manager.status_snapshot()[0]
+    assert snapshot.state == "failed"
+    assert snapshot.error
+    assert "timed out" in snapshot.error.lower()
+
+
+@pytest.mark.asyncio
+async def test_runtime_manager_startup_error_does_not_wait_forever_for_cleanup(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(runtime_mod, "DEFAULT_CLEANUP_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(
+        runtime_mod,
+        "_resolve_sdk_primitives",
+        lambda transport: (_FailingStallingExitClientSession, _stalling_exit_transport),
+    )
+
+    manager = MCPRuntimeManager()
+    config = MCPRuntimeConfig(
+        servers={
+            "protected": MCPServerRuntimeSpec(
+                name="protected",
+                enabled=True,
+                transport="http",
+                url="http://127.0.0.1:1/mcp",
+                startup_timeout_seconds=1,
+            )
+        },
+        fail_on_startup_error=False,
+    )
+
+    started_at = time.monotonic()
+    await asyncio.wait_for(manager.start(config), timeout=1)
+    elapsed = time.monotonic() - started_at
+
+    assert elapsed < 0.8
+    snapshot = manager.status_snapshot()[0]
+    assert snapshot.state == "failed"
+    assert snapshot.error == "startup failed"
+
+
+@pytest.mark.asyncio
+async def test_runtime_manager_contains_cancelled_startup_when_not_fatal(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        runtime_mod,
+        "_resolve_sdk_primitives",
+        lambda transport: (_CancelledClientSession, _fake_http_transport),
+    )
+
+    manager = MCPRuntimeManager()
+    config = MCPRuntimeConfig(
+        servers={
+            "protected": MCPServerRuntimeSpec(
+                name="protected",
+                enabled=True,
+                transport="http",
+                url="http://127.0.0.1:1/mcp",
+                startup_timeout_seconds=1,
+            )
+        },
+        fail_on_startup_error=False,
+    )
+
+    await asyncio.wait_for(manager.start(config), timeout=1)
+
+    assert await manager.list_tools() == []
+    snapshot = manager.status_snapshot()[0]
+    assert snapshot.state == "failed"
+    assert snapshot.error == "MCP server startup was cancelled."
 
 
 @pytest.mark.asyncio
@@ -424,6 +552,36 @@ def test_registry_close_closes_all_runtimes() -> None:
 
     assert len(_FakeRuntimeManager.instances) == 1
     assert _FakeRuntimeManager.instances[0].closed == 1
+
+
+@pytest.mark.asyncio
+async def test_runtime_manager_close_does_not_wait_forever_for_cleanup(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(runtime_mod, "DEFAULT_CLEANUP_TIMEOUT_SECONDS", 0.05)
+
+    spec = MCPServerRuntimeSpec(
+        name="protected",
+        enabled=True,
+        transport="http",
+        url="http://127.0.0.1:1/mcp",
+    )
+    stack = AsyncExitStack()
+    await stack.enter_async_context(_stalling_exit_transport("http://127.0.0.1:1/mcp"))
+    manager = MCPRuntimeManager()
+    manager._entries["protected"] = runtime_mod._RuntimeEntry(  # noqa: SLF001
+        spec=spec,
+        stack=stack,
+        session=object(),
+        tools=[],
+    )
+
+    started_at = time.monotonic()
+    await asyncio.wait_for(manager.close(), timeout=1)
+    elapsed = time.monotonic() - started_at
+
+    assert elapsed < 0.8
+    assert manager.status_snapshot() == []
 
 
 @pytest.mark.integration
