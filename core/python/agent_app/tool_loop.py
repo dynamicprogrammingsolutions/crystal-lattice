@@ -99,15 +99,18 @@ class ToolLoopRunner:
         self._session_for_phase = session_for_phase
         self._config_for_session = config_for_session
 
-
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _extract_tool_calls(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _extract_tool_calls(
+        self, messages: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
         return self._core.extract_tool_calls_from_messages(messages)
 
-    def _extract_pending_tool_calls_from_session(self, session: Session) -> List[Dict[str, Any]]:
+    def _extract_pending_tool_calls_from_session(
+        self, session: Session
+    ) -> List[Dict[str, Any]]:
         """Return tool_calls from the last assistant message, if not yet answered.
 
         We only auto-resume the tool loop when the assistant-with-tool_calls is
@@ -217,6 +220,7 @@ class ToolLoopRunner:
                     cancellation=self._cancellation,
                     context=self._app_context.build_core_handoff_context(
                         base_config=self._base_config,
+                        config=self._config,
                         extra={
                             "overrides": dict(self._overrides),
                             **(
@@ -274,6 +278,7 @@ class ToolLoopRunner:
                 cancellation=self._cancellation,
                 context=self._app_context.build_core_handoff_context(
                     base_config=self._base_config,
+                    config=self._config,
                     extra={
                         "overrides": dict(self._overrides),
                         **(
@@ -365,7 +370,9 @@ class ToolLoopRunner:
             }
             return current_session, []
 
-        return checkpoint_session if 'checkpoint_session' in locals() else final_session, final_messages
+        return (
+            checkpoint_session if "checkpoint_session" in locals() else final_session
+        ), final_messages
 
     def _apply_tool_calls(
         self,
@@ -420,6 +427,7 @@ class ToolLoopRunner:
                     session=current_session,
                     request_id=self._request_id,
                     base_config=self._base_config,
+                    config=config,
                     extra=(
                         {"cancellation": self._cancellation}
                         if self._cancellation is not None
@@ -494,6 +502,7 @@ class ToolLoopRunner:
                     session=current_session,
                     request_id=self._request_id,
                     base_config=self._base_config,
+                    config=config,
                     extra=(
                         {"cancellation": self._cancellation}
                         if self._cancellation is not None
@@ -579,8 +588,6 @@ class ToolLoopRunner:
                         current_session = stop.value
                         break
                     yield ev
-
-
 
             # Main LLM + tool loop
             while True:
