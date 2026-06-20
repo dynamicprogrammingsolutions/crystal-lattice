@@ -228,11 +228,11 @@ jest.mock('react-native-syntax-highlighter', () => 'SyntaxHighlighter');
 
 jest.mock('react-syntax-highlighter/styles/hljs', () => ({}));
 
-jest.mock('@rob117/react-native-selectable-text', () => {
+jest.mock('@ferenci84/react-native-selectable-code-block', () => {
   const React = require('react');
   return {
     __esModule: true,
-    SelectableTextView: (props) => React.createElement('SelectableTextView', props, props.children),
+    SelectableCodeBlockView: (props) => React.createElement('SelectableCodeBlockView', props),
   };
 });
 

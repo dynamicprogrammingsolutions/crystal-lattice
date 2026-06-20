@@ -2904,7 +2904,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - SelectableText (2.1.0):
+  - SelectableCodeBlock (0.1.0):
     - boost
     - DoubleConversion
     - fast_float
@@ -3024,7 +3024,7 @@ DEPENDENCIES:
   - RNSVG (from `../node_modules/react-native-svg`)
   - RNVectorIcons (from `../node_modules/react-native-vector-icons`)
   - RNWorklets (from `../node_modules/react-native-worklets`)
-  - "SelectableText (from `../node_modules/@rob117/react-native-selectable-text`)"
+  - "SelectableCodeBlock (from `../node_modules/@ferenci84/react-native-selectable-code-block`)"
   - SocketRocket (~> 0.7.1)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
@@ -3209,8 +3209,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-vector-icons"
   RNWorklets:
     :path: "../node_modules/react-native-worklets"
-  SelectableText:
-    :path: "../node_modules/@rob117/react-native-selectable-text"
+  SelectableCodeBlock:
+    :path: "../node_modules/@ferenci84/react-native-selectable-code-block"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
@@ -3303,7 +3303,7 @@ SPEC CHECKSUMS:
   RNSVG: 7cf280f47bb61ae1eadcbb7f4014533447f1550e
   RNVectorIcons: 791f13226ec4a3fd13062eda9e892159f0981fae
   RNWorklets: 9fe22307fb611f506096f854caace756c20aecb4
-  SelectableText: aa1746c59423b61394a2a9617c19eea9d60b9dd0
+  SelectableCodeBlock: ed8f3fc52f061e46840010f22fcb03299fee8d2e
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 689c8e04277f3ad631e60fe2a08e41d411daf8eb
 

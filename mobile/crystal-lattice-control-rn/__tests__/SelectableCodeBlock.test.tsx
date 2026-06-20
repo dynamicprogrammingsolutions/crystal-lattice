@@ -1,29 +1,12 @@
 import React from 'react';
 import TestRenderer from 'react-test-renderer';
-import Clipboard from '@react-native-clipboard/clipboard';
-import { Text } from 'react-native';
+import type { SelectableCodeToken } from '@ferenci84/react-native-selectable-code-block';
 import SelectableCodeBlock, { tokenizeCode } from '../src/components/SelectableCodeBlock';
 
 const tokenStyle = {
   'hljs-keyword': { color: '#ff0000' },
   'hljs-number': { color: '#00ff00' },
 };
-
-function collectText(children: unknown): string {
-  if (typeof children === 'string') {
-    return children;
-  }
-
-  if (Array.isArray(children)) {
-    return children.map(collectText).join('');
-  }
-
-  if (React.isValidElement(children)) {
-    return collectText((children.props as { children?: unknown }).children);
-  }
-
-  return '';
-}
 
 test('tokenizeCode highlights known languages', () => {
   const tokens = tokenizeCode('const value = 1;\n', 'ts', tokenStyle);
@@ -57,7 +40,7 @@ test('tokenizeCode falls back for unknown languages while preserving text', () =
   expect(tokens.map((token) => token.text).join('')).toBe(code);
 });
 
-test('SelectableCodeBlock renders selectable highlighted spans and copies selected text', () => {
+test('SelectableCodeBlock renders selectable highlighted token data', () => {
   let renderer: TestRenderer.ReactTestRenderer;
   TestRenderer.act(() => {
     renderer = TestRenderer.create(
@@ -68,18 +51,24 @@ test('SelectableCodeBlock renders selectable highlighted spans and copies select
     );
   });
 
-  const selectableTextView = renderer!.root.find((node) => String(node.type) === 'SelectableTextView');
-  const textNodes = renderer!.root.findAllByType(Text);
+  const selectableCodeBlockView = renderer!.root.find(
+    (node) => String(node.type) === 'SelectableCodeBlockView',
+  );
 
-  expect(selectableTextView.props.menuOptions).toEqual(['Copy']);
-  expect(textNodes.map((node) => collectText(node.props.children)).join('')).toContain('const value = 1;\n');
-
-  TestRenderer.act(() => {
-    selectableTextView.props.onSelection({
-      chosenOption: 'Copy',
-      highlightedText: 'value',
-    });
-  });
-
-  expect(Clipboard.setString).toHaveBeenCalledWith('value');
+  expect(selectableCodeBlockView.props.menuOptions).toEqual(['Copy']);
+  expect(selectableCodeBlockView.props.fontFamily).toBe('Courier');
+  expect(selectableCodeBlockView.props.style).toEqual(
+    expect.objectContaining({
+      flexShrink: 0,
+    }),
+  );
+  expect(selectableCodeBlockView.props.wrapLines).toBe(false);
+  expect(
+    selectableCodeBlockView.props.tokens
+      .map((token: SelectableCodeToken) => token.text)
+      .join(''),
+  ).toBe('const value = 1;\n');
+  expect(selectableCodeBlockView.props.tokens[0]).toEqual(
+    expect.objectContaining({ text: expect.any(String) }),
+  );
 });

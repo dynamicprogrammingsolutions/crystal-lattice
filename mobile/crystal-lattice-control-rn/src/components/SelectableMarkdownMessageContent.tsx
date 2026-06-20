@@ -13,7 +13,7 @@ type CodeBlockRenderingMode =
   | 'enriched-markdown'
   | 'selectable-code-block';
 
-const CODE_BLOCK_RENDERING_MODE: CodeBlockRenderingMode = 'syntax-highlighter';
+const CODE_BLOCK_RENDERING_MODE: CodeBlockRenderingMode = 'selectable-code-block';
 
 function getCodeBlockRenderingMode(): CodeBlockRenderingMode {
   return CODE_BLOCK_RENDERING_MODE;
