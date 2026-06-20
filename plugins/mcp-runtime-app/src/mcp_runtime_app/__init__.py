@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
-from urllib.parse import quote, urlencode
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 from mcp_shared import (
     MCP_OAUTH_PENDING_STORE_KEY,
@@ -126,9 +126,17 @@ class MCPRuntimeAppPlugin:
                 "description": "Complete OAuth login for an MCP server.",
                 "inputs": {
                     "server_name": {"type": "string", "required": True},
-                    "code": {"type": "string", "required": True},
-                    "state": {"type": "string", "required": True},
-                    "redirect_url": {"type": "string", "required": True},
+                    "code": {"type": "string", "required": False},
+                    "state": {"type": "string", "required": False},
+                    "redirect_url": {"type": "string", "required": False},
+                },
+            },
+            {
+                "id": "mcp_show_finish_login",
+                "label": "Finish MCP login",
+                "description": "Show a form for completing MCP OAuth login from a browser callback URL.",
+                "inputs": {
+                    "server_name": {"type": "string", "required": True},
                 },
             },
             {
@@ -195,6 +203,8 @@ class MCPRuntimeAppPlugin:
             return app.run_awaitable_blocking(
                 self._complete_login(app, params=params, context=context)
             )
+        if action_id == "mcp_show_finish_login":
+            return self._show_finish_login(params=params)
         if action_id == "mcp_clear_runtime":
             if registry is None:
                 cleared = 0
@@ -417,6 +427,64 @@ class MCPRuntimeAppPlugin:
                         "text": authorization_url,
                         "copied_label": "Copied",
                     },
+                    {
+                        "kind": "run_action",
+                        "id": f"finish-mcp-login-{server_name}",
+                        "label": "Finish login",
+                        "plugin": self.name,
+                        "action_id": "mcp_show_finish_login",
+                        "fixed_params": {"server_name": server_name},
+                        "preserve_display": True,
+                    },
+                ],
+            },
+        }
+
+    def _show_finish_login(self, *, params: Dict[str, Any]) -> Dict[str, Any]:
+        server_name = params.get("server_name")
+        if not isinstance(server_name, str) or not server_name:
+            raise ValueError("server_name must be a non-empty string")
+
+        return {
+            "message": f"Paste the MCP callback URL for {server_name}.",
+            "display": {
+                "format": "markdown",
+                "title": f"Finish sign-in to {server_name}",
+                "body": (
+                    "Paste the full callback URL from the browser after approving "
+                    "the MCP login."
+                ),
+                "variant": "info",
+                "presentation": "inline",
+                "display_id": f"mcp-login-finish-{server_name}",
+                "form": {
+                    "kind": "form",
+                    "inputs": [
+                        {
+                            "name": "redirect_url",
+                            "type": "multiline",
+                            "label": "Callback URL",
+                            "placeholder": "http://localhost:41793/oauth/callback?code=...&state=...",
+                            "required": True,
+                        }
+                    ],
+                },
+                "actions": [
+                    {
+                        "kind": "run_action",
+                        "id": f"submit-mcp-login-callback-{server_name}",
+                        "label": "Submit",
+                        "plugin": self.name,
+                        "action_id": "mcp_complete_login",
+                        "fixed_params": {"server_name": server_name},
+                        "param_map": {"redirect_url": "$form.redirect_url"},
+                        "preserve_display": False,
+                    },
+                    {
+                        "kind": "dismiss",
+                        "id": f"cancel-mcp-login-callback-{server_name}",
+                        "label": "Cancel",
+                    },
                 ],
             },
         }
@@ -434,10 +502,19 @@ class MCPRuntimeAppPlugin:
         state = params.get("state")
         if not isinstance(server_name, str) or not server_name:
             raise ValueError("server_name must be a non-empty string")
+
+        redirect_url = params.get("redirect_url")
+        if isinstance(redirect_url, str) and redirect_url:
+            parsed = self._parse_callback_url(redirect_url)
+            code = parsed.get("code")
+            state = parsed.get("state")
+
         if not isinstance(code, str) or not code:
-            raise ValueError("code must be a non-empty string")
+            return self._login_error(
+                "MCP login callback URL is missing an authorization code."
+            )
         if not isinstance(state, str) or not state:
-            raise ValueError("state must be a non-empty string")
+            return self._login_error("MCP login callback URL is missing state.")
 
         runtime_store = app.get_runtime_store()
         pending = get_runtime_store_mapping(runtime_store, MCP_OAUTH_PENDING_STORE_KEY)
@@ -516,6 +593,16 @@ class MCPRuntimeAppPlugin:
             refreshed=refreshed,
             body=body,
         )
+
+    def _parse_callback_url(self, redirect_url: str) -> Dict[str, str]:
+        parsed = urlparse(redirect_url)
+        query = parse_qs(parsed.query)
+        values: Dict[str, str] = {}
+        for key in ("code", "state"):
+            first = query.get(key, [None])[0]
+            if isinstance(first, str) and first:
+                values[key] = first
+        return values
 
     def _login_success_result(
         self,

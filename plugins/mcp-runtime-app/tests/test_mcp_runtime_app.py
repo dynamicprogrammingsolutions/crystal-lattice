@@ -340,9 +340,22 @@ def test_start_login_returns_open_and_copy_actions_and_stores_pending() -> None:
     ]
 
     actions = result["display"]["actions"]
-    assert [action["kind"] for action in actions] == ["open_url", "copy_text"]
+    assert [action["kind"] for action in actions] == [
+        "open_url",
+        "copy_text",
+        "run_action",
+    ]
     assert actions[0]["url"] == authorization_url
     assert actions[1]["text"] == authorization_url
+    assert actions[2] == {
+        "kind": "run_action",
+        "id": "finish-mcp-login-protected",
+        "label": "Finish login",
+        "plugin": "mcp_runtime_app",
+        "action_id": "mcp_show_finish_login",
+        "fixed_params": {"server_name": "protected"},
+        "preserve_display": True,
+    }
 
     pending = app.store.items[MCP_OAUTH_PENDING_STORE_KEY]
     assert list(pending.keys()) == query["state"]
@@ -350,6 +363,50 @@ def test_start_login_returns_open_and_copy_actions_and_stores_pending() -> None:
     assert login["server_name"] == "protected"
     assert login["token_endpoint"] == "https://auth.example.test/token"
     assert login["client_info"]["token_endpoint_auth_method"] == "none"
+
+
+def test_show_finish_login_returns_embedded_callback_form() -> None:
+    plugin = MCPRuntimeAppPlugin()
+
+    result = plugin.execute_action(
+        _DummyApp(),
+        "mcp_show_finish_login",
+        {"server_name": "protected"},
+        {"session_id": "session-123"},
+        {},
+    )
+
+    display = result["display"]
+    assert display["title"] == "Finish sign-in to protected"
+    assert display["form"] == {
+        "kind": "form",
+        "inputs": [
+            {
+                "name": "redirect_url",
+                "type": "multiline",
+                "label": "Callback URL",
+                "placeholder": "http://localhost:41793/oauth/callback?code=...&state=...",
+                "required": True,
+            }
+        ],
+    }
+    assert display["actions"] == [
+        {
+            "kind": "run_action",
+            "id": "submit-mcp-login-callback-protected",
+            "label": "Submit",
+            "plugin": "mcp_runtime_app",
+            "action_id": "mcp_complete_login",
+            "fixed_params": {"server_name": "protected"},
+            "param_map": {"redirect_url": "$form.redirect_url"},
+            "preserve_display": False,
+        },
+        {
+            "kind": "dismiss",
+            "id": "cancel-mcp-login-callback-protected",
+            "label": "Cancel",
+        },
+    ]
 
 
 def test_start_login_uses_nested_oauth_config_and_redirect_template() -> None:
@@ -488,6 +545,61 @@ def test_complete_login_stores_token_and_clears_runtime(monkeypatch) -> None:
     assert token["access_token"] == "access-123"
     assert token["server_url"] == "https://mcp.example.test/mcp"
     assert app.store.items["mcp_registry"].closed is True
+
+
+def test_complete_login_accepts_pasted_redirect_url(monkeypatch) -> None:
+    plugin = MCPRuntimeAppPlugin()
+    app = _DummyApp()
+    app.store.items[MCP_OAUTH_PENDING_STORE_KEY] = {
+        "state-123": _pending_login(),
+    }
+
+    async def fake_exchange(login, code):
+        assert login["server_name"] == "protected"
+        assert code == "code-123"
+        return _FakeToken()
+
+    monkeypatch.setattr(plugin, "_exchange_code_for_token", fake_exchange)
+
+    result = plugin.execute_action(
+        app,
+        "mcp_complete_login",
+        {
+            "server_name": "protected",
+            "redirect_url": "http://localhost:41793/oauth/callback?code=code-123&state=state-123",
+        },
+        {"session_id": "session-123"},
+        {},
+    )
+
+    assert result["message"] == "Signed in to protected."
+    assert app.store.items[MCP_OAUTH_PENDING_STORE_KEY] == {}
+    assert app.store.items[MCP_OAUTH_TOKENS_STORE_KEY]["protected"]["access_token"] == (
+        "access-123"
+    )
+
+
+def test_complete_login_reports_invalid_pasted_redirect_url() -> None:
+    plugin = MCPRuntimeAppPlugin()
+    app = _DummyApp()
+    app.store.items[MCP_OAUTH_PENDING_STORE_KEY] = {
+        "state-123": _pending_login(),
+    }
+
+    result = plugin.execute_action(
+        app,
+        "mcp_complete_login",
+        {
+            "server_name": "protected",
+            "redirect_url": "http://localhost:41793/oauth/callback?state=state-123",
+        },
+        {"session_id": "session-123"},
+        {},
+    )
+
+    assert result["display"]["variant"] == "error"
+    assert "missing an authorization code" in result["display"]["body"]
+    assert "state-123" in app.store.items[MCP_OAUTH_PENDING_STORE_KEY]
 
 
 def test_complete_login_succeeds_when_runtime_cleanup_fails(monkeypatch) -> None:

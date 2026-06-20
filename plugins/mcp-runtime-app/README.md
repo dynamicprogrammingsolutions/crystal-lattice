@@ -85,6 +85,24 @@ Legacy flat keys such as `oauth_authorization_url`, `oauth_token_endpoint`, and
 `oauth_client_id` are still accepted, but new configs should use the nested
 `oauth` object.
 
+## Manual callback login flow
+
+When a server requires OAuth login, use the MCP status/check action before or
+after a request:
+
+1. Run `Check MCP servers` or open `MCP status`.
+2. Press `Sign in to <server>`.
+3. Press `Open sign-in` or copy the sign-in link.
+4. Approve the login in the browser.
+5. If the redirect opens a localhost URL that does not load, copy the full URL
+   from the browser address bar.
+6. Return to Crystal Lattice, press `Finish login`, paste the callback URL, and
+   submit it.
+
+The callback URL must contain the OAuth `code` and `state` query parameters.
+The same completion action also supports app deep links that pass `code` and
+`state` directly.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.
