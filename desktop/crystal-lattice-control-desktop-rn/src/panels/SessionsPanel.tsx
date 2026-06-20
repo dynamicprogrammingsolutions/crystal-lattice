@@ -364,7 +364,11 @@ function SessionsPanelInner({
   );
 
   const handleDisplayFollowupAction = useCallback(
-    async (entry: ActionDisplayEntry, action: ActionDisplayFollowupAction) => {
+    async (
+      entry: ActionDisplayEntry,
+      action: ActionDisplayFollowupAction,
+      formValues?: Record<string, any>,
+    ) => {
       if (action.kind === 'open_url') {
         try {
           await Linking.openURL(action.url);
@@ -393,8 +397,13 @@ function SessionsPanelInner({
               action_id: action.action_id,
               action_owner: action.action_owner,
               fixed_params: action.fixed_params as Record<string, any> | undefined,
+              param_map: action.param_map,
+              form: entry.display.form,
             },
-            entry.context,
+            {
+              ...entry.context,
+              formValues,
+            },
           );
         } finally {
           setActiveDisplayActionId(null);
@@ -651,7 +660,9 @@ function SessionsPanelInner({
           onDismiss={() =>
             setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
           }
-          onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
+          onFollowupAction={(action, formValues) =>
+            handleDisplayFollowupAction(entry, action, formValues)
+          }
         />
       ))}
       <ActionResultModal
@@ -659,9 +670,9 @@ function SessionsPanelInner({
         display={actionResultDisplay?.display ?? null}
         activeActionId={activeDisplayActionId}
         onRequestClose={() => setActionResultDisplay(null)}
-        onFollowupAction={(action) => {
+        onFollowupAction={(action, formValues) => {
           if (!actionResultDisplay) return;
-          handleDisplayFollowupAction(actionResultDisplay, action);
+          handleDisplayFollowupAction(actionResultDisplay, action, formValues);
         }}
       />
       <PanelHeader

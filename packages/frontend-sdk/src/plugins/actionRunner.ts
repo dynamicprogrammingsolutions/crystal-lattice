@@ -21,6 +21,7 @@ export interface RunActionContext {
   sessionSummary?: SessionSummary;
   messageContext?: { index: number; message: ApiMessage };
   dialogValues?: Record<string, any>;
+  formValues?: Record<string, any>;
 }
 
 export interface RunActionEffectsOptions {
@@ -63,11 +64,10 @@ function getFromPath(root: any, path: string): any {
   return current;
 }
 
-function getDialogFieldSubmitEmpty(element: ActionUiElement, fieldName: string): boolean {
-  const dialog: any = (element as any).dialog || null;
-  if (!dialog || typeof dialog !== 'object') return false;
-  if (dialog.kind !== 'form') return false;
-  const inputs: any = dialog.inputs;
+function getFormFieldSubmitEmpty(form: any, fieldName: string): boolean {
+  if (!form || typeof form !== 'object') return false;
+  if (form.kind !== 'form') return false;
+  const inputs: any = form.inputs;
   if (!Array.isArray(inputs)) return false;
   const field = inputs.find((f: any) => f && typeof f === 'object' && f.name === fieldName);
   return field?.submit_empty === true;
@@ -107,7 +107,21 @@ function buildActionInputs(options: {
       } else if (source.startsWith('$dialog.')) {
         const path = source.slice('$dialog.'.length);
         value = getFromPath(context.dialogValues || {}, path);
-        if (value === undefined && context.dialogValues && getDialogFieldSubmitEmpty(element, path)) {
+        if (
+          value === undefined &&
+          context.dialogValues &&
+          getFormFieldSubmitEmpty((element as any).dialog, path)
+        ) {
+          value = '';
+        }
+      } else if (source.startsWith('$form.')) {
+        const path = source.slice('$form.'.length);
+        value = getFromPath(context.formValues || {}, path);
+        if (
+          value === undefined &&
+          context.formValues &&
+          getFormFieldSubmitEmpty((element as any).form, path)
+        ) {
           value = '';
         }
       } else if (source.startsWith('$context.')) {

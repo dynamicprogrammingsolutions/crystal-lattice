@@ -18,10 +18,13 @@ export type {
   ApplicationActionDialogFieldRenderParams,
   ApplicationActionDialogPrefillContext,
   ApplicationActionDialogProps,
+  ApplicationActionFormHandle,
+  ApplicationActionFormProps,
   DialogInputField,
 } from './ApplicationActionDialog';
 export { ApplicationActionDialog } from './ApplicationActionDialog';
 export { ApplicationActionDialogLayout } from './ApplicationActionDialog';
+export { ApplicationActionForm } from './ApplicationActionDialog';
 
 export {
   buildActionsMenuModel,

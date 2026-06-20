@@ -733,4 +733,75 @@ describe('runApplicationAction input building', () => {
       subtitle: 'hello',
     });
   });
+
+  it('maps embedded display form values into follow-up action inputs', async () => {
+    let capturedInputs: Record<string, any> | null = null;
+
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction: async ({ inputs }) => {
+        capturedInputs = inputs;
+        return {
+          status: 'ok',
+          plugin: 'dummy_display_form_app',
+          action_id: 'submit_display_form',
+          result: { mutations: {}, ui_effects: {} },
+        } as any;
+      },
+    } as any;
+
+    await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'action_result_followup',
+        plugin: 'dummy_display_form_app',
+        id: 'submit-display-form',
+        label: 'Submit',
+        action_id: 'submit_display_form',
+        fixed_params: { source: 'display' } as any,
+        param_map: {
+          callback_url: '$form.callback_url',
+          note: '$form.note',
+        },
+        form: {
+          kind: 'form',
+          inputs: [
+            { name: 'callback_url', type: 'multiline', required: true },
+            { name: 'note', type: 'string', required: false, submit_empty: true },
+          ],
+        },
+      } as any,
+      actionsById: {
+        submit_display_form: {
+          plugin: 'dummy_display_form_app',
+          id: 'submit_display_form',
+          label: 'Submit display form',
+          inputs: {
+            source: { type: 'string', required: true },
+            callback_url: { type: 'string', required: true },
+            note: { type: 'string', required: false },
+          },
+        } as any,
+      },
+      context: {
+        formValues: {
+          callback_url: 'http://127.0.0.1:41793/callback?code=abc&state=xyz',
+        },
+      },
+    });
+
+    expect(capturedInputs).toEqual({
+      source: 'display',
+      callback_url: 'http://127.0.0.1:41793/callback?code=abc&state=xyz',
+      note: '',
+    });
+  });
 });

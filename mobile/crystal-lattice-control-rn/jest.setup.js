@@ -160,6 +160,7 @@ jest.mock('@likashefqet/react-native-image-zoom', () => {
 
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
+  const { Text, TextInput, View } = require('react-native');
   const lightTheme = {
     typography: {
       fontSize: {
@@ -201,6 +202,59 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     navIconInactive: '#8E8E93',
   };
 
+  const ApplicationActionForm = React.forwardRef(({ form }, ref) => {
+    const inputs = form && form.kind === 'form' && Array.isArray(form.inputs) ? form.inputs : [];
+    const initialValues = {};
+    inputs.forEach((field) => {
+      if (!field?.name) return;
+      initialValues[field.name] =
+        field.default === undefined || field.default === null ? '' : String(field.default);
+    });
+    const [values, setValues] = React.useState(initialValues);
+    const [error, setError] = React.useState(null);
+
+    React.useImperativeHandle(ref, () => ({
+      submit: () => {
+        const result = {};
+        for (const field of inputs) {
+          if (!field?.name) continue;
+          const raw = values[field.name] ?? '';
+          const trimmed = raw.trim();
+          if (!trimmed && field.required) {
+            setError(`Field "${field.label || field.name}" is required.`);
+            return null;
+          }
+          if (trimmed) {
+            result[field.name] = trimmed;
+          } else if (field.submit_empty === true) {
+            result[field.name] = '';
+          }
+        }
+        setError(null);
+        return result;
+      },
+    }));
+
+    return React.createElement(
+      View,
+      null,
+      inputs.map((field) => {
+        if (!field?.name) return null;
+        return React.createElement(
+          View,
+          { key: field.name },
+          React.createElement(Text, null, field.label || field.name),
+          React.createElement(TextInput, {
+            value: values[field.name] ?? '',
+            placeholder: field.placeholder || '',
+            onChangeText: (next) => setValues((prev) => ({ ...prev, [field.name]: next })),
+          }),
+        );
+      }),
+      error ? React.createElement(Text, null, error) : null,
+    );
+  });
+
   return {
     __esModule: true,
     SESSION_ACTIONS: {},
@@ -208,6 +262,8 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     useTheme: () => lightTheme,
     SessionActionsBar: () => React.createElement(React.Fragment, null),
     ApplicationActionDialog: () => React.createElement(React.Fragment, null),
+    ApplicationActionDialogLayout: () => React.createElement(React.Fragment, null),
+    ApplicationActionForm,
   };
 });
 

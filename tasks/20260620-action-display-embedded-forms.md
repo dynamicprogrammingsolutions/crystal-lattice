@@ -4,18 +4,18 @@ Add generic form fields directly inside action display payloads so plugins can r
 
 ## Requirements checklist
 
-- [ ] Extend the generic action display protocol with embedded form support.
-- [ ] Reuse the existing action-dialog form input schema for display forms.
-- [ ] Support mapping submitted display form values into follow-up action inputs.
-- [ ] Implement display form rendering on the React Native mobile app.
-- [ ] Implement display form rendering on the React Native macOS desktop app.
-- [ ] Add a dummy plugin that returns embedded display forms so the feature can be tested manually before MCP depends on it.
-- [ ] Add SDK-level unit and integration coverage for display form input mapping and action execution.
-- [ ] Add React Native component/integration coverage for display forms on mobile.
-- [ ] Add React Native component/integration coverage for display forms on desktop when relevant to the desktop test setup.
+- [x] Extend the generic action display protocol with embedded form support.
+- [x] Reuse the existing action-dialog form input schema for display forms.
+- [x] Support mapping submitted display form values into follow-up action inputs.
+- [x] Implement display form rendering on the React Native mobile app.
+- [x] Implement display form rendering on the React Native macOS desktop app.
+- [x] Add a dummy plugin that returns embedded display forms so the feature can be tested manually before MCP depends on it.
+- [x] Add SDK-level unit and integration coverage for display form input mapping and action execution.
+- [x] Add React Native component/integration coverage for display forms on mobile.
+- [x] Add React Native component/integration coverage for display forms on desktop when relevant to the desktop test setup.
 - [ ] Before implementing MCP runtime usage, manually verify the Figma OAuth flow is compatible with the pasted-callback flow and can call tools after login.
-- [ ] Document the display form schema and examples in the plugin/action documentation.
-- [ ] Keep existing action display behavior backward compatible.
+- [x] Document the display form schema and examples in the plugin/action documentation.
+- [x] Keep existing action display behavior backward compatible.
 
 ## Context
 
@@ -246,3 +246,17 @@ If Figma still rejects registration, redirect URI, token exchange, or subsequent
 ## Proposed Future Work
 
 This task intentionally does not implement follow-up actions that open a separate dialog. That related capability is tracked separately in `tasks/20260620-action-display-followup-dialogs.md`.
+
+## Completion Notes
+
+Added during implementation:
+
+- Added `display.form`, display follow-up `param_map`, `$form.<field>` mapping, and `dismiss` follow-up actions to the generic frontend SDK action display protocol.
+- Added `ApplicationActionForm` in `packages/frontend-rn-components/src/ApplicationActionDialog.tsx` so embedded display forms reuse the action-dialog form schema, parser, validation, and app-provided field renderers.
+- Updated mobile and desktop action display cards and follow-up handlers to render embedded forms and pass submitted values into `runApplicationAction`.
+- Added `plugins/dummy-action-display-form-app` for manual testing without MCP.
+- Added SDK unit and real-backend integration tests for the dummy display form flow.
+- Added mobile component and real-backend integration tests, plus desktop component coverage.
+- Updated `plugins/docs/actions.md` with `display.form`, `$form.<field>`, `dismiss`, the dummy plugin manual test pointer, and a future note for follow-up dialogs.
+
+MCP runtime UX was intentionally not wired in this slice. The Figma compatibility gate remains open: before adding MCP-specific login actions that depend on pasted callback URLs, manually verify that Figma accepts the configured client metadata/redirect URL, completes token exchange from a copied callback URL, and can call at least one MCP tool after login.

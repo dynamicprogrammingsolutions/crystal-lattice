@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Text, TouchableOpacity } from 'react-native';
+import { Text, TextInput, TouchableOpacity } from 'react-native';
 
 const mockLightTheme = {
   typography: {
@@ -82,7 +82,11 @@ jest.mock('@crystal-lattice/frontend-sdk', () => ({
   },
 }));
 
-import { ApplicationActionDialog } from '../../../packages/frontend-rn-components/src/ApplicationActionDialog';
+import {
+  ApplicationActionDialog,
+  ApplicationActionForm,
+  type ApplicationActionFormHandle,
+} from '../../../packages/frontend-rn-components/src/ApplicationActionDialog';
 import { useMobileApplicationActionDialogFieldRenderers } from '../src/components/applicationActionDialogRenderers';
 
 function DialogHarness({
@@ -169,4 +173,49 @@ test('action dialog validates required select fields', () => {
       return text.props.children === 'Field "MCP server" is required.';
     }),
   ).toBe(true);
+});
+
+test('application action form submits embedded form values', () => {
+  const ref = React.createRef<ApplicationActionFormHandle>();
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <ApplicationActionForm
+        ref={ref}
+        form={{
+          kind: 'form',
+          inputs: [
+            {
+              name: 'callback_url',
+              type: 'multiline',
+              label: 'Callback URL',
+              required: true,
+            },
+            {
+              name: 'note',
+              type: 'string',
+              label: 'Note',
+              submit_empty: true,
+            },
+          ],
+        }}
+      />,
+    );
+  });
+
+  const inputs = renderer!.root.findAllByType(TextInput);
+  ReactTestRenderer.act(() => {
+    inputs[0].props.onChangeText('http://127.0.0.1:41793/callback?code=abc&state=xyz');
+  });
+
+  let submitted: Record<string, any> | null = null;
+  ReactTestRenderer.act(() => {
+    submitted = ref.current!.submit();
+  });
+
+  expect(submitted).toEqual({
+    callback_url: 'http://127.0.0.1:41793/callback?code=abc&state=xyz',
+    note: '',
+  });
 });

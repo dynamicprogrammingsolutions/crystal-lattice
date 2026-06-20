@@ -75,6 +75,11 @@ Recommended shape:
         "plugin": "chatgpt_auth",
         "action_id": "check_status",
         "preserve_display": true
+      },
+      {
+        "kind": "dismiss",
+        "id": "dismiss-login-instructions",
+        "label": "Close"
       }
     ]
   }
@@ -94,6 +99,8 @@ Fields:
   rendered display
 - `display_id`: optional stable id so frontends can update or replace an
   existing inline/banner display instead of always appending a new one
+- `form`: optional embedded form; uses the same `kind: "form"` and `inputs`
+  schema as action dialogs
 - `actions`: optional list of generic follow-up actions
 
 Guidance:
@@ -104,13 +111,95 @@ Guidance:
 - do not overload top-level `message` keys for successful rich content when
   `display` is more appropriate
 - keep follow-up actions intentionally narrow and generic; current supported
-  shapes are `open_url`, `copy_text`, and `run_action`
+  shapes are `open_url`, `copy_text`, `run_action`,
+  `download_attachment_asset`, and `dismiss`
 - treat `presentation` as a frontend hint, not a guarantee:
   current frontends ignore `display` for `session_list_action` surfaces
   and the desktop app currently coerces session-action displays to `inline`
 - `modal` remains part of the protocol, but richer cross-platform popup support
   should be added later only when there is a concrete use case and a UI
   approach that works on both mobile and desktop
+
+### Embedded display forms
+
+Action displays may include an embedded form when the user should enter values
+directly in the returned display surface before pressing a follow-up action.
+
+The embedded form schema is intentionally the same form schema used by action
+dialogs:
+
+```json
+{
+  "display": {
+    "format": "markdown",
+    "title": "Finish external login",
+    "body": "Paste the callback URL from your browser.",
+    "variant": "info",
+    "presentation": "inline",
+    "form": {
+      "kind": "form",
+      "inputs": [
+        {
+          "name": "callback_url",
+          "type": "multiline",
+          "label": "Callback URL",
+          "placeholder": "http://127.0.0.1:41793/callback?code=...&state=...",
+          "required": true
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "label": "Note",
+          "submit_empty": true
+        }
+      ]
+    },
+    "actions": [
+      {
+        "kind": "run_action",
+        "id": "submit-callback-url",
+        "label": "Submit",
+        "plugin": "example_login_app",
+        "action_id": "finish_login_from_callback_url",
+        "fixed_params": {
+          "source": "display_form"
+        },
+        "param_map": {
+          "callback_url": "$form.callback_url",
+          "note": "$form.note"
+        },
+        "preserve_display": true
+      },
+      {
+        "kind": "dismiss",
+        "id": "cancel-callback-url",
+        "label": "Cancel"
+      }
+    ]
+  }
+}
+```
+
+Follow-up `run_action` entries may use `param_map` just like action UI
+elements. Values entered into the embedded display form are addressed with
+`$form.<field_name>`. Existing action dialogs continue to use
+`$dialog.<field_name>`.
+
+Use `dismiss` when a display action should close the display locally without a
+backend call.
+
+For manual testing, the `plugins/dummy-action-display-form-app` plugin exposes
+a `Show display form` session action that returns an embedded form and echoes
+submitted values in a confirmation display.
+
+### Future follow-up dialog proposal
+
+Some workflows may eventually need a display action that opens a separate form
+dialog rather than showing fields inline in the display. The proposed future
+shape is for a `run_action` display action to include a `dialog` object that
+reuses the same action-dialog schema, with submitted values mapped through
+`$dialog.<field_name>`. This is not part of the current implemented contract;
+it is tracked in `tasks/20260620-action-display-followup-dialogs.md`.
 
 ## Dynamic lifecycle names
 

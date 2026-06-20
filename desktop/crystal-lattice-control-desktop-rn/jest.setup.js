@@ -12,8 +12,22 @@ jest.mock('@crystal-lattice/frontend-sdk', () => ({
 
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
-  const { View } = require('react-native');
+  const { Text, TextInput, View } = require('react-native');
   const theme = {
+    typography: {
+      fontSize: {
+        tiny: 11,
+        small: 12,
+        secondary: 13,
+        normal: 14,
+        message: 15,
+        large: 16,
+        title: 18,
+        screenTitle: 24,
+        display: 28,
+        code: 14,
+      },
+    },
     background: '#fff',
     backgroundAlt: '#fff',
     surface: '#fff',
@@ -40,6 +54,59 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     navIconInactive: '#666',
   };
 
+  const ApplicationActionForm = React.forwardRef(({ form }, ref) => {
+    const inputs = form && form.kind === 'form' && Array.isArray(form.inputs) ? form.inputs : [];
+    const initialValues = {};
+    inputs.forEach((field) => {
+      if (!field?.name) return;
+      initialValues[field.name] =
+        field.default === undefined || field.default === null ? '' : String(field.default);
+    });
+    const [values, setValues] = React.useState(initialValues);
+    const [error, setError] = React.useState(null);
+
+    React.useImperativeHandle(ref, () => ({
+      submit: () => {
+        const result = {};
+        for (const field of inputs) {
+          if (!field?.name) continue;
+          const raw = values[field.name] ?? '';
+          const trimmed = raw.trim();
+          if (!trimmed && field.required) {
+            setError(`Field "${field.label || field.name}" is required.`);
+            return null;
+          }
+          if (trimmed) {
+            result[field.name] = trimmed;
+          } else if (field.submit_empty === true) {
+            result[field.name] = '';
+          }
+        }
+        setError(null);
+        return result;
+      },
+    }));
+
+    return React.createElement(
+      View,
+      null,
+      inputs.map((field) => {
+        if (!field?.name) return null;
+        return React.createElement(
+          View,
+          { key: field.name },
+          React.createElement(Text, null, field.label || field.name),
+          React.createElement(TextInput, {
+            value: values[field.name] ?? '',
+            placeholder: field.placeholder || '',
+            onChangeText: (next) => setValues((prev) => ({ ...prev, [field.name]: next })),
+          }),
+        );
+      }),
+      error ? React.createElement(Text, null, error) : null,
+    );
+  });
+
   return {
     ThemeProvider: ({ children }: { children: any }) => React.createElement(React.Fragment, null, children),
     useTheme: () => theme,
@@ -48,6 +115,8 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
 
     ActionsMenuBar: () => null,
     ApplicationActionDialog: ({ visible }: { visible: boolean }) => (visible ? React.createElement(View, null) : null),
+    ApplicationActionDialogLayout: () => React.createElement(React.Fragment, null),
+    ApplicationActionForm,
     getLastActionsPopoverAnchorTag: () => null,
   };
 });

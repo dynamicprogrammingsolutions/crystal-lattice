@@ -10,6 +10,7 @@ you intentionally want integration or e2e coverage.
 
 ```bash
 npm run integration:backend
+npm run integration:action-display-forms
 npm run integration:cloud -- -t "routes two cloud sessions"
 ```
 
@@ -32,6 +33,7 @@ forwarded after `--`.
 
 | Category | Command | Runs / requirements |
 | --- | --- | --- |
+| Local backend | `npm run integration:action-display-forms` | Dummy action display embedded form flow through SDK `runApplicationAction`. |
 | Local backend | `npm run integration:backend` | `backend.integration.test.ts` with deterministic local providers. |
 | Hosted API | `npm run integration:backend:openai` | OpenAI Responses attachment integration; requires `OPENAI_API_KEY`. |
 | Hosted API | `npm run integration:backend:openrouter` | OpenRouter chat attachment integration; requires `OPENROUTER_API_KEY`. |
