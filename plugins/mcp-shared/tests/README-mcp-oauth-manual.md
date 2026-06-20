@@ -6,11 +6,12 @@ This manual helper validates an OAuth-protected MCP server end to end:
 2. finish OAuth by pasting the browser callback URL
 3. verify the saved login by connecting to the MCP server and listing tools
 
-The default scenario targets Figma MCP with Codex-like client metadata and a
-localhost redirect. That shape is intentional: current Figma diagnostics showed
-that Figma accepts `client_name: "Codex"` with loopback redirects, while it
-rejects the Crystal custom scheme and public HTTPS callback unless Figma
-explicitly allows that client/redirect combination.
+The default scenario targets Figma MCP with a Gemini-CLI-like public-client
+shape. Figma's public extension repository configures Gemini with only
+`httpUrl: "https://mcp.figma.com/mcp"` and `oauth.enabled: true`; the Gemini CLI
+client supplies the OAuth metadata (`client_name: "Gemini CLI MCP Client"`,
+loopback callback, PKCE, dynamic client registration, and MCP `resource`
+parameter).
 
 ## Commands
 
@@ -118,6 +119,39 @@ token endpoint then requires the returned client secret.
 `mcp_oauth_manual.finish_include_resource` defaults to true when the start step
 discovers a resource. Set it to false for providers that include `resource` in
 the authorization URL but reject it during token exchange.
+
+## Client Behavior Recorder
+
+Use `manual_mcp_oauth_recorder.py` when you need to observe a real MCP client
+instead of guessing from source. It runs a tiny MCP protected resource and OAuth
+authorization server, then logs every request as JSONL.
+
+Start the recorder:
+
+```bash
+python plugins/mcp-shared/tests/manual_mcp_oauth_recorder.py
+```
+
+The MCP URL is:
+
+```text
+http://127.0.0.1:41873/mcp
+```
+
+Configure a client such as Gemini CLI, Claude Code, or Codex to use that URL
+with OAuth enabled, then run its login command. Logs are written to:
+
+```text
+plugins/mcp-shared/.manual-state/oauth-recorder/requests.jsonl
+```
+
+The recorder is intended for manual diagnosis. It should show, for example:
+
+- how the client discovers protected-resource and authorization-server metadata
+- the exact dynamic client registration JSON
+- the redirect URI, state, scope, and resource in the authorization URL
+- the exact token-exchange form body
+- how the client retries MCP initialization with a bearer token
 
 ## Saved State
 

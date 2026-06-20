@@ -1,6 +1,6 @@
 {
   "id": "figma-remote-mcp",
-  "description": "Manual Figma remote MCP OAuth flow. This intentionally uses Codex-like client metadata because Figma currently accepts that shape with a localhost redirect.",
+  "description": "Manual Figma remote MCP OAuth flow using the same public-client shape as Gemini CLI's Figma extension path.",
   "mcp_oauth_manual": {
     "server_name": "figma",
     "connection_id": "manual-connection",
@@ -9,7 +9,7 @@
     "action_id": "mcp_complete_login",
     "callback_port": 41793,
     "finish_token_endpoint_auth_method": "client_secret_post",
-    "finish_include_resource": false
+    "finish_include_resource": true
   },
   "mcp_servers": {
     "figma": {
@@ -18,13 +18,13 @@
       "url": "https://mcp.figma.com/mcp",
       "startup_timeout_seconds": 30,
       "oauth": {
-        "client_name": "Codex",
+        "client_name": "Gemini CLI MCP Client",
         "client_uri": null,
         "software_id": null,
         "software_version": null,
         "token_endpoint_auth_method": "none",
         "scope": "mcp:connect",
-        "redirect_uri": "http://127.0.0.1:{port}/callback"
+        "redirect_uri": "http://localhost:{port}/oauth/callback"
       }
     }
   }
