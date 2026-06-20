@@ -8,7 +8,7 @@
     "plugin_id": "mcp_runtime_app",
     "action_id": "mcp_complete_login",
     "callback_port": 41793,
-    "finish_token_endpoint_auth_method": "client_secret_post",
+    "finish_include_client_secret": true,
     "finish_include_resource": true
   },
   "mcp_servers": {

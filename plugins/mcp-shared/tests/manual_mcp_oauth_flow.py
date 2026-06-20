@@ -223,7 +223,10 @@ async def finish_flow(args: argparse.Namespace) -> None:
     if include_resource is not False and pending.get("resource"):
         form["resource"] = pending["resource"]
 
-    headers = {"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}
+    headers = {
+        "Accept": "application/json, application/x-www-form-urlencoded",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
     server_spec = pending.get("server_spec") if isinstance(pending.get("server_spec"), dict) else {}
     scenario = _load_json(args.config)
     auth_method = (
@@ -232,7 +235,8 @@ async def finish_flow(args: argparse.Namespace) -> None:
         or "none"
     )
     client_secret = client_info.get("client_secret")
-    if auth_method == "client_secret_post" and client_secret:
+    include_client_secret = manual.get("finish_include_client_secret") is True
+    if (auth_method == "client_secret_post" or include_client_secret) and client_secret:
         form["client_secret"] = client_secret
     elif auth_method == "client_secret_basic" and client_secret:
         encoded_id = quote(str(client_info["client_id"]), safe="")

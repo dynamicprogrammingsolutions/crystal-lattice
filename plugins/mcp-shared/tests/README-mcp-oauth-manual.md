@@ -13,6 +13,11 @@ client supplies the OAuth metadata (`client_name: "Gemini CLI MCP Client"`,
 loopback callback, PKCE, dynamic client registration, and MCP `resource`
 parameter).
 
+Gemini's recorded token exchange keeps the registration method as
+`token_endpoint_auth_method: "none"` but still sends `client_secret` in the
+form body when dynamic registration returned one. The Figma scenario models
+that with `mcp_oauth_manual.finish_include_client_secret: true`.
+
 ## Commands
 
 Run from the repository root.
@@ -119,6 +124,12 @@ token endpoint then requires the returned client secret.
 `mcp_oauth_manual.finish_include_resource` defaults to true when the start step
 discovers a resource. Set it to false for providers that include `resource` in
 the authorization URL but reject it during token exchange.
+
+Set `mcp_oauth_manual.finish_include_client_secret` to true when diagnosing a
+client that registers as public but still includes a returned client secret in
+the token form. This is intentionally separate from
+`finish_token_endpoint_auth_method`; it preserves the registered auth method
+while reproducing the observed form body.
 
 ## Client Behavior Recorder
 
