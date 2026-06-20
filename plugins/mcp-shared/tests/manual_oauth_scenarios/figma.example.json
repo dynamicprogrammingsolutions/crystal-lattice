@@ -8,7 +8,8 @@
     "plugin_id": "mcp_runtime_app",
     "action_id": "mcp_complete_login",
     "callback_port": 41793,
-    "finish_token_endpoint_auth_method": "client_secret_post"
+    "finish_token_endpoint_auth_method": "client_secret_post",
+    "finish_include_resource": false
   },
   "mcp_servers": {
     "figma": {

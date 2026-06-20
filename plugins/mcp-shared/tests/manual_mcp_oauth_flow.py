@@ -218,7 +218,9 @@ async def finish_flow(args: argparse.Namespace) -> None:
         "client_id": client_info["client_id"],
         "code_verifier": pending["code_verifier"],
     }
-    if pending.get("resource"):
+    manual = _manual_config(scenario)
+    include_resource = manual.get("finish_include_resource")
+    if include_resource is not False and pending.get("resource"):
         form["resource"] = pending["resource"]
 
     headers = {"Accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"}

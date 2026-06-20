@@ -75,7 +75,8 @@ metadata lives under `mcp_oauth_manual`; server configuration lives under
     "plugin_id": "mcp_runtime_app",
     "action_id": "mcp_complete_login",
     "callback_port": 41793,
-    "finish_token_endpoint_auth_method": "client_secret_post"
+    "finish_token_endpoint_auth_method": "client_secret_post",
+    "finish_include_resource": false
   },
   "mcp_servers": {
     "provider": {
@@ -113,6 +114,10 @@ for provider diagnostics when the dynamic registration metadata and token
 endpoint behavior disagree. The Figma scenario uses this because registration
 is accepted as a public client (`token_endpoint_auth_method: "none"`), but the
 token endpoint then requires the returned client secret.
+
+`mcp_oauth_manual.finish_include_resource` defaults to true when the start step
+discovers a resource. Set it to false for providers that include `resource` in
+the authorization URL but reject it during token exchange.
 
 ## Saved State
 
