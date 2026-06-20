@@ -564,6 +564,45 @@ async def test_runtime_manager_contains_cancelled_startup_when_not_fatal(
 
 
 @pytest.mark.asyncio
+async def test_runtime_manager_marks_cancelled_http_auth_challenge_as_auth_required(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        runtime_mod,
+        "_resolve_sdk_primitives",
+        lambda transport: (_CancelledClientSession, _fake_http_transport),
+    )
+
+    async def fake_requires_auth(spec):
+        assert spec.name == "protected"
+        return True
+
+    monkeypatch.setattr(runtime_mod, "_http_server_requires_auth", fake_requires_auth)
+
+    manager = MCPRuntimeManager()
+    config = MCPRuntimeConfig(
+        servers={
+            "protected": MCPServerRuntimeSpec(
+                name="protected",
+                enabled=True,
+                transport="http",
+                url="http://127.0.0.1:1/mcp",
+                startup_timeout_seconds=1,
+            )
+        },
+        fail_on_startup_error=False,
+    )
+
+    await asyncio.wait_for(manager.start(config), timeout=1)
+
+    assert await manager.list_tools() == []
+    snapshot = manager.status_snapshot()[0]
+    assert snapshot.state == "auth_required"
+    assert snapshot.error
+    assert "Authentication required" in snapshot.error
+
+
+@pytest.mark.asyncio
 async def test_runtime_manager_startup_timeout_covers_initial_list_tools(
     monkeypatch,
 ) -> None:

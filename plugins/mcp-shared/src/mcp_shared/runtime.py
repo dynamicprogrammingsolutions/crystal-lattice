@@ -8,6 +8,8 @@ from dataclasses import asdict, dataclass, field
 from datetime import timedelta
 from typing import Any, Dict, Literal
 
+import httpx
+
 
 TransportName = Literal["stdio", "sse", "http"]
 ServerStateName = Literal["disabled", "connected", "failed", "auth_required"]
@@ -130,12 +132,13 @@ class MCPRuntimeManager:
             try:
                 entry = await self._connect_server(spec)
             except asyncio.CancelledError as exc:
+                state = await _classify_cancelled_startup_state(spec)
                 self._snapshots[server_name] = MCPServerSnapshot(
                     name=server_name,
                     enabled=True,
                     transport=spec.transport,
-                    state="failed",
-                    error=_format_startup_error(exc, "failed"),
+                    state=state,
+                    error=_format_startup_error(exc, state),
                 )
                 if config.fail_on_startup_error:
                     await self.close()
@@ -421,11 +424,53 @@ def _classify_startup_state(exc: BaseException) -> ServerStateName:
     return "auth_required" if _is_auth_required_error(exc) else "failed"
 
 
+async def _classify_cancelled_startup_state(
+    spec: MCPServerRuntimeSpec,
+) -> ServerStateName:
+    if spec.transport == "http" and await _http_server_requires_auth(spec):
+        return "auth_required"
+    return "failed"
+
+
+async def _http_server_requires_auth(spec: MCPServerRuntimeSpec) -> bool:
+    if not isinstance(spec.url, str) or not spec.url:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post(
+                spec.url,
+                headers={
+                    "Accept": "application/json, text/event-stream",
+                    "Content-Type": "application/json",
+                    **dict(spec.headers),
+                },
+                json={
+                    "jsonrpc": "2.0",
+                    "id": "mcp-auth-probe",
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-06-18",
+                        "capabilities": {},
+                        "clientInfo": {
+                            "name": "crystal-lattice-control",
+                            "version": "0.1.0",
+                        },
+                    },
+                },
+            )
+    except Exception:
+        return False
+    if response.status_code != 401:
+        return False
+    authenticate = response.headers.get("www-authenticate", "")
+    return "bearer" in authenticate.lower() or "oauth" in authenticate.lower()
+
+
 def _format_startup_error(exc: BaseException, state: ServerStateName) -> str:
     detail = _clean_startup_error_detail(str(exc))
-    if isinstance(exc, asyncio.CancelledError):
-        return "MCP server startup was cancelled."
     if state == "auth_required":
+        if isinstance(exc, asyncio.CancelledError):
+            detail = ""
         if detail:
             return (
                 "Authentication required for this MCP server. "
@@ -434,6 +479,8 @@ def _format_startup_error(exc: BaseException, state: ServerStateName) -> str:
         return (
             "Authentication required for this MCP server. Open MCP status to sign in."
         )
+    if isinstance(exc, asyncio.CancelledError):
+        return "MCP server startup was cancelled."
     return detail
 
 
