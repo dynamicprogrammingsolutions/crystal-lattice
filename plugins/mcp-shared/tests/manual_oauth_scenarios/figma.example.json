@@ -7,7 +7,8 @@
     "session_id": "manual-session",
     "plugin_id": "mcp_runtime_app",
     "action_id": "mcp_complete_login",
-    "callback_port": 41793
+    "callback_port": 41793,
+    "finish_token_endpoint_auth_method": "client_secret_post"
   },
   "mcp_servers": {
     "figma": {
@@ -20,7 +21,7 @@
         "client_uri": null,
         "software_id": null,
         "software_version": null,
-        "token_endpoint_auth_method": "client_secret_post",
+        "token_endpoint_auth_method": "none",
         "scope": "mcp:connect",
         "redirect_uri": "http://127.0.0.1:{port}/callback"
       }

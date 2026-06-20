@@ -74,7 +74,8 @@ metadata lives under `mcp_oauth_manual`; server configuration lives under
     "session_id": "manual-session",
     "plugin_id": "mcp_runtime_app",
     "action_id": "mcp_complete_login",
-    "callback_port": 41793
+    "callback_port": 41793,
+    "finish_token_endpoint_auth_method": "client_secret_post"
   },
   "mcp_servers": {
     "provider": {
@@ -106,6 +107,12 @@ Supported `redirect_uri` placeholders:
 - `{port}`
 
 `{port}` comes from `mcp_oauth_manual.callback_port`.
+
+`mcp_oauth_manual.finish_token_endpoint_auth_method` is optional. Use it only
+for provider diagnostics when the dynamic registration metadata and token
+endpoint behavior disagree. The Figma scenario uses this because registration
+is accepted as a public client (`token_endpoint_auth_method: "none"`), but the
+token endpoint then requires the returned client secret.
 
 ## Saved State
 
