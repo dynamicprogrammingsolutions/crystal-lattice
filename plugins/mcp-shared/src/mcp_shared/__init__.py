@@ -25,7 +25,12 @@ from .runtime import (
     build_runtime_config_from_config,
     fingerprint_runtime_config,
 )
-from .oauth_flow import build_mcp_oauth_login_request
+from .oauth_flow import (
+    build_mcp_oauth_login_request,
+    build_mcp_oauth_pending_login,
+    build_mcp_oauth_token_request,
+    exchange_mcp_oauth_code_for_token,
+)
 
 __all__ = [
     "MCPRegistry",
@@ -46,7 +51,10 @@ __all__ = [
     "build_oauth_client_metadata",
     "build_oauth_server_config",
     "build_mcp_oauth_login_request",
+    "build_mcp_oauth_pending_login",
+    "build_mcp_oauth_token_request",
     "build_runtime_config_from_config",
+    "exchange_mcp_oauth_code_for_token",
     "fingerprint_runtime_config",
     "get_runtime_store_mapping",
     "oauth_string",

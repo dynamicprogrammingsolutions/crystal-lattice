@@ -375,6 +375,10 @@ def test_start_login_uses_nested_oauth_config_and_redirect_template() -> None:
                             "token_endpoint_auth_method": "client_secret_post",
                             "scope": "mcp:connect",
                             "redirect_uri": "https://crystallattice.dev/oauth/{connection_id}/{session_id}/{server_name}/callback",
+                            "token_exchange": {
+                                "include_client_secret": True,
+                                "include_resource": False,
+                            },
                         },
                     }
                 }
@@ -401,6 +405,10 @@ def test_start_login_uses_nested_oauth_config_and_redirect_template() -> None:
         "https://crystallattice.dev/oauth/test-connection/session-123/protected/callback"
     ]
     assert login["client_info"]["token_endpoint_auth_method"] == "client_secret_post"
+    assert login["oauth_config"]["token_exchange"] == {
+        "include_client_secret": True,
+        "include_resource": False,
+    }
 
 
 class _FakeToken:

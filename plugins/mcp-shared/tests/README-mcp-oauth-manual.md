@@ -16,7 +16,8 @@ parameter).
 Gemini's recorded token exchange keeps the registration method as
 `token_endpoint_auth_method: "none"` but still sends `client_secret` in the
 form body when dynamic registration returned one. The Figma scenario models
-that with `mcp_oauth_manual.finish_include_client_secret: true`.
+that with `oauth.token_exchange.include_client_secret: true` in the server
+config.
 
 ## Commands
 
@@ -30,8 +31,8 @@ python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py start
 
 The command prints an authorization URL. Open it in your browser, approve the
 login, then copy the full callback URL from the browser address bar. The
-browser may show a connection error for `127.0.0.1`; that is expected because no
-local callback server is running.
+browser may show a connection error for the loopback callback URL; that is
+expected because no local callback server is running.
 
 Finish the login:
 
@@ -67,23 +68,15 @@ python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py finish --config /path/t
 python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py verify --config /path/to/server.json
 ```
 
-The config shape is intentionally close to application MCP config. Test-only
-metadata lives under `mcp_oauth_manual`; server configuration lives under
-`mcp_servers`.
+The config shape is normal application MCP config. Provider behavior lives
+under `mcp_servers.<server>.oauth`. The helper's wrapper-only inputs, such as
+`--server`, `--callback-port`, and `--state-root`, are command-line arguments
+instead of config fields.
 
 ```json
 {
   "id": "provider-name",
-  "mcp_oauth_manual": {
-    "server_name": "provider",
-    "connection_id": "manual-connection",
-    "session_id": "manual-session",
-    "plugin_id": "mcp_runtime_app",
-    "action_id": "mcp_complete_login",
-    "callback_port": 41793,
-    "finish_token_endpoint_auth_method": "client_secret_post",
-    "finish_include_resource": false
-  },
+  "mcp_enabled": true,
   "mcp_servers": {
     "provider": {
       "enabled": true,
@@ -97,7 +90,11 @@ metadata lives under `mcp_oauth_manual`; server configuration lives under
         "software_version": "0.1.0",
         "token_endpoint_auth_method": "none",
         "scope": "mcp:connect",
-        "redirect_uri": "http://127.0.0.1:{port}/callback"
+        "redirect_uri": "http://127.0.0.1:{port}/callback",
+        "token_exchange": {
+          "include_client_secret": false,
+          "include_resource": true
+        }
       }
     }
   }
@@ -113,23 +110,16 @@ Supported `redirect_uri` placeholders:
 - `{server_name}`
 - `{port}`
 
-`{port}` comes from `mcp_oauth_manual.callback_port`.
+`{port}` comes from the helper's `--callback-port` option and defaults to
+41793.
 
-`mcp_oauth_manual.finish_token_endpoint_auth_method` is optional. Use it only
-for provider diagnostics when the dynamic registration metadata and token
-endpoint behavior disagree. The Figma scenario uses this because registration
-is accepted as a public client (`token_endpoint_auth_method: "none"`), but the
-token endpoint then requires the returned client secret.
-
-`mcp_oauth_manual.finish_include_resource` defaults to true when the start step
+`oauth.token_exchange.include_resource` defaults to true when the start step
 discovers a resource. Set it to false for providers that include `resource` in
 the authorization URL but reject it during token exchange.
 
-Set `mcp_oauth_manual.finish_include_client_secret` to true when diagnosing a
-client that registers as public but still includes a returned client secret in
-the token form. This is intentionally separate from
-`finish_token_endpoint_auth_method`; it preserves the registered auth method
-while reproducing the observed form body.
+Set `oauth.token_exchange.include_client_secret` to true for providers that
+register as a public client but still require the returned client secret in the
+token form. Figma's Gemini-compatible flow currently needs this option.
 
 ## Client Behavior Recorder
 
@@ -195,7 +185,7 @@ If you prefer not to paste at the prompt:
 
 ```bash
 python plugins/mcp-shared/tests/manual_mcp_oauth_flow.py finish \
-  --callback-url 'http://127.0.0.1:41793/callback?code=...&state=...'
+  --callback-url 'http://localhost:41793/oauth/callback?code=...&state=...'
 ```
 
 ## Pytest Guard

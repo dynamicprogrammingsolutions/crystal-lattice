@@ -45,6 +45,12 @@ _ENDPOINT_FIELDS = {
 }
 
 
+_TOKEN_EXCHANGE_FIELDS = {
+    "include_client_secret",
+    "include_resource",
+}
+
+
 _LEGACY_OAUTH_KEYS = {
     "oauth_authorization_url": "authorization_url",
     "oauth_token_endpoint": "token_endpoint",
@@ -90,6 +96,13 @@ def build_oauth_server_config(raw_spec: dict[str, Any]) -> dict[str, Any]:
                     config.pop(key, None)
                 else:
                     config[key] = value
+        token_exchange = nested.get("token_exchange")
+        if isinstance(token_exchange, dict):
+            config["token_exchange"] = {
+                key: value
+                for key, value in token_exchange.items()
+                if key in _TOKEN_EXCHANGE_FIELDS and isinstance(value, bool)
+            }
 
     return config
 

@@ -2,16 +2,12 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import base64
 import json
 import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
 from urllib.parse import parse_qs, urlparse
-
-import httpx
 
 ROOT = Path(__file__).resolve().parents[3]
 SRC = ROOT / "plugins" / "mcp-shared" / "src"
@@ -20,8 +16,9 @@ if str(SRC) not in sys.path:
 
 from mcp_shared import (  # noqa: E402
     MCPRuntimeManager,
-    build_mcp_oauth_login_request,
+    build_mcp_oauth_pending_login,
     build_runtime_config_from_config,
+    exchange_mcp_oauth_code_for_token,
     render_oauth_redirect_uri,
 )
 
@@ -46,25 +43,8 @@ def _write_json(path: Path, value: dict[str, Any]) -> None:
     path.write_text(json.dumps(value, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def _redact(value: Any) -> Any:
-    if isinstance(value, dict):
-        return {
-            key: "[redacted]" if key in {"client_secret", "access_token", "refresh_token"} else _redact(child)
-            for key, child in value.items()
-        }
-    if isinstance(value, list):
-        return [_redact(item) for item in value]
-    return value
-
-
-def _manual_config(scenario: dict[str, Any]) -> dict[str, Any]:
-    value = scenario.get("mcp_oauth_manual")
-    return value if isinstance(value, dict) else {}
-
-
-def _server_name(scenario: dict[str, Any]) -> str:
-    manual = _manual_config(scenario)
-    server_name = manual.get("server_name")
+def _server_name(scenario: dict[str, Any], selected: str | None = None) -> str:
+    server_name = selected
     if isinstance(server_name, str) and server_name:
         return server_name
     servers = scenario.get("mcp_servers")
@@ -72,14 +52,14 @@ def _server_name(scenario: dict[str, Any]) -> str:
         only_name = next(iter(servers.keys()))
         if isinstance(only_name, str) and only_name:
             return only_name
-    raise ValueError("Set mcp_oauth_manual.server_name or provide exactly one mcp_servers entry")
+    raise ValueError("Pass --server or provide exactly one mcp_servers entry")
 
 
-def _server_spec(scenario: dict[str, Any]) -> dict[str, Any]:
+def _server_spec(scenario: dict[str, Any], selected: str | None = None) -> dict[str, Any]:
     servers = scenario.get("mcp_servers")
     if not isinstance(servers, dict):
         raise ValueError("Scenario must contain an mcp_servers object")
-    server_name = _server_name(scenario)
+    server_name = _server_name(scenario, selected)
     spec = servers.get(server_name)
     if not isinstance(spec, dict):
         raise ValueError(f"Scenario mcp_servers.{server_name} must be an object")
@@ -94,62 +74,59 @@ def _state_dir(scenario: dict[str, Any], state_root: Path | None) -> Path:
     return path
 
 
-def _pending_path(scenario: dict[str, Any], state_root: Path | None) -> Path:
-    return _state_dir(scenario, state_root) / f"{_server_name(scenario)}.pending.json"
+def _pending_path(
+    scenario: dict[str, Any], state_root: Path | None, selected: str | None = None
+) -> Path:
+    return _state_dir(scenario, state_root) / f"{_server_name(scenario, selected)}.pending.json"
 
 
-def _token_path(scenario: dict[str, Any], state_root: Path | None) -> Path:
-    return _state_dir(scenario, state_root) / f"{_server_name(scenario)}.token.json"
+def _token_path(
+    scenario: dict[str, Any], state_root: Path | None, selected: str | None = None
+) -> Path:
+    return _state_dir(scenario, state_root) / f"{_server_name(scenario, selected)}.token.json"
 
 
-def _render_redirect_uri(scenario: dict[str, Any], server_name: str, spec: dict[str, Any]) -> str:
-    manual = _manual_config(scenario)
+def _render_redirect_uri(
+    server_name: str,
+    spec: dict[str, Any],
+    *,
+    callback_port: int,
+) -> str:
     oauth = spec.get("oauth") if isinstance(spec.get("oauth"), dict) else {}
     template = oauth.get("redirect_uri")
     if not isinstance(template, str) or not template:
         raise ValueError(f"mcp_servers.{server_name}.oauth.redirect_uri must be set")
 
-    callback_port = manual.get("callback_port") or 41793
     rendered = template.replace("{port}", str(callback_port))
     return render_oauth_redirect_uri(
         rendered,
-        connection_id=str(manual.get("connection_id") or "manual-connection"),
-        session_id=str(manual.get("session_id") or "manual-session"),
-        plugin_id=str(manual.get("plugin_id") or "mcp_runtime_app"),
-        action_id=str(manual.get("action_id") or "mcp_complete_login"),
+        connection_id="manual-connection",
+        session_id="manual-session",
+        plugin_id="mcp_runtime_app",
+        action_id="mcp_complete_login",
         server_name=server_name,
     )
 
 
-def _configured_token_endpoint_auth_method(spec: dict[str, Any]) -> str | None:
-    oauth = spec.get("oauth") if isinstance(spec.get("oauth"), dict) else {}
-    value = oauth.get("token_endpoint_auth_method")
-    if value in {"none", "client_secret_post", "client_secret_basic"}:
-        return str(value)
-    return None
-
-
-def _finish_token_endpoint_auth_method(scenario: dict[str, Any], spec: dict[str, Any]) -> str | None:
-    manual = _manual_config(scenario)
-    value = manual.get("finish_token_endpoint_auth_method")
-    if value in {"none", "client_secret_post", "client_secret_basic"}:
-        return str(value)
-    return _configured_token_endpoint_auth_method(spec)
-
-
 async def start_flow(args: argparse.Namespace) -> None:
     scenario = _load_json(args.config)
-    server_name = _server_name(scenario)
-    spec = _server_spec(scenario)
+    server_name = _server_name(scenario, args.server)
+    spec = _server_spec(scenario, args.server)
     server_url = spec.get("url")
     if not isinstance(server_url, str) or not server_url:
         raise ValueError(f"mcp_servers.{server_name}.url must be set")
 
-    redirect_uri = _render_redirect_uri(scenario, server_name, spec)
-    login = await build_mcp_oauth_login_request(
+    redirect_uri = _render_redirect_uri(
+        server_name,
+        spec,
+        callback_port=args.callback_port,
+    )
+    login = await build_mcp_oauth_pending_login(
+        server_name=server_name,
         server_url=server_url,
         raw_spec=spec,
         redirect_uri=redirect_uri,
+        connection_id="manual-connection",
     )
 
     parsed = urlparse(login["authorization_url"])
@@ -163,17 +140,12 @@ async def start_flow(args: argparse.Namespace) -> None:
 
     pending = {
         "scenario_id": str(scenario.get("id") or "manual"),
-        "server_name": server_name,
         "server_spec": spec,
-        "redirect_uri": redirect_uri,
         "authorization_url": login["authorization_url"],
-        "token_endpoint": login["token_endpoint"],
         "state": login["state"],
-        "client_info": login["client_info"],
-        "resource": login.get("resource"),
-        "code_verifier": login["code_verifier"],
+        "pending_login": login["pending"],
     }
-    pending_path = _pending_path(scenario, args.state_root)
+    pending_path = _pending_path(scenario, args.state_root, args.server)
     _write_json(pending_path, pending)
 
     print("\nOAuth start succeeded.")
@@ -182,12 +154,16 @@ async def start_flow(args: argparse.Namespace) -> None:
     print(login["authorization_url"])
     print("\nAfter approving, copy the full callback URL from the browser address bar.")
     print("Then run:\n")
-    print(f"python {Path(__file__).as_posix()} finish --config {args.config.as_posix()}")
+    server_arg = f" --server {args.server}" if args.server else ""
+    print(
+        f"python {Path(__file__).as_posix()} finish "
+        f"--config {args.config.as_posix()}{server_arg}"
+    )
 
 
 async def finish_flow(args: argparse.Namespace) -> None:
     scenario = _load_json(args.config)
-    pending_path = _pending_path(scenario, args.state_root)
+    pending_path = _pending_path(scenario, args.state_root, args.server)
     if not pending_path.exists():
         raise FileNotFoundError(f"Missing pending state. Run start first: {pending_path}")
     pending = _load_json(pending_path)
@@ -207,90 +183,53 @@ async def finish_flow(args: argparse.Namespace) -> None:
     if returned_state != pending.get("state"):
         raise ValueError("Callback URL state does not match pending OAuth state")
 
-    client_info = pending.get("client_info")
-    if not isinstance(client_info, dict):
-        raise ValueError("Pending state is missing client_info")
+    pending_login = pending.get("pending_login")
+    if not isinstance(pending_login, dict):
+        raise ValueError("Pending state is missing pending_login")
 
-    form: dict[str, Any] = {
-        "grant_type": "authorization_code",
-        "code": code,
-        "redirect_uri": pending["redirect_uri"],
-        "client_id": client_info["client_id"],
-        "code_verifier": pending["code_verifier"],
-    }
-    manual = _manual_config(scenario)
-    include_resource = manual.get("finish_include_resource")
-    if include_resource is not False and pending.get("resource"):
-        form["resource"] = pending["resource"]
-
-    headers = {
-        "Accept": "application/json, application/x-www-form-urlencoded",
-        "Content-Type": "application/x-www-form-urlencoded",
-    }
-    server_spec = pending.get("server_spec") if isinstance(pending.get("server_spec"), dict) else {}
-    scenario = _load_json(args.config)
-    auth_method = (
-        _finish_token_endpoint_auth_method(scenario, server_spec)
-        or client_info.get("token_endpoint_auth_method")
-        or "none"
-    )
-    client_secret = client_info.get("client_secret")
-    include_client_secret = manual.get("finish_include_client_secret") is True
-    if (auth_method == "client_secret_post" or include_client_secret) and client_secret:
-        form["client_secret"] = client_secret
-    elif auth_method == "client_secret_basic" and client_secret:
-        encoded_id = quote(str(client_info["client_id"]), safe="")
-        encoded_secret = quote(str(client_secret), safe="")
-        credentials = base64.b64encode(f"{encoded_id}:{encoded_secret}".encode()).decode()
-        headers["Authorization"] = f"Basic {credentials}"
-
-    async with httpx.AsyncClient(timeout=30) as client:
-        response = await client.post(
-            pending["token_endpoint"],
-            data=form,
-            headers=headers,
+    try:
+        token_result = await exchange_mcp_oauth_code_for_token(
+            pending_login=pending_login,
+            code=code,
         )
-
-    if response.status_code >= 400:
+    except Exception as exc:
         print("Token exchange failed.")
-        print(f"HTTP {response.status_code}")
-        print(response.text)
-        raise SystemExit(1)
+        print(str(exc))
+        raise SystemExit(1) from exc
 
-    token = response.json()
-    access_token = token.get("access_token")
-    if not isinstance(access_token, str) or not access_token:
-        print("Token response did not contain access_token.")
-        print(json.dumps(_redact(token), indent=2, sort_keys=True))
-        raise SystemExit(1)
+    token = token_result.model_dump(mode="json", exclude_none=True)
 
     saved = {
         "scenario_id": pending.get("scenario_id"),
-        "server_name": pending.get("server_name"),
+        "server_name": pending_login.get("server_name"),
         "server_spec": pending.get("server_spec"),
-        "redirect_uri": pending.get("redirect_uri"),
+        "redirect_uri": pending_login.get("redirect_uri"),
         "token": token,
     }
-    token_path = _token_path(scenario, args.state_root)
+    token_path = _token_path(scenario, args.state_root, args.server)
     _write_json(token_path, saved)
 
     print("\nOAuth token exchange succeeded.")
     print(f"Saved login: {token_path}")
     print("\nRun verification:\n")
-    print(f"python {Path(__file__).as_posix()} verify --config {args.config.as_posix()}")
+    server_arg = f" --server {args.server}" if args.server else ""
+    print(
+        f"python {Path(__file__).as_posix()} verify "
+        f"--config {args.config.as_posix()}{server_arg}"
+    )
 
 
 async def verify_flow(args: argparse.Namespace) -> None:
     scenario = _load_json(args.config)
-    token_path = _token_path(scenario, args.state_root)
+    token_path = _token_path(scenario, args.state_root, args.server)
     if not token_path.exists():
         raise FileNotFoundError(f"Missing saved login. Run finish first: {token_path}")
     saved = _load_json(token_path)
 
-    server_name = str(saved.get("server_name") or _server_name(scenario))
+    server_name = str(saved.get("server_name") or _server_name(scenario, args.server))
     spec = saved.get("server_spec")
     if not isinstance(spec, dict):
-        spec = _server_spec(scenario)
+        spec = _server_spec(scenario, args.server)
     token = saved.get("token")
     if not isinstance(token, dict):
         raise ValueError("Saved login is missing token")
@@ -356,9 +295,20 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Directory for pending/token state. Default: {DEFAULT_STATE_ROOT}",
     )
     parser.add_argument(
+        "--server",
+        default="",
+        help="MCP server name. If omitted, the config must contain exactly one server.",
+    )
+    parser.add_argument(
         "--callback-url",
         default="",
         help="Callback URL for finish. If omitted, finish prompts for it.",
+    )
+    parser.add_argument(
+        "--callback-port",
+        type=int,
+        default=41793,
+        help="Port used when replacing {port} in oauth.redirect_uri.",
     )
     parser.add_argument(
         "--limit",

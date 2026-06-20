@@ -33,7 +33,11 @@ providers that require specific registered metadata.
         "software_version": "0.1.0",
         "token_endpoint_auth_method": "none",
         "scope": "mcp:connect",
-        "redirect_uri": "crystal-lattice://action/{connection_id}/{session_id}/{plugin_id}/{action_id}?server_name={server_name}"
+        "redirect_uri": "crystal-lattice://action/{connection_id}/{session_id}/{plugin_id}/{action_id}?server_name={server_name}",
+        "token_exchange": {
+          "include_client_secret": false,
+          "include_resource": true
+        }
       }
     }
   }
@@ -42,6 +46,40 @@ providers that require specific registered metadata.
 
 Supported redirect placeholders are `{connection_id}`, `{session_id}`,
 `{plugin_id}`, `{action_id}`, and `{server_name}`.
+
+`oauth.token_exchange.include_resource` controls whether the MCP resource is
+sent during the authorization-code token exchange. It defaults to true when a
+resource was discovered.
+
+`oauth.token_exchange.include_client_secret` supports providers that register a
+public client (`token_endpoint_auth_method: "none"`) but still require the
+returned dynamic-registration `client_secret` in the token form. Figma's remote
+MCP server currently needs this behavior when using the Gemini CLI compatible
+client metadata:
+
+```json
+{
+  "figma": {
+    "enabled": true,
+    "transport": "http",
+    "url": "https://mcp.figma.com/mcp",
+    "startup_timeout_seconds": 30,
+    "oauth": {
+      "client_name": "Gemini CLI MCP Client",
+      "client_uri": null,
+      "software_id": null,
+      "software_version": null,
+      "token_endpoint_auth_method": "none",
+      "scope": "mcp:connect",
+      "redirect_uri": "http://localhost:41793/oauth/callback",
+      "token_exchange": {
+        "include_client_secret": true,
+        "include_resource": true
+      }
+    }
+  }
+}
+```
 
 Legacy flat keys such as `oauth_authorization_url`, `oauth_token_endpoint`, and
 `oauth_client_id` are still accepted, but new configs should use the nested

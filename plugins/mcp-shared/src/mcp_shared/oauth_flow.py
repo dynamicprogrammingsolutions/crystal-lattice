@@ -18,6 +18,7 @@ from mcp.client.auth.oauth2 import (
     handle_auth_metadata_response,
     handle_protected_resource_response,
     handle_registration_response,
+    handle_token_response_scopes,
     resource_url_from_server_url,
     should_use_client_metadata_url,
 )
@@ -164,6 +165,117 @@ async def build_mcp_oauth_login_request(
         resource=resource_url_from_server_url(server_url),
         scope=client_metadata.scope,
     )
+
+
+async def build_mcp_oauth_pending_login(
+    *,
+    server_name: str,
+    server_url: str,
+    raw_spec: dict[str, Any],
+    redirect_uri: str,
+    connection_id: str | None = None,
+) -> dict[str, Any]:
+    login = await build_mcp_oauth_login_request(
+        server_url=server_url,
+        raw_spec=raw_spec,
+        redirect_uri=redirect_uri,
+    )
+    pending = {
+        "server_name": server_name,
+        "server_url": server_url,
+        "redirect_uri": redirect_uri,
+        "token_endpoint": login["token_endpoint"],
+        "code_verifier": login["code_verifier"],
+        "client_info": login["client_info"],
+        "resource": login.get("resource"),
+        "oauth_config": build_oauth_server_config(raw_spec),
+    }
+    if connection_id:
+        pending["connection_id"] = connection_id
+    return {
+        "authorization_url": login["authorization_url"],
+        "state": login["state"],
+        "pending": pending,
+    }
+
+
+def build_mcp_oauth_token_request(
+    *,
+    pending_login: dict[str, Any],
+    code: str,
+) -> tuple[dict[str, Any], dict[str, str], tuple[str, str] | None]:
+    client_info_raw = pending_login.get("client_info")
+    if not isinstance(client_info_raw, dict):
+        raise RuntimeError("pending login is missing client info")
+    client_info = OAuthClientInformationFull.model_validate(client_info_raw)
+    token_endpoint = pending_login.get("token_endpoint")
+    code_verifier = pending_login.get("code_verifier")
+    redirect_uri = pending_login.get("redirect_uri")
+    if not isinstance(token_endpoint, str) or not token_endpoint:
+        raise RuntimeError("pending login is missing token endpoint")
+    if not isinstance(code_verifier, str) or not code_verifier:
+        raise RuntimeError("pending login is missing PKCE verifier")
+    if not isinstance(redirect_uri, str) or not redirect_uri:
+        raise RuntimeError("pending login is missing redirect URI")
+
+    token_data: dict[str, Any] = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": redirect_uri,
+        "client_id": client_info.client_id,
+        "code_verifier": code_verifier,
+    }
+    oauth_config = pending_login.get("oauth_config")
+    oauth_config = oauth_config if isinstance(oauth_config, dict) else {}
+    token_exchange = oauth_config.get("token_exchange")
+    token_exchange = token_exchange if isinstance(token_exchange, dict) else {}
+
+    resource = pending_login.get("resource")
+    if token_exchange.get("include_resource") is not False and isinstance(resource, str) and resource:
+        token_data["resource"] = resource
+
+    method = client_info.token_endpoint_auth_method or "none"
+    headers = {
+        "Accept": "application/json, application/x-www-form-urlencoded",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    auth = None
+    if method == "client_secret_basic" and client_info.client_secret:
+        auth = (client_info.client_id, client_info.client_secret)
+    elif (
+        method == "client_secret_post"
+        or token_exchange.get("include_client_secret") is True
+    ) and client_info.client_secret:
+        token_data["client_secret"] = client_info.client_secret
+
+    return token_data, headers, auth
+
+
+async def exchange_mcp_oauth_code_for_token(
+    *,
+    pending_login: dict[str, Any],
+    code: str,
+):
+    token_endpoint = pending_login.get("token_endpoint")
+    if not isinstance(token_endpoint, str) or not token_endpoint:
+        raise RuntimeError("pending login is missing token endpoint")
+    token_data, headers, auth = build_mcp_oauth_token_request(
+        pending_login=pending_login,
+        code=code,
+    )
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        response = await client.post(
+            token_endpoint,
+            data=token_data,
+            headers=headers,
+            auth=auth,
+        )
+        if response.status_code != 200:
+            body = response.text
+            raise RuntimeError(
+                f"token exchange failed ({response.status_code}): {body}"
+            )
+        return await handle_token_response_scopes(response)
 
 
 def _authorization_payload(

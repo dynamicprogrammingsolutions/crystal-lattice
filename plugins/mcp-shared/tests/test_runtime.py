@@ -26,6 +26,7 @@ from mcp_shared import (
     apply_oauth_tokens_to_runtime_config,
     build_oauth_client_metadata,
     build_oauth_server_config,
+    build_mcp_oauth_token_request,
     fingerprint_runtime_config,
     render_oauth_redirect_uri,
 )
@@ -119,6 +120,10 @@ def test_build_oauth_server_config_defaults_and_nested_overrides() -> None:
                 "client_id": "nested-client",
                 "scope": "nested-scope",
                 "token_endpoint_auth_method": "client_secret_post",
+                "token_exchange": {
+                    "include_client_secret": True,
+                    "include_resource": False,
+                },
             },
         }
     )
@@ -130,6 +135,10 @@ def test_build_oauth_server_config_defaults_and_nested_overrides() -> None:
     assert config["software_id"] == DEFAULT_OAUTH_SOFTWARE_ID
     assert config["software_version"] == DEFAULT_OAUTH_SOFTWARE_VERSION
     assert config["token_endpoint_auth_method"] == "client_secret_post"
+    assert config["token_exchange"] == {
+        "include_client_secret": True,
+        "include_resource": False,
+    }
 
 
 def test_build_oauth_client_metadata_uses_crystal_lattice_defaults() -> None:
@@ -190,6 +199,71 @@ def test_render_oauth_redirect_uri_substitutes_supported_placeholders() -> None:
         "https://crystallattice.dev/connection-123/session-123/"
         "mcp_runtime_app/mcp_complete_login/protected"
     )
+
+
+def _oauth_pending(
+    *,
+    token_endpoint_auth_method: str = "none",
+    client_secret: str | None = "secret-123",
+    token_exchange: dict | None = None,
+) -> dict:
+    client_info = {
+        "client_id": "client-123",
+        "token_endpoint_auth_method": token_endpoint_auth_method,
+        "redirect_uris": ["http://localhost:41793/oauth/callback"],
+    }
+    if client_secret is not None:
+        client_info["client_secret"] = client_secret
+    return {
+        "server_name": "protected",
+        "server_url": "https://mcp.example.test/mcp",
+        "redirect_uri": "http://localhost:41793/oauth/callback",
+        "token_endpoint": "https://auth.example.test/token",
+        "code_verifier": "verifier-123",
+        "client_info": client_info,
+        "resource": "https://mcp.example.test/mcp",
+        "oauth_config": {"token_exchange": token_exchange or {}},
+    }
+
+
+def test_build_mcp_oauth_token_request_includes_public_client_secret_when_configured() -> None:
+    token_data, headers, auth = build_mcp_oauth_token_request(
+        pending_login=_oauth_pending(
+            token_endpoint_auth_method="none",
+            token_exchange={"include_client_secret": True},
+        ),
+        code="code-123",
+    )
+
+    assert token_data["client_secret"] == "secret-123"
+    assert token_data["resource"] == "https://mcp.example.test/mcp"
+    assert headers["Accept"] == "application/json, application/x-www-form-urlencoded"
+    assert auth is None
+
+
+def test_build_mcp_oauth_token_request_can_omit_resource() -> None:
+    token_data, _, _ = build_mcp_oauth_token_request(
+        pending_login=_oauth_pending(token_exchange={"include_resource": False}),
+        code="code-123",
+    )
+
+    assert "resource" not in token_data
+
+
+def test_build_mcp_oauth_token_request_preserves_secret_auth_methods() -> None:
+    post_data, _, post_auth = build_mcp_oauth_token_request(
+        pending_login=_oauth_pending(token_endpoint_auth_method="client_secret_post"),
+        code="code-123",
+    )
+    basic_data, _, basic_auth = build_mcp_oauth_token_request(
+        pending_login=_oauth_pending(token_endpoint_auth_method="client_secret_basic"),
+        code="code-123",
+    )
+
+    assert post_data["client_secret"] == "secret-123"
+    assert post_auth is None
+    assert "client_secret" not in basic_data
+    assert basic_auth == ("client-123", "secret-123")
 
 
 def test_build_runtime_config_treats_missing_server_enabled_as_disabled() -> None:

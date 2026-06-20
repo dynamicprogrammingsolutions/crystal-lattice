@@ -1,16 +1,7 @@
 {
   "id": "figma-remote-mcp",
   "description": "Manual Figma remote MCP OAuth flow using the same public-client shape as Gemini CLI's Figma extension path.",
-  "mcp_oauth_manual": {
-    "server_name": "figma",
-    "connection_id": "manual-connection",
-    "session_id": "manual-session",
-    "plugin_id": "mcp_runtime_app",
-    "action_id": "mcp_complete_login",
-    "callback_port": 41793,
-    "finish_include_client_secret": true,
-    "finish_include_resource": true
-  },
+  "mcp_enabled": true,
   "mcp_servers": {
     "figma": {
       "enabled": true,
@@ -24,7 +15,11 @@
         "software_version": null,
         "token_endpoint_auth_method": "none",
         "scope": "mcp:connect",
-        "redirect_uri": "http://localhost:{port}/oauth/callback"
+        "redirect_uri": "http://localhost:{port}/oauth/callback",
+        "token_exchange": {
+          "include_client_secret": true,
+          "include_resource": true
+        }
       }
     }
   }
