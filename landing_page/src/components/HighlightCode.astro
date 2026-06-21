@@ -1,0 +1,25 @@
+---
+import hljs from 'highlight.js';
+import TerminalFrame from "./TerminalFrame.astro";
+
+interface Props {
+  code: string;
+  language?: string;
+  className?: string;
+}
+
+const { code, language = 'plaintext', className = "" } = Astro.props;
+
+let highlighted = code;
+try {
+  highlighted = hljs.highlight(code, { language }).value;
+} catch (e) {
+  highlighted = hljs.highlightAuto(code).value;
+}
+
+const label = language && language !== 'plaintext' ? language : '';
+---
+
+<TerminalFrame label={label} className={className}>
+  <pre class="m-0 max-w-full overflow-x-auto rounded-none border-0 bg-transparent py-4 pl-4 pr-12 text-[0.78rem] leading-[1.7]"><code data-copy-source class="font-mono" set:html={highlighted}></code></pre>
+</TerminalFrame>

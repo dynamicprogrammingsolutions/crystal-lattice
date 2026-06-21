@@ -1,0 +1,49 @@
+---
+import ShellCommand from "./ShellCommand.astro";
+import SectionShell from "./SectionShell.astro";
+import type { ActionGuideSection } from "../content/pageTypes";
+
+interface Props {
+  section: ActionGuideSection;
+}
+
+const { section } = Astro.props;
+const body = Array.isArray(section.body) ? section.body : [];
+const steps = Array.isArray(section.action?.steps) ? section.action.steps : [];
+const visual = section.visual && typeof section.visual === "object" ? section.visual : null;
+---
+
+<SectionShell id={section.id}>
+  <div class="grid grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)] items-start gap-12 max-[900px]:grid-cols-1 max-[900px]:gap-8">
+    <div class="sticky top-20 flex flex-col gap-4 max-[900px]:static">
+      {section.eyebrow && <p class="text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">{section.eyebrow}</p>}
+      <h2 class="text-[clamp(1.75rem,3.5vw,2rem)] font-bold leading-tight tracking-[-0.02em] text-fg">{section.title}</h2>
+      {body.map((paragraph) => <p class="text-[0.9375rem] leading-[1.65] text-fg-4">{paragraph}</p>)}
+      {section.note && (
+        <p class="rounded-lg border border-line bg-raised px-4 py-3.5 text-[0.9375rem] leading-[1.65] text-fg-3">{section.note}</p>
+      )}
+    </div>
+
+    <div class="overflow-hidden rounded-xl border border-line bg-raised">
+      <h3 class="border-b border-line px-6 py-5 text-[0.9375rem] font-semibold text-fg-2">{section.action?.title}</h3>
+      <div class="flex flex-col">
+        {steps.map((step, index) => (
+          <article class="border-b border-line px-6 py-5">
+            <div class="mb-3 flex items-center gap-3">
+              <span class="font-mono text-xs font-bold tracking-[0.04em] text-accent">{String(index + 1).padStart(2, "0")}</span>
+              <h4 class="text-[0.9375rem] font-semibold text-fg-2">{step.label}</h4>
+            </div>
+            {step.text && <p class="text-sm leading-relaxed text-fg-4">{step.text}</p>}
+            {step.code && <ShellCommand code={step.code} className="mt-3.5" />}
+          </article>
+        ))}
+      </div>
+      {visual && (
+        <div class="m-6 flex min-h-[150px] flex-col justify-center gap-3 rounded-lg border border-dashed border-line-strong bg-[color-mix(in_srgb,var(--accent)_7%,transparent)] p-5" data-kind={visual.kind}>
+          <span class="font-mono text-xs text-accent-pale">{visual.kind}</span>
+          <p class="text-sm leading-snug text-fg-4">{visual.desktop ?? visual.status ?? "Placeholder visual"}</p>
+        </div>
+      )}
+    </div>
+  </div>
+</SectionShell>

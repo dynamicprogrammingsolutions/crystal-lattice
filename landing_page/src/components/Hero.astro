@@ -1,23 +1,38 @@
 ---
+import ShellCommand from "./ShellCommand.astro";
+import type { HeroSection } from "../content/pageTypes";
+
+interface Props {
+  section: HeroSection;
+}
+
 const { section } = Astro.props;
 const actions = Array.isArray(section.actions) ? section.actions : [];
-const icons = {
+const altHtml = String(section.install?.altHtml ?? "");
+const altCommand = altHtml.match(/<code>(.*?)<\/code>/)?.[1];
+const altLabel = altCommand ? altHtml.replace(/<code>.*<\/code>/, "").trim() : "";
+const btnBase = "inline-flex items-center gap-1.5 rounded-lg px-5 py-2.5 text-[0.9375rem] font-medium transition-colors";
+const btnClass: Record<string, string> = {
+  primary: `${btnBase} bg-accent text-white hover:bg-accent-hover hover:text-white`,
+  outline: `${btnBase} border border-line bg-transparent text-fg-3 hover:border-line-strong hover:text-fg`,
+};
+const icons: Record<string, string> = {
   arrow: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>`,
   github: `<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0 1 12 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/></svg>`,
 };
 ---
 
-<section class="hero">
-  <div class="container">
-    <div class="badge">{section.badge}</div>
+<section class="pt-24 pb-[4.75rem] text-center max-sm:pt-16 max-sm:pb-14">
+  <div class="mx-auto flex max-w-[760px] flex-col items-center gap-6 px-6">
+    {section.badge && <div class="inline-block rounded-full border border-line bg-surface px-3.5 py-1 text-xs font-medium tracking-[0.02em] text-fg-3">{section.badge}</div>}
 
-    <h1 set:html={section.titleHtml} />
+    <h1 class="text-[clamp(2.25rem,6vw,3.75rem)] font-bold leading-[1.1] tracking-[-0.03em] text-fg" set:html={section.titleHtml} />
 
-    <p class="subtitle">{section.subtitle}</p>
+    <p class="max-w-[600px] text-[clamp(0.9375rem,2vw,1.0625rem)] leading-[1.65] text-fg-4">{section.subtitle}</p>
 
-    <div class="actions">
+    <div class="flex flex-wrap justify-center gap-3">
       {actions.map((action) => (
-        <a href={action.href} class={`btn-${action.variant}`} target={action.target} rel={action.target ? "noopener" : undefined}>
+        <a href={action.href} class={btnClass[action.variant] ?? btnClass.outline} target={action.target} rel={action.target ? "noopener" : undefined}>
           {action.icon === "github" && <Fragment set:html={icons.github} />}
           {action.label}
           {action.icon === "arrow" && <Fragment set:html={icons.arrow} />}
@@ -25,180 +40,54 @@ const icons = {
       ))}
     </div>
 
-    <div class="install-block">
-      <span class="install-prompt">{section.install.prompt}</span>
-      <code class="install-cmd" id="installCmd">{section.install.command}</code>
-      <button class="copy-btn" id="copyInstall" aria-label="Copy install command">
+    <div class="flex max-w-full items-center gap-2.5 rounded-lg border border-line bg-code px-3.5 py-2.5 font-mono text-[0.8125rem]">
+      <span class="shrink-0 select-none font-medium text-accent">{section.install.prompt}</span>
+      <code class="bg-transparent p-0 text-left text-fg [font-size:inherit] break-all" id="installCmd">{section.install.command}</code>
+      <button class="ml-1 flex shrink-0 cursor-pointer items-center rounded border-0 bg-transparent p-0.5 text-fg-5 transition-colors hover:text-fg-3" id="copyInstall" aria-label="Copy install command">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
         </svg>
       </button>
     </div>
-    <p class="install-alt" set:html={section.install.altHtml}></p>
+    {altCommand ? (
+      <div class="-mt-2 inline-flex items-center gap-1.5 text-[0.8125rem] text-fg-5 [&_code]:text-[0.8125rem]">
+        <span>{altLabel}</span>
+        <code id="installAltCmd">{altCommand}</code>
+        <button class="flex shrink-0 cursor-pointer items-center rounded border-0 bg-transparent p-0.5 text-fg-5 transition-colors hover:text-fg-3" id="copyInstallAlt" aria-label="Copy alternate install command">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+        </button>
+      </div>
+    ) : (
+      <p class="-mt-2 inline-flex items-center gap-1.5 text-[0.8125rem] text-fg-5 [&_code]:text-[0.8125rem]" set:html={section.install.altHtml}></p>
+    )}
   </div>
 </section>
 
 <script>
-  const btn = document.getElementById('copyInstall')!;
-  btn.addEventListener('click', async () => {
-    const cmd = document.getElementById('installCmd')!.textContent!.trim();
-    await navigator.clipboard.writeText(cmd);
-    btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
-    setTimeout(() => {
-      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
-    }, 1500);
-  });
+  const copyIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+  const checkIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+  function bindCopy(buttonId, sourceId) {
+    const btn = document.getElementById(buttonId);
+    const source = document.getElementById(sourceId);
+    if (!btn || !source) return;
+
+    btn.addEventListener('click', async () => {
+      const cmd = source.textContent?.trim();
+      if (!cmd) return;
+
+      await navigator.clipboard.writeText(cmd);
+      btn.innerHTML = checkIcon;
+      setTimeout(() => {
+        btn.innerHTML = copyIcon;
+      }, 1500);
+    });
+  }
+
+  bindCopy('copyInstall', 'installCmd');
+  bindCopy('copyInstallAlt', 'installAltCmd');
 </script>
-
-<style>
-  .hero {
-    padding: 7rem 0 5.5rem;
-    text-align: center;
-  }
-
-  .container {
-    max-width: 760px;
-    margin: 0 auto;
-    padding: 0 1.5rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1.5rem;
-  }
-
-  .badge {
-    display: inline-block;
-    font-size: 0.75rem;
-    font-weight: 500;
-    letter-spacing: 0.02em;
-    color: var(--text-3);
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 0.25rem 0.875rem;
-  }
-
-  h1 {
-    font-size: clamp(2.25rem, 6vw, 3.75rem);
-    font-weight: 700;
-    line-height: 1.1;
-    letter-spacing: -0.03em;
-    color: var(--text);
-  }
-
-  .highlight {
-    color: var(--accent-soft);
-  }
-
-  .subtitle {
-    font-size: clamp(0.9375rem, 2vw, 1.0625rem);
-    color: var(--text-4);
-    max-width: 600px;
-    line-height: 1.65;
-  }
-
-  .actions {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-
-  .btn-primary {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.6rem 1.25rem;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    color: #fff;
-    background: var(--accent);
-    border-radius: 0.5rem;
-    transition: background 0.15s;
-  }
-
-  .btn-primary:hover {
-    background: var(--accent-hover);
-    color: #fff;
-  }
-
-  .btn-outline {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.6rem 1.25rem;
-    font-size: 0.9375rem;
-    font-weight: 500;
-    color: var(--text-3);
-    background: transparent;
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    transition: color 0.15s, border-color 0.15s;
-  }
-
-  .btn-outline:hover {
-    color: var(--text);
-    border-color: var(--border-strong);
-  }
-
-  .install-block {
-    display: flex;
-    align-items: center;
-    gap: 0.625rem;
-    background: var(--code-bg);
-    border: 1px solid var(--border);
-    border-radius: 0.5rem;
-    padding: 0.625rem 0.875rem;
-    font-family: ui-monospace, "JetBrains Mono", monospace;
-    font-size: 0.8125rem;
-    max-width: 100%;
-  }
-
-  .install-prompt {
-    color: var(--border-strong);
-    user-select: none;
-    flex-shrink: 0;
-  }
-
-  .install-cmd {
-    color: var(--accent-pale);
-    background: none;
-    padding: 0;
-    font-size: inherit;
-    word-break: break-all;
-    text-align: left;
-  }
-
-  .copy-btn {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    background: none;
-    border: none;
-    color: var(--text-5);
-    cursor: pointer;
-    padding: 0.125rem;
-    border-radius: 4px;
-    transition: color 0.15s;
-    margin-left: 0.25rem;
-  }
-
-  .copy-btn:hover {
-    color: var(--text-3);
-  }
-
-  .install-alt {
-    font-size: 0.8125rem;
-    color: var(--text-5);
-    margin-top: -0.5rem;
-  }
-
-  .install-alt code {
-    font-size: 0.8125rem;
-  }
-
-  @media (max-width: 640px) {
-    .hero { padding: 4.5rem 0 4rem; }
-  }
-</style>

@@ -1,0 +1,38 @@
+---
+import HighlightCode from "./HighlightCode.astro";
+import SectionShell from "./SectionShell.astro";
+import type { FeatureCodeShowcaseSection } from "../content/pageTypes";
+
+interface Props {
+  section: FeatureCodeShowcaseSection;
+}
+
+const { section } = Astro.props;
+const body = Array.isArray(section.body) ? section.body : [];
+const cards = Array.isArray(section.cards) ? section.cards : [];
+---
+
+<SectionShell id={section.id}>
+  <div class="mb-11 max-w-[760px]">
+    {section.eyebrow && <p class="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">{section.eyebrow}</p>}
+    <h2 class="mb-3 text-[clamp(1.5rem,3.5vw,2rem)] font-bold leading-tight tracking-[-0.02em] text-fg">{section.title}</h2>
+    {body.map((paragraph) => <p class="mb-3 text-[0.9375rem] leading-relaxed text-fg-4">{paragraph}</p>)}
+    {section.note && (
+      <p class="inline-flex w-fit rounded-full border border-line bg-raised px-3 py-1.5 text-[0.8125rem] text-fg-3">{section.note}</p>
+    )}
+  </div>
+
+  <div class="grid grid-cols-2 gap-5 max-[760px]:grid-cols-1 max-[760px]:gap-4">
+    {cards.map((card) => (
+      <article class="flex min-w-0 flex-col overflow-hidden rounded-xl border border-line bg-raised">
+        <div class="px-6 pb-1.5 pt-6">
+          <h3 class="mb-2 text-[0.9375rem] font-semibold text-fg-2">{card.title}</h3>
+          <p class="text-sm leading-snug text-fg-4">{card.description}</p>
+        </div>
+        {card.code?.value && (
+          <HighlightCode code={card.code.value} language={card.code.language} className="mx-5 mb-5 mt-4 max-h-80" />
+        )}
+      </article>
+    ))}
+  </div>
+</SectionShell>

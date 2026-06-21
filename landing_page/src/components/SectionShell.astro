@@ -1,0 +1,28 @@
+---
+interface Props {
+  id?: string;
+  tone?: "default" | "alt";
+  spacing?: "normal" | "compact";
+  innerClass?: string;
+}
+
+const {
+  id,
+  tone = "default",
+  spacing = "normal",
+  innerClass = "",
+} = Astro.props;
+---
+
+<section
+  id={id}
+  class:list={[
+    "border-t border-line",
+    spacing === "compact" ? "py-7 max-sm:py-6" : "py-[4.75rem] max-sm:py-14",
+    tone === "alt" && "bg-canvas-alt",
+  ]}
+>
+  <div class:list={["mx-auto max-w-[1100px] px-6", innerClass]}>
+    <slot />
+  </div>
+</section>

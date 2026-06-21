@@ -1,61 +1,22 @@
 ---
+import SectionShell from "./SectionShell.astro";
+import type { ProvidersSection } from "../content/pageTypes";
+
+interface Props {
+  section: ProvidersSection;
+}
+
 const { section } = Astro.props;
 const providers = Array.isArray(section.providers) ? section.providers : [];
 ---
 
-<div class="providers-strip">
-  <div class="container">
-    <p class="label">{section.label}</p>
-    <div class="logos">
+<SectionShell id={section.id} tone="alt" spacing="compact">
+  <div class="grid grid-cols-[minmax(180px,0.28fr)_1fr] items-center gap-x-8 gap-y-4 max-[760px]:grid-cols-1 max-[760px]:items-start">
+    <p class="text-xs font-semibold uppercase leading-snug tracking-[0.06em] text-fg-5">{section.label}</p>
+    <div class="flex flex-wrap items-center gap-2.5">
       {providers.map(p => (
-        <span class="chip">{p}</span>
+        <span class="rounded-lg border border-line bg-surface px-3 py-2 text-[0.8125rem] font-medium leading-tight text-fg-4">{p}</span>
       ))}
     </div>
   </div>
-</div>
-
-<style>
-  .providers-strip {
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-    padding: 1.25rem 0;
-    background: var(--bg-alt);
-  }
-
-  .container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 1.75rem;
-    flex-wrap: wrap;
-  }
-
-  .label {
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: var(--text-5);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .logos {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-  }
-
-  .chip {
-    font-size: 0.8125rem;
-    font-weight: 500;
-    color: var(--text-4);
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 0.375rem;
-    padding: 0.25rem 0.625rem;
-  }
-</style>
+</SectionShell>

@@ -1,129 +1,36 @@
 ---
+import CopyCode from "./CopyCode.astro";
+import type { QuickstartSection } from "../content/pageTypes";
+
+interface Props {
+  section: QuickstartSection;
+}
+
 const { section } = Astro.props;
 const steps = Array.isArray(section.steps) ? section.steps : [];
 ---
 
-<section class="quickstart" id="quickstart">
-  <div class="container">
-    <div class="header">
-      <p class="label">{section.eyebrow}</p>
-      <h2>{section.title}</h2>
-      <p class="desc">{section.body}</p>
+<section class="border-t border-line py-[4.75rem]" id="quickstart">
+  <div class="mx-auto max-w-[1100px] px-6">
+    <div class="mb-10 max-w-[520px]">
+      {section.eyebrow && <p class="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">{section.eyebrow}</p>}
+      <h2 class="mb-2.5 text-[clamp(1.5rem,3.5vw,2rem)] font-bold tracking-[-0.02em] text-fg">{section.title}</h2>
+      <p class="text-[0.9375rem] text-fg-4">{section.body}</p>
     </div>
 
-    <div class="steps">
+    <div class="flex flex-col gap-6">
       {steps.map((step) => (
-        <div class="step">
-          <div class="step-header">
-            <span class="step-num">{step.num}</span>
-            <h3>{step.title}</h3>
+        <div class="flex flex-col gap-3 rounded-xl border border-line bg-raised p-7 [&_p]:text-sm [&_p]:leading-relaxed [&_p]:text-fg-4 [&_strong]:font-semibold [&_strong]:text-fg-3">
+          <div class="mb-1 flex items-center gap-3">
+            <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">{step.num}</span>
+            <h3 class="text-[0.9375rem] font-semibold text-fg-2">{step.title}</h3>
           </div>
           {(step.body ?? []).map((block) => <p set:html={block.html} />)}
-          {(step.codeBlocks ?? []).map((code) => <pre>{code}</pre>)}
+          {(step.codeBlocks ?? []).map((code) => <CopyCode code={code} language="command" className="mt-1" />)}
           {(step.after ?? []).map((block) => <p set:html={block.html} />)}
-          {(step.afterCodeBlocks ?? []).map((code) => <pre>{code}</pre>)}
+          {(step.afterCodeBlocks ?? []).map((code) => <CopyCode code={code} language="command" className="mt-1" />)}
         </div>
       ))}
     </div>
   </div>
 </section>
-
-<style>
-  .quickstart {
-    padding: 5.5rem 0;
-    border-top: 1px solid var(--border);
-  }
-
-  .container {
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 0 1.5rem;
-  }
-
-  .header {
-    max-width: 520px;
-    margin-bottom: 3rem;
-  }
-
-  .label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--accent-soft);
-    margin-bottom: 0.75rem;
-  }
-
-  .header h2 {
-    font-size: clamp(1.5rem, 3.5vw, 2rem);
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text);
-    margin-bottom: 0.625rem;
-  }
-
-  .desc {
-    font-size: 0.9375rem;
-    color: var(--text-4);
-  }
-
-  .steps {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-
-  .step {
-    background: var(--bg-raised);
-    border: 1px solid var(--border);
-    border-radius: 0.75rem;
-    padding: 1.75rem;
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .step-header {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin-bottom: 0.25rem;
-  }
-
-  .step-num {
-    width: 24px;
-    height: 24px;
-    background: var(--accent);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 700;
-    color: #fff;
-    flex-shrink: 0;
-  }
-
-  .step h3 {
-    font-size: 0.9375rem;
-    font-weight: 600;
-    color: var(--text-2);
-  }
-
-  .step p {
-    font-size: 0.875rem;
-    color: var(--text-4);
-    line-height: 1.6;
-  }
-
-  .step strong {
-    color: var(--text-3);
-    font-weight: 600;
-  }
-
-  .step pre {
-    font-size: 0.75rem;
-    padding: 0.75rem 0.875rem;
-  }
-
-</style>

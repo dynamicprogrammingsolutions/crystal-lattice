@@ -1,5 +1,229 @@
 import type { Root } from "mdast";
 
+export type SectionBase<Type extends string> = {
+  type: Type;
+  id?: string;
+  eyebrow?: string;
+  title?: string;
+  body?: string | string[];
+};
+
+export type ActionVariant = "primary" | "outline";
+export type ActionIcon = "arrow" | "github";
+
+export type LinkAction = {
+  label: string;
+  href: string;
+  variant: ActionVariant;
+  icon?: ActionIcon;
+  target?: string;
+};
+
+export type CodeSnippet = {
+  language?: string;
+  value: string;
+  status?: string;
+};
+
+export type MediaPlaceholder = {
+  kind?: string;
+  status?: string;
+  src?: string;
+  alt?: string;
+  desktop?: string;
+};
+
+export type HeroSection = SectionBase<"hero"> & {
+  badge?: string;
+  titleHtml: string;
+  subtitle: string;
+  actions?: LinkAction[];
+  install: {
+    prompt: string;
+    command: string;
+    altHtml: string;
+  };
+};
+
+export type ProvidersSection = SectionBase<"providers"> & {
+  label: string;
+  providers?: string[];
+};
+
+export type FeaturesSection = SectionBase<"features"> & {
+  items?: Array<{
+    icon: "lock" | "provider" | "stream" | "file" | "tool" | "plugin" | string;
+    title: string;
+    desc?: string;
+    descHtml?: string;
+  }>;
+};
+
+export type QuickstartSection = SectionBase<"quickstart"> & {
+  steps?: Array<{
+    num: string;
+    title: string;
+    body?: Array<{ html: string }>;
+    codeBlocks?: string[];
+    after?: Array<{ html: string }>;
+    afterCodeBlocks?: string[];
+  }>;
+};
+
+export type CtaSection = SectionBase<"cta"> & {
+  actions?: LinkAction[];
+};
+
+export type ActionGuideSection = SectionBase<"actionGuide"> & {
+  body?: string[];
+  note?: string;
+  action?: {
+    title?: string;
+    steps?: Array<{
+      label: string;
+      text?: string;
+      code?: string;
+    }>;
+  };
+  visual?: MediaPlaceholder;
+};
+
+export type FeatureMatrixColumn = {
+  key: string;
+  label: string;
+};
+
+export type FeatureMatrixSection = SectionBase<"featureMatrix"> & {
+  intro?: string;
+  columns?: FeatureMatrixColumn[];
+  rows?: Array<Record<string, string>>;
+};
+
+export type FeatureShowcaseSection = SectionBase<"featureShowcase"> & {
+  body?: string[];
+  items?: Array<{
+    title: string;
+    description: string;
+    media?: MediaPlaceholder;
+  }>;
+  visual?: MediaPlaceholder;
+};
+
+export type FeatureCodeShowcaseSection = SectionBase<"featureCodeShowcase"> & {
+  body?: string[];
+  note?: string;
+  cards?: Array<{
+    title: string;
+    description: string;
+    code?: CodeSnippet;
+  }>;
+};
+
+export type ScreenshotGallerySection = SectionBase<"screenshotGallery"> & {
+  body?: string[];
+  gallery?: Array<{
+    title: string;
+    description: string;
+    src: string;
+    status?: string;
+  }>;
+};
+
+export type PromptBlockSection = SectionBase<"promptBlock"> & {
+  intro?: string;
+  prompt: string;
+  configExample?: {
+    code?: string;
+    language?: string;
+  };
+};
+
+export type CodeExampleSection = SectionBase<"codeExample"> & {
+  body?: string[];
+  code?: CodeSnippet;
+};
+
+export type MobileIcon = "apple" | "android" | "play" | "github" | string;
+
+export type StoreButton = {
+  href: string;
+  className?: string;
+  icon: MobileIcon;
+  sub: string;
+  name: string;
+  comingSoon?: boolean;
+};
+
+export type MobileHeroSection = SectionBase<"mobileHero"> & {
+  label: string;
+  titleHtml: string;
+  subtitle: string;
+  platforms?: Array<{
+    label: string;
+    icon: MobileIcon;
+  }>;
+  storeButtons?: StoreButton[];
+  note?: string;
+  image: {
+    src: string;
+    alt: string;
+  };
+};
+
+export type MobileFeaturesSection = SectionBase<"mobileFeatures"> & {
+  titleHtml: string;
+  items?: Array<{
+    icon: "stream" | "chat" | "provider" | "plugin" | "wifi" | "info" | string;
+    title: string;
+    desc: string;
+  }>;
+};
+
+export type MobileConnectSection = SectionBase<"mobileConnect"> & {
+  methods?: Array<{
+    num: string;
+    title: string;
+    desc: string;
+    code: string;
+  }>;
+};
+
+export type MobileDownloadSection = SectionBase<"mobileDownload"> & {
+  storeButtons?: StoreButton[];
+  noteHtml?: string;
+};
+
+export type LegalContentSection = SectionBase<"legalContent"> & {
+  label: string;
+  meta: string;
+  sections?: Array<{
+    title: string;
+    blocks?: Array<
+      | { type: "paragraph"; html: string }
+      | { type: "list"; items?: string[] }
+    >;
+  }>;
+};
+
+export type PageSection =
+  | HeroSection
+  | ProvidersSection
+  | FeaturesSection
+  | QuickstartSection
+  | CtaSection
+  | ActionGuideSection
+  | FeatureMatrixSection
+  | FeatureShowcaseSection
+  | FeatureCodeShowcaseSection
+  | ScreenshotGallerySection
+  | PromptBlockSection
+  | CodeExampleSection
+  | MobileHeroSection
+  | MobileFeaturesSection
+  | MobileConnectSection
+  | MobileDownloadSection
+  | LegalContentSection;
+
 export type MarkdownDocument = {
   sourcePath: string;
   frontmatter: Record<string, unknown>;
@@ -11,7 +235,7 @@ export type SectionPrepareContext = {
 };
 
 export type SectionDefinition = {
-  type: string;
+  type: PageSection["type"];
   Component: unknown;
   prepare?: (
     section: Record<string, unknown> & { type: string },
@@ -28,5 +252,5 @@ export type PageDocument = {
     label: string;
     href: string;
   }>;
-  sections: Array<Record<string, unknown> & { type: string }>;
+  sections: PageSection[];
 };

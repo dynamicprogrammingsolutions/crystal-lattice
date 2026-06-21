@@ -1,0 +1,16 @@
+---
+import TerminalFrame from "./TerminalFrame.astro";
+
+interface Props {
+  code: string;
+  language?: string;
+  className?: string;
+}
+
+const { code, language, className = "" } = Astro.props;
+const label = language && language !== "code" ? language : "";
+---
+
+<TerminalFrame label={label} className={className}>
+  <pre class="m-0 max-w-full overflow-x-auto rounded-none border-0 bg-transparent py-4 pl-4 pr-12 text-[0.78rem] leading-[1.7]"><code data-copy-source>{code}</code></pre>
+</TerminalFrame>

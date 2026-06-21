@@ -1,4 +1,38 @@
 @import "tailwindcss";
+@import "highlight.js/styles/atom-one-dark.css";
+@import "highlight.js/styles/atom-one-light.css";
+
+/* Theme is driven by the [data-theme] attribute, not prefers-color-scheme.
+   Override the dark variant and add a matching light variant so utilities
+   like `dark:block` / `light:block` follow the active theme. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+@custom-variant light (&:where([data-theme="light"], [data-theme="light"] *));
+
+/*
+  Tailwind theme bridge: expose the runtime CSS variables below as Tailwind
+  utilities. `inline` keeps the generated utilities referencing the variables
+  directly, so swapping [data-theme] still re-themes every utility.
+  Examples: bg-canvas, bg-surface, text-fg, text-fg-3, border-line, text-accent.
+*/
+@theme inline {
+  --color-canvas: var(--bg);
+  --color-canvas-alt: var(--bg-alt);
+  --color-raised: var(--bg-raised);
+  --color-surface: var(--bg-surface);
+  --color-surface-2: var(--bg-surface-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--text);
+  --color-fg-2: var(--text-2);
+  --color-fg-3: var(--text-3);
+  --color-fg-4: var(--text-4);
+  --color-fg-5: var(--text-5);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-pale: var(--accent-pale);
+  --color-code: var(--code-bg);
+}
 
 /* ── Theme tokens (matched to mobile/desktop app palette) ── */
 :root {
@@ -47,44 +81,80 @@
   color-scheme: light;
 }
 
-/* ── Reset ── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@layer base {
+  html { scroll-behavior: smooth; }
 
-html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
-  transition: background 0.2s ease, color 0.2s ease;
+  a { color: inherit; text-decoration: none; }
+
+  /* Applied to <span class="highlight"> injected via set:html in titles. */
+  .highlight { color: var(--accent-soft); }
 }
 
-a { color: inherit; text-decoration: none; }
-
-code, pre {
-  font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+/* Floating blob animations for the mobile hero (used via animate-[blobN_...]). */
+@keyframes blob1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%      { transform: translate(24px, -28px) scale(1.06); }
+  66%      { transform: translate(-18px, 14px) scale(0.94); }
+}
+@keyframes blob2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  40%      { transform: translate(-20px, 22px) scale(1.08); }
+  70%      { transform: translate(12px, -12px) scale(0.96); }
+}
+@keyframes blob3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(16px, 20px) scale(1.05); }
 }
 
-pre {
-  background: var(--code-bg);
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
-  padding: 1rem 1.25rem;
-  overflow-x: auto;
-  font-size: 0.8125rem;
-  line-height: 1.7;
-  color: var(--accent-pale);
+@layer base {
+  :where(code, pre) {
+    font-family: ui-monospace, "JetBrains Mono", "Fira Code", monospace;
+  }
+
+  :where(pre) {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    font-size: 0.8125rem;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  :where(pre code) { background: none; padding: 0; color: inherit; font-size: inherit; }
+
+  :where(code) {
+    background: var(--bg-surface);
+    color: var(--text-2);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.875em;
+  }
 }
 
-pre code { background: none; padding: 0; color: inherit; font-size: inherit; }
-
-code {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
-  color: var(--accent-pale);
-  padding: 0.15em 0.4em;
-  border-radius: 4px;
-  font-size: 0.875em;
+/* ── Highlight.js dark theme overrides for light mode ── */
+[data-theme="light"] pre code {
+  color: #383a42 !important;
 }
+
+[data-theme="light"] .hljs-attr { color: #e45649 !important; }
+[data-theme="light"] .hljs-string { color: #50a14f !important; }
+[data-theme="light"] .hljs-number { color: #986801 !important; }
+[data-theme="light"] .hljs-literal { color: #0184bc !important; }
+[data-theme="light"] .hljs-keyword { color: #a626a4 !important; }
+[data-theme="light"] .hljs-title { color: #4078f2 !important; }
+[data-theme="light"] .hljs-function { color: #4078f2 !important; }
+[data-theme="light"] .hljs-comment { color: #a0a1a7 !important; }
+[data-theme="light"] .hljs-name { color: #e45649 !important; }
+[data-theme="light"] .hljs-operator { color: #0184bc !important; }

@@ -10,7 +10,8 @@ export function preparePage(page: PageDocument): PageDocument {
       if (!definition) {
         return [section];
       }
-      return [definition.prepare?.(section, { loadMarkdown }) ?? section];
+      const prepared = definition.prepare?.(section, { loadMarkdown }) ?? section;
+      return [prepared as PageDocument["sections"][number]];
     }),
   };
 }

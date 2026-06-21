@@ -1,0 +1,67 @@
+---
+import SectionShell from "./SectionShell.astro";
+import type { FeatureMatrixSection } from "../content/pageTypes";
+
+interface Props {
+  section: FeatureMatrixSection;
+}
+
+const { section } = Astro.props;
+const columns = Array.isArray(section.columns) ? section.columns : [];
+const rows = Array.isArray(section.rows) ? section.rows : [];
+const inline = (value: string | undefined) =>
+  String(value ?? "").replace(/`([^`]+)`/g, "<code>$1</code>");
+const colWidth = (i: number) =>
+  columns.length === 3 ? (i === 2 ? "52%" : "24%") : `${100 / Math.max(columns.length, 1)}%`;
+---
+
+<SectionShell id={section.id}>
+  <div class="mb-10 max-w-[720px]">
+    {section.eyebrow && <p class="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">{section.eyebrow}</p>}
+    <h2 class="mb-3 text-[clamp(1.5rem,3.5vw,2rem)] font-bold leading-tight tracking-[-0.02em] text-fg">{section.title}</h2>
+    {section.intro && <p class="max-w-[680px] text-[0.9375rem] leading-relaxed text-fg-4">{section.intro}</p>}
+  </div>
+
+  <div class="overflow-hidden rounded-xl border border-line bg-raised max-[720px]:hidden">
+    <table class="w-full table-fixed border-collapse">
+      <colgroup>
+        {columns.map((_, i) => <col style={`width:${colWidth(i)}`} />)}
+      </colgroup>
+      <thead>
+        <tr>
+          {columns.map((column) => (
+            <th class="border-b border-r border-line bg-surface px-5 py-[0.95rem] text-left align-top text-xs font-semibold uppercase tracking-[0.04em] text-fg-3 last:border-r-0">{column.label}</th>
+          ))}
+        </tr>
+      </thead>
+      <tbody class="[&>tr:last-child>td]:border-b-0">
+        {rows.map((row) => (
+          <tr>
+            {columns.map((column, index) => (
+              <td
+                class:list={[
+                  "border-b border-r border-line px-5 py-[1.15rem] text-left align-top text-sm leading-relaxed last:border-r-0",
+                  index === 0 ? "font-semibold text-fg-2" : "text-fg-4",
+                ]}
+                set:html={inline(row[column.key])}
+              />
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="hidden max-[720px]:grid max-[720px]:grid-cols-1 max-[720px]:gap-4">
+    {rows.map((row) => (
+      <article class="flex min-w-0 flex-col gap-4 rounded-xl border border-line bg-raised p-5">
+        {columns.map((column) => (
+          <div>
+            <span class="mb-1 block text-[0.7rem] font-semibold uppercase tracking-[0.05em] text-fg-5">{column.label}</span>
+            <p class="text-sm leading-snug text-fg-4" set:html={inline(row[column.key])}></p>
+          </div>
+        ))}
+      </article>
+    ))}
+  </div>
+</SectionShell>

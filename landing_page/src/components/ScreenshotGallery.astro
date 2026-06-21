@@ -1,0 +1,47 @@
+---
+import SectionShell from "./SectionShell.astro";
+import type { ScreenshotGallerySection } from "../content/pageTypes";
+
+interface Props {
+  section: ScreenshotGallerySection;
+}
+
+const { section } = Astro.props;
+const body = Array.isArray(section.body) ? section.body : [];
+const gallery = Array.isArray(section.gallery) ? section.gallery : [];
+const isSingle = gallery.length === 1;
+const mediaAspect = isSingle ? "aspect-video" : "aspect-[3/4]";
+---
+
+<SectionShell id={section.id}>
+  <div class="mb-11 max-w-[760px]">
+    {section.eyebrow && <p class="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">{section.eyebrow}</p>}
+    <h2 class="mb-3 text-[clamp(1.5rem,3.5vw,2rem)] font-bold leading-tight tracking-[-0.02em] text-fg">{section.title}</h2>
+    {body.map((paragraph) => <p class="mb-3 text-[0.9375rem] leading-relaxed text-fg-4">{paragraph}</p>)}
+  </div>
+
+  <div class:list={[
+    "gap-5",
+    isSingle
+      ? "grid grid-cols-1"
+      : "grid grid-cols-5 max-[980px]:flex max-[980px]:snap-x max-[980px]:snap-mandatory max-[980px]:overflow-x-auto max-[980px]:pb-1",
+  ]}>
+    {gallery.map((item) => (
+      <article class:list={[
+        "min-w-0 rounded-xl border border-line bg-raised p-5",
+        !isSingle && "max-[980px]:min-w-[min(78vw,260px)] max-[980px]:snap-start",
+      ]}>
+        {item.status === "placeholder-needed" ? (
+          <div class:list={["mb-4 flex w-full flex-col justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] p-3.5", mediaAspect]}>
+            <span class="font-mono text-[0.7rem] text-accent-pale">{item.status}</span>
+            <p class="break-words text-[0.72rem] text-fg-5">{item.src}</p>
+          </div>
+        ) : (
+          <img src={item.src} alt={item.title} class:list={["mb-4 block w-full rounded-lg border border-line object-cover", mediaAspect]} />
+        )}
+        <h3 class="mb-2 text-[0.9rem] font-semibold text-fg-2">{item.title}</h3>
+        <p class="text-[0.8125rem] leading-snug text-fg-4">{item.description}</p>
+      </article>
+    ))}
+  </div>
+</SectionShell>
