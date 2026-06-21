@@ -19,6 +19,7 @@ export interface OptionsPickerModalProps {
   options: OptionItem[];
   onSelect: (value: string) => void;
   onRequestClose: () => void;
+  useModal?: boolean;
 }
 
 /**
@@ -29,6 +30,7 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
   options,
   onSelect,
   onRequestClose,
+  useModal = true,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -55,49 +57,52 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
     onRequestClose();
   };
 
+  const content = (
+    <TouchableWithoutFeedback onPress={handleClose}>
+      <View style={styles.overlay}>
+        <TouchableWithoutFeedback onPress={() => {}}>
+          <View style={styles.content}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search..."
+              placeholderTextColor={theme.textSecondary}
+              value={search}
+              onChangeText={setSearch}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <ScrollView style={styles.list}>
+              {filteredOptions.map((opt) => (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={styles.item}
+                  onPress={() => handleSelect(opt.value)}
+                >
+                  <Text style={styles.itemText} numberOfLines={2}>
+                    {opt.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <TouchableOpacity
+              style={[styles.button, styles.secondaryButton]}
+              onPress={handleClose}
+            >
+              <Text style={styles.buttonTextSecondary}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableWithoutFeedback>
+      </View>
+    </TouchableWithoutFeedback>
+  );
+
+  if (!useModal) {
+    return content;
+  }
+
   return (
-    <Modal
-      visible
-      transparent
-      animationType="fade"
-      onRequestClose={handleClose}
-    >
-      <TouchableWithoutFeedback onPress={handleClose}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={styles.content}>
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search..."
-                placeholderTextColor={theme.textSecondary}
-                value={search}
-                onChangeText={setSearch}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <ScrollView style={styles.list}>
-                {filteredOptions.map((opt) => (
-                  <TouchableOpacity
-                    key={opt.value}
-                    style={styles.item}
-                    onPress={() => handleSelect(opt.value)}
-                  >
-                    <Text style={styles.itemText} numberOfLines={2}>
-                      {opt.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-              <TouchableOpacity
-                style={[styles.button, styles.secondaryButton]}
-                onPress={handleClose}
-              >
-                <Text style={styles.buttonTextSecondary}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+    <Modal visible transparent animationType="fade" onRequestClose={handleClose}>
+      {content}
     </Modal>
   );
 };
@@ -105,7 +110,7 @@ const OptionsPickerModal: React.FC<OptionsPickerModalProps> = ({
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
     overlay: {
-      flex: 1,
+      ...StyleSheet.absoluteFillObject,
       backgroundColor: theme.modalBackdrop,
       justifyContent: 'center',
       alignItems: 'center',

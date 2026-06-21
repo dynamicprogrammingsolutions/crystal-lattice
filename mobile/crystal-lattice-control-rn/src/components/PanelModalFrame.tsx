@@ -21,6 +21,7 @@ export interface PanelModalFrameProps {
   subtitle?: string;
   onRequestClose: () => void;
   children: React.ReactNode;
+  overlayChildren?: React.ReactNode;
   statusText?: string | null;
   statusTone?: PanelModalStatusTone;
   showSpinner?: boolean;
@@ -37,6 +38,7 @@ const PanelModalFrame: React.FC<PanelModalFrameProps> = ({
   subtitle,
   onRequestClose,
   children,
+  overlayChildren,
   statusText,
   statusTone = 'idle',
   showSpinner = false,
@@ -53,6 +55,7 @@ const PanelModalFrame: React.FC<PanelModalFrameProps> = ({
     <CenteredModalSurface
       visible={visible}
       onRequestClose={onRequestClose}
+      overlayChildren={overlayChildren}
       contentStyle={contentStyle}
     >
       <View style={styles.headerRow}>
