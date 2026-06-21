@@ -18,9 +18,14 @@ from mcp_shared import (
     MCPToolCallResult,
     apply_oauth_tokens_to_runtime_config,
     fingerprint_runtime_config,
+    load_oauth_tokens_into_runtime_store,
 )
+from tool_compat_shared.shell_engine import truncate_output
 
 from .mcp_names import qualify_codex_mcp_names
+
+
+DEFAULT_MAX_OUTPUT_TOKENS = 10_000
 
 
 def _default_input_schema() -> Dict[str, Any]:
@@ -183,6 +188,24 @@ def _responses_output_from_result(result: MCPToolCallResult) -> List[Dict[str, A
     return output
 
 
+def _truncate_text_for_model(text: str) -> str:
+    truncated, meta = truncate_output(
+        text,
+        limit_type="tokens",
+        limit_value=DEFAULT_MAX_OUTPUT_TOKENS,
+        head_ratio=0.5,
+    )
+    if not meta.get("truncated"):
+        return text
+
+    head_kept = int(meta.get("head_kept", 0) or 0)
+    tail_kept = int(meta.get("tail_kept", 0) or 0)
+    head = truncated[:head_kept]
+    tail = truncated[-tail_kept:] if tail_kept > 0 else ""
+    marker = f"…{int(meta.get('omitted_tokens', 0) or 0)} tokens truncated…"
+    return f"Total output lines: {int(meta.get('total_lines', 0) or 0)}\n\n{head}{marker}{tail}"
+
+
 class CodexMCPTool(ToolPlugin):
     name = "codex_mcp_tool"
     version = "0.1.0"
@@ -263,6 +286,7 @@ class CodexMCPTool(ToolPlugin):
             return {"runtime_key": None, "tools": []}
 
         store = self._runtime_store(context)
+        self._load_persisted_oauth_tokens(store, context)
         runtime_config = apply_oauth_tokens_to_runtime_config(runtime_config, store)
         runtime_key = fingerprint_runtime_config(runtime_config)
         registry = self._registry_from_store(store, context=context)
@@ -420,7 +444,8 @@ class CodexMCPTool(ToolPlugin):
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
         _ = state
         if not result.get("success"):
-            return f"Error: {result.get('error')}"
+            error_text = _truncate_text_for_model(str(result.get("error") or "MCP tool call failed."))
+            return f"Error: {error_text}"
 
         content = result.get("content")
         if not isinstance(content, list):
@@ -435,27 +460,30 @@ class CodexMCPTool(ToolPlugin):
             ),
             meta=result.get("meta") if isinstance(result.get("meta"), dict) else None,
         )
-        output = _responses_output_from_result(raw_result)
         summary_text = str(result.get("summary_text") or "")
+        output = _responses_output_from_result(raw_result)
+        image_items: List[Dict[str, Any]] = []
+        text_segments: List[str] = []
+        for item in output:
+            if item.get("type") == "input_text" and isinstance(item.get("text"), str):
+                text_segments.append(item["text"])
+                continue
+            image_items.append(item)
         if raw_result.structured_content:
-            output.append(
-                {
-                    "type": "input_text",
-                    "text": "Structured content:\n"
-                    + json.dumps(
-                        raw_result.structured_content, indent=2, sort_keys=True
-                    ),
-                }
+            structured_text = "Structured content:\n" + json.dumps(
+                raw_result.structured_content, indent=2, sort_keys=True
             )
+            text_segments.append(structured_text)
             if not summary_text:
                 summary_text = json.dumps(raw_result.structured_content, sort_keys=True)
-        if not output:
-            output = [
-                {
-                    "type": "input_text",
-                    "text": summary_text or "MCP tool call completed.",
-                }
-            ]
+        if text_segments:
+            combined_text = "\n".join(segment for segment in text_segments if segment)
+            summary_text = _truncate_text_for_model(combined_text)
+            output = [{"type": "input_text", "text": summary_text}, *image_items]
+        elif not output:
+            summary_text = summary_text or "MCP tool call completed."
+            summary_text = _truncate_text_for_model(summary_text)
+            output = [{"type": "input_text", "text": summary_text}]
         return make_provider_native_tool_result(
             format=FORMAT_OPENAI_RESPONSES,
             output=output,
@@ -592,6 +620,15 @@ class CodexMCPTool(ToolPlugin):
         ):
             return store
         return None
+
+    def _load_persisted_oauth_tokens(
+        self,
+        store: Any | None,
+        context: Optional[Dict[str, Any]],
+    ) -> None:
+        if store is None or not isinstance(context, dict):
+            return
+        load_oauth_tokens_into_runtime_store(store, context.get("runtime_state_root"))
 
     def _registry_from_store(
         self,
