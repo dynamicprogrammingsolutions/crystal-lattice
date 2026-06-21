@@ -31,7 +31,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import re
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from agent_core.tool_result_payloads import (
@@ -48,6 +51,7 @@ from mcp_shared import (
     MCPToolCallResult,
     apply_oauth_tokens_to_runtime_config,
     fingerprint_runtime_config,
+    load_oauth_tokens_into_runtime_store,
 )
 
 from .interop import claude_tool_interop_contribution
@@ -57,6 +61,9 @@ MCP_PREFIX = "mcp__"
 MCP_DELIMITER = "__"
 MAX_TOOL_NAME_LENGTH = 64
 HASH_LEN = 12
+DEFAULT_MCP_SUCCESS_PERSIST_THRESHOLD_CHARS = 50 * 1024
+DEFAULT_MCP_SUCCESS_PREVIEW_CHARS = 2 * 1024
+DEFAULT_MCP_ERROR_MAX_CHARS = 10_000
 
 
 def _sanitize_tool_name_part(value: str) -> str:
@@ -167,10 +174,99 @@ def _text_summary_from_content(content: Iterable[Dict[str, Any]]) -> str:
     return "\n".join(parts)
 
 
-def _claude_success_content(result: MCPToolCallResult) -> str:
+def _format_kb(size_bytes: int) -> str:
+    return f"{size_bytes / 1024:.1f}KB"
+
+
+def _truncate_error_for_model(
+    text: str,
+    *,
+    max_chars: int = DEFAULT_MCP_ERROR_MAX_CHARS,
+) -> str:
+    if len(text) <= max_chars:
+        return text
+    marker = f"\n\n... [{len(text) - max_chars} characters truncated] ...\n\n"
+    head_chars = max(0, (max_chars - len(marker)) // 2)
+    tail_chars = max(0, max_chars - len(marker) - head_chars)
+    return text[:head_chars] + marker + (text[-tail_chars:] if tail_chars else "")
+
+
+def _safe_tool_result_id(value: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "_", value).strip("._")
+    return safe or "mcp_tool_result"
+
+
+def _large_output_dir(state: Dict[str, Any]) -> Path:
+    config = state.get("config")
+    config = config if isinstance(config, dict) else {}
+    raw_dir = config.get("mcp_large_output_dir")
+    working_directory = Path(
+        str(config.get("working_directory") or os.getcwd())
+    ).expanduser()
+    if isinstance(raw_dir, str) and raw_dir.strip():
+        path = Path(raw_dir).expanduser()
+        return path if path.is_absolute() else working_directory / path
+    return working_directory / ".crystal" / "mcp-tool-results"
+
+
+def _write_large_output(
+    *,
+    text: str,
+    tool_use_id: str,
+    state: Dict[str, Any],
+) -> str | None:
+    try:
+        output_dir = _large_output_dir(state)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        path = output_dir / f"{_safe_tool_result_id(tool_use_id)}.txt"
+        path.write_text(text, encoding="utf-8")
+        return str(path)
+    except OSError:
+        return None
+
+
+def _persisted_success_block(
+    *,
+    json_text: str,
+    tool_use_id: str,
+    state: Dict[str, Any],
+    threshold_chars: int = DEFAULT_MCP_SUCCESS_PERSIST_THRESHOLD_CHARS,
+    preview_chars: int = DEFAULT_MCP_SUCCESS_PREVIEW_CHARS,
+) -> str:
+    if len(json_text) <= threshold_chars:
+        return json_text
+    path = _write_large_output(text=json_text, tool_use_id=tool_use_id, state=state)
+    size = _format_kb(len(json_text.encode("utf-8")))
+    path_line = (
+        f"Full output saved to: {path}"
+        if path
+        else "Full output omitted because it could not be saved."
+    )
+    preview = json_text[:preview_chars]
+    return (
+        "<persisted-output>\n"
+        f"Output too large ({size}). {path_line}\n\n"
+        "Preview (first 2KB):\n"
+        f"{preview}\n"
+        "...\n"
+        "</persisted-output>"
+    )
+
+
+def _claude_success_content(
+    result: MCPToolCallResult,
+    *,
+    tool_use_id: str,
+    state: Dict[str, Any],
+) -> str:
     summary_text = _text_summary_from_content(result.content)
     payload: Dict[str, Any] = {"content": summary_text}
-    return json.dumps(payload, separators=(",", ":"))
+    json_text = json.dumps(payload, separators=(",", ":"))
+    return _persisted_success_block(
+        json_text=json_text,
+        tool_use_id=tool_use_id,
+        state=state,
+    )
 
 
 def _tool_result_block(
@@ -275,6 +371,7 @@ class ClaudeMCPTool(ToolPlugin):
             return {"runtime_key": None, "tools": []}
 
         store = self._runtime_store(context)
+        self._load_persisted_oauth_tokens(store, context)
         runtime_config = apply_oauth_tokens_to_runtime_config(runtime_config, store)
         runtime_key = fingerprint_runtime_config(runtime_config)
         registry = self._registry_from_store(store, context=context)
@@ -433,10 +530,11 @@ class ClaudeMCPTool(ToolPlugin):
         }
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
-        _ = state
         tool_use_id = str(result.get("tool_use_id") or "call_mcp")
         if not result.get("success"):
-            content = str(result.get("error") or "MCP tool call failed.")
+            content = _truncate_error_for_model(
+                str(result.get("error") or "MCP tool call failed.")
+            )
             block = _tool_result_block(tool_use_id, content, is_error=True)
             return make_provider_native_tool_result(
                 format=FORMAT_ANTHROPIC_MESSAGES,
@@ -458,12 +556,16 @@ class ClaudeMCPTool(ToolPlugin):
             ),
             meta=result.get("meta") if isinstance(result.get("meta"), dict) else None,
         )
-        content = _claude_success_content(raw_result)
+        content = _claude_success_content(
+            raw_result,
+            tool_use_id=tool_use_id,
+            state=state,
+        )
         block = _tool_result_block(tool_use_id, content)
         return make_provider_native_tool_result(
             format=FORMAT_ANTHROPIC_MESSAGES,
             content=[block],
-            text=str(result.get("summary_text") or ""),
+            text=content,
         )
 
     def _build_runtime_config(self, config: Dict[str, Any]) -> MCPRuntimeConfig:
@@ -594,6 +696,15 @@ class ClaudeMCPTool(ToolPlugin):
         ):
             return store
         return None
+
+    def _load_persisted_oauth_tokens(
+        self,
+        store: Any | None,
+        context: Optional[Dict[str, Any]],
+    ) -> None:
+        if store is None or not isinstance(context, dict):
+            return
+        load_oauth_tokens_into_runtime_store(store, context.get("runtime_state_root"))
 
     def _registry_from_store(
         self,
