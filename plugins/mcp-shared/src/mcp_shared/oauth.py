@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import json
+import os
+import tempfile
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 from mcp.shared.auth import OAuthClientMetadata
@@ -10,6 +14,7 @@ from .runtime import MCPRuntimeConfig, MCPServerRuntimeSpec
 
 MCP_OAUTH_PENDING_STORE_KEY = "mcp_oauth_pending"
 MCP_OAUTH_TOKENS_STORE_KEY = "mcp_oauth_tokens"
+MCP_OAUTH_TOKENS_RELATIVE_PATH = "mcp/oauth-tokens.json"
 DEFAULT_OAUTH_CLIENT_NAME = "Crystal Lattice Control"
 DEFAULT_OAUTH_CLIENT_URI = "https://crystallattice.dev"
 DEFAULT_OAUTH_SOFTWARE_ID = "crystal-lattice-control"
@@ -179,6 +184,64 @@ def set_runtime_store_mapping(
         return
     if hasattr(runtime_store, "items") and isinstance(runtime_store.items, dict):
         runtime_store.items[key] = dict(value)
+
+
+def mcp_oauth_tokens_path(runtime_state_root: Any) -> Path | None:
+    if runtime_state_root is None:
+        return None
+    try:
+        root = Path(runtime_state_root).expanduser()
+    except TypeError:
+        return None
+    return root / MCP_OAUTH_TOKENS_RELATIVE_PATH
+
+
+def load_persisted_oauth_tokens(runtime_state_root: Any) -> dict[str, Any]:
+    path = mcp_oauth_tokens_path(runtime_state_root)
+    if path is None:
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {}
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def save_persisted_oauth_tokens(
+    runtime_state_root: Any,
+    tokens: dict[str, Any],
+) -> None:
+    path = mcp_oauth_tokens_path(runtime_state_root)
+    if path is None:
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=path.name + ".",
+        suffix=".tmp",
+        dir=str(path.parent),
+    )
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(tokens, handle, indent=2, sort_keys=True)
+        os.replace(tmp_path, path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def load_oauth_tokens_into_runtime_store(
+    runtime_store: Any,
+    runtime_state_root: Any,
+) -> dict[str, Any]:
+    persisted = load_persisted_oauth_tokens(runtime_state_root)
+    if not persisted:
+        return get_runtime_store_mapping(runtime_store, MCP_OAUTH_TOKENS_STORE_KEY)
+    current = get_runtime_store_mapping(runtime_store, MCP_OAUTH_TOKENS_STORE_KEY)
+    merged = {**persisted, **current}
+    set_runtime_store_mapping(runtime_store, MCP_OAUTH_TOKENS_STORE_KEY, merged)
+    return merged
 
 
 def apply_oauth_tokens_to_runtime_config(

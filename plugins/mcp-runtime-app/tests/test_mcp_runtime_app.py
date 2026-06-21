@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import mcp_runtime_app as mcp_runtime_app_mod
@@ -62,11 +64,15 @@ class _DummyStore:
 
 
 class _DummyApp:
-    def __init__(self) -> None:
+    def __init__(self, runtime_state_root: Path | None = None) -> None:
         self.store = _DummyStore()
+        self.runtime_state_root = runtime_state_root
 
     def get_runtime_store(self):
         return self.store
+
+    def get_runtime_state_root(self):
+        return getattr(self, "runtime_state_root", None)
 
     def run_awaitable_blocking(self, awaitable):
         import asyncio
@@ -576,6 +582,64 @@ def test_complete_login_accepts_pasted_redirect_url(monkeypatch) -> None:
     assert app.store.items[MCP_OAUTH_PENDING_STORE_KEY] == {}
     assert app.store.items[MCP_OAUTH_TOKENS_STORE_KEY]["protected"]["access_token"] == (
         "access-123"
+    )
+
+
+def test_complete_login_persists_oauth_token(monkeypatch, tmp_path) -> None:
+    plugin = MCPRuntimeAppPlugin()
+    app = _DummyApp(runtime_state_root=tmp_path)
+    app.store.items[MCP_OAUTH_PENDING_STORE_KEY] = {
+        "state-123": _pending_login("figma"),
+    }
+
+    async def fake_exchange(login, code):
+        assert login["server_name"] == "figma"
+        assert code == "code-123"
+        return _FakeToken()
+
+    monkeypatch.setattr(plugin, "_exchange_code_for_token", fake_exchange)
+
+    result = plugin.execute_action(
+        app,
+        "mcp_complete_login",
+        {
+            "server_name": "figma",
+            "redirect_url": "http://localhost:41793/oauth/callback?code=code-123&state=state-123",
+        },
+        {"session_id": "session-123"},
+        {},
+    )
+
+    assert result["message"] == "Signed in to figma."
+    token_path = tmp_path / "mcp" / "oauth-tokens.json"
+    payload = json.loads(token_path.read_text(encoding="utf-8"))
+    assert payload["figma"]["access_token"] == "access-123"
+    assert payload["figma"]["server_url"] == "https://mcp.example.test/mcp"
+
+
+def test_show_status_loads_persisted_oauth_tokens(tmp_path) -> None:
+    token_path = tmp_path / "mcp" / "oauth-tokens.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(
+        json.dumps(
+            {
+                "figma": {
+                    "access_token": "persisted-access",
+                    "token_type": "Bearer",
+                    "server_url": "https://mcp.figma.com/mcp",
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    app = _DummyApp(runtime_state_root=tmp_path)
+    plugin = MCPRuntimeAppPlugin()
+
+    plugin.execute_action(app, "mcp_show_status", {}, None, {})
+
+    assert app.store.items[MCP_OAUTH_TOKENS_STORE_KEY]["figma"]["access_token"] == (
+        "persisted-access"
     )
 
 

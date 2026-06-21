@@ -5,6 +5,8 @@ import builtins
 import shutil
 import time
 from contextlib import AsyncExitStack, asynccontextmanager
+from pathlib import Path
+from typing import Any
 
 import pytest
 import mcp_shared.runtime as runtime_mod
@@ -28,7 +30,11 @@ from mcp_shared import (
     build_oauth_server_config,
     build_mcp_oauth_token_request,
     fingerprint_runtime_config,
+    load_oauth_tokens_into_runtime_store,
+    load_persisted_oauth_tokens,
+    mcp_oauth_tokens_path,
     render_oauth_redirect_uri,
+    save_persisted_oauth_tokens,
 )
 
 
@@ -107,6 +113,41 @@ def test_apply_oauth_tokens_to_runtime_config_adds_authorization_header() -> Non
         "Authorization": "Bearer access-123",
     }
     assert updated.servers["public"].headers == {}
+
+
+def test_persisted_oauth_tokens_round_trip_and_apply(tmp_path: Path) -> None:
+    tokens = {
+        "figma": {
+            "access_token": "persisted-access",
+            "token_type": "Bearer",
+            "server_url": "https://mcp.figma.com/mcp",
+        }
+    }
+
+    save_persisted_oauth_tokens(tmp_path, tokens)
+
+    assert mcp_oauth_tokens_path(tmp_path) == tmp_path / "mcp" / "oauth-tokens.json"
+    assert load_persisted_oauth_tokens(tmp_path) == tokens
+
+    runtime_store: dict[str, Any] = {}
+    loaded = load_oauth_tokens_into_runtime_store(runtime_store, tmp_path)
+    assert loaded == tokens
+    assert runtime_store[MCP_OAUTH_TOKENS_STORE_KEY] == tokens
+
+    config = MCPRuntimeConfig(
+        servers={
+            "figma": MCPServerRuntimeSpec(
+                name="figma",
+                enabled=True,
+                transport="http",
+                url="https://mcp.figma.com/mcp",
+            )
+        }
+    )
+    updated = apply_oauth_tokens_to_runtime_config(config, runtime_store)
+    assert updated.servers["figma"].headers["Authorization"] == (
+        "Bearer persisted-access"
+    )
 
 
 def test_build_oauth_server_config_defaults_and_nested_overrides() -> None:

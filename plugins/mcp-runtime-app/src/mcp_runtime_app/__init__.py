@@ -14,8 +14,10 @@ from mcp_shared import (
     exchange_mcp_oauth_code_for_token,
     fingerprint_runtime_config,
     get_runtime_store_mapping,
+    load_oauth_tokens_into_runtime_store,
     oauth_string,
     render_oauth_redirect_uri,
+    save_persisted_oauth_tokens,
     set_runtime_store_mapping,
 )
 
@@ -177,6 +179,7 @@ class MCPRuntimeAppPlugin:
     ) -> Dict[str, Any]:
         _ = (params, context, state)
         store = app.get_runtime_store()
+        self._load_persisted_tokens(app, store)
         registry = store.get(self.runtime_store_key)
         if action_id == "mcp_show_status":
             runtimes = self._collect_runtime_rows(registry)
@@ -234,6 +237,7 @@ class MCPRuntimeAppPlugin:
         clear: bool,
     ) -> Dict[str, Any]:
         runtime_store = app.get_runtime_store()
+        self._load_persisted_tokens(app, runtime_store)
         registry = runtime_store.get(self.runtime_store_key)
         cleared = 0
         if clear and registry is not None:
@@ -398,6 +402,7 @@ class MCPRuntimeAppPlugin:
             return self._login_error(f"Unable to start MCP login: {exc}")
 
         runtime_store = app.get_runtime_store()
+        self._load_persisted_tokens(app, runtime_store)
         pending = get_runtime_store_mapping(runtime_store, MCP_OAUTH_PENDING_STORE_KEY)
         pending[login["state"]] = login["pending"]
         set_runtime_store_mapping(runtime_store, MCP_OAUTH_PENDING_STORE_KEY, pending)
@@ -551,6 +556,7 @@ class MCPRuntimeAppPlugin:
         pending.pop(state, None)
         set_runtime_store_mapping(runtime_store, MCP_OAUTH_TOKENS_STORE_KEY, tokens)
         set_runtime_store_mapping(runtime_store, MCP_OAUTH_PENDING_STORE_KEY, pending)
+        self._save_persisted_tokens(app, tokens)
 
         registry = runtime_store.get(self.runtime_store_key)
         cleared = 0
@@ -603,6 +609,24 @@ class MCPRuntimeAppPlugin:
             if isinstance(first, str) and first:
                 values[key] = first
         return values
+
+    def _runtime_state_root(self, app: Any) -> Any | None:
+        getter = getattr(app, "get_runtime_state_root", None)
+        if callable(getter):
+            return getter()
+        return None
+
+    def _load_persisted_tokens(self, app: Any, runtime_store: Any) -> None:
+        load_oauth_tokens_into_runtime_store(
+            runtime_store,
+            self._runtime_state_root(app),
+        )
+
+    def _save_persisted_tokens(self, app: Any, tokens: Dict[str, Any]) -> None:
+        save_persisted_oauth_tokens(
+            self._runtime_state_root(app),
+            tokens,
+        )
 
     def _login_success_result(
         self,
