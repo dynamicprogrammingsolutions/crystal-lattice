@@ -267,7 +267,6 @@ sections:
       - title: "Session workbench"
         description: "Session actions, workspace controls, snapshots, attachments, and plugin-driven settings."
         src: "/session-workbench.png"
-        status: "placeholder-needed"
 
   - type: promptBlock
     id: build-plugin
