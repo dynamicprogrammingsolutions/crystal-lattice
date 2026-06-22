@@ -5,7 +5,16 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-DOCS_ROOT = REPO_ROOT / "docs" / "default-system-instructions"
+REFERENCE_SYSTEM_INSTRUCTIONS_ROOT = (
+    REPO_ROOT
+    / "application"
+    / "python"
+    / "agent_terminal_app"
+    / "default_config"
+    / "system_messages"
+    / "reference"
+    / "default-system-instructions"
+)
 RUNTIME_SYSTEM_MESSAGES_ROOT = (
     REPO_ROOT / "application" / "python" / "agent_terminal_app" / "system_messages"
 )
@@ -15,15 +24,15 @@ DEFAULT_CONFIG_ROOT = (
 
 
 def test_vendor_instruction_directories_exist() -> None:
-    assert DOCS_ROOT.is_dir()
-    assert (DOCS_ROOT / "README.md").is_file()
+    assert REFERENCE_SYSTEM_INSTRUCTIONS_ROOT.is_dir()
+    assert (REFERENCE_SYSTEM_INSTRUCTIONS_ROOT / "README.md").is_file()
 
     for vendor in ("codex", "gemini", "qwen", "grok", "kimi"):
-        assert (DOCS_ROOT / vendor).is_dir(), vendor
+        assert (REFERENCE_SYSTEM_INSTRUCTIONS_ROOT / vendor).is_dir(), vendor
 
 
 def test_gemini_docs_have_expected_artifacts() -> None:
-    gemini = DOCS_ROOT / "gemini"
+    gemini = REFERENCE_SYSTEM_INSTRUCTIONS_ROOT / "gemini"
     expected = {
         "README.md",
         "template.md",
@@ -60,7 +69,7 @@ def test_gemini_docs_have_expected_artifacts() -> None:
 
 
 def test_qwen_docs_have_expected_artifacts() -> None:
-    qwen = DOCS_ROOT / "qwen"
+    qwen = REFERENCE_SYSTEM_INSTRUCTIONS_ROOT / "qwen"
     expected = {
         "README.md",
         "template.md",
@@ -94,7 +103,7 @@ def test_qwen_docs_have_expected_artifacts() -> None:
 
 
 def test_grok_docs_have_expected_artifacts() -> None:
-    grok = DOCS_ROOT / "grok"
+    grok = REFERENCE_SYSTEM_INSTRUCTIONS_ROOT / "grok"
     expected = {
         "README.md",
         "template.md",
@@ -125,7 +134,7 @@ def test_grok_docs_have_expected_artifacts() -> None:
 
 
 def test_kimi_docs_have_expected_artifacts() -> None:
-    kimi = DOCS_ROOT / "kimi"
+    kimi = REFERENCE_SYSTEM_INSTRUCTIONS_ROOT / "kimi"
     expected = {
         "README.md",
         "template.md",
@@ -159,11 +168,12 @@ def test_kimi_docs_have_expected_artifacts() -> None:
     assert "{{" not in compiled
 
 
-def test_codex_archive_was_moved_under_vendor_layout() -> None:
-    codex = DOCS_ROOT / "codex"
+def test_codex_archive_lives_under_system_message_reference_material() -> None:
+    codex = REFERENCE_SYSTEM_INSTRUCTIONS_ROOT / "codex"
     assert (codex / "README.md").is_file()
     assert (codex / "gpt-5.4" / "instructions_default.md").is_file()
     assert not (REPO_ROOT / "docs" / "codex-default-instructions").exists()
+    assert not (REPO_ROOT / "docs" / "default-system-instructions").exists()
 
 
 def test_runtime_system_message_templates_exist() -> None:
@@ -385,10 +395,10 @@ def test_portable_default_config_is_self_contained() -> None:
         "system_message"
     ]["template"]
     assert "cloud-script-authoring.md" not in cloud_author_template
-    assert "Read the bundled authoring guide" in cloud_author_template
+    assert "bundled authoring guide" in cloud_author_template
     assert "before your final response" in cloud_author_template.lower()
-    assert "bash -n" in cloud_author_template
-    assert "no-Docker local harness" in cloud_author_template
+    assert "cheap syntax and JSON checks" in cloud_author_template
+    assert "crystal-lattice validate-cloud" in cloud_author_template
     assert "Do not print secrets" in cloud_author_template
     authoring_path = cloud_author_variables["CLOUD_SCRIPT_AUTHORING_GUIDE_PATH"][
         "text"

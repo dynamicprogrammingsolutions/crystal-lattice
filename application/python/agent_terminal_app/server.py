@@ -402,7 +402,7 @@ async def _on_startup() -> None:
     use environment variables as a fallback.
     """
 
-    global _bonjour_handle, _bridge_client, _bridge_task
+    global _agent_app, _bonjour_handle, _bridge_client, _bridge_task
 
     explicit_config = _integration_config if _integration_config_explicit else None
 
@@ -509,6 +509,13 @@ async def _on_shutdown() -> None:
         await asyncio.to_thread(bonjour_mod.stop_bonjour, _bonjour_handle)
         _bonjour_handle = None
         _log.info("[bonjour] registration stopped")
+
+    if _agent_app is not None:
+        try:
+            _agent_app.close()
+        except Exception:  # pragma: no cover - defensive
+            pass
+        _agent_app = None
 
 
 # ---------------------------------------------------------------------------
@@ -1418,14 +1425,6 @@ def get_session_application_ui_schema(
 ) -> Dict[str, Any]:
     """Return application-level UI schema for a specific session.
 
-    This endpoint computes the session's effective config (base agent config
-    merged with session overrides) and passes it to application plugins,
-    enabling config-aware UI filtering.
-
-    This completes the implementation started in:
-    - tasks/20260128-sandboxing-prereqs/040-session-aware-app-plugin-ui-and-conditions.md
-    - tasks/20260130-openrouter-usage-round-cost-and-ui-schema/010-config-aware-ui-schema-and-conditions.md
-
     The returned list contains UI elements from all registered application
     plugins, filtered by the optional ``plugin`` query parameter if provided.
     Each element includes a ``plugin`` field identifying its source.
@@ -1435,50 +1434,10 @@ def get_session_application_ui_schema(
     """
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
-
-        core, base_config, session = ctx
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        overrides = metadata.get("overrides")
-        if not isinstance(overrides, dict):
-            overrides = {}
-        effective_config = resolve_request_config(base_config, overrides)
-
-        # Get tags and models from the core's resolved plugins
-        # This mirrors what AgentCore.get_ui_schema does internally
-        tags: List[str] = []
-        models: List[Dict[str, Any]] = []
-
-        # Try to get tags/models from the core if it has resolved plugins
-        try:
-            if hasattr(core, "_resolve_plugins_for_config"):
-                provider, _, _, _, resolved_tags = core._resolve_plugins_for_config(
-                    effective_config
-                )
-                tags = resolved_tags
-                if provider is not None and hasattr(core, "_get_models_for_config"):
-                    models = core._get_models_for_config(provider, effective_config)
-        except Exception:
-            pass  # Tags/models are optional, continue without them
-
-        try:
-            elements = app_instance.get_application_ui_schema(
-                config=effective_config, tags=tags, models=models
-            )
-        except Exception as exc:  # pragma: no cover - defensive
-            _log.exception("error getting application_ui_schema: %s", exc)
-            elements = []
-
-        # Filter by plugin if requested
-        if plugin:
-            elements = [
-                e for e in elements if isinstance(e, dict) and e.get("plugin") == plugin
-            ]
-        else:
-            elements = [e for e in elements if isinstance(e, dict)]
-
+        elements = app_instance.get_session_application_ui_schema(
+            session_id,
+            plugin=plugin,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
@@ -1636,22 +1595,22 @@ def get_session_overrides(
     """
 
     try:
-        ctx = app_instance.load_session(session_id)
-        if ctx is None:
-            raise KeyError(f"Session {session_id!r} not found")
-
-        _core, _base_config, session = ctx
-        metadata = session.metadata if isinstance(session.metadata, dict) else {}
-        raw_overrides = metadata.get("overrides")
-        overrides: Dict[str, Any] = (
-            raw_overrides if isinstance(raw_overrides, dict) else {}
-        )
+        overrides = app_instance.get_session_settings(session_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ReadonlySessionViewError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return {"overrides": overrides}
+
+
+@app.get("/server/settings")
+def get_server_settings(
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return application-owned server-scoped settings."""
+
+    return {"settings": app_instance.get_server_settings()}
 
 
 @app.get("/sessions/{session_id}/plugins")
@@ -1846,32 +1805,51 @@ def patch_session_overrides(
         updates = {key: body.get("value")}
 
     try:
-        with app_instance.acquire_session_lock(session_id):
-            ctx = app_instance.load_session(session_id)
-            if ctx is None:
-                raise KeyError(f"Session {session_id!r} not found")
-
-            _core, _base_config, session = ctx
-            metadata = session.metadata if isinstance(session.metadata, dict) else {}
-            raw_overrides = metadata.get("overrides")
-            overrides: Dict[str, Any] = (
-                raw_overrides if isinstance(raw_overrides, dict) else {}
-            )
-
-            new_overrides = {**overrides, **updates}
-            new_metadata = {**metadata, "overrides": new_overrides}
-
-            new_session = Session(
-                session_id=session.session_id,
-                messages=session.messages,
-                metadata=new_metadata,
-            )
-            app_instance.save_session(new_session)
+        new_session = app_instance.patch_session_settings(
+            session_id,
+            updates,
+            source="api",
+        )
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     response = {"session": new_session.to_dict()}
+    _idempotency_store(scope, idempotency_key, body, response)
+    return response
+
+
+@app.patch("/server/settings")
+def patch_server_settings(
+    payload: Dict[str, Any],
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Upsert one or more server-scoped settings."""
+
+    body = payload or {}
+    scope = "PATCH /server/settings"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, body)
+    if cached is not None:
+        return cached
+
+    values = body.get("values", body)
+    if not isinstance(values, dict):
+        raise HTTPException(
+            status_code=400,
+            detail="server settings body must be an object or {'values': object}",
+        )
+
+    try:
+        settings = app_instance.patch_server_settings(values, source="api")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    response = {"settings": settings}
     _idempotency_store(scope, idempotency_key, body, response)
     return response
 
@@ -1953,42 +1931,43 @@ def delete_session_override(
         return cached
 
     try:
-        with app_instance.acquire_session_lock(session_id):
-            ctx = app_instance.load_session(session_id)
-            if ctx is None:
-                raise KeyError(f"Session {session_id!r} not found")
-
-            _core, _base_config, session = ctx
-            metadata = session.metadata if isinstance(session.metadata, dict) else {}
-            raw_overrides = metadata.get("overrides")
-            overrides: Dict[str, Any] = (
-                raw_overrides if isinstance(raw_overrides, dict) else {}
-            )
-
-            if key not in overrides:
-                result_session = session
-            else:
-                new_overrides = dict(overrides)
-                new_overrides.pop(key, None)
-
-                new_metadata = dict(metadata)
-                if new_overrides:
-                    new_metadata["overrides"] = new_overrides
-                else:
-                    new_metadata.pop("overrides", None)
-
-                result_session = Session(
-                    session_id=session.session_id,
-                    messages=session.messages,
-                    metadata=new_metadata,
-                )
-                app_instance.save_session(result_session)
-
-            response = {"session": result_session.to_dict()}
+        result_session = app_instance.delete_session_setting(
+            session_id,
+            key,
+            source="api",
+        )
+        response = {"session": result_session.to_dict()}
 
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    _idempotency_store(scope, idempotency_key, {}, response)
+    return response
+
+
+@app.delete("/server/settings/{key}")
+def delete_server_setting(
+    key: str,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Remove one server-scoped setting."""
+
+    scope = f"DELETE /server/settings/{key}"
+    cached = _idempotency_maybe_replay(scope, idempotency_key, {})
+    if cached is not None:
+        return cached
+
+    try:
+        settings = app_instance.delete_server_setting(key, source="api")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    response = {"settings": settings}
     _idempotency_store(scope, idempotency_key, {}, response)
     return response
 
@@ -3298,12 +3277,30 @@ def list_application_ui_schema(
     return {"elements": elements}
 
 
+@app.get("/server/settings/ui-schema")
+def get_server_settings_ui_schema(
+    plugin: Optional[str] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return application UI schema elements for server settings."""
+
+    elements = app_instance.get_server_settings_ui_schema()
+    if plugin:
+        elements = [
+            e for e in elements if isinstance(e, dict) and e.get("plugin") == plugin
+        ]
+    else:
+        elements = [e for e in elements if isinstance(e, dict)]
+    return {"elements": elements}
+
+
 def _execute_action_request(
     payload: Dict[str, Any],
     *,
     idempotency_key: Optional[str],
     app_instance: AgentApplication,
     scope_prefix: str,
+    session_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Execute an application action request and return the standard envelope."""
 
@@ -3318,26 +3315,42 @@ def _execute_action_request(
     if cached is not None:
         return cached
 
+    resolved_plugin_id = plugin_id
+
     try:
-        result = app_instance.execute_action(
-            plugin_id=plugin_id,
+        action_context = {"session_id": session_id} if session_id else None
+        executed = app_instance.execute_action_with_metadata(
+            plugin_id=plugin_id if "plugin" in body else None,
             action_id=action_id,
             params=raw_inputs,
             action_owner=action_owner if isinstance(action_owner, str) else None,
+            context=action_context,
         )
+        resolved_plugin_id = executed.plugin_id
+        result = executed.result
         if not isinstance(result, dict):
             result = {}
         response: Dict[str, Any] = {
             "status": "ok",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
+            "action_id": executed.action_id,
+            "action_owner": executed.action_owner,
+            "result": result,
+        }
+    except AgentApplication._ApplicationActionResolutionError as exc:  # type: ignore[attr-defined]
+        response = {
+            "status": "error",
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
-            "result": result,
+            "error_type": getattr(exc, "error_type", "unknown_action"),
+            "message": str(exc),
+            "details": getattr(exc, "details", {}) or {},
         }
     except AgentApplication._ApplicationActionValidationError as exc:  # type: ignore[attr-defined]
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "validation",
@@ -3347,7 +3360,7 @@ def _execute_action_request(
     except KeyError as exc:
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "not_found",
@@ -3357,7 +3370,7 @@ def _execute_action_request(
     except SessionConflictError as exc:
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "conflict",
@@ -3367,7 +3380,7 @@ def _execute_action_request(
     except ReadonlySessionViewError as exc:
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "readonly",
@@ -3378,7 +3391,7 @@ def _execute_action_request(
         # Includes invalid plugin/action identifiers or non-dict params.
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "validation",
@@ -3389,7 +3402,7 @@ def _execute_action_request(
         _log.exception("unexpected error executing application action")
         response = {
             "status": "error",
-            "plugin": plugin_id,
+            "plugin": resolved_plugin_id,
             "action_id": action_id,
             "action_owner": action_owner,
             "error_type": "internal",
@@ -3437,6 +3450,7 @@ def execute_session_action(
         idempotency_key=idempotency_key,
         app_instance=app_instance,
         scope_prefix=f"POST /sessions/{session_id}/actions",
+        session_id=session_id,
     )
 
 

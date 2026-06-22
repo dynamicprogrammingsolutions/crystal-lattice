@@ -198,6 +198,37 @@ def _message_export_inputs() -> List[Dict[str, Any]]:
     ]
 
 
+def _pdf_export_config_elements() -> List[Dict[str, Any]]:
+    return [
+        {
+            "ui_type": "config",
+            "type": "select",
+            "key": "message_export_pdf_engine",
+            "label": "PDF export engine",
+            "options": [
+                {"value": "auto", "label": "Auto (xhtml2pdf)"},
+                {"value": "pandoc", "label": "Pandoc"},
+                {"value": "playwright", "label": "Playwright"},
+                {"value": "xhtml2pdf", "label": "xhtml2pdf"},
+            ],
+            "default": "auto",
+            "description": "PDF conversion backend used by Share as PDF.",
+        },
+        {
+            "ui_type": "config",
+            "type": "select",
+            "key": "message_export_pdf_style",
+            "label": "PDF export style",
+            "options": [
+                {"value": "web", "label": "Web"},
+                {"value": "classic", "label": "Classic"},
+            ],
+            "default": "web",
+            "description": "Visual styling used for generated PDFs.",
+        },
+    ]
+
+
 def _render_export_markdown(
     app: "AgentApplication",
     *,
@@ -261,12 +292,6 @@ class MessageSendToKindleAppPlugin:
                 "required": False,
                 "default": "title",
                 "description": "Metadata key used for reading a session title when building session exports.",
-            },
-            "message_export_pdf_style": {
-                "type": "string",
-                "required": False,
-                "default": "web",
-                "description": "PDF visual style. Supported values: web, classic.",
             },
         }
 
@@ -490,7 +515,21 @@ class MessageShareAsPdfAppPlugin:
                 "required": False,
                 "default": "title",
                 "description": "Metadata key used for reading a session title when building session exports.",
-            }
+            },
+            "message_export_pdf_engine": {
+                "type": "string",
+                "required": False,
+                "default": "auto",
+                "enum": ["auto", "pandoc", "playwright", "xhtml2pdf"],
+                "description": "PDF conversion backend. Supported values: auto, pandoc, playwright, xhtml2pdf.",
+            },
+            "message_export_pdf_style": {
+                "type": "string",
+                "required": False,
+                "default": "web",
+                "enum": ["web", "classic"],
+                "description": "PDF visual style. Supported values: web, classic.",
+            },
         }
 
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -510,6 +549,7 @@ class MessageShareAsPdfAppPlugin:
     ) -> List[Dict[str, Any]]:
         _ = state, config, tags, models
         return [
+            *_pdf_export_config_elements(),
             {
                 "ui_type": "message_action",
                 "id": "message_share_as_pdf",

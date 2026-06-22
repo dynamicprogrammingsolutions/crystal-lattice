@@ -3,7 +3,7 @@
 This page is an older/general overview. For the current shared plugin docs, start at
 `plugins/docs/index.md`.
 
-This guide explains how to build provider, provider extension, feature, and tool plugins for the AI Agent Platform. It includes minimal examples and links to the full API reference generated from docstrings.
+This guide explains how to build provider, provider extension, feature, and tool plugins for Crystal Lattice. It includes minimal examples and links to the full API reference generated from docstrings.
 
 - Core principles
   - Functional style: methods are pure; state is passed explicitly.

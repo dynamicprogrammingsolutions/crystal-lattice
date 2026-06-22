@@ -4,7 +4,7 @@ set -euo pipefail
 PACKAGE_NAME="crystal-lattice-cli"
 ARCHIVE_PACKAGE_NAME="crystal-lattice-python-runtime"
 COMMAND_NAME="${COMMAND_NAME:-crystal-lattice}"
-DEFAULT_DOWNLOAD_BASE_URL="https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli"
+DEFAULT_DOWNLOAD_BASE_URL="https://download.crystallattice.dev/crystal-lattice-cli"
 DOWNLOAD_BASE_URL="${CRYSTAL_LATTICE_DOWNLOAD_BASE_URL:-${DOWNLOAD_BASE_URL:-$DEFAULT_DOWNLOAD_BASE_URL}}"
 INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/opt/$PACKAGE_NAME}"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"

@@ -17,6 +17,7 @@ import type {
 } from './backend';
 import { generateIdempotencyKey } from '../utils/idempotency';
 import { emitSessionUiSchemaInvalidated } from '../uiSchema/sessionUiSchemaInvalidation';
+import { emitServerSettingsInvalidated } from '../serverSettings/serverSettingsInvalidation';
 
 const HEAVY_REQUEST_TIMEOUT_MS = 120_000;
 
@@ -558,6 +559,53 @@ export class RestAgentBackend implements AgentBackend {
     return {};
   }
 
+  async getServerSettings(): Promise<Record<string, any>> {
+    const resp = await this.transport.request<{ settings?: Record<string, any> }>({
+      method: 'GET',
+      path: '/server/settings',
+    });
+    if (resp.data && resp.data.settings && typeof resp.data.settings === 'object') {
+      return resp.data.settings;
+    }
+    return {};
+  }
+
+  async patchServerSettings(
+    values: Record<string, any>,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    await this.transport.request({
+      method: 'PATCH',
+      path: '/server/settings',
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+      body: { values },
+    });
+
+    emitServerSettingsInvalidated(this, { reason: 'server_settings_updated' });
+  }
+
+  async deleteServerSetting(
+    key: string,
+    options: { idempotencyKey?: string } = {},
+  ): Promise<void> {
+    await this.transport.request({
+      method: 'DELETE',
+      path: `/server/settings/${encodeURIComponent(key)}`,
+      headers: this.buildIdempotencyHeaders(options.idempotencyKey),
+    });
+
+    emitServerSettingsInvalidated(this, { reason: 'server_settings_updated' });
+  }
+
+  async listServerSettingsUiSchema(): Promise<ApplicationUiElement[]> {
+    const resp = await this.transport.request<{ elements?: ApplicationUiElement[] }>({
+      method: 'GET',
+      path: '/server/settings/ui-schema',
+    });
+    const elements = Array.isArray(resp.data?.elements) ? resp.data.elements : [];
+    return elements;
+  }
+
   async listApplicationActions(params: { pluginId?: string } = {}): Promise<ApplicationActionDefinition[]> {
     const query = buildQuery({ plugin: params.pluginId });
     const resp = await this.transport.request<{ actions?: ApplicationActionDefinition[] }>({
@@ -625,19 +673,21 @@ export class RestAgentBackend implements AgentBackend {
   private async executeActionRequest(
     path: string,
     params: {
-      pluginId: string;
+      pluginId?: string;
       actionId: string;
       actionOwner?: string;
       inputs: Record<string, any>;
       idempotencyKey?: string;
     },
   ): Promise<ExecuteActionResponse> {
-    const payload = {
-      plugin: params.pluginId,
+    const payload: Record<string, any> = {
       action_id: params.actionId,
       action_owner: params.actionOwner,
       inputs: params.inputs,
     };
+    if (typeof params.pluginId === 'string' && params.pluginId) {
+      payload.plugin = params.pluginId;
+    }
     const resp = await this.transport.request<ExecuteActionResponse>({
       method: 'POST',
       path,
@@ -650,7 +700,7 @@ export class RestAgentBackend implements AgentBackend {
   }
 
   async executeAction(params: {
-    pluginId: string;
+    pluginId?: string;
     actionId: string;
     actionOwner?: string;
     inputs: Record<string, any>;
@@ -661,7 +711,7 @@ export class RestAgentBackend implements AgentBackend {
 
   async executeSessionAction(params: {
     sessionId: string;
-    pluginId: string;
+    pluginId?: string;
     actionId: string;
     actionOwner?: string;
     inputs: Record<string, any>;

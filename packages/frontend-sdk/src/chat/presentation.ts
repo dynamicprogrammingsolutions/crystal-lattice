@@ -41,7 +41,7 @@ export function deriveChatStatusBarParts(options: {
     parts.push(`Agent: ${agentLabel}`);
   }
 
-  parts.push(`Session: ${sessionId.slice(0, 8)}`);
+  parts.push(`Session: ${sessionId}`);
   if (!lastAssistantMessage || !statusBarElements.length) {
     return parts;
   }

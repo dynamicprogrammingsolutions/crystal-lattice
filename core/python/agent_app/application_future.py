@@ -77,6 +77,21 @@ class _AgentPluginRuntime:
     default_enabled_ids: Optional[List[str]]
 
 
+@dataclass(frozen=True)
+class ExecutedAction:
+    plugin_id: str
+    action_id: str
+    action_owner: Optional[str]
+    result: Dict[str, Any]
+
+
+@dataclass(frozen=True)
+class _ResolvedActionCandidate:
+    plugin_id: str
+    action_id: str
+    action_owner: str
+
+
 @dataclass
 class _CheckpointBaseline:
     session: Session
@@ -509,6 +524,8 @@ class AgentApplication:
         )
         self._runtime_state_root = session_root_path.parent / "runtime"
         self._runtime_state_root.mkdir(parents=True, exist_ok=True)
+        self._server_settings_path = self._runtime_state_root / "server_settings.json"
+        self._server_settings_lock = threading.RLock()
         self._runtime_store = RuntimeStore()
         self._runtime_store.set("agent_core.model_discovery_cache", self._model_cache)
         self._tool_runtime = self._runtime_store
@@ -624,6 +641,7 @@ class AgentApplication:
             self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
 
         self._raise_for_fatal_config_errors()
+        self._replay_server_settings_on_startup()
 
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
@@ -1494,6 +1512,284 @@ class AgentApplication:
         )
         return core, base_config, current_session, results
 
+    def _build_application_lifecycle_context(
+        self,
+        lifecycle: str,
+        extra_context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        context = self._ensure_serializable_context(extra_context)
+        return self._context.build_application_lifecycle_context(
+            lifecycle=lifecycle,
+            config=self._config,
+            extra=context,
+        )
+
+    def run_application_lifecycle(
+        self,
+        lifecycle: str,
+        *,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
+        if not isinstance(lifecycle, str) or not lifecycle:
+            raise ValueError("lifecycle must be a non-empty string")
+
+        results: List[Dict[str, Any]] = []
+        for action in self.get_application_actions():
+            if not isinstance(action, dict) or not self._action_matches_trigger(
+                action, lifecycle
+            ):
+                continue
+            plugin_id = action.get("plugin")
+            action_id = action.get("id")
+            if not isinstance(plugin_id, str) or not isinstance(action_id, str):
+                continue
+
+            action_context = self._build_application_lifecycle_context(
+                lifecycle,
+                context,
+            )
+            result = self.execute_application_action(
+                plugin_id,
+                action_id,
+                {},
+                context=action_context,
+            )
+            results.append(
+                {
+                    "plugin": plugin_id,
+                    "action_id": action_id,
+                    "action_owner": "application",
+                    "result": result,
+                }
+            )
+        return results
+
+    @staticmethod
+    def _normalized_settings(value: Any) -> Dict[str, Any]:
+        return value if isinstance(value, dict) else {}
+
+    @staticmethod
+    def _validate_settings_updates(updates: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(updates, dict):
+            raise ValueError("settings updates must be a mapping")
+        for key in updates.keys():
+            if not isinstance(key, str) or not key:
+                raise ValueError("settings keys must be non-empty strings")
+        try:
+            json.dumps(updates)
+        except Exception as exc:
+            raise ValueError("settings values must be JSON-serializable") from exc
+        return dict(updates)
+
+    @staticmethod
+    def _changed_setting_keys(
+        old_settings: Dict[str, Any],
+        new_settings: Dict[str, Any],
+    ) -> List[str]:
+        keys = set(old_settings) | set(new_settings)
+        return sorted(
+            key
+            for key in keys
+            if old_settings.get(key, AgentApplication._MISSING_METADATA)
+            != new_settings.get(key, AgentApplication._MISSING_METADATA)
+        )
+
+    def _read_server_settings_unlocked(self) -> Dict[str, Any]:
+        path = self._server_settings_path
+        if not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return {}
+        settings = payload.get("settings") if isinstance(payload, dict) else None
+        return dict(settings) if isinstance(settings, dict) else {}
+
+    def _write_server_settings_unlocked(self, settings: Dict[str, Any]) -> None:
+        payload = {"settings": dict(settings)}
+        tmp_path = self._server_settings_path.with_suffix(
+            self._server_settings_path.suffix + ".tmp"
+        )
+        tmp_path.write_text(
+            json.dumps(payload, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        tmp_path.replace(self._server_settings_path)
+
+    def get_server_settings(self) -> Dict[str, Any]:
+        with self._server_settings_lock:
+            return self._read_server_settings_unlocked()
+
+    def patch_server_settings(
+        self,
+        updates: Dict[str, Any],
+        *,
+        source: str = "api",
+    ) -> Dict[str, Any]:
+        normalized_updates = self._validate_settings_updates(updates)
+        with self._server_settings_lock:
+            old_settings = self._read_server_settings_unlocked()
+            new_settings = {**old_settings, **normalized_updates}
+            changed_keys = self._changed_setting_keys(old_settings, new_settings)
+            if not changed_keys:
+                return new_settings
+            self._write_server_settings_unlocked(new_settings)
+
+        self.run_application_lifecycle(
+            "server_settings_changed",
+            context={
+                "scope": "server",
+                "old_settings": old_settings,
+                "new_settings": new_settings,
+                "changed_keys": changed_keys,
+                "source": source,
+            },
+        )
+        return new_settings
+
+    def delete_server_setting(
+        self,
+        key: str,
+        *,
+        source: str = "api",
+    ) -> Dict[str, Any]:
+        if not isinstance(key, str) or not key:
+            raise ValueError("key must be a non-empty string")
+        with self._server_settings_lock:
+            old_settings = self._read_server_settings_unlocked()
+            if key not in old_settings:
+                return old_settings
+            new_settings = dict(old_settings)
+            new_settings.pop(key, None)
+            changed_keys = [key]
+            self._write_server_settings_unlocked(new_settings)
+
+        self.run_application_lifecycle(
+            "server_settings_changed",
+            context={
+                "scope": "server",
+                "old_settings": old_settings,
+                "new_settings": new_settings,
+                "changed_keys": changed_keys,
+                "source": source,
+            },
+        )
+        return new_settings
+
+    def _replay_server_settings_on_startup(self) -> None:
+        settings = self.get_server_settings()
+        if not settings:
+            return
+        self.run_application_lifecycle(
+            "server_settings_changed",
+            context={
+                "scope": "server",
+                "old_settings": {},
+                "new_settings": settings,
+                "changed_keys": sorted(settings.keys()),
+                "source": "startup",
+            },
+        )
+
+    def get_session_settings(self, session_id: str) -> Dict[str, Any]:
+        ctx = self.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        _core, _base_config, session = ctx
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        return dict(self._normalized_settings(metadata.get("overrides")))
+
+    def patch_session_settings(
+        self,
+        session_id: str,
+        updates: Dict[str, Any],
+        *,
+        source: str = "api",
+    ) -> Session:
+        normalized_updates = self._validate_settings_updates(updates)
+        with self.acquire_session_lock(session_id):
+            ctx = self.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            core, base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            old_settings = dict(self._normalized_settings(metadata.get("overrides")))
+            new_settings = {**old_settings, **normalized_updates}
+            changed_keys = self._changed_setting_keys(old_settings, new_settings)
+            if not changed_keys:
+                return session
+
+            updated = Session(
+                session_id=session.session_id,
+                messages=session.messages,
+                metadata={**metadata, "overrides": new_settings},
+            )
+            saved = self.save_session(updated)
+            core, base_config, saved, _results = self.run_session_lifecycle(
+                "session_settings_changed",
+                saved,
+                core=core,
+                base_config=base_config,
+                context={
+                    "scope": "session",
+                    "old_settings": old_settings,
+                    "new_settings": new_settings,
+                    "changed_keys": changed_keys,
+                    "source": source,
+                },
+            )
+            return self.save_session(saved)
+
+    def delete_session_setting(
+        self,
+        session_id: str,
+        key: str,
+        *,
+        source: str = "api",
+    ) -> Session:
+        if not isinstance(key, str) or not key:
+            raise ValueError("key must be a non-empty string")
+        with self.acquire_session_lock(session_id):
+            ctx = self.load_session(session_id)
+            if ctx is None:
+                raise KeyError(f"Session {session_id!r} not found")
+
+            core, base_config, session = ctx
+            metadata = session.metadata if isinstance(session.metadata, dict) else {}
+            old_settings = dict(self._normalized_settings(metadata.get("overrides")))
+            if key not in old_settings:
+                return session
+
+            new_settings = dict(old_settings)
+            new_settings.pop(key, None)
+            new_metadata = dict(metadata)
+            if new_settings:
+                new_metadata["overrides"] = new_settings
+            else:
+                new_metadata.pop("overrides", None)
+
+            updated = Session(
+                session_id=session.session_id,
+                messages=session.messages,
+                metadata=new_metadata,
+            )
+            saved = self.save_session(updated)
+            core, base_config, saved, _results = self.run_session_lifecycle(
+                "session_settings_changed",
+                saved,
+                core=core,
+                base_config=base_config,
+                context={
+                    "scope": "session",
+                    "old_settings": old_settings,
+                    "new_settings": new_settings,
+                    "changed_keys": [key],
+                    "source": source,
+                },
+            )
+            return self.save_session(saved)
+
     def _load_session_required(self, session_id: str) -> Session:
         session = self._session_store.load(session_id)
         if session is None:
@@ -1860,8 +2156,17 @@ class AgentApplication:
         overlay.close()
 
     def close(self) -> None:
-        """Release process-global runtime env overlay owned by this app."""
+        """Release plugin and process-global runtime resources owned by this app."""
 
+        for wrapper in list(self._app_plugins.values()):
+            try:
+                wrapper.close()
+            except Exception as exc:  # pragma: no cover - defensive cleanup
+                self._logger.warning(
+                    "application_plugin_close_failed",
+                    plugin_id=wrapper.plugin_id,
+                    error=str(exc),
+                )
         self._runtime_store.close()
         self._async_runtime_host.close()
         if self._runtime_env_finalizer.alive:
@@ -2001,18 +2306,37 @@ class AgentApplication:
         config: Optional[Dict[str, Any]] = None,
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
+        context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         """Return flattened UI schema elements from application plugins.
 
         Each element is normalized to include a ``"plugin"`` field naming
         the contributing plugin. Optional config/tags/models are passed
-        through so plugins can return config-aware UI.
+        through so plugins can return config-aware UI. Additional context is
+        delivered through the shared application context channel.
         """
+
+        safe_config: Dict[str, Any] = dict(config or {})
+        safe_tags: List[str] = list(tags or [])
+        safe_models: List[Dict[str, Any]] = [
+            dict(model) for model in (models or []) if isinstance(model, Mapping)
+        ]
+        ui_context_name = "application"
+        if isinstance(context, Mapping) and isinstance(context.get("ui_context"), str):
+            ui_context_name = cast(str, context["ui_context"])
+        application_context = self._context.build_application_ui_context(
+            ui_context=ui_context_name,
+            config=safe_config,
+            tags=safe_tags,
+            models=safe_models,
+            extra=context,
+        )
 
         elements: List[Dict[str, Any]] = []
         for plugin_id, wrapper in self._app_plugins.items():
             for raw_element in wrapper.get_ui_elements(
-                config=config, tags=tags, models=models
+                config=safe_config,
+                context=application_context,
             ):
                 if not isinstance(raw_element, dict):
                     continue
@@ -2023,6 +2347,106 @@ class AgentApplication:
                     element["plugin"] = plugin_id
                     elements.append(element)
         return elements
+
+    @staticmethod
+    def _resolve_ui_tags_and_models(
+        core: AgentCore,
+        config: Dict[str, Any],
+    ) -> Tuple[List[str], List[Dict[str, Any]]]:
+        tags: List[str] = []
+        models: List[Dict[str, Any]] = []
+        try:
+            if hasattr(core, "_resolve_plugins_for_config"):
+                provider, _, _, _, resolved_tags = core._resolve_plugins_for_config(
+                    config
+                )
+                tags = list(resolved_tags or [])
+                if provider is not None and hasattr(core, "_get_models_for_config"):
+                    raw_models = core._get_models_for_config(provider, config)
+                    models = [
+                        dict(model)
+                        for model in (raw_models or [])
+                        if isinstance(model, Mapping)
+                    ]
+        except Exception:
+            return [], []
+        return tags, models
+
+    def get_session_application_ui_schema_for_session(
+        self,
+        core: AgentCore,
+        base_config: Dict[str, Any],
+        session: Session,
+        *,
+        plugin: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return application UI schema for an already-loaded session."""
+
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = resolve_request_config(base_config, overrides)
+        tags, models = self._resolve_ui_tags_and_models(core, effective_config)
+
+        try:
+            elements = self.get_application_ui_schema(
+                config=effective_config,
+                tags=tags,
+                models=models,
+                context={
+                    "ui_context": "session",
+                    "session": session.to_dict(),
+                    "session_id": session.session_id,
+                    "base_config": base_config,
+                },
+            )
+        except Exception as exc:  # pragma: no cover - defensive
+            self._logger.exception("error getting application_ui_schema", error=str(exc))
+            elements = []
+
+        if plugin:
+            return [
+                element
+                for element in elements
+                if isinstance(element, dict) and element.get("plugin") == plugin
+            ]
+        return [element for element in elements if isinstance(element, dict)]
+
+    def get_session_application_ui_schema(
+        self,
+        session_id: str,
+        *,
+        plugin: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return application UI schema for a persisted session id."""
+
+        ctx = self.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        core, base_config, session = ctx
+        return self.get_session_application_ui_schema_for_session(
+            core,
+            base_config,
+            session,
+            plugin=plugin,
+        )
+
+    def get_server_settings_ui_schema(self) -> List[Dict[str, Any]]:
+        """Return application UI schema elements for server settings surfaces."""
+
+        settings = self.get_server_settings()
+        return self.get_application_ui_schema(
+            config={},
+            tags=[],
+            models=[],
+            context={
+                "ui_context": "server_settings",
+                "settings_scope": "server",
+                "settings": settings,
+                "server_settings": settings,
+            },
+        )
 
     def get_application_commands(self) -> List[Dict[str, Any]]:
         """Return flattened command bindings from application plugins.
@@ -2060,6 +2484,19 @@ class AgentApplication:
             super().__init__(message)
             self.details: Dict[str, Any] = details or {}
 
+    class _ApplicationActionResolutionError(Exception):
+        """Internal exception used for action-id-only resolution errors."""
+
+        def __init__(
+            self,
+            error_type: str,
+            message: str,
+            details: Optional[Dict[str, Any]] = None,
+        ) -> None:
+            super().__init__(message)
+            self.error_type = error_type
+            self.details: Dict[str, Any] = details or {}
+
     def _find_application_action_definition(
         self,
         plugin_id: str,
@@ -2073,6 +2510,186 @@ class AgentApplication:
             if action.get("plugin") == plugin_id and action.get("id") == action_id:
                 return action
         return None
+
+    def _action_session_id(
+        self,
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Optional[str]:
+        session_id = params.get("session_id") if isinstance(params, dict) else None
+        if isinstance(session_id, str) and session_id:
+            return session_id
+        if isinstance(context, dict):
+            context_session_id = context.get("session_id")
+            if isinstance(context_session_id, str) and context_session_id:
+                return context_session_id
+        return None
+
+    def _session_action_definitions(self, session_id: str) -> List[Dict[str, Any]]:
+        ctx = self.load_session(session_id)
+        if ctx is None:
+            raise KeyError(f"Session {session_id!r} not found")
+        core, base_config, session = ctx
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = self.resolve_effective_config(
+            base_config, session, overrides
+        )
+        return core.get_session_actions(effective_config)
+
+    def _application_action_candidates(
+        self,
+        action_id: str,
+    ) -> List[_ResolvedActionCandidate]:
+        candidates: List[_ResolvedActionCandidate] = []
+        seen: set[Tuple[str, str, str]] = set()
+        for action in self.get_application_actions():
+            if not isinstance(action, dict) or action.get("id") != action_id:
+                continue
+            plugin = action.get("plugin")
+            if not isinstance(plugin, str) or not plugin:
+                continue
+            key = (plugin, action_id, "application")
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append(
+                _ResolvedActionCandidate(
+                    plugin_id=plugin,
+                    action_id=action_id,
+                    action_owner="application",
+                )
+            )
+        return candidates
+
+    def _session_action_candidates(
+        self,
+        session_id: str,
+        action_id: str,
+        *,
+        action_owner: Optional[str] = None,
+    ) -> List[_ResolvedActionCandidate]:
+        candidates: List[_ResolvedActionCandidate] = []
+        seen: set[Tuple[str, str, str]] = set()
+        for action in self._session_action_definitions(session_id):
+            if not isinstance(action, dict) or action.get("id") != action_id:
+                continue
+            owner = action.get("action_owner")
+            if not isinstance(owner, str) or not owner:
+                owner = "provider_extension"
+            if action_owner is not None and owner != action_owner:
+                continue
+            plugin = action.get("plugin")
+            if not isinstance(plugin, str) or not plugin:
+                continue
+            key = (plugin, action_id, owner)
+            if key in seen:
+                continue
+            seen.add(key)
+            candidates.append(
+                _ResolvedActionCandidate(
+                    plugin_id=plugin,
+                    action_id=action_id,
+                    action_owner=owner,
+                )
+            )
+        return candidates
+
+    def _candidate_to_details(
+        self,
+        candidate: _ResolvedActionCandidate,
+    ) -> Dict[str, Any]:
+        return {
+            "plugin": candidate.plugin_id,
+            "action_id": candidate.action_id,
+            "action_owner": candidate.action_owner,
+        }
+
+    def _resolve_action_candidate(
+        self,
+        plugin_id: Optional[str],
+        action_id: str,
+        params: Dict[str, Any],
+        *,
+        action_owner: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> _ResolvedActionCandidate:
+        if not isinstance(action_id, str) or not action_id:
+            raise ValueError("action_id must be a non-empty string")
+        if not isinstance(params, dict):
+            raise ValueError("params must be a mapping of action inputs")
+
+        session_id = self._action_session_id(params, context)
+
+        if plugin_id is not None:
+            if not isinstance(plugin_id, str) or not plugin_id:
+                raise ValueError("plugin_id must be a non-empty string")
+            if action_owner == "application":
+                return _ResolvedActionCandidate(plugin_id, action_id, "application")
+            if action_owner in {"provider_extension", "feature"}:
+                return _ResolvedActionCandidate(plugin_id, action_id, action_owner)
+            if (
+                self._find_application_action_definition(plugin_id, action_id)
+                is not None
+            ):
+                return _ResolvedActionCandidate(plugin_id, action_id, "application")
+            if session_id is not None:
+                for candidate in self._session_action_candidates(session_id, action_id):
+                    if candidate.plugin_id == plugin_id:
+                        return candidate
+            return _ResolvedActionCandidate(plugin_id, action_id, "application")
+
+        candidates: List[_ResolvedActionCandidate] = []
+        if action_owner in {None, "application"}:
+            candidates.extend(self._application_action_candidates(action_id))
+
+        if session_id is not None and action_owner in {
+            None,
+            "provider_extension",
+            "feature",
+        }:
+            candidates.extend(
+                self._session_action_candidates(
+                    session_id,
+                    action_id,
+                    action_owner=action_owner,
+                )
+            )
+
+        if not candidates:
+            raise self._ApplicationActionResolutionError(
+                "unknown_action",
+                f"Unknown action_id {action_id!r}",
+                {"action_id": action_id},
+            )
+
+        if len(candidates) > 1:
+            raise self._ApplicationActionResolutionError(
+                "ambiguous_action",
+                f"Ambiguous action_id {action_id!r}",
+                {
+                    "action_id": action_id,
+                    "candidates": [
+                        self._candidate_to_details(candidate)
+                        for candidate in candidates
+                    ],
+                },
+            )
+
+        return candidates[0]
+
+    def resolve_application_action_plugin_id(self, action_id: str) -> str:
+        """Resolve an application action id to a unique contributing plugin id."""
+
+        candidate = self._resolve_action_candidate(
+            None,
+            action_id,
+            {},
+            action_owner="application",
+        )
+        return candidate.plugin_id
 
     @staticmethod
     def _action_param_type_matches(value: Any, expected_type: str) -> bool:
@@ -2223,6 +2840,9 @@ class AgentApplication:
 
         session_id = params.get("session_id")
         if not isinstance(session_id, str) or not session_id:
+            if isinstance(context, dict):
+                session_id = context.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
             raise ValueError("session_id must be a non-empty string")
         self._require_live_session_writable(session_id)
 
@@ -2307,38 +2927,65 @@ class AgentApplication:
             },
         }
 
+    def execute_action_with_metadata(
+        self,
+        plugin_id: Optional[str],
+        action_id: str,
+        params: Dict[str, Any],
+        *,
+        action_owner: Optional[str] = None,
+        context: Optional[Dict[str, Any]] = None,
+    ) -> ExecutedAction:
+        """Execute either an application action or a provider-extension session action."""
+
+        candidate = self._resolve_action_candidate(
+            plugin_id,
+            action_id,
+            params,
+            action_owner=action_owner,
+            context=context,
+        )
+
+        if candidate.action_owner == "application":
+            result = self.execute_application_action(
+                candidate.plugin_id,
+                candidate.action_id,
+                params,
+                context=context,
+            )
+        else:
+            result = self.execute_session_action(
+                candidate.plugin_id,
+                candidate.action_id,
+                params,
+                context=context,
+            )
+
+        return ExecutedAction(
+            plugin_id=candidate.plugin_id,
+            action_id=candidate.action_id,
+            action_owner=candidate.action_owner,
+            result=result if isinstance(result, dict) else {},
+        )
+
     def execute_action(
         self,
-        plugin_id: str,
+        plugin_id: Optional[str],
         action_id: str,
         params: Dict[str, Any],
         *,
         action_owner: Optional[str] = None,
         context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        """Execute either an application action or a provider-extension session action."""
+        """Execute an action and return only the plugin-provided result."""
 
-        if action_owner == "application":
-            return self.execute_application_action(
-                plugin_id, action_id, params, context=context
-            )
-        if action_owner in {"provider_extension", "feature"}:
-            return self.execute_session_action(
-                plugin_id, action_id, params, context=context
-            )
-
-        try:
-            return self.execute_application_action(
-                plugin_id, action_id, params, context=context
-            )
-        except KeyError:
-            if not (
-                isinstance(params, dict) and isinstance(params.get("session_id"), str)
-            ):
-                raise
-            return self.execute_session_action(
-                plugin_id, action_id, params, context=context
-            )
+        return self.execute_action_with_metadata(
+            plugin_id,
+            action_id,
+            params,
+            action_owner=action_owner,
+            context=context,
+        ).result
 
     def load_session(
         self,

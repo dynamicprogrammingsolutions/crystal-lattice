@@ -4,7 +4,8 @@ This tool accepts a string command which is executed via the user's default
 shell. Used by the shell-command model family, including codex variants and
 newer GPT-5 releases such as gpt-5.1, gpt-5.2, and gpt-5.4.
 
-Schema matches docs/codex-tools/shell_command/schema.without_request_permissions.json
+Schema matches:
+plugins/codex-tools/reference/codex-cli-tools/shell_command/schema.without_request_permissions.json
 """
 
 from __future__ import annotations

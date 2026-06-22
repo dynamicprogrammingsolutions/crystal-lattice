@@ -22,8 +22,8 @@ export const MESSAGE_ACTIONS: Record<MessageActionKey, MessageActionDefinition> 
     key: 'toggleMarkdown',
     label: 'Toggle markdown',
     iconName: 'code',
-    defaultPinnedRoles: ['assistant'],
-    allowedRoles: ['assistant'],
+    defaultPinnedRoles: ['user', 'assistant'],
+    allowedRoles: ['user', 'assistant'],
   },
   copy: {
     key: 'copy',

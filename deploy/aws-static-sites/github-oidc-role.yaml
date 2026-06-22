@@ -1,0 +1,132 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  GitHub Actions OIDC deploy role for Crystal Lattice static website and docs
+  deployment.
+
+Parameters:
+  GitHubOwner:
+    Type: String
+    Default: dynamicprogrammingsolutions
+    Description: GitHub organization or user that owns the repository.
+  GitHubRepo:
+    Type: String
+    Default: crystal-lattice
+    Description: GitHub repository name.
+  GitHubBranch:
+    Type: String
+    Default: main
+    Description: Branch allowed to assume this role.
+  RoleName:
+    Type: String
+    Default: CrystalLatticeStaticSitesGitHubDeployRole
+    Description: IAM role name for GitHub Actions static site deployment.
+  CreateOidcProvider:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "true"
+      - "false"
+    Description: Create token.actions.githubusercontent.com OIDC provider in this stack.
+  ExistingOidcProviderArn:
+    Type: String
+    Default: ""
+    Description: Existing GitHub OIDC provider ARN when CreateOidcProvider is false.
+  LandingBucket:
+    Type: String
+    Description: S3 bucket name for landing website artifacts.
+  DocsBucket:
+    Type: String
+    Description: S3 bucket name for docs website artifacts.
+  LandingDistributionId:
+    Type: String
+    Description: CloudFront distribution ID for the landing website.
+  DocsDistributionId:
+    Type: String
+    Description: CloudFront distribution ID for the docs website.
+
+Conditions:
+  ShouldCreateOidcProvider: !Equals [!Ref CreateOidcProvider, "true"]
+
+Resources:
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: ShouldCreateOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+        - 1c58a3a8518e8759bf075b76b750d4f2df264fcd
+
+  GitHubActionsDeployRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - ShouldCreateOidcProvider
+                - !Ref GitHubOidcProvider
+                - !Ref ExistingOidcProviderArn
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                token.actions.githubusercontent.com:aud: sts.amazonaws.com
+              StringLike:
+                token.actions.githubusercontent.com:sub: !Sub "repo:${GitHubOwner}/${GitHubRepo}:ref:refs/heads/${GitHubBranch}"
+      Policies:
+        - PolicyName: CrystalLatticeStaticSitesDeploy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListDeploymentBuckets
+                Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${LandingBucket}"
+                  - !Sub "arn:aws:s3:::${DocsBucket}"
+              - Sid: WriteDeploymentObjects
+                Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                  - s3:PutObject
+                Resource:
+                  - !Sub "arn:aws:s3:::${LandingBucket}/*"
+                  - !Sub "arn:aws:s3:::${DocsBucket}/*"
+              - Sid: InvalidateCloudFrontDistributions
+                Effect: Allow
+                Action:
+                  - cloudfront:CreateInvalidation
+                Resource:
+                  - !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${LandingDistributionId}"
+                  - !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${DocsDistributionId}"
+      Tags:
+        - Key: Project
+          Value: crystal-lattice
+        - Key: Component
+          Value: static-sites-github-actions
+
+Outputs:
+  AwsRoleToAssume:
+    Description: IAM role ARN for GitHub Actions AWS OIDC.
+    Value: !GetAtt GitHubActionsDeployRole.Arn
+  GitHubOwner:
+    Description: GitHub owner trusted by this role.
+    Value: !Ref GitHubOwner
+  GitHubRepo:
+    Description: GitHub repository trusted by this role.
+    Value: !Ref GitHubRepo
+  GitHubBranch:
+    Description: GitHub branch trusted by this role.
+    Value: !Ref GitHubBranch
+  OidcProviderArn:
+    Description: GitHub OIDC provider used by this role.
+    Value: !If
+      - ShouldCreateOidcProvider
+      - !Ref GitHubOidcProvider
+      - !Ref ExistingOidcProviderArn

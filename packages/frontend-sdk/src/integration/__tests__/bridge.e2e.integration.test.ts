@@ -254,4 +254,112 @@ describe('bridge e2e (TS BridgeTransport -> Elixir bridge -> Python BridgeClient
     },
     TEST_TIMEOUT_MS,
   );
+
+  it(
+    'allows a fast proxied request to complete while an earlier slow request is pending',
+    async () => {
+      const bridge = sharedAwsBridge ?? (await startBridgeForE2E());
+      if (!sharedAwsBridge) {
+        stopAll.push(bridge.stop);
+      }
+
+      const serverId = `e2e-concurrent-server-${Date.now()}`;
+
+      const started = await startBackendServer({
+        config: {
+          providers: {
+            test_provider: {
+              provider: 'deterministic_stream',
+              model: 'test-model',
+              timeout: 60,
+              stream_chunk_count: 1,
+              stream_chunk_delay_ms: 0,
+            },
+          },
+          plugins: ['plugins.deterministic_stream_provider.DeterministicStreamProvider'],
+          agents: {
+            default: {
+              provider: 'test_provider',
+            },
+          },
+        },
+        enableTestControl: true,
+        env: {
+          BRIDGE_URL: bridge.bridgeUrl,
+          BRIDGE_SERVER_ID: serverId,
+          BRIDGE_DISPLAY_NAME: 'E2E Concurrent Test Server',
+          BRIDGE_HTTP_TIMEOUT_SECONDS: '120.0',
+        },
+      });
+      stopAll.push(started.stop);
+
+      const sleepPreflight = await fetch(`${started.baseUrl}/__test/sleep?ms=1`);
+      expect(sleepPreflight.status).toBe(200);
+
+      const transport = new BridgeTransport({
+        bridgeUrl: bridge.bridgeUrl,
+        serverId,
+        wsFactory: (url: string): WebSocketLike => new NodeWebSocketWrapper(url),
+        defaultRequestTimeoutMs: 10_000,
+      });
+      await transport.connect();
+
+      await waitForAsync(async () => {
+        const servers = await transport.listServers();
+        return servers.some((s) => s.server_id === serverId);
+      }, { timeoutMs: 30_000, intervalMs: 250 });
+
+      await transport.requestPairing(serverId);
+      const match = await waitForStdoutMatch({
+        stdout: started.stdout,
+        pattern: /PAIRING CODE:\s*(\d{6})/,
+        timeoutMs: 30_000,
+      });
+      const code = match[1];
+
+      await transport.submitPairingCode(serverId, code);
+
+      const completions: string[] = [];
+      const slowPromise = transport
+        .request<{ slept_ms: number }>({
+          method: 'GET',
+          path: '/__test/sleep?ms=2000',
+          timeoutMs: 10_000,
+        })
+        .then((resp) => {
+          completions.push('slow');
+          return resp;
+        });
+      slowPromise.catch(() => {
+        // The assertion below awaits this promise; this prevents a transient
+        // unhandled-rejection report while the fast request is being checked.
+      });
+
+      const fastPromise = transport
+        .request<{ message: string }>({
+          method: 'GET',
+          path: '/api/hello',
+          timeoutMs: 10_000,
+        })
+        .then((resp) => {
+          completions.push('fast');
+          return resp;
+        });
+
+      const fastResp = await fastPromise.catch((err: any) => {
+        throw new Error(`fast request failed: ${err?.message ?? String(err)}`);
+      });
+      expect(fastResp.status).toBe(200);
+      expect(fastResp.data.message).toMatch(/Hello from Bonjour Server!/);
+      expect(completions).toEqual(['fast']);
+
+      const slowResp = await slowPromise.catch((err: any) => {
+        throw new Error(`slow request failed: ${err?.message ?? String(err)}`);
+      });
+      expect(slowResp.status).toBe(200);
+      expect(slowResp.data.slept_ms).toBe(2000);
+      expect(completions).toEqual(['fast', 'slow']);
+    },
+    TEST_TIMEOUT_MS,
+  );
 });

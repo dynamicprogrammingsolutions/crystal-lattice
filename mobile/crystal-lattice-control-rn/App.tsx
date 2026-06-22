@@ -2,6 +2,7 @@ import 'react-native-url-polyfill/auto';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppState,
+  Linking,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -34,6 +35,7 @@ import {
   type ManualConnectionRecord,
   type Transport,
   type TransportTimeoutRule,
+  type ParsedActionDeepLink,
 } from '@crystal-lattice/frontend-sdk';
 import ConnectedRoot from './src/ConnectedRoot';
 import { useMessagesCache } from './src/cache/useMessagesCache';
@@ -47,7 +49,7 @@ import {
 import { ThemeProvider, lightTheme, darkTheme, type Theme } from './src/theme';
 import { PinnedActionsProvider } from './src/PinnedActionsContext';
 import { AnimatedSplashScreen } from './src/components/AnimatedSplashScreen';
-
+import { createActionDeepLinkHandler } from './src/actionDeepLinkRouting';
 
 type ConnectionMethod = 'manual' | 'discovery' | 'bridge' | 'cloud';
 
@@ -209,7 +211,10 @@ function App(): React.JSX.Element {
 
   const styles = useMemo(() => createStyles(theme), [theme]);
   const appStateRef = useRef(AppState.currentState);
+  const backendRef = useRef<AgentBackend | null>(null);
+  const initialUrlHandledRef = useRef(false);
   const foregroundRecoveryInFlightRef = useRef(false);
+  const [pendingActionDeepLink, setPendingActionDeepLink] = useState<ParsedActionDeepLink | null>(null);
   const {
     messagesCache,
     updateMessagesCache,
@@ -224,6 +229,10 @@ function App(): React.JSX.Element {
         : null,
     [connections, selectedConnectionId],
   );
+
+  useEffect(() => {
+    backendRef.current = backend;
+  }, [backend]);
 
   const appendDebugNote = useCallback(
     (entry: Omit<DebugTimelineEntry, 'id' | 'timestampMs'> & {
@@ -244,6 +253,127 @@ function App(): React.JSX.Element {
     },
     [],
   );
+
+  const executeActionDeepLink = useCallback(
+    async (url: string) => {
+      const handler = createActionDeepLinkHandler({
+        hasConnection: (connectionId) =>
+          connections.some((connection) => connection.id === connectionId),
+        getBackendForConnection: (connectionId) =>
+          connectionId === selectedConnectionId ? backendRef.current : null,
+        queuePendingAction: setPendingActionDeepLink,
+      });
+
+      const outcome = await handler(url);
+      if (!outcome.handled) {
+        return;
+      }
+
+      if (outcome.status === 'queued') {
+        appendDebugNote({
+          scope: 'app',
+          title: 'Action link queued',
+          detail: outcome.parsed.actionId,
+          meta: {
+            connectionId: outcome.parsed.connectionId,
+            sessionId: outcome.parsed.sessionId,
+            pluginId: outcome.parsed.pluginId ?? null,
+          },
+        });
+        Alert.alert(
+          'Action Pending',
+          'Connect to the linked server to finish this action.',
+        );
+        return;
+      }
+
+      if (outcome.status === 'ok') {
+        appendDebugNote({
+          scope: 'app',
+          title: 'Action link execution succeeded',
+          detail: outcome.parsed.actionId,
+          meta: {
+            connectionId: outcome.parsed.connectionId,
+            sessionId: outcome.parsed.sessionId,
+            pluginId: outcome.response.plugin,
+            actionId: outcome.response.action_id,
+          },
+        });
+
+        const resultMessage =
+          outcome.response.result && typeof outcome.response.result.message === 'string'
+            ? outcome.response.result.message
+            : '';
+        if (resultMessage) {
+          Alert.alert('Action Complete', resultMessage);
+        }
+        return;
+      }
+
+      appendDebugNote({
+        scope: 'app',
+        title: 'Action link execution failed',
+        detail: outcome.message,
+        meta: {
+          connectionId: outcome.parsed?.connectionId ?? null,
+          sessionId: outcome.parsed?.sessionId ?? null,
+          pluginId: outcome.parsed?.pluginId ?? null,
+          actionId: outcome.parsed?.actionId ?? null,
+          errorType: outcome.errorType,
+        },
+      });
+      Alert.alert('Action Failed', outcome.message);
+    },
+    [appendDebugNote, connections, selectedConnectionId],
+  );
+
+  const handleIncomingUrl = useCallback(
+    async (url: string | null | undefined) => {
+      if (!url) {
+        return;
+      }
+      await executeActionDeepLink(url);
+    },
+    [executeActionDeepLink],
+  );
+
+  useEffect(() => {
+    if (
+      !pendingActionDeepLink ||
+      !backend ||
+      pendingActionDeepLink.connectionId !== selectedConnectionId
+    ) {
+      return;
+    }
+    const parsed = pendingActionDeepLink;
+    setPendingActionDeepLink(null);
+    void executeActionDeepLink(parsed.redirectUrl);
+  }, [backend, executeActionDeepLink, pendingActionDeepLink, selectedConnectionId]);
+
+  useEffect(() => {
+    if (!initialUrlHandledRef.current) {
+      initialUrlHandledRef.current = true;
+      Linking.getInitialURL()
+        .then((url) => {
+          void handleIncomingUrl(url);
+        })
+        .catch((error) => {
+          appendDebugNote({
+            scope: 'app',
+            title: 'Initial URL read failed',
+            detail: error?.message || String(error),
+          });
+        });
+    }
+
+    const subscription = Linking.addEventListener('url', (event) => {
+      void handleIncomingUrl(event.url);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [appendDebugNote, handleIncomingUrl]);
 
   useEffect(() => {
     const loadSavedConnections = async () => {

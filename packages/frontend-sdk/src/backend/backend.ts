@@ -192,6 +192,16 @@ export interface AgentBackend {
   ): Promise<void>;
   getSessionConfigSchema(sessionId: string): Promise<ConfigSchemaEntry[]>;
   getSessionBaseConfig(sessionId: string): Promise<Record<string, any>>;
+  getServerSettings?(): Promise<Record<string, any>>;
+  patchServerSettings?(
+    values: Record<string, any>,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
+  deleteServerSetting?(
+    key: string,
+    options?: { idempotencyKey?: string },
+  ): Promise<void>;
+  listServerSettingsUiSchema?(): Promise<ApplicationUiElement[]>;
 
   // --- Application plugins/actions ---
   listApplicationActions(params?: { pluginId?: string }): Promise<ApplicationActionDefinition[]>;
@@ -201,7 +211,7 @@ export interface AgentBackend {
     params?: { pluginId?: string },
   ): Promise<ApplicationUiElement[]>;
   executeAction(params: {
-    pluginId: string;
+    pluginId?: string;
     actionId: string;
     actionOwner?: string;
     inputs: Record<string, any>;
@@ -209,7 +219,7 @@ export interface AgentBackend {
   }): Promise<ExecuteActionResponse>;
   executeSessionAction?(params: {
     sessionId: string;
-    pluginId: string;
+    pluginId?: string;
     actionId: string;
     actionOwner?: string;
     inputs: Record<string, any>;

@@ -21,7 +21,7 @@ The bundled installer includes Python and the app runtime. It is the easiest
 path for end users on macOS or Linux:
 
 ```bash
-curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash
+curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
 ```
 
 The default install locations are:
@@ -34,14 +34,13 @@ The default install locations are:
 Pinned install:
 
 ```bash
-VERSION=0.1.0 \
-  curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash
+curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | VERSION=0.1.0 bash
 ```
 
 Review-first install:
 
 ```bash
-curl -fsSLO https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh
+curl -fsSLO https://download.crystallattice.dev/crystal-lattice-cli/install.sh
 less install.sh
 bash install.sh
 ```
@@ -710,13 +709,13 @@ and a release archive under:
 dist/crystal-lattice/
 ```
 
-Optimized PyInstaller archive names look like:
+Bundled-Python runtime archive names look like:
 
 ```text
-crystal-lattice-cli-v0.1.0-linux-amd64.tar.gz
-crystal-lattice-cli-v0.1.0-darwin-amd64.tar.gz
-crystal-lattice-cli-v0.1.0-darwin-arm64.tar.gz
-crystal-lattice-cli-v0.1.0-windows-amd64.zip
+crystal-lattice-python-runtime-v0.1.0-linux-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.0-darwin-amd64.tar.gz
+crystal-lattice-python-runtime-v0.1.0-darwin-arm64.tar.gz
+crystal-lattice-python-runtime-v0.1.0-windows-amd64.zip
 ```
 
 PyInstaller does not cross-compile. Build Linux, macOS, and Windows optimized
@@ -805,10 +804,14 @@ nox -s install_dev_local
 This creates or updates `~/.crystal/dev-cli-venv`, installs the local checkout
 in editable mode, and writes `~/.local/bin/crystal-lattice-cli-dev`.
 
-### Curl Installer / S3 Downloads
+### Curl Installer / Download Domain
 
-The public shell installer downloads from a public S3 bucket so binary installs
-can work even while the GitHub repository is private.
+The public shell installer downloads through the CloudFront-backed download
+domain:
+
+```text
+https://download.crystallattice.dev/crystal-lattice-cli
+```
 
 Configurable installer values:
 
@@ -819,45 +822,43 @@ COMMAND_NAME="crystal-lattice"
 CRYSTAL_LATTICE_DOWNLOAD_BASE_URL="https://example.com/crystal-lattice-cli"
 ```
 
-`CRYSTAL_LATTICE_DOWNLOAD_BASE_URL` is the main switch for moving from direct
-S3 to CloudFront, GitHub Releases, or another bucket later. The same URL base
-is expected to contain `install.sh`, `latest.txt`, and the release archives.
+`CRYSTAL_LATTICE_DOWNLOAD_BASE_URL` is the main switch for testing another
+CloudFront distribution, bucket, or local mirror. The same URL base is expected
+to contain `install.sh`, `latest.txt`, and the release archives.
 
-Release tag workflows publish S3 downloads automatically after GitHub Release
-publishing succeeds. The workflow assumes this OIDC role:
+Release tag workflows publish downloads automatically after GitHub Release
+publishing succeeds. The workflow assumes the OIDC role configured by:
 
-```text
-arn:aws:iam::874087778966:role/CrystalLatticeReleaseS3Publisher
+```bash
+deploy/aws-cli-downloads/configure-github-actions-vars.sh --profile prod
 ```
 
 The role trust is limited to this repository's release tags matching
-`refs/tags/crystal-lattice-cli-v*`, and its policy can only write under:
+`refs/tags/crystal-lattice-cli-v*`, plus the explicitly configured branch used
+for workflow testing. Its policy can only write to the configured downloads
+bucket/prefix and invalidate the configured CloudFront distribution.
 
-```text
-s3://crystal-lattice-downloads-874087778966/crystal-lattice-cli/*
-```
+Deployment scripts and runbook live under `deploy/aws-cli-downloads/`.
 
 Manual republish:
 
 ```bash
-python scripts/publish_crystal_lattice_s3.py --assets-dir dist/crystal-lattice-python-runtime
+ALLOW_AWS_DEPLOY=1 deploy/aws-cli-downloads/publish-assets.sh \
+  --profile prod \
+  --assets-dir dist/crystal-lattice-python-runtime \
+  --version 0.1.0
 ```
 
-Turn off public S3 downloads quickly:
-
-```bash
-aws s3api delete-bucket-policy --bucket crystal-lattice-downloads-874087778966
-aws s3api put-public-access-block \
-  --bucket crystal-lattice-downloads-874087778966 \
-  --public-access-block-configuration \
-  BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
-```
+To change or retire the public download endpoint, use the deployment scripts in
+`deploy/aws-cli-downloads/`. They manage the private S3 bucket, CloudFront
+distribution, Route 53 records, installer, `latest.txt`, and GitHub Actions
+publishing configuration together.
 
 ### GitHub Release Workflow
 
-GitHub Releases are the canonical CI build output for binary archives. While
-the repository is private, public shell installers consume copies published to
-S3.
+GitHub Releases are the canonical CI build output for binary archives. Public
+shell installers consume copies published to the CloudFront-backed download
+domain.
 
 The release workflow lives at:
 
@@ -917,7 +918,7 @@ Maintainer checklist:
 4. Commit and push the release commit.
 5. Create and push `crystal-lattice-cli-v<version>`.
 6. Verify the GitHub Release contains all four archives.
-7. Verify the S3 installer and `latest.txt` point at the expected release.
+7. Verify the download-domain installer and `latest.txt` point at the expected release.
 
 ### Docker Linux Bundle Test
 

@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "sleep-prevention-app"
+version = "0.1.0"
+description = "Application plugin for server-scoped sleep prevention"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "wakepy>=1.0.0; sys_platform != 'darwin'",
+]
+
+
+[project.optional-dependencies]
+dev = [
+  "agent-core>=0.3.0",
+  "pytest>=7.0.0",
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sleep_prevention_app*"]
+
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

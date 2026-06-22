@@ -6,6 +6,8 @@ Prepare the Crystal Lattice Control React Native iOS app for TestFlight registra
 
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/010-preflight-audit.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/020-fix-mobile-verification.md`
+  - PARTIALLY COMPLETED VIA `tasks/20260615-mobile-component-integration-tests/020-react-native-testing-library-setup.md`
+  - OVERLAP: the later mobile component testing task fixed the Jest/native-module setup portion of this TestFlight verification task. In the current checkout on 2026-06-17, `npm run tsc` and `npm test -- --runInBand` also pass; `npm run lint` is blocked by missing ESLint config.
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/030-ios-branding-assets.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/040-ios-identity-metadata.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-page-compliance.md`

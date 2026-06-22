@@ -1,13 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
   Alert,
-  Modal,
-  Pressable,
-  ScrollView,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from 'react-native';
 
@@ -15,6 +10,7 @@ import type { AgentBackend, SessionPluginEntry } from '@crystal-lattice/frontend
 import { useSessionPluginsController } from '@crystal-lattice/frontend-sdk-react';
 import { SessionPluginsList } from '@crystal-lattice/frontend-rn-components';
 
+import PanelModalFrame from './PanelModalFrame';
 import { useTheme, type Theme } from '../theme';
 
 export interface SessionPluginsModalProps {
@@ -167,140 +163,33 @@ const SessionPluginsModal: React.FC<SessionPluginsModalProps> = ({
   const statusTone = error ? 'error' : successMessage ? 'success' : showSpinner ? 'busy' : 'idle';
 
   return (
-    <Modal
+    <PanelModalFrame
       visible={visible}
-      transparent
-      animationType="fade"
+      title="Plugins"
+      subtitle="Enable/disable plugins for this session. Inactive means it cannot run due to the current config."
       onRequestClose={onRequestClose}
+      statusText={statusText}
+      statusTone={statusTone}
+      showSpinner={showSpinner}
+      scroll={Boolean(backend && supported)}
     >
-      <View style={styles.modalOverlay}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onRequestClose} />
-        <View style={styles.modalContent}>
-          <View style={styles.headerRow}>
-            <Text style={styles.modalTitle}>Plugins</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={onRequestClose}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-          <Text style={styles.modalSubtitle}>
-            Enable/disable plugins for this session. “Inactive” means it can’t run due to the current config.
-          </Text>
-
-          <View style={styles.statusLine}>
-            {showSpinner ? <ActivityIndicator size="small" color={theme.primary} /> : null}
-            {statusText ? (
-              <Text
-                style={[
-                  styles.statusText,
-                  statusTone === 'error'
-                    ? styles.statusTextError
-                    : statusTone === 'success'
-                      ? styles.statusTextSuccess
-                      : null,
-                ]}
-                numberOfLines={1}
-              >
-                {statusText}
-              </Text>
-            ) : null}
-          </View>
-
-          {!backend || !supported ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateText}>{error}</Text>
-            </View>
-          ) : (
-            <View style={styles.body}>
-              <ScrollView
-                style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
-                keyboardShouldPersistTaps="handled"
-              >
-                <SessionPluginsList
-                  plugins={plugins}
-                  onToggle={handleToggle}
-                  onReset={handleReset}
-                />
-              </ScrollView>
-            </View>
-          )}
+      {!backend || !supported ? (
+        <View style={styles.emptyState}>
+          <Text style={styles.emptyStateText}>{error}</Text>
         </View>
-      </View>
-    </Modal>
+      ) : (
+        <SessionPluginsList
+          plugins={plugins}
+          onToggle={handleToggle}
+          onReset={handleReset}
+        />
+      )}
+    </PanelModalFrame>
   );
 };
 
 const createStyles = (theme: Theme) =>
   StyleSheet.create({
-    modalOverlay: {
-      flex: 1,
-      backgroundColor: theme.modalBackdrop,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    modalContent: {
-      width: '90%',
-      maxHeight: '80%',
-      backgroundColor: theme.surface,
-      borderRadius: 12,
-      padding: 16,
-    },
-    headerRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-    },
-    modalTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: theme.text,
-    },
-    closeButton: {
-      paddingHorizontal: 8,
-      paddingVertical: 6,
-    },
-    closeButtonText: {
-      color: theme.primary,
-      fontSize: 14,
-      fontWeight: '600',
-    },
-    modalSubtitle: {
-      marginTop: 6,
-      marginBottom: 10,
-      fontSize: 12,
-      color: theme.textSecondary,
-    },
-    statusLine: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: 10,
-      minHeight: 22,
-      marginBottom: 10,
-    },
-    statusText: {
-      color: theme.textSecondary,
-      fontSize: 13,
-      flexShrink: 1,
-    },
-    statusTextError: {
-      color: theme.danger,
-      fontWeight: '600',
-    },
-    statusTextSuccess: {
-      color: theme.success,
-      fontWeight: '600',
-    },
-    body: {
-      flexGrow: 0,
-      flexShrink: 1,
-    },
-    scroll: {
-      flexGrow: 0,
-      flexShrink: 1,
-    },
-    scrollContent: {
-      paddingBottom: 6,
-    },
     emptyState: {
       paddingVertical: 8,
     },
