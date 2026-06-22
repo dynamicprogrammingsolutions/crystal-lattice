@@ -623,4 +623,5 @@ def test_compact_range_with_asset_ref_requires_context_ollama(tmp_path: Path) ->
             f"send_request_stream. Error: {error_msg}"
         )
 
-    assert result.get("message") == "Compacted conversation."
+    assert result.get("compaction_result") is not None
+    assert result["compaction_result"].get("status") == "ok"

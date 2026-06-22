@@ -285,11 +285,17 @@ def test_compact_conversation_with_asset_ref_requires_context_ollama(tmp_path: P
         )
     except RuntimeError as exc:
         error_msg = str(exc)
-        assert "session asset attachment requires session_asset_store in context" in error_msg
-        pytest.fail(
-            f"Regression detected: claude_compaction_feature did not forward context to "
-            f"send_request_stream. Error: {error_msg}"
-        )
+        # Without the fix, this is the expected error.
+        if "session asset attachment requires session_asset_store in context" in error_msg:
+            pytest.fail(
+                f"Regression detected: claude_compaction_feature did not forward context to "
+                f"send_request_stream. Error: {error_msg}"
+            )
+        # If the asset was resolved but the model rejects images, that's an environment
+        # limitation, not a regression — the fix worked.
+        if "does not support image" in error_msg.lower():
+            pytest.skip(f"Ollama model does not support image input: {error_msg}")
+        raise
 
     # With the fix, it succeeds and returns a mutation.
     assert result.get("message") == "Compacted conversation."

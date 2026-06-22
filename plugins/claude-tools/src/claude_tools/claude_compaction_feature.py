@@ -350,9 +350,10 @@ def _collect_final_messages_from_stream(
     core: Any,
     session: Session,
     config: Dict[str, Any],
+    context: Dict[str, Any] | None = None,
 ) -> List[Dict[str, Any]]:
     final_messages: List[Dict[str, Any]] = []
-    for event in core.send_request_stream(session, config):
+    for event in core.send_request_stream(session, config, context=context):
         if event.get("type") != "final":
             continue
         raw_messages = event.get("messages")
@@ -365,8 +366,9 @@ def _run_compaction_request(
     core: Any,
     session: Session,
     config: Dict[str, Any],
+    context: Dict[str, Any] | None = None,
 ) -> str:
-    final_messages = _collect_final_messages_from_stream(core, session, config)
+    final_messages = _collect_final_messages_from_stream(core, session, config, context=context)
     for message in reversed(final_messages):
         if message.get("role") != "assistant":
             continue
@@ -875,6 +877,7 @@ class ClaudeCompactionFeature:
             context["core"],
             compaction_session,
             _merge_request_config(request_config),
+            context=context,
         )
         summary_body = extract_summary_text(compaction_response)
         transcript_path = _session_transcript_path(context, session)

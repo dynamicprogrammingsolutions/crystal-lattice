@@ -48,11 +48,12 @@ def _collect_final_messages_from_stream(
     config: Dict[str, Any],
     *,
     request_id: str | None = None,
+    context: Dict[str, Any] | None = None,
 ) -> List[Dict[str, Any]]:
     """Run an internal request via the streaming path and return final messages."""
 
     final_messages: List[Dict[str, Any]] = []
-    for event in core.send_request_stream(session, config, request_id=request_id):
+    for event in core.send_request_stream(session, config, request_id=request_id, context=context):
         if event.get("type") != "final":
             continue
         raw_messages = event.get("messages")
@@ -392,6 +393,7 @@ class GeminiCompactionFeaturePlugin:
             end_raw=end_raw,
             instructions=instructions_str,
             app=app,
+            context=context,
         )
 
     # ------------------------------------------------------------------
@@ -586,6 +588,7 @@ class GeminiCompactionFeaturePlugin:
         end_raw: Any,
         instructions: Optional[str],
         app: Optional[Any],
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute the compaction range action.
 
@@ -717,6 +720,7 @@ class GeminiCompactionFeaturePlugin:
                 core_compact,
                 session_with_prompt,
                 slice_config,
+                context=context,
             )
         except Exception as exc:
             return {
@@ -767,6 +771,7 @@ class GeminiCompactionFeaturePlugin:
                     core_compact,
                     session_for_verify,
                     slice_config,
+                    context=context,
                 )
             except Exception:
                 verify_final_messages = None

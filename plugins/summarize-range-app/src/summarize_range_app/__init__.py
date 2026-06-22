@@ -40,11 +40,12 @@ def _collect_final_messages_from_stream(
     config: Dict[str, Any],
     *,
     request_id: str | None = None,
+    context: Dict[str, Any] | None = None,
 ) -> List[Dict[str, Any]]:
     """Run an internal request via the streaming path and return final messages."""
 
     final_messages: List[Dict[str, Any]] = []
-    for event in core.send_request_stream(session, config, request_id=request_id):
+    for event in core.send_request_stream(session, config, request_id=request_id, context=context):
         if event.get("type") != "final":
             continue
         raw_messages = event.get("messages")
@@ -476,11 +477,16 @@ class SummarizeRangeAppPlugin:
                     request_overrides,
                 )
             )
+            handoff_context = app._context.build_core_handoff_context(
+                base_config=base_config_sum,
+                config=request_config,
+            )
             last_final_messages = _collect_final_messages_from_stream(
                 core_sum,
                 session_with_prompt,
                 request_config,
                 request_id=rid,
+                context=handoff_context,
             )
         except Exception as exc:  # pragma: no cover - defensive
             return {
