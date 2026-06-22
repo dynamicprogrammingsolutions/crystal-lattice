@@ -18,7 +18,7 @@ The internal Python module is still `agent_terminal_app`, so
 ### Binary Install
 
 The bundled installer includes Python and the app runtime. It is the easiest
-path for end users on macOS or Linux:
+path for end users on macOS, Linux, or Git Bash on Windows:
 
 ```bash
 curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
@@ -51,10 +51,12 @@ Supported shell-installer assets:
 darwin-amd64
 darwin-arm64
 linux-amd64
+windows-amd64
 ```
 
-Windows uses the release `.zip` asset for now; a PowerShell installer can be
-added separately.
+On Windows, run the shell installer from Git Bash, MSYS2, or Cygwin. Native
+PowerShell installation is not implemented yet; use the release `.zip` asset
+directly if you do not use a Bash-compatible shell.
 
 ### Python Install
 
@@ -824,7 +826,9 @@ CRYSTAL_LATTICE_DOWNLOAD_BASE_URL="https://example.com/crystal-lattice-cli"
 
 `CRYSTAL_LATTICE_DOWNLOAD_BASE_URL` is the main switch for testing another
 CloudFront distribution, bucket, or local mirror. The same URL base is expected
-to contain `install.sh`, `latest.txt`, and the release archives.
+to contain `install.sh`, `latest.txt`, and the release archives. The shell
+installer downloads `.tar.gz` archives on macOS/Linux and the `.zip` archive
+when it detects Git Bash/MSYS/Cygwin on Windows.
 
 Release tag workflows publish downloads automatically after GitHub Release
 publishing succeeds. The workflow assumes the OIDC role configured by:

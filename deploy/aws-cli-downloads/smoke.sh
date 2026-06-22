@@ -101,7 +101,7 @@ fi
 os="$(uname -s 2>/dev/null || true)"
 arch="$(uname -m 2>/dev/null || true)"
 case "$os:$arch" in
-  Darwin:x86_64|Darwin:arm64|Linux:x86_64|Linux:amd64)
+  Darwin:x86_64|Darwin:arm64|Linux:x86_64|Linux:amd64|MINGW*:x86_64|MINGW*:amd64|MSYS*:x86_64|MSYS*:amd64|CYGWIN*:x86_64|CYGWIN*:amd64)
     need_command bash
     test_root="$(mktemp -d)"
     trap 'rm -rf "$test_root"' EXIT
