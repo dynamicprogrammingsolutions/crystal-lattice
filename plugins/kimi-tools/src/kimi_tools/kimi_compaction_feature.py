@@ -344,7 +344,7 @@ def _collect_final_messages_from_stream(
     context: Dict[str, Any] | None = None,
 ) -> List[Dict[str, Any]]:
     final_messages: List[Dict[str, Any]] = []
-    for event in core.send_request_stream(session, config, context=context):
+    for event in core.send_request_stream(session, config):
         if event.get("type") != "final":
             continue
         raw_messages = event.get("messages")
