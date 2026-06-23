@@ -9,11 +9,14 @@ seo:
 sections:
   - type: hero
     id: hero
-    titleHtml: 'Own the harness.<br /><span class="highlight">Use the agent anywhere.</span>'
+    badge: "Plugin-driven agent platform"
+    titleHtml: 'For people who outgrow<br /><span class="highlight">one-size-fits-all agents.</span>'
     subtitle: >-
-      Crystal Lattice is a plugin-driven platform for running AI agents your way:
-      from your computer, from your phone, and through custom tools, prompts,
-      settings, and model-family harnesses you can replace.
+      Crystal Lattice is a model-native agent platform: the harness changes
+      around the model, including its system message, tool schema, request
+      behavior, provider-native state, and UI controls. Built-in plugins provide
+      Codex, Claude, Gemini, Qwen, Kimi, and Grok-style defaults, and your config
+      can replace them.
     actions:
       - label: "Start a workspace"
         href: "#computer-to-phone"
@@ -26,11 +29,23 @@ sections:
         target: "_blank"
     install:
       prompt: "$"
-      command: "curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash"
+      command: "curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash"
       altHtml: "or <code>pipx install crystal-lattice-cli</code>"
+
+  - type: providers
+    id: harness-strip
+    label: "Built-in model-family harnesses"
+    providers:
+      - "Codex-style tools"
+      - "Claude-style workflows"
+      - "Gemini-oriented tools"
+      - "Qwen-oriented tools"
+      - "Kimi-oriented tools"
+      - "Grok-oriented tools"
 
   - type: actionGuide
     id: computer-to-phone
+    eyebrow: "Computer to phone"
     title: "Start at your desk. Keep going from your phone."
     body:
       - >-
@@ -46,7 +61,7 @@ sections:
       steps:
         - label: "Install the CLI"
           code: |
-            curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash
+            curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
         - label: "Start Crystal Lattice with local discovery"
           code: |
             mkdir -p ~/crystal-lattice-demo
@@ -64,9 +79,15 @@ sections:
     note: >-
       Automatic discovery uses the local network. If your phone is outside that
       network, use the bridge section below.
+    visual:
+      kind: "connectionDiagram"
+      status: "placeholder-needed"
+      desktop: "Show computer runtime on the left and terminal, desktop app, mobile app, and custom UI connected to the same sessions."
+      mobile: "Stack the command card first, then a compact connection diagram."
 
   - type: actionGuide
     id: bridge
+    eyebrow: "Outside your local network"
     title: "Pair through a self-hosted bridge"
     body:
       - >-
@@ -102,9 +123,92 @@ sections:
               --bridge-url wss://<your-cloudfront-domain>/ws/websocket
         - label: "Pair from the phone"
           text: "Open Crystal Lattice Control, choose Bridge Service, enter the bridge URL, select your computer, and enter the pairing code."
+    visual:
+      kind: "bridgeDiagram"
+      status: "placeholder-needed"
+      desktop: "Show phone -> bridge -> user's computer, with pairing code callout."
+      mobile: "Use three compact steps: deploy, start with URL, pair."
+
+  - type: featureMatrix
+    id: model-native-harnesses
+    eyebrow: "Model-native harnesses"
+    title: "Stop forcing every model through the same prompt and tools."
+    intro: >-
+      Model-native means Crystal Lattice changes the harness around the model:
+      system message, tool schema, request behavior, provider-native state, and
+      UI controls. The built-in defaults do this with plugins, and those plugins
+      can be replaced.
+    columns:
+      - key: "modelFamily"
+        label: "Model family"
+      - key: "builtInHarness"
+        label: "Built-in harness"
+      - key: "whatChanges"
+        label: "What changes"
+    rows:
+      - modelFamily: "Codex / GPT coding models"
+        builtInHarness: "`codex-tools`"
+        whatChanges: "Codex-style shell tools, apply patch semantics, skills block, model-family system instructions."
+      - modelFamily: "Claude"
+        builtInHarness: "`claude-tools`"
+        whatChanges: "Claude-oriented tool schema and workflow conventions."
+      - modelFamily: "Gemini"
+        builtInHarness: "`gemini-tools` + compaction plugins"
+        whatChanges: "Gemini-oriented system message and tool behavior, optional compaction flow."
+      - modelFamily: "Qwen"
+        builtInHarness: "`qwen-tools`"
+        whatChanges: "Qwen-oriented tool and instruction style."
+      - modelFamily: "Kimi"
+        builtInHarness: "`kimi-tools`"
+        whatChanges: "Kimi-oriented tools and prompt behavior."
+      - modelFamily: "Grok"
+        builtInHarness: "`grok-tools`"
+        whatChanges: "Grok-oriented tools and request behavior."
+      - modelFamily: "OpenAI Responses"
+        builtInHarness: "`openai_responses`"
+        whatChanges: "Responses-native reasoning, usage/cost metadata, attachments, prompt caching, native compaction."
+      - modelFamily: "OpenRouter"
+        builtInHarness: "`openrouter`"
+        whatChanges: "OpenRouter model routing, reasoning/web/image extensions depending on provider path."
+
+  - type: featureShowcase
+    id: native-provider-features
+    eyebrow: "Native provider features"
+    title: "Provider-specific behavior can become real UI."
+    body:
+      - >-
+        Some capabilities are not generic chat settings. Reasoning effort,
+        verbosity, web search, prompt caching, native compaction, attachment
+        handling, usage, and cost metadata depend on the provider path.
+      - >-
+        Crystal Lattice lets provider and feature plugins expose those controls
+        and outputs directly to the UI, so native behavior is visible instead of
+        hidden behind a generic wrapper.
+    items:
+      - title: "Reasoning and verbosity"
+        description: "Expose model-specific controls when the provider supports them."
+        media:
+          kind: "screenshot"
+          status: "placeholder-needed"
+      - title: "Web search and citations"
+        description: "Show search/citation behavior through provider extensions where available."
+        media:
+          kind: "screenshot"
+          status: "placeholder-needed"
+      - title: "Prompt caching and compaction"
+        description: "Keep long sessions practical with provider-native cache and compaction controls."
+        media:
+          kind: "screenshot"
+          status: "placeholder-needed"
+      - title: "Usage, cost, and attachments"
+        description: "Surface metadata, generated assets, and attachment handling in the UI."
+        media:
+          kind: "screenshot"
+          status: "placeholder-needed"
 
   - type: featureCodeShowcase
     id: everything-replaceable
+    eyebrow: "Everything is replaceable"
     title: "Serious users eventually disagree with the harness."
     body:
       - >-
@@ -211,49 +315,9 @@ sections:
                     },
                 ]
 
-  - type: featureMatrix
-    id: model-native-harnesses
-    title: "Stop forcing every model through the same prompt and tools."
-    intro: >-
-      Model-native means Crystal Lattice changes the harness around the model:
-      system message, tool schema, request behavior, provider-native state, and
-      UI controls. The built-in defaults do this with plugins, and those plugins
-      can be replaced.
-    columns:
-      - key: "modelFamily"
-        label: "Model family"
-      - key: "builtInHarness"
-        label: "Built-in harness"
-      - key: "whatChanges"
-        label: "What changes"
-    rows:
-      - modelFamily: "Codex / GPT coding models"
-        builtInHarness: "`codex-tools`"
-        whatChanges: "Codex-style shell tools, apply patch semantics, skills block, model-family system instructions."
-      - modelFamily: "Claude"
-        builtInHarness: "`claude-tools`"
-        whatChanges: "Claude-oriented tool schema and workflow conventions."
-      - modelFamily: "Gemini"
-        builtInHarness: "`gemini-tools` + compaction plugins"
-        whatChanges: "Gemini-oriented system message and tool behavior, optional compaction flow."
-      - modelFamily: "Qwen"
-        builtInHarness: "`qwen-tools`"
-        whatChanges: "Qwen-oriented tool and instruction style."
-      - modelFamily: "Kimi"
-        builtInHarness: "`kimi-tools`"
-        whatChanges: "Kimi-oriented tools and prompt behavior."
-      - modelFamily: "Grok"
-        builtInHarness: "`grok-tools`"
-        whatChanges: "Grok-oriented tools and request behavior."
-      - modelFamily: "OpenAI Responses"
-        builtInHarness: "`openai_responses`"
-        whatChanges: "Responses-native reasoning, usage/cost metadata, attachments, prompt caching, native compaction."
-      - modelFamily: "OpenRouter"
-        builtInHarness: "`openrouter`"
-        whatChanges: "OpenRouter model routing, reasoning/web/image extensions depending on provider path."
-
   - type: screenshotGallery
     id: session-workbench
+    eyebrow: "Session workbench"
     title: "Treat sessions as workspaces, not disposable chats."
     body:
       - >-
@@ -264,12 +328,30 @@ sections:
         The workbench is plugin-driven too: built-in plugins provide the default
         behavior, and your own plugins can add or replace workflow actions.
     gallery:
-      - title: "Session workbench"
-        description: "Session actions, workspace controls, snapshots, attachments, and plugin-driven settings."
-        src: "/session-workbench.png"
+      - title: "Session list"
+        description: "Titles, pinned state, ordering, message counts, and timestamps."
+        src: "/session-list-workbench.png"
+        status: "placeholder-needed"
+      - title: "Chat actions"
+        description: "Message and session actions exposed by plugins."
+        src: "/chat-actions-workbench.png"
+        status: "placeholder-needed"
+      - title: "Snapshots"
+        description: "Create, inspect, select, and restore session checkpoints."
+        src: "/session-snapshots-workbench.png"
+        status: "placeholder-needed"
+      - title: "Attachments"
+        description: "Preserve generated assets and session-owned files."
+        src: "/session-attachments-workbench.png"
+        status: "placeholder-needed"
+      - title: "Settings and plugins"
+        description: "Per-session controls from plugin UI schema."
+        src: "/session-settings-plugins.png"
+        status: "placeholder-needed"
 
   - type: promptBlock
     id: build-plugin
+    eyebrow: "Plugin authoring"
     title: "Ask an agent to plan the plugin."
     intro: >-
       A user-owned plugin workflow still needs product polish, but the design
@@ -309,6 +391,7 @@ sections:
 
   - type: codeExample
     id: automate-python
+    eyebrow: "Python SDK"
     title: "Automate the same harness with Python."
     body:
       - >-

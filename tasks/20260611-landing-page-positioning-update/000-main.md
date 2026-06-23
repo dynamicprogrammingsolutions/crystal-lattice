@@ -6,9 +6,12 @@ Refine the landing page so it better reflects Crystal Lattice's strongest curren
 
 - [x] `tasks/20260611-landing-page-positioning-update/010-claim-safety-and-current-state-audit.md`
 - [x] `tasks/20260611-landing-page-positioning-update/020-homepage-structure-and-copy.md`
-- [ ] `tasks/20260611-landing-page-positioning-update/030-mobile-connectivity-and-store-links.md`
-- [ ] `tasks/20260611-landing-page-positioning-update/040-plugin-control-and-sdk-action-blocks.md`
-- [ ] `tasks/20260611-landing-page-positioning-update/050-implementation-and-verification.md`
+- [x] `tasks/20260611-landing-page-positioning-update/030-mobile-connectivity-and-store-links.md`
+  - COMPLETED VIA `tasks/20260611-landing-page-positioning-update/proposed-rewrite/mobile.yaml` alignment (mobile.yaml already matched; no changes needed)
+- [x] `tasks/20260611-landing-page-positioning-update/040-plugin-control-and-sdk-action-blocks.md`
+  - COMPLETED VIA `tasks/20260611-landing-page-positioning-update/proposed-rewrite/home.yaml` alignment
+- [x] `tasks/20260611-landing-page-positioning-update/050-implementation-and-verification.md`
+  - COMPLETED VIA `tasks/20260611-landing-page-positioning-update/proposed-rewrite/home.yaml` alignment + `yarn build` + curl verification
 - [ ] `tasks/20260611-landing-page-positioning-update/100-simplify-workspace-start-command.md`
 - [ ] `tasks/20260611-landing-page-positioning-update/110-plugin-authoring-and-user-owned-plugin-workflow.md`
 - [ ] `tasks/20260611-landing-page-positioning-update/120-config-reload-from-ui.md`
@@ -276,3 +279,64 @@ Example target:
 ```text
 Read a CSV of LinkedIn leads and generate a personalized first message for each person using a configured agent. Use actual simplified Python code after checking the current AgentApplication API.
 ```
+
+## Completion Notes
+
+Added during completion.
+
+### What was done
+
+Aligned `landing_page/src/content/pages/home.yaml` with `tasks/20260611-landing-page-positioning-update/proposed-rewrite/home.yaml` (the canonical rewrite target). `mobile.yaml` was already aligned with `proposed-rewrite/mobile.yaml` and required no changes.
+
+Concrete changes to `home.yaml`:
+
+- Hero: added `badge: "Plugin-driven agent platform"`; changed `titleHtml` to "For people who outgrow one-size-fits-all agents."; replaced `subtitle` with the model-native version.
+- Inserted `providers` section (`id: harness-strip`) immediately after hero with 6 model-family pills.
+- Added `eyebrow` to all 7 sections that specify one in `proposed-rewrite` (Computer to phone, Outside your local network, Model-native harnesses, Native provider features, Everything is replaceable, Session workbench, Plugin authoring, Python SDK).
+- Added `visual` blocks (`status: placeholder-needed`) to both `actionGuide` sections (connectionDiagram, bridgeDiagram).
+- Inserted `featureShowcase` section (`id: native-provider-features`) after `featureMatrix` with 4 placeholder media items.
+- Reordered sections so `featureMatrix` comes before `featureCodeShowcase` (was previously reversed).
+- Expanded `screenshotGallery` from 1 real screenshot to 5 placeholder items (`status: placeholder-needed`).
+
+### Deliberate deviation from proposed-rewrite
+
+Omitted the `visual` block from the `featureMatrix` section. Rationale: `FeatureMatrix.astro` already implements the rendering rules described in `section-visual-guidance.md` (table on desktop, row cards on mobile). The `visual` block in `proposed-rewrite` was a design brief from the rewrite author to the implementer; once the component satisfies it, keeping the field as YAML documentation would be misleading dead metadata (future maintainers would wonder what's still pending). The `actionGuide` visuals are kept because those genuinely describe missing diagrams that the component renders as on-page placeholders.
+
+### What was not done
+
+- No new components or component edits (all section types were already registered and rendering correctly).
+- No changes to `mobile.yaml`, `pageTypes.ts`, `registry.ts`, or any `.astro` component.
+- No screenshot assets created. 9 screenshots remain as a follow-up asset task (5 for `screenshotGallery` + 4 for `featureShowcase` items). All are marked `status: "placeholder-needed"` and render as dashed-border placeholder boxes — non-blocking and honest about the gap.
+- No edits to the obsolete `desired-final-content/` files or the `030`/`040`/`050` task files (their content references the older draft path and is superseded by `proposed-rewrite`).
+
+### Verification
+
+- `yarn install` (highlight.js was missing from node_modules; first build failed on `@import "highlight.js/styles/atom-one-dark.css"`).
+- `yarn build` succeeded: 4 pages built (`/`, `/mobile/`, `/privacy/`, `/terms/`).
+- `astro preview` on `127.0.0.1:4321`; curled `/` and `/mobile/`.
+- Grep-verified rendered HTML:
+  - Hero: "For people who outgrow" present (1), "Own the harness" absent (0), badge present (1), model-native subtitle present (1).
+  - Providers: "Built-in model-family harnesses" present (1), all 6 pills present.
+  - All 8 eyebrows present (1 occurrence each).
+  - `data-kind="connectionDiagram"` and `data-kind="bridgeDiagram"` present (1 each).
+  - `data-kind="matrix"` absent (0) — confirms featureMatrix visual correctly omitted.
+  - 9 `placeholder-needed` occurrences (5 gallery + 4 featureShowcase).
+  - `/session-workbench.png` absent from gallery (0); 5 new placeholder srcs present.
+  - Section order in HTML: harness-strip → computer-to-phone → bridge → model-native-harnesses → native-provider-features → everything-replaceable → session-workbench → build-plugin → automate-python.
+  - Mobile page: no regression — 3 h2s, 4 `aria-disabled="true"` store buttons, 4 "Coming soon" strings.
+
+### Remaining follow-up
+
+- Capture/create 9 screenshots: `session-list-workbench.png`, `chat-actions-workbench.png`, `session-snapshots-workbench.png`, `session-attachments-workbench.png`, `session-settings-plugins.png` (gallery); and 4 provider-feature screenshots for `featureShowcase` items. Once assets exist, change `status: "placeholder-needed"` to absent on each item (the components will render `<img>` tags automatically).
+- Verify the Python SDK example in `codeExample.automate-python` against the current `AgentApplication` API (the `status: "sdk-api-needs-verification"` badge is rendered on-page to flag this).
+
+### Install URL correction
+
+After the initial completion, corrected the CLI install command in `home.yaml` to use the canonical download domain instead of the raw S3 bucket URL.
+
+- Old: `curl -fsSL https://crystal-lattice-downloads-874087778966.s3.us-east-1.amazonaws.com/crystal-lattice-cli/install.sh | bash`
+- New: `curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash`
+
+Source of truth: `scripts/install.sh:7` defines `DEFAULT_DOWNLOAD_BASE_URL="https://download.crystallattice.dev/crystal-lattice-cli"`. The same canonical URL is used in `README.md:22`, `application/python/README.md:24`, `deploy/aws-cli-install-lab/lib/common.sh:18`, and `deploy/aws-cli-downloads/README.md:330`. The raw S3 URL is the backend storage location, not the public-facing command.
+
+Both occurrences in `home.yaml` were updated (hero `install.command` and `actionGuide.computer-to-phone` step 1 code). `yarn build` succeeded; curl verification confirmed 3 rendered occurrences of the canonical URL (hero visible command + actionGuide hidden copy-source + actionGuide visible span) and 0 occurrences of the old S3 URL. The `pipx install crystal-lattice-cli` alternative in `altHtml` was already correct.
