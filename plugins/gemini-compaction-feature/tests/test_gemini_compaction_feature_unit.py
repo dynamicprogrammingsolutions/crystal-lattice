@@ -30,9 +30,12 @@ from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: E4
 from gemini_compaction_feature import (  # noqa: E402
     GeminiCompactionFeaturePlugin,
     _ACKNOWLEDGMENT_MESSAGE,
+    _COMPACTION_METADATA_KEY,
     _GEMINI_COMPRESSION_PROMPT,
     _VERIFICATION_PROMPT,
     _collect_final_messages_from_stream,
+    build_compacted_session,
+    build_compaction_request_session,
 )
 
 
@@ -152,6 +155,23 @@ def _core_with_recaction_provider(
             "type": "gemini",
             "verification_pass": False,
         },
+    }
+    return core, config
+
+
+def _core_and_config():
+    """Create an AgentCore with EchoOpenAILikeProvider for standalone function tests.
+
+    Unlike _core_with_recaction_provider, this uses the base EchoOpenAILikeProvider
+    which doesn't record calls but is simpler for testing build_compacted_session
+    and build_compaction_request_session which don't need LLM responses.
+    """
+    core = AgentCore()
+    core.register_provider(EchoOpenAILikeProvider)
+    core.register_feature(GeminiCompactionFeaturePlugin)
+    config: Dict[str, Any] = {
+        "provider": "echo_openai_like",
+        "model": "test-model",
     }
     return core, config
 
@@ -929,4 +949,259 @@ class TestCompactionRequestWithVerification:
         else:
             assert len(RecordingEchoProvider.call_log) == 1, (
                 f"Expected 1 call with verification_pass=False, got {len(RecordingEchoProvider.call_log)}"
+            )
+
+
+# ---------------------------------------------------------------------------
+# Standalone function tests — build_compacted_session and build_compaction_request_session
+# ---------------------------------------------------------------------------
+
+
+class TestBuildCompactedSession:
+    """Tests for the build_compacted_session standalone function.
+
+    These tests use EchoOpenAILikeProvider + AgentCore to exercise the
+    core API path (rebuild_native_history, slice_session, add_message)
+    without any LLM calls. They verify that the compacted session has
+    the correct structure regardless of the provider's native format.
+    """
+
+    @pytest.mark.parametrize(
+        (
+            "has_system",
+            "start",
+            "end",
+            "expected_roles",
+            "expected_leading_contents",
+            "expected_trailing_contents",
+        ),
+        [
+            # Full range, no system → snapshot replaces everything
+            (
+                False,
+                None,
+                None,
+                ["user", "assistant"],
+                [],
+                [],
+            ),
+            # Partial range, no system → snapshot + preserved tail
+            (
+                False,
+                0,
+                3,
+                ["user", "assistant", "assistant", "user", "assistant"],
+                [],
+                ["TWO", "Answer exactly THREE.", "THREE"],
+            ),
+            # Partial range, no system → snapshot + preserved tail
+            (
+                False,
+                1,
+                4,
+                ["user", "user", "assistant", "user", "assistant"],
+                ["Answer exactly ONE."],
+                ["Answer exactly THREE.", "THREE"],
+            ),
+            # Full range, with system → system preserved, snapshot replaces rest
+            (
+                True,
+                None,
+                None,
+                ["system", "user", "assistant"],
+                ["System prompt"],
+                [],
+            ),
+            # Partial range, with system → system + leading + snapshot + tail
+            (
+                True,
+                0,
+                4,
+                ["system", "user", "assistant", "assistant", "user", "assistant"],
+                ["System prompt"],
+                ["TWO", "Answer exactly THREE.", "THREE"],
+            ),
+            # Partial range, with system
+            (
+                True,
+                2,
+                5,
+                ["system", "user", "user", "assistant", "user", "assistant"],
+                ["System prompt", "Answer exactly ONE."],
+                ["Answer exactly THREE.", "THREE"],
+            ),
+        ],
+    )
+    def test_compacted_session_replaces_only_selected_range_and_preserves_system_invariant(
+        self,
+        has_system: bool,
+        start: int | None,
+        end: int | None,
+        expected_roles: list[str],
+        expected_leading_contents: list[str],
+        expected_trailing_contents: list[str],
+    ) -> None:
+        core, config = _core_and_config()
+        session = _make_session(has_system)
+        snapshot_text = (
+            "<state_snapshot>\n"
+            "<overall_goal>Testing</overall_goal>\n"
+            "<active_constraints>None</active_constraints>\n"
+            "<key_knowledge>None</key_knowledge>\n"
+            "<artifact_trail>None</artifact_trail>\n"
+            "<file_system_state>None</file_system_state>\n"
+            "<recent_actions>None</recent_actions>\n"
+            "<task_state>None</task_state>\n"
+            "</state_snapshot>"
+        )
+
+        compacted = build_compacted_session(
+            core,
+            session,
+            config,
+            snapshot_text,
+            start=start,
+            end=end,
+        )
+
+        assert [message.role for message in compacted.messages] == expected_roles
+        if has_system:
+            assert compacted.messages[0].role == "system"
+            assert compacted.messages[0].content == "System prompt"
+            assert sum(1 for message in compacted.messages if message.role == "system") == 1
+        else:
+            assert all(message.role != "system" for message in compacted.messages)
+
+        snapshot_index = next(
+            idx
+            for idx, message in enumerate(compacted.messages)
+            if message.content == snapshot_text
+        )
+        assert compacted.messages[snapshot_index].content == snapshot_text
+        assert compacted.messages[snapshot_index + 1].content == _ACKNOWLEDGMENT_MESSAGE
+        assert [message.content for message in compacted.messages[:snapshot_index]] == (
+            expected_leading_contents
+        )
+        trailing = compacted.messages[snapshot_index + 2:]
+        assert [message.content for message in trailing] == expected_trailing_contents
+
+        native_messages = compacted.metadata["native_messages"]
+        assert native_messages[snapshot_index + 1]["content"] == _ACKNOWLEDGMENT_MESSAGE
+        snapshot_metadata = compacted.messages[snapshot_index].metadata or {}
+        assert snapshot_metadata[_COMPACTION_METADATA_KEY]["is_compact_summary"] is True
+
+    def test_compacted_session_preserves_native_history_consistency(self) -> None:
+        """Native history length matches core messages after compaction."""
+        core, config = _core_and_config()
+        session = _make_session()
+        snapshot_text = "<state_snapshot><overall_goal>Test</overall_goal></state_snapshot>"
+
+        compacted = build_compacted_session(
+            core,
+            session,
+            config,
+            snapshot_text,
+            start=0,
+            end=4,
+        )
+
+        native_messages = compacted.metadata.get("native_messages", [])
+        assert len(native_messages) == len(compacted.messages), (
+            f"Native history length ({len(native_messages)}) != "
+            f"core messages length ({len(compacted.messages)})"
+        )
+
+
+class TestBuildCompactionRequestSession:
+    """Tests for the build_compaction_request_session standalone function.
+
+    These tests verify that the request session has the correct structure
+    for sending to the LLM: system prompt injected, user instruction appended,
+    correct message range selected, system messages preserved.
+    """
+
+    def test_appends_prompt_to_last_user_message(self) -> None:
+        """When last message is user, prompt is appended to it."""
+        session = _make_session()
+        prompt_text = "Generate a snapshot please."
+        request_session, target_indices, request_indices = (
+            build_compaction_request_session(
+                session,
+                prompt_text=prompt_text,
+                start=0,
+                end=3,
+            )
+        )
+        last_user_msgs = [m for m in request_session.messages if m.role == "user"]
+        assert last_user_msgs[-1].content.endswith(prompt_text)
+
+    def test_adds_new_user_message_when_last_is_assistant(self) -> None:
+        """When last message is assistant, a new user message is added."""
+        session = _make_session()
+        prompt_text = "Generate a snapshot please."
+        request_session, target_indices, request_indices = (
+            build_compaction_request_session(
+                session,
+                prompt_text=prompt_text,
+                start=0,
+                end=2,
+            )
+        )
+        # The request session should end with a user message containing the prompt
+        assert request_session.messages[-1].role == "user"
+        assert prompt_text in request_session.messages[-1].content
+
+    def test_strips_native_history_from_metadata(self) -> None:
+        """Request session metadata should not contain native_messages."""
+        session = _make_session()
+        prompt_text = "Generate a snapshot please."
+        request_session, _, _ = build_compaction_request_session(
+            session,
+            prompt_text=prompt_text,
+            start=0,
+            end=3,
+        )
+        assert "native_messages" not in (request_session.metadata or {})
+
+    @pytest.mark.parametrize(
+        ("has_system", "start", "end", "expected_roles"),
+        [
+            (False, 0, 3, ["user", "assistant", "user"]),
+            (False, 1, 4, ["assistant", "user", "assistant", "user"]),
+            (True, 0, 4, ["system", "user", "assistant", "user"]),
+            (True, 2, 5, ["system", "assistant", "user", "assistant", "user"]),
+        ],
+    )
+    def test_builds_correct_request_session(
+        self,
+        has_system: bool,
+        start: int,
+        end: int,
+        expected_roles: list[str],
+    ) -> None:
+        session = _make_session(has_system)
+        prompt_text = "Generate a snapshot."
+        request_session, target_indices, request_indices = (
+            build_compaction_request_session(
+                session,
+                prompt_text=prompt_text,
+                start=start,
+                end=end,
+            )
+        )
+        assert [message.role for message in request_session.messages] == expected_roles
+        assert request_session.messages[-1].content.endswith(prompt_text)
+        if has_system:
+            assert request_session.messages[0].role == "system"
+            assert 0 not in target_indices
+
+    def test_raises_on_empty_range(self) -> None:
+        """Raises ValueError when the range selects no messages."""
+        session = _make_session()
+        with pytest.raises(ValueError, match="range selects no"):
+            build_compaction_request_session(
+                session,
+                prompt_text="Generate a snapshot.",
+                start=5,
+                end=5,
             )
