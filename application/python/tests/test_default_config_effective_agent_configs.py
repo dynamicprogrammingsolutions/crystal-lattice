@@ -92,7 +92,8 @@ def test_default_config_effective_agent_configs_stay_intact(
         },
         "glm": {
             "provider": "openrouter",
-            "model": "z-ai/glm-5",
+            "model": "z-ai/glm-5.2",
+            "reasoning_effort": "max",
             "request_options": {
                 "provider": {"order": ["z-ai"], "allow_fallbacks": False}
             },
@@ -119,6 +120,27 @@ def test_default_config_effective_agent_configs_stay_intact(
             "provider": "reference_openai_compatible",
             "base_url": "http://localhost:11434/v1",
             "reasoning_field": "reasoning",
+        },
+        "glm-ollama": {
+            "provider": "reference_openai_compatible",
+            "base_url": "http://localhost:11434/v1",
+            "model": "glm-5.2:cloud",
+            "request_options": {"reasoning_effort": "max"},
+            "request_options_ui": {"reasoning_effort": ["high", "max"]},
+        },
+        "deepseek-ollama": {
+            "provider": "reference_openai_compatible",
+            "base_url": "http://localhost:11434/v1",
+            "model": "deepseek-v4-pro:cloud",
+            "request_options": {"reasoning_effort": "max"},
+            "request_options_ui": {"reasoning_effort": ["high", "max"]},
+        },
+        "kimi-ollama": {
+            "provider": "reference_openai_compatible",
+            "base_url": "http://localhost:11434/v1",
+            "model": "kimi-k2.6:cloud",
+            "request_options": {"reasoning_effort": "max"},
+            "request_options_ui": {"reasoning_effort": ["high", "max"]},
         },
         "fireworks": {
             "provider": "reference_openai_compatible",

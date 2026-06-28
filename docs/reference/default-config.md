@@ -894,7 +894,8 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "gemini_system_message"
       ],
       "provider": "openrouter",
-      "model": "z-ai/glm-5",
+      "model": "z-ai/glm-5.2",
+      "reasoning_effort": "max",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/gemini-tools"
       ],
@@ -917,6 +918,65 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "ollama": {
       "provider": "ollama",
       "model": "qwen3:0.6b"
+    },
+    "glm-ollama": {
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_mcp_defaults"
+      ],
+      "provider": "ollama",
+      "model": "glm-5.2:cloud",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
+      "request_options": {
+        "reasoning_effort": "max"
+      },
+      "request_options_ui": {
+        "reasoning_effort": [
+          "high",
+          "max"
+        ]
+      }
+    },
+    "deepseek-ollama": {
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_mcp_defaults"
+      ],
+      "provider": "ollama",
+      "model": "deepseek-v4-pro:cloud",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
+      "request_options": {
+        "reasoning_effort": "max"
+      },
+      "request_options_ui": {
+        "reasoning_effort": [
+          "high",
+          "max"
+        ]
+      }
+    },
+    "kimi-ollama": {
+      "mixin_refs": [
+        "kimi_system_message"
+      ],
+      "provider": "ollama",
+      "model": "kimi-k2.6:cloud",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/kimi-tools"
+      ],
+      "request_options": {
+        "reasoning_effort": "max"
+      },
+      "request_options_ui": {
+        "reasoning_effort": [
+          "high",
+          "max"
+        ]
+      }
     },
     "fireworks": {
       "provider": "fireworks",
