@@ -10,20 +10,20 @@ Parent Task: tasks/20260628-cli-simplification-and-bridge-ux/000-main.md
 
 ## Requirements checklist
 
-- [ ] Create a `ProjectProfileManager` (or equivalent module) that reads and writes per-project settings
-- [ ] Store settings in a single user-level file `~/.crystal/projects.json`, keyed by absolute project path
-- [ ] Support a project-local override file `.crystal/profile.json` (same keys, higher priority)
-- [ ] Auto-generate project name from the current directory basename
-- [ ] Disambiguate duplicate project names by prepending parent directory names (e.g. `iocharts` → `frontend-iocharts` → `dev-frontend-iocharts`)
-- [ ] Auto-select a free port (bind to port 0, read assigned port) and persist it for the same directory
-- [ ] On subsequent runs, try the persisted port; if occupied, pick a new free port and update the file
-- [ ] Auto-generate and persist a stable `bridge_server_id` (UUID) per directory
-- [ ] Resolution order: CLI flag > `.crystal/profile.json` > `~/.crystal/projects.json` entry > built-in default
-- [ ] The `~/.crystal/projects.json` file must be human-readable and user-editable (pretty-printed JSON)
-- [ ] Unit tests for project name generation (including disambiguation)
-- [ ] Unit tests for port selection and persistence (including occupied-port fallback)
-- [ ] Unit tests for bridge-server-id persistence
-- [ ] Unit tests for override resolution order (CLI > local > user-level)
+- [x] Create a `ProjectProfileManager` (or equivalent module) that reads and writes per-project settings
+- [x] Store settings in a single user-level file `~/.crystal/projects.json`, keyed by absolute project path
+- [x] Support a project-local override file `.crystal/profile.json` (same keys, higher priority)
+- [x] Auto-generate project name from the current directory basename
+- [x] Disambiguate duplicate project names by prepending parent directory names (e.g. `iocharts` → `frontend-iocharts` → `dev-frontend-iocharts`)
+- [x] Auto-select a free port (bind to port 0, read assigned port) and persist it for the same directory
+- [x] On subsequent runs, try the persisted port; if occupied, pick a new free port and update the file
+- [x] Auto-generate and persist a stable `bridge_server_id` (UUID) per directory
+- [x] Resolution order: CLI flag > `.crystal/profile.json` > `~/.crystal/projects.json` entry > built-in default
+- [x] The `~/.crystal/projects.json` file must be human-readable and user-editable (pretty-printed JSON)
+- [x] Unit tests for project name generation (including disambiguation)
+- [x] Unit tests for port selection and persistence (including occupied-port fallback)
+- [x] Unit tests for bridge-server-id persistence
+- [x] Unit tests for override resolution order (CLI > local > user-level)
 
 ---
 
@@ -92,3 +92,95 @@ Any subset of keys may be present; only the keys that exist override the user-le
 - Test bridge-server-id generation and persistence.
 - Test override resolution: CLI value > local `.crystal/profile.json` > user-level `~/.crystal/projects.json`.
 - Test that the user-level file is pretty-printed JSON (readable, sorted keys).
+
+---
+
+## Execution plan
+
+Added during completion.
+
+### Approach
+
+Single-pass implementation of the `project_profile.py` module with
+comprehensive unit tests, followed by lint/format/typecheck validation.
+
+1. Create `application/python/agent_terminal_app/project_profile.py` with:
+   - `ProjectProfile` frozen dataclass (`name`, `port`, `bridge_server_id`)
+   - `ProjectProfileManager` class with `resolve()` entry point
+   - Module-level helpers: `_find_free_port`, `_try_bind`,
+     `_generate_unique_name`, `_load_user_file`, `_save_user_file`,
+     `_load_local_override`, `_is_valid_port`, `_is_valid_str`
+2. Create `application/python/tests/test_project_profile.py` with 31 tests
+   covering name generation, port selection/persistence, bridge-server-id,
+   resolution order, file format, and error handling.
+3. Validate: `pytest`, `ruff check`, `black`, `pyright`.
+
+### Design decisions
+
+- **Error handling**: If a profile file exists but contains invalid JSON
+  or a non-object top-level value, a clear `RuntimeError` is raised (per
+  user request). Missing files are treated as empty (no error).
+- **Persistence rule**: Only values not provided by CLI or local override
+  are persisted to the user-level file. CLI/local override values are
+  per-run explicit choices and are never written.
+- **Port fallback for local override**: If a local-override port is
+  occupied, a free port is used for the current run but is NOT persisted
+  (the user explicitly chose that port; silently changing their file
+  would be confusing).
+- **Port fallback for user-level**: If a user-level port is occupied, a
+  new free port is picked and the user-level file is updated.
+- **Type validation**: `_is_valid_port` rejects bool/zero/negative;
+  `_is_valid_str` rejects non-string/empty. Invalid types in either file
+  cause the setting to fall through to the next priority level.
+
+---
+
+## Completion Notes
+
+Added during completion.
+
+### What was done
+
+- Created `application/python/agent_terminal_app/project_profile.py` — a
+  self-contained module with `ProjectProfile` dataclass and
+  `ProjectProfileManager` class.
+- Created `application/python/tests/test_project_profile.py` — 31 unit tests,
+  all passing.
+
+### Key implementation details
+
+- `ProjectProfileManager.resolve()` is the single entry point. It accepts
+  optional `cli_name`, `cli_port`, `cli_bridge_server_id` keyword args and
+  returns a `ProjectProfile`.
+- Resolution priority per setting: CLI > local override (`.crystal/profile.json`)
+  > user-level (`~/.crystal/projects.json`) > built-in default.
+- Name disambiguation: basename → prepend parent names → numeric suffix at
+  filesystem root or when all parents exhausted.
+- Port selection: bind to `0.0.0.0:0` for free port; `_try_bind()` checks
+  if a persisted port is still available.
+- User-level file written as `json.dumps(data, indent=2, sort_keys=True)`
+  with trailing newline.
+- Corrupt JSON (parse error or non-object top-level) raises `RuntimeError`
+  with file path, line/column, and error message.
+- No changes to `__main__.py`, `server.py`, or any existing files — purely
+  additive (confirmed via `git status`).
+
+### Validation results
+
+- `pytest application/python/tests/test_project_profile.py` — 31 passed
+- `ruff check` — clean
+- `black --check` — clean
+- `pyright` — 0 errors, 0 warnings
+- Existing tests: 2 pre-existing failures in
+  `test_cli_environment_isolation.py` (unrelated `UnboundLocalError` in
+  `server.py:_on_shutdown` line 513, `_agent_app` not defined) — not caused
+  by this change.
+
+### What remains for subtask 020
+
+- Import `ProjectProfileManager` in `__main__.py`.
+- Wire `resolve()` output into `_build_server_integration_config()` and
+  the uvicorn/server launch path.
+- Add `--enable-bridge` flag and auto-bridge-url resolution.
+- Auto-select host (`0.0.0.0` when bonjour enabled, no explicit `--host`).
+- Default log file to `.crystal/crystal.log`.

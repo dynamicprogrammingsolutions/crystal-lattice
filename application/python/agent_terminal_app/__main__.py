@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .runtime_layout import RuntimeLayout, load_runtime_layout
+from .project_profile import ProjectProfile, ProjectProfileManager
+from .bonjour import get_local_ip
 
 
 def _configure_logging(
@@ -121,6 +123,109 @@ def _configure_fastapi_logging(fastapi_log_file: Optional[str]) -> None:
         logger.addHandler(handler)
         logger.setLevel(root_level)
         logger.propagate = False
+
+
+# ---------------------------------------------------------------------------
+# CLI resolution helpers
+# ---------------------------------------------------------------------------
+
+
+def _resolve_effective_host(args: argparse.Namespace) -> str:
+    """Resolve the effective bind host.
+
+    When ``--host`` is not explicitly passed (``None``), auto-select
+    ``0.0.0.0`` if Bonjour is enabled (so the server is reachable on the
+    LAN), otherwise default to ``127.0.0.1``.
+    """
+    if args.host is not None:
+        return args.host
+    return "0.0.0.0" if args.enable_bonjour else "127.0.0.1"
+
+
+def _resolve_log_file(args: argparse.Namespace) -> Optional[str]:
+    """Resolve the log file path.
+
+    Defaults to ``.crystal/crystal.log`` when no ``--log-file`` is given
+    and ``--no-log-file`` is not set.  An explicit ``--log-file`` always
+    wins, even when ``--no-log-file`` is also present.
+    """
+    if args.log_file is not None:
+        return args.log_file
+    if args.no_log_file:
+        return None
+    return str(Path(".crystal") / "crystal.log")
+
+
+def _resolve_fastapi_log_file(
+    args: argparse.Namespace, log_file: Optional[str]
+) -> Optional[str]:
+    """Resolve the FastAPI log file, defaulting to the main log file."""
+    if args.fastapi_log_file is not None:
+        return args.fastapi_log_file
+    return log_file
+
+
+def _read_bridge_url_from_config(config_path: Path) -> Optional[str]:
+    """Read ``application.bridge_url`` from the config JSON file.
+
+    This reads the raw config file directly (without creating a full
+    ``AgentApplication``) since ``bridge_url`` is a plain string that
+    does not require placeholder resolution.  If the user needs env-var
+    expansion, they should use ``--bridge-url`` or ``.crystal/profile.json``.
+    """
+    try:
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    app_cfg = raw.get("application")
+    if not isinstance(app_cfg, dict):
+        return None
+    bridge_url = app_cfg.get("bridge_url")
+    if isinstance(bridge_url, str) and bridge_url:
+        return bridge_url
+    return None
+
+
+def _format_startup_summary(
+    *,
+    project_name: str,
+    config_path: Path,
+    session_root: Path,
+    host: str,
+    port: int,
+    bonjour_service_name: Optional[str] = None,
+    bridge_url: Optional[str] = None,
+    lan_ip: Optional[str] = None,
+) -> str:
+    """Format a consolidated startup summary for server/console modes.
+
+    When *host* is ``0.0.0.0``, *lan_ip* is used for the displayed HTTP
+    URL (the caller resolves it via :func:`bonjour.get_local_ip`).
+    Otherwise *host* is shown directly.
+
+    Only lines for active features are included.  The returned string
+    does not have a trailing newline.
+    """
+    if host == "0.0.0.0" and lan_ip is not None:
+        http_host = lan_ip
+    elif host == "0.0.0.0":
+        http_host = "127.0.0.1"
+    else:
+        http_host = host
+
+    lines = [
+        f"[crystal-lattice] Starting {project_name}",
+        f"  Config:    {config_path}",
+        f"  Sessions:  {session_root}",
+        f"  HTTP:      http://{http_host}:{port}",
+    ]
+    if bonjour_service_name is not None:
+        lines.append(
+            f"  Bonjour:   {bonjour_service_name} (discoverable on local network)"
+        )
+    if bridge_url is not None:
+        lines.append(f"  Bridge:    {bridge_url}")
+    return "\n".join(lines)
 
 
 _DEFAULT_CONFIG_COPY_EXCLUDES = {"auth", ".plugin_cache", "__pycache__"}
@@ -295,13 +400,25 @@ def _build_server_integration_config(
     args: argparse.Namespace,
     *,
     server_mod: object,
+    profile: Optional[ProjectProfile] = None,
+    bridge_url_from_config: Optional[str] = None,
+    effective_host: str = "127.0.0.1",
+    effective_port: int = 8000,
 ):
-    """Build explicit server integration config from CLI args.
+    """Build explicit server integration config from CLI args and profile.
 
     CLI values override externally supplied environment variables for the same
     bridge/Bonjour settings, but the process environment itself is left
     untouched.
+
+    When *profile* is provided, its resolved values (port, bridge_server_id,
+    name, bridge_url) are used as defaults — the profile already incorporates
+    CLI overrides passed to ``ProjectProfileManager.resolve()``.
     """
+
+    profile_name = profile.name if profile is not None else None
+    profile_bridge_server_id = profile.bridge_server_id if profile is not None else None
+    profile_bridge_url = profile.bridge_url if profile is not None else None
 
     bonjour_config = None
     if args.enable_bonjour:
@@ -311,12 +428,13 @@ def _build_server_integration_config(
             else os.getenv("BONJOUR_PORT") or os.getenv("SERVER_PORT")
         )
         try:
-            advertised_port = int(port_str) if port_str else int(args.port)
+            advertised_port = int(port_str) if port_str else effective_port
         except ValueError:
-            advertised_port = int(args.port)
+            advertised_port = effective_port
         service_name = (
             args.bonjour_service_name
             or os.getenv("BONJOUR_SERVICE_NAME")
+            or profile_name
             or "Agent Terminal App"
         )
         bonjour_config = server_mod.BonjourRuntimeConfig(  # type: ignore[attr-defined]
@@ -324,59 +442,80 @@ def _build_server_integration_config(
             port=advertised_port,
         )
 
-    bridge_config = None
-    if args.bridge_url:
-        bridge_url = args.bridge_url
-        display_name = (
-            args.bridge_display_name
-            or os.getenv("BRIDGE_DISPLAY_NAME")
-            or "Agent Terminal App"
-        )
-        location = args.bridge_location or os.getenv("BRIDGE_LOCATION")
-        local_http_base = args.bridge_local_http_base or os.getenv(
-            "BRIDGE_LOCAL_HTTP_BASE"
-        )
-        if not local_http_base:
-            host = os.getenv("SERVER_HOST", args.host)
-            port = os.getenv("SERVER_PORT", str(args.port))
-            local_http_base = f"http://{host}:{port}"
+    # Bridge is enabled when --bridge-url is given OR --enable-bridge is set.
+    bridge_enabled = args.bridge_url is not None or args.enable_bridge
 
-        bridge_mod = server_mod.bridge_mod  # type: ignore[attr-defined]
-        bridge_config = bridge_mod.BridgeConfig(
-            bridge_url=bridge_url,
-            server_id=args.bridge_server_id
-            or os.getenv("BRIDGE_SERVER_ID")
-            or str(uuid.uuid4()),
-            display_name=display_name,
-            computer_name=socket.gethostname() or "localhost",
-            location=location,
-            local_http_base=local_http_base,
-            ws_max_size_bytes=_parse_optional_int_env(
-                os.getenv("BRIDGE_WS_MAX_SIZE_BYTES"), default=16 * 1024 * 1024
-            ),
-            http_timeout_seconds=_parse_float_env(
-                os.getenv("BRIDGE_HTTP_TIMEOUT_SECONDS"), default=120.0
-            ),
-            request_chunk_size_bytes=int(
-                os.getenv("BRIDGE_HTTP_CHUNK_SIZE_BYTES", str(900 * 1024))
-            ),
-            request_chunking_threshold_bytes=int(
-                os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
-            ),
-            response_chunking_threshold_bytes=int(
-                os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
-            ),
-            max_body_bytes=int(
-                os.getenv("BRIDGE_HTTP_MAX_BODY_BYTES", str(10 * 1024 * 1024))
-            ),
-            debug=_parse_bool_env(os.getenv("BRIDGE_DEBUG")),
-            exit_on_superseded=args.bridge_exit_on_superseded
-            or _parse_bool_env(os.getenv("BRIDGE_EXIT_ON_SUPERSEDED")),
-            local_guard=args.bridge_local_guard
-            or _parse_bool_env(os.getenv("BRIDGE_LOCAL_GUARD")),
-            takeover_local=args.bridge_takeover_local
-            or _parse_bool_env(os.getenv("BRIDGE_TAKEOVER_LOCAL")),
-        )
+    bridge_config = None
+    if bridge_enabled:
+        # Resolve bridge URL: CLI > profile > config.
+        # When profile is provided, it already incorporates the CLI --bridge-url
+        # override.  When profile is None, fall back to args.bridge_url directly.
+        if profile is not None:
+            bridge_url = profile_bridge_url or bridge_url_from_config
+        else:
+            bridge_url = args.bridge_url or bridge_url_from_config
+
+        if not bridge_url:
+            # Bridge was requested but no URL was found.
+            print(
+                "[agent_terminal_app] Bridge enabled but no bridge URL found "
+                "(set --bridge-url, add bridge_url to .crystal/profile.json, "
+                "or add application.bridge_url to config.json). "
+                "Skipping bridge registration."
+            )
+        else:
+            display_name = (
+                args.bridge_display_name
+                or os.getenv("BRIDGE_DISPLAY_NAME")
+                or profile_name
+                or "Agent Terminal App"
+            )
+            location = args.bridge_location or os.getenv("BRIDGE_LOCATION")
+            local_http_base = args.bridge_local_http_base or os.getenv(
+                "BRIDGE_LOCAL_HTTP_BASE"
+            )
+            if not local_http_base:
+                host = os.getenv("SERVER_HOST", effective_host)
+                port = os.getenv("SERVER_PORT", str(effective_port))
+                local_http_base = f"http://{host}:{port}"
+
+            bridge_mod = server_mod.bridge_mod  # type: ignore[attr-defined]
+            bridge_config = bridge_mod.BridgeConfig(
+                bridge_url=bridge_url,
+                server_id=profile_bridge_server_id
+                or args.bridge_server_id
+                or os.getenv("BRIDGE_SERVER_ID")
+                or str(uuid.uuid4()),
+                display_name=display_name,
+                computer_name=socket.gethostname() or "localhost",
+                location=location,
+                local_http_base=local_http_base,
+                ws_max_size_bytes=_parse_optional_int_env(
+                    os.getenv("BRIDGE_WS_MAX_SIZE_BYTES"), default=16 * 1024 * 1024
+                ),
+                http_timeout_seconds=_parse_float_env(
+                    os.getenv("BRIDGE_HTTP_TIMEOUT_SECONDS"), default=120.0
+                ),
+                request_chunk_size_bytes=int(
+                    os.getenv("BRIDGE_HTTP_CHUNK_SIZE_BYTES", str(900 * 1024))
+                ),
+                request_chunking_threshold_bytes=int(
+                    os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
+                ),
+                response_chunking_threshold_bytes=int(
+                    os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
+                ),
+                max_body_bytes=int(
+                    os.getenv("BRIDGE_HTTP_MAX_BODY_BYTES", str(10 * 1024 * 1024))
+                ),
+                debug=_parse_bool_env(os.getenv("BRIDGE_DEBUG")),
+                exit_on_superseded=args.bridge_exit_on_superseded
+                or _parse_bool_env(os.getenv("BRIDGE_EXIT_ON_SUPERSEDED")),
+                local_guard=args.bridge_local_guard
+                or _parse_bool_env(os.getenv("BRIDGE_LOCAL_GUARD")),
+                takeover_local=args.bridge_takeover_local
+                or _parse_bool_env(os.getenv("BRIDGE_TAKEOVER_LOCAL")),
+            )
 
     if bonjour_config is None and bridge_config is None:
         return None
@@ -395,7 +534,6 @@ def _set_terminal_title(title: str) -> None:
     Failures are silently ignored so that unsupported terminals
     are unaffected.
     """
-    print(f"Setting terminal title to: {title}")
     try:
         # Windows consoles (cmd/PowerShell) don't reliably support the
         # xterm title escape, but they do support the "title" command.
@@ -602,16 +740,29 @@ def main() -> None:  # pragma: no cover - manual execution only
         help="run the API server (default when no flags are given)",
     )
     parser.add_argument(
-        "--host", default="127.0.0.1", help="host to bind the API server to"
+        "--host",
+        default=None,
+        help="host to bind the API server to (default: 0.0.0.0 with --enable-bonjour, else 127.0.0.1)",
     )
     parser.add_argument(
-        "--port", type=int, default=8000, help="port to bind the API server to"
+        "--port",
+        type=int,
+        default=None,
+        help="port to bind the API server to (default: auto-selected and persisted)",
     )
     parser.add_argument(
         "--log-file",
         type=str,
         default=None,
-        help="optional path to a log file; output still goes to stdout",
+        help=(
+            "optional path to a log file; output still goes to stdout. "
+            "Defaults to .crystal/crystal.log when not specified."
+        ),
+    )
+    parser.add_argument(
+        "--no-log-file",
+        action="store_true",
+        help="disable default file logging (overrides the default .crystal/crystal.log)",
     )
     parser.add_argument(
         "--fastapi-log-file",
@@ -691,6 +842,15 @@ def main() -> None:  # pragma: no cover - manual execution only
             "Bridge WebSocket URL (e.g. ws://localhost:4000/ws/websocket). "
             "When provided, the server registers itself with the bridge "
             "and accepts proxied HTTP requests from paired clients."
+        ),
+    )
+    parser.add_argument(
+        "--enable-bridge",
+        action="store_true",
+        help=(
+            "Enable bridge registration. The bridge URL is resolved from "
+            "--bridge-url, .crystal/profile.json, ~/.crystal/projects.json, "
+            "or application.bridge_url in config.json."
         ),
     )
     parser.add_argument(
@@ -790,22 +950,43 @@ def main() -> None:  # pragma: no cover - manual execution only
         print(json.dumps(runtime_layout.to_resolved_dict(), indent=2, sort_keys=True))
         return
 
-    # Configure logging before importing application modules so that
-    # any module-level loggers created during import respect the
-    # selected level (CLI or environment).
     run_server = args.server or not args.console
     run_console = args.console
 
-    _configure_logging(
-        args.log_file, log_level=args.log_level, disable_structlog_colors=False
+    # --- Resolve project profile (port, name, bridge-server-id, bridge-url) ---
+    user_projects_file = Path.home() / ".crystal" / "projects.json"
+    profile_manager = ProjectProfileManager(
+        user_file=user_projects_file,
+        project_dir=Path.cwd(),
     )
-    _configure_fastapi_logging(args.fastapi_log_file)
+    profile = profile_manager.resolve(
+        cli_name=args.bonjour_service_name or args.bridge_display_name,
+        cli_port=args.port,
+        cli_bridge_server_id=args.bridge_server_id,
+        cli_bridge_url=args.bridge_url,
+    )
+
+    # --- Resolve effective host and port ---
+    effective_host = _resolve_effective_host(args)
+    effective_port = profile.port
+
+    # --- Resolve log file ---
+    log_file = _resolve_log_file(args)
+    fastapi_log_file = _resolve_fastapi_log_file(args, log_file)
+
+    # Configure logging before importing application modules so that
+    # any module-level loggers created during import respect the
+    # selected level (CLI or environment).
+    _configure_logging(
+        log_file, log_level=args.log_level, disable_structlog_colors=False
+    )
+    _configure_fastapi_logging(fastapi_log_file)
 
     if args.app_name:
         _set_terminal_title(args.app_name)
 
     console_logger: Optional[logging.Logger] = None
-    if args.log_file:
+    if log_file:
         console_logger = logging.getLogger("agent_terminal_app.console")
 
     # Delay imports that pull in agent_app / FastAPI wiring until
@@ -819,25 +1000,6 @@ def main() -> None:  # pragma: no cover - manual execution only
     import agent_terminal_app.server as server_mod  # type: ignore[import-not-found]
 
     run_api = server_mod.run_api
-
-    integration_config = _build_server_integration_config(
-        args,
-        server_mod=server_mod,
-    )
-    if integration_config is not None:
-        server_mod.configure_integrations(integration_config)
-    if integration_config is not None and integration_config.bonjour is not None:
-        print(
-            "[agent_terminal_app] Bonjour enabled: "
-            f"service={integration_config.bonjour.service_name!r} "
-            f"port={integration_config.bonjour.port}"
-        )
-    if integration_config is not None and integration_config.bridge is not None:
-        print(
-            "[agent_terminal_app] Bridge enabled: "
-            f"url={integration_config.bridge.bridge_url!r} "
-            f"display_name={integration_config.bridge.display_name!r}"
-        )
 
     env_overrides = runtime_layout.env_overrides()
     if args.cloud_orchestrator_url:
@@ -904,14 +1066,27 @@ def main() -> None:  # pragma: no cover - manual execution only
 
     config_env = _collect_additional_dotenv_values(config_path)
 
-    print(f"[agent_terminal_app] Using config: {config_path}")
-    print(f"[agent_terminal_app] Using sessions dir: {session_root}")
+    # --- Build integration config (after config is resolved) ---
+    bridge_url_from_config = _read_bridge_url_from_config(config_path)
+    integration_config = _build_server_integration_config(
+        args,
+        server_mod=server_mod,
+        profile=profile,
+        bridge_url_from_config=bridge_url_from_config,
+        effective_host=effective_host,
+        effective_port=effective_port,
+    )
+    if integration_config is not None:
+        server_mod.configure_integrations(integration_config)
 
     contributed_command = (
         args.command if isinstance(args.command, str) and args.command else ""
     )
 
     if contributed_command:
+        print(f"[agent_terminal_app] Using config: {config_path}")
+        print(f"[agent_terminal_app] Using sessions dir: {session_root}")
+
         command_app = AgentApplication(
             str(config_path),
             str(session_root),
@@ -964,6 +1139,31 @@ def main() -> None:  # pragma: no cover - manual execution only
         _render_command_result(result)
         return
 
+    # --- Consolidated startup summary (server/console modes only) ---
+    lan_ip = get_local_ip() if effective_host == "0.0.0.0" else None
+    bonjour_name = (
+        integration_config.bonjour.service_name
+        if integration_config is not None and integration_config.bonjour is not None
+        else None
+    )
+    bridge_url_for_summary = (
+        integration_config.bridge.bridge_url
+        if integration_config is not None and integration_config.bridge is not None
+        else None
+    )
+    print(
+        _format_startup_summary(
+            project_name=profile.name,
+            config_path=config_path,
+            session_root=session_root,
+            host=effective_host,
+            port=effective_port,
+            bonjour_service_name=bonjour_name,
+            bridge_url=bridge_url_for_summary,
+            lan_ip=lan_ip,
+        )
+    )
+
     # Modes:
     # - default (no flags): server only
     # - --console: console only
@@ -1003,17 +1203,17 @@ def main() -> None:  # pragma: no cover - manual execution only
 
         server_mod._agent_app = server_app  # type: ignore[attr-defined]
 
-        os.environ.setdefault("SERVER_HOST", args.host)
-        os.environ.setdefault("SERVER_PORT", str(args.port))
+        os.environ.setdefault("SERVER_HOST", effective_host)
+        os.environ.setdefault("SERVER_PORT", str(effective_port))
 
         from uvicorn.config import LOGGING_CONFIG  # type: ignore[import-not-found]
 
         config = uvicorn.Config(
             "agent_terminal_app.server:app",
-            host=args.host,
-            port=args.port,
+            host=effective_host,
+            port=effective_port,
             reload=False,
-            log_config=None if args.fastapi_log_file else LOGGING_CONFIG,
+            log_config=None if fastapi_log_file else LOGGING_CONFIG,
         )
         uvicorn_server = uvicorn.Server(config)
 
@@ -1056,10 +1256,10 @@ def main() -> None:  # pragma: no cover - manual execution only
             env_overrides=env_overrides,
         )
         run_api(
-            host=args.host,
-            port=args.port,
+            host=effective_host,
+            port=effective_port,
             app_instance=app_instance,
-            log_config=None if args.fastapi_log_file else "default",
+            log_config=None if fastapi_log_file else "default",
         )
 
 

@@ -12,17 +12,17 @@ Depends On: tasks/20260628-cli-simplification-and-bridge-ux/020-cli-simplificati
 
 ## Requirements checklist
 
-- [ ] When bound to `0.0.0.0`, detect and show the actual network-reachable LAN IP address
-- [ ] Show a consolidated startup summary with connection info for each enabled method:
+-- [x] When bound to `0.0.0.0`, detect and show the actual network-reachable LAN IP address
+-- [x] Show a consolidated startup summary with connection info for each enabled method:
   - Direct HTTP: `http://<lan-ip>:<port>` (or `http://127.0.0.1:<port>` if localhost)
   - Bonjour: service name (and note that it's discoverable)
   - Bridge: bridge URL
-- [ ] Remove the redundant `print(f"Setting terminal title to: {title}")` line in `_set_terminal_title()`
+-- [x] Remove the redundant `print(f"Setting terminal title to: {title}")` line in `_set_terminal_title()`
 - [ ] Remove the separate `[agent_terminal_app] Bonjour enabled:` print
 - [ ] Remove the separate `[agent_terminal_app] Bridge enabled:` print
 - [ ] Keep `[agent_terminal_app] Using config:` and `[agent_terminal_app] Using sessions dir:` (or consolidate into the summary)
-- [ ] Refactor the startup summary into a testable helper function
-- [ ] Add unit tests for the summary formatting (all combinations: localhost, 0.0.0.0, bonjour on/off, bridge on/off)
+-- [x] Refactor the startup summary into a testable helper function
+-- [x] Add unit tests for the summary formatting (all combinations: localhost, 0.0.0.0, bonjour on/off, bridge on/off)
 
 ---
 
@@ -108,3 +108,55 @@ This can be unit-tested with a mocked `get_local_ip()` without needing to start 
   - both off (server-only or console-only)
 - Verify the summary string contains expected substrings.
 - Verify `_set_terminal_title()` no longer prints.
+---
+
+## Completion Notes
+
+Added during completion.
+
+### What was done
+
+1. **`bonjour.py`**: Renamed `_get_local_ip()` → `get_local_ip()` (public). Updated the
+   one internal caller in `start_bonjour()`.
+
+2. **`__main__.py`**:
+   - Added `from .bonjour import get_local_ip` import.
+   - Removed the `print(f"Setting terminal title to: {title}")` debug line in
+     `_set_terminal_title()`.
+   - Added `_format_startup_summary()` helper — a pure function that formats a
+     consolidated summary string with Config, Sessions, HTTP, Bonjour, and Bridge lines.
+   - When `host` is `0.0.0.0`, uses `lan_ip` (resolved by caller via `get_local_ip()`)
+     for the HTTP URL; falls back to `127.0.0.1` when `lan_ip` is not provided.
+   - Removed the separate `[agent_terminal_app] Using config:`, `[agent_terminal_app]
+     Using sessions dir:`, `[agent_terminal_app] Bonjour enabled:`, and
+     `[agent_terminal_app] Bridge enabled:` prints from the server/console path.
+   - Moved `Using config:` and `Using sessions dir:` prints into the contributed command
+     branch (they're useful for debugging contributed commands).
+   - Added consolidated summary print after the contributed command check, before the
+     server/console launch.
+
+3. **`test_cli_environment_isolation.py`**: Added 10 new tests:
+   - `_format_startup_summary` with localhost, 0.0.0.0+lan_ip, 0.0.0.0 without lan_ip,
+     bonjour only, bridge only, both on, neither, project name, config/sessions paths.
+   - `_set_terminal_title` no longer prints the debug message.
+
+### Summary format
+
+```
+[crystal-lattice] Starting <project_name>
+  Config:    <config_path>
+  Sessions:  <session_root>
+  HTTP:      http://<host_or_lan_ip>:<port>
+  Bonjour:   <service_name> (discoverable on local network)
+  Bridge:    <bridge_url>
+```
+
+Only Bonjour and Bridge lines appear when those features are active.
+
+### Validation results
+
+- `pytest test_cli_environment_isolation.py test_bonjour_module.py test_project_profile.py` —
+  76 passed, 2 pre-existing failures (unrelated `UnboundLocalError` in `server.py:_on_shutdown`)
+- `ruff check` — clean
+- `black` — clean (1 file reformatted: `bonjour.py`)
+- `pyright` — 5 pre-existing errors in `_parse_contributed_command` (unchanged code, shifted line numbers)

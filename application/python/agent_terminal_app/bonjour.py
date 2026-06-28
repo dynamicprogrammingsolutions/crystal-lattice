@@ -64,7 +64,7 @@ class BonjourServiceHandle:
     info: Any
 
 
-def _get_local_ip() -> str:
+def get_local_ip() -> str:
     """Best-effort detection of a non-loopback local IPv4 address.
 
     Mirrors the logic from the standalone Bonjour example: attempt to
@@ -111,7 +111,7 @@ def start_bonjour(service_name: str, port: int) -> Optional[BonjourServiceHandle
         b"description": b"Agent Terminal App HTTP API",
     }
 
-    local_ip = _get_local_ip()
+    local_ip = get_local_ip()
 
     try:
         info = ServiceInfo(
@@ -124,7 +124,13 @@ def start_bonjour(service_name: str, port: int) -> Optional[BonjourServiceHandle
         )
         log.info("Constructed ServiceInfo for Bonjour: %r", info)
     except Exception as exc:  # pragma: no cover - defensive
-        log.error("Failed to construct ServiceInfo for Bonjour (service=%r ip=%s port=%s): %s", service_name, local_ip, port, exc)
+        log.error(
+            "Failed to construct ServiceInfo for Bonjour (service=%r ip=%s port=%s): %s",
+            service_name,
+            local_ip,
+            port,
+            exc,
+        )
         try:
             zc.close()
         except Exception:
@@ -162,7 +168,10 @@ def start_bonjour(service_name: str, port: int) -> Optional[BonjourServiceHandle
         return None
 
     log.info(
-        "[bonjour] advertising service name=%r ip=%s port=%s", service_name, local_ip, port
+        "[bonjour] advertising service name=%r ip=%s port=%s",
+        service_name,
+        local_ip,
+        port,
     )
     return BonjourServiceHandle(zeroconf=zc, info=info)
 

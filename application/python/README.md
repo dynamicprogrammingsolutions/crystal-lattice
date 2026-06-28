@@ -127,6 +127,45 @@ variables.
 
 ## Running Crystal Lattice
 
+### Quick Start
+
+For a typical local development session with mobile access:
+
+```bash
+crystal-lattice --console --server --enable-bonjour --enable-bridge
+```
+
+This automatically:
+
+- Selects a free port and persists it in `~/.crystal/projects.json` for reuse.
+- Binds to `0.0.0.0` (so the server is reachable on the LAN via Bonjour).
+- Generates a stable bridge-server-id and persists it.
+- Uses the project directory name as the Bonjour service name and bridge display name.
+- Resolves the bridge URL from `--bridge-url`, `.crystal/profile.json`, `~/.crystal/projects.json`, or `application.bridge_url` in config.json.
+- Logs to `.crystal/crystal.log` by default.
+
+All of these defaults can be overridden with explicit flags.
+
+### Project Profiles
+
+Per-project settings (name, port, bridge-server-id, bridge-url) are persisted
+in two files:
+
+- **`~/.crystal/projects.json`** — user-level registry keyed by absolute project path.
+  Auto-generated values (port, bridge-server-id, project name) are stored here.
+- **`.crystal/profile.json`** — project-local override file (same keys, higher priority).
+  Any subset of keys may be present; only the keys that exist override the user-level entry.
+
+Resolution order for each setting:
+
+```text
+CLI flag > .crystal/profile.json > ~/.crystal/projects.json > built-in default
+```
+
+`bridge_url` is never auto-generated — it must be provided by the user via CLI,
+profile, or config. When `--enable-bridge` is set but no URL is found, bridge
+registration is skipped with a warning.
+
 ### Server Only
 
 With no mode flags, `crystal-lattice` runs the HTTP API server:
@@ -313,21 +352,16 @@ Manual Address -> host: <computer LAN IP> -> port: 9000 -> Connect
 Advertise the HTTP API over Bonjour:
 
 ```bash
-crystal-lattice \
-  --server \
-  --console \
-  --config-local \
-  --host 0.0.0.0 \
-  --port 9000 \
-  --enable-bonjour
+crystal-lattice --server --console --enable-bonjour
 ```
 
-This advertises an `_http._tcp` service named `Agent Terminal App` by default.
-Common options:
+This automatically binds to `0.0.0.0` and uses the project directory name as the
+service name. Common options:
 
 - `--enable-bonjour` - turn Bonjour advertisement on.
-- `--bonjour-port` - override the advertised port; defaults to `--port`.
+- `--bonjour-port` - override the advertised port; defaults to the server port.
 - `--bonjour-service-name` - set the display name shown in discovery clients.
+- `--host` - override the bind address (default: `0.0.0.0` with `--enable-bonjour`).
 
 Verify on macOS:
 
@@ -354,13 +388,26 @@ curl http://localhost:4000/health
 Register Crystal Lattice with the bridge:
 
 ```bash
-crystal-lattice \
-  --server \
-  --console \
-  --config-local \
-  --host 0.0.0.0 \
-  --port 9000 \
+crystal-lattice --server --console --enable-bonjour --enable-bridge \
   --bridge-url ws://localhost:4000/ws/websocket
+```
+
+Or, to avoid passing `--bridge-url` every time, add it to `.crystal/profile.json`:
+
+```json
+{"bridge_url": "ws://localhost:4000/ws/websocket"}
+```
+
+or to `config.json` under the `application` section:
+
+```json
+{"application": {"bridge_url": "ws://localhost:4000/ws/websocket"}}
+```
+
+Then simply:
+
+```bash
+crystal-lattice --server --console --enable-bonjour --enable-bridge
 ```
 
 In the mobile app:
@@ -375,7 +422,8 @@ computer's LAN IP in the bridge URL, for example
 
 Common bridge options:
 
-- `--bridge-url` - required to enable bridge registration.
+- `--enable-bridge` - enable bridge registration (URL resolved from CLI, profile, or config).
+- `--bridge-url` - explicitly set the bridge URL (overrides profile/config).
 - `--bridge-display-name` - human-friendly server name shown to clients.
 - `--bridge-location` - optional display metadata.
 - `--bridge-local-http-base` - override the local server URL used by the bridge.
@@ -387,19 +435,10 @@ Common bridge options:
 
 ### Bonjour + Bridge Together
 
-You can enable both:
+The simplest full-setup command:
 
 ```bash
-crystal-lattice \
-  --server \
-  --console \
-  --config-local \
-  --host 0.0.0.0 \
-  --port 9000 \
-  --enable-bonjour \
-  --bridge-url ws://localhost:4000/ws/websocket \
-  --bridge-display-name "My Agent Server" \
-  --bridge-location "Office"
+crystal-lattice --console --server --enable-bonjour --enable-bridge
 ```
 
 LAN clients can use Bonjour/direct HTTP. Remote or cross-network clients can use
@@ -450,12 +489,25 @@ reasoning/thinking metadata, tool calls, and tool call ids when present.
 
 ## Logging
 
-Mirror logs to a file:
+By default, logs are written to `.crystal/crystal.log`:
+
+```bash
+crystal-lattice --console --server
+# logs to .crystal/crystal.log automatically
+```
+
+Override the log file path:
 
 ```bash
 crystal-lattice --log-file app.log
 crystal-lattice --console --log-file console.log
 crystal-lattice --server --console --log-file combined.log
+```
+
+Disable default file logging:
+
+```bash
+crystal-lattice --no-log-file
 ```
 
 Set log level:
@@ -465,8 +517,9 @@ crystal-lattice --log-level DEBUG
 crystal-lattice --console --log-level INFO
 ```
 
-When running server and terminal together, `--fastapi-log-file` can route
-FastAPI/uvicorn logs away from terminal stdout:
+When running server and terminal together, FastAPI/uvicorn logs are routed to
+the same file as the main log file by default. Use `--fastapi-log-file` to
+route them separately:
 
 ```bash
 crystal-lattice --server --console --fastapi-log-file fastapi.log
