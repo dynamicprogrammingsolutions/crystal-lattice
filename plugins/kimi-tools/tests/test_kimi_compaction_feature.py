@@ -37,9 +37,8 @@ from plugins.echo_openai_like_provider import EchoOpenAILikeProvider  # noqa: E4
 # tool_compat_shared through the kimi_tools package __init__.py.
 _kcf = importlib.import_module("kimi_tools.kimi_compaction_feature")
 _COMPACTION_METADATA_KEY = _kcf._COMPACTION_METADATA_KEY
+_COMPACTION_PREFIX = _kcf._COMPACTION_PREFIX
 _KIMI_COMPACTION_PROMPT = _kcf._KIMI_COMPACTION_PROMPT
-_LOCAL_COMMAND_ARTIFACT = _kcf._LOCAL_COMMAND_ARTIFACT
-_NO_RESPONSE_REQUESTED = _kcf._NO_RESPONSE_REQUESTED
 KimiCompactionFeature = _kcf.KimiCompactionFeature
 build_compact_summary_text = _kcf.build_compact_summary_text
 build_compacted_session = _kcf.build_compacted_session
@@ -328,42 +327,42 @@ class TestBuildCompactedSession:
             # Full range, no system → summary replaces everything
             (
                 False, None, None, False,
-                ["user", "user", "assistant"],
+                ["user"],
                 [],
                 [],
             ),
             # Partial range, no system → summary + preserved tail
             (
                 False, 0, 3, False,
-                ["user", "user", "assistant", "assistant", "user", "assistant"],
+                ["user", "assistant", "user", "assistant"],
                 [],
                 ["TWO", "Answer exactly THREE.", "THREE"],
             ),
             # Partial range, no system → summary + preserved tail
             (
                 False, 1, 4, False,
-                ["user", "user", "user", "assistant", "user", "assistant"],
+                ["user", "user", "user", "assistant"],
                 ["Answer exactly ONE."],
                 ["Answer exactly THREE.", "THREE"],
             ),
             # Full range, with system → system preserved, summary replaces rest
             (
                 True, None, None, False,
-                ["system", "user", "user", "assistant"],
+                ["system", "user"],
                 ["System prompt"],
                 [],
             ),
             # Partial range, with system → system + leading + summary + tail
             (
                 True, 0, 4, False,
-                ["system", "user", "user", "assistant", "assistant", "user", "assistant"],
+                ["system", "user", "assistant", "user", "assistant"],
                 ["System prompt"],
                 ["TWO", "Answer exactly THREE.", "THREE"],
             ),
             # Partial range, with system
             (
                 True, 2, 5, False,
-                ["system", "user", "user", "user", "assistant", "user", "assistant"],
+                ["system", "user", "user", "user", "assistant"],
                 ["System prompt", "Answer exactly ONE."],
                 ["Answer exactly THREE.", "THREE"],
             ),
@@ -382,15 +381,13 @@ class TestBuildCompactedSession:
         core, config = _core_and_config()
         session = _make_session(has_system)
         summary_text = (
-            "This session is being continued from a previous conversation.\n\n"
-            "Summary:\n"
+            "Previous context has been compacted. Here is the compaction output:\n\n"
             "<current_focus>Testing</current_focus>\n"
             "<environment>Python</environment>\n"
             "<completed_tasks>None</completed_tasks>\n"
             "<active_issues>None</active_issues>\n"
             "<code_state>\n\n<file>\ntest.py\n**Summary:** test\n</file>\n</code_state>\n"
-            "<important_context>None</important_context>\n\n"
-            "Footer text here."
+            "<important_context>None</important_context>"
         )
 
         compacted = build_compacted_session(
@@ -417,16 +414,12 @@ class TestBuildCompactedSession:
             if message.content == summary_text
         )
         assert compacted.messages[summary_index].content == summary_text
-        assert compacted.messages[summary_index + 1].content == _LOCAL_COMMAND_ARTIFACT
-        assert compacted.messages[summary_index + 2].content == _NO_RESPONSE_REQUESTED
         assert [message.content for message in compacted.messages[:summary_index]] == (
             expected_leading_contents
         )
-        trailing = compacted.messages[summary_index + 3 :]
+        trailing = compacted.messages[summary_index + 1 :]
         assert [message.content for message in trailing] == expected_trailing_contents
 
-        native_messages = compacted.metadata["native_messages"]
-        assert native_messages[summary_index + 1]["content"] == _LOCAL_COMMAND_ARTIFACT
         summary_metadata = compacted.messages[summary_index].metadata or {}
         assert summary_metadata[_COMPACTION_METADATA_KEY]["is_compact_summary"] is True
 
@@ -572,7 +565,7 @@ class TestKimiCompactionFeature:
 
 
 class TestBuildCompactSummaryText:
-    def test_wraps_summary_with_header_and_footer(self) -> None:
+    def test_wraps_summary_with_prefix(self) -> None:
         summary_body = (
             "<current_focus>Task X</current_focus>"
             "<environment>Python</environment>"
@@ -581,27 +574,21 @@ class TestBuildCompactSummaryText:
             "<code_state>\n\n<file>\ntest.py\n</file>\n</code_state>"
             "<important_context>None</important_context>"
         )
-        result = build_compact_summary_text(
-            summary_body, transcript_path="/path/to/transcript.json"
-        )
-        assert result.startswith(
-            "This session is being continued from a previous conversation"
-        )
-        assert "Summary:" in result
-        assert "/path/to/transcript.json" in result
-        assert "Continue the conversation from where it left off" in result
+        result = build_compact_summary_text(summary_body)
+        assert result.startswith(_COMPACTION_PREFIX)
+        assert summary_body in result
 
-    def test_includes_transcript_path(self) -> None:
+    def test_strips_whitespace_from_summary(self) -> None:
         result = build_compact_summary_text(
-            "<current_focus>x</current_focus>"
+            "  <current_focus>x</current_focus>"
             "<environment>x</environment>"
             "<completed_tasks>x</completed_tasks>"
             "<active_issues>x</active_issues>"
             "<code_state>x</code_state>"
-            "<important_context>x</important_context>",
-            transcript_path="/custom/path.json",
+            "<important_context>x</important_context>  "
         )
-        assert "/custom/path.json" in result
+        assert result.startswith(_COMPACTION_PREFIX)
+        assert not result.endswith("  ")
 
 
 # ---------------------------------------------------------------------------

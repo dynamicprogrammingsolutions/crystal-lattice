@@ -24,11 +24,7 @@ if str(KIMI_PLUGIN_SRC) not in sys.path:
     sys.path.insert(0, str(KIMI_PLUGIN_SRC))
 
 from agent_core import Message, Session  # noqa: E402
-from kimi_tools.kimi_compaction_feature import (  # noqa: E402
-    _LOCAL_COMMAND_ARTIFACT,
-    _NO_RESPONSE_REQUESTED,
-    _SUMMARY_HEADER,
-)
+from kimi_tools.kimi_compaction_feature import _COMPACTION_PREFIX  # noqa: E402
 
 
 def _build_default_config_app(
@@ -123,7 +119,7 @@ def test_default_kimi_agent_compaction_action_rewrites_history(
     1. The kimi agent loads the KimiCompactionFeature via path:${env:BUILTIN_PLUGINS}/kimi-tools
     2. The compact_conversation action is registered and reachable via server.execute_action
     3. Compaction produces the expected session structure:
-       - Summary user message with _SUMMARY_HEADER and Kimi XML sections
+       - Summary user message with _COMPACTION_PREFIX and Kimi XML sections
        - Local-command artifact user message
        - No-response-requested assistant message
        - Preserved system messages and trailing messages
@@ -182,27 +178,20 @@ def test_default_kimi_agent_compaction_action_rewrites_history(
     compacted = app.load_session_record(seeded.session_id)
     assert compacted is not None
 
-    # Find the summary message (starts with _SUMMARY_HEADER)
+    # Find the summary message (starts with _COMPACTION_PREFIX)
     summary_index = next(
         idx
         for idx, message in enumerate(compacted.messages)
         if isinstance(message.content, str)
-        and message.content.startswith(_SUMMARY_HEADER)
+        and message.content.startswith(_COMPACTION_PREFIX)
     )
 
-    # Verify the 3 injected messages: summary (user) + local-command (user) + no-response (assistant)
-    assert [
-        message.role
-        for message in compacted.messages[summary_index : summary_index + 3]
-    ] == [
-        "user",
-        "user",
-        "assistant",
-    ]
+    # Verify the 1 injected message: summary (user)
+    assert compacted.messages[summary_index].role == "user"
 
     summary_text = compacted.messages[summary_index].content
     assert isinstance(summary_text, str)
-    assert summary_text.startswith(_SUMMARY_HEADER)
+    assert summary_text.startswith(_COMPACTION_PREFIX)
     # Kimi-style XML sections
     assert "<current_focus>" in summary_text
     assert "<environment>" in summary_text
@@ -210,10 +199,6 @@ def test_default_kimi_agent_compaction_action_rewrites_history(
     assert "<active_issues>" in summary_text
     assert "<code_state>" in summary_text
     assert "<important_context>" in summary_text
-    assert "Resume directly" in summary_text
-
-    assert compacted.messages[summary_index + 1].content == _LOCAL_COMMAND_ARTIFACT
-    assert compacted.messages[summary_index + 2].content == _NO_RESPONSE_REQUESTED
 
     # Verify leading contents (before summary)
     leading_contents = [
@@ -222,8 +207,8 @@ def test_default_kimi_agent_compaction_action_rewrites_history(
     # The first leading content may be a system message or the first user message
     assert leading_contents[1:] == expected_leading_non_system
 
-    # Verify trailing contents (after the 3 injected messages)
-    assert [message.content for message in compacted.messages[summary_index + 3 :]] == (
+    # Verify trailing contents (after the 1 injected message)
+    assert [message.content for message in compacted.messages[summary_index + 1 :]] == (
         expected_trailing_contents
     )
 
