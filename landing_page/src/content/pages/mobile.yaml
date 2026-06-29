@@ -1,31 +1,34 @@
 seo:
-  title: "Crystal Lattice: Mobile App"
+  title: "Crystal Lattice Control: Continue agent work from your phone"
   description: >-
-    Open Crystal Lattice sessions from your phone, watch responses stream, and
-    reconnect through local network discovery or the bridge.
+    The Crystal Lattice mobile client connects to the Crystal Lattice runtime
+    on your computer so you can browse sessions, send messages, watch responses
+    stream, and use plugin-driven actions from your phone.
 
 sections:
   - type: mobileHero
     label: "Crystal Lattice Control"
-    titleHtml: "Your agent workspace,<br />from your phone"
+    titleHtml: "Continue agent work,<br />from your phone."
     subtitle: >-
-      Browse sessions, send messages, and watch responses stream from Crystal
-      Lattice running on your computer. Store releases are coming soon; source
-      builds are available today.
+      Crystal Lattice Control is a mobile UI for the Crystal Lattice runtime
+      running on your computer. Browse sessions, send messages, watch responses
+      stream, and use plugin-driven actions without staying at the keyboard.
     platforms:
       - label: "iOS"
         icon: apple
       - label: "Android"
         icon: android
     storeButtons:
-      - className: "app-store"
+      - href: ""
+        className: "app-store"
         icon: apple
-        sub: "Coming soon"
+        sub: "Coming soon on the"
         name: "App Store"
         comingSoon: true
-      - className: "play-store"
+      - href: ""
+        className: "play-store"
         icon: play
-        sub: "Coming soon"
+        sub: "Coming soon on"
         name: "Google Play"
         comingSoon: true
       - href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice/tree/main/mobile/crystal-lattice-control-rn"
@@ -33,92 +36,87 @@ sections:
         icon: github
         sub: "Available today"
         name: "Run from source"
-    note: "Store releases coming soon · Source builds available today"
+    note: "Requires Crystal Lattice running on your computer"
     image:
       src: "/cl-mobile-frame.png"
       alt: "Crystal Lattice Control mobile app"
 
   - type: mobileFeatures
     id: features
-    eyebrow: "What you get"
-    titleHtml: "A phone view for<br />real agent work"
+    eyebrow: "What you can do"
+    titleHtml: "The core session workflow,<br />in your pocket."
     body: >-
-      Open sessions, send messages, watch streams, and use supported
-      plugin-driven controls from your phone.
+      The mobile app focuses on real session work: browse sessions, send
+      messages, stream responses, manage supported settings and plugins, and run
+      actions that plugins expose to the UI.
     items:
       - icon: stream
-        title: "Real-time streaming"
+        title: "Watch work stream"
         desc: >-
-          Messages stream token-by-token as they're generated. Partial messages
-          appear instantly, replaced by the final response when complete.
+          Follow responses as they arrive, then keep the final message and
+          metadata in the shared session history.
       - icon: chat
-        title: "Session management"
+        title: "Resume sessions"
         desc: >-
-          Browse all your sessions, resume any conversation, and create new
-          ones. Sessions keep their own agent configuration, message history,
-          and state.
-      - icon: provider
-        title: "Configured agents"
-        desc: >-
-          Work with the agents you have configured on your computer. Provider
-          and model-family capabilities can vary, so Crystal Lattice keeps this
-          behavior plugin-driven.
+          Browse existing sessions and continue the same work you started from
+          the app UI or terminal UI on your computer.
       - icon: plugin
-        title: "Plugin controls"
+        title: "Use plugin actions"
         desc: >-
-          Supported plugin-exposed controls, tool results, and agent actions are
-          shown inline in the conversation as they happen.
+          When a plugin exposes a setting or action, the app can render the
+          control without hardcoding that feature into the mobile client.
+      - icon: provider
+        title: "Keep model-family behavior"
+        desc: >-
+          Mobile does not flatten the harness. The same configured agents,
+          built-in plugins, provider settings, and session actions stay in use.
       - icon: wifi
-        title: "Connection methods"
+        title: "Connect near or far"
         desc: >-
-          Connect via manual IP, automatic discovery on the same network, or a
-          pairing-code bridge when your phone is outside that network.
-      - icon: info
-        title: "Thinking blocks"
-        desc: >-
-          Models with reasoning traces (Ollama, OpenRouter) show their thinking
-          inline when the configured provider and plugins expose them,
-          collapsible so the conversation stays readable.
+          Use automatic discovery on the same local network, or pair through a
+          self-hosted bridge when you are outside that network. Hosted bridge is
+          coming soon.
 
   - type: mobileConnect
     id: connect
     eyebrow: "Connectivity"
-    title: "Connect from anywhere"
-    body: "Three ways to link your phone to Crystal Lattice. Pick whatever fits your setup."
+    title: "Connect near or far"
+    body: >-
+      Use automatic discovery when your phone is on the same local network. Use
+      a self-hosted bridge when you want to connect from outside that network.
+      Hosted bridge service is coming soon.
     methods:
       - num: "01"
         title: "Manual address"
-        desc: "Enter the address of the Crystal Lattice process running on your computer. Works wherever your phone can reach that address."
+        desc: "Enter your computer's local network address and port when you already know where Crystal Lattice is running."
         code: "http://192.168.1.42:9000"
       - num: "02"
-        title: "Auto-discovery"
-        desc: "On the same Wi-Fi, the app can find your computer automatically. Under the hood, this uses Bonjour/mDNS."
+        title: "Automatic local discovery"
+        desc: "On the same Wi-Fi, the app can find your computer automatically. Under the hood this uses Bonjour/mDNS local network discovery."
         code: "crystal-lattice ... --enable-bonjour"
       - num: "03"
         title: "Bridge pairing"
-        desc: >-
-          When your phone is outside the local network, pair through a bridge.
-          Deploy the bridge, start Crystal Lattice with its bridge URL, then
-          connect with the pairing code.
+        desc: "When your phone is outside the local network, deploy a reachable bridge and connect through a pairing code."
         code: "crystal-lattice ... --bridge-url wss://<your-cloudfront-domain>/ws/websocket"
 
   - type: mobileDownload
-    title: "Mobile app availability"
+    title: "Mobile apps are coming soon"
     body: >-
-      Store releases are coming soon. Today, you can build the mobile app from
-      source and connect it to Crystal Lattice on your network or through the
-      bridge.
+      App Store and Google Play distribution are planned. Until then, the React
+      Native mobile app can be run from source.
     storeButtons:
-      - icon: apple
-        sub: "Coming soon"
+      - href: ""
+        icon: apple
+        sub: "Coming soon on the"
         name: "App Store"
         comingSoon: true
-      - icon: play
-        sub: "Coming soon"
+      - href: ""
+        icon: play
+        sub: "Coming soon on"
         name: "Google Play"
         comingSoon: true
       - href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice/tree/main/mobile/crystal-lattice-control-rn"
         icon: github
         sub: "Available today"
         name: "Run from source"
-    noteHtml: 'Need Crystal Lattice first? <a href="/#quickstart">Get started →</a>'
+    noteHtml: 'Need Crystal Lattice on your computer first? <a href="/#computer-to-phone">Install Crystal Lattice</a>'

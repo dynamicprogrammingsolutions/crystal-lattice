@@ -1,0 +1,31 @@
+---
+import TerminalFrame from "./TerminalFrame.astro";
+
+interface Props {
+  code: string;
+  label?: string;
+  className?: string;
+}
+
+const { code, label = "bash — 80×24", className = "" } = Astro.props;
+
+// Parse shell command: split the prompt ($) from the command text.
+const lines = code.trim().split('\n');
+const processedLines = lines.map(line => {
+  const promptMatch = line.match(/^(\$\s+)(.*)$/);
+  if (promptMatch) {
+    return { prompt: promptMatch[1], command: promptMatch[2] };
+  }
+  return { prompt: null, command: line };
+});
+---
+
+<TerminalFrame label={label} className={className}>
+  <code data-copy-source class="hidden">{code}</code>
+  <pre class="m-0 max-w-full overflow-x-auto rounded-none border-0 bg-transparent py-4 pl-4 pr-12 text-[0.78rem] leading-[1.7]">{processedLines.map(line => (
+      <div class="flex items-center text-fg-3">
+        {line.prompt && <span class="mr-1 font-medium text-accent">{line.prompt}</span>}
+        <span class="text-fg">{line.command}</span>
+      </div>
+    ))}</pre>
+</TerminalFrame>

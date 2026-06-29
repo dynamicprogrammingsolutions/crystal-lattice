@@ -1,0 +1,58 @@
+---
+interface Props {
+  label?: string;
+  className?: string;
+}
+
+const { label = "", className = "" } = Astro.props;
+---
+
+<div class:list={["overflow-hidden rounded-xl border border-line bg-code", className]} data-copy-card>
+  <div class="flex items-center gap-2 border-b border-line bg-surface px-4 py-2.5">
+    <span class="flex gap-1.5" aria-hidden="true">
+      <span class="h-3 w-3 rounded-full bg-[#ec6a5e]"></span>
+      <span class="h-3 w-3 rounded-full bg-[#8aa4d6]"></span>
+      <span class="h-3 w-3 rounded-full bg-[#c6cad2]"></span>
+    </span>
+    {label && <span class="ml-auto font-mono text-xs text-fg-5">{label}</span>}
+  </div>
+  <div class="relative">
+    <button
+      type="button"
+      aria-label="Copy"
+      data-copy-button
+      class="absolute right-3 top-3 z-10 inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-fg-5 transition-colors hover:bg-surface hover:text-fg-2"
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+    </button>
+    <slot />
+  </div>
+</div>
+
+<script is:inline>
+  if (!window.__crystalLatticeCopyCodeReady) {
+    window.__crystalLatticeCopyCodeReady = true;
+    document.addEventListener("click", async (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+
+      const button = target.closest("[data-copy-button]");
+      if (!button) return;
+
+      const card = button.closest("[data-copy-card]");
+      const source = card?.querySelector("[data-copy-source]");
+      const text = source?.textContent ?? "";
+      if (!text.trim()) return;
+
+      await navigator.clipboard.writeText(text.trimEnd());
+      const original = button.innerHTML;
+      button.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      setTimeout(() => {
+        button.innerHTML = original;
+      }, 1400);
+    });
+  }
+</script>

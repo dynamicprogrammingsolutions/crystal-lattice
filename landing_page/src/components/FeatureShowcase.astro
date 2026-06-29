@@ -1,0 +1,49 @@
+---
+import SectionShell from "./SectionShell.astro";
+import type { FeatureShowcaseSection } from "../content/pageTypes";
+
+interface Props {
+  section: FeatureShowcaseSection;
+}
+
+const { section } = Astro.props;
+const body = Array.isArray(section.body) ? section.body : [];
+const items = Array.isArray(section.items) ? section.items : [];
+const visual = section.visual && typeof section.visual === "object" ? section.visual : null;
+---
+
+<SectionShell id={section.id}>
+  <div class="mb-11 max-w-[720px]">
+    {section.eyebrow && <p class="mb-3 text-xs font-semibold uppercase tracking-[0.08em] text-accent-soft">{section.eyebrow}</p>}
+    <h2 class="mb-3 text-[clamp(1.5rem,3.5vw,2rem)] font-bold leading-tight tracking-[-0.02em] text-fg">{section.title}</h2>
+    {body.map((paragraph) => <p class="mb-3 text-[0.9375rem] leading-relaxed text-fg-4">{paragraph}</p>)}
+  </div>
+
+  <div class="grid grid-cols-4 gap-5 max-[960px]:grid-cols-2 max-[560px]:grid-cols-1">
+    {items.map((item) => (
+      <article class="flex min-h-full flex-col gap-4 rounded-xl border border-line bg-raised p-5">
+        {item.media && (
+          <div class="flex aspect-[4/3] flex-col justify-center gap-1.5 rounded-lg border border-dashed border-line-strong bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] p-4">
+            <span class="font-mono text-xs text-accent-pale">{item.media.kind ?? "feature"}</span>
+            <p class="text-xs text-fg-5">{item.media.status ?? "ready"}</p>
+          </div>
+        )}
+        <h3 class="text-[0.9375rem] font-semibold text-fg-2">{item.title}</h3>
+        <p class="text-sm leading-snug text-fg-4">{item.description}</p>
+      </article>
+    ))}
+  </div>
+
+  {visual && (
+    <div class="mt-6 rounded-xl border border-line bg-raised p-4">
+      {visual.status === "placeholder-needed" ? (
+        <div class="flex aspect-video w-full flex-col justify-center gap-2 rounded-lg border border-dashed border-line-strong bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] p-5">
+          <span class="font-mono text-[0.8125rem] text-accent-pale">{visual.src}</span>
+          <p class="max-w-[560px] text-sm leading-snug text-fg-4">{visual.alt}</p>
+        </div>
+      ) : (
+        <img src={visual.src} alt={visual.alt ?? section.title} class="block aspect-video w-full rounded-lg border border-line object-cover" />
+      )}
+    </div>
+  )}
+</SectionShell>

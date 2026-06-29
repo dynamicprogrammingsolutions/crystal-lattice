@@ -1,5 +1,6 @@
 ---
 import { ViewTransitions } from 'astro:transitions';
+import '../styles/global.css';
 
 interface Props {
   title?: string;
@@ -39,7 +40,3 @@ const {
   <slot />
 </body>
 </html>
-
-<style is:global>
-  @import '../styles/global.css';
-</style>

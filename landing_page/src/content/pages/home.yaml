@@ -1,22 +1,25 @@
 seo:
-  title: "Crystal Lattice: Plugin-driven AI agent workspace"
+  title: "Crystal Lattice: Model-native agents you can control"
   description: >-
-    Run AI agents your way: start on your computer, continue from your phone,
-    and customize tools, prompts, settings, and model-family harnesses through
-    plugins.
+    A plugin-driven agent platform for people who outgrow one-size-fits-all
+    harnesses. Built-in model-family plugins provide Codex, Claude, Gemini,
+    Qwen, Kimi, and Grok-style defaults, while your config can replace the
+    provider, tools, settings, UI actions, and session workflow.
 
 sections:
   - type: hero
     id: hero
-    badge: "Plugin-driven agent workspace"
-    titleHtml: 'Own the harness.<br /><span class="highlight">Use the agent anywhere.</span>'
+    badge: "Plugin-driven agent platform"
+    titleHtml: 'For people who outgrow<br /><span class="highlight">one-size-fits-all agents.</span>'
     subtitle: >-
-      Crystal Lattice is a plugin-driven platform for running AI agents your
-      way: from your computer, from your phone, and through custom tools,
-      prompts, settings, and model-family harnesses you can replace.
+      Crystal Lattice is a model-native agent platform: the harness changes
+      around the model, including its system message, tool schema, request
+      behavior, provider-native state, and UI controls. Built-in plugins provide
+      Codex, Claude, Gemini, Qwen, Kimi, and Grok-style defaults, and your config
+      can replace them.
     actions:
-      - label: "Get started"
-        href: "#quickstart"
+      - label: "Start a workspace"
+        href: "#computer-to-phone"
         variant: primary
         icon: arrow
       - label: "View on GitHub"
@@ -30,46 +33,39 @@ sections:
       altHtml: "or <code>pipx install crystal-lattice-cli</code>"
 
   - type: providers
-    label: "Built for"
+    id: harness-strip
+    label: "Built-in model-family harnesses"
     providers:
       - "Codex-style tools"
       - "Claude-style workflows"
-      - "Gemini"
-      - "Qwen"
-      - "Kimi"
-      - "Grok"
-      - "OpenRouter"
-      - "Ollama"
+      - "Gemini-oriented tools"
+      - "Qwen-oriented tools"
+      - "Kimi-oriented tools"
+      - "Grok-oriented tools"
 
-  - type: features
-    id: features
-    source: "../markdown/home-features.md"
-
-  - type: quickstart
-    id: quickstart
-    eyebrow: "Quickstart"
-    title: "Start on your computer. Continue from your phone."
-    body: >-
-      Install the CLI, start Crystal Lattice in a project folder, then connect
-      from the mobile app on the same Wi-Fi.
-    steps:
-      - num: "1"
-        title: "Install"
-        body:
-          - html: "One-line installer for macOS & Linux:"
-        codeBlocks:
-          - "curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash"
-        after:
-          - html: "Or via pipx:"
-        afterCodeBlocks:
-          - "pipx install crystal-lattice-cli"
-      - num: "2"
-        title: "Start Crystal Lattice"
-        body:
-          - html: "Create a working directory and launch:"
-        codeBlocks:
-          - |
-            mkdir ~/crystal-lattice && cd ~/crystal-lattice
+  - type: actionGuide
+    id: computer-to-phone
+    eyebrow: "Computer to phone"
+    title: "Start at your desk. Keep going from your phone."
+    body:
+      - >-
+        Start Crystal Lattice in the project folder where you want the agent to
+        work. The terminal UI can stay open, but the work is not trapped there:
+        the app UIs can open the same sessions and watch responses stream.
+      - >-
+        On the same Wi-Fi, Crystal Lattice Control can find your computer
+        automatically. Choose Automatic Discovery, select your computer, and
+        continue the same workspace from your phone.
+    action:
+      title: "Run the local workspace"
+      steps:
+        - label: "Install the CLI"
+          code: |
+            curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
+        - label: "Start Crystal Lattice with local discovery"
+          code: |
+            mkdir -p ~/crystal-lattice-demo
+            cd ~/crystal-lattice-demo
 
             crystal-lattice \
               --server \
@@ -78,30 +74,378 @@ sections:
               --host 0.0.0.0 \
               --port 9000 \
               --enable-bonjour
-        after:
-          - html: "Add a provider key to <code>.crystal/config.json</code> to enable model calls."
-      - num: "3"
-        title: "Connect your phone"
-        body:
-          - html: "Open Crystal Lattice Control, choose <strong>Automatic Discovery</strong>, and select your computer."
-        codeBlocks: []
-        after:
-          - html: "Manual address is still available if discovery is not available on your network."
+        - label: "Open the mobile app"
+          text: "Open Crystal Lattice Control, choose Automatic Discovery, and select your computer."
+    note: >-
+      Automatic discovery uses the local network. If your phone is outside that
+      network, use the bridge section below.
+    visual:
+      kind: "connectionDiagram"
+      status: "placeholder-needed"
+      desktop: "Show computer runtime on the left and terminal, desktop app, mobile app, and custom UI connected to the same sessions."
+      mobile: "Stack the command card first, then a compact connection diagram."
+
+  - type: actionGuide
+    id: bridge
+    eyebrow: "Outside your local network"
+    title: "Pair through a self-hosted bridge"
+    body:
+      - >-
+        Hosted bridge service is coming soon. Today, when your phone is not on
+        the same network as your computer, deploy your own bridge and pair
+        through it.
+      - >-
+        The bridge gives Crystal Lattice clients a way to reconnect from outside
+        the local network. Local bridge hosting is useful for development and
+        testing, but production use should deploy the bridge somewhere reachable.
+    action:
+      title: "Deploy the bridge on AWS"
+      steps:
+        - label: "Create the bridge deployment"
+          code: |
+            ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/build.sh \
+              --profile secure \
+              --stack-name crystal-lattice-bridge \
+              --region us-east-1
+
+            ALLOW_AWS_DEPLOY=1 deploy/aws-ec2/up.sh \
+              --profile secure \
+              --stack-name crystal-lattice-bridge \
+              --region us-east-1
+        - label: "Start Crystal Lattice with the bridge URL"
+          code: |
+            crystal-lattice \
+              --server \
+              --console \
+              --config-local \
+              --host 0.0.0.0 \
+              --port 9000 \
+              --bridge-url wss://<your-cloudfront-domain>/ws/websocket
+        - label: "Pair from the phone"
+          text: "Open Crystal Lattice Control, choose Bridge Service, enter the bridge URL, select your computer, and enter the pairing code."
+    visual:
+      kind: "bridgeDiagram"
+      status: "placeholder-needed"
+      desktop: "Show phone -> bridge -> user's computer, with pairing code callout."
+      mobile: "Use three compact steps: deploy, start with URL, pair."
+
+  - type: featureMatrix
+    id: model-native-harnesses
+    eyebrow: "Model-native harnesses"
+    title: "Stop forcing every model through the same prompt and tools."
+    intro: >-
+      Model-native means Crystal Lattice changes the harness around the model:
+      system message, tool schema, request behavior, provider-native state, and
+      UI controls. The built-in defaults do this with plugins, and those plugins
+      can be replaced.
+    columns:
+      - key: "modelFamily"
+        label: "Model family"
+      - key: "builtInHarness"
+        label: "Built-in harness"
+      - key: "whatChanges"
+        label: "What changes"
+    rows:
+      - modelFamily: "Codex / GPT coding models"
+        builtInHarness: "`codex-tools`"
+        whatChanges: "Codex-style shell tools, apply patch semantics, skills block, model-family system instructions."
+      - modelFamily: "Claude"
+        builtInHarness: "`claude-tools`"
+        whatChanges: "Claude-oriented tool schema and workflow conventions."
+      - modelFamily: "Gemini"
+        builtInHarness: "`gemini-tools` + compaction plugins"
+        whatChanges: "Gemini-oriented system message and tool behavior, optional compaction flow."
+      - modelFamily: "Qwen"
+        builtInHarness: "`qwen-tools`"
+        whatChanges: "Qwen-oriented tool and instruction style."
+      - modelFamily: "Kimi"
+        builtInHarness: "`kimi-tools`"
+        whatChanges: "Kimi-oriented tools and prompt behavior."
+      - modelFamily: "Grok"
+        builtInHarness: "`grok-tools`"
+        whatChanges: "Grok-oriented tools and request behavior."
+      - modelFamily: "OpenAI Responses"
+        builtInHarness: "`openai_responses`"
+        whatChanges: "Responses-native reasoning, usage/cost metadata, attachments, prompt caching, native compaction."
+      - modelFamily: "OpenRouter"
+        builtInHarness: "`openrouter`"
+        whatChanges: "OpenRouter model routing, reasoning/web/image extensions depending on provider path."
+
+  - type: featureShowcase
+    id: native-provider-features
+    eyebrow: "Native provider features"
+    title: "Provider-specific behavior can become real UI."
+    body:
+      - >-
+        Some capabilities are not generic chat settings. Reasoning effort,
+        verbosity, web search, prompt caching, native compaction, attachment
+        handling, usage, and cost metadata depend on the provider path.
+      - >-
+        Crystal Lattice lets provider and feature plugins expose those controls
+        and outputs directly to the UI, so native behavior is visible instead of
+        hidden behind a generic wrapper.
+    items:
+      - title: "Reasoning and verbosity"
+        description: "Expose model-specific controls when the provider supports them."
+        media:
+          kind: "screenshot"
+          status: "placeholder-needed"
+      - title: "Web search and citations"
+        description: "Show search/citation behavior through provider extensions where available."
+        media:
+          kind: "screenshot"
+          status: "placeholder-needed"
+      - title: "Prompt caching and compaction"
+        description: "Keep long sessions practical with provider-native cache and compaction controls."
+        media:
+          kind: "screenshot"
+          status: "placeholder-needed"
+      - title: "Usage, cost, and attachments"
+        description: "Surface metadata, generated assets, and attachment handling in the UI."
+        media:
+          kind: "screenshot"
+          status: "placeholder-needed"
+
+  - type: featureCodeShowcase
+    id: everything-replaceable
+    eyebrow: "Everything is replaceable"
+    title: "Serious users eventually disagree with the harness."
+    body:
+      - >-
+        Crystal Lattice treats that as normal. Providers, provider extensions,
+        features, tools, application actions, session behavior, and UI elements
+        are all plugin surfaces.
+      - >-
+        The built-in plugins give you useful defaults. Your own plugins can
+        replace the parts your workflow disagrees with, and config can point at
+        those plugins without waiting for upstream approval.
+    note: "Code examples are illustrative placeholders, not final API."
+    cards:
+      - title: "Provider"
+        description: "Add native support for a model API."
+        code:
+          language: "python"
+          value: |
+            # Placeholder example, not final API.
+            class MyProvider:
+                name = "my_provider"
+
+                def to_native_messages(self, messages, state, *, context=None):
+                    return convert_to_my_api(messages)
+
+                def stream_api(self, native_messages, state):
+                    yield from call_my_model(native_messages, state)
+      - title: "Provider extension"
+        description: "Surface provider metadata, reasoning, citations, or UI fields."
+        code:
+          language: "python"
+          value: |
+            # Placeholder example, not final API.
+            class UsageFooter:
+                name = "usage_footer"
+
+                def finalize(self, final_messages, native_messages, state):
+                    return add_usage_metadata(final_messages, state)
+
+                def get_ui_elements(self, config, context=None):
+                    return [
+                        {"ui_type": "message_footer", "data": "metadata.total_cost"}
+                    ]
+      - title: "Feature"
+        description: "Transform context, request behavior, or final messages."
+        code:
+          language: "python"
+          value: |
+            # Placeholder example, not final API.
+            class ProjectContext:
+                name = "project_context"
+
+                def to_native_messages(self, messages, native_messages, state):
+                    return inject_project_context(native_messages)
+      - title: "Tool"
+        description: "Expose Python, Node, Bash, or MCP-backed capabilities."
+        code:
+          language: "python"
+          value: |
+            # Placeholder example, not final API.
+            class SearchTickets:
+                name = "search_tickets"
+
+                def get_tool_schemas(self, state):
+                    return [ticket_search_schema]
+
+                def execute_tool(self, tool_name, payload, state):
+                    return search_linear_or_jira(payload)
+      - title: "Application plugin"
+        description: "Add session-level workflow actions."
+        code:
+          language: "python"
+          value: |
+            # Placeholder example, not final API.
+            class CreateReleaseNotes:
+                name = "release_notes"
+
+                def get_actions(self, state):
+                    return [
+                        {
+                            "id": "release_notes.create",
+                            "label": "Create release notes",
+                        }
+                    ]
+
+                def execute_action(self, app, action_id, params, context, state):
+                    return create_release_notes(app, params)
+      - title: "UI schema"
+        description: "Render settings and actions in app UIs without hardcoding them."
+        code:
+          language: "python"
+          value: |
+            # Placeholder example, not final API.
+            def get_ui_elements(self, config, context=None):
+                return [
+                    {
+                        "ui_type": "session_action",
+                        "label": "Sync down",
+                        "action_id": "cloud.sync_down",
+                    },
+                    {
+                        "type": "select",
+                        "key": "reasoning_effort",
+                        "label": "Reasoning effort",
+                    },
+                ]
+
+  - type: screenshotGallery
+    id: session-workbench
+    eyebrow: "Session workbench"
+    title: "Treat sessions as workspaces, not disposable chats."
+    body:
+      - >-
+        Agent work is more than a transcript. Built-in session plugins turn
+        conversations into durable workspaces with titles, pinned state,
+        summaries, snapshots, attachments, ordering, and session actions.
+      - >-
+        The workbench is plugin-driven too: built-in plugins provide the default
+        behavior, and your own plugins can add or replace workflow actions.
+    gallery:
+      - title: "Session list"
+        description: "Titles, pinned state, ordering, message counts, and timestamps."
+        src: "/session-list-workbench.png"
+        status: "placeholder-needed"
+      - title: "Chat actions"
+        description: "Message and session actions exposed by plugins."
+        src: "/chat-actions-workbench.png"
+        status: "placeholder-needed"
+      - title: "Snapshots"
+        description: "Create, inspect, select, and restore session checkpoints."
+        src: "/session-snapshots-workbench.png"
+        status: "placeholder-needed"
+      - title: "Attachments"
+        description: "Preserve generated assets and session-owned files."
+        src: "/session-attachments-workbench.png"
+        status: "placeholder-needed"
+      - title: "Settings and plugins"
+        description: "Per-session controls from plugin UI schema."
+        src: "/session-settings-plugins.png"
+        status: "placeholder-needed"
+
+  - type: promptBlock
+    id: build-plugin
+    eyebrow: "Plugin authoring"
+    title: "Ask an agent to plan the plugin."
+    intro: >-
+      A user-owned plugin workflow still needs product polish, but the design
+      goal is straightforward: inspect the docs, pick the right plugin type,
+      copy the closest template, write tests, and load the plugin from config.
+    prompt: |
+      I want to build a Crystal Lattice plugin.
+
+      Please inspect the plugin documentation in this repository, especially:
+      - plugins/docs/index.md
+      - plugins/docs/tool-plugins.md
+      - plugins/docs/application-plugins.md
+      - plugins/docs/provider-plugins.md
+      - plugins/docs/provider-extensions.md
+      - plugins/docs/feature-plugins.md
+      - plugins/docs/ui-elements.md
+      - plugins/docs/plugin-packaging-and-loading.md
+
+      Goal:
+      Create a plugin that [describe what I want].
+
+      Please:
+      1. Identify whether this should be a provider, provider extension, feature, tool, or application plugin.
+      2. Find the closest existing plugin or template to copy from.
+      3. Explain what UI, if any, the plugin should expose.
+      4. Propose the file layout.
+      5. Draft an implementation plan.
+      6. Tell me what tests should be added before coding.
+    configExample:
+      language: "json"
+      code: |
+        {
+          "plugins": [
+            "path:./plugins/my-custom-plugin"
+          ]
+        }
+
+  - type: codeExample
+    id: automate-python
+    eyebrow: "Python SDK"
+    title: "Automate the same harness with Python."
+    body:
+      - >-
+        When the work becomes repetitive, use the same configured agents and
+        plugins from Python. The example below sketches a short sales-letter
+        workflow over a CSV of leads.
+      - >-
+        The final webpage should verify this against the current SDK and may
+        add a small helper if the public API needs a simpler "run until final"
+        path.
+    code:
+      language: "python"
+      status: "sdk-api-needs-verification"
+      value: |
+        import pandas as pd
+        from agent_app import AgentApplication
+
+        app = AgentApplication.from_config("./.crystal/config.json")
+        leads = pd.read_csv("leads.csv")
+
+        def draft(row):
+            session = app.create_session(agent_id="codex-openrouter")
+            app.add_message(
+                session.session_id,
+                "user",
+                f"""
+                Write a concise first sales email.
+
+                Name: {row.name}
+                Role: {row.role}
+                Company: {row.company}
+                Notes: {row.notes}
+                """,
+            )
+            result = app.run_until_final(session.session_id)
+            return result.content
+
+        leads["draft"] = leads.apply(draft, axis=1)
+        leads.to_csv("drafts.csv", index=False)
 
   - type: cta
-    title: "Own your agent harness"
+    title: "Use the harness you can inspect and replace."
     body: >-
-      Start Crystal Lattice from a project folder, open the same work from app
-      UI or phone, and replace the plugins that define how the agent behaves.
+      Start with built-in model-family plugins, run Crystal Lattice on your
+      computer, continue from phone or app UI, and replace the parts of the
+      harness your workflow disagrees with.
     actions:
       - label: "Install the CLI"
-        href: "#quickstart"
+        href: "#computer-to-phone"
         variant: primary
         icon: arrow
-      - label: "Read the docs"
-        href: "$docsUrl/"
+      - label: "Mobile apps coming soon"
+        href: "/mobile"
         variant: outline
-        target: "_blank"
       - label: "View on GitHub"
         href: "https://github.com/dynamicprogrammingsolutions/crystal-lattice"
         variant: outline

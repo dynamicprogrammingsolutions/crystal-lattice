@@ -293,6 +293,11 @@ crystal-lattice --help
 crystal-lattice --runtime-layout-json
 ```
 
+On Windows, run the shell installer from Git Bash/MSYS/Cygwin. The installer
+detects `MINGW*`, `MSYS*`, and `CYGWIN*` from `uname -s`, downloads the
+`windows-amd64` `.zip` archive, and writes a Bash shim that calls the bundled
+`Scripts/crystal-lattice.cmd` launcher.
+
 Skip installer execution and only check URLs/content:
 
 ```bash

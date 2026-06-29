@@ -16,6 +16,8 @@ Create a reproducible AWS/GitHub deployment path for Crystal Lattice CLI downloa
   - Script exists; existing GitHub Release assets for `0.1.0` used older names, so promotion was not used for the live test.
 - [x] `tasks/20260617-cli-download-domain-release-automation/080-add-smoke-tests-and-domain-cutover-docs.md`
   - Testing-domain and production-domain public installer smoke passed; production website/docs were updated and deployed.
+- [ ] `tasks/20260617-cli-download-domain-release-automation/090-add-aws-and-real-device-cli-install-lab.md`
+  - Linux EC2 and macOS local smoke passed. Windows EC2 Git Bash installed CLI behavior passed, but non-interactive SSM wrapper cleanup/reporting still needs a follow-up fix.
 
 ## Goal
 
@@ -348,3 +350,37 @@ Production cutover update added during completion on 2026-06-18:
   ```bash
   curl -fsSL https://download.crystallattice.dev/crystal-lattice-cli/install.sh | bash
   ```
+
+Git Bash installer update added during completion on 2026-06-18:
+
+- Extended `scripts/install.sh` so Git Bash/MSYS/Cygwin on Windows detects `windows-amd64`, downloads the `.zip` runtime archive, and writes a Bash shim that calls `Scripts/crystal-lattice.cmd`.
+- Uploaded the updated generated installer to both the testing and production download domains.
+- Added focused installer tests for Linux tarball installs, Windows Git Bash zip installs, and unsupported Windows architectures.
+- Production endpoint smoke with `--skip-install` passed after upload.
+
+CLI install lab follow-up added during completion on 2026-06-18:
+
+- Added `tasks/20260617-cli-download-domain-release-automation/090-add-aws-and-real-device-cli-install-lab.md`.
+- Scope: create a scripted AWS lab for Linux and Windows EC2, using SSM access and Git Bash on Windows, plus an equivalent real-device manual method for Linux, macOS, and Windows.
+
+Standard install smoke update added during completion on 2026-06-19:
+
+- Ran macOS local smoke from `/tmp/crystal-lattice-local-macos-smoke`; it passed with a real OpenRouter request and tool call.
+- Created the AWS Linux/Windows install lab, verified both instances reached SSM, and copied `.env` from `/Users/ferenci84/Dev/Mine/ai-agent-platform/.env`.
+- Linux EC2 smoke passed with a real OpenRouter request and tool call.
+- Windows EC2 Git Bash smoke required two fixes:
+  - installer verification must accept Windows backslash plugin paths;
+  - Windows lab/install paths must be short enough for deeply nested bundled default-config files.
+- Windows EC2 installed CLI behavior passed by message-history assertion (`PASS-MESSAGES`) and produced tool + assistant messages with the file marker. The non-interactive SSM wrapper still has a cleanup/reporting issue after the script reaches `PASS`.
+- Uploaded the corrected generated `install.sh` to both production and testing download domains.
+- Deleted the AWS lab stack after testing.
+
+Windows long-path manifest retest update added during completion on 2026-06-19:
+
+- Added a packaging-level `longPathAware` manifest merge/embed step for the bundled Windows `python.exe`.
+- Release workflow-dispatch run `27831862789` passed the full matrix, including `windows-amd64`.
+- Published those candidate artifacts to the testing download domain.
+- Restored the Windows lab to the original long path and `.install/opt/crystal-lattice-cli` install path for an honest retest.
+- The retest still failed while copying bundled default config. The installed artifact contained `longPathAware=true`, but the AWS Windows host had `LongPathsEnabled = 0`.
+- Conclusion: manifest-only is insufficient on a default Windows Server host where system long-path support is disabled. The manifest remains a useful prerequisite, but the remaining options are system opt-in, path shortening/flattening, or code-level extended path handling.
+- Updated the AWS install lab stack descriptor so Windows EC2 UserData enables `LongPathsEnabled=1`, allowing the lab to keep testing the normal long workspace/install path without the short-path workaround.

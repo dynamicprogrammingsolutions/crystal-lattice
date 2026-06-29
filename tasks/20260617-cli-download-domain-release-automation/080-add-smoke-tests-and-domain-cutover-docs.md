@@ -137,4 +137,15 @@ Production cutover update added during completion on 2026-06-18:
 
 - Production `smoke.sh --profile prod` passed.
 
+Git Bash installer update added during completion on 2026-06-18:
+
+- The shell installer now supports Git Bash/MSYS/Cygwin on Windows by downloading `crystal-lattice-python-runtime-v<version>-windows-amd64.zip`.
+- The installer writes the normal `$BIN_DIR/crystal-lattice` shim, which invokes the bundled `Scripts/crystal-lattice.cmd` launcher.
+- `deploy/aws-cli-downloads/smoke.sh` now runs the installer path on Git Bash/MSYS/Cygwin instead of skipping Windows.
+- The updated installer was uploaded to both public download domains and verified on production with:
+
+  ```bash
+  deploy/aws-cli-downloads/smoke.sh --profile prod --skip-install
+  ```
+
 If README command examples are executable in the current environment, run the testing-domain variants with temp install paths.
