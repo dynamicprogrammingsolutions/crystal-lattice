@@ -525,6 +525,26 @@ route them separately:
 crystal-lattice --server --console --fastapi-log-file fastapi.log
 ```
 
+## Non-Interactive Mode (--no-tty)
+
+When running `--console` in CI, subprocess tests, or other non-interactive
+contexts where no TTY is available, use `--no-tty`:
+
+```bash
+crystal-lattice --console --server --no-tty
+```
+
+`--no-tty` runs the full console code path (session creation, event polling,
+completer setup) using `prompt_toolkit`'s pipe input and dummy output. The
+prompt blocks on a pipe instead of reading from stdin. SIGTERM causes a
+clean exit (EOF is sent to the pipe, the prompt loop breaks, and the server
+shuts down).
+
+This is useful for:
+- CI pipelines and automated testing
+- Running `--console --server` in Docker containers without a TTY
+- Integration tests that need to verify the console startup path
+
 ## HTTP API Overview
 
 Important routes include:

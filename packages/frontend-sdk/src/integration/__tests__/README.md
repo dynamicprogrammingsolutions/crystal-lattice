@@ -43,6 +43,7 @@ forwarded after `--`.
 | Bridge e2e / AWS | `npm run integration:bridge:aws:fargate-secure` | Bridge e2e against AWS Fargate secure deployment. |
 | Bridge e2e / AWS | `npm run integration:bridge:aws:fargate-public` | Bridge e2e against AWS Fargate public-task deployment. |
 | Bridge e2e / AWS | `npm run integration:bridge:aws:ec2` | Bridge e2e against AWS EC2 secure deployment. |
+| Bridge CLI e2e | `npm run integration:bridge:cli` | Bridge e2e using the real CLI entrypoint (`--no-tty --enable-bridge`); requires Docker. |
 | Cloud e2e | `npm run integration:cloud` | Cloud orchestrator e2e in local Docker mode by default. |
 | Cloud e2e | `npm run integration:cloud:profiles` | Standard cloud profile e2e in local Docker mode. |
 | Cloud e2e / hosted API | `npm run integration:cloud:openrouter` | Cloud local e2e plus real OpenRouter tool-call flow. |
@@ -264,6 +265,32 @@ Example:
 
 ```bash
 npm run integration:bridge
+```
+
+### `bridge.cli.e2e.integration.test.ts`
+
+Selected by `npm run integration:bridge:cli`.
+
+Starts an Elixir bridge via Docker, then starts the **real CLI entrypoint**
+(`python -m agent_terminal_app --server --no-tty --enable-bridge`) instead of
+the custom backend runner.  Verifies the full user flow: bridge registration,
+server visible in registry, pairing code read from CLI stdout, proxied HTTP
+request through `BridgeTransport`.
+
+This test exercises the CLI's `--no-tty` headless console mode and the
+`--enable-bridge` flag end-to-end, including profile resolution and startup
+summary output.
+
+Requires Docker for the bridge.
+
+Tests:
+
+- `registers with bridge and serves a proxied HTTP request via the real CLI`
+
+Example:
+
+```bash
+npm run integration:bridge:cli
 ```
 
 ### `cloud-orchestrator.e2e.integration.test.ts`

@@ -228,6 +228,39 @@ def _format_startup_summary(
     return "\n".join(lines)
 
 
+def _run_terminal_headless(
+    app: Any,
+    logger: Optional[logging.Logger] = None,
+) -> None:
+    """Run the terminal with pipe input and dummy output (no TTY required).
+
+    The full console code path runs (session creation, event polling,
+    completer setup, ``Session started`` message).  The prompt blocks on
+    a pipe; SIGTERM sends EOF to the pipe, causing ``prompt_async()`` to
+    raise ``EOFError`` and the loop to exit cleanly.
+
+    Uses ``prompt_toolkit``'s ``create_pipe_input()`` and ``DummyOutput()``
+    via ``create_app_session()`` so that the ``PromptSession`` created inside
+    ``_run_terminal()`` picks up the non-TTY input/output without any changes
+    to ``terminal.py``.
+    """
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    # run_terminal is imported lazily (same as in main()) to avoid
+    # pulling in prompt_toolkit and the terminal module before logging
+    # is configured.
+    from .terminal import run_terminal
+
+    with create_pipe_input() as pipe_input:
+        import signal
+
+        signal.signal(signal.SIGTERM, lambda *_: pipe_input.send_text("\x04"))
+        with create_app_session(input=pipe_input, output=DummyOutput()):
+            run_terminal(logger=logger, app_instance=app)
+
+
 _DEFAULT_CONFIG_COPY_EXCLUDES = {"auth", ".plugin_cache", "__pycache__"}
 
 
@@ -765,6 +798,16 @@ def main() -> None:  # pragma: no cover - manual execution only
         help="disable default file logging (overrides the default .crystal/crystal.log)",
     )
     parser.add_argument(
+        "--no-tty",
+        action="store_true",
+        help=(
+            "run --console in non-interactive mode using pipe input and dummy "
+            "output (no TTY required). The full console code path runs (session "
+            "creation, event polling); SIGTERM exits cleanly. Useful for CI "
+            "and subprocess tests."
+        ),
+    )
+    parser.add_argument(
         "--fastapi-log-file",
         type=str,
         default=None,
@@ -1228,7 +1271,10 @@ def main() -> None:  # pragma: no cover - manual execution only
         thread.start()
 
         try:
-            run_terminal(logger=console_logger, app_instance=terminal_app)
+            if args.no_tty:
+                _run_terminal_headless(terminal_app, console_logger)
+            else:
+                run_terminal(logger=console_logger, app_instance=terminal_app)
         finally:
             uvicorn_server.should_exit = True
             thread.join()
@@ -1244,7 +1290,10 @@ def main() -> None:  # pragma: no cover - manual execution only
             session_root=str(session_root),
             agent_app=agent_app,
         )
-        run_terminal(logger=console_logger, app_instance=terminal_app)
+        if args.no_tty:
+            _run_terminal_headless(terminal_app, console_logger)
+        else:
+            run_terminal(logger=console_logger, app_instance=terminal_app)
     else:
         app_instance = AgentApplication(
             str(config_path),

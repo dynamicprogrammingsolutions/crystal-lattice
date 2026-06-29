@@ -243,7 +243,129 @@ export async function startBackendServer(options: {
   };
 }
 
-export interface StartedBridge {
+/**
+ * Start the backend using the real CLI entrypoint (python -m agent_terminal_app)
+ * instead of the custom runner script.  This exercises the full CLI startup
+ * path: profile resolution, startup summary, bridge registration, etc.
+ *
+ * The caller provides the bridge URL.  The CLI is launched with
+ * --server --no-tty --enable-bridge --bridge-url <url>.
+ */
+export async function startBackendViaCLI(options: {
+  bridgeUrl: string;
+  serverId?: string;
+  displayName?: string;
+  port?: number;
+  startupTimeoutMs?: number;
+}): Promise<StartedServer> {
+  const repoRoot = findRepoRoot(process.cwd());
+  const port = options.port ?? await getFreePort();
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  // Create a temp workspace for the CLI.
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cl-cli-bridge-e2e-'));
+  const workspace = path.join(tmpRoot, 'workspace');
+  fs.mkdirSync(workspace, { recursive: true });
+  fs.mkdirSync(path.join(workspace, '.crystal'), { recursive: true });
+  const sessionsRoot = path.join(workspace, '.crystal', 'sessions');
+  const configPath = path.join(workspace, '.crystal', 'config.json');
+
+  const repoVenvPython = path.join(repoRoot, '.venv', 'bin', 'python');
+  const python = process.env.PYTHON || (fs.existsSync(repoVenvPython) ? repoVenvPython : 'python');
+
+  const cliArgs = [
+    '-m', 'agent_terminal_app',
+    '--server',
+    '--no-tty',
+    '--config-local',
+    '--host', '127.0.0.1',
+    '--port', String(port),
+    '--enable-bridge',
+    '--bridge-url', options.bridgeUrl,
+  ];
+  if (options.serverId) {
+    cliArgs.push('--bridge-server-id', options.serverId);
+  }
+  if (options.displayName) {
+    cliArgs.push('--bridge-display-name', options.displayName);
+  }
+
+  const child = spawn(python, cliArgs, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: workspace,
+    env: {
+      ...process.env,
+      PYTHONPATH: [
+        path.join(repoRoot, 'core', 'python'),
+        path.join(repoRoot, 'application', 'python'),
+      ].join(':'),
+      BUILTIN_PLUGINS: path.join(repoRoot, 'plugins'),
+      PYTHONUNBUFFERED: '1',
+      // Use real HOME so plugin cache is warm.
+      HOME: os.homedir(),
+    },
+  });
+
+  const stdout: string[] = [];
+  child.stdout.on('data', (buf) => {
+    stdout.push(String(buf));
+  });
+  const stderr: string[] = [];
+  child.stderr.on('data', (buf) => {
+    stderr.push(String(buf));
+  });
+
+  // Wait for readiness.
+  const startupTimeoutMs = options.startupTimeoutMs ?? 120000;
+  await (async () => {
+    const deadline = Date.now() + startupTimeoutMs;
+    while (Date.now() < deadline) {
+      if (child.exitCode !== null) {
+        throw new Error(
+          `CLI exited early (code ${child.exitCode}). Stdout:\n${stdout.join('')}\nStderr:\n${stderr.join('')}`,
+        );
+      }
+      try {
+        const resp = await fetch(`${baseUrl}/api/hello`);
+        if (resp.ok) {
+          return;
+        }
+      } catch {
+        // keep trying
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    throw new Error(
+      `CLI did not become ready. Stdout:\n${stdout.join('')}\nStderr:\n${stderr.join('')}`,
+    );
+  })();
+
+  async function stop(): Promise<void> {
+    if (child.killed) {
+      return;
+    }
+    child.kill('SIGTERM');
+    await new Promise<void>((resolve) => {
+      const timeout = setTimeout(() => {
+        child.kill('SIGKILL');
+        resolve();
+      }, 5000);
+      child.on('exit', () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+  }
+
+  return {
+    baseUrl,
+    port,
+    configPath,
+    sessionsRoot,
+    stdout,
+    stop,
+  };
+}
   bridgeUrl: string;
   stop: () => Promise<void>;
   suspend?: () => Promise<void>;

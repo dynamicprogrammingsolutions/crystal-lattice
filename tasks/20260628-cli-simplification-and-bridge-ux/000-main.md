@@ -17,7 +17,7 @@ make bridge URLs easy to save and reuse.
   - DEPENDS ON `tasks/20260628-cli-simplification-and-bridge-ux/010-project-profile-persistence.md`
   - DEPENDS ON `tasks/20260628-cli-simplification-and-bridge-ux/020-cli-simplification-bridge-host-logging.md`
 - [ ] `tasks/20260628-cli-simplification-and-bridge-ux/040-frontend-saved-bridge-urls.md`
-- [ ] `tasks/20260628-cli-simplification-and-bridge-ux/050-cli-e2e-integration-tests.md`
+- [x] `tasks/20260628-cli-simplification-and-bridge-ux/050-cli-e2e-integration-tests.md`
   - DEPENDS ON `tasks/20260628-cli-simplification-and-bridge-ux/020-cli-simplification-bridge-host-logging.md`
   - DEPENDS ON `tasks/20260628-cli-simplification-and-bridge-ux/030-startup-output-improvements.md`
 

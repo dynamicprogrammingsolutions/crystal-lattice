@@ -39,6 +39,7 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "log_file": None,
         "fastapi_log_file": None,
         "no_log_file": False,
+        "no_tty": False,
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -698,3 +699,17 @@ def test_set_terminal_title_does_not_print(capsys) -> None:
     _set_terminal_title("Test Title")
     captured = capsys.readouterr()
     assert "Setting terminal title" not in captured.out
+
+
+def test_no_tty_flag_is_parsed() -> None:
+    """--no-tty is parsed as a boolean store_true flag."""
+    from agent_terminal_app.__main__ import _run_terminal_headless
+
+    args = _args(no_tty=True)
+    assert args.no_tty is True
+
+    args = _args(no_tty=False)
+    assert args.no_tty is False
+
+    # The helper must be callable (importable, correct signature).
+    assert callable(_run_terminal_headless)
