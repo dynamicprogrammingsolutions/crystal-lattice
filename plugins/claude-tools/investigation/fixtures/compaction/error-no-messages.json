@@ -17,6 +17,17 @@
   "compact_summary_text": null,
   "has_compact_command_message": true,
   "has_local_command_caveat": true,
+  "project_transcript_compact_boundary_event": null,
+  "project_transcript_compact_summary_event": null,
+  "project_transcript_local_command_events": [],
+  "project_transcript_no_response_event": null,
+  "project_transcript_pre_compaction_message_events": [],
+  "project_transcript_type_counts": {
+    "last-prompt": 1,
+    "queue-operation": 2,
+    "system": 1,
+    "user": 2
+  },
   "session_id": "<SESSION_ID>",
   "session_transcript_available": true,
   "step_count": 1,
@@ -96,7 +107,7 @@
             "Read"
           ],
           "type": "system",
-          "uuid": "eb09091d-bba6-4238-8f3e-f1cd48b6ffb8"
+          "uuid": "f0eefa2a-998f-448f-9fd7-cf83cdc70839"
         },
         {
           "message": {
@@ -108,7 +119,7 @@
               }
             ],
             "context_management": null,
-            "id": "8e8775ec-8799-4b0d-accb-a226687e4e50",
+            "id": "f88fb2e9-5891-416e-91c0-a1556d57a0f7",
             "model": "<synthetic>",
             "role": "assistant",
             "stop_details": null,
@@ -137,7 +148,7 @@
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
           "type": "assistant",
-          "uuid": "990aa2ce-539d-411f-865d-083ac0ed5ebd"
+          "uuid": "<UUID_003>"
         },
         {
           "duration_api_ms": 0,
@@ -171,7 +182,7 @@
             "service_tier": "standard",
             "speed": "standard"
           },
-          "uuid": "ae6718da-3cac-40b1-863a-b713c33919a3"
+          "uuid": "5fab3650-726c-42d8-a80d-04e02c5d65d6"
         }
       ]
     }
