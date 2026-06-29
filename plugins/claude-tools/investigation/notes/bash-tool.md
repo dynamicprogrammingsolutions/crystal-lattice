@@ -84,5 +84,13 @@ Full Claude harness follow-up behavior:
   - success: raw output only
   - non-zero exit: `Exit code N` prefix plus output
   - timeout: report `Exit code 143`
-- Use the configured working directory for each Bash execution; the current captured fixture for `cd ... && pwd` returns only the command output.
+- Persist the working directory between commands the way the upstream Claude
+  Code Bash tool description says it does ("The working directory persists
+  between commands"). The ending cwd of each foreground command is stored in
+  the tool-result message's `metadata.bash.end_cwd`, formatted as a path
+  relative to the configured `working_directory` when inside the tree
+  (portable across sandbox moves) and absolute when outside. The next Bash
+  command reads the most recent `end_cwd` from the session messages and
+  resolves it against the configured `working_directory`. Background commands
+  do not update the cwd chain.
 - Support `run_in_background` with the observed `background ID + output file path` success message.

@@ -69,12 +69,12 @@ BASH_DESCRIPTION = (
     "While the Bash tool can do similar things, it’s better to use the built-in tools as they provide a better user experience and make it easier to review tool calls and give permission.\n\n"
     "# Instructions\n"
     " - If your command will create new directories or files, first use this tool to run `ls` to verify the parent directory exists and is the correct location.\n"
-    " - Always quote file paths that contain spaces with double quotes in your command (e.g., cd \"path with spaces/file.txt\")\n"
+    ' - Always quote file paths that contain spaces with double quotes in your command (e.g., cd "path with spaces/file.txt")\n'
     " - Try to maintain your current working directory throughout the session by using absolute paths and avoiding usage of `cd`. You may use `cd` if the User explicitly requests it. In particular, never prepend `cd <current-directory>` to a `git` command — `git` already operates on the current working tree, and the compound triggers a permission prompt.\n"
     " - You may specify an optional timeout in milliseconds (up to 600000ms / 10 minutes). By default, your command will timeout after 120000ms (2 minutes).\n"
     " - You can use the `run_in_background` parameter to run the command in the background. Only use this if you don't need the result immediately and are OK being notified when the command completes later. You do not need to check the output right away - you'll be notified when it finishes. You do not need to use '&' at the end of the command when using this parameter.\n"
     " - When issuing multiple commands:\n"
-    "  - If the commands are independent and can run in parallel, make multiple Bash tool calls in a single message. Example: if you need to run \"git status\" and \"git diff\", send a single message with two Bash tool calls in parallel.\n"
+    '  - If the commands are independent and can run in parallel, make multiple Bash tool calls in a single message. Example: if you need to run "git status" and "git diff", send a single message with two Bash tool calls in parallel.\n'
     "  - If the commands depend on each other and must run sequentially, use a single Bash call with '&&' to chain them together.\n"
     "  - Use ';' only when you need to run commands sequentially but don't care if earlier commands fail.\n"
     "  - DO NOT use newlines to separate commands (newlines are ok in quoted strings).\n"
@@ -98,16 +98,16 @@ BASH_DESCRIPTION = (
     " - NEVER skip hooks (--no-verify, --no-gpg-sign, etc) unless the user explicitly requests it\n"
     " - NEVER run force push to main/master, warn the user if they request it\n"
     " - CRITICAL: Always create NEW commits rather than amending, unless the user explicitly requests a git amend. When a pre-commit hook fails, the commit did NOT happen — so --amend would modify the PREVIOUS commit, which may result in destroying work or losing previous changes. Instead, after hook failure, fix the issue, re-stage, and create a NEW commit\n"
-    " - When staging files, prefer adding specific files by name rather than using \"git add -A\" or \"git add .\", which can accidentally include sensitive files (.env, credentials) or large binaries\n"
+    ' - When staging files, prefer adding specific files by name rather than using "git add -A" or "git add .", which can accidentally include sensitive files (.env, credentials) or large binaries\n'
     " - NEVER commit changes unless the user explicitly asks you to. It is VERY IMPORTANT to only commit when explicitly asked, otherwise the user will feel that you are being too proactive\n\n"
     "1. Run the following bash commands in parallel, each using the Bash tool:\n"
     "  - Run a git status command to see all untracked files. IMPORTANT: Never use the -uall flag as it can cause memory issues on large repos.\n"
     "  - Run a git diff command to see both staged and unstaged changes that will be committed.\n"
     "  - Run a git log command to see recent commit messages, so that you can follow this repository's commit message style.\n"
     "2. Analyze all staged changes (both previously staged and newly added) and draft a commit message:\n"
-    "  - Summarize the nature of the changes (eg. new feature, enhancement to an existing feature, bug fix, refactoring, test, docs, etc.). Ensure the message accurately reflects the changes and their purpose (i.e. \"add\" means a wholly new feature, \"update\" means an enhancement to an existing feature, \"fix\" means a bug fix, etc.).\n"
+    '  - Summarize the nature of the changes (eg. new feature, enhancement to an existing feature, bug fix, refactoring, test, docs, etc.). Ensure the message accurately reflects the changes and their purpose (i.e. "add" means a wholly new feature, "update" means an enhancement to an existing feature, "fix" means a bug fix, etc.).\n'
     "  - Do not commit files that likely contain secrets (.env, credentials.json, etc). Warn the user if they specifically request to commit those files\n"
-    "  - Draft a concise (1-2 sentences) commit message that focuses on the \"why\" rather than the \"what\"\n"
+    '  - Draft a concise (1-2 sentences) commit message that focuses on the "why" rather than the "what"\n'
     "  - Ensure it accurately reflects the changes and their purpose\n"
     "3. Run the following commands in parallel:\n"
     "   - Add relevant untracked files to the staging area.\n"
@@ -129,7 +129,7 @@ BASH_DESCRIPTION = (
     "   Commit message here.\n\n"
     "   Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>\n"
     "   EOF\n"
-    "   )\"\n"
+    '   )"\n'
     "</example>\n\n"
     "# Creating pull requests\n"
     "Use the gh command via the Bash tool for ALL GitHub-related tasks including working with issues, pull requests, checks, and releases. If given a Github URL use the gh command to get the information needed.\n\n"
@@ -147,14 +147,14 @@ BASH_DESCRIPTION = (
     "   - Push to remote with -u flag if needed\n"
     "   - Create PR using gh pr create with the format below. Use a HEREDOC to pass the body to ensure correct formatting.\n"
     "<example>\n"
-    "gh pr create --title \"the pr title\" --body \"$(cat <<'EOF'\n"
+    'gh pr create --title "the pr title" --body "$(cat <<\'EOF\'\n'
     "## Summary\n"
     "<1-3 bullet points>\n\n"
     "## Test plan\n"
     "[Bulleted markdown checklist of TODOs for testing the pull request...]\n\n"
     "🤖 Generated with [Claude Code](https://claude.com/claude-code)\n"
     "EOF\n"
-    ")\"\n"
+    ')"\n'
     "</example>\n\n"
     "Important:\n"
     " - DO NOT use the TodoWrite or Agent tools\n"
@@ -164,24 +164,71 @@ BASH_DESCRIPTION = (
 )
 
 BASH_DESCRIPTION = (
-    BASH_DESCRIPTION
-    .replace("\n - NEVER update the git config", "\n- NEVER update the git config")
-    .replace("\n - NEVER run destructive git commands", "\n- NEVER run destructive git commands")
+    BASH_DESCRIPTION.replace(
+        "\n - NEVER update the git config", "\n- NEVER update the git config"
+    )
+    .replace(
+        "\n - NEVER run destructive git commands",
+        "\n- NEVER run destructive git commands",
+    )
     .replace("\n - NEVER skip hooks", "\n- NEVER skip hooks")
-    .replace("\n - NEVER run force push to main/master, warn the user if they request it", "\n- NEVER run force push to main/master, warn the user if they request it")
-    .replace("\n - CRITICAL: Always create NEW commits rather than amending, unless the user explicitly requests a git amend. When a pre-commit hook fails, the commit did NOT happen — so --amend would modify the PREVIOUS commit, which may result in destroying work or losing previous changes. Instead, after hook failure, fix the issue, re-stage, and create a NEW commit", "\n- CRITICAL: Always create NEW commits rather than amending, unless the user explicitly requests a git amend. When a pre-commit hook fails, the commit did NOT happen — so --amend would modify the PREVIOUS commit, which may result in destroying work or losing previous changes. Instead, after hook failure, fix the issue, re-stage, and create a NEW commit")
-    .replace("\n - When staging files, prefer adding specific files by name rather than using \"git add -A\" or \"git add .\", which can accidentally include sensitive files (.env, credentials) or large binaries", "\n- When staging files, prefer adding specific files by name rather than using \"git add -A\" or \"git add .\", which can accidentally include sensitive files (.env, credentials) or large binaries")
-    .replace("\n - NEVER commit changes unless the user explicitly asks you to. It is VERY IMPORTANT to only commit when explicitly asked, otherwise the user will feel that you are being too proactive", "\n- NEVER commit changes unless the user explicitly asks you to. It is VERY IMPORTANT to only commit when explicitly asked, otherwise the user will feel that you are being too proactive")
-    .replace("\n - NEVER run additional commands to read or explore code, besides git bash commands", "\n- NEVER run additional commands to read or explore code, besides git bash commands")
-    .replace("\n - NEVER use the TodoWrite or Agent tools", "\n- NEVER use the TodoWrite or Agent tools", 1)
-    .replace("\n - DO NOT push to the remote repository unless the user explicitly asks you to do so", "\n- DO NOT push to the remote repository unless the user explicitly asks you to do so")
-    .replace("\n - IMPORTANT: Never use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.", "\n- IMPORTANT: Never use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.")
-    .replace("\n - IMPORTANT: Do not use --no-edit with git rebase commands, as the --no-edit flag is not a valid option for git rebase.", "\n- IMPORTANT: Do not use --no-edit with git rebase commands, as the --no-edit flag is not a valid option for git rebase.")
-    .replace("\n - If there are no changes to commit (i.e., no untracked files and no modifications), do not create an empty commit", "\n- If there are no changes to commit (i.e., no untracked files and no modifications), do not create an empty commit")
-    .replace("\n - In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC, a la this example:", "\n- In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC, a la this example:")
-    .replace("\n - DO NOT use the TodoWrite or Agent tools", "\n- DO NOT use the TodoWrite or Agent tools")
-    .replace("\n - Return the PR URL when you're done, so the user can see it", "\n- Return the PR URL when you're done, so the user can see it")
-    .replace("\n - View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments", "\n- View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments")
+    .replace(
+        "\n - NEVER run force push to main/master, warn the user if they request it",
+        "\n- NEVER run force push to main/master, warn the user if they request it",
+    )
+    .replace(
+        "\n - CRITICAL: Always create NEW commits rather than amending, unless the user explicitly requests a git amend. When a pre-commit hook fails, the commit did NOT happen — so --amend would modify the PREVIOUS commit, which may result in destroying work or losing previous changes. Instead, after hook failure, fix the issue, re-stage, and create a NEW commit",
+        "\n- CRITICAL: Always create NEW commits rather than amending, unless the user explicitly requests a git amend. When a pre-commit hook fails, the commit did NOT happen — so --amend would modify the PREVIOUS commit, which may result in destroying work or losing previous changes. Instead, after hook failure, fix the issue, re-stage, and create a NEW commit",
+    )
+    .replace(
+        '\n - When staging files, prefer adding specific files by name rather than using "git add -A" or "git add .", which can accidentally include sensitive files (.env, credentials) or large binaries',
+        '\n- When staging files, prefer adding specific files by name rather than using "git add -A" or "git add .", which can accidentally include sensitive files (.env, credentials) or large binaries',
+    )
+    .replace(
+        "\n - NEVER commit changes unless the user explicitly asks you to. It is VERY IMPORTANT to only commit when explicitly asked, otherwise the user will feel that you are being too proactive",
+        "\n- NEVER commit changes unless the user explicitly asks you to. It is VERY IMPORTANT to only commit when explicitly asked, otherwise the user will feel that you are being too proactive",
+    )
+    .replace(
+        "\n - NEVER run additional commands to read or explore code, besides git bash commands",
+        "\n- NEVER run additional commands to read or explore code, besides git bash commands",
+    )
+    .replace(
+        "\n - NEVER use the TodoWrite or Agent tools",
+        "\n- NEVER use the TodoWrite or Agent tools",
+        1,
+    )
+    .replace(
+        "\n - DO NOT push to the remote repository unless the user explicitly asks you to do so",
+        "\n- DO NOT push to the remote repository unless the user explicitly asks you to do so",
+    )
+    .replace(
+        "\n - IMPORTANT: Never use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.",
+        "\n- IMPORTANT: Never use git commands with the -i flag (like git rebase -i or git add -i) since they require interactive input which is not supported.",
+    )
+    .replace(
+        "\n - IMPORTANT: Do not use --no-edit with git rebase commands, as the --no-edit flag is not a valid option for git rebase.",
+        "\n- IMPORTANT: Do not use --no-edit with git rebase commands, as the --no-edit flag is not a valid option for git rebase.",
+    )
+    .replace(
+        "\n - If there are no changes to commit (i.e., no untracked files and no modifications), do not create an empty commit",
+        "\n- If there are no changes to commit (i.e., no untracked files and no modifications), do not create an empty commit",
+    )
+    .replace(
+        "\n - In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC, a la this example:",
+        "\n- In order to ensure good formatting, ALWAYS pass the commit message via a HEREDOC, a la this example:",
+    )
+    .replace(
+        "\n - DO NOT use the TodoWrite or Agent tools",
+        "\n- DO NOT use the TodoWrite or Agent tools",
+    )
+    .replace(
+        "\n - Return the PR URL when you're done, so the user can see it",
+        "\n- Return the PR URL when you're done, so the user can see it",
+    )
+    .replace(
+        "\n - View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments",
+        "\n- View comments on a Github PR: gh api repos/foo/bar/pulls/123/comments",
+    )
 )
 
 BASH_SCHEMA: Dict[str, Any] = {
@@ -200,7 +247,7 @@ BASH_SCHEMA: Dict[str, Any] = {
                 "type": "boolean",
             },
             "description": {
-                "description": "Clear, concise description of what this command does in active voice. Never use words like \"complex\" or \"risk\" in the description - just describe what it does.\n\nFor simple commands (git, npm, standard CLI tools), keep it brief (5-10 words):\n- ls → \"List files in current directory\"\n- git status → \"Show working tree status\"\n- npm install → \"Install package dependencies\"\n\nFor commands that are harder to parse at a glance (piped commands, obscure flags, etc.), add enough context to clarify what it does:\n- find . -name \"*.tmp\" -exec rm {} \\; → \"Find and delete all .tmp files recursively\"\n- git reset --hard origin/main → \"Discard all local changes and match remote main\"\n- curl -s url | jq '.data[]' → \"Fetch JSON from URL and extract data array elements\"",
+                "description": 'Clear, concise description of what this command does in active voice. Never use words like "complex" or "risk" in the description - just describe what it does.\n\nFor simple commands (git, npm, standard CLI tools), keep it brief (5-10 words):\n- ls → "List files in current directory"\n- git status → "Show working tree status"\n- npm install → "Install package dependencies"\n\nFor commands that are harder to parse at a glance (piped commands, obscure flags, etc.), add enough context to clarify what it does:\n- find . -name "*.tmp" -exec rm {} \\; → "Find and delete all .tmp files recursively"\n- git reset --hard origin/main → "Discard all local changes and match remote main"\n- curl -s url | jq \'.data[]\' → "Fetch JSON from URL and extract data array elements"',
                 "type": "string",
             },
             "run_in_background": {
@@ -276,14 +323,90 @@ def _parse_wrapped_output(output: str, *, working_directory: str) -> dict[str, A
         return {
             "exit_code": 0,
             "output": output.rstrip("\n"),
+            "cwd": working_directory,
         }
     content = output[: match.start()]
     if content.endswith("\n"):
         content = content[:-1]
+    cwd_raw = match.group("cwd")
+    cwd = cwd_raw if isinstance(cwd_raw, str) and cwd_raw else working_directory
     return {
         "exit_code": int(match.group("status")),
         "output": content,
+        "cwd": cwd,
     }
+
+
+def _cwd_for_storage(end_cwd: str, configured_wd: str) -> str:
+    """Compute the cwd for storage, relative to ``configured_wd`` when inside the tree.
+
+    Returns:
+        - ``"."`` when ``end_cwd`` is the configured working directory
+        - a relative path (e.g. ``"subdir"``, ``"subdir/nested"``) when inside the tree
+        - an absolute path when outside the tree (best effort; not portable)
+    """
+    try:
+        resolved_end = Path(end_cwd).resolve()
+        resolved_cfg = Path(configured_wd).resolve()
+    except Exception:
+        return end_cwd
+    try:
+        rel = resolved_end.relative_to(resolved_cfg)
+        rel_str = str(rel)
+        return rel_str if rel_str else "."
+    except ValueError:
+        # Outside the tree → store absolute path
+        return str(resolved_end)
+
+
+def _resolve_stored_cwd(stored: Any, configured_wd: str) -> str:
+    """Resolve a stored cwd against the configured working directory.
+
+    Falls back to the configured working directory when the stored value is
+    missing, empty, or resolves to a nonexistent path.
+    """
+    if not isinstance(stored, str) or not stored or stored == ".":
+        return str(Path(configured_wd).resolve())
+    if os.path.isabs(stored):
+        candidate = str(Path(stored).resolve())
+    else:
+        candidate = str((Path(configured_wd) / stored).resolve())
+    if not Path(candidate).exists():
+        return str(Path(configured_wd).resolve())
+    return candidate
+
+
+def _last_bash_end_cwd_from_context(
+    context: Optional[Dict[str, Any]],
+) -> Optional[str]:
+    """Scan session messages for the most recent bash tool-result ``end_cwd``."""
+    if not isinstance(context, dict):
+        return None
+    session = context.get("session")
+    if not isinstance(session, dict):
+        return None
+    messages = session.get("messages")
+    if not isinstance(messages, list):
+        return None
+    for message in reversed(messages):
+        if not isinstance(message, dict):
+            continue
+        if message.get("role") != "tool":
+            continue
+        metadata = message.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        if metadata.get("tool_name") != "Bash":
+            continue
+        if metadata.get("tool_plugin") != "claude_bash_tool":
+            continue
+        bash_meta = metadata.get("bash")
+        if not isinstance(bash_meta, dict):
+            continue
+        end_cwd = bash_meta.get("end_cwd")
+        if isinstance(end_cwd, str) and end_cwd:
+            return end_cwd
+    return None
 
 
 def _runtime_state_root_from_context(
@@ -411,6 +534,7 @@ class ClaudeBashTool(ToolPlugin):
                 "exit_code": 143,
                 "output": str(result.get("output") or "").rstrip("\n"),
                 "success": False,
+                "cwd": working_directory,
             }
         parsed = _parse_wrapped_output(
             str(result.get("output") or ""),
@@ -421,6 +545,7 @@ class ClaudeBashTool(ToolPlugin):
             "exit_code": exit_code,
             "output": str(parsed["output"]),
             "success": exit_code == 0,
+            "cwd": str(parsed.get("cwd") or working_directory),
         }
 
     def execute_tool(
@@ -524,23 +649,38 @@ class ClaudeBashTool(ToolPlugin):
                 success=False,
             )
 
+        # Resolve the working directory from the most recent bash tool-result
+        # ``end_cwd`` in the session, falling back to the configured working
+        # directory. This makes ``cd`` persist between commands the way the
+        # upstream Claude Code Bash tool description says it does.
+        stored_cwd = _last_bash_end_cwd_from_context(context)
+        if stored_cwd is not None:
+            resolved = _resolve_stored_cwd(stored_cwd, working_directory)
+        else:
+            resolved = str(Path(working_directory).resolve())
+
         foreground = self._execute_foreground(
             command.strip(),
             timeout_ms=timeout_ms,
-            working_directory=working_directory,
+            working_directory=resolved,
         )
         exit_code = int(foreground["exit_code"])
         output = str(foreground["output"] or "")
+        end_cwd = str(foreground.get("cwd") or resolved)
+        stored = _cwd_for_storage(end_cwd, working_directory)
+        cwd_metadata = {"bash": {"end_cwd": stored}}
         if foreground["success"]:
             return self._result(
                 tool_use_id=tool_use_id,
                 message=self._format_success_output(output),
                 success=True,
+                extra={"metadata": cwd_metadata},
             )
         return self._result(
             tool_use_id=tool_use_id,
             message=self._format_failure_output(exit_code=exit_code, output=output),
             success=False,
+            extra={"metadata": cwd_metadata},
         )
 
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:

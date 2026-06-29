@@ -188,7 +188,9 @@ def test_round_trip_metadata_mapping_preserves_tool_calls_and_tool_call_ids() ->
     rebuilt_core = ext.from_native_messages(native_with_tools, core_from_provider)
 
     assistant_message = next(
-        msg for msg in rebuilt_core if isinstance(msg, dict) and msg.get("role") == "assistant"
+        msg
+        for msg in rebuilt_core
+        if isinstance(msg, dict) and msg.get("role") == "assistant"
     )
     assistant_metadata = assistant_message.get("metadata") or {}
     tool_calls = assistant_metadata.get("tool_calls") or []
@@ -200,5 +202,86 @@ def test_round_trip_metadata_mapping_preserves_tool_calls_and_tool_call_ids() ->
         "b": 3,
     }
 
-    tool_message = next(msg for msg in rebuilt_core if isinstance(msg, dict) and msg.get("role") == "tool")
+    tool_message = next(
+        msg
+        for msg in rebuilt_core
+        if isinstance(msg, dict) and msg.get("role") == "tool"
+    )
     assert (tool_message.get("metadata") or {}).get("tool_call_id") == "call_add_1"
+
+
+def test_round_trip_preserves_display_and_namespaced_metadata_on_tool_messages() -> (
+    None
+):
+    """``display`` and namespaced tool metadata (e.g. ``bash.end_cwd``) must
+    survive a provider + tools-extension round-trip on tool-result messages.
+
+    The provider pops ``display`` from the generic ``_metadata`` carry, so the
+    tools extension must re-add it. Namespaced keys like ``bash.end_cwd`` are
+    not in the provider's pop-list and ride through automatically. This test
+    guards against regressions in either path."""
+    provider = OpenAIResponsesProvider()
+    ext = OpenAIResponsesToolsExtension()
+
+    display_payload = {"type": "text", "content": "Bash command", "single_line": True}
+    core_messages = [
+        {
+            "role": "assistant",
+            "content": "I will call Bash.",
+            "metadata": {
+                "response_id": "resp_bash_1",
+                "tool_calls": [
+                    {
+                        "id": "call_bash_1",
+                        "type": "function",
+                        "function": {
+                            "name": "Bash",
+                            "arguments": json.dumps({"command": "pwd"}),
+                        },
+                    }
+                ],
+            },
+        },
+        {
+            "role": "tool",
+            "content": "/workspace",
+            "metadata": {
+                "tool_call_id": "call_bash_1",
+                "tool_name": "Bash",
+                "tool_plugin": "claude_bash_tool",
+                "display": display_payload,
+                "bash": {"end_cwd": "."},
+            },
+        },
+    ]
+
+    native_from_provider = provider.to_native_messages(core_messages, {})
+    native_with_tools = ext.to_native_messages(core_messages, native_from_provider)
+
+    # Find the function_call_output item and verify _metadata carries display
+    # and bash.end_cwd.
+    fc_output = next(
+        item
+        for item in native_with_tools
+        if isinstance(item, dict) and item.get("type") == "function_call_output"
+    )
+    internal_md = fc_output.get("_metadata") or {}
+    assert internal_md.get("display") == display_payload
+    assert internal_md.get("tool_name") == "Bash"
+    assert internal_md.get("tool_plugin") == "claude_bash_tool"
+    assert internal_md.get("bash") == {"end_cwd": "."}
+
+    core_from_provider = provider.from_native_messages(native_with_tools, {})
+    rebuilt_core = ext.from_native_messages(native_with_tools, core_from_provider)
+
+    tool_message = next(
+        msg
+        for msg in rebuilt_core
+        if isinstance(msg, dict) and msg.get("role") == "tool"
+    )
+    metadata = tool_message.get("metadata") or {}
+    assert metadata.get("tool_call_id") == "call_bash_1"
+    assert metadata.get("display") == display_payload
+    assert metadata.get("tool_name") == "Bash"
+    assert metadata.get("tool_plugin") == "claude_bash_tool"
+    assert metadata.get("bash") == {"end_cwd": "."}

@@ -40,6 +40,11 @@ from agent_core.tool_interop import (
 )
 from agent_core.tool_result_payloads import FORMAT_ANTHROPIC_MESSAGES, TOOL_RESULT_FIELD
 from claude_tools import ClaudeBashTool
+from claude_tools.claude_bash_tool import (
+    _cwd_for_storage,
+    _last_bash_end_cwd_from_context,
+    _resolve_stored_cwd,
+)
 
 
 def _wrapper(tmp_path: Path):
@@ -305,3 +310,329 @@ def test_background_matches_fixture_and_creates_output_file(tmp_path: Path) -> N
             os.killpg(os.getpgid(pid), signal.SIGTERM)
         else:
             os.kill(pid, signal.SIGTERM)
+
+
+# ---------------------------------------------------------------------------
+# Cwd persistence tests
+# ---------------------------------------------------------------------------
+
+
+def test_cwd_for_storage_relative_within_tree(tmp_path: Path) -> None:
+    assert _cwd_for_storage(str(tmp_path), str(tmp_path)) == "."
+    sub = tmp_path / "subdir"
+    sub.mkdir()
+    assert _cwd_for_storage(str(sub), str(tmp_path)) == "subdir"
+    nested = tmp_path / "subdir" / "nested"
+    nested.mkdir()
+    assert _cwd_for_storage(str(nested), str(tmp_path)) == "subdir/nested"
+
+
+def test_cwd_for_storage_outside_tree_returns_absolute(tmp_path: Path) -> None:
+    outside = tmp_path.parent / "other-dir"
+    outside.mkdir(exist_ok=True)
+    try:
+        result = _cwd_for_storage(str(outside), str(tmp_path))
+        assert os.path.isabs(result)
+        assert result == str(outside.resolve())
+    finally:
+        outside.rmdir()
+
+
+def test_resolve_stored_cwd_fallbacks(tmp_path: Path) -> None:
+    configured = str(tmp_path.resolve())
+    # Empty/None/dot → configured working directory
+    assert _resolve_stored_cwd("", configured) == configured
+    assert _resolve_stored_cwd(None, configured) == configured  # type: ignore[arg-type]
+    assert _resolve_stored_cwd(".", configured) == configured
+    # Relative → resolved against configured
+    sub = tmp_path / "subdir"
+    sub.mkdir()
+    assert _resolve_stored_cwd("subdir", configured) == str(sub.resolve())
+    # Absolute existing → used as-is
+    assert _resolve_stored_cwd(str(sub.resolve()), configured) == str(sub.resolve())
+    # Nonexistent path → fall back to configured
+    assert _resolve_stored_cwd("nonexistent", configured) == configured
+    assert _resolve_stored_cwd(str(tmp_path / "no-such-dir"), configured) == configured
+
+
+def test_resolve_stored_cwd_simulated_sandbox_move(tmp_path: Path) -> None:
+    """A stored relative path resolves against a different configured working
+    directory, simulating a session moved to a sandbox where the project root
+    changed."""
+    sub = tmp_path / "subdir"
+    sub.mkdir()
+    stored = _cwd_for_storage(str(sub), str(tmp_path))
+    assert stored == "subdir"
+    # Simulate a sandbox move: project root is now under a different path
+    sandbox = tmp_path.parent / "sandbox-project"
+    sandbox.mkdir(exist_ok=True)
+    try:
+        sandbox_sub = sandbox / "subdir"
+        sandbox_sub.mkdir(exist_ok=True)
+        resolved = _resolve_stored_cwd(stored, str(sandbox.resolve()))
+        assert resolved == str(sandbox_sub.resolve())
+    finally:
+        import shutil
+
+        shutil.rmtree(sandbox, ignore_errors=True)
+
+
+def test_last_bash_end_cwd_from_context_finds_most_recent() -> None:
+    context = {
+        "session": {
+            "messages": [
+                {
+                    "role": "tool",
+                    "content": "old output",
+                    "metadata": {
+                        "tool_name": "Bash",
+                        "tool_plugin": "claude_bash_tool",
+                        "bash": {"end_cwd": "old-subdir"},
+                    },
+                },
+                {
+                    "role": "tool",
+                    "content": "new output",
+                    "metadata": {
+                        "tool_name": "Bash",
+                        "tool_plugin": "claude_bash_tool",
+                        "bash": {"end_cwd": "new-subdir"},
+                    },
+                },
+            ]
+        }
+    }
+    assert _last_bash_end_cwd_from_context(context) == "new-subdir"
+
+
+def test_last_bash_end_cwd_from_context_ignores_other_tools() -> None:
+    context = {
+        "session": {
+            "messages": [
+                {
+                    "role": "tool",
+                    "content": "read output",
+                    "metadata": {
+                        "tool_name": "Read",
+                        "tool_plugin": "claude_read_tool",
+                    },
+                },
+                {
+                    "role": "tool",
+                    "content": "bash output",
+                    "metadata": {
+                        "tool_name": "Bash",
+                        "tool_plugin": "claude_bash_tool",
+                        "bash": {"end_cwd": "subdir"},
+                    },
+                },
+            ]
+        }
+    }
+    assert _last_bash_end_cwd_from_context(context) == "subdir"
+
+
+def test_last_bash_end_cwd_from_context_returns_none_when_no_bash_results() -> None:
+    assert _last_bash_end_cwd_from_context(None) is None
+    assert _last_bash_end_cwd_from_context({}) is None
+    assert _last_bash_end_cwd_from_context({"session": {}}) is None
+    assert _last_bash_end_cwd_from_context({"session": {"messages": []}}) is None
+    assert (
+        _last_bash_end_cwd_from_context(
+            {
+                "session": {
+                    "messages": [
+                        {
+                            "role": "tool",
+                            "content": "read output",
+                            "metadata": {
+                                "tool_name": "Read",
+                                "tool_plugin": "claude_read_tool",
+                            },
+                        }
+                    ]
+                }
+            }
+        )
+        is None
+    )
+
+
+def test_bash_command_stores_end_cwd_in_result_metadata(tmp_path: Path) -> None:
+    """A foreground Bash command must return ``metadata.bash.end_cwd`` in its
+    result dict so the core can attach it to the tool-result message."""
+    tool, state = _wrapper(tmp_path)
+    result = tool.execute_tool(
+        "Bash",
+        {"command": "pwd", "description": "Print working directory"},
+        state,
+        tool_call={"id": "call_bash_1"},
+    )
+    assert result["success"] is True
+    metadata = result.get("metadata")
+    assert isinstance(metadata, dict)
+    assert metadata["bash"]["end_cwd"] == "."
+
+
+def test_bash_command_stores_subdir_in_result_metadata(tmp_path: Path) -> None:
+    """After ``cd <subdir> && pwd``, the stored ``end_cwd`` is the relative
+    path to the subdir."""
+    (tmp_path / "subdir").mkdir()
+    tool, state = _wrapper(tmp_path)
+    result = tool.execute_tool(
+        "Bash",
+        {
+            "command": f'cd "{tmp_path / "subdir"}" && pwd',
+            "description": "Change to subdir and print working directory",
+        },
+        state,
+        tool_call={"id": "call_bash_1"},
+    )
+    assert result["success"] is True
+    assert result["metadata"]["bash"]["end_cwd"] == "subdir"
+
+
+def test_bash_background_command_does_not_set_cwd_metadata(tmp_path: Path) -> None:
+    """Background commands must not update the cwd chain."""
+    tool, state = _wrapper(tmp_path)
+    result = tool.execute_tool(
+        "Bash",
+        {
+            "command": "sleep 0.1",
+            "description": "Brief sleep in background",
+            "run_in_background": True,
+        },
+        state,
+        tool_call={"id": "call_bash_1"},
+    )
+    # Background result should not carry cwd metadata
+    assert "metadata" not in result or not result.get("metadata")
+
+
+def test_bash_cwd_persists_across_two_commands(tmp_path: Path) -> None:
+    """Two sequential Bash commands in the same session: the first ``cd``s into
+    a subdir, the second ``pwd`` must show the subdir because the cwd persists
+    via the tool-result message metadata."""
+    (tmp_path / "subdir").mkdir()
+    tool, state = _wrapper(tmp_path)
+
+    # First command: cd into subdir and print pwd
+    first = tool.execute_tool(
+        "Bash",
+        {
+            "command": f'cd "{tmp_path / "subdir"}" && pwd',
+            "description": "Change to subdir and print working directory",
+        },
+        state,
+        tool_call={"id": "call_bash_1"},
+    )
+    assert first["success"] is True
+    assert first["text"].strip() == str(tmp_path / "subdir")
+    stored_cwd = first["metadata"]["bash"]["end_cwd"]
+    assert stored_cwd == "subdir"
+
+    # Simulate the second command running in the same session: the context
+    # carries the session with the first tool-result message.
+    context = {
+        "session": {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "do the thing",
+                },
+                {
+                    "role": "assistant",
+                    "content": "",
+                    "metadata": {
+                        "tool_calls": [
+                            {
+                                "id": "call_bash_1",
+                                "type": "function",
+                                "function": {
+                                    "name": "Bash",
+                                    "arguments": json.dumps(
+                                        {
+                                            "command": f'cd "{tmp_path / "subdir"}" && pwd',
+                                            "description": "Change to subdir",
+                                        }
+                                    ),
+                                },
+                            }
+                        ]
+                    },
+                },
+                {
+                    "role": "tool",
+                    "content": first["text"],
+                    "metadata": {
+                        "tool_call_id": "call_bash_1",
+                        "tool_name": "Bash",
+                        "tool_plugin": "claude_bash_tool",
+                        "bash": {"end_cwd": stored_cwd},
+                    },
+                },
+            ]
+        }
+    }
+
+    # Second command: just pwd — should run in the subdir, not the configured wd
+    second = tool.execute_tool(
+        "Bash",
+        {"command": "pwd", "description": "Print working directory"},
+        state,
+        tool_call={"id": "call_bash_2"},
+        context=context,
+    )
+    assert second["success"] is True
+    assert second["text"].strip() == str(tmp_path / "subdir")
+    assert second["metadata"]["bash"]["end_cwd"] == "subdir"
+
+
+def test_bash_cwd_resets_when_no_prior_result(tmp_path: Path) -> None:
+    """First Bash command in a session (no prior tool results) runs in the
+    configured working directory."""
+    tool, state = _wrapper(tmp_path)
+    result = tool.execute_tool(
+        "Bash",
+        {"command": "pwd", "description": "Print working directory"},
+        state,
+        tool_call={"id": "call_bash_1"},
+        context={"session": {"messages": []}},
+    )
+    assert result["success"] is True
+    assert result["text"].strip() == str(tmp_path.resolve())
+    assert result["metadata"]["bash"]["end_cwd"] == "."
+
+
+def test_bash_cwd_falls_back_when_stored_path_does_not_exist(tmp_path: Path) -> None:
+    """If the stored ``end_cwd`` points at a nonexistent path (e.g. the subdir
+    was deleted, or the session moved to a sandbox where the absolute path is
+    wrong), the command falls back to the configured working directory."""
+    tool, state = _wrapper(tmp_path)
+    context = {
+        "session": {
+            "messages": [
+                {
+                    "role": "tool",
+                    "content": "old output",
+                    "metadata": {
+                        "tool_call_id": "call_bash_1",
+                        "tool_name": "Bash",
+                        "tool_plugin": "claude_bash_tool",
+                        "bash": {"end_cwd": "deleted-subdir"},
+                    },
+                }
+            ]
+        }
+    }
+    result = tool.execute_tool(
+        "Bash",
+        {"command": "pwd", "description": "Print working directory"},
+        state,
+        tool_call={"id": "call_bash_2"},
+        context=context,
+    )
+    assert result["success"] is True
+    # Should fall back to the configured working directory
+    assert result["text"].strip() == str(tmp_path.resolve())
+    assert result["metadata"]["bash"]["end_cwd"] == "."
