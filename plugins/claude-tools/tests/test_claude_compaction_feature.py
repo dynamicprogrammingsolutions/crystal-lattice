@@ -42,6 +42,7 @@ from claude_tools.claude_compaction_feature import (  # noqa: E402
     extract_prompt_sections,
     extract_summary_sections,
     validate_summary_text,
+    write_pre_compaction_transcript,
 )
 
 
@@ -88,6 +89,24 @@ def _core_and_config() -> tuple[AgentCore, dict]:
     return core, {"provider": "echo_openai_like", "model": "test-model"}
 
 
+def _read_jsonl(path: Path) -> list[dict]:
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+def _counter_factory(prefix: str):
+    counter = {"value": 0}
+
+    def _next() -> str:
+        counter["value"] += 1
+        return f"<{prefix}_{counter['value']:03d}>"
+
+    return _next
+
+
 def test_prompt_matches_observed_fixture() -> None:
     fixture = _fixture("success-basic")
 
@@ -119,6 +138,94 @@ def test_fixture_summaries_pass_validation_for_basic_and_tool_history_cases() ->
             extract_summary_sections(summary_body)
             == fixture["compact_summary_sections"]
         )
+
+
+def test_pre_compaction_transcript_writer_matches_fixture_entry_schema(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture("success-basic")
+    expected_user = fixture["project_transcript_pre_compaction_message_events"][0]
+    expected_assistant = fixture["project_transcript_pre_compaction_message_events"][1]
+    session = Session(
+        session_id="<SESSION_ID>",
+        messages=[
+            Message(role="user", content="Answer exactly ONE."),
+            Message(role="assistant", content="ONE"),
+        ],
+    )
+
+    output = write_pre_compaction_transcript(
+        session,
+        tmp_path / "transcript.jsonl",
+        cwd="<WORKSPACE>",
+        uuid_factory=_counter_factory("UUID"),
+        prompt_id_factory=_counter_factory("PROMPT_ID"),
+        message_id_factory=_counter_factory("MESSAGE_ID"),
+        timestamp_factory=_counter_factory("TIMESTAMP"),
+        entrypoint="sdk-cli",
+        version="2.1.154",
+        git_branch="HEAD",
+    )
+    entries = _read_jsonl(output)
+
+    assert len(entries) == 2
+    assert set(entries[0]) == set(expected_user)
+    assert set(entries[1]) == set(expected_assistant)
+    assert set(entries[0]["message"]) == set(expected_user["message"])
+    assert set(entries[1]["message"]) == set(expected_assistant["message"])
+    assert entries[0]["type"] == "user"
+    assert entries[0]["message"] == {
+        "role": "user",
+        "content": "Answer exactly ONE.",
+    }
+    assert entries[1]["type"] == "assistant"
+    assert entries[1]["message"]["content"] == [{"type": "text", "text": "ONE"}]
+    assert entries[0]["parentUuid"] is None
+    assert entries[1]["parentUuid"] == entries[0]["uuid"]
+    assert entries[0]["sessionId"] == "<SESSION_ID>"
+    assert entries[1]["sessionId"] == "<SESSION_ID>"
+    assert entries[0]["timestamp"] == "<TIMESTAMP_001>"
+    assert entries[1]["timestamp"] == "<TIMESTAMP_002>"
+
+
+def test_pre_compaction_transcript_writer_preserves_original_conversation(
+    tmp_path: Path,
+) -> None:
+    session = _make_session(has_system=False)
+
+    output = write_pre_compaction_transcript(
+        session,
+        tmp_path / "transcript.jsonl",
+        cwd="<WORKSPACE>",
+        uuid_factory=_counter_factory("UUID"),
+        prompt_id_factory=_counter_factory("PROMPT_ID"),
+        message_id_factory=_counter_factory("MESSAGE_ID"),
+        timestamp_factory=_counter_factory("TIMESTAMP"),
+    )
+    entries = _read_jsonl(output)
+
+    assert [entry["type"] for entry in entries] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert entries[0]["message"]["content"] == "Answer exactly ONE."
+    assert entries[2]["message"]["content"] == "Answer exactly TWO."
+    assert entries[4]["message"]["content"] == "Answer exactly THREE."
+    assert entries[1]["message"]["content"][0]["text"] == "ONE"
+    assert entries[3]["message"]["content"][0]["text"] == "TWO"
+    assert entries[5]["message"]["content"][0]["text"] == "THREE"
+    assert [entry["parentUuid"] for entry in entries] == [
+        None,
+        "<UUID_001>",
+        "<UUID_002>",
+        "<UUID_003>",
+        "<UUID_004>",
+        "<UUID_005>",
+    ]
 
 
 def test_feature_schema_includes_compaction_model_and_existing_keys() -> None:

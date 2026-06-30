@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -28,6 +29,21 @@ from claude_tools.claude_compaction_feature import (  # noqa: E402
     _LOCAL_COMMAND_ARTIFACT,
     _NO_RESPONSE_REQUESTED,
 )
+
+
+def _transcript_path_from_summary(summary_text: str) -> Path:
+    marker = "read the full transcript at: "
+    _, tail = summary_text.split(marker, 1)
+    path_text, _ = tail.split("\nContinue the conversation", 1)
+    return Path(path_text)
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
 
 
 def _build_default_config_app(
@@ -194,6 +210,25 @@ def test_default_claude_agent_compaction_action_rewrites_history(
     assert "1. Primary Request and Intent:" in summary_text
     assert "9. Optional Next Step:" in summary_text
     assert "Resume directly" in summary_text
+    transcript_path = _transcript_path_from_summary(summary_text)
+    assert transcript_path.exists()
+    assert (
+        transcript_path.parent
+        == tmp_path / "sessions" / "claude-compaction-transcripts"
+    )
+    assert transcript_path.suffix == ".jsonl"
+    transcript_entries = _read_jsonl(transcript_path)
+    assert [entry["type"] for entry in transcript_entries] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert transcript_entries[0]["message"]["content"] == "Answer exactly ONE."
+    assert transcript_entries[2]["message"]["content"] == "Answer exactly TWO."
+    assert transcript_entries[4]["message"]["content"] == "Answer exactly THREE."
     assert compacted.messages[summary_index + 1].content == _LOCAL_COMMAND_ARTIFACT
     assert compacted.messages[summary_index + 2].content == _NO_RESPONSE_REQUESTED
     leading_contents = [

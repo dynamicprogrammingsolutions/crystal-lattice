@@ -53,6 +53,21 @@ def _summary_body_from_fixture(fixture: dict) -> str:
     return summary_body
 
 
+def _transcript_path_from_summary(summary_text: str) -> Path:
+    marker = "read the full transcript at: "
+    _, tail = summary_text.split(marker, 1)
+    path_text, _ = tail.split("\nContinue the conversation", 1)
+    return Path(path_text)
+
+
+def _read_jsonl(path: Path) -> list[dict]:
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
 def _make_config(tmp_path: Path, *, include_system_feature: bool = False) -> Path:
     plugins = [
         "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
@@ -242,11 +257,15 @@ def test_claude_compaction_action_rewrites_selected_range(
     captured: Dict[str, Any] = {}
 
     def _fake_run_compaction_request(
-        core: Any, session: Session, config: Dict[str, Any]
+        core: Any,
+        session: Session,
+        config: Dict[str, Any],
+        *,
+        context: Dict[str, Any] | None = None,
     ) -> str:
         captured["session"] = session
         captured["config"] = dict(config)
-        _ = core
+        _ = core, context
         return f"<analysis>ok</analysis>\n<summary>\n{summary_body}\n</summary>"
 
     monkeypatch.setattr(
@@ -278,9 +297,10 @@ def test_claude_compaction_action_rewrites_selected_range(
 
     loaded = app.load_session_record(session.session_id)
     assert loaded is not None
-    expected_summary = build_compact_summary_text(
+    expected_summary = resp["result"]["compact_summary_text"]
+    assert expected_summary == build_compact_summary_text(
         summary_body,
-        transcript_path=str(tmp_path / "sessions" / f"{session.session_id}.json"),
+        transcript_path=str(_transcript_path_from_summary(expected_summary)),
     )
     _assert_rewrite_shape(
         loaded,
@@ -296,3 +316,27 @@ def test_claude_compaction_action_rewrites_selected_range(
     else:
         assert all(message.role != "system" for message in request_session.messages)
     assert captured["config"]["model"] == "test-model"
+
+    transcript_path = _transcript_path_from_summary(expected_summary)
+    assert transcript_path.exists()
+    assert (
+        transcript_path.parent
+        == tmp_path / "sessions" / "claude-compaction-transcripts"
+    )
+    assert transcript_path.suffix == ".jsonl"
+    assert transcript_path != tmp_path / "sessions" / f"{session.session_id}.json"
+    transcript_entries = _read_jsonl(transcript_path)
+    assert [entry["type"] for entry in transcript_entries] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
+    assert transcript_entries[0]["message"]["content"] == "Answer exactly ONE."
+    assert transcript_entries[2]["message"]["content"] == "Answer exactly TWO."
+    assert transcript_entries[4]["message"]["content"] == "Answer exactly THREE."
+    assert transcript_entries[1]["message"]["content"][0]["text"] == "ONE"
+    assert transcript_entries[3]["message"]["content"][0]["text"] == "TWO"
+    assert transcript_entries[5]["message"]["content"][0]["text"] == "THREE"
