@@ -13,6 +13,7 @@ def _format_token_count(value: int | None) -> str | None:
 
 def _current_turn_id(native_messages: list[dict[str, Any]]) -> int:
     last_assigned = 0
+    max_seen_turn_id = 0
     current_open: int | None = None
 
     for native_message in native_messages:
@@ -22,19 +23,46 @@ def _current_turn_id(native_messages: list[dict[str, Any]]) -> int:
         if role in ("user", "system"):
             current_open = None
             continue
+
+        # Track max existing turn ID from prior metadata so that truncated
+        # or rebuilt history cannot produce overlapping turn IDs.
+        turn_md = native_message.get("_metadata", {}).get("turn")
+        if isinstance(turn_md, dict):
+            tid = _as_int(turn_md.get("id"))
+            if tid is not None and tid > max_seen_turn_id:
+                max_seen_turn_id = tid
+
         usage = _message_usage(native_message)
         if not isinstance(usage, dict):
             continue
-        if current_open is None:
-            current_open = last_assigned + 1
-        last_assigned = max(last_assigned, current_open)
-        if not _message_has_tool_calls(native_message):
-            current_open = None
+
+        # If this message already has a turn ID, use it for state tracking
+        # instead of computing a new one. This preserves open/closed turn
+        # state from prior finalizations and prevents double-counting.
+        existing_turn_id = (
+            _as_int(turn_md.get("id")) if isinstance(turn_md, dict) else None
+        )
+        if existing_turn_id is not None:
+            if current_open is None:
+                current_open = existing_turn_id
+            last_assigned = max(last_assigned, existing_turn_id)
+            if not _message_has_tool_calls(native_message):
+                current_open = None
+        else:
+            if current_open is None:
+                current_open = max(last_assigned, max_seen_turn_id) + 1
+            last_assigned = max(last_assigned, current_open)
+            if not _message_has_tool_calls(native_message):
+                current_open = None
 
     return (
         current_open
         if current_open is not None
-        else (last_assigned + 1 if last_assigned > 0 else 1)
+        else (
+            max(last_assigned, max_seen_turn_id) + 1
+            if max(last_assigned, max_seen_turn_id) > 0
+            else 1
+        )
     )
 
 

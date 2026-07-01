@@ -7,6 +7,7 @@ import pytest
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
 from reference_openai_compatible_provider.usage_extension import (
     OpenAICompatibleUsageExtension,
+    _current_turn_id,
 )
 
 
@@ -208,6 +209,113 @@ def test_usage_extension_normalizes_cached_and_cost_fields_with_turn_totals():
     assert (
         final_metadata["usage_turn_reasoning_tokens_cumulative_formatted"] == "10"
     )  # 3 + 7
+
+
+def test_current_turn_id_is_monotonic_with_existing_higher_turn_ids() -> None:
+    """If history contains old messages with high turn IDs, new turns must not reuse them."""
+    native_messages = [
+        {"role": "user", "content": "hi"},
+        {
+            "role": "assistant",
+            "content": "old",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "test", "arguments": "{}"},
+                }
+            ],
+            "_metadata": {
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+                "turn": {"id": 10, "has_tool_calls": True, "is_terminal": False},
+            },
+        },
+        {"role": "tool", "content": "result"},
+        # New assistant after a user separator
+        {"role": "user", "content": "next"},
+        {
+            "role": "assistant",
+            "content": "new",
+            "_metadata": {"usage": {"prompt_tokens": 5, "completion_tokens": 3}},
+        },
+    ]
+    # history_before_current is everything except the last assistant
+    history = native_messages[:-1]
+    tid = _current_turn_id(history)
+    assert tid == 11, f"Expected turn id 11, got {tid}"
+
+
+def test_current_turn_id_reuses_open_turn_when_last_assistant_has_tool_calls() -> None:
+    """An open turn (last assistant has tool_calls, no user/system after) should continue."""
+    native_messages = [
+        {"role": "user", "content": "hi"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "test", "arguments": "{}"},
+                }
+            ],
+            "_metadata": {
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+                "turn": {"id": 7, "has_tool_calls": True, "is_terminal": False},
+            },
+        },
+        {"role": "tool", "content": "result"},
+    ]
+    tid = _current_turn_id(native_messages)
+    assert tid == 7, f"Expected turn id 7 (same open turn), got {tid}"
+
+
+def test_finalize_does_not_reuse_turn_id_after_truncated_history() -> None:
+    """Simulate a session where old turns carry high IDs but history_before_current
+    only sees a subset; the new turn must still get a unique ID."""
+    ext = OpenAICompatibleUsageExtension()
+
+    # Full native history: old turn 10 exists, then a user message, then a new assistant
+    native_messages = [
+        {"role": "user", "content": "first"},
+        {
+            "role": "assistant",
+            "content": "old",
+            "_metadata": {
+                "usage": {"prompt_tokens": 100, "completion_tokens": 50},
+                "turn": {"id": 10, "has_tool_calls": False, "is_terminal": True},
+            },
+        },
+        {"role": "user", "content": "second"},
+        {
+            "role": "assistant",
+            "content": "new",
+            "_metadata": {
+                "usage": {"prompt_tokens": 20, "completion_tokens": 10},
+            },
+        },
+    ]
+    final_messages = [native_messages[-1]]
+
+    new_finals, _new_native, _state = ext.finalize(
+        final_messages, native_messages, {"config": {}}
+    )
+    metadata = new_finals[0].get("_metadata") or {}
+    assert metadata.get("turn") == {
+        "id": 11,
+        "has_tool_calls": False,
+        "is_terminal": True,
+    }
+
+
+def test_current_turn_id_with_empty_history_is_one() -> None:
+    """Empty history should still start at 1."""
+    assert _current_turn_id([]) == 1
+
+
+def test_current_turn_id_with_only_user_messages_is_one() -> None:
+    """History with only user/system messages should start at 1."""
+    assert _current_turn_id([{"role": "user", "content": "hi"}]) == 1
 
 
 def test_usage_extension_finalize_stamps_turn_metadata() -> None:
