@@ -23,10 +23,19 @@ const visual = section.visual && typeof section.visual === "object" ? section.vi
     {items.map((item) => (
       <article class="flex min-h-full flex-col gap-4 rounded-xl border border-line bg-raised p-5">
         {item.media && (
-          <div class="flex aspect-[4/3] flex-col justify-center gap-1.5 rounded-lg border border-dashed border-line-strong bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] p-4">
-            <span class="font-mono text-xs text-accent-pale">{item.media.kind ?? "feature"}</span>
-            <p class="text-xs text-fg-5">{item.media.status ?? "ready"}</p>
-          </div>
+          item.media.src && item.media.status !== "placeholder-needed" ? (
+            <Fragment>
+              <img src={item.media.src} alt={item.media.alt ?? item.title} class:list={["aspect-[3/4] w-full rounded-lg border border-line object-cover", item.media.srcDark ? "block dark:hidden" : "block"]} />
+              {item.media.srcDark && (
+                <img src={item.media.srcDark} alt={item.media.alt ?? item.title} class="hidden aspect-[3/4] w-full rounded-lg border border-line object-cover dark:block" />
+              )}
+            </Fragment>
+          ) : (
+            <div class="flex aspect-[3/4] flex-col justify-center gap-1.5 rounded-lg border border-dashed border-line-strong bg-[color-mix(in_srgb,var(--accent)_6%,transparent)] p-4">
+              <span class="font-mono text-xs text-accent-pale">{item.media.kind ?? "feature"}</span>
+              <p class="text-xs text-fg-5">{item.media.status ?? "ready"}</p>
+            </div>
+          )
         )}
         <h3 class="text-[0.9375rem] font-semibold text-fg-2">{item.title}</h3>
         <p class="text-sm leading-snug text-fg-4">{item.description}</p>

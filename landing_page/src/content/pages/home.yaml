@@ -81,9 +81,9 @@ sections:
       network, use the bridge section below.
     visual:
       kind: "connectionDiagram"
-      status: "placeholder-needed"
-      desktop: "Show computer runtime on the left and terminal, desktop app, mobile app, and custom UI connected to the same sessions."
-      mobile: "Stack the command card first, then a compact connection diagram."
+      src: "/connection-diagram.jpg"
+      srcDark: "/connection-diagram-dark.jpg"
+      alt: "Desktop and phone on the same Wi-Fi network, connected peer-to-peer over the LAN and sharing the same Crystal Lattice session."
 
   - type: actionGuide
     id: bridge
@@ -125,9 +125,9 @@ sections:
           text: "Open Crystal Lattice Control, choose Bridge Service, enter the bridge URL, select your computer, and enter the pairing code."
     visual:
       kind: "bridgeDiagram"
-      status: "placeholder-needed"
-      desktop: "Show phone -> bridge -> user's computer, with pairing code callout."
-      mobile: "Use three compact steps: deploy, start with URL, pair."
+      src: "/bridge-diagram.png"
+      srcDark: "/bridge-diagram-dark.png"
+      alt: "Phone pairing with your computer through a self-hosted bridge when they are on different networks, using a pairing code."
 
   - type: featureMatrix
     id: model-native-harnesses
@@ -189,22 +189,30 @@ sections:
         description: "Expose model-specific controls when the provider supports them."
         media:
           kind: "screenshot"
-          status: "placeholder-needed"
+          src: "/provider-reasoning.png"
+          srcDark: "/provider-reasoning-dark.png"
+          alt: "Provider-native reasoning effort and verbosity controls in the UI."
       - title: "Web search and citations"
         description: "Show search/citation behavior through provider extensions where available."
         media:
           kind: "screenshot"
-          status: "placeholder-needed"
+          src: "/provider-web-search.png"
+          srcDark: "/provider-web-search-dark.png"
+          alt: "Provider web search and citation behavior surfaced in the UI."
       - title: "Prompt caching and compaction"
         description: "Keep long sessions practical with provider-native cache and compaction controls."
         media:
           kind: "screenshot"
-          status: "placeholder-needed"
+          src: "/provider-caching.png"
+          srcDark: "/provider-caching-dark.png"
+          alt: "Provider-native prompt caching and compaction controls in the UI."
       - title: "Usage, cost, and attachments"
         description: "Surface metadata, generated assets, and attachment handling in the UI."
         media:
           kind: "screenshot"
-          status: "placeholder-needed"
+          src: "/provider-usage-cost.png"
+          srcDark: "/provider-usage-cost-dark.png"
+          alt: "Usage, cost metadata, and attachment handling surfaced in the UI."
 
   - type: featureCodeShowcase
     id: everything-replaceable
@@ -331,23 +339,23 @@ sections:
       - title: "Session list"
         description: "Titles, pinned state, ordering, message counts, and timestamps."
         src: "/session-list-workbench.png"
-        status: "placeholder-needed"
+        srcDark: "/session-list-workbench-dark.png"
       - title: "Chat actions"
         description: "Message and session actions exposed by plugins."
         src: "/chat-actions-workbench.png"
-        status: "placeholder-needed"
+        srcDark: "/chat-actions-workbench-dark.png"
       - title: "Snapshots"
         description: "Create, inspect, select, and restore session checkpoints."
         src: "/session-snapshots-workbench.png"
-        status: "placeholder-needed"
+        srcDark: "/session-snapshots-workbench-dark.png"
       - title: "Attachments"
         description: "Preserve generated assets and session-owned files."
         src: "/session-attachments-workbench.png"
-        status: "placeholder-needed"
+        srcDark: "/session-attachments-workbench-dark.png"
       - title: "Settings and plugins"
         description: "Per-session controls from plugin UI schema."
         src: "/session-settings-plugins.png"
-        status: "placeholder-needed"
+        srcDark: "/session-settings-plugins-dark.png"
 
   - type: promptBlock
     id: build-plugin

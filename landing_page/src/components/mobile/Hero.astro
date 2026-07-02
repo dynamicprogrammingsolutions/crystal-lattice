@@ -72,9 +72,17 @@ const storeBtnDisabled = `${storeBtnBase} cursor-default opacity-[0.72]`;
           <img
             src={section.image.src}
             alt={section.image.alt}
-            class="block h-auto w-full"
+            class:list={["h-auto w-full", section.image.srcDark ? "block dark:hidden" : "block"]}
             onerror="this.closest('[data-phone-col]').style.display='none';"
           />
+          {section.image.srcDark && (
+            <img
+              src={section.image.srcDark}
+              alt={section.image.alt}
+              class="hidden h-auto w-full dark:block"
+              onerror="this.closest('[data-phone-col]').style.display='none';"
+            />
+          )}
         </div>
       </div>
     </div>
