@@ -326,9 +326,11 @@ class AgentApplication:
         snapshot_selection_store: SnapshotSelectionStore | None = None,
         env_overrides: Mapping[str, str] | None = None,
         config_env: Mapping[str, str] | None = None,
+        replay_server_settings_on_startup: bool = True,
     ) -> None:
         logger = get_logger("AgentApplication")
         self._logger = logger
+        self._closed = False
         # Core factory is stored so that per-session cores can be created
         # without sharing wrapper/runtime state across requests. Model
         # discovery cache is intentionally shared at the application scope.
@@ -641,7 +643,8 @@ class AgentApplication:
             self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
 
         self._raise_for_fatal_config_errors()
-        self._replay_server_settings_on_startup()
+        if replay_server_settings_on_startup:
+            self._replay_server_settings_on_startup()
 
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
@@ -2157,6 +2160,10 @@ class AgentApplication:
 
     def close(self) -> None:
         """Release plugin and process-global runtime resources owned by this app."""
+
+        if self._closed:
+            return
+        self._closed = True
 
         for wrapper in list(self._app_plugins.values()):
             try:

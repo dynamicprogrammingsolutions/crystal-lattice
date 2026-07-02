@@ -68,6 +68,11 @@ class TerminalApplication:
     def agent_app(self) -> AgentApplication:
         return self._app
 
+    def close(self) -> None:
+        """Release resources owned by the underlying application."""
+
+        self._app.close()
+
     @property
     def session(self) -> Session:
         if self._session is None:

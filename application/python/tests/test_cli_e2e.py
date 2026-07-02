@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import json
 import os
+import platform
+import shutil
+import signal
 import socket
 import subprocess
 import time
@@ -55,6 +58,8 @@ def _pythonpath_env() -> dict[str, str]:
             [
                 str(ROOT / "core" / "python"),
                 str(ROOT / "application" / "python"),
+                str(ROOT / "application" / "python" / "tests" / "fixtures"),
+                str(ROOT / "plugins" / "sleep-prevention-app" / "src"),
             ]
         ),
     }
@@ -168,11 +173,123 @@ def _terminate(process: subprocess.Popen[str], timeout: float = 5.0) -> None:
         process.wait(timeout=timeout)
 
 
+def _interrupt(process: subprocess.Popen[str], timeout: float = 5.0) -> None:
+    """Send SIGINT, wait, then SIGKILL if needed."""
+    if process.poll() is not None:
+        return
+    process.send_signal(signal.SIGINT)
+    try:
+        process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=timeout)
+
+
+def _process_is_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _caffeinate_child_pids(process: subprocess.Popen[str]) -> list[int]:
+    if process.poll() is not None:
+        return []
+    result = subprocess.run(
+        ["pgrep", "-P", str(process.pid), "-x", "caffeinate"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    pids: list[int] = []
+    for line in result.stdout.splitlines():
+        line = line.strip()
+        if line.isdigit():
+            pids.append(int(line))
+    return pids
+
+
+def _wait_for_caffeinate_children(
+    process: subprocess.Popen[str],
+    *,
+    minimum: int,
+    timeout: float = 10.0,
+) -> list[int]:
+    deadline = time.monotonic() + timeout
+    last_seen: list[int] = []
+    while time.monotonic() < deadline:
+        last_seen = _caffeinate_child_pids(process)
+        if len(last_seen) >= minimum:
+            return last_seen
+        if process.poll() is not None:
+            break
+        time.sleep(0.2)
+    raise AssertionError(
+        f"expected at least {minimum} caffeinate child process(es), saw {last_seen}"
+    )
+
+
+def _wait_for_no_caffeinate_children(
+    process: subprocess.Popen[str],
+    *,
+    timeout: float = 10.0,
+) -> list[int]:
+    deadline = time.monotonic() + timeout
+    last_seen: list[int] = []
+    while time.monotonic() < deadline:
+        last_seen = _caffeinate_child_pids(process)
+        if not last_seen:
+            return []
+        time.sleep(0.2)
+    return last_seen
+
+
+def _patch_server_settings(base_url: str, values: dict[str, Any]) -> dict[str, Any]:
+    request = urllib.request.Request(
+        f"{base_url}/server/settings",
+        data=json.dumps({"values": values}).encode("utf-8"),
+        headers={"content-type": "application/json"},
+        method="PATCH",
+    )
+    with urllib.request.urlopen(request, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
 def _read_stdout(stdout_file: Path) -> str:
     """Read all captured stdout from the temp file."""
     if stdout_file.is_file():
         return stdout_file.read_text(encoding="utf-8")
     return ""
+
+
+def _wait_for_stdout_contains(
+    stdout_file: Path,
+    process: subprocess.Popen[str],
+    text: str,
+    *,
+    timeout: float = 30.0,
+) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        output = _read_stdout(stdout_file)
+        if text in output:
+            return
+        if process.poll() is not None:
+            raise AssertionError(f"process exited before {text!r}: {output[:2000]}")
+        time.sleep(0.2)
+    output = _read_stdout(stdout_file)
+    raise AssertionError(f"timed out waiting for {text!r}: {output[:2000]}")
 
 
 def _read_profile(home_dir: Path) -> dict[str, Any]:
@@ -304,9 +421,158 @@ def test_console_no_tty_without_server(tmp_path: Path, _session_home: Path) -> N
     process, stdout_file = _launch_cli_custom(
         workspace, _session_home, port, "--console", "--no-tty"
     )
-    # Give the console time to start and print "Session started".
-    time.sleep(5)
-    _terminate(process, timeout=10)
+    try:
+        _wait_for_stdout_contains(stdout_file, process, "Session started", timeout=60)
+    finally:
+        _terminate(process, timeout=10)
+
+    output = _read_stdout(stdout_file)
+    assert "Session started" in output
+    assert process.returncode == 0
+
+
+def test_console_server_lifecycle_plugin_replays_once_and_closes_both_apps(
+    tmp_path: Path,
+    _session_home: Path,
+) -> None:
+    workspace = _make_workspace(tmp_path)
+    crystal_dir = workspace / ".crystal"
+    config_path = crystal_dir / "config.json"
+    sessions_dir = crystal_dir / "sessions"
+    runtime_dir = crystal_dir / "runtime"
+    actions_path = workspace / "lifecycle-actions.jsonl"
+    closes_path = workspace / "lifecycle-closes.jsonl"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+
+    config_path.write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "echo": {
+                        "provider": "echo_openai_like",
+                        "model": "test-model",
+                    }
+                },
+                "plugins": [
+                    "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+                    "cli_lifecycle_app_plugin.CliLifecycleAppPlugin",
+                ],
+                "agents": {"default": {"provider": "echo"}},
+                "application": {
+                    "cli_lifecycle_actions_path": str(actions_path),
+                    "cli_lifecycle_closes_path": str(closes_path),
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime_dir / "server_settings.json").write_text(
+        json.dumps({"settings": {"dummy_server_mode": "careful"}}),
+        encoding="utf-8",
+    )
+
+    port = _reserve_port()
+    base_url = f"http://127.0.0.1:{port}"
+    process, stdout_file = _launch_cli_custom(
+        workspace,
+        _session_home,
+        port,
+        "--console",
+        "--server",
+        "--no-tty",
+        "--config",
+        str(config_path),
+        "--sessions-dir",
+        str(sessions_dir),
+    )
+    try:
+        _wait_for_server(base_url, process, timeout=120)
+        actions = _read_jsonl(actions_path)
+        assert len(actions) == 1
+        assert actions[0]["context"]["source"] == "startup"
+    finally:
+        _interrupt(process, timeout=10)
+
+    closes = _read_jsonl(closes_path)
+    assert len(closes) == 2
+    assert process.returncode == 0
+
+    output = _read_stdout(stdout_file)
+    assert "Session started" in output
+
+
+@pytest.mark.skipif(
+    platform.system() != "Darwin" or shutil.which("caffeinate") is None,
+    reason="real caffeinate subprocess behavior is macOS-only",
+)
+def test_console_server_sleep_prevention_toggle_releases_caffeinate_children(
+    tmp_path: Path,
+    _session_home: Path,
+) -> None:
+    workspace = _make_workspace(tmp_path)
+    crystal_dir = workspace / ".crystal"
+    config_path = crystal_dir / "config.json"
+    sessions_dir = crystal_dir / "sessions"
+    runtime_dir = crystal_dir / "runtime"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+
+    config_path.write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "echo": {
+                        "provider": "echo_openai_like",
+                        "model": "test-model",
+                    }
+                },
+                "plugins": [
+                    "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+                    "sleep_prevention_app.SleepPreventionAppPlugin",
+                ],
+                "agents": {"default": {"provider": "echo"}},
+                "application": {"sleep_prevention_caffeinate_flags": "-i"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (runtime_dir / "server_settings.json").write_text(
+        json.dumps({"settings": {"sleep_prevention_enabled": True}}),
+        encoding="utf-8",
+    )
+
+    port = _reserve_port()
+    base_url = f"http://127.0.0.1:{port}"
+    process, stdout_file = _launch_cli_custom(
+        workspace,
+        _session_home,
+        port,
+        "--console",
+        "--server",
+        "--no-tty",
+        "--config",
+        str(config_path),
+        "--sessions-dir",
+        str(sessions_dir),
+    )
+    captured_pids: list[int] = []
+    try:
+        _wait_for_server(base_url, process, timeout=120)
+        captured_pids = _wait_for_caffeinate_children(process, minimum=1)
+
+        response = _patch_server_settings(
+            base_url,
+            {"sleep_prevention_enabled": False},
+        )
+
+        assert response == {"settings": {"sleep_prevention_enabled": False}}
+        assert _wait_for_no_caffeinate_children(process) == []
+    finally:
+        _terminate(process, timeout=10)
+        for pid in captured_pids:
+            if _process_is_alive(pid):
+                subprocess.run(["kill", str(pid)], check=False)
 
     output = _read_stdout(stdout_file)
     assert "Session started" in output

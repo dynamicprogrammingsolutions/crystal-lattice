@@ -1136,51 +1136,58 @@ def main() -> None:  # pragma: no cover - manual execution only
             config_env=config_env,
             env_overrides=env_overrides,
         )
-        commands = command_app.get_application_commands()
-        command_map = {
-            command["name"]: command
-            for command in commands
-            if isinstance(command, dict) and isinstance(command.get("name"), str)
-        }
-        command_def = command_map.get(contributed_command)
-        if command_def is None:
-            parser.error(f"unknown command: {contributed_command}")
-
-        if args.console or args.server:
-            parser.error(
-                f"{contributed_command} is a standalone command and cannot be combined "
-                "with --console or --server"
-            )
-
-        action_id = command_def.get("action_id")
-        plugin_id = command_def.get("plugin")
-        if not isinstance(action_id, str) or not action_id:
-            parser.error(f"command {contributed_command!r} is missing action_id")
-        if not isinstance(plugin_id, str) or not plugin_id:
-            parser.error(f"command {contributed_command!r} is missing plugin binding")
-
-        action_def = _application_action_map(command_app).get((plugin_id, action_id))
-        if action_def is None:
-            parser.error(
-                f"command {contributed_command!r} references unknown action {plugin_id}.{action_id}"
-            )
-
-        params = _parse_contributed_command(
-            command_def,
-            action_def,
-            list(args.command_args or []),
-        )
         try:
-            result = command_app.execute_application_action(
-                plugin_id=plugin_id,
-                action_id=action_id,
-                params=params,
+            commands = command_app.get_application_commands()
+            command_map = {
+                command["name"]: command
+                for command in commands
+                if isinstance(command, dict) and isinstance(command.get("name"), str)
+            }
+            command_def = command_map.get(contributed_command)
+            if command_def is None:
+                parser.error(f"unknown command: {contributed_command}")
+
+            if args.console or args.server:
+                parser.error(
+                    f"{contributed_command} is a standalone command and cannot be combined "
+                    "with --console or --server"
+                )
+
+            action_id = command_def.get("action_id")
+            plugin_id = command_def.get("plugin")
+            if not isinstance(action_id, str) or not action_id:
+                parser.error(f"command {contributed_command!r} is missing action_id")
+            if not isinstance(plugin_id, str) or not plugin_id:
+                parser.error(
+                    f"command {contributed_command!r} is missing plugin binding"
+                )
+
+            action_def = _application_action_map(command_app).get(
+                (plugin_id, action_id)
             )
-        except Exception as exc:
-            print(str(exc), file=sys.stderr)
-            raise SystemExit(1) from exc
-        _render_command_result(result)
-        return
+            if action_def is None:
+                parser.error(
+                    f"command {contributed_command!r} references unknown action {plugin_id}.{action_id}"
+                )
+
+            params = _parse_contributed_command(
+                command_def,
+                action_def,
+                list(args.command_args or []),
+            )
+            try:
+                result = command_app.execute_application_action(
+                    plugin_id=plugin_id,
+                    action_id=action_id,
+                    params=params,
+                )
+            except Exception as exc:
+                print(str(exc), file=sys.stderr)
+                raise SystemExit(1) from exc
+            _render_command_result(result)
+            return
+        finally:
+            command_app.close()
 
     # --- Consolidated startup summary (server/console modes only) ---
     lan_ip = get_local_ip() if effective_host == "0.0.0.0" else None
@@ -1230,6 +1237,7 @@ def main() -> None:  # pragma: no cover - manual execution only
             event_store=shared_events,
             config_env=config_env,
             env_overrides=env_overrides,
+            replay_server_settings_on_startup=False,
         )
         terminal_app = TerminalApplication(
             config_path=str(config_path),
@@ -1278,6 +1286,8 @@ def main() -> None:  # pragma: no cover - manual execution only
         finally:
             uvicorn_server.should_exit = True
             thread.join()
+            terminal_app.close()
+            server_app.close()
     elif run_console:
         agent_app = AgentApplication(
             str(config_path),
@@ -1290,10 +1300,13 @@ def main() -> None:  # pragma: no cover - manual execution only
             session_root=str(session_root),
             agent_app=agent_app,
         )
-        if args.no_tty:
-            _run_terminal_headless(terminal_app, console_logger)
-        else:
-            run_terminal(logger=console_logger, app_instance=terminal_app)
+        try:
+            if args.no_tty:
+                _run_terminal_headless(terminal_app, console_logger)
+            else:
+                run_terminal(logger=console_logger, app_instance=terminal_app)
+        finally:
+            terminal_app.close()
     else:
         app_instance = AgentApplication(
             str(config_path),

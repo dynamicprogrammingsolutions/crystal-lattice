@@ -74,6 +74,13 @@ class CaffeinateSleepPreventionController:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        pid = getattr(self._process, "pid", None)
+        suffix = f" pid={pid}" if pid is not None else ""
+        print(
+            f"[sleep-prevention] started caffeinate{suffix}: "
+            f"{shlex.join(self.command_line)}",
+            flush=True,
+        )
 
     def release(self) -> None:
         process = self._process
@@ -88,6 +95,9 @@ class CaffeinateSleepPreventionController:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+        pid = getattr(process, "pid", None)
+        suffix = f" pid={pid}" if pid is not None else ""
+        print(f"[sleep-prevention] stopped caffeinate{suffix}", flush=True)
 
     def status(self) -> dict[str, Any]:
         active = self._process is not None and self._process.poll() is None
