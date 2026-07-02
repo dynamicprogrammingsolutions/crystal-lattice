@@ -29,6 +29,7 @@ export type MediaPlaceholder = {
   kind?: string;
   status?: string;
   src?: string;
+  srcDark?: string;
   alt?: string;
   desktop?: string;
 };
@@ -125,6 +126,7 @@ export type ScreenshotGallerySection = SectionBase<"screenshotGallery"> & {
     title: string;
     description: string;
     src: string;
+    srcDark?: string;
     status?: string;
   }>;
 };
@@ -166,6 +168,7 @@ export type MobileHeroSection = SectionBase<"mobileHero"> & {
   note?: string;
   image: {
     src: string;
+    srcDark?: string;
     alt: string;
   };
 };
