@@ -4,14 +4,14 @@ Fix the model-facing `view_image` schema/result behavior so it matches Codex CLI
 
 ## Requirements checklist
 
-- [ ] Remove `output_schema` from the normal/model-facing `view_image` tool schema.
-- [ ] Preserve successful `view_image` model-facing image delivery for OpenAI Responses.
-- [ ] Preserve successful `view_image` model-facing image delivery for OpenRouter.
-- [ ] Ensure successful `view_image` output is a multipart/content-item result with an `input_image` item and no required JSON-string schema output.
-- [ ] Ensure failed `view_image` output is plain text and does not produce image content.
-- [ ] Run existing integration tests covering successful `view_image` behavior for both OpenAI Responses and OpenRouter.
-- [ ] Add integration tests for `view_image` failure cases.
-- [ ] Update relevant unit tests and docs that currently expect or document `output_schema` on the normal `view_image` schema.
+- [x] Remove `output_schema` from the normal/model-facing `view_image` tool schema.
+- [x] Preserve successful `view_image` model-facing image delivery for OpenAI Responses.
+- [x] Preserve successful `view_image` model-facing image delivery for OpenRouter.
+- [x] Ensure successful `view_image` output is a multipart/content-item result with an `input_image` item and no required JSON-string schema output.
+- [x] Ensure failed `view_image` output is plain text and does not produce image content.
+- [x] Run existing integration tests covering successful `view_image` behavior for both OpenAI Responses and OpenRouter.
+- [x] Add integration tests for `view_image` failure cases.
+- [x] Update relevant unit tests and docs that currently expect or document `output_schema` on the normal `view_image` schema.
 
 ## Context
 
@@ -112,3 +112,25 @@ Also update focused unit tests:
 ## Documentation
 
 Update `plugins/codex-tools/README.md`, which currently describes `view_image` as an OpenAI Responses function tool with `output_schema`. The docs should say the normal model-facing schema omits `output_schema`, and success returns image content items directly.
+
+## Execution plan
+
+Added during completion.
+
+- Update `plugins/codex-tools/src/codex_tools/view_image_tool.py` so the normal `view_image` schema no longer includes `output_schema`, successful OpenAI Responses output contains only the `input_image` item, and failure output remains plain text.
+- Update `plugins/codex-tools/tests/test_view_image_tool.py` to assert the schema omits `output_schema`, success output is image-only, and missing-file failures format as plain text.
+- Check OpenAI Responses provider/tool-extension tests for coverage of content-item array tool outputs and add a focused regression if needed for schema-free failed `view_image` replay.
+- Add realistic failure integration coverage in `plugins/codex-tools/tests/test_view_image_tool_integration.py` for OpenAI Responses and OpenRouter without requiring a real model to choose the failure path.
+- Update `plugins/codex-tools/README.md`.
+- Run focused unit tests first, then run the existing provider success integration tests if credentials/environment are available; report any gated tests that cannot run.
+
+## Completion Notes
+
+Added during completion.
+
+- Removed `output_schema` from the normal `view_image` schema emitted by `plugins/codex-tools/src/codex_tools/view_image_tool.py`.
+- Changed successful OpenAI Responses `view_image` formatting to return only an `input_image` content item in the provider-native tool result, while keeping human-readable display/fallback text.
+- Preserved failure formatting as plain text.
+- Updated unit tests for schema absence, image-only success output, asset-backed output, and missing-file plain-text failures.
+- Added deterministic plugin-local integration coverage for failed `view_image` calls through both OpenAI Responses and OpenRouter provider wiring.
+- Ran focused unit tests plus existing hosted API success integrations for OpenAI Responses and OpenRouter successfully.

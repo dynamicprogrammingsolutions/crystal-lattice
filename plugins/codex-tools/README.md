@@ -49,9 +49,9 @@ Load a local image file for model-visible vision input.
 
 - **Plugin name**: `view_image`
 - **Schema name**: `view_image`
-- **Primary schema**: OpenAI Responses function tool with `output_schema`
+- **Primary schema**: OpenAI Responses function tool without `output_schema`; successful results return an `input_image` content item directly
 - **Chat fallback**: OpenAI chat-completions function schema plus JSON/text tool result containing the image data URL
-- **Parameters**: `path` (string, required), `detail` (optional `"original"` when enabled)
+- **Parameters**: `path` (string, required), `detail` (optional `"original"`; enabled by default)
 - **Execution**: Resolves paths against `working_directory`, enforces `allowed_paths`, validates PNG/JPEG/GIF/WebP magic bytes, and returns a data URL
 
 ### MCP Tools
@@ -140,7 +140,7 @@ shell_tool_mode = "shell_command"
 |-----|-------|-------------|
 | `shell_tool_mode` | Agent | Shell tool selection mode: `"auto"` (default), `"shell"`, `"shell_command"` |
 | `intercept_apply_patch` | Agent/Provider | When true, shell tools intercept Codex-style `apply_patch` shell invocations and route them to the internal patch runtime |
-| `enable_view_image_detail_original` | Agent | When true, exposes and honors `view_image.detail = "original"` |
+| `enable_view_image_detail_original` | Agent | Exposes and honors `view_image.detail = "original"` by default; set to `false` to disable |
 | `view_image_max_bytes` | Agent | Maximum local image size accepted by `view_image` |
 | `mcp_enabled` | Agent/Provider | Enable MCP-backed tools for the active wrapper |
 | `mcp_fail_on_startup_error` | Agent/Provider | Fail tool preparation if an enabled MCP server cannot be started |
