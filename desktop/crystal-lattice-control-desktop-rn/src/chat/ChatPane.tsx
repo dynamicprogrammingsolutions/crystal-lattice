@@ -2581,6 +2581,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              scrollEventThrottle={16}
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
+	              onScroll={transcriptScroll.onScroll}
 	              renderItem={renderMessageItem}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
