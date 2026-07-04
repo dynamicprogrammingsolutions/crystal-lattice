@@ -5,11 +5,11 @@ Audit the iOS app, Apple account assumptions, public URLs, and repo readiness be
 ## Requirements checklist
 
 - [x] Audit code-visible iOS/mobile metadata, signing settings, privacy manifest, icon assets, landing page routes, and deployment workflows.
-- [ ] Confirm the Apple Developer Program team, legal entity/account owner, and whether team ID `73Q43R2PD4` is the intended production team.
+- [x] Confirm the Apple Developer Program team, legal entity/account owner, and whether team ID `73Q43R2PD4` is the intended production team.
 - [ ] Confirm the final App Store Connect app name, SKU, primary language, category, and whether the first TestFlight release is internal-only or external too.
-- [ ] Confirm that `com.dynamicprogrammingsolutions.crystallatticecontrolrn` is registered or ready to register in Certificates, Identifiers & Profiles/App Store Connect.
+- [x] Confirm that `com.dynamicprogrammingsolutions.crystallatticecontrolrn` is registered or ready to register in Certificates, Identifiers & Profiles/App Store Connect.
 - [x] Locate the landing page and privacy policy route in code.
-- [ ] Confirm the production landing page URL and production privacy policy URL are live/approved for App Store Connect.
+- [x] Confirm the production landing page URL and production privacy policy URL are live/approved for App Store Connect.
 - [x] Produce a readiness matrix with `ready`, `needs code change`, `needs Apple account action`, and `needs external asset/content` statuses.
 
 Parent Task: tasks/20260614-ios-testflight-github-fastlane/000-main.md
@@ -122,19 +122,19 @@ Added during completion on 2026-06-17.
 | --- | --- | --- |
 | Native iOS project exists | ready | Workspace and scheme are present; `xcodebuild -list` finds `CrystalLatticeControlRN`. |
 | Bundle identifier | ready pending Apple portal confirmation | Code uses `com.dynamicprogrammingsolutions.crystallatticecontrolrn`; confirm it exists or can be created in Apple Developer/App Store Connect. |
-| Apple team | needs Apple account action | Code uses team ID `73Q43R2PD4`; confirm this is the intended production team/legal entity. |
-| App name/display name | mostly ready | User-facing display name is `Crystal Lattice Control`; package/Xcode product name still need stale `BonjourExampleRN` cleanup. |
+| Apple team | ready | Owner confirmed team ID `73Q43R2PD4` is the intended production team. Legal entity/account owner: `Dynamic Programming Solutions Kft.` |
+| App name/display name | needs code change | App Store name should be `Crystal Lattice`, not current in-app display name `Crystal Lattice Control`; package/Xcode product name still need stale `BonjourExampleRN` cleanup. |
 | Version/build | needs code/deployment decision | Current values are `1.0` / `1`; define build-number increment strategy for fastlane/GitHub Actions. |
 | App icon | needs code change | iOS app icon asset set has only `Contents.json`; generate PNGs from the existing SVG icon. |
 | Privacy manifest | ready pending compliance review | `PrivacyInfo.xcprivacy` exists; validate against final SDK/app behavior in task `050`. |
 | Permission strings | needs code change | Empty `NSLocationWhenInUseUsageDescription`; remove or fill if actually needed. |
 | Local verification | mostly ready | `tsc` and Jest pass; lint script is blocked by missing ESLint config. |
 | Landing page source | ready | `landing_page` exists with `/mobile`, `/privacy`, and `/terms`. |
-| Public privacy URL | needs external confirmation | Test privacy URL is live; production `crystallattice.dev` did not resolve from this environment. |
+| Public privacy URL | ready pending independent verification | Owner confirmed production `https://crystallattice.dev` is live; use `https://crystallattice.dev/privacy`. This environment still could not resolve `crystallattice.dev` on 2026-06-17. |
 | Static-site deployment | ready for landing/docs path | `.github/workflows/deploy-static-sites.yml` exists. |
 | Mobile TestFlight CI/CD | needs code change | No fastlane or mobile iOS GitHub Actions workflow yet. |
 | App Store Connect registration | needs Apple account action | Cannot be confirmed from repo. |
-| TestFlight release scope | needs product decision | Internal-only first vs external testers is not encoded in repo. |
+| TestFlight release scope | ready | Owner selected internal testers first, while continuing external-review readiness work. |
 | Reviewer/demo backend access | needs product/external environment decision | App requires local/bridge/cloud server access for meaningful review. |
 
 ## Questions For The User / Account Owner
@@ -160,6 +160,47 @@ Added during completion on 2026-06-17.
 15. For external TestFlight review, what demo backend/bridge/cloud connection should Apple reviewers use?
 16. Should the App Store version start at `1.0`, or should it be a lower pre-release marketing version for early TestFlight?
 17. Do we want to keep iOS deployment target `16.6`, or lower it to support older devices?
+
+## Product Owner Answers
+
+Added during follow-up on 2026-06-17.
+
+- Apple team ID `73Q43R2PD4`: confirmed as intended production team.
+- Legal entity/account owner: `Dynamic Programming Solutions Kft.`
+- Bundle ID registration: `com.dynamicprogrammingsolutions.crystallatticecontrolrn` has not been registered yet.
+- App Store Connect app record: not created yet.
+- App Store app name: should be `Crystal Lattice`, not `Crystal Lattice Control`.
+- First TestFlight target: internal testers first; continue preparing for external review readiness.
+- Privacy URL: production `https://crystallattice.dev/privacy`; owner says production domain is already live.
+- Feedback/App Review contact email: `support@dynamicprogrammingsolutions.com`.
+- Versioning preference: use a lower pre-release marketing version, not `1.0`, for initial TestFlight.
+
+Still pending owner approval:
+
+- SKU.
+- Primary language.
+- Primary/secondary category.
+- Support URL.
+- Marketing URL exact value.
+- External TestFlight demo backend/bridge/cloud reviewer access plan.
+- Final minimum iOS deployment target.
+
+## Recommendations
+
+Added during follow-up on 2026-06-17.
+
+- SKU: use `crystal-lattice-ios`. It is short, stable, and aligned with the App Store app name. Keep `crystal-lattice-control-ios` only if the product owner wants the SKU to preserve the mobile app's historical/internal name.
+- Primary language: use `English (U.S.)` unless the target market/legal copy should be British/international English. Current app and landing-page content are English.
+- Category: use `Developer Tools` as primary. Optional secondary category: `Productivity`. Rationale: the app is primarily a developer/agent-workflow companion, while the interaction model is a work/productivity app.
+- Support URL: prefer `https://crystallattice.dev/support` if a lightweight support page can be added soon. If not, use `https://crystallattice.dev/mobile` for the first TestFlight, provided it clearly links to support/contact. Avoid using only GitHub Issues as the App Store support URL unless the app is intentionally developer-only for the whole launch.
+- Marketing URL: use `https://crystallattice.dev/mobile`. The main landing page can remain the broad product URL, but `/mobile` is more specific for App Store Connect.
+- External reviewer demo access: create a world-accessible but tightly scoped demo path before external TestFlight review. Recommended shape:
+  - Prefer a cloud demo connection link that opens a disposable/sandboxed cloud agent instance, with no user secrets and no paid-provider API keys exposed to the reviewer.
+  - If cloud demo is not ready, provide a bridge demo server reachable over `wss://...`, paired to a constrained local/demo agent with harmless canned/local behavior.
+  - Avoid asking Apple reviewers to run local CLI setup or enter a private LAN IP for external review; that is fragile and likely to slow review.
+  - Include reviewer notes explaining: open app, choose Cloud or Bridge, paste/link the provided connection, create/open session, send a sample prompt, inspect messages.
+- Version: use `0.9.0` for the first TestFlight marketing version unless there is a reason to signal an earlier alpha such as `0.5.0`. Build numbers should be monotonically incremented by CI.
+- iOS deployment target: lower app target from `16.6` to `15.1` unless a dependency or feature fails on iOS 15.1. React Native 0.82 reports `min_ios_version_supported = 15.1`, and the Xcode project already has some project-level deployment target settings at `15.1`. This broadens device/tester coverage without going below React Native's supported floor.
 
 ## Completion Notes
 

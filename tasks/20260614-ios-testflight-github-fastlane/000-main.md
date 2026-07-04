@@ -14,6 +14,7 @@ Prepare the Crystal Lattice Control React Native iOS app for TestFlight registra
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/060-app-store-connect-registration-package.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/070-fastlane-ios-testflight.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/080-github-actions-ios-cd.md`
+- [ ] `tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/090-first-testflight-dry-run.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/100-external-testflight-readiness.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/110-deployment-runbook.md`
@@ -54,9 +55,10 @@ Important known gaps from the deployment audit:
 6. Prepare App Store Connect registration and TestFlight metadata.
 7. Add fastlane.
 8. Add GitHub Actions CD.
-9. Perform first internal TestFlight dry run.
-10. Prepare/submit external TestFlight review if desired.
-11. Document the release runbook.
+9. Provide an immediately testable App Review/local runtime path.
+10. Perform first internal TestFlight dry run.
+11. Prepare/submit external TestFlight review if desired.
+12. Document the release runbook.
 
 ## Reference Links
 
