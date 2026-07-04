@@ -191,6 +191,9 @@ Added during completion after implementation and verification.
   - `pytest application/python/tests/test_claude_compaction_feature_action.py -q`
   - `ruff check plugins/claude-tools/src/claude_tools/claude_compaction_feature.py plugins/claude-tools/tests/test_claude_compaction_feature.py application/python/tests/test_claude_compaction_feature_action.py application/python/tests/test_claude_default_config_compaction_integration.py`
   - `black --check plugins/claude-tools/src/claude_tools/claude_compaction_feature.py plugins/claude-tools/tests/test_claude_compaction_feature.py application/python/tests/test_claude_compaction_feature_action.py application/python/tests/test_claude_default_config_compaction_integration.py`
-- Hosted default-config verification command was attempted:
+- Hosted default-config verification command was first attempted without the root `.env` in this worktree:
   - `pytest -m 'integration and api and openrouter' application/python/tests/test_claude_default_config_compaction_integration.py -q`
   - Result: skipped in this environment because the hosted API gate was not available.
+- After copying the root `.env` from the original worktree and pinning `BUILTIN_PLUGINS` to this worktree's `plugins` directory, hosted default-config verification passed:
+  - `pytest -m 'integration and api and openrouter' application/python/tests/test_claude_default_config_compaction_integration.py -q`
+  - Result: `3 passed`

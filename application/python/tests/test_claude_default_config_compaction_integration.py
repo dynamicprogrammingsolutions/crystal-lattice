@@ -92,6 +92,7 @@ def _build_default_config_app(
         / "config.json"
     )
     monkeypatch.setenv("CONFIG_DIR", str(config_path.parent.resolve()))
+    monkeypatch.setenv("BUILTIN_PLUGINS", str((ROOT / "plugins").resolve()))
     monkeypatch.setenv(
         "CLOUD_RUNTIME_BUILD_CONTEXT", str(tmp_path / "cloud-runtime-context")
     )
