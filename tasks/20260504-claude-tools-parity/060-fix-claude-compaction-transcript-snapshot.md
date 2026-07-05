@@ -4,14 +4,14 @@ Save a pre-compaction transcript snapshot in Claude Code's JSONL format before a
 
 ## Requirements checklist
 
-- [ ] Investigate Claude Code's transcript JSONL format (entry schema, fields, metadata).
-- [ ] Implement a transcript snapshot writer that saves the pre-compaction conversation as a JSONL file matching Claude Code's format.
-- [ ] Wire the snapshot writer into `build_compacted_session` so it runs before the session is modified.
-- [ ] Update `_session_transcript_path` to return the snapshot file path (not the live session file path).
-- [ ] Update `build_compact_summary_text` to reference the snapshot path in the footer.
-- [ ] Add unit tests for the snapshot writer (JSONL format, entry schema, metadata fields).
-- [ ] Add integration test verifying the transcript path references a file containing the original conversation.
-- [ ] Update existing Claude compaction tests to account for the snapshot file.
+- [x] Investigate Claude Code's transcript JSONL format (entry schema, fields, metadata).
+- [x] Implement a transcript snapshot writer that saves the pre-compaction conversation as a JSONL file matching Claude Code's format.
+- [x] Wire the snapshot writer into the compaction action so it runs before the session is modified.
+- [x] Update `_session_transcript_path` to return the snapshot file path (not the live session file path).
+- [x] Update `build_compact_summary_text` to reference the snapshot path in the footer.
+- [x] Add unit tests for the snapshot writer (JSONL format, entry schema, metadata fields).
+- [x] Add integration-style test verifying the transcript path references a file containing the original conversation.
+- [x] Update existing Claude compaction tests to account for the snapshot file.
 
 Parent Task: tasks/20260504-claude-tools-parity/000-main.md
 
@@ -134,23 +134,23 @@ The snapshot directory should be derived from the session store's root directory
 Added during completion after user approval.
 
 Stage 1: Investigation and design
-- [ ] Confirm the Claude Code JSONL entry schema by examining captured transcripts
-- [ ] Decide snapshot file naming and directory layout
-- [ ] Decide whether to store transcripts alongside sessions or in a separate directory
-- [ ] Present design for approval
+- [x] Confirm the Claude Code JSONL entry schema by examining captured transcripts
+- [x] Decide snapshot file naming and directory layout
+- [x] Decide whether to store transcripts alongside sessions or in a separate directory
+- [x] Present design for approval
 
 Stage 2: Implementation
-- [ ] Implement `write_pre_compaction_transcript` function
-- [ ] Add JSONL entry schema matching Claude Code's format
-- [ ] Wire snapshot writing into `build_compacted_session` or `execute_action`
-- [ ] Update `_session_transcript_path` to return snapshot path
-- [ ] Update `build_compact_summary_text` to use snapshot path
+- [x] Implement `write_pre_compaction_transcript` function
+- [x] Add JSONL entry schema matching Claude Code's format
+- [x] Wire snapshot writing into `execute_action`
+- [x] Update `_session_transcript_path` to return snapshot path
+- [x] Update `build_compact_summary_text` to use snapshot path
 
 Stage 3: Tests
-- [ ] Unit tests for `write_pre_compaction_transcript` (JSONL format, entry schema, UUID threading)
-- [ ] Unit test verifying snapshot contains original pre-compaction messages
-- [ ] Integration test verifying transcript path references a valid file
-- [ ] Update existing tests that assert on transcript path
+- [x] Unit tests for `write_pre_compaction_transcript` (JSONL format, entry schema, UUID threading)
+- [x] Unit test verifying snapshot contains original pre-compaction messages
+- [x] Integration-style test verifying transcript path references a valid file
+- [x] Update existing tests that assert on transcript path
 
 ## Investigation Notes
 
@@ -171,3 +171,29 @@ The transcript is append-only, so the original conversation is preserved alongsi
 ## Completion Notes
 
 Added during completion after implementation and verification.
+
+- Investigation fixture generation now captures normalized Claude Code project transcript shape:
+  - `project_transcript_type_counts`
+  - `project_transcript_pre_compaction_message_events`
+  - `project_transcript_compact_boundary_event`
+  - `project_transcript_compact_summary_event`
+  - `project_transcript_local_command_events`
+  - `project_transcript_no_response_event`
+- Implemented `write_pre_compaction_transcript` in `plugins/claude-tools/src/claude_tools/claude_compaction_feature.py`.
+- Snapshot files are written under the app session root:
+  - `claude-compaction-transcripts/<session_id>_pre_compaction_<stamp>.jsonl`
+- The summary footer now references the snapshot JSONL path instead of the live session JSON file.
+- Snapshot writing is intentionally wired in `execute_action`, not `build_compacted_session`, because it is a filesystem side effect requiring application/session-store context.
+- Snapshot entries serialize the pre-compaction user/assistant visible conversation in Claude project-transcript style and skip provider-injected system prompt internals.
+- Focused verification completed:
+  - `python -m py_compile plugins/claude-tools/src/claude_tools/claude_compaction_feature.py plugins/claude-tools/tests/test_claude_compaction_feature.py application/python/tests/test_claude_compaction_feature_action.py`
+  - `pytest plugins/claude-tools/tests/test_claude_compaction_feature.py -q`
+  - `pytest application/python/tests/test_claude_compaction_feature_action.py -q`
+  - `ruff check plugins/claude-tools/src/claude_tools/claude_compaction_feature.py plugins/claude-tools/tests/test_claude_compaction_feature.py application/python/tests/test_claude_compaction_feature_action.py application/python/tests/test_claude_default_config_compaction_integration.py`
+  - `black --check plugins/claude-tools/src/claude_tools/claude_compaction_feature.py plugins/claude-tools/tests/test_claude_compaction_feature.py application/python/tests/test_claude_compaction_feature_action.py application/python/tests/test_claude_default_config_compaction_integration.py`
+- Hosted default-config verification command was first attempted without the root `.env` in this worktree:
+  - `pytest -m 'integration and api and openrouter' application/python/tests/test_claude_default_config_compaction_integration.py -q`
+  - Result: skipped in this environment because the hosted API gate was not available.
+- After copying the root `.env` from the original worktree and pinning `BUILTIN_PLUGINS` to this worktree's `plugins` directory, hosted default-config verification passed:
+  - `pytest -m 'integration and api and openrouter' application/python/tests/test_claude_default_config_compaction_integration.py -q`
+  - Result: `3 passed`

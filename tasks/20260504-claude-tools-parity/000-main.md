@@ -9,7 +9,7 @@ Create Claude Code-compatible system message, standard tools, and compaction sup
 - [x] `tasks/20260504-claude-tools-parity/030-implement-claude-system-message-and-config.md` - completed for the current Claude `Read` slice: the primary `claude` default-config agent now uses `claude-tools`, the structured Claude system message is wired in, and focused rendering/config tests pass.
 - [x] `tasks/20260504-claude-tools-parity/040-investigate-and-implement-claude-compaction.md` - completed: deterministic compaction investigation fixtures were normalized by script, a Claude-specific compaction feature was added inside `plugins/claude-tools`, and focused fixture-driven/unit/application tests now cover the action path.
 - [ ] `tasks/20260504-claude-tools-parity/050-validation-and-docs.md`
-- [ ] `tasks/20260504-claude-tools-parity/060-fix-claude-compaction-transcript-snapshot.md` - SPLIT FROM `040`: the transcript path reference in the compaction summary footer is broken because the live session file is overwritten on compaction. This subtask saves a pre-compaction transcript snapshot in Claude Code's JSONL format so the reference points to a valid file.
+- [x] `tasks/20260504-claude-tools-parity/060-fix-claude-compaction-transcript-snapshot.md` - SPLIT FROM `040`: implemented script-normalized Claude transcript fixtures and a pre-compaction JSONL snapshot writer so the compaction summary footer references a valid original-conversation transcript instead of the overwritten live session file.
 
 ## Background
 

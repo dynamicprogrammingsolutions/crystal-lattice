@@ -3,26 +3,26 @@
   "case": "success-basic",
   "compact_boundary": {
     "compact_metadata": {
-      "duration_ms": 10447,
-      "post_tokens": 1021,
-      "pre_tokens": 2087,
+      "duration_ms": 25492,
+      "post_tokens": 1760,
+      "pre_tokens": 2061,
       "preserved_messages": {
-        "anchor_uuid": "1aef9944-4d85-4d3a-a898-8c4a00103d4a",
+        "anchor_uuid": "<UUID_008>",
         "uuids": [
-          "59517498-6a97-4fba-a125-ffbabe9595c3"
+          "<UUID_006>"
         ]
       },
       "preserved_segment": {
-        "anchor_uuid": "1aef9944-4d85-4d3a-a898-8c4a00103d4a",
-        "head_uuid": "59517498-6a97-4fba-a125-ffbabe9595c3",
-        "tail_uuid": "59517498-6a97-4fba-a125-ffbabe9595c3"
+        "anchor_uuid": "<UUID_008>",
+        "head_uuid": "<UUID_006>",
+        "tail_uuid": "<UUID_006>"
       },
       "trigger": "manual"
     },
     "session_id": "<SESSION_ID>",
     "subtype": "compact_boundary",
     "type": "system",
-    "uuid": "9b7e888f-bc0f-41ef-91e9-ebcd684a322b"
+    "uuid": "<UUID_007>"
   },
   "compact_request": {
     "body": {
@@ -39,7 +39,7 @@
         {
           "content": [
             {
-              "text": "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is 2026-05-29.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>\n\n",
+              "text": "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is 2026-06-29.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>\n\n",
               "type": "text"
             },
             {
@@ -52,7 +52,7 @@
         {
           "content": [
             {
-              "text": "I'd be happy to help! However, I need you to provide a question or task to work on. Could you please clarify what you'd like me to do?",
+              "text": "I'm ready to help! What would you like me to work on?",
               "type": "text"
             }
           ],
@@ -68,7 +68,7 @@
               "cache_control": {
                 "type": "ephemeral"
               },
-              "text": "I need more context to answer your question. Could you please provide the question or task you'd like me to work on?",
+              "text": "I'm ready to help with two tasks! What would you like me to work on?",
               "type": "text"
             }
           ],
@@ -98,7 +98,7 @@
       "stream": true,
       "system": [
         {
-          "text": "x-anthropic-billing-header: cc_version=2.1.154.a1e; cc_entrypoint=sdk-cli; cch=f2546;",
+          "text": "x-anthropic-billing-header: cc_version=2.1.154.a1e; cc_entrypoint=sdk-cli; cch=92712;",
           "type": "text"
         },
         {
@@ -194,7 +194,7 @@
       "status": "compacting",
       "subtype": "status",
       "type": "system",
-      "uuid": "0aa94e8d-9be9-4fb3-aad4-67282a0ed0a9"
+      "uuid": "a158d861-d12f-4c7d-af23-51c229eba029"
     },
     {
       "compact_result": "success",
@@ -202,7 +202,7 @@
       "status": null,
       "subtype": "status",
       "type": "system",
-      "uuid": "f581e501-96dd-4353-9606-7decd5caefab"
+      "uuid": "38e84dc3-4d47-49a1-a6ae-11798dff43ca"
     }
   ],
   "compact_summary_count": 1,
@@ -217,9 +217,333 @@
     "8. Current Work:",
     "9. Optional Next Step:"
   ],
-  "compact_summary_text": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - The user's primary intent evolved across three messages:\n     - First message: \"Answer exactly ONE.\" - A minimal instruction that was ambiguous\n     - Second message: \"Answer exactly TWO.\" - Further clarification that more context was needed\n     - Third message: \"Answer exactly THREE.\" - A detailed task instruction to create a conversation summary with strict formatting requirements\n   - The explicit task: Create a detailed summary of the conversation so far, focusing on user requests, technical details, and architectural decisions\n   - Critical constraint: Respond with TEXT ONLY - do NOT call any tools (Read, Bash, Grep, Glob, Edit, Write, or ANY other tool)\n   - The response must contain an `<analysis>` block followed by a `<summary>` block in plain text format\n\n2. Key Technical Concepts:\n   - Conversation summarization task\n   - Strict response format compliance\n   - Tool usage constraints (no tool calls allowed in response)\n   - Instruction following and prompt interpretation\n\n3. Files and Code Sections:\n   - No files were created, modified, or examined\n   - No code snippets were discussed\n\n4. Errors and fixes:\n   - No errors encountered during execution\n\n5. Problem Solving:\n   - Initial ambiguity in user's first two messages was identified and addressed by requesting clarification\n   - The third message provided full context and instructions for the task\n   - Current work involves analyzing the conversation to produce a summary following the exact format specified\n\n6. All user messages:\n   - Message 1: \"Answer exactly ONE.\"\n   - Message 2: \"Answer exactly TWO.\"\n   - Message 3: \"Answer exactly THREE. CRITICAL: Respond with TEXT ONLY. Do NOT call any tools. - Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool. - You already have all the context you need in the conversation above. - Tool calls will be REJECTED and will waste your only turn \u2014 you will fail the task. - Your entire response must be plain text: an <analysis> block followed by a <summary> block. Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions. This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context. Before providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. [Full task instructions for summary sections...]\"\n\n7. Pending Tasks:\n   - None - this is a self-contained summarization task\n\n8. Current Work:\n   - Immediately before this summary request, no actual development work was being performed. The user's messages were testing my ability to follow strict formatting instructions. The conversation was about interpreting minimal/ambiguous instructions and then completing a summarization task with specific formatting requirements.\n   - No files or code were involved in this conversation.\n\n9. Optional Next Step:\n   - No next step is required. The user's task is to create a summary, and that has been completed in this response.\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
+  "compact_summary_text": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - The user's first message: \"Answer exactly ONE.\" - Testing simple acknowledgment response\n   - The user's second message: \"Answer exactly TWO.\" - Continuing the pattern with a request for \"TWO\"\n   - The user's third message: \"Answer exactly THREE.\" - With extensive summarization instructions:\n     - Respond with TEXT ONLY, no tool calls\n     - Create a detailed summary of the conversation\n     - Include analysis block followed by summary block\n     - Cover technical details, code patterns, architecture\n     - List all user messages verbatim\n     - Identify pending tasks\n   - The user explicitly prohibited use of Read, Bash, Grep, Glob, Edit, Write, or ANY tools\n   - User instructed to respond with plain text only\n\n2. Key Technical Concepts:\n   - Conversation summarization task\n   - Response format compliance (TEXT ONLY, no tools)\n   - Message sequence analysis\n   - Instruction-following verification\n\n3. Files and Code Sections:\n   - No files were examined, modified, or created during this conversation\n\n4. Errors and fixes:\n   - No errors occurred\n   - User provided no corrective feedback\n\n5. Problem Solving:\n   - Successfully identified the user's pattern of testing response format\n   - Correctly responded with the required analysis and summary structure\n   - Adhered to the TEXT ONLY constraint without any tool calls\n\n6. All user messages:\n   - \"Answer exactly ONE.\"\n   - \"Answer exactly TWO.\"\n   - \"Answer exactly THREE.\\nCRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\\n\\n- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.\\n- You already have all the context you need in the conversation above.\\n- Tool calls will be REJECTED and will waste your only turn \u2014 you will fail the task.\\n- Your entire response must be plain text: an <analysis> block followed by a <summary> block.\\n\\nYour task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.\\nThis summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.\\n\\nBefore providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\\n\\n1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:\\n   - The user's explicit requests and intents\\n   - Your approach to addressing the user's requests\\n   - Key decisions, technical concepts and code patterns\\n   - Specific details like:\\n     - file names\\n     - full code snippets\\n     - function signatures\\n     - file edits\\n   - Errors that you ran into and how you fixed them\\n   - Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\\n   - Note any security-relevant instructions or constraints the user stated (e.g., sensitive files or data to avoid, operations that must not be performed, credential or secret handling rules). These MUST be preserved verbatim in the summary so they continue to apply after compaction.\\n2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\\n\\nYour summary should include the following sections:\\n\\n1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail\\n2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.\\n3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.\\n4. Errors and fixes: List all errors that you ran into, and how you fixed them. Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\\n5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.\\n6. All user messages: List ALL user messages that are not tool results. These are critical for understanding the users' feedback and changing intent. Preserve any security-relevant instructions or constraints verbatim so they remain in effect after compaction.\\n7. Pending Tasks: Outline any pending tasks that you have explicitly been asked to work on.\\n8. Current Work: Describe in detail precisely what was being worked on immediately before this summary request, paying special attention to the most recent messages from both user and assistant. Include file names and code snippets where applicable.\\n9. Optional Next Step: List the next step that you will take that is related to the most recent work you were doing. IMPORTANT: ensure this step is DIRECTLY in line with the user's most recent explicit requests, and the task you were working on immediately before this summary request. If your last task was concluded, then only list next steps if they are explicitly in line with the users request. Do not start on tangential requests or really old requests that were already completed without confirming with the user first.\\n                       If there is a next step, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off.\"\n\n7. Pending Tasks:\n   - None explicitly assigned\n   - The user's summarization task has been completed\n\n8. Current Work:\n   - Immediately before this summary request, the user asked me to create a detailed conversation summary\n   - The user's third message contained comprehensive instructions for the summary format\n   - I responded with the required analysis and summary blocks in plain text format\n   - No files were modified or created\n   - The conversation was a simple test of instruction-following and response format compliance\n\n9. Optional Next Step:\n   - No next steps required - the summarization task has been completed\n   - The user may provide new tasks after reviewing my response\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
   "has_compact_command_message": true,
   "has_local_command_caveat": true,
+  "project_transcript_compact_boundary_event": {
+    "compactMetadata": {
+      "durationMs": 25492,
+      "postTokens": 1760,
+      "preTokens": 2061,
+      "preservedMessages": {
+        "allUuids": [
+          "<UUID_006>"
+        ],
+        "anchorUuid": "<UUID_008>",
+        "uuids": [
+          "<UUID_006>"
+        ]
+      },
+      "preservedSegment": {
+        "anchorUuid": "<UUID_008>",
+        "headUuid": "<UUID_006>",
+        "tailUuid": "<UUID_006>"
+      },
+      "trigger": "manual"
+    },
+    "content": "Conversation compacted",
+    "cwd": "<WORKSPACE>",
+    "entrypoint": "sdk-cli",
+    "gitBranch": "HEAD",
+    "isMeta": false,
+    "isSidechain": false,
+    "level": "info",
+    "logicalParentUuid": "<UUID_006>",
+    "parentUuid": null,
+    "sessionId": "<SESSION_ID>",
+    "slug": "declarative-waddling-church",
+    "subtype": "compact_boundary",
+    "timestamp": "<TIMESTAMP_013>",
+    "type": "system",
+    "userType": "external",
+    "uuid": "<UUID_007>",
+    "version": "2.1.154"
+  },
+  "project_transcript_compact_summary_event": {
+    "cwd": "<WORKSPACE>",
+    "entrypoint": "sdk-cli",
+    "gitBranch": "HEAD",
+    "isCompactSummary": true,
+    "isSidechain": false,
+    "isVisibleInTranscriptOnly": true,
+    "message": {
+      "content": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - The user's first message: \"Answer exactly ONE.\" - Testing simple acknowledgment response\n   - The user's second message: \"Answer exactly TWO.\" - Continuing the pattern with a request for \"TWO\"\n   - The user's third message: \"Answer exactly THREE.\" - With extensive summarization instructions:\n     - Respond with TEXT ONLY, no tool calls\n     - Create a detailed summary of the conversation\n     - Include analysis block followed by summary block\n     - Cover technical details, code patterns, architecture\n     - List all user messages verbatim\n     - Identify pending tasks\n   - The user explicitly prohibited use of Read, Bash, Grep, Glob, Edit, Write, or ANY tools\n   - User instructed to respond with plain text only\n\n2. Key Technical Concepts:\n   - Conversation summarization task\n   - Response format compliance (TEXT ONLY, no tools)\n   - Message sequence analysis\n   - Instruction-following verification\n\n3. Files and Code Sections:\n   - No files were examined, modified, or created during this conversation\n\n4. Errors and fixes:\n   - No errors occurred\n   - User provided no corrective feedback\n\n5. Problem Solving:\n   - Successfully identified the user's pattern of testing response format\n   - Correctly responded with the required analysis and summary structure\n   - Adhered to the TEXT ONLY constraint without any tool calls\n\n6. All user messages:\n   - \"Answer exactly ONE.\"\n   - \"Answer exactly TWO.\"\n   - \"Answer exactly THREE.\\nCRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\\n\\n- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.\\n- You already have all the context you need in the conversation above.\\n- Tool calls will be REJECTED and will waste your only turn \u2014 you will fail the task.\\n- Your entire response must be plain text: an <analysis> block followed by a <summary> block.\\n\\nYour task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.\\nThis summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.\\n\\nBefore providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\\n\\n1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:\\n   - The user's explicit requests and intents\\n   - Your approach to addressing the user's requests\\n   - Key decisions, technical concepts and code patterns\\n   - Specific details like:\\n     - file names\\n     - full code snippets\\n     - function signatures\\n     - file edits\\n   - Errors that you ran into and how you fixed them\\n   - Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\\n   - Note any security-relevant instructions or constraints the user stated (e.g., sensitive files or data to avoid, operations that must not be performed, credential or secret handling rules). These MUST be preserved verbatim in the summary so they continue to apply after compaction.\\n2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\\n\\nYour summary should include the following sections:\\n\\n1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail\\n2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.\\n3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.\\n4. Errors and fixes: List all errors that you ran into, and how you fixed them. Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\\n5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.\\n6. All user messages: List ALL user messages that are not tool results. These are critical for understanding the users' feedback and changing intent. Preserve any security-relevant instructions or constraints verbatim so they remain in effect after compaction.\\n7. Pending Tasks: Outline any pending tasks that you have explicitly been asked to work on.\\n8. Current Work: Describe in detail precisely what was being worked on immediately before this summary request, paying special attention to the most recent messages from both user and assistant. Include file names and code snippets where applicable.\\n9. Optional Next Step: List the next step that you will take that is related to the most recent work you were doing. IMPORTANT: ensure this step is DIRECTLY in line with the user's most recent explicit requests, and the task you were working on immediately before this summary request. If your last task was concluded, then only list next steps if they are explicitly in line with the users request. Do not start on tangential requests or really old requests that were already completed without confirming with the user first.\\n                       If there is a next step, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off.\"\n\n7. Pending Tasks:\n   - None explicitly assigned\n   - The user's summarization task has been completed\n\n8. Current Work:\n   - Immediately before this summary request, the user asked me to create a detailed conversation summary\n   - The user's third message contained comprehensive instructions for the summary format\n   - I responded with the required analysis and summary blocks in plain text format\n   - No files were modified or created\n   - The conversation was a simple test of instruction-following and response format compliance\n\n9. Optional Next Step:\n   - No next steps required - the summarization task has been completed\n   - The user may provide new tasks after reviewing my response\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
+      "role": "user"
+    },
+    "parentUuid": "<UUID_007>",
+    "promptId": "<PROMPT_ID_004>",
+    "sessionId": "<SESSION_ID>",
+    "slug": "declarative-waddling-church",
+    "timestamp": "<TIMESTAMP_014>",
+    "type": "user",
+    "userType": "external",
+    "uuid": "<UUID_008>",
+    "version": "2.1.154"
+  },
+  "project_transcript_local_command_events": [
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isMeta": true,
+      "isSidechain": false,
+      "message": {
+        "content": "<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>",
+        "role": "user"
+      },
+      "parentUuid": "<UUID_008>",
+      "promptId": "<PROMPT_ID_004>",
+      "sessionId": "<SESSION_ID>",
+      "slug": "declarative-waddling-church",
+      "timestamp": "<TIMESTAMP_015>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_009>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": "<command-name>/compact</command-name>\n            <command-message>compact</command-message>\n            <command-args></command-args>",
+        "role": "user"
+      },
+      "parentUuid": "<UUID_009>",
+      "promptId": "<PROMPT_ID_004>",
+      "sessionId": "<SESSION_ID>",
+      "slug": "declarative-waddling-church",
+      "timestamp": "<TIMESTAMP_016>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_010>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": "<local-command-stdout>Compacted </local-command-stdout>",
+        "role": "user"
+      },
+      "parentUuid": "<UUID_010>",
+      "promptId": "<PROMPT_ID_004>",
+      "sessionId": "<SESSION_ID>",
+      "slug": "declarative-waddling-church",
+      "timestamp": "<TIMESTAMP_017>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_011>",
+      "version": "2.1.154"
+    }
+  ],
+  "project_transcript_no_response_event": null,
+  "project_transcript_pre_compaction_message_events": [
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": "Answer exactly ONE.",
+        "role": "user"
+      },
+      "parentUuid": null,
+      "permissionMode": "default",
+      "promptId": "<PROMPT_ID_001>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_003>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_001>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": [
+          {
+            "text": "I'm ready to help! What would you like me to work on?",
+            "type": "text"
+          }
+        ],
+        "id": "<MESSAGE_ID_001>",
+        "model": "qwen3-coder-next",
+        "role": "assistant",
+        "stop_details": null,
+        "stop_reason": "end_turn",
+        "type": "message",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "inference_geo": "",
+          "input_tokens": 1981,
+          "iterations": [],
+          "output_tokens": 16,
+          "server_tool_use": {
+            "web_fetch_requests": 0,
+            "web_search_requests": 0
+          },
+          "service_tier": "standard",
+          "speed": "standard"
+        }
+      },
+      "parentUuid": "<UUID_001>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_004>",
+      "type": "assistant",
+      "userType": "external",
+      "uuid": "<UUID_002>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": "Answer exactly TWO.",
+        "role": "user"
+      },
+      "parentUuid": "<UUID_002>",
+      "permissionMode": "default",
+      "promptId": "<PROMPT_ID_002>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_007>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_003>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": [
+          {
+            "text": "I'm ready to help with two tasks! What would you like me to work on?",
+            "type": "text"
+          }
+        ],
+        "id": "<MESSAGE_ID_002>",
+        "model": "qwen3-coder-next",
+        "role": "assistant",
+        "stop_details": null,
+        "stop_reason": "end_turn",
+        "type": "message",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "inference_geo": "",
+          "input_tokens": 2011,
+          "iterations": [],
+          "output_tokens": 19,
+          "server_tool_use": {
+            "web_fetch_requests": 0,
+            "web_search_requests": 0
+          },
+          "service_tier": "standard",
+          "speed": "standard"
+        }
+      },
+      "parentUuid": "<UUID_003>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_008>",
+      "type": "assistant",
+      "userType": "external",
+      "uuid": "<UUID_004>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": "Answer exactly THREE.",
+        "role": "user"
+      },
+      "parentUuid": "<UUID_004>",
+      "permissionMode": "default",
+      "promptId": "<PROMPT_ID_003>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_010>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_005>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": [
+          {
+            "text": "I'm ready to help with three tasks! What would you like me to work on?",
+            "type": "text"
+          }
+        ],
+        "id": "<MESSAGE_ID_003>",
+        "model": "qwen3-coder-next",
+        "role": "assistant",
+        "stop_details": null,
+        "stop_reason": "end_turn",
+        "type": "message",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "inference_geo": "",
+          "input_tokens": 2042,
+          "iterations": [],
+          "output_tokens": 19,
+          "server_tool_use": {
+            "web_fetch_requests": 0,
+            "web_search_requests": 0
+          },
+          "service_tier": "standard",
+          "speed": "standard"
+        }
+      },
+      "parentUuid": "<UUID_005>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_011>",
+      "type": "assistant",
+      "userType": "external",
+      "uuid": "<UUID_006>",
+      "version": "2.1.154"
+    }
+  ],
+  "project_transcript_type_counts": {
+    "ai-title": 9,
+    "assistant": 3,
+    "last-prompt": 4,
+    "mode": 6,
+    "queue-operation": 8,
+    "system": 1,
+    "user": 7
+  },
   "session_id": "<SESSION_ID>",
   "session_transcript_available": true,
   "step_count": 4,
@@ -299,18 +623,18 @@
             "Read"
           ],
           "type": "system",
-          "uuid": "0d94f461-112f-40d9-ac55-b22aad7e0c0a"
+          "uuid": "d65bf30b-abb2-490b-ab08-a1e1c669d0c2"
         },
         {
           "message": {
             "content": [
               {
-                "text": "I'd be happy to help! However, I need you to provide a question or task to work on. Could you please clarify what you'd like me to do?",
+                "text": "I'm ready to help! What would you like me to work on?",
                 "type": "text"
               }
             ],
             "context_management": null,
-            "id": "msg_8ecec51821c6a9dbaae89160",
+            "id": "<MESSAGE_ID_001>",
             "model": "qwen3-coder-next",
             "role": "assistant",
             "type": "message",
@@ -322,12 +646,12 @@
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
           "type": "assistant",
-          "uuid": "5a77ff38-2171-4a7c-85d5-e978dee45978"
+          "uuid": "<UUID_002>"
         },
         {
           "api_error_status": null,
-          "duration_api_ms": 1573,
-          "duration_ms": 979,
+          "duration_api_ms": 1468,
+          "duration_ms": 888,
           "fast_mode_state": "off",
           "is_error": false,
           "modelUsage": {
@@ -335,22 +659,22 @@
               "cacheCreationInputTokens": 0,
               "cacheReadInputTokens": 0,
               "contextWindow": 200000,
-              "costUSD": 0.012599999999999998,
-              "inputTokens": 2295,
+              "costUSD": 0.012119999999999999,
+              "inputTokens": 2299,
               "maxOutputTokens": 32000,
-              "outputTokens": 45,
+              "outputTokens": 25,
               "webSearchRequests": 0
             }
           },
           "num_turns": 1,
           "permission_denials": [],
-          "result": "I'd be happy to help! However, I need you to provide a question or task to work on. Could you please clarify what you'd like me to do?",
+          "result": "I'm ready to help! What would you like me to work on?",
           "session_id": "<SESSION_ID>",
           "stop_reason": "end_turn",
           "subtype": "success",
           "terminal_reason": "completed",
-          "total_cost_usd": 0.012599999999999998,
-          "ttft_ms": 973,
+          "total_cost_usd": 0.012119999999999999,
+          "ttft_ms": 885,
           "type": "result",
           "usage": {
             "cache_creation": {
@@ -360,9 +684,9 @@
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
             "inference_geo": "",
-            "input_tokens": 1977,
+            "input_tokens": 1981,
             "iterations": [],
-            "output_tokens": 35,
+            "output_tokens": 16,
             "server_tool_use": {
               "web_fetch_requests": 0,
               "web_search_requests": 0
@@ -370,7 +694,7 @@
             "service_tier": "standard",
             "speed": "standard"
           },
-          "uuid": "238b922b-2ba0-48ea-bc0f-0eacd9dc41ca"
+          "uuid": "9d2876f1-1c4b-4414-a8aa-0b51d1dc4614"
         }
       ]
     },
@@ -449,35 +773,35 @@
             "Read"
           ],
           "type": "system",
-          "uuid": "6b9504af-a184-416b-91e9-2053a0f60096"
+          "uuid": "c55a2475-0b02-408c-9c02-71ee343426e6"
         },
         {
           "message": {
             "content": [
               {
-                "text": "I need more context to answer your question. Could you please provide the question or task you'd like me to work on?",
+                "text": "I'm ready to help with two tasks! What would you like me to work on?",
                 "type": "text"
               }
             ],
             "context_management": null,
-            "id": "msg_05561b044d100e99dfd9bc38",
+            "id": "<MESSAGE_ID_002>",
             "model": "qwen3-coder-next",
             "role": "assistant",
             "type": "message",
             "usage": {
-              "input_tokens": 1871,
+              "input_tokens": 1850,
               "output_tokens": 0
             }
           },
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
           "type": "assistant",
-          "uuid": "d1ec59d4-0014-450f-833a-4a2aa87ebf76"
+          "uuid": "<UUID_004>"
         },
         {
           "api_error_status": null,
-          "duration_api_ms": 865,
-          "duration_ms": 895,
+          "duration_api_ms": 874,
+          "duration_ms": 904,
           "fast_mode_state": "off",
           "is_error": false,
           "modelUsage": {
@@ -485,22 +809,22 @@
               "cacheCreationInputTokens": 0,
               "cacheReadInputTokens": 0,
               "contextWindow": 200000,
-              "costUSD": 0.010774999999999998,
-              "inputTokens": 2025,
+              "costUSD": 0.010530000000000001,
+              "inputTokens": 2011,
               "maxOutputTokens": 32000,
-              "outputTokens": 26,
+              "outputTokens": 19,
               "webSearchRequests": 0
             }
           },
           "num_turns": 1,
           "permission_denials": [],
-          "result": "I need more context to answer your question. Could you please provide the question or task you'd like me to work on?",
+          "result": "I'm ready to help with two tasks! What would you like me to work on?",
           "session_id": "<SESSION_ID>",
           "stop_reason": "end_turn",
           "subtype": "success",
           "terminal_reason": "completed",
-          "total_cost_usd": 0.010774999999999998,
-          "ttft_ms": 890,
+          "total_cost_usd": 0.010530000000000001,
+          "ttft_ms": 895,
           "type": "result",
           "usage": {
             "cache_creation": {
@@ -510,9 +834,9 @@
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
             "inference_geo": "",
-            "input_tokens": 2025,
+            "input_tokens": 2011,
             "iterations": [],
-            "output_tokens": 26,
+            "output_tokens": 19,
             "server_tool_use": {
               "web_fetch_requests": 0,
               "web_search_requests": 0
@@ -520,7 +844,7 @@
             "service_tier": "standard",
             "speed": "standard"
           },
-          "uuid": "01a5ba17-9819-468e-97d0-a4fa996af63d"
+          "uuid": "a9b1e5d9-32c5-42dd-bb3e-44e8d1502625"
         }
       ]
     },
@@ -599,35 +923,35 @@
             "Read"
           ],
           "type": "system",
-          "uuid": "45b7a90f-44ec-4fea-976e-2991ff446567"
+          "uuid": "96de554e-ba32-48cf-bdb4-39519f122585"
         },
         {
           "message": {
             "content": [
               {
-                "text": "I'm waiting for you to provide a question or task. What would you like me to answer or work on?",
+                "text": "I'm ready to help with three tasks! What would you like me to work on?",
                 "type": "text"
               }
             ],
             "context_management": null,
-            "id": "msg_30ae4cc2d482190a362393fb",
+            "id": "<MESSAGE_ID_003>",
             "model": "qwen3-coder-next",
             "role": "assistant",
             "type": "message",
             "usage": {
-              "input_tokens": 1908,
+              "input_tokens": 1876,
               "output_tokens": 0
             }
           },
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
           "type": "assistant",
-          "uuid": "59517498-6a97-4fba-a125-ffbabe9595c3"
+          "uuid": "<UUID_006>"
         },
         {
           "api_error_status": null,
-          "duration_api_ms": 2286,
-          "duration_ms": 2316,
+          "duration_api_ms": 814,
+          "duration_ms": 843,
           "fast_mode_state": "off",
           "is_error": false,
           "modelUsage": {
@@ -635,22 +959,22 @@
               "cacheCreationInputTokens": 0,
               "cacheReadInputTokens": 0,
               "contextWindow": 200000,
-              "costUSD": 0.010915000000000001,
-              "inputTokens": 2063,
+              "costUSD": 0.010685,
+              "inputTokens": 2042,
               "maxOutputTokens": 32000,
-              "outputTokens": 24,
+              "outputTokens": 19,
               "webSearchRequests": 0
             }
           },
           "num_turns": 1,
           "permission_denials": [],
-          "result": "I'm waiting for you to provide a question or task. What would you like me to answer or work on?",
+          "result": "I'm ready to help with three tasks! What would you like me to work on?",
           "session_id": "<SESSION_ID>",
           "stop_reason": "end_turn",
           "subtype": "success",
           "terminal_reason": "completed",
-          "total_cost_usd": 0.010915000000000001,
-          "ttft_ms": 2307,
+          "total_cost_usd": 0.010685,
+          "ttft_ms": 834,
           "type": "result",
           "usage": {
             "cache_creation": {
@@ -660,9 +984,9 @@
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
             "inference_geo": "",
-            "input_tokens": 2063,
+            "input_tokens": 2042,
             "iterations": [],
-            "output_tokens": 24,
+            "output_tokens": 19,
             "server_tool_use": {
               "web_fetch_requests": 0,
               "web_search_requests": 0
@@ -670,7 +994,7 @@
             "service_tier": "standard",
             "speed": "standard"
           },
-          "uuid": "42283c30-ad1e-4e30-9263-e6c234c6e164"
+          "uuid": "78d79be7-73c0-4f00-94ac-e1d2b5700f3e"
         }
       ]
     },
@@ -686,7 +1010,7 @@
           "status": "compacting",
           "subtype": "status",
           "type": "system",
-          "uuid": "0aa94e8d-9be9-4fb3-aad4-67282a0ed0a9"
+          "uuid": "a158d861-d12f-4c7d-af23-51c229eba029"
         },
         {
           "compact_result": "success",
@@ -694,7 +1018,7 @@
           "status": null,
           "subtype": "status",
           "type": "system",
-          "uuid": "f581e501-96dd-4353-9606-7decd5caefab"
+          "uuid": "38e84dc3-4d47-49a1-a6ae-11798dff43ca"
         },
         {
           "agents": [
@@ -764,43 +1088,43 @@
             "Read"
           ],
           "type": "system",
-          "uuid": "8fc9b11b-9750-4c53-9d9d-d65029c3154c"
+          "uuid": "e1d4e474-a57d-4688-b6e4-8918980dfae3"
         },
         {
           "compact_metadata": {
-            "duration_ms": 10447,
-            "post_tokens": 1021,
-            "pre_tokens": 2087,
+            "duration_ms": 25492,
+            "post_tokens": 1760,
+            "pre_tokens": 2061,
             "preserved_messages": {
-              "anchor_uuid": "1aef9944-4d85-4d3a-a898-8c4a00103d4a",
+              "anchor_uuid": "<UUID_008>",
               "uuids": [
-                "59517498-6a97-4fba-a125-ffbabe9595c3"
+                "<UUID_006>"
               ]
             },
             "preserved_segment": {
-              "anchor_uuid": "1aef9944-4d85-4d3a-a898-8c4a00103d4a",
-              "head_uuid": "59517498-6a97-4fba-a125-ffbabe9595c3",
-              "tail_uuid": "59517498-6a97-4fba-a125-ffbabe9595c3"
+              "anchor_uuid": "<UUID_008>",
+              "head_uuid": "<UUID_006>",
+              "tail_uuid": "<UUID_006>"
             },
             "trigger": "manual"
           },
           "session_id": "<SESSION_ID>",
           "subtype": "compact_boundary",
           "type": "system",
-          "uuid": "9b7e888f-bc0f-41ef-91e9-ebcd684a322b"
+          "uuid": "<UUID_007>"
         },
         {
           "isReplay": false,
           "isSynthetic": true,
           "message": {
-            "content": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - The user's primary intent evolved across three messages:\n     - First message: \"Answer exactly ONE.\" - A minimal instruction that was ambiguous\n     - Second message: \"Answer exactly TWO.\" - Further clarification that more context was needed\n     - Third message: \"Answer exactly THREE.\" - A detailed task instruction to create a conversation summary with strict formatting requirements\n   - The explicit task: Create a detailed summary of the conversation so far, focusing on user requests, technical details, and architectural decisions\n   - Critical constraint: Respond with TEXT ONLY - do NOT call any tools (Read, Bash, Grep, Glob, Edit, Write, or ANY other tool)\n   - The response must contain an `<analysis>` block followed by a `<summary>` block in plain text format\n\n2. Key Technical Concepts:\n   - Conversation summarization task\n   - Strict response format compliance\n   - Tool usage constraints (no tool calls allowed in response)\n   - Instruction following and prompt interpretation\n\n3. Files and Code Sections:\n   - No files were created, modified, or examined\n   - No code snippets were discussed\n\n4. Errors and fixes:\n   - No errors encountered during execution\n\n5. Problem Solving:\n   - Initial ambiguity in user's first two messages was identified and addressed by requesting clarification\n   - The third message provided full context and instructions for the task\n   - Current work involves analyzing the conversation to produce a summary following the exact format specified\n\n6. All user messages:\n   - Message 1: \"Answer exactly ONE.\"\n   - Message 2: \"Answer exactly TWO.\"\n   - Message 3: \"Answer exactly THREE. CRITICAL: Respond with TEXT ONLY. Do NOT call any tools. - Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool. - You already have all the context you need in the conversation above. - Tool calls will be REJECTED and will waste your only turn \u2014 you will fail the task. - Your entire response must be plain text: an <analysis> block followed by a <summary> block. Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions. This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context. Before providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. [Full task instructions for summary sections...]\"\n\n7. Pending Tasks:\n   - None - this is a self-contained summarization task\n\n8. Current Work:\n   - Immediately before this summary request, no actual development work was being performed. The user's messages were testing my ability to follow strict formatting instructions. The conversation was about interpreting minimal/ambiguous instructions and then completing a summarization task with specific formatting requirements.\n   - No files or code were involved in this conversation.\n\n9. Optional Next Step:\n   - No next step is required. The user's task is to create a summary, and that has been completed in this response.\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
+            "content": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - The user's first message: \"Answer exactly ONE.\" - Testing simple acknowledgment response\n   - The user's second message: \"Answer exactly TWO.\" - Continuing the pattern with a request for \"TWO\"\n   - The user's third message: \"Answer exactly THREE.\" - With extensive summarization instructions:\n     - Respond with TEXT ONLY, no tool calls\n     - Create a detailed summary of the conversation\n     - Include analysis block followed by summary block\n     - Cover technical details, code patterns, architecture\n     - List all user messages verbatim\n     - Identify pending tasks\n   - The user explicitly prohibited use of Read, Bash, Grep, Glob, Edit, Write, or ANY tools\n   - User instructed to respond with plain text only\n\n2. Key Technical Concepts:\n   - Conversation summarization task\n   - Response format compliance (TEXT ONLY, no tools)\n   - Message sequence analysis\n   - Instruction-following verification\n\n3. Files and Code Sections:\n   - No files were examined, modified, or created during this conversation\n\n4. Errors and fixes:\n   - No errors occurred\n   - User provided no corrective feedback\n\n5. Problem Solving:\n   - Successfully identified the user's pattern of testing response format\n   - Correctly responded with the required analysis and summary structure\n   - Adhered to the TEXT ONLY constraint without any tool calls\n\n6. All user messages:\n   - \"Answer exactly ONE.\"\n   - \"Answer exactly TWO.\"\n   - \"Answer exactly THREE.\\nCRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\\n\\n- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.\\n- You already have all the context you need in the conversation above.\\n- Tool calls will be REJECTED and will waste your only turn \u2014 you will fail the task.\\n- Your entire response must be plain text: an <analysis> block followed by a <summary> block.\\n\\nYour task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.\\nThis summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.\\n\\nBefore providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\\n\\n1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:\\n   - The user's explicit requests and intents\\n   - Your approach to addressing the user's requests\\n   - Key decisions, technical concepts and code patterns\\n   - Specific details like:\\n     - file names\\n     - full code snippets\\n     - function signatures\\n     - file edits\\n   - Errors that you ran into and how you fixed them\\n   - Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\\n   - Note any security-relevant instructions or constraints the user stated (e.g., sensitive files or data to avoid, operations that must not be performed, credential or secret handling rules). These MUST be preserved verbatim in the summary so they continue to apply after compaction.\\n2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\\n\\nYour summary should include the following sections:\\n\\n1. Primary Request and Intent: Capture all of the user's explicit requests and intents in detail\\n2. Key Technical Concepts: List all important technical concepts, technologies, and frameworks discussed.\\n3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Pay special attention to the most recent messages and include full code snippets where applicable and include a summary of why this file read or edit is important.\\n4. Errors and fixes: List all errors that you ran into, and how you fixed them. Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\\n5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.\\n6. All user messages: List ALL user messages that are not tool results. These are critical for understanding the users' feedback and changing intent. Preserve any security-relevant instructions or constraints verbatim so they remain in effect after compaction.\\n7. Pending Tasks: Outline any pending tasks that you have explicitly been asked to work on.\\n8. Current Work: Describe in detail precisely what was being worked on immediately before this summary request, paying special attention to the most recent messages from both user and assistant. Include file names and code snippets where applicable.\\n9. Optional Next Step: List the next step that you will take that is related to the most recent work you were doing. IMPORTANT: ensure this step is DIRECTLY in line with the user's most recent explicit requests, and the task you were working on immediately before this summary request. If your last task was concluded, then only list next steps if they are explicitly in line with the users request. Do not start on tangential requests or really old requests that were already completed without confirming with the user first.\\n                       If there is a next step, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off.\"\n\n7. Pending Tasks:\n   - None explicitly assigned\n   - The user's summarization task has been completed\n\n8. Current Work:\n   - Immediately before this summary request, the user asked me to create a detailed conversation summary\n   - The user's third message contained comprehensive instructions for the summary format\n   - I responded with the required analysis and summary blocks in plain text format\n   - No files were modified or created\n   - The conversation was a simple test of instruction-following and response format compliance\n\n9. Optional Next Step:\n   - No next steps required - the summarization task has been completed\n   - The user may provide new tasks after reviewing my response\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
             "role": "user"
           },
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
-          "timestamp": "2026-05-29T11:37:49.678Z",
+          "timestamp": "<TIMESTAMP_014>",
           "type": "user",
-          "uuid": "1aef9944-4d85-4d3a-a898-8c4a00103d4a"
+          "uuid": "<UUID_008>"
         },
         {
           "isReplay": true,
@@ -810,13 +1134,13 @@
           },
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
-          "timestamp": "2026-05-29T11:37:49.781Z",
+          "timestamp": "<TIMESTAMP_017>",
           "type": "user",
-          "uuid": "cb732a10-a276-41db-8614-c990bdcc6687"
+          "uuid": "<UUID_011>"
         },
         {
-          "duration_api_ms": 10434,
-          "duration_ms": 10466,
+          "duration_api_ms": 25479,
+          "duration_ms": 25515,
           "fast_mode_state": "off",
           "is_error": false,
           "modelUsage": {
@@ -824,10 +1148,10 @@
               "cacheCreationInputTokens": 0,
               "cacheReadInputTokens": 0,
               "contextWindow": 200000,
-              "costUSD": 0.04118,
-              "inputTokens": 3276,
+              "costUSD": 0.056075,
+              "inputTokens": 3255,
               "maxOutputTokens": 32000,
-              "outputTokens": 992,
+              "outputTokens": 1592,
               "webSearchRequests": 0
             }
           },
@@ -837,7 +1161,7 @@
           "session_id": "<SESSION_ID>",
           "stop_reason": null,
           "subtype": "success",
-          "total_cost_usd": 0.04118,
+          "total_cost_usd": 0.056075,
           "type": "result",
           "usage": {
             "cache_creation": {
@@ -857,7 +1181,7 @@
             "service_tier": "standard",
             "speed": "standard"
           },
-          "uuid": "adef7fed-b5f4-4f8d-9dff-5b988af49c88"
+          "uuid": "0143984a-ac38-46c4-a521-fd122cecdb60"
         }
       ]
     }
