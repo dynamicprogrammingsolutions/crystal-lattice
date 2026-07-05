@@ -98,6 +98,20 @@ CASES = {
             "After that one Bash call, answer with exactly DONE."
         ),
     ),
+    "success-no-output": CaseSpec(
+        name="success-no-output",
+        prompt=(
+            "Use the Bash tool exactly once to run the command true. "
+            "After that one Bash call, answer with exactly DONE."
+        ),
+    ),
+    "error-no-output": CaseSpec(
+        name="error-no-output",
+        prompt=(
+            'Use the Bash tool exactly once to run the command sh -c "exit 7". '
+            "After that one Bash call, answer with exactly DONE."
+        ),
+    ),
 }
 
 

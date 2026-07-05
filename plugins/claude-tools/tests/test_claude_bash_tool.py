@@ -227,6 +227,56 @@ def test_error_nonzero_matches_fixture(tmp_path: Path) -> None:
     assert messages[0][TOOL_RESULT_FIELD]["content"][0]["is_error"] is True
 
 
+def test_success_no_output_matches_fixture(tmp_path: Path) -> None:
+    messages = _execute_messages(
+        tmp_path,
+        [
+            {
+                "id": "call_bash_1",
+                "type": "function",
+                "function": {
+                    "name": "Bash",
+                    "arguments": json.dumps(
+                        {
+                            "command": "true",
+                            "description": "Run true command",
+                        }
+                    ),
+                },
+            }
+        ],
+    )
+
+    expected = _fixture("success-no-output")["tool_result_message"]["content"][0]
+    assert messages[0]["content"] == expected["content"]
+    assert messages[0][TOOL_RESULT_FIELD]["content"][0]["is_error"] is False
+
+
+def test_error_no_output_matches_fixture(tmp_path: Path) -> None:
+    messages = _execute_messages(
+        tmp_path,
+        [
+            {
+                "id": "call_bash_1",
+                "type": "function",
+                "function": {
+                    "name": "Bash",
+                    "arguments": json.dumps(
+                        {
+                            "command": 'sh -c "exit 7"',
+                            "description": "Exit with code 7",
+                        }
+                    ),
+                },
+            }
+        ],
+    )
+
+    expected = _fixture("error-no-output")["tool_result_message"]["content"][0]
+    assert messages[0]["content"] == expected["content"]
+    assert messages[0][TOOL_RESULT_FIELD]["content"][0]["is_error"] is True
+
+
 def test_timeout_matches_fixture(tmp_path: Path) -> None:
     messages = _execute_messages(
         tmp_path,

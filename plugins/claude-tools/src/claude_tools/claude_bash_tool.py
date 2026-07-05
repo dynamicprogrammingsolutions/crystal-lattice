@@ -503,7 +503,10 @@ class ClaudeBashTool(ToolPlugin):
         return data
 
     def _format_success_output(self, output: str) -> str:
-        return output.rstrip("\n")
+        cleaned = output.rstrip("\n")
+        if not cleaned:
+            return "(Bash completed with no output)"
+        return cleaned
 
     def _format_failure_output(self, *, exit_code: int, output: str) -> str:
         payload = f"Exit code {exit_code}"
