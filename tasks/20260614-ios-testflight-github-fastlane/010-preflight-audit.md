@@ -6,7 +6,7 @@ Audit the iOS app, Apple account assumptions, public URLs, and repo readiness be
 
 - [x] Audit code-visible iOS/mobile metadata, signing settings, privacy manifest, icon assets, landing page routes, and deployment workflows.
 - [x] Confirm the Apple Developer Program team, legal entity/account owner, and whether team ID `73Q43R2PD4` is the intended production team.
-- [ ] Confirm the final App Store Connect app name, SKU, primary language, category, and whether the first TestFlight release is internal-only or external too.
+- [x] Confirm the final App Store Connect app name, SKU, primary language, category, and whether the first TestFlight release is internal-only or external too.
 - [x] Confirm that `com.dynamicprogrammingsolutions.crystallatticecontrolrn` is registered or ready to register in Certificates, Identifiers & Profiles/App Store Connect.
 - [x] Locate the landing page and privacy policy route in code.
 - [x] Confirm the production landing page URL and production privacy policy URL are live/approved for App Store Connect.
@@ -170,6 +170,10 @@ Added during follow-up on 2026-06-17.
 - Bundle ID registration: `com.dynamicprogrammingsolutions.crystallatticecontrolrn` has not been registered yet.
 - App Store Connect app record: not created yet.
 - App Store app name: should be `Crystal Lattice`, not `Crystal Lattice Control`.
+- SKU: `crystal-lattice-ios`.
+- Primary language: `English (U.S.)`.
+- Primary category: `Developer Tools`.
+- Secondary category: `Productivity`.
 - First TestFlight target: internal testers first; continue preparing for external review readiness.
 - Privacy URL: production `https://crystallattice.dev/privacy`; owner says production domain is already live.
 - Feedback/App Review contact email: `support@dynamicprogrammingsolutions.com`.
@@ -177,9 +181,6 @@ Added during follow-up on 2026-06-17.
 
 Still pending owner approval:
 
-- SKU.
-- Primary language.
-- Primary/secondary category.
 - Support URL.
 - Marketing URL exact value.
 - External TestFlight demo backend/bridge/cloud reviewer access plan.
