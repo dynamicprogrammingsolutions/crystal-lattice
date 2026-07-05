@@ -1,6 +1,6 @@
-# Bonjour Service Discovery - React Native
+# Crystal Lattice Mobile - React Native
 
-This is a React Native implementation of the Bonjour service discovery example. It provides the same functionality as the native iOS app but works on both iOS and Android.
+This is the React Native mobile client for Crystal Lattice. It connects to the Crystal Lattice terminal/HTTP app directly, through local network discovery, through a bridge service, or through supported cloud connection links.
 
 ## Features
 
@@ -84,13 +84,13 @@ Then click the Run button in Xcode.
 
 2. **Open the workspace in Xcode:**
    ```bash
-   cd react-native-app
+   cd mobile/crystal-lattice-control-rn
    open ios/CrystalLatticeControlRN.xcworkspace
    ```
 
 3. **Configure Code Signing:**
-   - In Xcode, select the **BonjourExampleRN** project in the left sidebar
-   - Select the **BonjourExampleRN** target (under "Targets")
+   - In Xcode, select the **CrystalLatticeControlRN** project in the left sidebar
+   - Select the **CrystalLatticeControlRN** target (under "Targets")
    - Click the **Signing & Capabilities** tab
    - Check **"Automatically manage signing"**
    - Select your **Team** from the dropdown (use your Apple ID)
@@ -213,7 +213,7 @@ npx react-native run-android
 
 ### iOS Permissions
 
-The app is already configured with required iOS permissions in `ios/BonjourExampleRN/Info.plist`:
+The app is already configured with required iOS permissions in `ios/CrystalLatticeControlRN/Info.plist`:
 
 ```xml
 <key>NSBonjourServices</key>
@@ -444,13 +444,13 @@ npx react-native log-android
 ## Project Structure
 
 ```
-react-native-app/
+mobile/crystal-lattice-control-rn/
 ├── App.tsx                 # Main app component with adapters
 ├── src/
 │   └── types/
 │       └── react-native-zeroconf.d.ts  # Type declarations
 ├── ios/
-│   └── BonjourExampleRN/
+│   └── CrystalLatticeControlRN/
 │       └── Info.plist      # iOS permissions
 ├── android/
 │   └── app/src/main/

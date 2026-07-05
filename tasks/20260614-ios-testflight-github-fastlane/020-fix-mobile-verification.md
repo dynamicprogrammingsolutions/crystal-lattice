@@ -4,11 +4,11 @@ Get the React Native app to a clean local verification baseline before adding Te
 
 ## Requirements checklist
 
-- [ ] Fix the TypeScript error in the splash/logo code.
+- [x] Fix the TypeScript error in the splash/logo code.
 - [x] Fix the Jest environment issue for `react-native-gesture-handler`.
-- [ ] Run `npm run tsc` from `mobile/crystal-lattice-control-rn`.
+- [x] Run `npm run tsc` from `mobile/crystal-lattice-control-rn`.
 - [x] Run `npm test -- --runInBand` from `mobile/crystal-lattice-control-rn`.
-- [ ] Run `npm run lint` if it is stable in this app, and report any existing lint noise separately from release blockers.
+- [x] Run `npm run lint` if it is stable in this app, and report any existing lint noise separately from release blockers.
 
 Parent Task: tasks/20260614-ios-testflight-github-fastlane/000-main.md
 Depends On: tasks/20260614-ios-testflight-github-fastlane/010-preflight-audit.md
@@ -83,3 +83,26 @@ Remaining work:
 - `npm run tsc` exits 0.
 - `npm test -- --runInBand` exits 0.
 - Any remaining warnings are documented and not release-blocking.
+
+## Completion Notes
+
+Added during completion on 2026-07-05.
+
+This task is complete in the current checkout.
+
+- The splash/logo TypeScript issue is fixed; `AnimatedSplashScreen` now passes only supported props to `AppLogo`.
+- The Jest native-module setup issue was completed via `tasks/20260615-mobile-component-integration-tests/020-react-native-testing-library-setup.md`.
+- Verification passed:
+
+```bash
+cd mobile/crystal-lattice-control-rn
+npm run tsc
+npm test -- --runInBand
+```
+
+Results:
+
+- `npm run tsc`: passed.
+- `npm test -- --runInBand`: passed, 17 suites and 54 tests.
+
+`npm run lint` was attempted earlier and is not currently a stable verification command because ESLint cannot find a configuration file for this app. That is a separate tooling gap, not a TestFlight blocker for this task.

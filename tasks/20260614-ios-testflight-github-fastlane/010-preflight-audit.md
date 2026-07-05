@@ -123,11 +123,11 @@ Added during completion on 2026-06-17.
 | Native iOS project exists | ready | Workspace and scheme are present; `xcodebuild -list` finds `CrystalLatticeControlRN`. |
 | Bundle identifier | ready pending Apple portal confirmation | Code uses `com.dynamicprogrammingsolutions.crystallatticecontrolrn`; confirm it exists or can be created in Apple Developer/App Store Connect. |
 | Apple team | ready | Owner confirmed team ID `73Q43R2PD4` is the intended production team. Legal entity/account owner: `Dynamic Programming Solutions Kft.` |
-| App name/display name | needs code change | App Store name should be `Crystal Lattice`, not current in-app display name `Crystal Lattice Control`; package/Xcode product name still need stale `BonjourExampleRN` cleanup. |
-| Version/build | needs code/deployment decision | Current values are `1.0` / `1`; define build-number increment strategy for fastlane/GitHub Actions. |
-| App icon | needs code change | iOS app icon asset set has only `Contents.json`; generate PNGs from the existing SVG icon. |
+| App name/display name | ready | App Store/display name is now `Crystal Lattice`; stale `BonjourExampleRN` deployment-facing metadata was cleaned up in task `040`. |
+| Version/build | ready for fastlane follow-up | Current values are `0.9.0` / `1`; fastlane/GitHub Actions should increment build numbers later. |
+| App icon | ready | iOS `AppIcon.appiconset` now contains generated PNGs from the shared SVG source, including the 1024px marketing icon. |
 | Privacy manifest | ready pending compliance review | `PrivacyInfo.xcprivacy` exists; validate against final SDK/app behavior in task `050`. |
-| Permission strings | needs code change | Empty `NSLocationWhenInUseUsageDescription`; remove or fill if actually needed. |
+| Permission strings | ready pending privacy review | Empty `NSLocationWhenInUseUsageDescription` was removed in task `040`; remaining permission strings are non-empty. |
 | Local verification | mostly ready | `tsc` and Jest pass; lint script is blocked by missing ESLint config. |
 | Landing page source | ready | `landing_page` exists with `/mobile`, `/privacy`, and `/terms`. |
 | Public privacy URL | ready pending independent verification | Owner confirmed production `https://crystallattice.dev` is live; use `https://crystallattice.dev/privacy`. This environment still could not resolve `crystallattice.dev` on 2026-06-17. |

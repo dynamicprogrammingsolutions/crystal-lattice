@@ -15,12 +15,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		13B07F961A680F5B00A75B9A /* BonjourExampleRN.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BonjourExampleRN.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		13B07F961A680F5B00A75B9A /* CrystalLattice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CrystalLattice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = CrystalLatticeControlRN/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = CrystalLatticeControlRN/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = CrystalLatticeControlRN/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		3B4392A12AC88292D35C810B /* Pods-BonjourExampleRN.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BonjourExampleRN.debug.xcconfig"; path = "Target Support Files/Pods-BonjourExampleRN/Pods-BonjourExampleRN.debug.xcconfig"; sourceTree = "<group>"; };
-		5709B34CF0A7D63546082F79 /* Pods-BonjourExampleRN.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-BonjourExampleRN.release.xcconfig"; path = "Target Support Files/Pods-BonjourExampleRN/Pods-BonjourExampleRN.release.xcconfig"; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = CrystalLatticeControlRN/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = CrystalLatticeControlRN/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		8890A10E2BAAD04914FFE1D4 /* libPods-CrystalLatticeControlRN.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-CrystalLatticeControlRN.a"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -41,7 +39,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		13B07FAE1A68108700A75B9A /* BonjourExampleRN */ = {
+		13B07FAE1A68108700A75B9A /* CrystalLatticeControlRN */ = {
 			isa = PBXGroup;
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -50,7 +48,7 @@
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
 			);
-			name = BonjourExampleRN;
+			name = CrystalLatticeControlRN;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
@@ -72,7 +70,7 @@
 		83CBB9F61A601CBA00E9B192 = {
 			isa = PBXGroup;
 			children = (
-				13B07FAE1A68108700A75B9A /* BonjourExampleRN */,
+				13B07FAE1A68108700A75B9A /* CrystalLatticeControlRN */,
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
@@ -86,7 +84,7 @@
 		83CBBA001A601CBA00E9B192 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				13B07F961A680F5B00A75B9A /* BonjourExampleRN.app */,
+				13B07F961A680F5B00A75B9A /* CrystalLattice.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -94,8 +92,6 @@
 		BBD78D7AC51CEA395F1C20DB /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				3B4392A12AC88292D35C810B /* Pods-BonjourExampleRN.debug.xcconfig */,
-				5709B34CF0A7D63546082F79 /* Pods-BonjourExampleRN.release.xcconfig */,
 				D4B450F7F923E48664FB5950 /* Pods-CrystalLatticeControlRN.debug.xcconfig */,
 				FBB3C9F33C8E6F3D9EA54212 /* Pods-CrystalLatticeControlRN.release.xcconfig */,
 			);
@@ -122,8 +118,8 @@
 			dependencies = (
 			);
 			name = CrystalLatticeControlRN;
-			productName = BonjourExampleRN;
-			productReference = 13B07F961A680F5B00A75B9A /* BonjourExampleRN.app */;
+			productName = CrystalLattice;
+			productReference = 13B07F961A680F5B00A75B9A /* CrystalLattice.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -267,19 +263,19 @@
 				DEVELOPMENT_TEAM = 73Q43R2PD4;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = CrystalLatticeControlRN/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.9.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.dynamicprogrammingsolutions.crystallatticecontrolrn;
-				PRODUCT_NAME = BonjourExampleRN;
+				PRODUCT_NAME = CrystalLattice;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
@@ -295,19 +291,19 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 73Q43R2PD4;
 				INFOPLIST_FILE = CrystalLatticeControlRN/Info.plist;
-				IPHONEOS_DEPLOYMENT_TARGET = 16.6;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 0.9.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.dynamicprogrammingsolutions.crystallatticecontrolrn;
-				PRODUCT_NAME = BonjourExampleRN;
+				PRODUCT_NAME = CrystalLattice;
 				SWIFT_VERSION = 5.0;
 				VERSIONING_SYSTEM = "apple-generic";
 			};

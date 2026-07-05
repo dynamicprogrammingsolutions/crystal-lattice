@@ -4,12 +4,12 @@ Prepare the Crystal Lattice Control React Native iOS app for TestFlight registra
 
 ## Task checklist
 
-- [ ] `tasks/20260614-ios-testflight-github-fastlane/010-preflight-audit.md`
-- [ ] `tasks/20260614-ios-testflight-github-fastlane/020-fix-mobile-verification.md`
+- [x] `tasks/20260614-ios-testflight-github-fastlane/010-preflight-audit.md`
+- [x] `tasks/20260614-ios-testflight-github-fastlane/020-fix-mobile-verification.md`
   - PARTIALLY COMPLETED VIA `tasks/20260615-mobile-component-integration-tests/020-react-native-testing-library-setup.md`
-  - OVERLAP: the later mobile component testing task fixed the Jest/native-module setup portion of this TestFlight verification task. In the current checkout on 2026-06-17, `npm run tsc` and `npm test -- --runInBand` also pass; `npm run lint` is blocked by missing ESLint config.
-- [ ] `tasks/20260614-ios-testflight-github-fastlane/030-ios-branding-assets.md`
-- [ ] `tasks/20260614-ios-testflight-github-fastlane/040-ios-identity-metadata.md`
+  - COMPLETED VIA current checkout on 2026-07-05: `npm run tsc` and `npm test -- --runInBand` pass; `npm run lint` remains not applicable until ESLint config is added.
+- [x] `tasks/20260614-ios-testflight-github-fastlane/030-ios-branding-assets.md`
+- [x] `tasks/20260614-ios-testflight-github-fastlane/040-ios-identity-metadata.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-page-compliance.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/060-app-store-connect-registration-package.md`
 - [ ] `tasks/20260614-ios-testflight-github-fastlane/070-fastlane-ios-testflight.md`
@@ -27,21 +27,17 @@ The app already has a native iOS project and workspace:
 
 - Workspace: `mobile/crystal-lattice-control-rn/ios/CrystalLatticeControlRN.xcworkspace`
 - Scheme observed via `xcodebuild -list`: `CrystalLatticeControlRN`
-- Display name: `Crystal Lattice Control` in `mobile/crystal-lattice-control-rn/app.json` and `mobile/crystal-lattice-control-rn/ios/CrystalLatticeControlRN/Info.plist`
+- Display name: `Crystal Lattice` in `mobile/crystal-lattice-control-rn/app.json` and `mobile/crystal-lattice-control-rn/ios/CrystalLatticeControlRN/Info.plist`
 - Bundle ID: `com.dynamicprogrammingsolutions.crystallatticecontrolrn`
 - Apple team ID currently in the Xcode project: `73Q43R2PD4`
-- Marketing version/build currently observed: `1.0` / `1`
-- iOS deployment target currently observed in the app target: `16.6`
+- Marketing version/build currently observed: `0.9.0` / `1`
+- iOS deployment target currently observed in the app target: `15.1`
 
-Important known gaps from the deployment audit:
+Original audit gaps and current status:
 
-- `mobile/crystal-lattice-control-rn/ios/CrystalLatticeControlRN/Images.xcassets/AppIcon.appiconset` currently contains only `Contents.json`, with no icon PNG files. The app has an SVG icon used by the landing page and splash screen; generate iOS icon PNGs from that source asset rather than inventing new artwork.
-- `npm run tsc` currently fails because `mobile/crystal-lattice-control-rn/src/components/AnimatedSplashScreen.tsx` passes `type="square"` to `AppLogo`, but `mobile/crystal-lattice-control-rn/src/components/AppLogo.tsx` does not define a `type` prop.
-- `npm test -- --runInBand` currently passes 7 of 8 suites, but `__tests__/App.test.tsx` fails because `RNGestureHandlerModule` is not mocked/registered in Jest.
-- `mobile/crystal-lattice-control-rn/package.json` still names the app package `BonjourExampleRN`.
-- Xcode `PRODUCT_NAME` still appears as `BonjourExampleRN` in the iOS project build settings.
-- `mobile/crystal-lattice-control-rn/README.md` still contains stale Bonjour sample wording and paths.
-- `NSLocationWhenInUseUsageDescription` exists in `Info.plist` with an empty string; determine whether it should be removed or filled with a real user-facing reason.
+- App icon PNG generation was completed from the shared SVG source in `tasks/20260614-ios-testflight-github-fastlane/030-ios-branding-assets.md`.
+- Mobile TypeScript and Jest verification blockers were resolved in `tasks/20260614-ios-testflight-github-fastlane/020-fix-mobile-verification.md`.
+- Stale `BonjourExampleRN` package/product naming and the empty location usage string were cleaned up in `tasks/20260614-ios-testflight-github-fastlane/040-ios-identity-metadata.md`.
 - `mobile/crystal-lattice-control-rn/ios/CrystalLatticeControlRN/PrivacyInfo.xcprivacy` exists and declares accessed API reasons for file timestamps, user defaults, and system boot time, with no collected data types and tracking set to false. Revalidate this against current SDKs and app behavior.
 - The user stated that the privacy policy is part of the landing page. Use the landing page/privacy URL as the public App Store Connect privacy policy URL once verified.
 

@@ -1,5 +1,5 @@
 {
-  "name": "BonjourExampleRN",
+  "name": "crystal-lattice-control-rn",
   "version": "0.0.1",
   "private": true,
   "license": "Apache-2.0",
@@ -7,6 +7,7 @@
     "android": "react-native run-android --port 8082",
     "pod-install": "cd ios && pod install",
     "ios": "react-native run-ios",
+    "ios:icons": "scripts/generate_ios_app_icons.sh",
     "ios-device": "react-native run-ios --device --port 8082",
     "lint": "eslint .",
     "start": "react-native start --port 8082",
