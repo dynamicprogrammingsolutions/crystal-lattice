@@ -174,10 +174,10 @@ const FLATLIST_FORWARD_MOMENTUM_SCROLL_END = readGlobalBoolean(
 );
 const FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX =
   readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX') ?? 4;
-const FLATLIST_BOTTOM_SCROLL_MAX_ATTEMPTS =
-  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_SCROLL_MAX_ATTEMPTS') ?? 12;
-const FLATLIST_BOTTOM_SCROLL_REPEAT_LIMIT =
-  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_SCROLL_REPEAT_LIMIT') ?? 3;
+const FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS =
+  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS') ?? 200;
+const FLATLIST_BOTTOM_CONVERGENCE_MAX_MS =
+  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_CONVERGENCE_MAX_MS') ?? 3000;
 const FLATLIST_BOTTOM_LOCK = readGlobalBoolean('CLC_FLATLIST_BOTTOM_LOCK', true);
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
@@ -900,8 +900,8 @@ export const ChatPane = React.memo(function ChatPane({
     onUpdateCache,
     enabled: isActive,
     bottomThresholdPx: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
-    bottomScrollMaxAttempts: FLATLIST_BOTTOM_SCROLL_MAX_ATTEMPTS,
-    bottomScrollRepeatLimit: FLATLIST_BOTTOM_SCROLL_REPEAT_LIMIT,
+    bottomConvergenceStableMs: FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS,
+    bottomConvergenceMaxMs: FLATLIST_BOTTOM_CONVERGENCE_MAX_MS,
     bottomLockEnabled: FLATLIST_BOTTOM_LOCK,
   });
 
@@ -2646,6 +2646,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
+	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
 	              onScrollEndDrag={
 	                FLATLIST_FORWARD_SCROLL_END_DRAG
 	                  ? transcriptScroll.onScrollEndDrag
@@ -2679,6 +2680,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
+	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
 	              onScrollEndDrag={
 	                FLATLIST_FORWARD_SCROLL_END_DRAG
 	                  ? transcriptScroll.onScrollEndDrag
@@ -2721,6 +2723,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
+	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
 	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
 	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
 	              renderItem={renderMessageItem}

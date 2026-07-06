@@ -60,6 +60,7 @@ export interface PlaceholderFlatListProps<TItem> {
   onLayout?: (event: LayoutChangeEvent) => void;
   onContentSizeChange?: (width: number, height: number) => void;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScrollBeginDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onScrollEndDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onMomentumScrollEnd?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
 }
@@ -121,6 +122,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     onLayout,
     onContentSizeChange,
     onScroll,
+    onScrollBeginDrag,
     onScrollEndDrag,
     onMomentumScrollEnd,
     scrollEnabled,
@@ -129,7 +131,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
 
   const wrapScrollHandler = React.useCallback(
     (
-      kind: 'scroll' | 'endDrag' | 'momentumEnd',
+      kind: 'scroll' | 'beginDrag' | 'endDrag' | 'momentumEnd',
       handler?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void,
     ) => {
       if (!debugEnabled && !handler) {
@@ -216,6 +218,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
       onLayout={onLayout}
       onContentSizeChange={onContentSizeChange}
       onScroll={wrapScrollHandler('scroll', onScroll)}
+      onScrollBeginDrag={wrapScrollHandler('beginDrag', onScrollBeginDrag)}
       onScrollEndDrag={wrapScrollHandler('endDrag', onScrollEndDrag)}
       onMomentumScrollEnd={wrapScrollHandler('momentumEnd', onMomentumScrollEnd)}
       scrollEnabled={scrollEnabled}

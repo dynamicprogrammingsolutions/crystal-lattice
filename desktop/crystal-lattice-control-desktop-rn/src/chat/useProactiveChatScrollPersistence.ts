@@ -100,14 +100,14 @@ export function useProactiveChatScrollPersistence(params: {
   enabled?: boolean;
   persistDebounceMs?: number;
   persistThrottleMs?: number;
-  inverted?: boolean;
   bottomThresholdPx?: number;
-  bottomScrollMaxAttempts?: number;
-  bottomScrollRepeatLimit?: number;
+  bottomConvergenceStableMs?: number;
+  bottomConvergenceMaxMs?: number;
   bottomLockEnabled?: boolean;
 }): {
   listRef: RefObject<any>;
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScrollBeginDrag: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onScrollEndDrag: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onMomentumScrollEnd: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onLayout: (event: LayoutChangeEvent) => void;
@@ -129,10 +129,9 @@ export function useProactiveChatScrollPersistence(params: {
     enabled = true,
     persistDebounceMs = 250,
     persistThrottleMs = 1000,
-    inverted = false,
     bottomThresholdPx = PINNED_TO_BOTTOM_THRESHOLD_PX,
-    bottomScrollMaxAttempts = 12,
-    bottomScrollRepeatLimit = 3,
+    bottomConvergenceStableMs = 200,
+    bottomConvergenceMaxMs = 3000,
     bottomLockEnabled = false,
   } = params;
 
@@ -143,6 +142,8 @@ export function useProactiveChatScrollPersistence(params: {
   const isNearBottomRef = useRef(true);
   const pendingEdgeScrollFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
   const activeEdgeScrollRef = useRef<ActiveEdgeScroll | null>(null);
+  const bottomFollowEnabledRef = useRef(false);
+  const programmaticScrollUntilRef = useRef(0);
   const scrollAffordanceStateRef = useRef({
     canScrollToTop: false,
     canScrollToBottom: false,
@@ -179,8 +180,8 @@ export function useProactiveChatScrollPersistence(params: {
       contentHeight != null && layoutHeight != null
         ? Math.max(0, contentHeight - layoutHeight)
         : 0;
-    const bottomGapPx = inverted ? Math.max(0, offsetY) : Math.max(0, maxOffsetY - offsetY);
-    const topGapPx = inverted ? Math.max(0, maxOffsetY - offsetY) : Math.max(0, offsetY);
+    const bottomGapPx = Math.max(0, maxOffsetY - offsetY);
+    const topGapPx = Math.max(0, offsetY);
     const threshold = Math.max(0, bottomThresholdPx);
     const isNearBottom = bottomGapPx <= threshold;
     isNearBottomRef.current = isNearBottom;
@@ -201,7 +202,7 @@ export function useProactiveChatScrollPersistence(params: {
     }
     scrollAffordanceStateRef.current = next;
     setScrollAffordanceState(next);
-  }, [bottomThresholdPx, inverted]);
+  }, [bottomThresholdPx]);
 
   const applyEventMetrics = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -220,16 +221,21 @@ export function useProactiveChatScrollPersistence(params: {
     [updateDerivedScrollState],
   );
 
+  const cancelActiveEdgeScroll = useCallback(() => {
+    if (pendingEdgeScrollFrameRef.current != null) {
+      cancelAnimationFrame(pendingEdgeScrollFrameRef.current);
+      pendingEdgeScrollFrameRef.current = null;
+    }
+    activeEdgeScrollRef.current = null;
+  }, []);
+
   const scrollToEdge = useCallback(
     (edge: ScrollEdge, animated = true) => {
       const target = listRef.current;
       if (!target) {
         return;
       }
-      if (pendingEdgeScrollFrameRef.current != null) {
-        cancelAnimationFrame(pendingEdgeScrollFrameRef.current);
-        pendingEdgeScrollFrameRef.current = null;
-      }
+      cancelActiveEdgeScroll();
 
       const scrollOnce = (nextAnimated: boolean) => {
         const contentHeight = contentHeightRef.current;
@@ -238,35 +244,35 @@ export function useProactiveChatScrollPersistence(params: {
           contentHeight != null && layoutHeight != null
             ? Math.max(0, contentHeight - layoutHeight)
             : 0;
-        const targetOffsetY =
-          edge === 'bottom'
-            ? inverted
-              ? 0
-              : maxOffsetY
-            : inverted
-              ? maxOffsetY
-              : 0;
+        const targetOffsetY = edge === 'bottom' ? maxOffsetY : 0;
 
         if (typeof target.scrollToOffset === 'function') {
           target.scrollToOffset({ offset: targetOffsetY, animated: nextAnimated });
         } else if (typeof target.scrollTo === 'function') {
           target.scrollTo({ y: targetOffsetY, animated: nextAnimated });
-        } else if (edge === 'bottom' && !inverted && typeof target.scrollToEnd === 'function') {
+        } else if (edge === 'bottom' && typeof target.scrollToEnd === 'function') {
           target.scrollToEnd({ animated: nextAnimated });
         }
 
+        programmaticScrollUntilRef.current = Date.now() + 250;
         offsetYRef.current = targetOffsetY;
         updateDerivedScrollState();
       };
 
       scrollOnce(animated);
 
-      let attempts = 0;
-      let repeats = 0;
-      let lastSignature: string | null = null;
       const threshold = Math.max(0, bottomThresholdPx);
-      const maxAttempts = Math.max(1, Math.round(bottomScrollMaxAttempts));
-      const repeatLimit = Math.max(1, Math.round(bottomScrollRepeatLimit));
+      const stableMs = Math.max(0, Math.round(bottomConvergenceStableMs));
+      const maxMs = Math.max(stableMs + 1, Math.round(bottomConvergenceMaxMs));
+      const startedAt = Date.now();
+      let stableSince: number | null = null;
+      let stableTargetOffsetY: number | null = null;
+
+      if (edge === 'bottom') {
+        bottomFollowEnabledRef.current = true;
+      } else {
+        bottomFollowEnabledRef.current = false;
+      }
 
       const stopActiveScroll = () => {
         if (activeEdgeScrollRef.current?.runAttempt === runAttempt) {
@@ -292,6 +298,7 @@ export function useProactiveChatScrollPersistence(params: {
               stopActiveScroll();
               return;
             }
+            const now = Date.now();
             offsetYRef.current = metrics.offsetY;
             contentHeightRef.current = metrics.contentHeight;
             layoutHeightRef.current = metrics.viewportHeight;
@@ -300,30 +307,34 @@ export function useProactiveChatScrollPersistence(params: {
             const maxY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
             const edgeGapPx =
               edge === 'bottom'
-                ? inverted
-                  ? Math.max(0, metrics.offsetY)
-                  : Math.max(0, maxY - metrics.offsetY)
-                : inverted
-                  ? Math.max(0, maxY - metrics.offsetY)
-                  : Math.max(0, metrics.offsetY);
+                ? Math.max(0, maxY - metrics.offsetY)
+                : Math.max(0, metrics.offsetY);
             if (edgeGapPx <= threshold) {
-              stopActiveScroll();
+              const targetOffsetY = edge === 'bottom' ? maxY : 0;
+              if (
+                stableSince == null ||
+                stableTargetOffsetY == null ||
+                Math.abs(stableTargetOffsetY - targetOffsetY) > threshold
+              ) {
+                stableSince = now;
+                stableTargetOffsetY = targetOffsetY;
+                scheduleAttempt();
+                return;
+              }
+              if (now - stableSince >= stableMs) {
+                stopActiveScroll();
+                return;
+              }
+              scheduleAttempt();
               return;
             }
 
-            const signature = [
-              Math.round(metrics.offsetY),
-              Math.round(metrics.contentHeight),
-              Math.round(metrics.viewportHeight),
-            ].join(':');
-            repeats = signature === lastSignature ? repeats + 1 : 0;
-            lastSignature = signature;
-            attempts += 1;
-            if (attempts >= maxAttempts || repeats >= repeatLimit) {
+            stableSince = null;
+            stableTargetOffsetY = null;
+            if (now - startedAt >= maxMs) {
               stopActiveScroll();
               return;
             }
-
             scrollOnce(false);
             scheduleAttempt();
           })
@@ -334,10 +345,10 @@ export function useProactiveChatScrollPersistence(params: {
       scheduleAttempt();
     },
     [
-      bottomScrollMaxAttempts,
-      bottomScrollRepeatLimit,
+      bottomConvergenceMaxMs,
+      bottomConvergenceStableMs,
       bottomThresholdPx,
-      inverted,
+      cancelActiveEdgeScroll,
       updateDerivedScrollState,
     ],
   );
@@ -359,6 +370,20 @@ export function useProactiveChatScrollPersistence(params: {
   const continueActiveEdgeScroll = useCallback((reason: string) => {
     activeEdgeScrollRef.current?.runAttempt(reason);
   }, []);
+
+  const handlePossibleManualScroll = useCallback(() => {
+    if (Date.now() <= programmaticScrollUntilRef.current) {
+      return;
+    }
+    if (activeEdgeScrollRef.current) {
+      cancelActiveEdgeScroll();
+    }
+    if (isNearBottomRef.current && bottomLockEnabled) {
+      bottomFollowEnabledRef.current = true;
+      return;
+    }
+    bottomFollowEnabledRef.current = false;
+  }, [bottomLockEnabled, cancelActiveEdgeScroll]);
 
   const logScrollDiagnostics = useCallback(
     (kind: string, event?: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -453,13 +478,9 @@ export function useProactiveChatScrollPersistence(params: {
     }
 
     const maxOffsetY = Math.max(0, contentHeight - layoutHeight);
-    const targetOffsetY = inverted
-      ? anchor.pinnedToBottom
-        ? 0
-        : Math.min(maxOffsetY, Math.max(0, anchor.bottomGapPx))
-      : anchor.pinnedToBottom
-        ? maxOffsetY
-        : Math.max(0, maxOffsetY - anchor.bottomGapPx);
+    const targetOffsetY = anchor.pinnedToBottom
+      ? maxOffsetY
+      : Math.max(0, maxOffsetY - anchor.bottomGapPx);
 
     if (debugEnabled) {
       console.log('[scrollPersist] restore(pull)', {
@@ -482,7 +503,7 @@ export function useProactiveChatScrollPersistence(params: {
     offsetYRef.current = targetOffsetY;
     updateDerivedScrollState();
     hasRestoredRef.current = true;
-  }, [connectionId, debugEnabled, enabled, inverted, sessionId, updateDerivedScrollState]);
+  }, [connectionId, debugEnabled, enabled, sessionId, updateDerivedScrollState]);
 
   const persistNow = useCallback(
     async (
@@ -509,9 +530,7 @@ export function useProactiveChatScrollPersistence(params: {
       }
 
       const maxOffsetY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
-      const bottomGapPx = inverted
-        ? Math.max(0, metrics.offsetY)
-        : Math.max(0, maxOffsetY - metrics.offsetY);
+      const bottomGapPx = Math.max(0, maxOffsetY - metrics.offsetY);
       const pinnedToBottom = bottomGapPx <= bottomThresholdPx;
       const anchor = createChatScrollAnchor({ bottomGapPx, pinnedToBottom });
 
@@ -537,7 +556,6 @@ export function useProactiveChatScrollPersistence(params: {
       debugEnabled,
       enabled,
       getMessagesForCache,
-      inverted,
       bottomThresholdPx,
       onUpdateCache,
       persistThrottleMs,
@@ -605,14 +623,10 @@ export function useProactiveChatScrollPersistence(params: {
         clearTimeout(persistTimerRef.current);
         persistTimerRef.current = null;
       }
-      if (pendingEdgeScrollFrameRef.current != null) {
-        cancelAnimationFrame(pendingEdgeScrollFrameRef.current);
-        pendingEdgeScrollFrameRef.current = null;
-      }
-      activeEdgeScrollRef.current = null;
+      cancelActiveEdgeScroll();
       persistNow('unmount', { force: true }).catch(() => {});
     };
-  }, [persistNow]);
+  }, [cancelActiveEdgeScroll, persistNow]);
 
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -668,7 +682,12 @@ export function useProactiveChatScrollPersistence(params: {
         });
       }
       maybeRestoreScroll();
-      if (bottomLockEnabled && hasRestoredRef.current && wasNearBottom) {
+      if (
+        bottomLockEnabled &&
+        hasRestoredRef.current &&
+        (wasNearBottom || bottomFollowEnabledRef.current)
+      ) {
+        bottomFollowEnabledRef.current = true;
         scrollToEdge('bottom', false);
       }
     },
@@ -689,9 +708,26 @@ export function useProactiveChatScrollPersistence(params: {
     // Persistence still uses native pull-based metrics, but scroll events are
     // useful for lightweight affordance state.
     applyEventMetrics(event);
+    if (isNearBottomRef.current && bottomLockEnabled) {
+      bottomFollowEnabledRef.current = true;
+    }
+    handlePossibleManualScroll();
     continueActiveEdgeScroll('scroll');
     logScrollDiagnostics('scroll', event);
-  }, [applyEventMetrics, continueActiveEdgeScroll, logScrollDiagnostics]);
+  }, [
+    applyEventMetrics,
+    bottomLockEnabled,
+    continueActiveEdgeScroll,
+    handlePossibleManualScroll,
+    logScrollDiagnostics,
+  ]);
+
+  const onScrollBeginDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    applyEventMetrics(event);
+    bottomFollowEnabledRef.current = false;
+    cancelActiveEdgeScroll();
+    logScrollDiagnostics('scrollBeginDrag', event);
+  }, [applyEventMetrics, cancelActiveEdgeScroll, logScrollDiagnostics]);
 
   const onScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     applyEventMetrics(event);
@@ -715,6 +751,7 @@ export function useProactiveChatScrollPersistence(params: {
     return {
       listRef,
       onScroll,
+      onScrollBeginDrag,
       onScrollEndDrag,
       onMomentumScrollEnd,
       onLayout,
@@ -735,6 +772,7 @@ export function useProactiveChatScrollPersistence(params: {
     onLayout,
     onMomentumScrollEnd,
     onScroll,
+    onScrollBeginDrag,
     onScrollEndDrag,
     requestPersist,
     resetRestore,

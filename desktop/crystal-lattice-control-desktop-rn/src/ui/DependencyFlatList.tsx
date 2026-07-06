@@ -56,6 +56,7 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     onLayout,
     onContentSizeChange,
     onScroll,
+    onScrollBeginDrag,
     onScrollEndDrag,
     onMomentumScrollEnd,
   } = props;
@@ -125,6 +126,7 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
       onLayout={onLayout}
       onContentSizeChange={onContentSizeChange}
       onScroll={onScroll}
+      onScrollBeginDrag={onScrollBeginDrag}
       onScrollEndDrag={onScrollEndDrag}
       onMomentumScrollEnd={onMomentumScrollEnd}
       keyExtractor={extractRowKey}
