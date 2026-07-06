@@ -62,7 +62,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"systemThemeChanged" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged" ];
 }
 
 - (void)startObserving
@@ -75,6 +75,11 @@ RCT_EXPORT_MODULE();
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(handleSessionsFollowActiveTabDidChange:)
                                                name:CLCSessionsFollowActiveTabDidChangeNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleClearStoredSessionCaches:)
+                                               name:CLCClearStoredSessionCachesNotification
                                              object:nil];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
@@ -98,6 +103,10 @@ RCT_EXPORT_MODULE();
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCSessionsFollowActiveTabDidChangeNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCClearStoredSessionCachesNotification
                                                 object:nil];
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
@@ -146,6 +155,11 @@ RCT_EXPORT_MODULE();
     resolved = NO;
   }
   [self sendEventWithName:@"sessionsFollowActiveTabChanged" body:@{ @"enabled" : @(resolved) }];
+}
+
+- (void)handleClearStoredSessionCaches:(__unused NSNotification *)notification
+{
+  [self sendEventWithName:@"clearStoredSessionCachesRequested" body:@{}];
 }
 
 - (void)handleSystemColorsDidChange:(NSNotification *)notification

@@ -580,6 +580,16 @@ export function DesktopRoot({
       },
     );
 
+    const clearStoredSessionCachesSub = desktopWindowEvents.addListener(
+      'clearStoredSessionCachesRequested',
+      () => {
+        clearSessionsCache();
+        clearMessagesCache();
+        setTabs([]);
+        setActiveTabId(null);
+      },
+    );
+
     const agentPickerSub = desktopWindowEvents.addListener(
       'agentPickerSelected',
       (payload: any) => {
@@ -663,10 +673,19 @@ export function DesktopRoot({
       savedSub.remove();
       styleSub.remove();
       followSub.remove();
+      clearStoredSessionCachesSub.remove();
       agentPickerSub.remove();
       sessionSettingsCancelledSub.remove();
     };
-  }, [getBackend, openConnectionAndTouch, openTab, updateSessionsCache, upsertConnection]);
+  }, [
+    clearMessagesCache,
+    clearSessionsCache,
+    getBackend,
+    openConnectionAndTouch,
+    openTab,
+    updateSessionsCache,
+    upsertConnection,
+  ]);
 
   const connectionNameById = useMemo(() => {
     const map: Record<string, string> = {};

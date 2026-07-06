@@ -22,6 +22,7 @@ static NSString *const kSessionsFollowActiveTabDefaultsKey =
 @property(nonatomic, strong) NSMenuItem *roundedPillsMenuItem;
 
 @property(nonatomic, strong) NSMenuItem *sessionsFollowActiveTabMenuItem;
+@property(nonatomic, strong) NSMenuItem *clearStoredSessionCachesMenuItem;
 
 @property(nonatomic, strong) NSMutableArray<NSWindow *> *mainWindows;
 @property(nonatomic, assign) NSPoint mainWindowCascadePoint;
@@ -52,6 +53,7 @@ static NSString *const kSessionsFollowActiveTabDefaultsKey =
 
   [self installTabStripStyleMenuWithSelectedStyle:tabStripStyle];
   [self installSessionsFollowActiveTabMenuWithEnabled:followEnabled];
+  [self installClearStoredSessionCachesMenu];
 }
 
 #pragma mark - Main window management (Dock reopen / New Window)
@@ -285,6 +287,41 @@ static NSString *const kSessionsFollowActiveTabDefaultsKey =
 - (void)saveSessionsFollowActiveTabEnabledPreference:(BOOL)enabled
 {
   [[NSUserDefaults standardUserDefaults] setBool:enabled forKey:kSessionsFollowActiveTabDefaultsKey];
+}
+
+- (void)installClearStoredSessionCachesMenu
+{
+  NSMenu *mainMenu = [NSApp mainMenu];
+  if (mainMenu == nil) {
+    return;
+  }
+
+  NSMenuItem *helpMenuItem = [mainMenu itemWithTitle:@"Help"];
+  if (helpMenuItem == nil || helpMenuItem.submenu == nil) {
+    return;
+  }
+
+  NSMenu *helpMenu = helpMenuItem.submenu;
+
+  if (self.clearStoredSessionCachesMenuItem == nil) {
+    self.clearStoredSessionCachesMenuItem =
+        [[NSMenuItem alloc] initWithTitle:@"Clear Stored Session Caches"
+                                   action:@selector(clearStoredSessionCaches:)
+                            keyEquivalent:@""];
+    self.clearStoredSessionCachesMenuItem.target = self;
+  }
+
+  if (![helpMenu.itemArray containsObject:self.clearStoredSessionCachesMenuItem]) {
+    if (helpMenu.numberOfItems > 0 && !helpMenu.itemArray.lastObject.isSeparatorItem) {
+      [helpMenu addItem:[NSMenuItem separatorItem]];
+    }
+    [helpMenu addItem:self.clearStoredSessionCachesMenuItem];
+  }
+}
+
+- (void)clearStoredSessionCaches:(__unused id)sender
+{
+  [[NSNotificationCenter defaultCenter] postNotificationName:CLCClearStoredSessionCachesNotification object:nil];
 }
 
 - (void)installSessionsFollowActiveTabMenuWithEnabled:(BOOL)enabled
