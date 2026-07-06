@@ -164,10 +164,6 @@ const FLATLIST_WINDOW_SIZE = readOptionalGlobalNumber('CLC_FLATLIST_WINDOW_SIZE'
 const FLATLIST_REMOVE_CLIPPED_SUBVIEWS = readOptionalGlobalBoolean(
   'CLC_FLATLIST_REMOVE_CLIPPED_SUBVIEWS',
 );
-const FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION = readGlobalBoolean(
-  'CLC_FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION',
-  true,
-);
 const FLATLIST_FORWARD_SCROLL_END_DRAG = readGlobalBoolean(
   'CLC_FLATLIST_FORWARD_SCROLL_END_DRAG',
   true,
@@ -903,9 +899,6 @@ export const ChatPane = React.memo(function ChatPane({
     getMessagesForCache,
     onUpdateCache,
     enabled: isActive,
-    // RN macOS renders this list inverted, but native scroll metrics still use
-    // normal coordinates: visual bottom is the max offset.
-    inverted: false,
     bottomThresholdPx: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
     bottomScrollMaxAttempts: FLATLIST_BOTTOM_SCROLL_MAX_ATTEMPTS,
     bottomScrollRepeatLimit: FLATLIST_BOTTOM_SCROLL_REPEAT_LIMIT,
@@ -2641,7 +2634,6 @@ export const ChatPane = React.memo(function ChatPane({
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
 	              data={transcriptRows}
-	              inverted
 	              keyExtractor={getTranscriptRowKey}
 	              getItemDependencies={getTranscriptRowDependencies}
 	              scrollEventThrottle={16}
@@ -2651,14 +2643,6 @@ export const ChatPane = React.memo(function ChatPane({
 	              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
 	              windowSize={FLATLIST_WINDOW_SIZE}
 	              removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
-	              maintainVisibleContentPosition={
-	                FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION
-	                  ? {
-	                      minIndexForVisible: 0,
-	                      autoscrollToTopThreshold: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
-	                    }
-	                  : undefined
-	              }
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
@@ -2683,7 +2667,6 @@ export const ChatPane = React.memo(function ChatPane({
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
 	              data={transcriptRows}
-	              inverted
 	              keyExtractor={getTranscriptRowKey}
 	              getItemDependencies={getTranscriptRowDependencies}
 	              scrollEventThrottle={16}
@@ -2693,14 +2676,6 @@ export const ChatPane = React.memo(function ChatPane({
 	              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
 	              windowSize={FLATLIST_WINDOW_SIZE}
 	              removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
-	              maintainVisibleContentPosition={
-	                FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION
-	                  ? {
-	                      minIndexForVisible: 0,
-	                      autoscrollToTopThreshold: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
-	                    }
-	                  : undefined
-	              }
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
