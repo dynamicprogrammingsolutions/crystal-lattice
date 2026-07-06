@@ -28,11 +28,32 @@ type UpdateMessagesCache = (params: {
   scrollAnchor?: unknown;
 }) => void;
 
-function scrollToOffsetY(target: any, offsetY: number) {
+function scrollToOffsetY(
+  target: any,
+  offsetY: number,
+  context?: {
+    debugEnabled?: boolean;
+    reason?: string;
+    connectionId?: string;
+    sessionId?: string;
+  },
+) {
   if (!target) {
     return;
   }
   const resolved = Math.max(0, Math.round(offsetY));
+  if (context?.debugEnabled) {
+    console.log('[scrollPersist] scrollToOffsetY', {
+      connectionId: context.connectionId,
+      sessionId: context.sessionId,
+      reason: context.reason,
+      requestedOffsetY: offsetY,
+      resolvedOffsetY: resolved,
+      hasScrollToOffset: typeof target.scrollToOffset === 'function',
+      hasScrollTo: typeof target.scrollTo === 'function',
+      hasScrollToEnd: typeof target.scrollToEnd === 'function',
+    });
+  }
   if (typeof target.scrollToOffset === 'function') {
     target.scrollToOffset({ offset: resolved, animated: false });
     return;
@@ -88,10 +109,79 @@ export function useProactiveChatScrollPersistence(params: {
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistAtRef = useRef(0);
   const pendingReasonRef = useRef<string | null>(null);
+  const lastScrollDiagnosticsAtRef = useRef(0);
+  const lastNativeMetricsDiagnosticsAtRef = useRef(0);
 
   const debugEnabled =
     (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === true ||
-    (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === 'true';
+    (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === 'true' ||
+    ((globalThis as any).CLC_DEBUG_FLATLIST_SCROLL !== false &&
+      (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL !== 'false');
+
+  const logScrollDiagnostics = useCallback(
+    (kind: string, event?: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (!debugEnabled) {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastScrollDiagnosticsAtRef.current < 250) {
+        return;
+      }
+      lastScrollDiagnosticsAtRef.current = now;
+
+      const nativeEvent = event?.nativeEvent;
+      const contentOffsetY = Number(nativeEvent?.contentOffset?.y ?? NaN);
+      const eventContentHeight = Number(nativeEvent?.contentSize?.height ?? NaN);
+      const eventViewportHeight = Number(nativeEvent?.layoutMeasurement?.height ?? NaN);
+      const eventMaxOffsetY =
+        Number.isFinite(eventContentHeight) && Number.isFinite(eventViewportHeight)
+          ? Math.max(0, eventContentHeight - eventViewportHeight)
+          : null;
+
+      console.log('[flatListScroll] event', {
+        connectionId,
+        sessionId,
+        kind,
+        messageCount: getMessagesForCache().length,
+        contentOffsetY: Number.isFinite(contentOffsetY) ? contentOffsetY : null,
+        eventContentHeight: Number.isFinite(eventContentHeight) ? eventContentHeight : null,
+        eventViewportHeight: Number.isFinite(eventViewportHeight) ? eventViewportHeight : null,
+        eventMaxOffsetY,
+        cachedContentHeight: contentHeightRef.current,
+        cachedLayoutHeight: layoutHeightRef.current,
+      });
+
+      if (now - lastNativeMetricsDiagnosticsAtRef.current < 1000) {
+        return;
+      }
+      lastNativeMetricsDiagnosticsAtRef.current = now;
+      getMacScrollViewMetrics(listRef.current)
+        .then((metrics) => {
+          if (!metrics) {
+            console.log('[flatListScroll] nativeMetrics(skip:noMetrics)', {
+              connectionId,
+              sessionId,
+              kind,
+            });
+            return;
+          }
+          console.log('[flatListScroll] nativeMetrics', {
+            connectionId,
+            sessionId,
+            kind,
+            messageCount: getMessagesForCache().length,
+            metrics,
+            nativeMaxOffsetY: Math.max(0, metrics.contentHeight - metrics.viewportHeight),
+            nativeBottomGapPx: Math.max(
+              0,
+              metrics.contentHeight - metrics.viewportHeight - metrics.offsetY,
+            ),
+          });
+        })
+        .catch(() => {});
+    },
+    [connectionId, debugEnabled, getMessagesForCache, sessionId],
+  );
 
   const maybeRestoreScroll = useCallback(() => {
     if (!enabled) {
@@ -136,7 +226,12 @@ export function useProactiveChatScrollPersistence(params: {
       });
     }
 
-    scrollToOffsetY(target, targetOffsetY);
+    scrollToOffsetY(target, targetOffsetY, {
+      debugEnabled,
+      reason: 'restore',
+      connectionId,
+      sessionId,
+    });
     hasRestoredRef.current = true;
   }, [connectionId, debugEnabled, enabled, sessionId]);
 
@@ -266,9 +361,17 @@ export function useProactiveChatScrollPersistence(params: {
       if (Number.isFinite(height)) {
         layoutHeightRef.current = height;
       }
+      if (debugEnabled) {
+        console.log('[flatListScroll] layout', {
+          connectionId,
+          sessionId,
+          height: Number.isFinite(height) ? height : null,
+          messageCount: getMessagesForCache().length,
+        });
+      }
       maybeRestoreScroll();
     },
-    [maybeRestoreScroll],
+    [connectionId, debugEnabled, getMessagesForCache, maybeRestoreScroll, sessionId],
   );
 
   const onContentSizeChange = useCallback(
@@ -277,26 +380,44 @@ export function useProactiveChatScrollPersistence(params: {
       if (Number.isFinite(resolved)) {
         contentHeightRef.current = resolved;
       }
+      if (debugEnabled) {
+        const layoutHeight = layoutHeightRef.current;
+        console.log('[flatListScroll] contentSizeChange', {
+          connectionId,
+          sessionId,
+          width: _width,
+          height: Number.isFinite(resolved) ? resolved : null,
+          layoutHeight,
+          maxOffsetY:
+            Number.isFinite(resolved) && layoutHeight != null
+              ? Math.max(0, resolved - layoutHeight)
+              : null,
+          messageCount: getMessagesForCache().length,
+        });
+      }
       maybeRestoreScroll();
     },
-    [maybeRestoreScroll],
+    [connectionId, debugEnabled, getMessagesForCache, maybeRestoreScroll, sessionId],
   );
 
-  const onScroll = useCallback((_event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     // Intentionally no-op. Scroll events are not reliably delivered on macOS
     // for this view. Persistence uses native pull-based metrics instead.
-  }, []);
+    logScrollDiagnostics('scroll', event);
+  }, [logScrollDiagnostics]);
 
-  const onScrollEndDrag = useCallback((_event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const onScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    logScrollDiagnostics('scrollEndDrag', event);
     // If end-drag events are delivered, opportunistically persist.
     requestPersist('scrollEndDrag');
-  }, [requestPersist]);
+  }, [logScrollDiagnostics, requestPersist]);
 
   const onMomentumScrollEnd = useCallback(
-    (_event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      logScrollDiagnostics('momentumScrollEnd', event);
       requestPersist('scrollMomentumEnd');
     },
-    [requestPersist],
+    [logScrollDiagnostics, requestPersist],
   );
 
   const result = useMemo(() => {

@@ -49,9 +49,17 @@ export function DependencyVirtualizedScroll<TItem>(
     inverted,
     maintainVisibleContentPosition,
     scrollEventThrottle,
+    disableVirtualization,
+    initialNumToRender,
+    maxToRenderPerBatch,
+    updateCellsBatchingPeriod,
+    windowSize,
+    removeClippedSubviews,
     onLayout,
     onContentSizeChange,
     onScroll,
+    onScrollEndDrag,
+    onMomentumScrollEnd,
   } = props;
 
   const cache = cacheRef.current;
@@ -101,6 +109,14 @@ export function DependencyVirtualizedScroll<TItem>(
     ({ item }: { item: DependencyVirtualizedScrollRow }) => item.value,
     [],
   );
+  const diagnosticProps = {
+    disableVirtualization,
+    initialNumToRender,
+    maxToRenderPerBatch,
+    updateCellsBatchingPeriod,
+    windowSize,
+    removeClippedSubviews,
+  } as any;
 
   return (
     <VirtualizedList<DependencyVirtualizedScrollRow>
@@ -114,6 +130,8 @@ export function DependencyVirtualizedScroll<TItem>(
       onLayout={onLayout}
       onContentSizeChange={onContentSizeChange}
       onScroll={onScroll}
+      onScrollEndDrag={onScrollEndDrag}
+      onMomentumScrollEnd={onMomentumScrollEnd}
       keyExtractor={extractRowKey}
       extraData={extraData}
       renderItem={renderRow}
@@ -123,6 +141,7 @@ export function DependencyVirtualizedScroll<TItem>(
       ListFooterComponent={ListFooterComponent}
       ListEmptyComponent={ListEmptyComponent}
       ItemSeparatorComponent={normalizedSeparatorComponent}
+      {...diagnosticProps}
     />
   );
 }

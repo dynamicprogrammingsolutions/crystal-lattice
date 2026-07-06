@@ -114,7 +114,56 @@ const PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_composer_actio
 const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_role_v1';
 
 const TRANSCRIPT_LIST_IMPLEMENTATION = ((globalThis as any).CLC_TRANSCRIPT_LIST_IMPLEMENTATION ??
-  'scrollView') as 'scrollView' | 'flatList' | 'virtualizedScroll';
+  'flatList') as 'scrollView' | 'flatList' | 'virtualizedScroll';
+
+function readGlobalBoolean(name: string, fallback: boolean): boolean {
+  const value = (globalThis as any)[name];
+  if (value === true || value === 'true') {
+    return true;
+  }
+  if (value === false || value === 'false') {
+    return false;
+  }
+  return fallback;
+}
+
+function readOptionalGlobalBoolean(name: string): boolean | undefined {
+  const value = (globalThis as any)[name];
+  if (value === true || value === 'true') {
+    return true;
+  }
+  if (value === false || value === 'false') {
+    return false;
+  }
+  return undefined;
+}
+
+function readOptionalGlobalNumber(name: string): number | undefined {
+  const value = Number((globalThis as any)[name]);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+const FLATLIST_DISABLE_VIRTUALIZATION = readGlobalBoolean(
+  'CLC_FLATLIST_DISABLE_VIRTUALIZATION',
+  false,
+);
+const FLATLIST_INITIAL_NUM_TO_RENDER = readOptionalGlobalNumber(
+  'CLC_FLATLIST_INITIAL_NUM_TO_RENDER',
+);
+const FLATLIST_MAX_TO_RENDER_PER_BATCH = readOptionalGlobalNumber(
+  'CLC_FLATLIST_MAX_TO_RENDER_PER_BATCH',
+);
+const FLATLIST_UPDATE_CELLS_BATCHING_PERIOD = readOptionalGlobalNumber(
+  'CLC_FLATLIST_UPDATE_CELLS_BATCHING_PERIOD',
+);
+const FLATLIST_WINDOW_SIZE = readOptionalGlobalNumber('CLC_FLATLIST_WINDOW_SIZE');
+const FLATLIST_REMOVE_CLIPPED_SUBVIEWS = readOptionalGlobalBoolean(
+  'CLC_FLATLIST_REMOVE_CLIPPED_SUBVIEWS',
+);
+const FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION = readGlobalBoolean(
+  'CLC_FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION',
+  false,
+);
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -2514,9 +2563,22 @@ export const ChatPane = React.memo(function ChatPane({
 	                ];
 	              }}
 	              scrollEventThrottle={16}
+	              disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
+	              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
+	              maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
+	              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
+	              windowSize={FLATLIST_WINDOW_SIZE}
+	              removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
+	              maintainVisibleContentPosition={
+	                FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION
+	                  ? { minIndexForVisible: 0 }
+	                  : undefined
+	              }
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
+	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
+	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
 	              renderItem={renderMessageItem}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
@@ -2546,9 +2608,22 @@ export const ChatPane = React.memo(function ChatPane({
 	                ];
 	              }}
 	              scrollEventThrottle={16}
+	              disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
+	              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
+	              maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
+	              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
+	              windowSize={FLATLIST_WINDOW_SIZE}
+	              removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
+	              maintainVisibleContentPosition={
+	                FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION
+	                  ? { minIndexForVisible: 0 }
+	                  : undefined
+	              }
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
+	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
+	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
 	              renderItem={renderMessageItem}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
@@ -2582,6 +2657,8 @@ export const ChatPane = React.memo(function ChatPane({
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
+	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
+	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
 	              renderItem={renderMessageItem}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null

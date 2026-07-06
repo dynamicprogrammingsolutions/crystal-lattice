@@ -51,6 +51,12 @@ export interface PlaceholderFlatListProps<TItem> {
   showsVerticalScrollIndicator?: boolean;
 
   scrollEventThrottle?: number;
+  disableVirtualization?: boolean;
+  initialNumToRender?: number;
+  maxToRenderPerBatch?: number;
+  updateCellsBatchingPeriod?: number;
+  windowSize?: number;
+  removeClippedSubviews?: boolean;
   onLayout?: (event: LayoutChangeEvent) => void;
   onContentSizeChange?: (width: number, height: number) => void;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
