@@ -164,6 +164,14 @@ const FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION = readGlobalBoolean(
   'CLC_FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION',
   false,
 );
+const FLATLIST_FORWARD_SCROLL_END_DRAG = readGlobalBoolean(
+  'CLC_FLATLIST_FORWARD_SCROLL_END_DRAG',
+  true,
+);
+const FLATLIST_FORWARD_MOMENTUM_SCROLL_END = readGlobalBoolean(
+  'CLC_FLATLIST_FORWARD_MOMENTUM_SCROLL_END',
+  true,
+);
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -2577,8 +2585,16 @@ export const ChatPane = React.memo(function ChatPane({
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
-	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
-	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
+	              onScrollEndDrag={
+	                FLATLIST_FORWARD_SCROLL_END_DRAG
+	                  ? transcriptScroll.onScrollEndDrag
+	                  : undefined
+	              }
+	              onMomentumScrollEnd={
+	                FLATLIST_FORWARD_MOMENTUM_SCROLL_END
+	                  ? transcriptScroll.onMomentumScrollEnd
+	                  : undefined
+	              }
 	              renderItem={renderMessageItem}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
@@ -2622,8 +2638,16 @@ export const ChatPane = React.memo(function ChatPane({
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
-	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
-	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
+	              onScrollEndDrag={
+	                FLATLIST_FORWARD_SCROLL_END_DRAG
+	                  ? transcriptScroll.onScrollEndDrag
+	                  : undefined
+	              }
+	              onMomentumScrollEnd={
+	                FLATLIST_FORWARD_MOMENTUM_SCROLL_END
+	                  ? transcriptScroll.onMomentumScrollEnd
+	                  : undefined
+	              }
 	              renderItem={renderMessageItem}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
