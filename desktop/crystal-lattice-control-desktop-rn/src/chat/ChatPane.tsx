@@ -116,6 +116,10 @@ const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_r
 const TRANSCRIPT_LIST_IMPLEMENTATION = ((globalThis as any).CLC_TRANSCRIPT_LIST_IMPLEMENTATION ??
   'flatList') as 'scrollView' | 'flatList' | 'virtualizedScroll';
 
+type DesktopTranscriptRow =
+  | { kind: 'stream' }
+  | { kind: 'message'; item: IndexedMessage };
+
 function readGlobalBoolean(name: string, fallback: boolean): boolean {
   const value = (globalThis as any)[name];
   if (value === true || value === 'true') {
@@ -162,7 +166,7 @@ const FLATLIST_REMOVE_CLIPPED_SUBVIEWS = readOptionalGlobalBoolean(
 );
 const FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION = readGlobalBoolean(
   'CLC_FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION',
-  false,
+  true,
 );
 const FLATLIST_FORWARD_SCROLL_END_DRAG = readGlobalBoolean(
   'CLC_FLATLIST_FORWARD_SCROLL_END_DRAG',
@@ -172,9 +176,12 @@ const FLATLIST_FORWARD_MOMENTUM_SCROLL_END = readGlobalBoolean(
   'CLC_FLATLIST_FORWARD_MOMENTUM_SCROLL_END',
   true,
 );
-const FLATLIST_STICK_TO_BOTTOM = readGlobalBoolean('CLC_FLATLIST_STICK_TO_BOTTOM', false);
-const FLATLIST_STICK_TO_BOTTOM_THRESHOLD_PX =
-  readOptionalGlobalNumber('CLC_FLATLIST_STICK_TO_BOTTOM_THRESHOLD_PX') ?? 80;
+const FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX =
+  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX') ?? 4;
+const FLATLIST_BOTTOM_SCROLL_MAX_ATTEMPTS =
+  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_SCROLL_MAX_ATTEMPTS') ?? 12;
+const FLATLIST_BOTTOM_SCROLL_REPEAT_LIMIT =
+  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_SCROLL_REPEAT_LIMIT') ?? 3;
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -895,8 +902,10 @@ export const ChatPane = React.memo(function ChatPane({
     getMessagesForCache,
     onUpdateCache,
     enabled: isActive,
-    stickToBottomEnabled: FLATLIST_STICK_TO_BOTTOM,
-    stickToBottomThresholdPx: FLATLIST_STICK_TO_BOTTOM_THRESHOLD_PX,
+    inverted: true,
+    bottomThresholdPx: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
+    bottomScrollMaxAttempts: FLATLIST_BOTTOM_SCROLL_MAX_ATTEMPTS,
+    bottomScrollRepeatLimit: FLATLIST_BOTTOM_SCROLL_REPEAT_LIMIT,
   });
 
   const requestPersistTranscriptScroll = transcriptScroll.requestPersist;
@@ -2384,6 +2393,19 @@ export const ChatPane = React.memo(function ChatPane({
     streamingRow,
   ]);
 
+  const transcriptRows = useMemo<DesktopTranscriptRow[]>(() => {
+    const rows: DesktopTranscriptRow[] = [];
+    const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
+    const hasInlineDisplays = inlineActionDisplays.length > 0;
+    if (hasStreaming || hasInlineDisplays) {
+      rows.push({ kind: 'stream' });
+    }
+    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
+      rows.push({ kind: 'message', item: messages[idx] });
+    }
+    return rows;
+  }, [inlineActionDisplays.length, messages, streamingRow]);
+
   const renderMessageItem = useCallback(
     ({ item: msg }: { item: IndexedMessage; index: number }) => {
       const role = msg.message.role || 'unknown';
@@ -2423,6 +2445,62 @@ export const ChatPane = React.memo(function ChatPane({
       messageViewModeByIndex,
       pluginMessageActionDefs,
     ],
+  );
+
+  const getTranscriptRowKey = useCallback((row: DesktopTranscriptRow) => {
+    if (row.kind === 'stream') {
+      return 'row-stream';
+    }
+    return `msg-${row.item.index}`;
+  }, []);
+
+  const getTranscriptRowDependencies = useCallback(
+    (row: DesktopTranscriptRow) => {
+      if (row.kind === 'stream') {
+        return [
+          streamingRow,
+          inlineActionDisplays,
+          activeDisplayActionId,
+          footerElements,
+          messages.length > 0 ? messages[messages.length - 1].index : null,
+        ];
+      }
+
+      const msg = row.item;
+      const role = msg.message.role || 'unknown';
+      const defaultModeForRole: 'markdown' | 'raw' =
+        role === 'assistant' ? 'markdown' : 'raw';
+      const renderMode = messageViewModeByIndex[msg.index] ?? defaultModeForRole;
+      const isEditing = msg.index === editingIndex;
+      return [
+        renderMode,
+        footerElements,
+        isEditing,
+        isEditing ? editingInitialText : null,
+        isEditing ? editingText : null,
+      ];
+    },
+    [
+      activeDisplayActionId,
+      editingIndex,
+      editingInitialText,
+      editingText,
+      footerElements,
+      inlineActionDisplays,
+      messageViewModeByIndex,
+      messages,
+      streamingRow,
+    ],
+  );
+
+  const renderTranscriptRow = useCallback(
+    ({ item: row, index }: { item: DesktopTranscriptRow; index: number }) => {
+      if (row.kind === 'stream') {
+        return streamingFooter;
+      }
+      return renderMessageItem({ item: row.item, index });
+    },
+    [renderMessageItem, streamingFooter],
   );
 
   return (
@@ -2558,23 +2636,10 @@ export const ChatPane = React.memo(function ChatPane({
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
-	              data={messages}
-	              keyExtractor={(item) => String(item.index)}
-	              getItemDependencies={(item) => {
-	                const role = item.message.role || 'unknown';
-	                const defaultModeForRole: 'markdown' | 'raw' =
-	                  role === 'assistant' ? 'markdown' : 'raw';
-	                const renderMode =
-	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
-	                const isEditing = item.index === editingIndex;
-	                return [
-	                  renderMode,
-	                  footerElements,
-	                  isEditing,
-	                  isEditing ? editingInitialText : null,
-	                  isEditing ? editingText : null,
-	                ];
-	              }}
+	              data={transcriptRows}
+	              inverted
+	              keyExtractor={getTranscriptRowKey}
+	              getItemDependencies={getTranscriptRowDependencies}
 	              scrollEventThrottle={16}
 	              disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
 	              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
@@ -2584,7 +2649,10 @@ export const ChatPane = React.memo(function ChatPane({
 	              removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
 	              maintainVisibleContentPosition={
 	                FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION
-	                  ? { minIndexForVisible: 0 }
+	                  ? {
+	                      minIndexForVisible: 0,
+	                      autoscrollToTopThreshold: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
+	                    }
 	                  : undefined
 	              }
 	              onLayout={transcriptScroll.onLayout}
@@ -2600,34 +2668,20 @@ export const ChatPane = React.memo(function ChatPane({
 	                  ? transcriptScroll.onMomentumScrollEnd
 	                  : undefined
 	              }
-	              renderItem={renderMessageItem}
+	              renderItem={renderTranscriptRow}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
 	              }
-	              ListFooterComponent={streamingFooter}
 	            />
             ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'virtualizedScroll' ? (
               <DependencyVirtualizedScroll
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
-	              data={messages}
-	              keyExtractor={(item) => String(item.index)}
-	              getItemDependencies={(item) => {
-	                const role = item.message.role || 'unknown';
-	                const defaultModeForRole: 'markdown' | 'raw' =
-	                  role === 'assistant' ? 'markdown' : 'raw';
-	                const renderMode =
-	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
-	                const isEditing = item.index === editingIndex;
-	                return [
-	                  renderMode,
-	                  footerElements,
-	                  isEditing,
-	                  isEditing ? editingInitialText : null,
-	                  isEditing ? editingText : null,
-	                ];
-	              }}
+	              data={transcriptRows}
+	              inverted
+	              keyExtractor={getTranscriptRowKey}
+	              getItemDependencies={getTranscriptRowDependencies}
 	              scrollEventThrottle={16}
 	              disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
 	              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
@@ -2637,7 +2691,10 @@ export const ChatPane = React.memo(function ChatPane({
 	              removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
 	              maintainVisibleContentPosition={
 	                FLATLIST_MAINTAIN_VISIBLE_CONTENT_POSITION
-	                  ? { minIndexForVisible: 0 }
+	                  ? {
+	                      minIndexForVisible: 0,
+	                      autoscrollToTopThreshold: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
+	                    }
 	                  : undefined
 	              }
 	              onLayout={transcriptScroll.onLayout}
@@ -2653,11 +2710,10 @@ export const ChatPane = React.memo(function ChatPane({
 	                  ? transcriptScroll.onMomentumScrollEnd
 	                  : undefined
 	              }
-	              renderItem={renderMessageItem}
+	              renderItem={renderTranscriptRow}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
 	              }
-	              ListFooterComponent={streamingFooter}
 	            />
             ) : (
               <PlaceholderFlatList
