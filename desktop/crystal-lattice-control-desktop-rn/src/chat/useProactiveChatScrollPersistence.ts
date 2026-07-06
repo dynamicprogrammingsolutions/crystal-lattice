@@ -115,8 +115,8 @@ export function useProactiveChatScrollPersistence(params: {
   const debugEnabled =
     (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === true ||
     (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === 'true' ||
-    ((globalThis as any).CLC_DEBUG_FLATLIST_SCROLL !== false &&
-      (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL !== 'false');
+    (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL === true ||
+    (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL === 'true';
 
   const logScrollDiagnostics = useCallback(
     (kind: string, event?: NativeSyntheticEvent<NativeScrollEvent>) => {
