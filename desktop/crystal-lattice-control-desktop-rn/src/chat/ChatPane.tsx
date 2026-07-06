@@ -2395,13 +2395,13 @@ export const ChatPane = React.memo(function ChatPane({
 
   const transcriptRows = useMemo<DesktopTranscriptRow[]>(() => {
     const rows: DesktopTranscriptRow[] = [];
+    for (const message of messages) {
+      rows.push({ kind: 'message', item: message });
+    }
     const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
     const hasInlineDisplays = inlineActionDisplays.length > 0;
     if (hasStreaming || hasInlineDisplays) {
       rows.push({ kind: 'stream' });
-    }
-    for (let idx = messages.length - 1; idx >= 0; idx -= 1) {
-      rows.push({ kind: 'message', item: messages[idx] });
     }
     return rows;
   }, [inlineActionDisplays.length, messages, streamingRow]);

@@ -132,7 +132,7 @@ export function useProactiveChatScrollPersistence(params: {
   const contentHeightRef = useRef<number | null>(null);
   const layoutHeightRef = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
-  const pendingBottomScrollFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+  const pendingEdgeScrollFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
   const scrollAffordanceStateRef = useRef({
     canScrollToTop: false,
     canScrollToBottom: false,
@@ -210,57 +210,46 @@ export function useProactiveChatScrollPersistence(params: {
     [updateDerivedScrollState],
   );
 
-  const scrollToTop = useCallback(
-    (animated = true) => {
+  const scrollToEdge = useCallback(
+    (edge: 'top' | 'bottom', animated = true) => {
       const target = listRef.current;
       if (!target) {
         return;
       }
-      const contentHeight = contentHeightRef.current;
-      const layoutHeight = layoutHeightRef.current;
-      const maxOffsetY =
-        contentHeight != null && layoutHeight != null
-          ? Math.max(0, contentHeight - layoutHeight)
-          : 0;
-      const targetOffsetY = inverted ? maxOffsetY : 0;
-      if (typeof target.scrollToOffset === 'function') {
-        target.scrollToOffset({ offset: targetOffsetY, animated });
-      } else if (typeof target.scrollTo === 'function') {
-        target.scrollTo({ y: targetOffsetY, animated });
+      if (pendingEdgeScrollFrameRef.current != null) {
+        cancelAnimationFrame(pendingEdgeScrollFrameRef.current);
+        pendingEdgeScrollFrameRef.current = null;
       }
-      offsetYRef.current = targetOffsetY;
-      updateDerivedScrollState();
-    },
-    [inverted, updateDerivedScrollState],
-  );
 
-  const scrollToBottom = useCallback(
-    (animated = true) => {
-      const target = listRef.current;
-      if (!target) {
-        return;
-      }
-      const contentHeight = contentHeightRef.current;
-      const layoutHeight = layoutHeightRef.current;
-      const maxOffsetY =
-        contentHeight != null && layoutHeight != null
-          ? Math.max(0, contentHeight - layoutHeight)
-          : 0;
-      const targetOffsetY = inverted ? 0 : maxOffsetY;
-      if (typeof target.scrollToOffset === 'function') {
-        target.scrollToOffset({ offset: targetOffsetY, animated });
-      } else if (typeof target.scrollToEnd === 'function') {
-        target.scrollToEnd({ animated });
-      } else if (typeof target.scrollTo === 'function') {
-        target.scrollTo({ y: targetOffsetY, animated });
-      }
-      offsetYRef.current = targetOffsetY;
-      updateDerivedScrollState();
+      const scrollOnce = (nextAnimated: boolean) => {
+        const contentHeight = contentHeightRef.current;
+        const layoutHeight = layoutHeightRef.current;
+        const maxOffsetY =
+          contentHeight != null && layoutHeight != null
+            ? Math.max(0, contentHeight - layoutHeight)
+            : 0;
+        const targetOffsetY =
+          edge === 'bottom'
+            ? inverted
+              ? 0
+              : maxOffsetY
+            : inverted
+              ? maxOffsetY
+              : 0;
 
-      if (pendingBottomScrollFrameRef.current != null) {
-        cancelAnimationFrame(pendingBottomScrollFrameRef.current);
-        pendingBottomScrollFrameRef.current = null;
-      }
+        if (typeof target.scrollToOffset === 'function') {
+          target.scrollToOffset({ offset: targetOffsetY, animated: nextAnimated });
+        } else if (typeof target.scrollTo === 'function') {
+          target.scrollTo({ y: targetOffsetY, animated: nextAnimated });
+        } else if (edge === 'bottom' && !inverted && typeof target.scrollToEnd === 'function') {
+          target.scrollToEnd({ animated: nextAnimated });
+        }
+
+        offsetYRef.current = targetOffsetY;
+        updateDerivedScrollState();
+      };
+
+      scrollOnce(animated);
 
       let attempts = 0;
       let repeats = 0;
@@ -270,7 +259,7 @@ export function useProactiveChatScrollPersistence(params: {
       const repeatLimit = Math.max(1, Math.round(bottomScrollRepeatLimit));
 
       const runAttempt = () => {
-        pendingBottomScrollFrameRef.current = null;
+        pendingEdgeScrollFrameRef.current = null;
         getMacScrollViewMetrics(listRef.current)
           .then((metrics) => {
             if (!metrics) {
@@ -282,10 +271,15 @@ export function useProactiveChatScrollPersistence(params: {
             updateDerivedScrollState();
 
             const maxY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
-            const bottomGapPx = inverted
-              ? Math.max(0, metrics.offsetY)
-              : Math.max(0, maxY - metrics.offsetY);
-            if (bottomGapPx <= threshold) {
+            const edgeGapPx =
+              edge === 'bottom'
+                ? inverted
+                  ? Math.max(0, metrics.offsetY)
+                  : Math.max(0, maxY - metrics.offsetY)
+                : inverted
+                  ? Math.max(0, maxY - metrics.offsetY)
+                  : Math.max(0, metrics.offsetY);
+            if (edgeGapPx <= threshold) {
               return;
             }
 
@@ -301,28 +295,13 @@ export function useProactiveChatScrollPersistence(params: {
               return;
             }
 
-            const nextContentHeight = contentHeightRef.current;
-            const nextLayoutHeight = layoutHeightRef.current;
-            const nextMaxOffsetY =
-              nextContentHeight != null && nextLayoutHeight != null
-                ? Math.max(0, nextContentHeight - nextLayoutHeight)
-                : 0;
-            const nextTargetOffsetY = inverted ? 0 : nextMaxOffsetY;
-            if (typeof target.scrollToOffset === 'function') {
-              target.scrollToOffset({ offset: nextTargetOffsetY, animated: false });
-            } else if (typeof target.scrollTo === 'function') {
-              target.scrollTo({ y: nextTargetOffsetY, animated: false });
-            } else if (!inverted && typeof target.scrollToEnd === 'function') {
-              target.scrollToEnd({ animated: false });
-            }
-            offsetYRef.current = nextTargetOffsetY;
-            updateDerivedScrollState();
-            pendingBottomScrollFrameRef.current = requestAnimationFrame(runAttempt);
+            scrollOnce(false);
+            pendingEdgeScrollFrameRef.current = requestAnimationFrame(runAttempt);
           })
           .catch(() => {});
       };
 
-      pendingBottomScrollFrameRef.current = requestAnimationFrame(runAttempt);
+      pendingEdgeScrollFrameRef.current = requestAnimationFrame(runAttempt);
     },
     [
       bottomScrollMaxAttempts,
@@ -331,6 +310,20 @@ export function useProactiveChatScrollPersistence(params: {
       inverted,
       updateDerivedScrollState,
     ],
+  );
+
+  const scrollToTop = useCallback(
+    (animated = true) => {
+      scrollToEdge('top', animated);
+    },
+    [scrollToEdge],
+  );
+
+  const scrollToBottom = useCallback(
+    (animated = true) => {
+      scrollToEdge('bottom', animated);
+    },
+    [scrollToEdge],
   );
 
   const logScrollDiagnostics = useCallback(
@@ -578,9 +571,9 @@ export function useProactiveChatScrollPersistence(params: {
         clearTimeout(persistTimerRef.current);
         persistTimerRef.current = null;
       }
-      if (pendingBottomScrollFrameRef.current != null) {
-        cancelAnimationFrame(pendingBottomScrollFrameRef.current);
-        pendingBottomScrollFrameRef.current = null;
+      if (pendingEdgeScrollFrameRef.current != null) {
+        cancelAnimationFrame(pendingEdgeScrollFrameRef.current);
+        pendingEdgeScrollFrameRef.current = null;
       }
       persistNow('unmount', { force: true }).catch(() => {});
     };
