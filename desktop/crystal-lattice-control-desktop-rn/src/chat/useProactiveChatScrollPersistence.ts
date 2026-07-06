@@ -29,6 +29,13 @@ type UpdateMessagesCache = (params: {
   scrollAnchor?: unknown;
 }) => void;
 
+type ScrollEdge = 'top' | 'bottom';
+
+type ActiveEdgeScroll = {
+  edge: ScrollEdge;
+  runAttempt: (reason: string) => void;
+};
+
 function scrollToOffsetY(
   target: any,
   offsetY: number,
@@ -97,6 +104,7 @@ export function useProactiveChatScrollPersistence(params: {
   bottomThresholdPx?: number;
   bottomScrollMaxAttempts?: number;
   bottomScrollRepeatLimit?: number;
+  bottomLockEnabled?: boolean;
 }): {
   listRef: RefObject<any>;
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -125,6 +133,7 @@ export function useProactiveChatScrollPersistence(params: {
     bottomThresholdPx = PINNED_TO_BOTTOM_THRESHOLD_PX,
     bottomScrollMaxAttempts = 12,
     bottomScrollRepeatLimit = 3,
+    bottomLockEnabled = false,
   } = params;
 
   const listRef = useRef<any>(null);
@@ -133,6 +142,7 @@ export function useProactiveChatScrollPersistence(params: {
   const layoutHeightRef = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
   const pendingEdgeScrollFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+  const activeEdgeScrollRef = useRef<ActiveEdgeScroll | null>(null);
   const scrollAffordanceStateRef = useRef({
     canScrollToTop: false,
     canScrollToBottom: false,
@@ -211,7 +221,7 @@ export function useProactiveChatScrollPersistence(params: {
   );
 
   const scrollToEdge = useCallback(
-    (edge: 'top' | 'bottom', animated = true) => {
+    (edge: ScrollEdge, animated = true) => {
       const target = listRef.current;
       if (!target) {
         return;
@@ -258,11 +268,28 @@ export function useProactiveChatScrollPersistence(params: {
       const maxAttempts = Math.max(1, Math.round(bottomScrollMaxAttempts));
       const repeatLimit = Math.max(1, Math.round(bottomScrollRepeatLimit));
 
-      const runAttempt = () => {
+      const stopActiveScroll = () => {
+        if (activeEdgeScrollRef.current?.runAttempt === runAttempt) {
+          activeEdgeScrollRef.current = null;
+        }
+      };
+
+      const scheduleAttempt = () => {
+        if (pendingEdgeScrollFrameRef.current != null) {
+          return;
+        }
+        pendingEdgeScrollFrameRef.current = requestAnimationFrame(() => {
+          pendingEdgeScrollFrameRef.current = null;
+          runAttempt('frame');
+        });
+      };
+
+      const runAttempt = (_reason: string) => {
         pendingEdgeScrollFrameRef.current = null;
         getMacScrollViewMetrics(listRef.current)
           .then((metrics) => {
             if (!metrics) {
+              stopActiveScroll();
               return;
             }
             offsetYRef.current = metrics.offsetY;
@@ -280,6 +307,7 @@ export function useProactiveChatScrollPersistence(params: {
                   ? Math.max(0, maxY - metrics.offsetY)
                   : Math.max(0, metrics.offsetY);
             if (edgeGapPx <= threshold) {
+              stopActiveScroll();
               return;
             }
 
@@ -292,16 +320,18 @@ export function useProactiveChatScrollPersistence(params: {
             lastSignature = signature;
             attempts += 1;
             if (attempts >= maxAttempts || repeats >= repeatLimit) {
+              stopActiveScroll();
               return;
             }
 
             scrollOnce(false);
-            pendingEdgeScrollFrameRef.current = requestAnimationFrame(runAttempt);
+            scheduleAttempt();
           })
           .catch(() => {});
       };
 
-      pendingEdgeScrollFrameRef.current = requestAnimationFrame(runAttempt);
+      activeEdgeScrollRef.current = { edge, runAttempt };
+      scheduleAttempt();
     },
     [
       bottomScrollMaxAttempts,
@@ -325,6 +355,10 @@ export function useProactiveChatScrollPersistence(params: {
     },
     [scrollToEdge],
   );
+
+  const continueActiveEdgeScroll = useCallback((reason: string) => {
+    activeEdgeScrollRef.current?.runAttempt(reason);
+  }, []);
 
   const logScrollDiagnostics = useCallback(
     (kind: string, event?: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -575,6 +609,7 @@ export function useProactiveChatScrollPersistence(params: {
         cancelAnimationFrame(pendingEdgeScrollFrameRef.current);
         pendingEdgeScrollFrameRef.current = null;
       }
+      activeEdgeScrollRef.current = null;
       persistNow('unmount', { force: true }).catch(() => {});
     };
   }, [persistNow]);
@@ -586,6 +621,7 @@ export function useProactiveChatScrollPersistence(params: {
         layoutHeightRef.current = height;
       }
       updateDerivedScrollState();
+      continueActiveEdgeScroll('layout');
       if (debugEnabled) {
         console.log('[flatListScroll] layout', {
           connectionId,
@@ -598,6 +634,7 @@ export function useProactiveChatScrollPersistence(params: {
     },
     [
       connectionId,
+      continueActiveEdgeScroll,
       debugEnabled,
       getMessagesForCache,
       maybeRestoreScroll,
@@ -608,11 +645,13 @@ export function useProactiveChatScrollPersistence(params: {
 
   const onContentSizeChange = useCallback(
     (_width: number, height: number) => {
+      const wasNearBottom = isNearBottomRef.current;
       const resolved = Number(height ?? NaN);
       if (Number.isFinite(resolved)) {
         contentHeightRef.current = resolved;
       }
       updateDerivedScrollState();
+      continueActiveEdgeScroll('contentSizeChange');
       if (debugEnabled) {
         const layoutHeight = layoutHeightRef.current;
         console.log('[flatListScroll] contentSizeChange', {
@@ -629,13 +668,19 @@ export function useProactiveChatScrollPersistence(params: {
         });
       }
       maybeRestoreScroll();
+      if (bottomLockEnabled && hasRestoredRef.current && wasNearBottom) {
+        scrollToEdge('bottom', false);
+      }
     },
     [
+      bottomLockEnabled,
       connectionId,
+      continueActiveEdgeScroll,
       debugEnabled,
       getMessagesForCache,
       maybeRestoreScroll,
       sessionId,
+      scrollToEdge,
       updateDerivedScrollState,
     ],
   );
@@ -644,23 +689,26 @@ export function useProactiveChatScrollPersistence(params: {
     // Persistence still uses native pull-based metrics, but scroll events are
     // useful for lightweight affordance state.
     applyEventMetrics(event);
+    continueActiveEdgeScroll('scroll');
     logScrollDiagnostics('scroll', event);
-  }, [applyEventMetrics, logScrollDiagnostics]);
+  }, [applyEventMetrics, continueActiveEdgeScroll, logScrollDiagnostics]);
 
   const onScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     applyEventMetrics(event);
+    continueActiveEdgeScroll('scrollEndDrag');
     logScrollDiagnostics('scrollEndDrag', event);
     // If end-drag events are delivered, opportunistically persist.
     requestPersist('scrollEndDrag');
-  }, [applyEventMetrics, logScrollDiagnostics, requestPersist]);
+  }, [applyEventMetrics, continueActiveEdgeScroll, logScrollDiagnostics, requestPersist]);
 
   const onMomentumScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       applyEventMetrics(event);
+      continueActiveEdgeScroll('momentumScrollEnd');
       logScrollDiagnostics('momentumScrollEnd', event);
       requestPersist('scrollMomentumEnd');
     },
-    [applyEventMetrics, logScrollDiagnostics, requestPersist],
+    [applyEventMetrics, continueActiveEdgeScroll, logScrollDiagnostics, requestPersist],
   );
 
   const result = useMemo(() => {

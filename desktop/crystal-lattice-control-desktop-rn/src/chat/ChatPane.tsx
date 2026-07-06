@@ -182,6 +182,7 @@ const FLATLIST_BOTTOM_SCROLL_MAX_ATTEMPTS =
   readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_SCROLL_MAX_ATTEMPTS') ?? 12;
 const FLATLIST_BOTTOM_SCROLL_REPEAT_LIMIT =
   readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_SCROLL_REPEAT_LIMIT') ?? 3;
+const FLATLIST_BOTTOM_LOCK = readGlobalBoolean('CLC_FLATLIST_BOTTOM_LOCK', true);
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -902,10 +903,13 @@ export const ChatPane = React.memo(function ChatPane({
     getMessagesForCache,
     onUpdateCache,
     enabled: isActive,
-    inverted: true,
+    // RN macOS renders this list inverted, but native scroll metrics still use
+    // normal coordinates: visual bottom is the max offset.
+    inverted: false,
     bottomThresholdPx: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
     bottomScrollMaxAttempts: FLATLIST_BOTTOM_SCROLL_MAX_ATTEMPTS,
     bottomScrollRepeatLimit: FLATLIST_BOTTOM_SCROLL_REPEAT_LIMIT,
+    bottomLockEnabled: FLATLIST_BOTTOM_LOCK,
   });
 
   const requestPersistTranscriptScroll = transcriptScroll.requestPersist;
