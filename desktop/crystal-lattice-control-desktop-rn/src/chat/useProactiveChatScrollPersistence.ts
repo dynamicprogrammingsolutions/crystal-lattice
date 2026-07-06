@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type RefObject,
 } from 'react';
 import type {
@@ -67,6 +68,22 @@ function scrollToOffsetY(
   }
 }
 
+function readScrollMetricsFromEvent(event: NativeSyntheticEvent<NativeScrollEvent>): {
+  offsetY: number | null;
+  contentHeight: number | null;
+  viewportHeight: number | null;
+} {
+  const nativeEvent = event.nativeEvent;
+  const offsetY = Number(nativeEvent?.contentOffset?.y ?? NaN);
+  const contentHeight = Number(nativeEvent?.contentSize?.height ?? NaN);
+  const viewportHeight = Number(nativeEvent?.layoutMeasurement?.height ?? NaN);
+  return {
+    offsetY: Number.isFinite(offsetY) ? offsetY : null,
+    contentHeight: Number.isFinite(contentHeight) ? contentHeight : null,
+    viewportHeight: Number.isFinite(viewportHeight) ? viewportHeight : null,
+  };
+}
+
 export function useProactiveChatScrollPersistence(params: {
   connectionId: string;
   sessionId: string;
@@ -76,6 +93,8 @@ export function useProactiveChatScrollPersistence(params: {
   enabled?: boolean;
   persistDebounceMs?: number;
   persistThrottleMs?: number;
+  stickToBottomEnabled?: boolean;
+  stickToBottomThresholdPx?: number;
 }): {
   listRef: RefObject<any>;
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -85,6 +104,11 @@ export function useProactiveChatScrollPersistence(params: {
   onContentSizeChange: (width: number, height: number) => void;
   requestPersist: (reason: string) => void;
   resetRestore: (reason: string) => void;
+  scrollToTop: (animated?: boolean) => void;
+  scrollToBottom: (animated?: boolean) => void;
+  canScrollToTop: boolean;
+  canScrollToBottom: boolean;
+  isNearBottom: boolean;
 } {
   const {
     connectionId,
@@ -95,11 +119,26 @@ export function useProactiveChatScrollPersistence(params: {
     enabled = true,
     persistDebounceMs = 250,
     persistThrottleMs = 1000,
+    stickToBottomEnabled = false,
+    stickToBottomThresholdPx = PINNED_TO_BOTTOM_THRESHOLD_PX,
   } = params;
 
   const listRef = useRef<any>(null);
+  const offsetYRef = useRef(0);
   const contentHeightRef = useRef<number | null>(null);
   const layoutHeightRef = useRef<number | null>(null);
+  const isNearBottomRef = useRef(true);
+  const pendingStickToBottomFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+  const scrollAffordanceStateRef = useRef({
+    canScrollToTop: false,
+    canScrollToBottom: false,
+    isNearBottom: true,
+  });
+  const [scrollAffordanceState, setScrollAffordanceState] = useState({
+    canScrollToTop: false,
+    canScrollToBottom: false,
+    isNearBottom: true,
+  });
 
   const initialAnchorRef = useRef<ChatScrollAnchor | null>(
     isChatScrollAnchor(cachedScrollAnchor) ? cachedScrollAnchor : null,
@@ -117,6 +156,112 @@ export function useProactiveChatScrollPersistence(params: {
     (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === 'true' ||
     (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL === true ||
     (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL === 'true';
+
+  const updateDerivedScrollState = useCallback(() => {
+    const contentHeight = contentHeightRef.current;
+    const layoutHeight = layoutHeightRef.current;
+    const offsetY = offsetYRef.current;
+    const maxOffsetY =
+      contentHeight != null && layoutHeight != null
+        ? Math.max(0, contentHeight - layoutHeight)
+        : 0;
+    const bottomGapPx = Math.max(0, maxOffsetY - offsetY);
+    const threshold = Math.max(0, stickToBottomThresholdPx);
+    const isNearBottom = bottomGapPx <= threshold;
+    isNearBottomRef.current = isNearBottom;
+
+    const next = {
+      canScrollToTop: offsetY > threshold,
+      canScrollToBottom: bottomGapPx > threshold,
+      isNearBottom,
+    };
+
+    const current = scrollAffordanceStateRef.current;
+    if (
+      current.canScrollToTop === next.canScrollToTop &&
+      current.canScrollToBottom === next.canScrollToBottom &&
+      current.isNearBottom === next.isNearBottom
+    ) {
+      return;
+    }
+    scrollAffordanceStateRef.current = next;
+    setScrollAffordanceState(next);
+  }, [stickToBottomThresholdPx]);
+
+  const applyEventMetrics = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const metrics = readScrollMetricsFromEvent(event);
+      if (metrics.offsetY != null) {
+        offsetYRef.current = metrics.offsetY;
+      }
+      if (metrics.contentHeight != null) {
+        contentHeightRef.current = metrics.contentHeight;
+      }
+      if (metrics.viewportHeight != null) {
+        layoutHeightRef.current = metrics.viewportHeight;
+      }
+      updateDerivedScrollState();
+    },
+    [updateDerivedScrollState],
+  );
+
+  const scrollToTop = useCallback(
+    (animated = true) => {
+      const target = listRef.current;
+      if (!target) {
+        return;
+      }
+      if (typeof target.scrollToOffset === 'function') {
+        target.scrollToOffset({ offset: 0, animated });
+      } else if (typeof target.scrollTo === 'function') {
+        target.scrollTo({ y: 0, animated });
+      }
+      offsetYRef.current = 0;
+      updateDerivedScrollState();
+    },
+    [updateDerivedScrollState],
+  );
+
+  const scrollToBottom = useCallback(
+    (animated = true) => {
+      const target = listRef.current;
+      if (!target) {
+        return;
+      }
+      const contentHeight = contentHeightRef.current;
+      const layoutHeight = layoutHeightRef.current;
+      const maxOffsetY =
+        contentHeight != null && layoutHeight != null
+          ? Math.max(0, contentHeight - layoutHeight)
+          : 0;
+      if (typeof target.scrollToOffset === 'function') {
+        target.scrollToOffset({ offset: maxOffsetY, animated });
+      } else if (typeof target.scrollToEnd === 'function') {
+        target.scrollToEnd({ animated });
+      } else if (typeof target.scrollTo === 'function') {
+        target.scrollTo({ y: maxOffsetY, animated });
+      }
+      offsetYRef.current = maxOffsetY;
+      updateDerivedScrollState();
+    },
+    [updateDerivedScrollState],
+  );
+
+  const requestStickToBottom = useCallback(() => {
+    if (!stickToBottomEnabled || !enabled || !hasRestoredRef.current) {
+      return;
+    }
+    if (!isNearBottomRef.current) {
+      return;
+    }
+    if (pendingStickToBottomFrameRef.current != null) {
+      cancelAnimationFrame(pendingStickToBottomFrameRef.current);
+    }
+    pendingStickToBottomFrameRef.current = requestAnimationFrame(() => {
+      pendingStickToBottomFrameRef.current = null;
+      scrollToBottom(false);
+    });
+  }, [enabled, scrollToBottom, stickToBottomEnabled]);
 
   const logScrollDiagnostics = useCallback(
     (kind: string, event?: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -201,6 +346,7 @@ export function useProactiveChatScrollPersistence(params: {
 
     const anchor = initialAnchorRef.current;
     if (!anchor) {
+      hasRestoredRef.current = true;
       return;
     }
 
@@ -232,8 +378,10 @@ export function useProactiveChatScrollPersistence(params: {
       connectionId,
       sessionId,
     });
+    offsetYRef.current = targetOffsetY;
+    updateDerivedScrollState();
     hasRestoredRef.current = true;
-  }, [connectionId, debugEnabled, enabled, sessionId]);
+  }, [connectionId, debugEnabled, enabled, sessionId, updateDerivedScrollState]);
 
   const persistNow = useCallback(
     async (
@@ -351,6 +499,10 @@ export function useProactiveChatScrollPersistence(params: {
         clearTimeout(persistTimerRef.current);
         persistTimerRef.current = null;
       }
+      if (pendingStickToBottomFrameRef.current != null) {
+        cancelAnimationFrame(pendingStickToBottomFrameRef.current);
+        pendingStickToBottomFrameRef.current = null;
+      }
       persistNow('unmount', { force: true }).catch(() => {});
     };
   }, [persistNow]);
@@ -361,6 +513,7 @@ export function useProactiveChatScrollPersistence(params: {
       if (Number.isFinite(height)) {
         layoutHeightRef.current = height;
       }
+      updateDerivedScrollState();
       if (debugEnabled) {
         console.log('[flatListScroll] layout', {
           connectionId,
@@ -370,16 +523,28 @@ export function useProactiveChatScrollPersistence(params: {
         });
       }
       maybeRestoreScroll();
+      requestStickToBottom();
     },
-    [connectionId, debugEnabled, getMessagesForCache, maybeRestoreScroll, sessionId],
+    [
+      connectionId,
+      debugEnabled,
+      getMessagesForCache,
+      maybeRestoreScroll,
+      requestStickToBottom,
+      sessionId,
+      updateDerivedScrollState,
+    ],
   );
 
   const onContentSizeChange = useCallback(
     (_width: number, height: number) => {
+      const wasNearBottom = isNearBottomRef.current;
       const resolved = Number(height ?? NaN);
       if (Number.isFinite(resolved)) {
         contentHeightRef.current = resolved;
       }
+      isNearBottomRef.current = wasNearBottom;
+      updateDerivedScrollState();
       if (debugEnabled) {
         const layoutHeight = layoutHeightRef.current;
         console.log('[flatListScroll] contentSizeChange', {
@@ -396,28 +561,43 @@ export function useProactiveChatScrollPersistence(params: {
         });
       }
       maybeRestoreScroll();
+      if (wasNearBottom) {
+        isNearBottomRef.current = true;
+        requestStickToBottom();
+      }
     },
-    [connectionId, debugEnabled, getMessagesForCache, maybeRestoreScroll, sessionId],
+    [
+      connectionId,
+      debugEnabled,
+      getMessagesForCache,
+      maybeRestoreScroll,
+      requestStickToBottom,
+      sessionId,
+      updateDerivedScrollState,
+    ],
   );
 
   const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    // Intentionally no-op. Scroll events are not reliably delivered on macOS
-    // for this view. Persistence uses native pull-based metrics instead.
+    // Persistence still uses native pull-based metrics, but scroll events are
+    // useful for lightweight affordance/sticky-bottom state.
+    applyEventMetrics(event);
     logScrollDiagnostics('scroll', event);
-  }, [logScrollDiagnostics]);
+  }, [applyEventMetrics, logScrollDiagnostics]);
 
   const onScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    applyEventMetrics(event);
     logScrollDiagnostics('scrollEndDrag', event);
     // If end-drag events are delivered, opportunistically persist.
     requestPersist('scrollEndDrag');
-  }, [logScrollDiagnostics, requestPersist]);
+  }, [applyEventMetrics, logScrollDiagnostics, requestPersist]);
 
   const onMomentumScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      applyEventMetrics(event);
       logScrollDiagnostics('momentumScrollEnd', event);
       requestPersist('scrollMomentumEnd');
     },
-    [logScrollDiagnostics, requestPersist],
+    [applyEventMetrics, logScrollDiagnostics, requestPersist],
   );
 
   const result = useMemo(() => {
@@ -430,8 +610,16 @@ export function useProactiveChatScrollPersistence(params: {
       onContentSizeChange,
       requestPersist,
       resetRestore,
+      scrollToTop,
+      scrollToBottom,
+      canScrollToTop: scrollAffordanceState.canScrollToTop,
+      canScrollToBottom: scrollAffordanceState.canScrollToBottom,
+      isNearBottom: scrollAffordanceState.isNearBottom,
     };
   }, [
+    scrollAffordanceState.canScrollToBottom,
+    scrollAffordanceState.canScrollToTop,
+    scrollAffordanceState.isNearBottom,
     onContentSizeChange,
     onLayout,
     onMomentumScrollEnd,
@@ -439,6 +627,8 @@ export function useProactiveChatScrollPersistence(params: {
     onScrollEndDrag,
     requestPersist,
     resetRestore,
+    scrollToBottom,
+    scrollToTop,
   ]);
 
   return result;

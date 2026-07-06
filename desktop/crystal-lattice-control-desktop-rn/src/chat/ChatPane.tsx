@@ -172,6 +172,9 @@ const FLATLIST_FORWARD_MOMENTUM_SCROLL_END = readGlobalBoolean(
   'CLC_FLATLIST_FORWARD_MOMENTUM_SCROLL_END',
   true,
 );
+const FLATLIST_STICK_TO_BOTTOM = readGlobalBoolean('CLC_FLATLIST_STICK_TO_BOTTOM', false);
+const FLATLIST_STICK_TO_BOTTOM_THRESHOLD_PX =
+  readOptionalGlobalNumber('CLC_FLATLIST_STICK_TO_BOTTOM_THRESHOLD_PX') ?? 80;
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -892,6 +895,8 @@ export const ChatPane = React.memo(function ChatPane({
     getMessagesForCache,
     onUpdateCache,
     enabled: isActive,
+    stickToBottomEnabled: FLATLIST_STICK_TO_BOTTOM,
+    stickToBottomThresholdPx: FLATLIST_STICK_TO_BOTTOM_THRESHOLD_PX,
   });
 
   const requestPersistTranscriptScroll = transcriptScroll.requestPersist;
@@ -2546,10 +2551,10 @@ export const ChatPane = React.memo(function ChatPane({
           </View>
         ) : null}
 
-
-	        <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
-	          {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
-	            <DependencyFlatList
+        <View style={styles.transcriptFrame}>
+          <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
+            {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
+              <DependencyFlatList
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
@@ -2601,8 +2606,8 @@ export const ChatPane = React.memo(function ChatPane({
 	              }
 	              ListFooterComponent={streamingFooter}
 	            />
-	          ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'virtualizedScroll' ? (
-	            <DependencyVirtualizedScroll
+            ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'virtualizedScroll' ? (
+              <DependencyVirtualizedScroll
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
@@ -2654,8 +2659,8 @@ export const ChatPane = React.memo(function ChatPane({
 	              }
 	              ListFooterComponent={streamingFooter}
 	            />
-	          ) : (
-	            <PlaceholderFlatList
+            ) : (
+              <PlaceholderFlatList
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
@@ -2689,8 +2694,39 @@ export const ChatPane = React.memo(function ChatPane({
 	              }
 	              ListFooterComponent={streamingFooter}
 	            />
-	          )}
-	        </PinnedMessageActionsProvider>
+            )}
+          </PinnedMessageActionsProvider>
+
+          {transcriptScroll.canScrollToTop ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Scroll to top"
+              style={({ pressed }) => [
+                styles.transcriptScrollButton,
+                styles.transcriptScrollButtonTop,
+                pressed && styles.transcriptScrollButtonPressed,
+              ]}
+              onPress={() => transcriptScroll.scrollToTop(true)}
+            >
+              <Icon name="arrow-up" size={18} color={theme.text} />
+            </Pressable>
+          ) : null}
+
+          {transcriptScroll.canScrollToBottom ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Scroll to bottom"
+              style={({ pressed }) => [
+                styles.transcriptScrollButton,
+                styles.transcriptScrollButtonBottom,
+                pressed && styles.transcriptScrollButtonPressed,
+              ]}
+              onPress={() => transcriptScroll.scrollToBottom(true)}
+            >
+              <Icon name="arrow-down" size={18} color={theme.text} />
+            </Pressable>
+          ) : null}
+        </View>
 
         <View style={styles.composerArea}>
           <View style={styles.composerHeaderRow}>
@@ -3165,11 +3201,37 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       fontWeight: '600',
       color: theme.primary,
     },
+    transcriptFrame: {
+      flex: 1,
+      position: 'relative',
+    },
     transcript: {
       flex: 1,
     },
     transcriptContent: {
       paddingBottom: 12,
+    },
+    transcriptScrollButton: {
+      position: 'absolute',
+      right: 14,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      opacity: 0.95,
+    },
+    transcriptScrollButtonTop: {
+      top: 14,
+    },
+    transcriptScrollButtonBottom: {
+      bottom: 14,
+    },
+    transcriptScrollButtonPressed: {
+      opacity: 0.75,
     },
     composerArea: {
       gap: 8,
