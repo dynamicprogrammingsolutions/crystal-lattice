@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type RefObject,
 } from 'react';
 import type {
@@ -28,11 +29,39 @@ type UpdateMessagesCache = (params: {
   scrollAnchor?: unknown;
 }) => void;
 
-function scrollToOffsetY(target: any, offsetY: number) {
+type ScrollEdge = 'top' | 'bottom';
+
+type ActiveEdgeScroll = {
+  edge: ScrollEdge;
+  runAttempt: (reason: string) => void;
+};
+
+function scrollToOffsetY(
+  target: any,
+  offsetY: number,
+  context?: {
+    debugEnabled?: boolean;
+    reason?: string;
+    connectionId?: string;
+    sessionId?: string;
+  },
+) {
   if (!target) {
     return;
   }
   const resolved = Math.max(0, Math.round(offsetY));
+  if (context?.debugEnabled) {
+    console.log('[scrollPersist] scrollToOffsetY', {
+      connectionId: context.connectionId,
+      sessionId: context.sessionId,
+      reason: context.reason,
+      requestedOffsetY: offsetY,
+      resolvedOffsetY: resolved,
+      hasScrollToOffset: typeof target.scrollToOffset === 'function',
+      hasScrollTo: typeof target.scrollTo === 'function',
+      hasScrollToEnd: typeof target.scrollToEnd === 'function',
+    });
+  }
   if (typeof target.scrollToOffset === 'function') {
     target.scrollToOffset({ offset: resolved, animated: false });
     return;
@@ -46,6 +75,22 @@ function scrollToOffsetY(target: any, offsetY: number) {
   }
 }
 
+function readScrollMetricsFromEvent(event: NativeSyntheticEvent<NativeScrollEvent>): {
+  offsetY: number | null;
+  contentHeight: number | null;
+  viewportHeight: number | null;
+} {
+  const nativeEvent = event.nativeEvent;
+  const offsetY = Number(nativeEvent?.contentOffset?.y ?? NaN);
+  const contentHeight = Number(nativeEvent?.contentSize?.height ?? NaN);
+  const viewportHeight = Number(nativeEvent?.layoutMeasurement?.height ?? NaN);
+  return {
+    offsetY: Number.isFinite(offsetY) ? offsetY : null,
+    contentHeight: Number.isFinite(contentHeight) ? contentHeight : null,
+    viewportHeight: Number.isFinite(viewportHeight) ? viewportHeight : null,
+  };
+}
+
 export function useProactiveChatScrollPersistence(params: {
   connectionId: string;
   sessionId: string;
@@ -55,15 +100,25 @@ export function useProactiveChatScrollPersistence(params: {
   enabled?: boolean;
   persistDebounceMs?: number;
   persistThrottleMs?: number;
+  bottomThresholdPx?: number;
+  bottomConvergenceStableMs?: number;
+  bottomConvergenceMaxMs?: number;
+  bottomLockEnabled?: boolean;
 }): {
   listRef: RefObject<any>;
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScrollBeginDrag: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onScrollEndDrag: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onMomentumScrollEnd: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onLayout: (event: LayoutChangeEvent) => void;
   onContentSizeChange: (width: number, height: number) => void;
   requestPersist: (reason: string) => void;
   resetRestore: (reason: string) => void;
+  scrollToTop: (animated?: boolean) => void;
+  scrollToBottom: (animated?: boolean) => void;
+  canScrollToTop: boolean;
+  canScrollToBottom: boolean;
+  isNearBottom: boolean;
 } {
   const {
     connectionId,
@@ -74,11 +129,31 @@ export function useProactiveChatScrollPersistence(params: {
     enabled = true,
     persistDebounceMs = 250,
     persistThrottleMs = 1000,
+    bottomThresholdPx = PINNED_TO_BOTTOM_THRESHOLD_PX,
+    bottomConvergenceStableMs = 200,
+    bottomConvergenceMaxMs = 3000,
+    bottomLockEnabled = false,
   } = params;
 
   const listRef = useRef<any>(null);
+  const offsetYRef = useRef(0);
   const contentHeightRef = useRef<number | null>(null);
   const layoutHeightRef = useRef<number | null>(null);
+  const isNearBottomRef = useRef(true);
+  const pendingEdgeScrollFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+  const activeEdgeScrollRef = useRef<ActiveEdgeScroll | null>(null);
+  const bottomFollowEnabledRef = useRef(false);
+  const programmaticScrollUntilRef = useRef(0);
+  const scrollAffordanceStateRef = useRef({
+    canScrollToTop: false,
+    canScrollToBottom: false,
+    isNearBottom: true,
+  });
+  const [scrollAffordanceState, setScrollAffordanceState] = useState({
+    canScrollToTop: false,
+    canScrollToBottom: false,
+    isNearBottom: true,
+  });
 
   const initialAnchorRef = useRef<ChatScrollAnchor | null>(
     isChatScrollAnchor(cachedScrollAnchor) ? cachedScrollAnchor : null,
@@ -88,10 +163,292 @@ export function useProactiveChatScrollPersistence(params: {
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistAtRef = useRef(0);
   const pendingReasonRef = useRef<string | null>(null);
+  const lastScrollDiagnosticsAtRef = useRef(0);
+  const lastNativeMetricsDiagnosticsAtRef = useRef(0);
 
   const debugEnabled =
     (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === true ||
-    (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === 'true';
+    (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === 'true' ||
+    (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL === true ||
+    (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL === 'true';
+
+  const updateDerivedScrollState = useCallback(() => {
+    const contentHeight = contentHeightRef.current;
+    const layoutHeight = layoutHeightRef.current;
+    const offsetY = offsetYRef.current;
+    const maxOffsetY =
+      contentHeight != null && layoutHeight != null
+        ? Math.max(0, contentHeight - layoutHeight)
+        : 0;
+    const bottomGapPx = Math.max(0, maxOffsetY - offsetY);
+    const topGapPx = Math.max(0, offsetY);
+    const threshold = Math.max(0, bottomThresholdPx);
+    const isNearBottom = bottomGapPx <= threshold;
+    isNearBottomRef.current = isNearBottom;
+
+    const next = {
+      canScrollToTop: topGapPx > threshold,
+      canScrollToBottom: bottomGapPx > threshold,
+      isNearBottom,
+    };
+
+    const current = scrollAffordanceStateRef.current;
+    if (
+      current.canScrollToTop === next.canScrollToTop &&
+      current.canScrollToBottom === next.canScrollToBottom &&
+      current.isNearBottom === next.isNearBottom
+    ) {
+      return;
+    }
+    scrollAffordanceStateRef.current = next;
+    setScrollAffordanceState(next);
+  }, [bottomThresholdPx]);
+
+  const applyEventMetrics = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const metrics = readScrollMetricsFromEvent(event);
+      if (metrics.offsetY != null) {
+        offsetYRef.current = metrics.offsetY;
+      }
+      if (metrics.contentHeight != null) {
+        contentHeightRef.current = metrics.contentHeight;
+      }
+      if (metrics.viewportHeight != null) {
+        layoutHeightRef.current = metrics.viewportHeight;
+      }
+      updateDerivedScrollState();
+    },
+    [updateDerivedScrollState],
+  );
+
+  const cancelActiveEdgeScroll = useCallback(() => {
+    if (pendingEdgeScrollFrameRef.current != null) {
+      cancelAnimationFrame(pendingEdgeScrollFrameRef.current);
+      pendingEdgeScrollFrameRef.current = null;
+    }
+    activeEdgeScrollRef.current = null;
+  }, []);
+
+  const scrollToEdge = useCallback(
+    (edge: ScrollEdge, animated = true) => {
+      const target = listRef.current;
+      if (!target) {
+        return;
+      }
+      cancelActiveEdgeScroll();
+
+      const scrollOnce = (nextAnimated: boolean) => {
+        const contentHeight = contentHeightRef.current;
+        const layoutHeight = layoutHeightRef.current;
+        const maxOffsetY =
+          contentHeight != null && layoutHeight != null
+            ? Math.max(0, contentHeight - layoutHeight)
+            : 0;
+        const targetOffsetY = edge === 'bottom' ? maxOffsetY : 0;
+
+        if (typeof target.scrollToOffset === 'function') {
+          target.scrollToOffset({ offset: targetOffsetY, animated: nextAnimated });
+        } else if (typeof target.scrollTo === 'function') {
+          target.scrollTo({ y: targetOffsetY, animated: nextAnimated });
+        } else if (edge === 'bottom' && typeof target.scrollToEnd === 'function') {
+          target.scrollToEnd({ animated: nextAnimated });
+        }
+
+        programmaticScrollUntilRef.current = Date.now() + 250;
+        offsetYRef.current = targetOffsetY;
+        updateDerivedScrollState();
+      };
+
+      scrollOnce(animated);
+
+      const threshold = Math.max(0, bottomThresholdPx);
+      const stableMs = Math.max(0, Math.round(bottomConvergenceStableMs));
+      const maxMs = Math.max(stableMs + 1, Math.round(bottomConvergenceMaxMs));
+      const startedAt = Date.now();
+      let stableSince: number | null = null;
+      let stableTargetOffsetY: number | null = null;
+
+      if (edge === 'bottom') {
+        bottomFollowEnabledRef.current = true;
+      } else {
+        bottomFollowEnabledRef.current = false;
+      }
+
+      const stopActiveScroll = () => {
+        if (activeEdgeScrollRef.current?.runAttempt === runAttempt) {
+          activeEdgeScrollRef.current = null;
+        }
+      };
+
+      const scheduleAttempt = () => {
+        if (pendingEdgeScrollFrameRef.current != null) {
+          return;
+        }
+        pendingEdgeScrollFrameRef.current = requestAnimationFrame(() => {
+          pendingEdgeScrollFrameRef.current = null;
+          runAttempt('frame');
+        });
+      };
+
+      const runAttempt = (_reason: string) => {
+        pendingEdgeScrollFrameRef.current = null;
+        getMacScrollViewMetrics(listRef.current)
+          .then((metrics) => {
+            if (!metrics) {
+              stopActiveScroll();
+              return;
+            }
+            const now = Date.now();
+            offsetYRef.current = metrics.offsetY;
+            contentHeightRef.current = metrics.contentHeight;
+            layoutHeightRef.current = metrics.viewportHeight;
+            updateDerivedScrollState();
+
+            const maxY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
+            const edgeGapPx =
+              edge === 'bottom'
+                ? Math.max(0, maxY - metrics.offsetY)
+                : Math.max(0, metrics.offsetY);
+            if (edgeGapPx <= threshold) {
+              const targetOffsetY = edge === 'bottom' ? maxY : 0;
+              if (
+                stableSince == null ||
+                stableTargetOffsetY == null ||
+                Math.abs(stableTargetOffsetY - targetOffsetY) > threshold
+              ) {
+                stableSince = now;
+                stableTargetOffsetY = targetOffsetY;
+                scheduleAttempt();
+                return;
+              }
+              if (now - stableSince >= stableMs) {
+                stopActiveScroll();
+                return;
+              }
+              scheduleAttempt();
+              return;
+            }
+
+            stableSince = null;
+            stableTargetOffsetY = null;
+            if (now - startedAt >= maxMs) {
+              stopActiveScroll();
+              return;
+            }
+            scrollOnce(false);
+            scheduleAttempt();
+          })
+          .catch(() => {});
+      };
+
+      activeEdgeScrollRef.current = { edge, runAttempt };
+      scheduleAttempt();
+    },
+    [
+      bottomConvergenceMaxMs,
+      bottomConvergenceStableMs,
+      bottomThresholdPx,
+      cancelActiveEdgeScroll,
+      updateDerivedScrollState,
+    ],
+  );
+
+  const scrollToTop = useCallback(
+    (animated = true) => {
+      scrollToEdge('top', animated);
+    },
+    [scrollToEdge],
+  );
+
+  const scrollToBottom = useCallback(
+    (animated = true) => {
+      scrollToEdge('bottom', animated);
+    },
+    [scrollToEdge],
+  );
+
+  const continueActiveEdgeScroll = useCallback((reason: string) => {
+    activeEdgeScrollRef.current?.runAttempt(reason);
+  }, []);
+
+  const handlePossibleManualScroll = useCallback(() => {
+    if (Date.now() <= programmaticScrollUntilRef.current) {
+      return;
+    }
+    if (activeEdgeScrollRef.current) {
+      cancelActiveEdgeScroll();
+    }
+    if (isNearBottomRef.current && bottomLockEnabled) {
+      bottomFollowEnabledRef.current = true;
+      return;
+    }
+    bottomFollowEnabledRef.current = false;
+  }, [bottomLockEnabled, cancelActiveEdgeScroll]);
+
+  const logScrollDiagnostics = useCallback(
+    (kind: string, event?: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (!debugEnabled) {
+        return;
+      }
+      const now = Date.now();
+      if (now - lastScrollDiagnosticsAtRef.current < 250) {
+        return;
+      }
+      lastScrollDiagnosticsAtRef.current = now;
+
+      const nativeEvent = event?.nativeEvent;
+      const contentOffsetY = Number(nativeEvent?.contentOffset?.y ?? NaN);
+      const eventContentHeight = Number(nativeEvent?.contentSize?.height ?? NaN);
+      const eventViewportHeight = Number(nativeEvent?.layoutMeasurement?.height ?? NaN);
+      const eventMaxOffsetY =
+        Number.isFinite(eventContentHeight) && Number.isFinite(eventViewportHeight)
+          ? Math.max(0, eventContentHeight - eventViewportHeight)
+          : null;
+
+      console.log('[flatListScroll] event', {
+        connectionId,
+        sessionId,
+        kind,
+        messageCount: getMessagesForCache().length,
+        contentOffsetY: Number.isFinite(contentOffsetY) ? contentOffsetY : null,
+        eventContentHeight: Number.isFinite(eventContentHeight) ? eventContentHeight : null,
+        eventViewportHeight: Number.isFinite(eventViewportHeight) ? eventViewportHeight : null,
+        eventMaxOffsetY,
+        cachedContentHeight: contentHeightRef.current,
+        cachedLayoutHeight: layoutHeightRef.current,
+      });
+
+      if (now - lastNativeMetricsDiagnosticsAtRef.current < 1000) {
+        return;
+      }
+      lastNativeMetricsDiagnosticsAtRef.current = now;
+      getMacScrollViewMetrics(listRef.current)
+        .then((metrics) => {
+          if (!metrics) {
+            console.log('[flatListScroll] nativeMetrics(skip:noMetrics)', {
+              connectionId,
+              sessionId,
+              kind,
+            });
+            return;
+          }
+          console.log('[flatListScroll] nativeMetrics', {
+            connectionId,
+            sessionId,
+            kind,
+            messageCount: getMessagesForCache().length,
+            metrics,
+            nativeMaxOffsetY: Math.max(0, metrics.contentHeight - metrics.viewportHeight),
+            nativeBottomGapPx: Math.max(
+              0,
+              metrics.contentHeight - metrics.viewportHeight - metrics.offsetY,
+            ),
+          });
+        })
+        .catch(() => {});
+    },
+    [connectionId, debugEnabled, getMessagesForCache, sessionId],
+  );
 
   const maybeRestoreScroll = useCallback(() => {
     if (!enabled) {
@@ -111,6 +468,7 @@ export function useProactiveChatScrollPersistence(params: {
 
     const anchor = initialAnchorRef.current;
     if (!anchor) {
+      hasRestoredRef.current = true;
       return;
     }
 
@@ -136,9 +494,16 @@ export function useProactiveChatScrollPersistence(params: {
       });
     }
 
-    scrollToOffsetY(target, targetOffsetY);
+    scrollToOffsetY(target, targetOffsetY, {
+      debugEnabled,
+      reason: 'restore',
+      connectionId,
+      sessionId,
+    });
+    offsetYRef.current = targetOffsetY;
+    updateDerivedScrollState();
     hasRestoredRef.current = true;
-  }, [connectionId, debugEnabled, enabled, sessionId]);
+  }, [connectionId, debugEnabled, enabled, sessionId, updateDerivedScrollState]);
 
   const persistNow = useCallback(
     async (
@@ -164,8 +529,9 @@ export function useProactiveChatScrollPersistence(params: {
         return;
       }
 
-      const bottomGapPx = Math.max(0, metrics.contentHeight - metrics.viewportHeight - metrics.offsetY);
-      const pinnedToBottom = bottomGapPx <= PINNED_TO_BOTTOM_THRESHOLD_PX;
+      const maxOffsetY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
+      const bottomGapPx = Math.max(0, maxOffsetY - metrics.offsetY);
+      const pinnedToBottom = bottomGapPx <= bottomThresholdPx;
       const anchor = createChatScrollAnchor({ bottomGapPx, pinnedToBottom });
 
       if (debugEnabled) {
@@ -190,6 +556,7 @@ export function useProactiveChatScrollPersistence(params: {
       debugEnabled,
       enabled,
       getMessagesForCache,
+      bottomThresholdPx,
       onUpdateCache,
       persistThrottleMs,
       sessionId,
@@ -256,9 +623,10 @@ export function useProactiveChatScrollPersistence(params: {
         clearTimeout(persistTimerRef.current);
         persistTimerRef.current = null;
       }
+      cancelActiveEdgeScroll();
       persistNow('unmount', { force: true }).catch(() => {});
     };
-  }, [persistNow]);
+  }, [cancelActiveEdgeScroll, persistNow]);
 
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -266,58 +634,150 @@ export function useProactiveChatScrollPersistence(params: {
       if (Number.isFinite(height)) {
         layoutHeightRef.current = height;
       }
+      updateDerivedScrollState();
+      continueActiveEdgeScroll('layout');
+      if (debugEnabled) {
+        console.log('[flatListScroll] layout', {
+          connectionId,
+          sessionId,
+          height: Number.isFinite(height) ? height : null,
+          messageCount: getMessagesForCache().length,
+        });
+      }
       maybeRestoreScroll();
     },
-    [maybeRestoreScroll],
+    [
+      connectionId,
+      continueActiveEdgeScroll,
+      debugEnabled,
+      getMessagesForCache,
+      maybeRestoreScroll,
+      sessionId,
+      updateDerivedScrollState,
+    ],
   );
 
   const onContentSizeChange = useCallback(
     (_width: number, height: number) => {
+      const wasNearBottom = isNearBottomRef.current;
       const resolved = Number(height ?? NaN);
       if (Number.isFinite(resolved)) {
         contentHeightRef.current = resolved;
       }
+      updateDerivedScrollState();
+      continueActiveEdgeScroll('contentSizeChange');
+      if (debugEnabled) {
+        const layoutHeight = layoutHeightRef.current;
+        console.log('[flatListScroll] contentSizeChange', {
+          connectionId,
+          sessionId,
+          width: _width,
+          height: Number.isFinite(resolved) ? resolved : null,
+          layoutHeight,
+          maxOffsetY:
+            Number.isFinite(resolved) && layoutHeight != null
+              ? Math.max(0, resolved - layoutHeight)
+              : null,
+          messageCount: getMessagesForCache().length,
+        });
+      }
       maybeRestoreScroll();
+      if (
+        bottomLockEnabled &&
+        hasRestoredRef.current &&
+        (wasNearBottom || bottomFollowEnabledRef.current)
+      ) {
+        bottomFollowEnabledRef.current = true;
+        scrollToEdge('bottom', false);
+      }
     },
-    [maybeRestoreScroll],
+    [
+      bottomLockEnabled,
+      connectionId,
+      continueActiveEdgeScroll,
+      debugEnabled,
+      getMessagesForCache,
+      maybeRestoreScroll,
+      sessionId,
+      scrollToEdge,
+      updateDerivedScrollState,
+    ],
   );
 
-  const onScroll = useCallback((_event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    // Intentionally no-op. Scroll events are not reliably delivered on macOS
-    // for this view. Persistence uses native pull-based metrics instead.
-  }, []);
+  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    // Persistence still uses native pull-based metrics, but scroll events are
+    // useful for lightweight affordance state.
+    applyEventMetrics(event);
+    if (isNearBottomRef.current && bottomLockEnabled) {
+      bottomFollowEnabledRef.current = true;
+    }
+    handlePossibleManualScroll();
+    continueActiveEdgeScroll('scroll');
+    logScrollDiagnostics('scroll', event);
+  }, [
+    applyEventMetrics,
+    bottomLockEnabled,
+    continueActiveEdgeScroll,
+    handlePossibleManualScroll,
+    logScrollDiagnostics,
+  ]);
 
-  const onScrollEndDrag = useCallback((_event: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const onScrollBeginDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    applyEventMetrics(event);
+    bottomFollowEnabledRef.current = false;
+    cancelActiveEdgeScroll();
+    logScrollDiagnostics('scrollBeginDrag', event);
+  }, [applyEventMetrics, cancelActiveEdgeScroll, logScrollDiagnostics]);
+
+  const onScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    applyEventMetrics(event);
+    continueActiveEdgeScroll('scrollEndDrag');
+    logScrollDiagnostics('scrollEndDrag', event);
     // If end-drag events are delivered, opportunistically persist.
     requestPersist('scrollEndDrag');
-  }, [requestPersist]);
+  }, [applyEventMetrics, continueActiveEdgeScroll, logScrollDiagnostics, requestPersist]);
 
   const onMomentumScrollEnd = useCallback(
-    (_event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      applyEventMetrics(event);
+      continueActiveEdgeScroll('momentumScrollEnd');
+      logScrollDiagnostics('momentumScrollEnd', event);
       requestPersist('scrollMomentumEnd');
     },
-    [requestPersist],
+    [applyEventMetrics, continueActiveEdgeScroll, logScrollDiagnostics, requestPersist],
   );
 
   const result = useMemo(() => {
     return {
       listRef,
       onScroll,
+      onScrollBeginDrag,
       onScrollEndDrag,
       onMomentumScrollEnd,
       onLayout,
       onContentSizeChange,
       requestPersist,
       resetRestore,
+      scrollToTop,
+      scrollToBottom,
+      canScrollToTop: scrollAffordanceState.canScrollToTop,
+      canScrollToBottom: scrollAffordanceState.canScrollToBottom,
+      isNearBottom: scrollAffordanceState.isNearBottom,
     };
   }, [
+    scrollAffordanceState.canScrollToBottom,
+    scrollAffordanceState.canScrollToTop,
+    scrollAffordanceState.isNearBottom,
     onContentSizeChange,
     onLayout,
     onMomentumScrollEnd,
     onScroll,
+    onScrollBeginDrag,
     onScrollEndDrag,
     requestPersist,
     resetRestore,
+    scrollToBottom,
+    scrollToTop,
   ]);
 
   return result;

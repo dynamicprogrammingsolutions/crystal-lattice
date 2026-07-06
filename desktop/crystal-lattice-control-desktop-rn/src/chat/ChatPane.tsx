@@ -114,7 +114,71 @@ const PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_composer_actio
 const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_role_v1';
 
 const TRANSCRIPT_LIST_IMPLEMENTATION = ((globalThis as any).CLC_TRANSCRIPT_LIST_IMPLEMENTATION ??
-  'scrollView') as 'scrollView' | 'flatList' | 'virtualizedScroll';
+  'flatList') as 'scrollView' | 'flatList' | 'virtualizedScroll';
+
+type DesktopTranscriptRow =
+  | { kind: 'stream' }
+  | { kind: 'message'; item: IndexedMessage };
+
+function readGlobalBoolean(name: string, fallback: boolean): boolean {
+  const value = (globalThis as any)[name];
+  if (value === true || value === 'true') {
+    return true;
+  }
+  if (value === false || value === 'false') {
+    return false;
+  }
+  return fallback;
+}
+
+function readOptionalGlobalBoolean(name: string): boolean | undefined {
+  const value = (globalThis as any)[name];
+  if (value === true || value === 'true') {
+    return true;
+  }
+  if (value === false || value === 'false') {
+    return false;
+  }
+  return undefined;
+}
+
+function readOptionalGlobalNumber(name: string): number | undefined {
+  const value = Number((globalThis as any)[name]);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+const FLATLIST_DISABLE_VIRTUALIZATION = readGlobalBoolean(
+  'CLC_FLATLIST_DISABLE_VIRTUALIZATION',
+  false,
+);
+const FLATLIST_INITIAL_NUM_TO_RENDER = readOptionalGlobalNumber(
+  'CLC_FLATLIST_INITIAL_NUM_TO_RENDER',
+);
+const FLATLIST_MAX_TO_RENDER_PER_BATCH = readOptionalGlobalNumber(
+  'CLC_FLATLIST_MAX_TO_RENDER_PER_BATCH',
+);
+const FLATLIST_UPDATE_CELLS_BATCHING_PERIOD = readOptionalGlobalNumber(
+  'CLC_FLATLIST_UPDATE_CELLS_BATCHING_PERIOD',
+);
+const FLATLIST_WINDOW_SIZE = readOptionalGlobalNumber('CLC_FLATLIST_WINDOW_SIZE');
+const FLATLIST_REMOVE_CLIPPED_SUBVIEWS = readOptionalGlobalBoolean(
+  'CLC_FLATLIST_REMOVE_CLIPPED_SUBVIEWS',
+);
+const FLATLIST_FORWARD_SCROLL_END_DRAG = readGlobalBoolean(
+  'CLC_FLATLIST_FORWARD_SCROLL_END_DRAG',
+  true,
+);
+const FLATLIST_FORWARD_MOMENTUM_SCROLL_END = readGlobalBoolean(
+  'CLC_FLATLIST_FORWARD_MOMENTUM_SCROLL_END',
+  true,
+);
+const FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX =
+  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX') ?? 4;
+const FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS =
+  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS') ?? 200;
+const FLATLIST_BOTTOM_CONVERGENCE_MAX_MS =
+  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_CONVERGENCE_MAX_MS') ?? 3000;
+const FLATLIST_BOTTOM_LOCK = readGlobalBoolean('CLC_FLATLIST_BOTTOM_LOCK', true);
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -835,6 +899,10 @@ export const ChatPane = React.memo(function ChatPane({
     getMessagesForCache,
     onUpdateCache,
     enabled: isActive,
+    bottomThresholdPx: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
+    bottomConvergenceStableMs: FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS,
+    bottomConvergenceMaxMs: FLATLIST_BOTTOM_CONVERGENCE_MAX_MS,
+    bottomLockEnabled: FLATLIST_BOTTOM_LOCK,
   });
 
   const requestPersistTranscriptScroll = transcriptScroll.requestPersist;
@@ -2322,6 +2390,19 @@ export const ChatPane = React.memo(function ChatPane({
     streamingRow,
   ]);
 
+  const transcriptRows = useMemo<DesktopTranscriptRow[]>(() => {
+    const rows: DesktopTranscriptRow[] = [];
+    for (const message of messages) {
+      rows.push({ kind: 'message', item: message });
+    }
+    const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
+    const hasInlineDisplays = inlineActionDisplays.length > 0;
+    if (hasStreaming || hasInlineDisplays) {
+      rows.push({ kind: 'stream' });
+    }
+    return rows;
+  }, [inlineActionDisplays.length, messages, streamingRow]);
+
   const renderMessageItem = useCallback(
     ({ item: msg }: { item: IndexedMessage; index: number }) => {
       const role = msg.message.role || 'unknown';
@@ -2361,6 +2442,62 @@ export const ChatPane = React.memo(function ChatPane({
       messageViewModeByIndex,
       pluginMessageActionDefs,
     ],
+  );
+
+  const getTranscriptRowKey = useCallback((row: DesktopTranscriptRow) => {
+    if (row.kind === 'stream') {
+      return 'row-stream';
+    }
+    return `msg-${row.item.index}`;
+  }, []);
+
+  const getTranscriptRowDependencies = useCallback(
+    (row: DesktopTranscriptRow) => {
+      if (row.kind === 'stream') {
+        return [
+          streamingRow,
+          inlineActionDisplays,
+          activeDisplayActionId,
+          footerElements,
+          messages.length > 0 ? messages[messages.length - 1].index : null,
+        ];
+      }
+
+      const msg = row.item;
+      const role = msg.message.role || 'unknown';
+      const defaultModeForRole: 'markdown' | 'raw' =
+        role === 'assistant' ? 'markdown' : 'raw';
+      const renderMode = messageViewModeByIndex[msg.index] ?? defaultModeForRole;
+      const isEditing = msg.index === editingIndex;
+      return [
+        renderMode,
+        footerElements,
+        isEditing,
+        isEditing ? editingInitialText : null,
+        isEditing ? editingText : null,
+      ];
+    },
+    [
+      activeDisplayActionId,
+      editingIndex,
+      editingInitialText,
+      editingText,
+      footerElements,
+      inlineActionDisplays,
+      messageViewModeByIndex,
+      messages,
+      streamingRow,
+    ],
+  );
+
+  const renderTranscriptRow = useCallback(
+    ({ item: row, index }: { item: DesktopTranscriptRow; index: number }) => {
+      if (row.kind === 'stream') {
+        return streamingFooter;
+      }
+      return renderMessageItem({ item: row.item, index });
+    },
+    [renderMessageItem, streamingFooter],
   );
 
   return (
@@ -2489,74 +2626,78 @@ export const ChatPane = React.memo(function ChatPane({
           </View>
         ) : null}
 
-
-	        <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
-	          {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
-	            <DependencyFlatList
+        <View style={styles.transcriptFrame}>
+          <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
+            {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
+              <DependencyFlatList
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
-	              data={messages}
-	              keyExtractor={(item) => String(item.index)}
-	              getItemDependencies={(item) => {
-	                const role = item.message.role || 'unknown';
-	                const defaultModeForRole: 'markdown' | 'raw' =
-	                  role === 'assistant' ? 'markdown' : 'raw';
-	                const renderMode =
-	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
-	                const isEditing = item.index === editingIndex;
-	                return [
-	                  renderMode,
-	                  footerElements,
-	                  isEditing,
-	                  isEditing ? editingInitialText : null,
-	                  isEditing ? editingText : null,
-	                ];
-	              }}
+	              data={transcriptRows}
+	              keyExtractor={getTranscriptRowKey}
+	              getItemDependencies={getTranscriptRowDependencies}
 	              scrollEventThrottle={16}
+	              disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
+	              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
+	              maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
+	              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
+	              windowSize={FLATLIST_WINDOW_SIZE}
+	              removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
-	              renderItem={renderMessageItem}
+	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+	              onScrollEndDrag={
+	                FLATLIST_FORWARD_SCROLL_END_DRAG
+	                  ? transcriptScroll.onScrollEndDrag
+	                  : undefined
+	              }
+	              onMomentumScrollEnd={
+	                FLATLIST_FORWARD_MOMENTUM_SCROLL_END
+	                  ? transcriptScroll.onMomentumScrollEnd
+	                  : undefined
+	              }
+	              renderItem={renderTranscriptRow}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
 	              }
-	              ListFooterComponent={streamingFooter}
 	            />
-	          ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'virtualizedScroll' ? (
-	            <DependencyVirtualizedScroll
+            ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'virtualizedScroll' ? (
+              <DependencyVirtualizedScroll
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
-	              data={messages}
-	              keyExtractor={(item) => String(item.index)}
-	              getItemDependencies={(item) => {
-	                const role = item.message.role || 'unknown';
-	                const defaultModeForRole: 'markdown' | 'raw' =
-	                  role === 'assistant' ? 'markdown' : 'raw';
-	                const renderMode =
-	                  messageViewModeByIndex[item.index] ?? defaultModeForRole;
-	                const isEditing = item.index === editingIndex;
-	                return [
-	                  renderMode,
-	                  footerElements,
-	                  isEditing,
-	                  isEditing ? editingInitialText : null,
-	                  isEditing ? editingText : null,
-	                ];
-	              }}
+	              data={transcriptRows}
+	              keyExtractor={getTranscriptRowKey}
+	              getItemDependencies={getTranscriptRowDependencies}
 	              scrollEventThrottle={16}
+	              disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
+	              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
+	              maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
+	              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
+	              windowSize={FLATLIST_WINDOW_SIZE}
+	              removeClippedSubviews={FLATLIST_REMOVE_CLIPPED_SUBVIEWS}
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
-	              renderItem={renderMessageItem}
+	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+	              onScrollEndDrag={
+	                FLATLIST_FORWARD_SCROLL_END_DRAG
+	                  ? transcriptScroll.onScrollEndDrag
+	                  : undefined
+	              }
+	              onMomentumScrollEnd={
+	                FLATLIST_FORWARD_MOMENTUM_SCROLL_END
+	                  ? transcriptScroll.onMomentumScrollEnd
+	                  : undefined
+	              }
+	              renderItem={renderTranscriptRow}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
 	              }
-	              ListFooterComponent={streamingFooter}
 	            />
-	          ) : (
-	            <PlaceholderFlatList
+            ) : (
+              <PlaceholderFlatList
 	              listRef={transcriptScroll.listRef}
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
@@ -2582,14 +2723,48 @@ export const ChatPane = React.memo(function ChatPane({
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
+	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
+	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
 	              renderItem={renderMessageItem}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
 	              }
 	              ListFooterComponent={streamingFooter}
 	            />
-	          )}
-	        </PinnedMessageActionsProvider>
+            )}
+          </PinnedMessageActionsProvider>
+
+          {transcriptScroll.canScrollToTop ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Scroll to top"
+              style={({ pressed }) => [
+                styles.transcriptScrollButton,
+                styles.transcriptScrollButtonTop,
+                pressed && styles.transcriptScrollButtonPressed,
+              ]}
+              onPress={() => transcriptScroll.scrollToTop(true)}
+            >
+              <Icon name="arrow-up" size={18} color={theme.text} />
+            </Pressable>
+          ) : null}
+
+          {transcriptScroll.canScrollToBottom ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Scroll to bottom"
+              style={({ pressed }) => [
+                styles.transcriptScrollButton,
+                styles.transcriptScrollButtonBottom,
+                pressed && styles.transcriptScrollButtonPressed,
+              ]}
+              onPress={() => transcriptScroll.scrollToBottom(true)}
+            >
+              <Icon name="arrow-down" size={18} color={theme.text} />
+            </Pressable>
+          ) : null}
+        </View>
 
         <View style={styles.composerArea}>
           <View style={styles.composerHeaderRow}>
@@ -3064,11 +3239,37 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
       fontWeight: '600',
       color: theme.primary,
     },
+    transcriptFrame: {
+      flex: 1,
+      position: 'relative',
+    },
     transcript: {
       flex: 1,
     },
     transcriptContent: {
       paddingBottom: 12,
+    },
+    transcriptScrollButton: {
+      position: 'absolute',
+      right: 14,
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+      opacity: 0.95,
+    },
+    transcriptScrollButtonTop: {
+      top: 14,
+    },
+    transcriptScrollButtonBottom: {
+      bottom: 14,
+    },
+    transcriptScrollButtonPressed: {
+      opacity: 0.75,
     },
     composerArea: {
       gap: 8,

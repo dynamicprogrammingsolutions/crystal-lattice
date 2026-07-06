@@ -47,9 +47,18 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     inverted,
     maintainVisibleContentPosition,
     scrollEventThrottle,
+    disableVirtualization,
+    initialNumToRender,
+    maxToRenderPerBatch,
+    updateCellsBatchingPeriod,
+    windowSize,
+    removeClippedSubviews,
     onLayout,
     onContentSizeChange,
     onScroll,
+    onScrollBeginDrag,
+    onScrollEndDrag,
+    onMomentumScrollEnd,
   } = props;
 
   const cache = cacheRef.current;
@@ -96,6 +105,14 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
 
   const extractRowKey = React.useCallback((row: DependencyFlatListRow) => row.key, []);
   const renderRow = React.useCallback(({ item }: { item: DependencyFlatListRow }) => item.value, []);
+  const diagnosticProps = {
+    disableVirtualization,
+    initialNumToRender,
+    maxToRenderPerBatch,
+    updateCellsBatchingPeriod,
+    windowSize,
+    removeClippedSubviews,
+  } as any;
 
   return (
     <FlatList<DependencyFlatListRow>
@@ -109,6 +126,9 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
       onLayout={onLayout}
       onContentSizeChange={onContentSizeChange}
       onScroll={onScroll}
+      onScrollBeginDrag={onScrollBeginDrag}
+      onScrollEndDrag={onScrollEndDrag}
+      onMomentumScrollEnd={onMomentumScrollEnd}
       keyExtractor={extractRowKey}
       extraData={extraData}
       renderItem={renderRow}
@@ -116,6 +136,7 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
       ListFooterComponent={ListFooterComponent}
       ListEmptyComponent={ListEmptyComponent}
       ItemSeparatorComponent={normalizedSeparatorComponent}
+      {...diagnosticProps}
     />
   );
 }
