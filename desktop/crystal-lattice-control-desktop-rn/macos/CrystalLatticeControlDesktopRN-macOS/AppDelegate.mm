@@ -14,6 +14,17 @@ static NSString *const kTabStripStyleRoundedPills = @"roundedPills";
 static NSString *const kSessionsFollowActiveTabDefaultsKey =
     @"CrystalLattice.SessionsFollowActiveTabEnabled";
 
+static BOOL EnvironmentFlagEnabled(NSString *name)
+{
+  NSString *value = [NSProcessInfo processInfo].environment[name];
+  if (![value isKindOfClass:[NSString class]]) {
+    return NO;
+  }
+  NSString *normalized = value.lowercaseString;
+  return [normalized isEqualToString:@"1"] || [normalized isEqualToString:@"true"] ||
+      [normalized isEqualToString:@"yes"];
+}
+
 @interface AppDelegate ()
 
 @property(nonatomic, strong) NSMenuItem *toolbarTabsMenuItem;
@@ -39,6 +50,7 @@ static NSString *const kSessionsFollowActiveTabDefaultsKey =
   self.initialProps = @{
     @"initialTabStripStyle" : tabStripStyle,
     @"initialSessionsFollowActiveTabEnabled" : @(followEnabled),
+    @"enableScrollTestHarness" : @(EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS")),
   };
   self.dependencyProvider = [RCTAppDependencyProvider new];
 

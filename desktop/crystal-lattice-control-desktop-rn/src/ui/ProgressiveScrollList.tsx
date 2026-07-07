@@ -152,6 +152,7 @@ export function ProgressiveScrollList<TItem>(
     listRef,
     style,
     contentContainerStyle,
+    testID,
     ListHeaderComponent,
     ListFooterComponent,
     ListEmptyComponent,
@@ -667,6 +668,7 @@ export function ProgressiveScrollList<TItem>(
           )
         ) : null}
         <View
+          testID={`progressive-scroll-row-${key}`}
           collapsable={false}
           onLayout={(event) => {
             const layout = event.nativeEvent?.layout;
@@ -704,6 +706,7 @@ export function ProgressiveScrollList<TItem>(
   return (
     <ScrollView
       ref={scrollRef}
+      testID={testID}
       style={style}
       contentContainerStyle={contentContainerStyle}
       scrollEventThrottle={scrollEventThrottle}
@@ -719,7 +722,13 @@ export function ProgressiveScrollList<TItem>(
       {header}
       {hasMoreAtTop ? (
         <View style={styles.loadMoreContainer}>
-          <Pressable style={styles.loadMoreButton} onPress={handleLoadMoreTop}>
+          <Pressable
+            testID="progressive-scroll-load-top"
+            accessibilityRole="button"
+            accessibilityLabel="Load messages above"
+            style={styles.loadMoreButton}
+            onPress={handleLoadMoreTop}
+          >
             <Text style={styles.loadMoreButtonText}>
               {windowRange.start} messages hidden above
             </Text>
@@ -730,7 +739,13 @@ export function ProgressiveScrollList<TItem>(
       {renderedRows}
       {hasMoreAtBottom ? (
         <View style={styles.loadMoreContainer}>
-          <Pressable style={styles.loadMoreButton} onPress={handleLoadMoreBottom}>
+          <Pressable
+            testID="progressive-scroll-load-bottom"
+            accessibilityRole="button"
+            accessibilityLabel="Load messages below"
+            style={styles.loadMoreButton}
+            onPress={handleLoadMoreBottom}
+          >
             <Text style={styles.loadMoreButtonText}>
               {data.length - windowRange.end} messages hidden below
             </Text>

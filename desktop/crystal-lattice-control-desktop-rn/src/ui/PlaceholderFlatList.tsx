@@ -37,6 +37,7 @@ export interface PlaceholderFlatListProps<TItem> {
 
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  testID?: string;
 
   ListHeaderComponent?: React.ComponentType<any> | React.ReactElement | null;
   ListFooterComponent?: React.ComponentType<any> | React.ReactElement | null;
@@ -114,6 +115,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     listRef,
     style,
     contentContainerStyle,
+    testID,
     ListHeaderComponent,
     ListFooterComponent,
     ListEmptyComponent,
@@ -212,6 +214,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
   return (
     <ScrollView
       ref={listRef}
+      testID={testID}
       style={style}
       contentContainerStyle={contentContainerStyle}
       scrollEventThrottle={scrollEventThrottle}
