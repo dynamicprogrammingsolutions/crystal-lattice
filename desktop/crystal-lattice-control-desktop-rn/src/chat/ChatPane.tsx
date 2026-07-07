@@ -70,6 +70,7 @@ import { truncateByChars } from '../utils/text';
 import { DependencyFlatList } from '../ui/DependencyFlatList';
 import { DependencyVirtualizedScroll } from '../ui/DependencyVirtualizedScroll';
 import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
+import { ProgressiveScrollList } from '../ui/ProgressiveScrollList';
 import { ActionResultModal } from '../ui/ActionResultModal';
 import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
@@ -114,7 +115,7 @@ const PINNED_COMPOSER_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_chat_composer_actio
 const PINNED_MESSAGE_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_message_actions_by_role_v1';
 
 const TRANSCRIPT_LIST_IMPLEMENTATION = ((globalThis as any).CLC_TRANSCRIPT_LIST_IMPLEMENTATION ??
-  'flatList') as 'scrollView' | 'flatList' | 'virtualizedScroll';
+  'flatList') as 'scrollView' | 'flatList' | 'virtualizedScroll' | 'progressiveScroll';
 
 type DesktopTranscriptRow =
   | { kind: 'stream' }
@@ -180,6 +181,18 @@ const FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS =
 const FLATLIST_BOTTOM_CONVERGENCE_MAX_MS =
   readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_CONVERGENCE_MAX_MS') ?? 3000;
 const FLATLIST_BOTTOM_LOCK = readGlobalBoolean('CLC_FLATLIST_BOTTOM_LOCK', true);
+const PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE =
+  readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE') ?? 50;
+const PROGRESSIVE_SCROLL_PAGE_SIZE =
+  readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_PAGE_SIZE') ?? 50;
+const PROGRESSIVE_SCROLL_MAX_WINDOW_SIZE =
+  readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_MAX_WINDOW_SIZE') ?? 100;
+const PROGRESSIVE_SCROLL_AUTO_LOAD = readGlobalBoolean(
+  'CLC_PROGRESSIVE_SCROLL_AUTO_LOAD',
+  false,
+);
+const PROGRESSIVE_SCROLL_EDGE_THRESHOLD_PX =
+  readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_EDGE_THRESHOLD_PX') ?? 240;
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -2694,6 +2707,31 @@ export const ChatPane = React.memo(function ChatPane({
 	                  ? transcriptScroll.onMomentumScrollEnd
 	                  : undefined
 	              }
+	              renderItem={renderTranscriptRow}
+	              ListEmptyComponent={
+	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
+	              }
+	            />
+            ) : TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ? (
+              <ProgressiveScrollList
+	              listRef={transcriptScroll.listRef}
+	              style={styles.transcript}
+	              contentContainerStyle={styles.transcriptContent}
+	              data={transcriptRows}
+	              keyExtractor={getTranscriptRowKey}
+	              getItemDependencies={getTranscriptRowDependencies}
+	              initialWindowSize={PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE}
+	              pageSize={PROGRESSIVE_SCROLL_PAGE_SIZE}
+	              maxWindowSize={PROGRESSIVE_SCROLL_MAX_WINDOW_SIZE}
+	              autoLoadEdges={PROGRESSIVE_SCROLL_AUTO_LOAD}
+	              edgeThresholdPx={PROGRESSIVE_SCROLL_EDGE_THRESHOLD_PX}
+	              scrollEventThrottle={16}
+	              onLayout={transcriptScroll.onLayout}
+	              onContentSizeChange={transcriptScroll.onContentSizeChange}
+	              onScroll={transcriptScroll.onScroll}
+	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
+	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
 	              renderItem={renderTranscriptRow}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
