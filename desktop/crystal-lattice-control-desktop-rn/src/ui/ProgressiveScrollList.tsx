@@ -222,22 +222,6 @@ export function ProgressiveScrollList<TItem>(
     [data, getKey],
   );
 
-  const getClosestMeasuredLayout = useCallback(
-    (sourceIndex: number): (RowLayout & { key: string }) | null => {
-      let closest: (RowLayout & { key: string }) | null = null;
-      let closestDistance = Number.POSITIVE_INFINITY;
-      for (const [key, candidate] of rowLayoutsRef.current.entries()) {
-        const distance = Math.abs(candidate.sourceIndex - sourceIndex);
-        if (distance < closestDistance) {
-          closest = { ...candidate, key };
-          closestDistance = distance;
-        }
-      }
-      return closest;
-    },
-    [],
-  );
-
   const schedulePendingActionAttempt = useCallback(() => {
     if (pendingActionFrameRef.current != null) {
       return;
@@ -305,8 +289,7 @@ export function ProgressiveScrollList<TItem>(
     }
 
     const key = action.request.key ?? getKey(data[targetIndex], targetIndex);
-    const layout =
-      rowLayoutsRef.current.get(key) ?? getClosestMeasuredLayout(targetIndex);
+    const layout = rowLayoutsRef.current.get(key);
     if (!layout) {
       schedulePendingActionAttempt();
       return;
@@ -327,7 +310,6 @@ export function ProgressiveScrollList<TItem>(
     defaultAnchorAfterCount,
     defaultAnchorBeforeCount,
     findSourceIndexForRequest,
-    getClosestMeasuredLayout,
     getKey,
     resolvedMaxWindowSize,
     schedulePendingActionAttempt,

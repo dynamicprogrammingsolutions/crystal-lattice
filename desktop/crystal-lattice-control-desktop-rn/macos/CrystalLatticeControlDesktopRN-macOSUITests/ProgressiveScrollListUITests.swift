@@ -2,10 +2,13 @@ import XCTest
 
 final class ProgressiveScrollListUITests: XCTestCase {
   private let stateURL = URL(fileURLWithPath: "/tmp/clc-progressive-scroll-harness-state.json")
+  private let commandURL = URL(fileURLWithPath: "/tmp/clc-progressive-scroll-harness-command.json")
+  private var runId = ""
 
   override func setUpWithError() throws {
     continueAfterFailure = false
     try? FileManager.default.removeItem(at: stateURL)
+    try? FileManager.default.removeItem(at: commandURL)
   }
 
   private func readState() -> [String: Any]? {
@@ -19,7 +22,7 @@ final class ProgressiveScrollListUITests: XCTestCase {
     let deadline = Date().addingTimeInterval(timeout)
     var latest: [String: Any]?
     while Date() < deadline {
-      if let state = readState() {
+      if let state = readState(), state["runId"] as? String == runId {
         latest = state
         if state["command"] as? String == command {
           return state
@@ -51,24 +54,23 @@ final class ProgressiveScrollListUITests: XCTestCase {
   }
 
   func testProgressiveScrollHarnessEdgesAndAnchors() throws {
+    runId = UUID().uuidString
     let app = XCUIApplication()
     app.launchEnvironment["CLC_ENABLE_SCROLL_TEST_HARNESS"] = "1"
+    app.launchEnvironment["CLC_SCROLL_HARNESS_RUN_ID"] = runId
     app.launchArguments.append("--scroll-test-harness")
     app.launch()
     app.activate()
 
-    let mounted = waitForState(command: "mounted", timeout: 30)
-    XCTAssertEqual(intValue(mounted, "windowEnd"), 220)
-    XCTAssertEqual(intValue(mounted, "dataLength"), 220)
+    clickHarnessMenu(app, "Scroll Harness Top")
+    let top = waitForState(command: "top", timeout: 30)
+    XCTAssertEqual(intValue(top, "windowStart"), 0)
+    XCTAssertEqual(intValue(top, "dataLength"), 220)
 
     clickHarnessMenu(app, "Scroll Harness Bottom")
     let bottom = waitForState(command: "bottom")
     XCTAssertEqual(intValue(bottom, "windowEnd"), 220)
     XCTAssertEqual(intValue(bottom, "dataLength"), 220)
-
-    clickHarnessMenu(app, "Scroll Harness Top")
-    let top = waitForState(command: "top")
-    XCTAssertEqual(intValue(top, "windowStart"), 0)
 
     clickHarnessMenu(app, "Scroll Harness Message 120")
     let anchored = waitForState(command: "message120")

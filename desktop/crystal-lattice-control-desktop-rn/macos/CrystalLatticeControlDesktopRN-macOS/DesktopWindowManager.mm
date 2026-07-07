@@ -177,7 +177,16 @@ RCT_EXPORT_MODULE();
   if (![command isKindOfClass:[NSString class]]) {
     return;
   }
-  [self sendEventWithName:@"progressiveScrollHarnessCommand" body:@{ @"command" : command }];
+  id postedAtMs = notification.userInfo[@"postedAtMs"];
+  id runId = notification.userInfo[@"runId"];
+  NSMutableDictionary *body = [@{ @"command" : command } mutableCopy];
+  if ([postedAtMs isKindOfClass:[NSNumber class]]) {
+    body[@"postedAtMs"] = postedAtMs;
+  }
+  if ([runId isKindOfClass:[NSString class]]) {
+    body[@"runId"] = runId;
+  }
+  [self sendEventWithName:@"progressiveScrollHarnessCommand" body:body];
 }
 
 RCT_EXPORT_METHOD(recordProgressiveScrollHarnessState:(NSDictionary *)state)
@@ -194,6 +203,24 @@ RCT_EXPORT_METHOD(recordProgressiveScrollHarnessState:(NSDictionary *)state)
     return;
   }
   [data writeToFile:@"/tmp/clc-progressive-scroll-harness-state.json" atomically:YES];
+}
+
+RCT_EXPORT_METHOD(readProgressiveScrollHarnessCommand:(RCTPromiseResolveBlock)resolve
+                  rejecter:(__unused RCTPromiseRejectBlock)reject)
+{
+  NSData *data = [NSData dataWithContentsOfFile:@"/tmp/clc-progressive-scroll-harness-command.json"];
+  if (data == nil) {
+    resolve((id)kCFNull);
+    return;
+  }
+
+  NSDictionary *payload = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+  if (![payload isKindOfClass:[NSDictionary class]]) {
+    resolve((id)kCFNull);
+    return;
+  }
+
+  resolve(payload);
 }
 
 - (void)handleSystemColorsDidChange:(NSNotification *)notification

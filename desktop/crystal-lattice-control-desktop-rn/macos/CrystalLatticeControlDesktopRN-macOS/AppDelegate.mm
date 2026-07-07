@@ -62,6 +62,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @"initialTabStripStyle" : tabStripStyle,
     @"initialSessionsFollowActiveTabEnabled" : @(followEnabled),
     @"enableScrollTestHarness" : @(enableScrollTestHarness),
+    @"scrollHarnessRunId" : [NSProcessInfo processInfo].environment[@"CLC_SCROLL_HARNESS_RUN_ID"] ?: @"",
   };
   self.dependencyProvider = [RCTAppDependencyProvider new];
 
@@ -394,10 +395,21 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 
 - (void)postProgressiveScrollHarnessCommand:(NSString *)command
 {
+  NSDictionary *payload = @{
+    @"command" : command,
+    @"runId" : [NSProcessInfo processInfo].environment[@"CLC_SCROLL_HARNESS_RUN_ID"] ?: @"",
+    @"postedAtMs" : @((long long)([[NSDate date] timeIntervalSince1970] * 1000)),
+  };
+  NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
+  [data writeToFile:@"/tmp/clc-progressive-scroll-harness-command.json" atomically:YES];
+
   [[NSNotificationCenter defaultCenter]
       postNotificationName:CLCProgressiveScrollHarnessCommandNotification
                     object:nil
-                  userInfo:@{ CLCProgressiveScrollHarnessCommandUserInfoKey : command }];
+                  userInfo:@{
+                    CLCProgressiveScrollHarnessCommandUserInfoKey : command,
+                    @"postedAtMs" : payload[@"postedAtMs"],
+                  }];
 }
 
 - (void)progressiveScrollHarnessTop:(__unused id)sender

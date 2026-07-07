@@ -25,8 +25,15 @@ function buildMessages(): HarnessMessage[] {
   });
 }
 
-export function ProgressiveScrollHarness(): React.JSX.Element {
+type ProgressiveScrollHarnessProps = {
+  scrollHarnessRunId?: string;
+};
+
+export function ProgressiveScrollHarness({
+  scrollHarnessRunId = '',
+}: ProgressiveScrollHarnessProps): React.JSX.Element {
   const listRef = useRef<any>(null);
+  const lastCommandKeyRef = useRef<string | null>(null);
   const [status, setStatus] = useState('ready');
   const messages = useMemo(() => buildMessages(), []);
 
@@ -39,6 +46,7 @@ export function ProgressiveScrollHarness(): React.JSX.Element {
           typeof getRenderedWindowRange === 'function' ? getRenderedWindowRange() : null;
         DesktopWindowManager?.recordProgressiveScrollHarnessState?.({
           command,
+          runId: scrollHarnessRunId,
           status: statusOverride ?? status,
           anchorKey: anchor?.key ?? null,
           anchorSourceIndex: anchor?.sourceIndex ?? null,
@@ -54,11 +62,12 @@ export function ProgressiveScrollHarness(): React.JSX.Element {
       .catch(() => {
         DesktopWindowManager?.recordProgressiveScrollHarnessState?.({
           command,
+          runId: scrollHarnessRunId,
           status: 'state error',
           dataLength: messages.length,
         });
       });
-  }, [messages.length, status]);
+  }, [messages.length, scrollHarnessRunId, status]);
 
   const recordAfterLayout = useCallback(
     (command: string, statusOverride?: string) => {
@@ -88,51 +97,85 @@ export function ProgressiveScrollHarness(): React.JSX.Element {
       .catch(() => setStatus('anchor error'));
   }, [recordHarnessState]);
 
+  const executeHarnessCommand = useCallback(
+    (command: string) => {
+      if (command === 'top') {
+        setStatus('command top');
+        listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
+        recordAfterLayout(command, 'command top');
+      } else if (command === 'bottom') {
+        setStatus('command bottom');
+        listRef.current?.scrollToEnd?.({ animated: false });
+        recordAfterLayout(command, 'command bottom');
+      } else if (command === 'message120') {
+        setStatus('command message120');
+        listRef.current?.scrollToItemAnchor?.({
+          key: 'msg-120',
+          sourceIndex: 120,
+          offsetFromViewportTop: 40,
+          beforeCount: 40,
+          afterCount: 59,
+          animated: false,
+        });
+        recordAfterLayout(command, 'command message120');
+      } else if (command === 'readAnchor') {
+        refreshVisibleAnchor();
+      } else if (command === 'loadAbove') {
+        setStatus('command loadAbove');
+        listRef.current?.loadMoreTop?.();
+        recordAfterLayout(command, 'command loadAbove');
+      } else if (command === 'loadBelow') {
+        setStatus('command loadBelow');
+        listRef.current?.loadMoreBottom?.();
+        recordAfterLayout(command, 'command loadBelow');
+      }
+    },
+    [recordAfterLayout, refreshVisibleAnchor],
+  );
+
   useEffect(() => {
-    if (!desktopWindowEvents) {
-      return;
-    }
-    const subscription = desktopWindowEvents.addListener(
+    const subscription = desktopWindowEvents?.addListener(
       'progressiveScrollHarnessCommand',
-      (event: { command?: string }) => {
+      (event: { command?: string; postedAtMs?: unknown; runId?: unknown }) => {
         const command = event?.command;
-        if (command === 'top') {
-          setStatus('command top');
-          listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
-          recordAfterLayout(command, 'command top');
-        } else if (command === 'bottom') {
-          setStatus('command bottom');
-          listRef.current?.scrollToEnd?.({ animated: false });
-          recordAfterLayout(command, 'command bottom');
-        } else if (command === 'message120') {
-          setStatus('command message120');
-          listRef.current?.scrollToItemAnchor?.({
-            key: 'msg-120',
-            sourceIndex: 120,
-            offsetFromViewportTop: 40,
-            beforeCount: 40,
-            afterCount: 59,
-            animated: false,
-          });
-          recordAfterLayout(command, 'command message120');
-        } else if (command === 'readAnchor') {
-          refreshVisibleAnchor();
-        } else if (command === 'loadAbove') {
-          setStatus('command loadAbove');
-          listRef.current?.loadMoreTop?.();
-          recordAfterLayout(command, 'command loadAbove');
-        } else if (command === 'loadBelow') {
-          setStatus('command loadBelow');
-          listRef.current?.loadMoreBottom?.();
-          recordAfterLayout(command, 'command loadBelow');
+        if (typeof command !== 'string') {
+          return;
         }
+        if (typeof event?.runId === 'string' && event.runId !== scrollHarnessRunId) {
+          return;
+        }
+        lastCommandKeyRef.current = `${command}:${String(event?.postedAtMs ?? '')}`;
+        executeHarnessCommand(command);
       },
     );
-    recordAfterLayout('mounted', 'ready');
+    const interval = setInterval(() => {
+      DesktopWindowManager?.readProgressiveScrollHarnessCommand?.()
+        .then((payload) => {
+          const command = payload?.command;
+          const postedAtMs = payload?.postedAtMs;
+          if (typeof command !== 'string') {
+            return;
+          }
+          if (
+            typeof payload?.runId === 'string' &&
+            payload.runId !== scrollHarnessRunId
+          ) {
+            return;
+          }
+          const commandKey = `${command}:${String(postedAtMs ?? '')}`;
+          if (lastCommandKeyRef.current === commandKey) {
+            return;
+          }
+          lastCommandKeyRef.current = commandKey;
+          executeHarnessCommand(command);
+        })
+        .catch(() => {});
+    }, 250);
     return () => {
-      subscription.remove();
+      subscription?.remove();
+      clearInterval(interval);
     };
-  }, [recordAfterLayout, refreshVisibleAnchor]);
+  }, [executeHarnessCommand, recordAfterLayout, scrollHarnessRunId]);
 
   return (
     <View
