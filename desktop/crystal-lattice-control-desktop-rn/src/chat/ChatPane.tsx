@@ -164,6 +164,7 @@ const FLATLIST_WINDOW_SIZE = readOptionalGlobalNumber('CLC_FLATLIST_WINDOW_SIZE'
 const FLATLIST_REMOVE_CLIPPED_SUBVIEWS = readOptionalGlobalBoolean(
   'CLC_FLATLIST_REMOVE_CLIPPED_SUBVIEWS',
 );
+const FLATLIST_INVERTED = readGlobalBoolean('CLC_FLATLIST_INVERTED', true);
 const FLATLIST_FORWARD_SCROLL_END_DRAG = readGlobalBoolean(
   'CLC_FLATLIST_FORWARD_SCROLL_END_DRAG',
   true,
@@ -2634,6 +2635,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
 	              data={transcriptRows}
+	              inverted={FLATLIST_INVERTED}
 	              keyExtractor={getTranscriptRowKey}
 	              getItemDependencies={getTranscriptRowDependencies}
 	              scrollEventThrottle={16}
@@ -2668,6 +2670,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              style={styles.transcript}
 	              contentContainerStyle={styles.transcriptContent}
 	              data={transcriptRows}
+	              inverted={FLATLIST_INVERTED}
 	              keyExtractor={getTranscriptRowKey}
 	              getItemDependencies={getTranscriptRowDependencies}
 	              scrollEventThrottle={16}
