@@ -1,7 +1,8 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ProgressiveScrollList } from '../ui/ProgressiveScrollList';
+import { DesktopWindowManager, desktopWindowEvents } from '../windows/desktopWindowManager';
 
 type HarnessMessage = {
   index: number;
@@ -29,6 +30,43 @@ export function ProgressiveScrollHarness(): React.JSX.Element {
   const [status, setStatus] = useState('ready');
   const messages = useMemo(() => buildMessages(), []);
 
+  const recordHarnessState = useCallback((command: string, statusOverride?: string) => {
+    const getVisibleAnchor = listRef.current?.getVisibleAnchor;
+    const getRenderedWindowRange = listRef.current?.getRenderedWindowRange;
+    Promise.resolve(typeof getVisibleAnchor === 'function' ? getVisibleAnchor() : null)
+      .then((anchor: any) => {
+        const windowRange =
+          typeof getRenderedWindowRange === 'function' ? getRenderedWindowRange() : null;
+        DesktopWindowManager?.recordProgressiveScrollHarnessState?.({
+          command,
+          status: statusOverride ?? status,
+          anchorKey: anchor?.key ?? null,
+          anchorSourceIndex: anchor?.sourceIndex ?? null,
+          anchorOffsetFromViewportTop:
+            typeof anchor?.offsetFromViewportTop === 'number'
+              ? Math.round(anchor.offsetFromViewportTop)
+              : null,
+          windowStart: windowRange?.start ?? null,
+          windowEnd: windowRange?.end ?? null,
+          dataLength: windowRange?.length ?? messages.length,
+        });
+      })
+      .catch(() => {
+        DesktopWindowManager?.recordProgressiveScrollHarnessState?.({
+          command,
+          status: 'state error',
+          dataLength: messages.length,
+        });
+      });
+  }, [messages.length, status]);
+
+  const recordAfterLayout = useCallback(
+    (command: string, statusOverride?: string) => {
+      setTimeout(() => recordHarnessState(command, statusOverride), 900);
+    },
+    [recordHarnessState],
+  );
+
   const refreshVisibleAnchor = useCallback(() => {
     const getVisibleAnchor = listRef.current?.getVisibleAnchor;
     if (typeof getVisibleAnchor !== 'function') {
@@ -41,19 +79,74 @@ export function ProgressiveScrollHarness(): React.JSX.Element {
           setStatus('anchor none');
           return;
         }
-        setStatus(
-          `anchor ${anchor.key} index ${anchor.sourceIndex} y ${Math.round(
+        const nextStatus = `anchor ${anchor.key} index ${anchor.sourceIndex} y ${Math.round(
             anchor.offsetFromViewportTop,
-          )}`,
-        );
+          )}`;
+        setStatus(nextStatus);
+        recordHarnessState('readAnchor', nextStatus);
       })
       .catch(() => setStatus('anchor error'));
-  }, []);
+  }, [recordHarnessState]);
+
+  useEffect(() => {
+    if (!desktopWindowEvents) {
+      return;
+    }
+    const subscription = desktopWindowEvents.addListener(
+      'progressiveScrollHarnessCommand',
+      (event: { command?: string }) => {
+        const command = event?.command;
+        if (command === 'top') {
+          setStatus('command top');
+          listRef.current?.scrollToOffset?.({ offset: 0, animated: false });
+          recordAfterLayout(command, 'command top');
+        } else if (command === 'bottom') {
+          setStatus('command bottom');
+          listRef.current?.scrollToEnd?.({ animated: false });
+          recordAfterLayout(command, 'command bottom');
+        } else if (command === 'message120') {
+          setStatus('command message120');
+          listRef.current?.scrollToItemAnchor?.({
+            key: 'msg-120',
+            sourceIndex: 120,
+            offsetFromViewportTop: 40,
+            beforeCount: 40,
+            afterCount: 59,
+            animated: false,
+          });
+          recordAfterLayout(command, 'command message120');
+        } else if (command === 'readAnchor') {
+          refreshVisibleAnchor();
+        } else if (command === 'loadAbove') {
+          setStatus('command loadAbove');
+          listRef.current?.loadMoreTop?.();
+          recordAfterLayout(command, 'command loadAbove');
+        } else if (command === 'loadBelow') {
+          setStatus('command loadBelow');
+          listRef.current?.loadMoreBottom?.();
+          recordAfterLayout(command, 'command loadBelow');
+        }
+      },
+    );
+    recordAfterLayout('mounted', 'ready');
+    return () => {
+      subscription.remove();
+    };
+  }, [recordAfterLayout, refreshVisibleAnchor]);
 
   return (
-    <View testID="scroll-harness-root" style={styles.root}>
+    <View
+      testID="scroll-harness-root"
+      accessible={false}
+      accessibilityLabel="Progressive Scroll Harness Root"
+      style={styles.root}
+    >
       <View style={styles.toolbar}>
-        <Text testID="scroll-harness-title" style={styles.title}>
+        <Text
+          testID="scroll-harness-title"
+          accessibilityLabel="Progressive Scroll Harness"
+          style={styles.title}
+        >
           Progressive Scroll Harness
         </Text>
         <Pressable
@@ -103,7 +196,11 @@ export function ProgressiveScrollHarness(): React.JSX.Element {
         </Pressable>
       </View>
 
-      <Text testID="scroll-harness-status" style={styles.status}>
+      <Text
+        testID="scroll-harness-status"
+        accessibilityLabel={`Harness status ${status}`}
+        style={styles.status}
+      >
         {status}
       </Text>
 
@@ -123,7 +220,12 @@ export function ProgressiveScrollHarness(): React.JSX.Element {
         autoLoadEdges={false}
         scrollEventThrottle={16}
         renderItem={({ item }) => (
-          <View testID={`scroll-harness-message-${item.index}`} style={styles.row}>
+          <View
+            testID={`scroll-harness-message-${item.index}`}
+            accessible
+            accessibilityLabel={`Message ${item.index}`}
+            style={styles.row}
+          >
             <Text style={styles.rowTitle}>{item.title}</Text>
             <Text style={styles.rowDetail}>{item.detail}</Text>
           </View>

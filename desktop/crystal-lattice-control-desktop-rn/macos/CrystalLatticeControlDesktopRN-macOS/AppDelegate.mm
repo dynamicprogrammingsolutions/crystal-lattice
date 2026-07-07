@@ -3,6 +3,7 @@
 
 #import <React/RCTBundleURLProvider.h>
 #import <React/RCTRootView.h>
+#import <React/RCTDevLoadingViewSetEnabled.h>
 #import <ReactAppDependencyProvider/RCTAppDependencyProvider.h>
 
 static NSString *const kTabStripStyleDefaultsKey = @"CrystalLattice.TabStripStyle";
@@ -25,6 +26,11 @@ static BOOL EnvironmentFlagEnabled(NSString *name)
       [normalized isEqualToString:@"yes"];
 }
 
+static BOOL LaunchArgumentPresent(NSString *argument)
+{
+  return [[NSProcessInfo processInfo].arguments containsObject:argument];
+}
+
 @interface AppDelegate ()
 
 @property(nonatomic, strong) NSMenuItem *toolbarTabsMenuItem;
@@ -44,13 +50,18 @@ static BOOL EnvironmentFlagEnabled(NSString *name)
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
 {
-  self.moduleName = @"CrystalLatticeControlDesktopRN";
+  BOOL enableScrollTestHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS") || LaunchArgumentPresent(@"--scroll-test-harness");
+  if (enableScrollTestHarness) {
+    RCTDevLoadingViewSetEnabled(NO);
+  }
+  self.moduleName = enableScrollTestHarness ? @"ProgressiveScrollHarness" : @"CrystalLatticeControlDesktopRN";
   NSString *tabStripStyle = [self loadTabStripStylePreference];
   BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
   self.initialProps = @{
     @"initialTabStripStyle" : tabStripStyle,
     @"initialSessionsFollowActiveTabEnabled" : @(followEnabled),
-    @"enableScrollTestHarness" : @(EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS")),
+    @"enableScrollTestHarness" : @(enableScrollTestHarness),
   };
   self.dependencyProvider = [RCTAppDependencyProvider new];
 
@@ -62,10 +73,21 @@ static BOOL EnvironmentFlagEnabled(NSString *name)
   // - support opening additional main windows
   [self ensureMainWindowsTrackingInitialized];
   [self trackMainWindowIfNeeded:(NSWindow *)self.window];
+  if (enableScrollTestHarness) {
+    NSWindow *window = (NSWindow *)self.window;
+    window.title = @"ProgressiveScrollHarness";
+    window.accessibilityLabel = @"ProgressiveScrollHarness";
+    window.accessibilityIdentifier = @"ProgressiveScrollHarnessWindow";
+    [(NSWindow *)self.window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+  }
 
   [self installTabStripStyleMenuWithSelectedStyle:tabStripStyle];
   [self installSessionsFollowActiveTabMenuWithEnabled:followEnabled];
   [self installClearStoredSessionCachesMenu];
+  if (enableScrollTestHarness) {
+    [self installProgressiveScrollHarnessMenu];
+  }
 }
 
 #pragma mark - Main window management (Dock reopen / New Window)
@@ -254,6 +276,10 @@ static BOOL EnvironmentFlagEnabled(NSString *name)
 
 - (NSURL *)bundleURL
 {
+  if (EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS") || LaunchArgumentPresent(@"--scroll-test-harness")) {
+    return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
+  }
+
 #if DEBUG
   return [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:@"index"];
 #else
@@ -334,6 +360,74 @@ static BOOL EnvironmentFlagEnabled(NSString *name)
 - (void)clearStoredSessionCaches:(__unused id)sender
 {
   [[NSNotificationCenter defaultCenter] postNotificationName:CLCClearStoredSessionCachesNotification object:nil];
+}
+
+- (void)installProgressiveScrollHarnessMenu
+{
+  NSMenu *mainMenu = [NSApp mainMenu];
+  if (mainMenu == nil) {
+    return;
+  }
+
+  NSMenuItem *harnessMenuItem = [[NSMenuItem alloc] initWithTitle:@"Scroll Harness" action:nil keyEquivalent:@""];
+  NSMenu *harnessMenu = [[NSMenu alloc] initWithTitle:@"Scroll Harness"];
+  harnessMenuItem.submenu = harnessMenu;
+
+  NSArray<NSArray<NSString *> *> *items = @[
+    @[ @"Scroll Harness Top", @"progressiveScrollHarnessTop:" ],
+    @[ @"Scroll Harness Bottom", @"progressiveScrollHarnessBottom:" ],
+    @[ @"Scroll Harness Message 120", @"progressiveScrollHarnessMessage120:" ],
+    @[ @"Scroll Harness Read Anchor", @"progressiveScrollHarnessReadAnchor:" ],
+    @[ @"Scroll Harness Load Above", @"progressiveScrollHarnessLoadAbove:" ],
+    @[ @"Scroll Harness Load Below", @"progressiveScrollHarnessLoadBelow:" ],
+  ];
+
+  for (NSArray<NSString *> *item in items) {
+    SEL selector = NSSelectorFromString(item[1]);
+    NSMenuItem *menuItem = [[NSMenuItem alloc] initWithTitle:item[0] action:selector keyEquivalent:@""];
+    menuItem.target = self;
+    [harnessMenu addItem:menuItem];
+  }
+
+  [mainMenu addItem:harnessMenuItem];
+}
+
+- (void)postProgressiveScrollHarnessCommand:(NSString *)command
+{
+  [[NSNotificationCenter defaultCenter]
+      postNotificationName:CLCProgressiveScrollHarnessCommandNotification
+                    object:nil
+                  userInfo:@{ CLCProgressiveScrollHarnessCommandUserInfoKey : command }];
+}
+
+- (void)progressiveScrollHarnessTop:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"top"];
+}
+
+- (void)progressiveScrollHarnessBottom:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"bottom"];
+}
+
+- (void)progressiveScrollHarnessMessage120:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"message120"];
+}
+
+- (void)progressiveScrollHarnessReadAnchor:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"readAnchor"];
+}
+
+- (void)progressiveScrollHarnessLoadAbove:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"loadAbove"];
+}
+
+- (void)progressiveScrollHarnessLoadBelow:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"loadBelow"];
 }
 
 - (void)installSessionsFollowActiveTabMenuWithEnabled:(BOOL)enabled

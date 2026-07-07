@@ -62,7 +62,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged", @"progressiveScrollHarnessCommand" ];
 }
 
 - (void)startObserving
@@ -80,6 +80,11 @@ RCT_EXPORT_MODULE();
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(handleClearStoredSessionCaches:)
                                                name:CLCClearStoredSessionCachesNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleProgressiveScrollHarnessCommand:)
+                                               name:CLCProgressiveScrollHarnessCommandNotification
                                              object:nil];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
@@ -107,6 +112,10 @@ RCT_EXPORT_MODULE();
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCClearStoredSessionCachesNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCProgressiveScrollHarnessCommandNotification
                                                 object:nil];
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
@@ -160,6 +169,31 @@ RCT_EXPORT_MODULE();
 - (void)handleClearStoredSessionCaches:(__unused NSNotification *)notification
 {
   [self sendEventWithName:@"clearStoredSessionCachesRequested" body:@{}];
+}
+
+- (void)handleProgressiveScrollHarnessCommand:(NSNotification *)notification
+{
+  NSString *command = notification.userInfo[CLCProgressiveScrollHarnessCommandUserInfoKey];
+  if (![command isKindOfClass:[NSString class]]) {
+    return;
+  }
+  [self sendEventWithName:@"progressiveScrollHarnessCommand" body:@{ @"command" : command }];
+}
+
+RCT_EXPORT_METHOD(recordProgressiveScrollHarnessState:(NSDictionary *)state)
+{
+  NSMutableDictionary *payload = [NSMutableDictionary dictionary];
+  if ([state isKindOfClass:[NSDictionary class]]) {
+    [payload addEntriesFromDictionary:state];
+  }
+  payload[@"recordedAtMs"] = @((long long)([[NSDate date] timeIntervalSince1970] * 1000));
+
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:&error];
+  if (data == nil || error != nil) {
+    return;
+  }
+  [data writeToFile:@"/tmp/clc-progressive-scroll-harness-state.json" atomically:YES];
 }
 
 - (void)handleSystemColorsDidChange:(NSNotification *)notification

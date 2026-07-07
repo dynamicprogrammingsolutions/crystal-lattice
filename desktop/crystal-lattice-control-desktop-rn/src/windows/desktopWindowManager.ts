@@ -92,6 +92,7 @@ export interface DesktopWindowManagerModule {
   closeReactWindow(params: CloseReactWindowParams): void;
 
   getSystemTheme?(): Promise<MacOSSystemThemePayload>;
+  recordProgressiveScrollHarnessState?(state: Record<string, unknown>): void;
 }
 
 export const DesktopWindowManager: DesktopWindowManagerModule | null =

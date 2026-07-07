@@ -4,6 +4,7 @@
 
 import { AppRegistry } from 'react-native';
 import App from './App';
+import { ProgressiveScrollHarness } from './src/testing/ProgressiveScrollHarness';
 import { ConnectionEditorWindow } from './src/windows/ConnectionEditorWindow';
 import { AgentPickerWindow } from './src/windows/AgentPickerWindow';
 import { ActionsPopoverView } from './src/windows/ActionsPopoverView';
@@ -15,6 +16,7 @@ import { AttachmentMetadataWindow } from './src/windows/AttachmentMetadataWindow
 import { name as appName } from './app.json';
 
 AppRegistry.registerComponent(appName, () => App);
+AppRegistry.registerComponent('ProgressiveScrollHarness', () => ProgressiveScrollHarness);
 AppRegistry.registerComponent('ConnectionEditorWindow', () => ConnectionEditorWindow);
 AppRegistry.registerComponent('AgentPickerWindow', () => AgentPickerWindow);
 AppRegistry.registerComponent('ActionsPopoverView', () => ActionsPopoverView);

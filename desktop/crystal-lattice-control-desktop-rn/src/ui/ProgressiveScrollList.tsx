@@ -192,6 +192,8 @@ export function ProgressiveScrollList<TItem>(
   const pendingScrollActionRef = useRef<PendingScrollAction | null>(null);
   const pendingActionFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
   const runPendingScrollActionRef = useRef<() => void>(() => {});
+  const loadMoreTopRef = useRef<() => void>(() => {});
+  const loadMoreBottomRef = useRef<() => void>(() => {});
   const metricsRef = useRef({ offsetY: 0, viewportHeight: 0, contentHeight: 0 });
   const [layoutVersion, setLayoutVersion] = useState(0);
   const [windowRange, setWindowRange] = useState(() =>
@@ -414,6 +416,13 @@ export function ProgressiveScrollList<TItem>(
         runPendingScrollActionRef.current();
       },
       getVisibleAnchor: captureAnchor,
+      getRenderedWindowRange: () => ({
+        start: windowRange.start,
+        end: windowRange.end,
+        length: data.length,
+      }),
+      loadMoreTop: () => loadMoreTopRef.current(),
+      loadMoreBottom: () => loadMoreBottomRef.current(),
       cancelPendingScrollAction: () => {
         if (pendingActionFrameRef.current != null) {
           cancelAnimationFrame(pendingActionFrameRef.current);
@@ -424,7 +433,7 @@ export function ProgressiveScrollList<TItem>(
       getNativeScrollRef: () => scrollRef.current,
       getScrollableNode: () => scrollRef.current?.getScrollableNode?.(),
     };
-  }, [captureAnchor]);
+  }, [captureAnchor, data.length, windowRange.end, windowRange.start]);
 
   React.useImperativeHandle(listRef as React.Ref<any> | undefined, () => exposeHandle, [
     exposeHandle,
@@ -559,6 +568,9 @@ export function ProgressiveScrollList<TItem>(
     resolvedPageSize,
     windowRange.end,
   ]);
+
+  loadMoreTopRef.current = handleLoadMoreTop;
+  loadMoreBottomRef.current = handleLoadMoreBottom;
 
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {

@@ -9,3 +9,7 @@ static NSString *const CLCSessionsFollowActiveTabEnabledUserInfoKey = @"enabled"
 
 static NSNotificationName const CLCClearStoredSessionCachesNotification =
     @"CrystalLattice.ClearStoredSessionCaches";
+
+static NSNotificationName const CLCProgressiveScrollHarnessCommandNotification =
+    @"CrystalLattice.ProgressiveScrollHarnessCommand";
+static NSString *const CLCProgressiveScrollHarnessCommandUserInfoKey = @"command";
