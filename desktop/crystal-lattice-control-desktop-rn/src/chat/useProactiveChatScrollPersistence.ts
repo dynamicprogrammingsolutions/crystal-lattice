@@ -16,9 +16,12 @@ import type { IndexedMessage } from '@crystal-lattice/frontend-sdk';
 
 import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
 import {
+  createChatMessageViewportScrollAnchor,
   createChatScrollAnchor,
+  isChatMessageViewportScrollAnchor,
   isChatScrollAnchor,
   PINNED_TO_BOTTOM_THRESHOLD_PX,
+  type ChatMessageViewportScrollAnchor,
   type ChatScrollAnchor,
 } from './chatScroll';
 
@@ -104,6 +107,8 @@ export function useProactiveChatScrollPersistence(params: {
   bottomConvergenceStableMs?: number;
   bottomConvergenceMaxMs?: number;
   bottomLockEnabled?: boolean;
+  messageAnchorBeforeCount?: number;
+  messageAnchorAfterCount?: number;
 }): {
   listRef: RefObject<any>;
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -133,6 +138,8 @@ export function useProactiveChatScrollPersistence(params: {
     bottomConvergenceStableMs = 200,
     bottomConvergenceMaxMs = 3000,
     bottomLockEnabled = false,
+    messageAnchorBeforeCount = 40,
+    messageAnchorAfterCount = 59,
   } = params;
 
   const listRef = useRef<any>(null);
@@ -155,8 +162,12 @@ export function useProactiveChatScrollPersistence(params: {
     isNearBottom: true,
   });
 
-  const initialAnchorRef = useRef<ChatScrollAnchor | null>(
-    isChatScrollAnchor(cachedScrollAnchor) ? cachedScrollAnchor : null,
+  const initialAnchorRef = useRef<ChatScrollAnchor | ChatMessageViewportScrollAnchor | null>(
+    isChatScrollAnchor(cachedScrollAnchor)
+      ? cachedScrollAnchor
+      : isChatMessageViewportScrollAnchor(cachedScrollAnchor)
+        ? cachedScrollAnchor
+        : null,
   );
   const hasRestoredRef = useRef(false);
 
@@ -477,6 +488,27 @@ export function useProactiveChatScrollPersistence(params: {
       return;
     }
 
+    if (isChatMessageViewportScrollAnchor(anchor)) {
+      if (anchor.pinnedToBottom && typeof target.scrollToEnd === 'function') {
+        target.scrollToEnd({ animated: false });
+        hasRestoredRef.current = true;
+        return;
+      }
+      if (typeof target.scrollToItemAnchor === 'function') {
+        target.scrollToItemAnchor({
+          key: `msg-${anchor.messageIndex}`,
+          offsetFromViewportTop: anchor.offsetFromViewportTop,
+          beforeCount: messageAnchorBeforeCount,
+          afterCount: messageAnchorAfterCount,
+          animated: false,
+        });
+        hasRestoredRef.current = true;
+        return;
+      }
+      hasRestoredRef.current = true;
+      return;
+    }
+
     const maxOffsetY = Math.max(0, contentHeight - layoutHeight);
     const targetOffsetY = anchor.pinnedToBottom
       ? maxOffsetY
@@ -503,7 +535,15 @@ export function useProactiveChatScrollPersistence(params: {
     offsetYRef.current = targetOffsetY;
     updateDerivedScrollState();
     hasRestoredRef.current = true;
-  }, [connectionId, debugEnabled, enabled, sessionId, updateDerivedScrollState]);
+  }, [
+    connectionId,
+    debugEnabled,
+    enabled,
+    messageAnchorAfterCount,
+    messageAnchorBeforeCount,
+    sessionId,
+    updateDerivedScrollState,
+  ]);
 
   const persistNow = useCallback(
     async (
@@ -532,7 +572,27 @@ export function useProactiveChatScrollPersistence(params: {
       const maxOffsetY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
       const bottomGapPx = Math.max(0, maxOffsetY - metrics.offsetY);
       const pinnedToBottom = bottomGapPx <= bottomThresholdPx;
-      const anchor = createChatScrollAnchor({ bottomGapPx, pinnedToBottom });
+      let anchor: ChatScrollAnchor | ChatMessageViewportScrollAnchor =
+        createChatScrollAnchor({ bottomGapPx, pinnedToBottom });
+
+      const visibleAnchor =
+        typeof (listRef.current as any)?.getVisibleAnchor === 'function'
+          ? await (listRef.current as any).getVisibleAnchor()
+          : null;
+      const visibleKey =
+        typeof visibleAnchor?.key === 'string' ? visibleAnchor.key : null;
+      const match = visibleKey ? /^msg-(\-?\d+)$/.exec(visibleKey) : null;
+      if (match) {
+        const messageIndex = Number(match[1]);
+        const offsetFromViewportTop = Number(visibleAnchor.offsetFromViewportTop ?? NaN);
+        if (Number.isFinite(messageIndex) && Number.isFinite(offsetFromViewportTop)) {
+          anchor = createChatMessageViewportScrollAnchor({
+            messageIndex,
+            offsetFromViewportTop,
+            pinnedToBottom,
+          });
+        }
+      }
 
       if (debugEnabled) {
         console.log('[scrollPersist] persist(pull)', {
@@ -594,7 +654,11 @@ export function useProactiveChatScrollPersistence(params: {
   );
 
   useEffect(() => {
-    initialAnchorRef.current = isChatScrollAnchor(cachedScrollAnchor) ? cachedScrollAnchor : null;
+    initialAnchorRef.current = isChatScrollAnchor(cachedScrollAnchor)
+      ? cachedScrollAnchor
+      : isChatMessageViewportScrollAnchor(cachedScrollAnchor)
+        ? cachedScrollAnchor
+        : null;
     maybeRestoreScroll();
   }, [cachedScrollAnchor, maybeRestoreScroll]);
 

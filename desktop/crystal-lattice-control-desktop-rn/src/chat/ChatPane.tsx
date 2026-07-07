@@ -193,6 +193,16 @@ const PROGRESSIVE_SCROLL_AUTO_LOAD = readGlobalBoolean(
 );
 const PROGRESSIVE_SCROLL_EDGE_THRESHOLD_PX =
   readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_EDGE_THRESHOLD_PX') ?? 240;
+const PROGRESSIVE_SCROLL_PREBUILD_ROWS = readGlobalBoolean(
+  'CLC_PROGRESSIVE_SCROLL_PREBUILD_ROWS',
+  true,
+);
+const PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT =
+  readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT') ?? 40;
+const PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT =
+  readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT') ?? 59;
+const PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS =
+  readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS') ?? 3000;
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -917,6 +927,8 @@ export const ChatPane = React.memo(function ChatPane({
     bottomConvergenceStableMs: FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS,
     bottomConvergenceMaxMs: FLATLIST_BOTTOM_CONVERGENCE_MAX_MS,
     bottomLockEnabled: FLATLIST_BOTTOM_LOCK,
+    messageAnchorBeforeCount: PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT,
+    messageAnchorAfterCount: PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT,
   });
 
   const requestPersistTranscriptScroll = transcriptScroll.requestPersist;
@@ -2725,6 +2737,10 @@ export const ChatPane = React.memo(function ChatPane({
 	              maxWindowSize={PROGRESSIVE_SCROLL_MAX_WINDOW_SIZE}
 	              autoLoadEdges={PROGRESSIVE_SCROLL_AUTO_LOAD}
 	              edgeThresholdPx={PROGRESSIVE_SCROLL_EDGE_THRESHOLD_PX}
+	              prebuildRows={PROGRESSIVE_SCROLL_PREBUILD_ROWS}
+	              defaultAnchorBeforeCount={PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT}
+	              defaultAnchorAfterCount={PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT}
+	              scrollActionTimeoutMs={PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS}
 	              scrollEventThrottle={16}
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
