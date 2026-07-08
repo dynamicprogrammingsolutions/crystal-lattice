@@ -35,6 +35,7 @@ export function ProgressiveScrollHarness({
   const listRef = useRef<any>(null);
   const lastCommandKeyRef = useRef<string | null>(null);
   const expectedAnchorRef = useRef<any>(null);
+  const trackedAnchorRef = useRef<any>(null);
   const [status, setStatus] = useState('ready');
   const messages = useMemo(() => buildMessages(), []);
 
@@ -43,6 +44,7 @@ export function ProgressiveScrollHarness({
     const getLastWindowChangeAnchor = listRef.current?.getLastWindowChangeAnchor;
     const getRenderedWindowRange = listRef.current?.getRenderedWindowRange;
     const getItemViewportOffset = listRef.current?.getItemViewportOffset;
+    const trackedAnchor = trackedAnchorRef.current;
     Promise.resolve(typeof getVisibleAnchor === 'function' ? getVisibleAnchor() : null)
       .then((anchor: any) => {
         const windowRange =
@@ -60,11 +62,18 @@ export function ProgressiveScrollHarness({
             typeof getItemViewportOffset === 'function' && windowChangeAnchor?.key
               ? getItemViewportOffset(windowChangeAnchor.key)
               : null,
-          ).then((windowChangeAnchorActualOffset) => ({
-            message120Offset,
-            windowChangeAnchorActualOffset,
-          })),
-        ).then(({ message120Offset, windowChangeAnchorActualOffset }) => {
+          ).then((windowChangeAnchorActualOffset) =>
+            Promise.resolve(
+              typeof getItemViewportOffset === 'function' && trackedAnchor?.key
+                ? getItemViewportOffset(trackedAnchor.key)
+                : null,
+            ).then((trackedAnchorActualOffset) => ({
+              message120Offset,
+              windowChangeAnchorActualOffset,
+              trackedAnchorActualOffset,
+            })),
+          ),
+        ).then(({ message120Offset, windowChangeAnchorActualOffset, trackedAnchorActualOffset }) => {
           DesktopWindowManager?.recordProgressiveScrollHarnessState?.({
             command,
             runId: scrollHarnessRunId,
@@ -82,6 +91,16 @@ export function ProgressiveScrollHarness({
             expectedAnchorOffsetFromViewportTop:
               typeof expectedAnchorRef.current?.offsetFromViewportTop === 'number'
                 ? Math.round(expectedAnchorRef.current.offsetFromViewportTop)
+                : null,
+            trackedAnchorKey: trackedAnchor?.key ?? null,
+            trackedAnchorSourceIndex: trackedAnchor?.sourceIndex ?? null,
+            trackedAnchorOffsetFromViewportTop:
+              typeof trackedAnchor?.offsetFromViewportTop === 'number'
+                ? Math.round(trackedAnchor.offsetFromViewportTop)
+                : null,
+            trackedAnchorActualOffsetFromViewportTop:
+              typeof trackedAnchorActualOffset === 'number'
+                ? Math.round(trackedAnchorActualOffset)
                 : null,
             windowChangeAnchorKey: windowChangeAnchor?.key ?? null,
             windowChangeAnchorSourceIndex: windowChangeAnchor?.sourceIndex ?? null,
@@ -169,12 +188,21 @@ export function ProgressiveScrollHarness({
           animated: false,
         });
         recordAfterLayout(command, 'command message120');
+      } else if (command === 'windowTop') {
+        setStatus('command windowTop');
+        listRef.current?.scrollTo?.({ y: 0, animated: false });
+        recordAfterLayout(command, 'command windowTop');
+      } else if (command === 'windowBottom') {
+        setStatus('command windowBottom');
+        listRef.current?.scrollTo?.({ y: 999999, animated: false });
+        recordAfterLayout(command, 'command windowBottom');
       } else if (command === 'readAnchor') {
         refreshVisibleAnchor();
       } else if (command === 'loadAbove') {
         setStatus('command loadAbove');
         Promise.resolve(listRef.current?.getVisibleAnchor?.()).then((anchor) => {
           expectedAnchorRef.current = anchor;
+          trackedAnchorRef.current = anchor;
           listRef.current?.loadMoreTop?.();
           recordAfterLayout(command, 'command loadAbove');
         });
@@ -182,6 +210,7 @@ export function ProgressiveScrollHarness({
         setStatus('command loadBelow');
         Promise.resolve(listRef.current?.getVisibleAnchor?.()).then((anchor) => {
           expectedAnchorRef.current = anchor;
+          trackedAnchorRef.current = anchor;
           listRef.current?.loadMoreBottom?.();
           recordAfterLayout(command, 'command loadBelow');
         });

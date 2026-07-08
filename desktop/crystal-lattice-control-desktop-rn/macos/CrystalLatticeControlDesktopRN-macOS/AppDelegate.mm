@@ -378,6 +378,8 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @[ @"Scroll Harness Top", @"progressiveScrollHarnessTop:" ],
     @[ @"Scroll Harness Bottom", @"progressiveScrollHarnessBottom:" ],
     @[ @"Scroll Harness Message 120", @"progressiveScrollHarnessMessage120:" ],
+    @[ @"Scroll Harness Window Top", @"progressiveScrollHarnessWindowTop:" ],
+    @[ @"Scroll Harness Window Bottom", @"progressiveScrollHarnessWindowBottom:" ],
     @[ @"Scroll Harness Read Anchor", @"progressiveScrollHarnessReadAnchor:" ],
     @[ @"Scroll Harness Load Above", @"progressiveScrollHarnessLoadAbove:" ],
     @[ @"Scroll Harness Load Below", @"progressiveScrollHarnessLoadBelow:" ],
@@ -425,6 +427,16 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 - (void)progressiveScrollHarnessMessage120:(__unused id)sender
 {
   [self postProgressiveScrollHarnessCommand:@"message120"];
+}
+
+- (void)progressiveScrollHarnessWindowTop:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"windowTop"];
+}
+
+- (void)progressiveScrollHarnessWindowBottom:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"windowBottom"];
 }
 
 - (void)progressiveScrollHarnessReadAnchor:(__unused id)sender

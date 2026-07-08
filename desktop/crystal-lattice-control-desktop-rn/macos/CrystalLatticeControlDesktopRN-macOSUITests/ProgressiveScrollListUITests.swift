@@ -62,6 +62,14 @@ final class ProgressiveScrollListUITests: XCTestCase {
     XCTAssertLessThanOrEqual(end - start, max)
   }
 
+  private func assertApproxEqual(_ lhs: Int?, _ rhs: Int?, tolerance: Int = 4, file: StaticString = #filePath, line: UInt = #line) {
+    guard let lhs, let rhs else {
+      XCTFail("Missing values for approximate comparison: \(String(describing: lhs)) vs \(String(describing: rhs))", file: file, line: line)
+      return
+    }
+    XCTAssertLessThanOrEqual(abs(lhs - rhs), tolerance, file: file, line: line)
+  }
+
   func testProgressiveScrollHarnessEdgesAndAnchors() throws {
     runId = UUID().uuidString
     let app = XCUIApplication()
@@ -90,14 +98,34 @@ final class ProgressiveScrollListUITests: XCTestCase {
     XCTAssertEqual(intValue(anchored, "message120OffsetFromViewportTop"), 40)
     assertWindowSize(anchored)
 
+    clickHarnessMenu(app, "Scroll Harness Window Top")
+    let windowTop = waitForState(command: "windowTop")
+    XCTAssertEqual(intValue(windowTop, "anchorSourceIndex"), intValue(windowTop, "windowStart"))
+    assertWindowSize(windowTop)
+
     clickHarnessMenu(app, "Scroll Harness Load Above")
     let loadAbove = waitForState(command: "loadAbove")
-    XCTAssertLessThanOrEqual(intValue(loadAbove, "windowStart") ?? 999, intValue(anchored, "windowStart") ?? 999)
+    XCTAssertLessThanOrEqual(intValue(loadAbove, "windowStart") ?? 999, intValue(windowTop, "windowStart") ?? 999)
+    XCTAssertEqual(intValue(loadAbove, "trackedAnchorSourceIndex"), intValue(windowTop, "anchorSourceIndex"))
+    assertApproxEqual(
+      intValue(loadAbove, "trackedAnchorActualOffsetFromViewportTop"),
+      intValue(loadAbove, "trackedAnchorOffsetFromViewportTop")
+    )
     assertWindowSize(loadAbove)
+
+    clickHarnessMenu(app, "Scroll Harness Window Bottom")
+    let windowBottom = waitForState(command: "windowBottom")
+    XCTAssertGreaterThanOrEqual(intValue(windowBottom, "anchorSourceIndex") ?? -1, 110)
+    assertWindowSize(windowBottom)
 
     clickHarnessMenu(app, "Scroll Harness Load Below")
     let loadBelow = waitForState(command: "loadBelow")
-    XCTAssertGreaterThanOrEqual(intValue(loadBelow, "windowEnd") ?? -1, intValue(loadAbove, "windowEnd") ?? -1)
+    XCTAssertGreaterThanOrEqual(intValue(loadBelow, "windowEnd") ?? -1, intValue(windowBottom, "windowEnd") ?? -1)
+    XCTAssertEqual(intValue(loadBelow, "trackedAnchorSourceIndex"), intValue(windowBottom, "anchorSourceIndex"))
+    assertApproxEqual(
+      intValue(loadBelow, "trackedAnchorActualOffsetFromViewportTop"),
+      intValue(loadBelow, "trackedAnchorOffsetFromViewportTop")
+    )
     assertWindowSize(loadBelow)
   }
 }
