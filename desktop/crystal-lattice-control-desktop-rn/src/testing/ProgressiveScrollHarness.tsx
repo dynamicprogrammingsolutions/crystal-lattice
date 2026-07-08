@@ -34,29 +34,69 @@ export function ProgressiveScrollHarness({
 }: ProgressiveScrollHarnessProps): React.JSX.Element {
   const listRef = useRef<any>(null);
   const lastCommandKeyRef = useRef<string | null>(null);
+  const expectedAnchorRef = useRef<any>(null);
   const [status, setStatus] = useState('ready');
   const messages = useMemo(() => buildMessages(), []);
 
   const recordHarnessState = useCallback((command: string, statusOverride?: string) => {
     const getVisibleAnchor = listRef.current?.getVisibleAnchor;
+    const getLastWindowChangeAnchor = listRef.current?.getLastWindowChangeAnchor;
     const getRenderedWindowRange = listRef.current?.getRenderedWindowRange;
+    const getItemViewportOffset = listRef.current?.getItemViewportOffset;
     Promise.resolve(typeof getVisibleAnchor === 'function' ? getVisibleAnchor() : null)
       .then((anchor: any) => {
         const windowRange =
           typeof getRenderedWindowRange === 'function' ? getRenderedWindowRange() : null;
-        DesktopWindowManager?.recordProgressiveScrollHarnessState?.({
-          command,
-          runId: scrollHarnessRunId,
-          status: statusOverride ?? status,
-          anchorKey: anchor?.key ?? null,
-          anchorSourceIndex: anchor?.sourceIndex ?? null,
-          anchorOffsetFromViewportTop:
-            typeof anchor?.offsetFromViewportTop === 'number'
-              ? Math.round(anchor.offsetFromViewportTop)
+        const windowChangeAnchor =
+          typeof getLastWindowChangeAnchor === 'function'
+            ? getLastWindowChangeAnchor()
+            : null;
+        return Promise.resolve(
+          typeof getItemViewportOffset === 'function'
+            ? getItemViewportOffset('msg-120')
+            : null,
+        ).then((message120Offset) =>
+          Promise.resolve(
+            typeof getItemViewportOffset === 'function' && windowChangeAnchor?.key
+              ? getItemViewportOffset(windowChangeAnchor.key)
               : null,
-          windowStart: windowRange?.start ?? null,
-          windowEnd: windowRange?.end ?? null,
-          dataLength: windowRange?.length ?? messages.length,
+          ).then((windowChangeAnchorActualOffset) => ({
+            message120Offset,
+            windowChangeAnchorActualOffset,
+          })),
+        ).then(({ message120Offset, windowChangeAnchorActualOffset }) => {
+          DesktopWindowManager?.recordProgressiveScrollHarnessState?.({
+            command,
+            runId: scrollHarnessRunId,
+            status: statusOverride ?? status,
+            anchorKey: anchor?.key ?? null,
+            anchorSourceIndex: anchor?.sourceIndex ?? null,
+            anchorOffsetFromViewportTop:
+              typeof anchor?.offsetFromViewportTop === 'number'
+                ? Math.round(anchor.offsetFromViewportTop)
+                : null,
+            message120OffsetFromViewportTop:
+              typeof message120Offset === 'number' ? Math.round(message120Offset) : null,
+            expectedAnchorKey: expectedAnchorRef.current?.key ?? null,
+            expectedAnchorSourceIndex: expectedAnchorRef.current?.sourceIndex ?? null,
+            expectedAnchorOffsetFromViewportTop:
+              typeof expectedAnchorRef.current?.offsetFromViewportTop === 'number'
+                ? Math.round(expectedAnchorRef.current.offsetFromViewportTop)
+                : null,
+            windowChangeAnchorKey: windowChangeAnchor?.key ?? null,
+            windowChangeAnchorSourceIndex: windowChangeAnchor?.sourceIndex ?? null,
+            windowChangeAnchorOffsetFromViewportTop:
+              typeof windowChangeAnchor?.offsetFromViewportTop === 'number'
+                ? Math.round(windowChangeAnchor.offsetFromViewportTop)
+                : null,
+            windowChangeAnchorActualOffsetFromViewportTop:
+              typeof windowChangeAnchorActualOffset === 'number'
+                ? Math.round(windowChangeAnchorActualOffset)
+                : null,
+            windowStart: windowRange?.start ?? null,
+            windowEnd: windowRange?.end ?? null,
+            dataLength: windowRange?.length ?? messages.length,
+          });
         });
       })
       .catch(() => {
@@ -71,7 +111,18 @@ export function ProgressiveScrollHarness({
 
   const recordAfterLayout = useCallback(
     (command: string, statusOverride?: string) => {
-      setTimeout(() => recordHarnessState(command, statusOverride), 900);
+      const startedAtMs = Date.now();
+      const poll = () => {
+        const hasPendingScrollAction = listRef.current?.hasPendingScrollAction;
+        const pending =
+          typeof hasPendingScrollAction === 'function' && hasPendingScrollAction();
+        if (!pending || Date.now() - startedAtMs > 4000) {
+          recordHarnessState(command, statusOverride);
+          return;
+        }
+        setTimeout(poll, 100);
+      };
+      setTimeout(poll, 100);
     },
     [recordHarnessState],
   );
@@ -122,12 +173,18 @@ export function ProgressiveScrollHarness({
         refreshVisibleAnchor();
       } else if (command === 'loadAbove') {
         setStatus('command loadAbove');
-        listRef.current?.loadMoreTop?.();
-        recordAfterLayout(command, 'command loadAbove');
+        Promise.resolve(listRef.current?.getVisibleAnchor?.()).then((anchor) => {
+          expectedAnchorRef.current = anchor;
+          listRef.current?.loadMoreTop?.();
+          recordAfterLayout(command, 'command loadAbove');
+        });
       } else if (command === 'loadBelow') {
         setStatus('command loadBelow');
-        listRef.current?.loadMoreBottom?.();
-        recordAfterLayout(command, 'command loadBelow');
+        Promise.resolve(listRef.current?.getVisibleAnchor?.()).then((anchor) => {
+          expectedAnchorRef.current = anchor;
+          listRef.current?.loadMoreBottom?.();
+          recordAfterLayout(command, 'command loadBelow');
+        });
       }
     },
     [recordAfterLayout, refreshVisibleAnchor],

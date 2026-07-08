@@ -57,6 +57,7 @@ type PendingScrollAction =
         Omit<ItemAnchorRequest, 'offsetFromViewportTop'>;
       window?: { start: number; end: number };
       startedAtMs: number;
+      checking?: boolean;
     }
   | {
       kind: 'edge';
@@ -141,6 +142,8 @@ function clampWindow(
   return { start: Math.max(0, resolvedEnd - maxWindowSize), end: resolvedEnd };
 }
 
+const ITEM_ANCHOR_EPSILON_PX = 4;
+
 export function ProgressiveScrollList<TItem>(
   props: ProgressiveScrollListProps<TItem>,
 ): React.JSX.Element {
@@ -194,6 +197,7 @@ export function ProgressiveScrollList<TItem>(
   const runPendingScrollActionRef = useRef<() => void>(() => {});
   const loadMoreTopRef = useRef<() => void>(() => {});
   const loadMoreBottomRef = useRef<() => void>(() => {});
+  const lastWindowChangeAnchorRef = useRef<VisibleAnchor | null>(null);
   const metricsRef = useRef({ offsetY: 0, viewportHeight: 0, contentHeight: 0 });
   const [layoutVersion, setLayoutVersion] = useState(0);
   const [windowRange, setWindowRange] = useState(() =>
@@ -304,7 +308,50 @@ export function ProgressiveScrollList<TItem>(
     );
     scrollRef.current?.scrollTo?.({ y: targetY, animated: action.request.animated ?? false });
     metricsRef.current.offsetY = targetY;
-    pendingScrollActionRef.current = null;
+    if (action.checking) {
+      return;
+    }
+    action.checking = true;
+    const scrollView = scrollRef.current;
+    requestAnimationFrame(() => {
+      getMacScrollViewMetrics(scrollView)
+        .then((metrics) => {
+          if (pendingScrollActionRef.current !== action) {
+            return;
+          }
+          action.checking = false;
+          if (!metrics) {
+            schedulePendingActionAttempt();
+            return;
+          }
+          metricsRef.current = {
+            offsetY: metrics.offsetY,
+            viewportHeight: metrics.viewportHeight,
+            contentHeight: metrics.contentHeight,
+          };
+          const currentLayout = rowLayoutsRef.current.get(key);
+          if (!currentLayout) {
+            schedulePendingActionAttempt();
+            return;
+          }
+          const actualOffsetFromViewportTop = currentLayout.y - metrics.offsetY;
+          if (
+            Math.abs(
+              actualOffsetFromViewportTop - action.request.offsetFromViewportTop,
+            ) <= ITEM_ANCHOR_EPSILON_PX
+          ) {
+            pendingScrollActionRef.current = null;
+            return;
+          }
+          schedulePendingActionAttempt();
+        })
+        .catch(() => {
+          if (pendingScrollActionRef.current === action) {
+            action.checking = false;
+            schedulePendingActionAttempt();
+          }
+        });
+    });
   }, [
     data,
     defaultAnchorAfterCount,
@@ -398,6 +445,19 @@ export function ProgressiveScrollList<TItem>(
         runPendingScrollActionRef.current();
       },
       getVisibleAnchor: captureAnchor,
+      getLastWindowChangeAnchor: () => lastWindowChangeAnchorRef.current,
+      hasPendingScrollAction: () => pendingScrollActionRef.current != null,
+      getItemViewportOffset: async (key: string) => {
+        const layout = rowLayoutsRef.current.get(key);
+        if (!layout) {
+          return null;
+        }
+        const metrics = await getMacScrollViewMetrics(scrollRef.current);
+        if (!metrics) {
+          return null;
+        }
+        return layout.y - metrics.offsetY;
+      },
       getRenderedWindowRange: () => ({
         start: windowRange.start,
         end: windowRange.end,
@@ -499,6 +559,7 @@ export function ProgressiveScrollList<TItem>(
     async (nextStart: number, nextEnd: number) => {
       const anchor = await captureAnchor();
       const nextWindow = clampWindow(nextStart, nextEnd, data.length, resolvedMaxWindowSize);
+      lastWindowChangeAnchorRef.current = anchor;
       if (anchor) {
         pendingScrollActionRef.current = {
           kind: 'itemAnchor',

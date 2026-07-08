@@ -76,16 +76,16 @@ final class ProgressiveScrollListUITests: XCTestCase {
     let anchored = waitForState(command: "message120")
     XCTAssertLessThanOrEqual(intValue(anchored, "windowStart") ?? 999, 120)
     XCTAssertGreaterThan(intValue(anchored, "windowEnd") ?? -1, 120)
-    XCTAssertEqual(intValue(anchored, "anchorSourceIndex"), 120)
+    XCTAssertEqual(intValue(anchored, "message120OffsetFromViewportTop"), 40)
 
     clickHarnessMenu(app, "Scroll Harness Load Above")
     let loadAbove = waitForState(command: "loadAbove")
     XCTAssertLessThanOrEqual(intValue(loadAbove, "windowStart") ?? 999, intValue(anchored, "windowStart") ?? 999)
-    XCTAssertEqual(intValue(loadAbove, "anchorSourceIndex"), 120)
+    XCTAssertEqual(intValue(loadAbove, "windowChangeAnchorActualOffsetFromViewportTop"), intValue(loadAbove, "windowChangeAnchorOffsetFromViewportTop"))
 
     clickHarnessMenu(app, "Scroll Harness Load Below")
     let loadBelow = waitForState(command: "loadBelow")
     XCTAssertGreaterThanOrEqual(intValue(loadBelow, "windowEnd") ?? -1, intValue(loadAbove, "windowEnd") ?? -1)
-    XCTAssertEqual(intValue(loadBelow, "anchorSourceIndex"), 120)
+    XCTAssertEqual(intValue(loadBelow, "windowChangeAnchorActualOffsetFromViewportTop"), intValue(loadBelow, "windowChangeAnchorOffsetFromViewportTop"))
   }
 }

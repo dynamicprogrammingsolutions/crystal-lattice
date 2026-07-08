@@ -2,6 +2,9 @@
  * @format
  */
 
+// globalThis.CLC_FLATLIST_MAX_TO_RENDER_PER_BATCH = 100
+globalThis.CLC_TRANSCRIPT_LIST_IMPLEMENTATION = "progressiveScroll"
+
 import { AppRegistry } from 'react-native';
 import App from './App';
 import { ProgressiveScrollHarness } from './src/testing/ProgressiveScrollHarness';
