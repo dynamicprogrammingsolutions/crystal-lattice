@@ -148,6 +148,14 @@ function readOptionalGlobalNumber(name: string): number | undefined {
   return Number.isFinite(value) && value > 0 ? value : undefined;
 }
 
+function readOptionalGlobalString<T extends string>(
+  name: string,
+  allowed: ReadonlyArray<T>,
+): T | undefined {
+  const value = (globalThis as any)[name];
+  return typeof value === 'string' && allowed.includes(value as T) ? (value as T) : undefined;
+}
+
 const FLATLIST_DISABLE_VIRTUALIZATION = readGlobalBoolean(
   'CLC_FLATLIST_DISABLE_VIRTUALIZATION',
   false,
@@ -203,6 +211,15 @@ const PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT =
   readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT') ?? 59;
 const PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS =
   readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS') ?? 3000;
+const PROGRESSIVE_SCROLL_BACKING_LIST =
+  readOptionalGlobalString('CLC_PROGRESSIVE_SCROLL_BACKING_LIST', [
+    'scrollView',
+    'flatList',
+  ] as const) ?? 'scrollView';
+const PROGRESSIVE_SCROLL_GROW_ONLY = readGlobalBoolean(
+  'CLC_PROGRESSIVE_SCROLL_GROW_ONLY',
+  false,
+);
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -2738,6 +2755,8 @@ export const ChatPane = React.memo(function ChatPane({
 	              autoLoadEdges={PROGRESSIVE_SCROLL_AUTO_LOAD}
 	              edgeThresholdPx={PROGRESSIVE_SCROLL_EDGE_THRESHOLD_PX}
 	              prebuildRows={PROGRESSIVE_SCROLL_PREBUILD_ROWS}
+	              backingList={PROGRESSIVE_SCROLL_BACKING_LIST}
+	              growOnly={PROGRESSIVE_SCROLL_GROW_ONLY}
 	              defaultAnchorBeforeCount={PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT}
 	              defaultAnchorAfterCount={PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT}
 	              scrollActionTimeoutMs={PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS}

@@ -6,12 +6,14 @@ import type {
   StyleProp,
   ViewStyle,
 } from 'react-native';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
 import type { ListRenderItemInfo, PlaceholderFlatListProps } from './PlaceholderFlatList';
 
 type ProgressiveScrollListProps<TItem> = PlaceholderFlatListProps<TItem> & {
+  backingList?: 'scrollView' | 'flatList';
+  growOnly?: boolean;
   initialWindowSize?: number;
   pageSize?: number;
   maxWindowSize?: number;
@@ -32,6 +34,12 @@ type RowCacheEntry<TItem> = {
 type RowLayout = {
   y: number;
   height: number;
+  sourceIndex: number;
+};
+
+type RenderedEntry<TItem> = {
+  key: string;
+  row: React.ReactElement | null;
   sourceIndex: number;
 };
 
@@ -64,6 +72,7 @@ type PendingScrollAction =
       edge: 'top' | 'bottom';
       animated: boolean;
       startedAtMs: number;
+      checking?: boolean;
     };
 
 function shallowArrayEqual(
@@ -142,7 +151,14 @@ function clampWindow(
   return { start: Math.max(0, resolvedEnd - maxWindowSize), end: resolvedEnd };
 }
 
+function clampWindowBounds(start: number, end: number, length: number): { start: number; end: number } {
+  const resolvedEnd = Math.max(0, Math.min(length, end));
+  const resolvedStart = Math.max(0, Math.min(start, resolvedEnd));
+  return { start: resolvedStart, end: resolvedEnd };
+}
+
 const ITEM_ANCHOR_EPSILON_PX = 4;
+const EDGE_SCROLL_EPSILON_PX = 4;
 
 export function ProgressiveScrollList<TItem>(
   props: ProgressiveScrollListProps<TItem>,
@@ -170,6 +186,8 @@ export function ProgressiveScrollList<TItem>(
     onMomentumScrollEnd,
     scrollEnabled,
     showsVerticalScrollIndicator,
+    backingList = 'scrollView',
+    growOnly = false,
     initialWindowSize = 50,
     pageSize = 50,
     maxWindowSize = 100,
@@ -202,6 +220,31 @@ export function ProgressiveScrollList<TItem>(
   const [layoutVersion, setLayoutVersion] = useState(0);
   const [windowRange, setWindowRange] = useState(() =>
     getWindowForEnd(data.length, resolvedInitialWindowSize),
+  );
+  const useFlatListBacking = backingList === 'flatList';
+  const effectiveGrowOnly = useFlatListBacking && growOnly;
+  const normalizeWindow = useCallback(
+    (start: number, end: number) =>
+      effectiveGrowOnly
+        ? clampWindowBounds(start, end, data.length)
+        : clampWindow(start, end, data.length, resolvedMaxWindowSize),
+    [data.length, effectiveGrowOnly, resolvedMaxWindowSize],
+  );
+  const scrollToY = useCallback(
+    (y: number, animated?: boolean) => {
+      if (useFlatListBacking) {
+        scrollRef.current?.scrollToOffset?.({ offset: y, animated: animated ?? false });
+        return;
+      }
+      scrollRef.current?.scrollTo?.({ y, animated: animated ?? false });
+    },
+    [useFlatListBacking],
+  );
+  const scrollToBackingEnd = useCallback(
+    (animated?: boolean) => {
+      scrollRef.current?.scrollToEnd?.({ animated: animated ?? false });
+    },
+    [],
   );
 
   const getKey = useCallback(
@@ -261,11 +304,49 @@ export function ProgressiveScrollList<TItem>(
         return;
       }
       if (action.edge === 'top') {
-        scrollRef.current?.scrollTo?.({ y: 0, animated: action.animated });
+        scrollToY(0, action.animated);
       } else {
-        scrollRef.current?.scrollToEnd?.({ animated: action.animated });
+        scrollToBackingEnd(action.animated);
       }
-      pendingScrollActionRef.current = null;
+      if (action.checking) {
+        return;
+      }
+      action.checking = true;
+      const scrollView = scrollRef.current;
+      requestAnimationFrame(() => {
+        getMacScrollViewMetrics(scrollView)
+          .then((metrics) => {
+            if (pendingScrollActionRef.current !== action) {
+              return;
+            }
+            action.checking = false;
+            if (!metrics) {
+              schedulePendingActionAttempt();
+              return;
+            }
+            metricsRef.current = {
+              offsetY: metrics.offsetY,
+              viewportHeight: metrics.viewportHeight,
+              contentHeight: metrics.contentHeight,
+            };
+            const maxOffsetY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
+            const reached =
+              action.edge === 'top'
+                ? metrics.offsetY <= EDGE_SCROLL_EPSILON_PX
+                : maxOffsetY - metrics.offsetY <= EDGE_SCROLL_EPSILON_PX;
+            if (reached) {
+              pendingScrollActionRef.current = null;
+              return;
+            }
+            schedulePendingActionAttempt();
+          })
+          .catch(() => {
+            if (pendingScrollActionRef.current === action) {
+              action.checking = false;
+              schedulePendingActionAttempt();
+            }
+          });
+      });
       return;
     }
 
@@ -306,7 +387,7 @@ export function ProgressiveScrollList<TItem>(
       0,
       Math.min(maxOffsetY, layout.y - action.request.offsetFromViewportTop),
     );
-    scrollRef.current?.scrollTo?.({ y: targetY, animated: action.request.animated ?? false });
+    scrollToY(targetY, action.request.animated ?? false);
     metricsRef.current.offsetY = targetY;
     if (action.checking) {
       return;
@@ -360,7 +441,9 @@ export function ProgressiveScrollList<TItem>(
     getKey,
     resolvedMaxWindowSize,
     schedulePendingActionAttempt,
+    scrollToBackingEnd,
     scrollActionTimeoutMs,
+    scrollToY,
     windowRange.end,
     windowRange.start,
   ]);
@@ -398,7 +481,7 @@ export function ProgressiveScrollList<TItem>(
   const exposeHandle = useMemo(() => {
     return {
       scrollTo: (options: { y?: number; animated?: boolean }) => {
-        scrollRef.current?.scrollTo?.(options);
+        scrollToY(options.y ?? 0, options.animated);
       },
       scrollToOffset: (options: { offset: number; animated?: boolean }) => {
         const maxOffsetY = Math.max(
@@ -425,7 +508,7 @@ export function ProgressiveScrollList<TItem>(
           runPendingScrollActionRef.current();
           return;
         }
-        scrollRef.current?.scrollTo?.({ y: options.offset, animated: options.animated });
+        scrollToY(options.offset, options.animated);
       },
       scrollToEnd: (options?: { animated?: boolean }) => {
         pendingScrollActionRef.current = {
@@ -475,7 +558,7 @@ export function ProgressiveScrollList<TItem>(
       getNativeScrollRef: () => scrollRef.current,
       getScrollableNode: () => scrollRef.current?.getScrollableNode?.(),
     };
-  }, [captureAnchor, data.length, windowRange.end, windowRange.start]);
+  }, [captureAnchor, data.length, scrollToY, windowRange.end, windowRange.start]);
 
   React.useImperativeHandle(listRef as React.Ref<any> | undefined, () => exposeHandle, [
     exposeHandle,
@@ -533,7 +616,9 @@ export function ProgressiveScrollList<TItem>(
         };
       }
       setWindowRange((current) =>
-        clampWindow(current.start, current.end, data.length, resolvedMaxWindowSize),
+        effectiveGrowOnly
+          ? clampWindowBounds(current.start, current.end, data.length)
+          : clampWindow(current.start, current.end, data.length, resolvedMaxWindowSize),
       );
       schedulePendingActionAttempt();
     };
@@ -549,6 +634,7 @@ export function ProgressiveScrollList<TItem>(
     edgeThresholdPx,
     resolvedMaxWindowSize,
     schedulePendingActionAttempt,
+    effectiveGrowOnly,
   ]);
 
   const hasMoreAtTop = windowRange.start > 0;
@@ -558,7 +644,7 @@ export function ProgressiveScrollList<TItem>(
   const applyWindowChange = useCallback(
     async (nextStart: number, nextEnd: number) => {
       const anchor = await captureAnchor();
-      const nextWindow = clampWindow(nextStart, nextEnd, data.length, resolvedMaxWindowSize);
+      const nextWindow = normalizeWindow(nextStart, nextEnd);
       lastWindowChangeAnchorRef.current = anchor;
       if (anchor) {
         pendingScrollActionRef.current = {
@@ -583,6 +669,7 @@ export function ProgressiveScrollList<TItem>(
       data.length,
       defaultAnchorAfterCount,
       defaultAnchorBeforeCount,
+      normalizeWindow,
       resolvedMaxWindowSize,
       schedulePendingActionAttempt,
     ],
@@ -590,25 +677,33 @@ export function ProgressiveScrollList<TItem>(
 
   const handleLoadMoreTop = useCallback(() => {
     const nextStart = Math.max(0, windowRange.start - resolvedPageSize);
-    const nextEnd = Math.min(data.length, nextStart + resolvedMaxWindowSize);
+    const nextEnd = effectiveGrowOnly
+      ? windowRange.end
+      : Math.min(data.length, nextStart + resolvedMaxWindowSize);
     applyWindowChange(nextStart, nextEnd).catch(() => {});
   }, [
     applyWindowChange,
     data.length,
+    effectiveGrowOnly,
     resolvedMaxWindowSize,
     resolvedPageSize,
+    windowRange.end,
     windowRange.start,
   ]);
 
   const handleLoadMoreBottom = useCallback(() => {
     const nextEnd = Math.min(data.length, windowRange.end + resolvedPageSize);
-    const nextStart = Math.max(0, nextEnd - resolvedMaxWindowSize);
+    const nextStart = effectiveGrowOnly
+      ? windowRange.start
+      : Math.max(0, nextEnd - resolvedMaxWindowSize);
     applyWindowChange(nextStart, nextEnd).catch(() => {});
   }, [
     applyWindowChange,
     data.length,
+    effectiveGrowOnly,
     resolvedMaxWindowSize,
     resolvedPageSize,
+    windowRange.start,
     windowRange.end,
   ]);
 
@@ -706,42 +801,54 @@ export function ProgressiveScrollList<TItem>(
     });
   }
 
-  const renderedRows = visibleItems.map((item, localIndex) => {
+  const renderedEntries: RenderedEntry<TItem>[] = visibleItems.map((item, localIndex) => {
     const sourceIndex = windowRange.start + localIndex;
     const { key, row } = getCachedRow(item, sourceIndex);
-    if (!row) {
+    mountedKeys.add(key);
+    return { key, row, sourceIndex };
+  });
+
+  const renderMeasuredEntry = (entry: RenderedEntry<TItem>): React.ReactElement | null => {
+    if (!entry.row) {
       return null;
     }
-    mountedKeys.add(key);
     return (
-      <React.Fragment key={key}>
-        {localIndex > 0 && Separator ? (
-          React.isValidElement(Separator) ? (
-            Separator
-          ) : (
-            <View>{renderMaybeComponent(Separator)}</View>
-          )
-        ) : null}
-        <View
-          testID={`progressive-scroll-row-${key}`}
-          collapsable={false}
-          onLayout={(event) => {
-            const layout = event.nativeEvent?.layout;
-            const y = Number(layout?.y ?? NaN);
-            const height = Number(layout?.height ?? NaN);
-            if (!Number.isFinite(y) || !Number.isFinite(height)) {
-              return;
-            }
-            rowLayoutsRef.current.set(key, { y, height, sourceIndex });
-            setLayoutVersion((version) => version + 1);
-            runPendingScrollActionRef.current();
-          }}
-        >
-          {row}
-        </View>
-      </React.Fragment>
+      <View
+        testID={`progressive-scroll-row-${entry.key}`}
+        collapsable={false}
+        onLayout={(event) => {
+          const layout = event.nativeEvent?.layout;
+          const y = Number(layout?.y ?? NaN);
+          const height = Number(layout?.height ?? NaN);
+          if (!Number.isFinite(y) || !Number.isFinite(height)) {
+            return;
+          }
+          rowLayoutsRef.current.set(entry.key, {
+            y,
+            height,
+            sourceIndex: entry.sourceIndex,
+          });
+          setLayoutVersion((version) => version + 1);
+          runPendingScrollActionRef.current();
+        }}
+      >
+        {entry.row}
+      </View>
     );
-  });
+  };
+
+  const renderedRows = renderedEntries.map((entry, localIndex) => (
+    <React.Fragment key={entry.key}>
+      {localIndex > 0 && Separator ? (
+        React.isValidElement(Separator) ? (
+          Separator
+        ) : (
+          <View>{renderMaybeComponent(Separator)}</View>
+        )
+      ) : null}
+      {renderMeasuredEntry(entry)}
+    </React.Fragment>
+  ));
 
   for (const cachedKey of cache.keys()) {
     if (!cachedKeysInUse.has(cachedKey)) {
@@ -757,6 +864,81 @@ export function ProgressiveScrollList<TItem>(
   const header = renderMaybeComponent(ListHeaderComponent);
   const footer = renderMaybeComponent(ListFooterComponent);
   const empty = data.length === 0 ? renderMaybeComponent(ListEmptyComponent) : null;
+  const topLoadControl = hasMoreAtTop ? (
+    <View style={styles.loadMoreContainer}>
+      <Pressable
+        testID="progressive-scroll-load-top"
+        accessibilityRole="button"
+        accessibilityLabel="Load messages above"
+        style={styles.loadMoreButton}
+        onPress={handleLoadMoreTop}
+      >
+        <Text style={styles.loadMoreButtonText}>
+          {windowRange.start} messages hidden above
+        </Text>
+      </Pressable>
+    </View>
+  ) : null;
+  const bottomLoadControl = hasMoreAtBottom ? (
+    <View style={styles.loadMoreContainer}>
+      <Pressable
+        testID="progressive-scroll-load-bottom"
+        accessibilityRole="button"
+        accessibilityLabel="Load messages below"
+        style={styles.loadMoreButton}
+        onPress={handleLoadMoreBottom}
+      >
+        <Text style={styles.loadMoreButtonText}>
+          {data.length - windowRange.end} messages hidden below
+        </Text>
+      </Pressable>
+    </View>
+  ) : null;
+
+  if (useFlatListBacking) {
+    const separatorElement = renderMaybeComponent(Separator);
+    return (
+      <FlatList
+        ref={scrollRef}
+        testID={testID}
+        style={style}
+        contentContainerStyle={contentContainerStyle}
+        data={renderedEntries}
+        keyExtractor={(entry) => entry.key}
+        renderItem={({ item }) => renderMeasuredEntry(item)}
+        ItemSeparatorComponent={
+          separatorElement ? () => separatorElement : undefined
+        }
+        ListHeaderComponent={
+          header || topLoadControl || empty ? (
+            <>
+              {header}
+              {topLoadControl}
+              {empty}
+            </>
+          ) : null
+        }
+        ListFooterComponent={
+          bottomLoadControl || footer ? (
+            <>
+              {bottomLoadControl}
+              {footer}
+            </>
+          ) : null
+        }
+        scrollEventThrottle={scrollEventThrottle}
+        onLayout={handleLayout}
+        onContentSizeChange={handleContentSizeChange}
+        onScroll={handleScroll}
+        onScrollBeginDrag={handleScrollBeginDrag}
+        onScrollEndDrag={onScrollEndDrag}
+        onMomentumScrollEnd={onMomentumScrollEnd}
+        scrollEnabled={scrollEnabled}
+        showsVerticalScrollIndicator={showsVerticalScrollIndicator ?? true}
+        removeClippedSubviews={false}
+      />
+    );
+  }
 
   return (
     <ScrollView
@@ -775,38 +957,10 @@ export function ProgressiveScrollList<TItem>(
       showsVerticalScrollIndicator={showsVerticalScrollIndicator ?? true}
     >
       {header}
-      {hasMoreAtTop ? (
-        <View style={styles.loadMoreContainer}>
-          <Pressable
-            testID="progressive-scroll-load-top"
-            accessibilityRole="button"
-            accessibilityLabel="Load messages above"
-            style={styles.loadMoreButton}
-            onPress={handleLoadMoreTop}
-          >
-            <Text style={styles.loadMoreButtonText}>
-              {windowRange.start} messages hidden above
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
+      {topLoadControl}
       {empty}
       {renderedRows}
-      {hasMoreAtBottom ? (
-        <View style={styles.loadMoreContainer}>
-          <Pressable
-            testID="progressive-scroll-load-bottom"
-            accessibilityRole="button"
-            accessibilityLabel="Load messages below"
-            style={styles.loadMoreButton}
-            onPress={handleLoadMoreBottom}
-          >
-            <Text style={styles.loadMoreButtonText}>
-              {data.length - windowRange.end} messages hidden below
-            </Text>
-          </Pressable>
-        </View>
-      ) : null}
+      {bottomLoadControl}
       {footer}
     </ScrollView>
   );
