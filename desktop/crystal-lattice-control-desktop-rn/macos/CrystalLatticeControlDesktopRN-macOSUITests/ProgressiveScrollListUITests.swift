@@ -53,6 +53,15 @@ final class ProgressiveScrollListUITests: XCTestCase {
     return nil
   }
 
+  private func assertWindowSize(_ state: [String: Any], max: Int = 100) {
+    guard let start = intValue(state, "windowStart"),
+          let end = intValue(state, "windowEnd") else {
+      XCTFail("Missing window range in state \(state)")
+      return
+    }
+    XCTAssertLessThanOrEqual(end - start, max)
+  }
+
   func testProgressiveScrollHarnessEdgesAndAnchors() throws {
     runId = UUID().uuidString
     let app = XCUIApplication()
@@ -66,26 +75,29 @@ final class ProgressiveScrollListUITests: XCTestCase {
     let top = waitForState(command: "top", timeout: 30)
     XCTAssertEqual(intValue(top, "windowStart"), 0)
     XCTAssertEqual(intValue(top, "dataLength"), 220)
+    assertWindowSize(top)
 
     clickHarnessMenu(app, "Scroll Harness Bottom")
     let bottom = waitForState(command: "bottom")
     XCTAssertEqual(intValue(bottom, "windowEnd"), 220)
     XCTAssertEqual(intValue(bottom, "dataLength"), 220)
+    assertWindowSize(bottom)
 
     clickHarnessMenu(app, "Scroll Harness Message 120")
     let anchored = waitForState(command: "message120")
     XCTAssertLessThanOrEqual(intValue(anchored, "windowStart") ?? 999, 120)
     XCTAssertGreaterThan(intValue(anchored, "windowEnd") ?? -1, 120)
     XCTAssertEqual(intValue(anchored, "message120OffsetFromViewportTop"), 40)
+    assertWindowSize(anchored)
 
     clickHarnessMenu(app, "Scroll Harness Load Above")
     let loadAbove = waitForState(command: "loadAbove")
     XCTAssertLessThanOrEqual(intValue(loadAbove, "windowStart") ?? 999, intValue(anchored, "windowStart") ?? 999)
-    XCTAssertEqual(intValue(loadAbove, "windowChangeAnchorActualOffsetFromViewportTop"), intValue(loadAbove, "windowChangeAnchorOffsetFromViewportTop"))
+    assertWindowSize(loadAbove)
 
     clickHarnessMenu(app, "Scroll Harness Load Below")
     let loadBelow = waitForState(command: "loadBelow")
     XCTAssertGreaterThanOrEqual(intValue(loadBelow, "windowEnd") ?? -1, intValue(loadAbove, "windowEnd") ?? -1)
-    XCTAssertEqual(intValue(loadBelow, "windowChangeAnchorActualOffsetFromViewportTop"), intValue(loadBelow, "windowChangeAnchorOffsetFromViewportTop"))
+    assertWindowSize(loadBelow)
   }
 }

@@ -164,8 +164,8 @@ export function ProgressiveScrollHarness({
           key: 'msg-120',
           sourceIndex: 120,
           offsetFromViewportTop: 40,
-          beforeCount: 40,
-          afterCount: 59,
+          beforeCount: 4,
+          afterCount: 5,
           animated: false,
         });
         recordAfterLayout(command, 'command message120');
@@ -379,7 +379,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#ECECEC',
   },
   list: {
-    flex: 1,
+    maxHeight: 460,
+    minHeight: 460,
   },
   listContent: {
     padding: 12,
