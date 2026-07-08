@@ -248,6 +248,19 @@ export function useProactiveChatScrollPersistence(params: {
       }
       cancelActiveEdgeScroll();
 
+      if (edge === 'top' && typeof target.scrollToTop === 'function') {
+        bottomFollowEnabledRef.current = false;
+        target.scrollToTop({ animated });
+        programmaticScrollUntilRef.current = Date.now() + 250;
+        return;
+      }
+      if (edge === 'bottom' && typeof target.scrollToBottom === 'function') {
+        bottomFollowEnabledRef.current = true;
+        target.scrollToBottom({ animated });
+        programmaticScrollUntilRef.current = Date.now() + 250;
+        return;
+      }
+
       const scrollOnce = (nextAnimated: boolean) => {
         const contentHeight = contentHeightRef.current;
         const layoutHeight = layoutHeightRef.current;

@@ -211,6 +211,10 @@ const PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT =
   readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT') ?? 59;
 const PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS =
   readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS') ?? 3000;
+const PROGRESSIVE_SCROLL_EDGE_EPSILON_PX =
+  readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_EDGE_EPSILON_PX') ?? 20;
+const PROGRESSIVE_SCROLL_EDGE_STABLE_MS =
+  readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_EDGE_STABLE_MS') ?? 200;
 const PROGRESSIVE_SCROLL_BACKING_LIST =
   readOptionalGlobalString('CLC_PROGRESSIVE_SCROLL_BACKING_LIST', [
     'scrollView',
@@ -943,7 +947,8 @@ export const ChatPane = React.memo(function ChatPane({
     bottomThresholdPx: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
     bottomConvergenceStableMs: FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS,
     bottomConvergenceMaxMs: FLATLIST_BOTTOM_CONVERGENCE_MAX_MS,
-    bottomLockEnabled: FLATLIST_BOTTOM_LOCK,
+    bottomLockEnabled:
+      TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ? false : FLATLIST_BOTTOM_LOCK,
     messageAnchorBeforeCount: PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT,
     messageAnchorAfterCount: PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT,
   });
@@ -2760,6 +2765,8 @@ export const ChatPane = React.memo(function ChatPane({
 	              defaultAnchorBeforeCount={PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT}
 	              defaultAnchorAfterCount={PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT}
 	              scrollActionTimeoutMs={PROGRESSIVE_SCROLL_ACTION_TIMEOUT_MS}
+	              edgeScrollEpsilonPx={PROGRESSIVE_SCROLL_EDGE_EPSILON_PX}
+	              edgeScrollStableMs={PROGRESSIVE_SCROLL_EDGE_STABLE_MS}
 	              scrollEventThrottle={16}
 	              onLayout={transcriptScroll.onLayout}
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}

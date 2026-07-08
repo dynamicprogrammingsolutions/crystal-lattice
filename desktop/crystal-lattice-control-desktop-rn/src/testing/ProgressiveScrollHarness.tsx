@@ -27,10 +27,14 @@ function buildMessages(): HarnessMessage[] {
 
 type ProgressiveScrollHarnessProps = {
   scrollHarnessRunId?: string;
+  scrollHarnessBackingList?: string;
+  scrollHarnessGrowOnly?: boolean;
 };
 
 export function ProgressiveScrollHarness({
   scrollHarnessRunId = '',
+  scrollHarnessBackingList = 'scrollView',
+  scrollHarnessGrowOnly = false,
 }: ProgressiveScrollHarnessProps): React.JSX.Element {
   const listRef = useRef<any>(null);
   const lastCommandKeyRef = useRef<string | null>(null);
@@ -44,6 +48,7 @@ export function ProgressiveScrollHarness({
     const getLastWindowChangeAnchor = listRef.current?.getLastWindowChangeAnchor;
     const getRenderedWindowRange = listRef.current?.getRenderedWindowRange;
     const getItemViewportOffset = listRef.current?.getItemViewportOffset;
+    const getDebugLog = listRef.current?.getDebugLog;
     const trackedAnchor = trackedAnchorRef.current;
     Promise.resolve(typeof getVisibleAnchor === 'function' ? getVisibleAnchor() : null)
       .then((anchor: any) => {
@@ -53,27 +58,23 @@ export function ProgressiveScrollHarness({
           typeof getLastWindowChangeAnchor === 'function'
             ? getLastWindowChangeAnchor()
             : null;
-        return Promise.resolve(
-          typeof getItemViewportOffset === 'function'
-            ? getItemViewportOffset('msg-120')
-            : null,
-        ).then((message120Offset) =>
+        const getOffset = (key: string | null | undefined) =>
           Promise.resolve(
-            typeof getItemViewportOffset === 'function' && windowChangeAnchor?.key
-              ? getItemViewportOffset(windowChangeAnchor.key)
+            typeof getItemViewportOffset === 'function' && key
+              ? getItemViewportOffset(key)
               : null,
-          ).then((windowChangeAnchorActualOffset) =>
-            Promise.resolve(
-              typeof getItemViewportOffset === 'function' && trackedAnchor?.key
-                ? getItemViewportOffset(trackedAnchor.key)
-                : null,
-            ).then((trackedAnchorActualOffset) => ({
-              message120Offset,
-              windowChangeAnchorActualOffset,
-              trackedAnchorActualOffset,
-            })),
-          ),
-        ).then(({ message120Offset, windowChangeAnchorActualOffset, trackedAnchorActualOffset }) => {
+          );
+        return Promise.all([
+          getOffset('msg-60'),
+          getOffset('msg-120'),
+          getOffset(windowChangeAnchor?.key),
+          getOffset(trackedAnchor?.key),
+        ]).then(([
+          message60Offset,
+          message120Offset,
+          windowChangeAnchorActualOffset,
+          trackedAnchorActualOffset,
+        ]) => {
           DesktopWindowManager?.recordProgressiveScrollHarnessState?.({
             command,
             runId: scrollHarnessRunId,
@@ -86,6 +87,8 @@ export function ProgressiveScrollHarness({
                 : null,
             message120OffsetFromViewportTop:
               typeof message120Offset === 'number' ? Math.round(message120Offset) : null,
+            message60OffsetFromViewportTop:
+              typeof message60Offset === 'number' ? Math.round(message60Offset) : null,
             expectedAnchorKey: expectedAnchorRef.current?.key ?? null,
             expectedAnchorSourceIndex: expectedAnchorRef.current?.sourceIndex ?? null,
             expectedAnchorOffsetFromViewportTop:
@@ -115,6 +118,9 @@ export function ProgressiveScrollHarness({
             windowStart: windowRange?.start ?? null,
             windowEnd: windowRange?.end ?? null,
             dataLength: windowRange?.length ?? messages.length,
+            backingList: scrollHarnessBackingList,
+            growOnly: scrollHarnessGrowOnly,
+            debugLog: typeof getDebugLog === 'function' ? getDebugLog() : [],
           });
         });
       })
@@ -126,7 +132,13 @@ export function ProgressiveScrollHarness({
           dataLength: messages.length,
         });
       });
-  }, [messages.length, scrollHarnessRunId, status]);
+  }, [
+    messages.length,
+    scrollHarnessBackingList,
+    scrollHarnessGrowOnly,
+    scrollHarnessRunId,
+    status,
+  ]);
 
   const recordAfterLayout = useCallback(
     (command: string, statusOverride?: string) => {
@@ -177,24 +189,25 @@ export function ProgressiveScrollHarness({
         setStatus('command bottom');
         listRef.current?.scrollToEnd?.({ animated: false });
         recordAfterLayout(command, 'command bottom');
-      } else if (command === 'message120') {
-        setStatus('command message120');
+      } else if (command === 'message60' || command === 'message120') {
+        const sourceIndex = command === 'message60' ? 60 : 120;
+        setStatus(`command ${command}`);
         listRef.current?.scrollToItemAnchor?.({
-          key: 'msg-120',
-          sourceIndex: 120,
+          key: `msg-${sourceIndex}`,
+          sourceIndex,
           offsetFromViewportTop: 40,
-          beforeCount: 4,
-          afterCount: 5,
+          beforeCount: 40,
+          afterCount: 59,
           animated: false,
         });
-        recordAfterLayout(command, 'command message120');
+        recordAfterLayout(command, `command ${command}`);
       } else if (command === 'windowTop') {
         setStatus('command windowTop');
-        listRef.current?.scrollTo?.({ y: 0, animated: false });
+        listRef.current?.scrollCurrentWindowToTop?.({ animated: false });
         recordAfterLayout(command, 'command windowTop');
       } else if (command === 'windowBottom') {
         setStatus('command windowBottom');
-        listRef.current?.scrollTo?.({ y: 999999, animated: false });
+        listRef.current?.scrollCurrentWindowToBottom?.({ animated: false });
         recordAfterLayout(command, 'command windowBottom');
       } else if (command === 'readAnchor') {
         refreshVisibleAnchor();
@@ -343,10 +356,14 @@ export function ProgressiveScrollHarness({
         initialWindowSize={50}
         pageSize={50}
         maxWindowSize={100}
+        backingList={scrollHarnessBackingList === 'flatList' ? 'flatList' : 'scrollView'}
+        growOnly={scrollHarnessGrowOnly}
         prebuildRows
         defaultAnchorBeforeCount={40}
         defaultAnchorAfterCount={59}
         autoLoadEdges={false}
+        edgeScrollEpsilonPx={20}
+        debugLogEnabled
         scrollEventThrottle={16}
         renderItem={({ item }) => (
           <View

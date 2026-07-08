@@ -63,6 +63,8 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @"initialSessionsFollowActiveTabEnabled" : @(followEnabled),
     @"enableScrollTestHarness" : @(enableScrollTestHarness),
     @"scrollHarnessRunId" : [NSProcessInfo processInfo].environment[@"CLC_SCROLL_HARNESS_RUN_ID"] ?: @"",
+    @"scrollHarnessBackingList" : [NSProcessInfo processInfo].environment[@"CLC_PROGRESSIVE_SCROLL_BACKING_LIST"] ?: @"scrollView",
+    @"scrollHarnessGrowOnly" : @(EnvironmentFlagEnabled(@"CLC_PROGRESSIVE_SCROLL_GROW_ONLY")),
   };
   self.dependencyProvider = [RCTAppDependencyProvider new];
 
@@ -377,6 +379,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   NSArray<NSArray<NSString *> *> *items = @[
     @[ @"Scroll Harness Top", @"progressiveScrollHarnessTop:" ],
     @[ @"Scroll Harness Bottom", @"progressiveScrollHarnessBottom:" ],
+    @[ @"Scroll Harness Message 60", @"progressiveScrollHarnessMessage60:" ],
     @[ @"Scroll Harness Message 120", @"progressiveScrollHarnessMessage120:" ],
     @[ @"Scroll Harness Window Top", @"progressiveScrollHarnessWindowTop:" ],
     @[ @"Scroll Harness Window Bottom", @"progressiveScrollHarnessWindowBottom:" ],
@@ -422,6 +425,11 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 - (void)progressiveScrollHarnessBottom:(__unused id)sender
 {
   [self postProgressiveScrollHarnessCommand:@"bottom"];
+}
+
+- (void)progressiveScrollHarnessMessage60:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"message60"];
 }
 
 - (void)progressiveScrollHarnessMessage120:(__unused id)sender

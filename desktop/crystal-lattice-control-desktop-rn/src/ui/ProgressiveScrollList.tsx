@@ -23,6 +23,9 @@ type ProgressiveScrollListProps<TItem> = PlaceholderFlatListProps<TItem> & {
   defaultAnchorBeforeCount?: number;
   defaultAnchorAfterCount?: number;
   scrollActionTimeoutMs?: number;
+  edgeScrollEpsilonPx?: number;
+  edgeScrollStableMs?: number;
+  debugLogEnabled?: boolean;
 };
 
 type RowCacheEntry<TItem> = {
@@ -66,13 +69,21 @@ type PendingScrollAction =
       window?: { start: number; end: number };
       startedAtMs: number;
       checking?: boolean;
+      usedIndexScroll?: boolean;
+      settleFrames?: number;
+      windowSettleFrames?: number;
+      windowSettled?: boolean;
     }
   | {
       kind: 'edge';
       edge: 'top' | 'bottom';
+      window?: { start: number; end: number };
       animated: boolean;
       startedAtMs: number;
       checking?: boolean;
+      stableSinceMs?: number;
+      lastMaxOffsetY?: number;
+      usedScroll?: boolean;
     };
 
 function shallowArrayEqual(
@@ -158,7 +169,8 @@ function clampWindowBounds(start: number, end: number, length: number): { start:
 }
 
 const ITEM_ANCHOR_EPSILON_PX = 4;
-const EDGE_SCROLL_EPSILON_PX = 4;
+const DEFAULT_EDGE_SCROLL_EPSILON_PX = 4;
+const DEFAULT_EDGE_SCROLL_STABLE_MS = 200;
 
 export function ProgressiveScrollList<TItem>(
   props: ProgressiveScrollListProps<TItem>,
@@ -197,6 +209,9 @@ export function ProgressiveScrollList<TItem>(
     defaultAnchorBeforeCount = 40,
     defaultAnchorAfterCount = 59,
     scrollActionTimeoutMs = 3000,
+    edgeScrollEpsilonPx = DEFAULT_EDGE_SCROLL_EPSILON_PX,
+    edgeScrollStableMs = DEFAULT_EDGE_SCROLL_STABLE_MS,
+    debugLogEnabled = false,
   } = props;
 
   const resolvedInitialWindowSize = Math.max(1, Math.round(initialWindowSize));
@@ -205,11 +220,15 @@ export function ProgressiveScrollList<TItem>(
     resolvedInitialWindowSize,
     Math.round(maxWindowSize),
   );
+  const resolvedEdgeScrollEpsilonPx = Math.max(0, Math.round(edgeScrollEpsilonPx));
+  const resolvedEdgeScrollStableMs = Math.max(0, Math.round(edgeScrollStableMs));
 
   const scrollRef = useRef<any>(null);
   const cacheRef = useRef<Map<string, RowCacheEntry<TItem>>>(new Map());
   const lastExtraDataRef = useRef(extraData);
   const rowLayoutsRef = useRef<Map<string, RowLayout>>(new Map());
+  const rowRefsRef = useRef<Map<string, any>>(new Map());
+  const firstViewableAnchorRef = useRef<VisibleAnchor | null>(null);
   const pendingScrollActionRef = useRef<PendingScrollAction | null>(null);
   const pendingActionFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
   const runPendingScrollActionRef = useRef<() => void>(() => {});
@@ -217,12 +236,59 @@ export function ProgressiveScrollList<TItem>(
   const loadMoreBottomRef = useRef<() => void>(() => {});
   const lastWindowChangeAnchorRef = useRef<VisibleAnchor | null>(null);
   const metricsRef = useRef({ offsetY: 0, viewportHeight: 0, contentHeight: 0 });
+  const debugLogRef = useRef<Array<Record<string, unknown>>>([]);
+  const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 1 });
   const [layoutVersion, setLayoutVersion] = useState(0);
   const [windowRange, setWindowRange] = useState(() =>
     getWindowForEnd(data.length, resolvedInitialWindowSize),
   );
   const useFlatListBacking = backingList === 'flatList';
   const effectiveGrowOnly = useFlatListBacking && growOnly;
+  const appendDebugLog = useCallback(
+    (event: string, details: Record<string, unknown> = {}) => {
+      if (!debugLogEnabled) {
+        return;
+      }
+      const entry = {
+        at: Date.now(),
+        event,
+        windowStart: windowRange.start,
+        windowEnd: windowRange.end,
+        pendingKind: pendingScrollActionRef.current?.kind ?? null,
+        ...details,
+      };
+      debugLogRef.current = [...debugLogRef.current.slice(-79), entry];
+      console.log('[progressiveScroll]', entry);
+    },
+    [debugLogEnabled, windowRange.end, windowRange.start],
+  );
+  const onViewableItemsChangedRef = useRef(
+    ({
+      viewableItems,
+    }: {
+      viewableItems: Array<{
+        item?: RenderedEntry<TItem>;
+        index?: number | null;
+        isViewable?: boolean;
+      }>;
+    }) => {
+      const first = viewableItems
+        .filter((entry) => entry.isViewable !== false && entry.item)
+        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))[0];
+      if (!first?.item) {
+        return;
+      }
+      firstViewableAnchorRef.current = {
+        key: first.item.key,
+        sourceIndex: first.item.sourceIndex,
+        offsetFromViewportTop: 0,
+      };
+      appendDebugLog('viewableAnchor', {
+        key: first.item.key,
+        sourceIndex: first.item.sourceIndex,
+      });
+    },
+  );
   const normalizeWindow = useCallback(
     (start: number, end: number) =>
       effectiveGrowOnly
@@ -232,19 +298,62 @@ export function ProgressiveScrollList<TItem>(
   );
   const scrollToY = useCallback(
     (y: number, animated?: boolean) => {
+      appendDebugLog('scrollToY', { y, animated: animated ?? false, useFlatListBacking });
       if (useFlatListBacking) {
         scrollRef.current?.scrollToOffset?.({ offset: y, animated: animated ?? false });
         return;
       }
       scrollRef.current?.scrollTo?.({ y, animated: animated ?? false });
     },
-    [useFlatListBacking],
+    [appendDebugLog, useFlatListBacking],
   );
   const scrollToBackingEnd = useCallback(
     (animated?: boolean) => {
+      appendDebugLog('scrollToBackingEnd', { animated: animated ?? false });
       scrollRef.current?.scrollToEnd?.({ animated: animated ?? false });
     },
-    [],
+    [appendDebugLog],
+  );
+
+  const measureItemViewportOffset = useCallback(
+    (key: string): Promise<number | null> => {
+      if (!useFlatListBacking) {
+        const layout = rowLayoutsRef.current.get(key);
+        if (!layout) {
+          return Promise.resolve(null);
+        }
+        return getMacScrollViewMetrics(scrollRef.current).then((metrics) =>
+          metrics ? layout.y - metrics.offsetY : null,
+        );
+      }
+
+      const rowRef = rowRefsRef.current.get(key);
+      const nativeScrollRef =
+        scrollRef.current?.getNativeScrollRef?.() ??
+        scrollRef.current?.getScrollableNode?.() ??
+        scrollRef.current;
+      if (!rowRef || !nativeScrollRef || typeof rowRef.measureLayout !== 'function') {
+        return Promise.resolve(null);
+      }
+      return new Promise((resolve) => {
+        try {
+          rowRef.measureLayout(
+            nativeScrollRef,
+            (_x: number, y: number) => {
+              if (!Number.isFinite(y)) {
+                resolve(null);
+                return;
+              }
+              resolve(y);
+            },
+            () => resolve(null),
+          );
+        } catch {
+          resolve(null);
+        }
+      });
+    },
+    [useFlatListBacking],
   );
 
   const getKey = useCallback(
@@ -284,29 +393,49 @@ export function ProgressiveScrollList<TItem>(
     if (!action) {
       return;
     }
+    if (!action.checking) {
+      appendDebugLog('runPendingAction', {
+        actionKind: action.kind,
+        actionEdge: action.kind === 'edge' ? action.edge : null,
+        actionKey: action.kind === 'itemAnchor' ? action.request.key : null,
+        checking: action.checking ?? false,
+        usedScroll:
+          action.kind === 'edge' ? action.usedScroll ?? false : action.usedIndexScroll ?? false,
+      });
+    }
     const now = Date.now();
     if (now - action.startedAtMs > scrollActionTimeoutMs) {
       pendingScrollActionRef.current = null;
+      appendDebugLog('pendingActionTimeout', { actionKind: action.kind });
       return;
     }
 
     if (action.kind === 'edge') {
       const desiredWindow =
-        action.edge === 'top'
+        action.window ??
+        (action.edge === 'top'
           ? getWindowForStart(data.length, resolvedMaxWindowSize)
-          : getWindowForEnd(data.length, resolvedMaxWindowSize);
+          : getWindowForEnd(data.length, resolvedMaxWindowSize));
       if (
         windowRange.start !== desiredWindow.start ||
         windowRange.end !== desiredWindow.end
       ) {
         setWindowRange(desiredWindow);
+        appendDebugLog('edgeSetWindow', {
+          edge: action.edge,
+          desiredStart: desiredWindow.start,
+          desiredEnd: desiredWindow.end,
+        });
         schedulePendingActionAttempt();
         return;
       }
-      if (action.edge === 'top') {
-        scrollToY(0, action.animated);
-      } else {
-        scrollToBackingEnd(action.animated);
+      if (!action.usedScroll) {
+        action.usedScroll = true;
+        if (action.edge === 'top') {
+          scrollToY(0, action.animated);
+        } else {
+          scrollToBackingEnd(action.animated);
+        }
       }
       if (action.checking) {
         return;
@@ -330,12 +459,31 @@ export function ProgressiveScrollList<TItem>(
               contentHeight: metrics.contentHeight,
             };
             const maxOffsetY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
+            const targetOffsetY = action.edge === 'top' ? 0 : maxOffsetY;
             const reached =
               action.edge === 'top'
-                ? metrics.offsetY <= EDGE_SCROLL_EPSILON_PX
-                : maxOffsetY - metrics.offsetY <= EDGE_SCROLL_EPSILON_PX;
-            if (reached) {
+                ? metrics.offsetY <= resolvedEdgeScrollEpsilonPx
+                : maxOffsetY - metrics.offsetY <= resolvedEdgeScrollEpsilonPx;
+            const maxOffsetStable =
+              action.lastMaxOffsetY == null ||
+              Math.abs(action.lastMaxOffsetY - maxOffsetY) <= resolvedEdgeScrollEpsilonPx;
+            action.lastMaxOffsetY = maxOffsetY;
+            if (reached && maxOffsetStable) {
+              action.stableSinceMs = action.stableSinceMs ?? Date.now();
+            } else {
+              action.stableSinceMs = undefined;
+              scrollToY(targetOffsetY, false);
+            }
+            if (
+              action.stableSinceMs != null &&
+              Date.now() - action.stableSinceMs >= resolvedEdgeScrollStableMs
+            ) {
               pendingScrollActionRef.current = null;
+              appendDebugLog('edgeComplete', {
+                edge: action.edge,
+                offsetY: metrics.offsetY,
+                maxOffsetY,
+              });
               return;
             }
             schedulePendingActionAttempt();
@@ -353,6 +501,7 @@ export function ProgressiveScrollList<TItem>(
     const targetIndex = findSourceIndexForRequest(action.request);
     if (targetIndex == null) {
       pendingScrollActionRef.current = null;
+      appendDebugLog('itemAnchorMissingTarget', { request: action.request });
       return;
     }
     const desiredWindow =
@@ -368,12 +517,82 @@ export function ProgressiveScrollList<TItem>(
       windowRange.start !== desiredWindow.start ||
       windowRange.end !== desiredWindow.end
     ) {
+      action.window = desiredWindow;
+      action.windowSettled = false;
       setWindowRange(desiredWindow);
+      appendDebugLog('itemAnchorSetWindow', {
+        key: action.request.key,
+        sourceIndex: action.request.sourceIndex,
+        desiredStart: desiredWindow.start,
+        desiredEnd: desiredWindow.end,
+      });
       schedulePendingActionAttempt();
       return;
     }
 
     const key = action.request.key ?? getKey(data[targetIndex], targetIndex);
+    if (useFlatListBacking) {
+      if (action.window && !action.windowSettled) {
+        action.windowSettleFrames = (action.windowSettleFrames ?? 0) + 1;
+        if (action.windowSettleFrames >= 4) {
+          action.windowSettled = true;
+          appendDebugLog('itemAnchorWindowSettledByFrame', {
+            key: action.request.key,
+            windowStart: action.window.start,
+            windowEnd: action.window.end,
+          });
+        } else {
+          schedulePendingActionAttempt();
+          return;
+        }
+      }
+      if (action.window && !action.windowSettled) {
+        schedulePendingActionAttempt();
+        return;
+      }
+      const localIndex = targetIndex - windowRange.start;
+      if (localIndex < 0 || localIndex >= windowRange.end - windowRange.start) {
+        schedulePendingActionAttempt();
+        return;
+      }
+      if (!action.usedIndexScroll) {
+        action.usedIndexScroll = true;
+        scrollRef.current?.scrollToIndex?.({
+          index: localIndex,
+          animated: action.request.animated ?? false,
+          viewPosition: 0,
+          viewOffset: action.request.offsetFromViewportTop,
+        });
+        appendDebugLog('flatListScrollToIndex', {
+          key,
+          localIndex,
+          offsetFromViewportTop: action.request.offsetFromViewportTop,
+        });
+      }
+      if (action.checking) {
+        return;
+      }
+      action.checking = true;
+      requestAnimationFrame(() => {
+        if (pendingScrollActionRef.current !== action) {
+          return;
+        }
+        action.checking = false;
+        action.settleFrames = (action.settleFrames ?? 0) + 1;
+        if (action.settleFrames < 6) {
+          schedulePendingActionAttempt();
+          return;
+        }
+        pendingScrollActionRef.current = null;
+        appendDebugLog('itemAnchorCompleteFlatList', {
+          key,
+          requestedOffsetFromViewportTop: action.request.offsetFromViewportTop,
+          settleFrames: action.settleFrames,
+        });
+      });
+      return;
+    }
+
     const layout = rowLayoutsRef.current.get(key);
     if (!layout) {
       schedulePendingActionAttempt();
@@ -439,17 +658,25 @@ export function ProgressiveScrollList<TItem>(
     defaultAnchorBeforeCount,
     findSourceIndexForRequest,
     getKey,
+    resolvedEdgeScrollEpsilonPx,
+    resolvedEdgeScrollStableMs,
     resolvedMaxWindowSize,
+    measureItemViewportOffset,
     schedulePendingActionAttempt,
     scrollToBackingEnd,
     scrollActionTimeoutMs,
     scrollToY,
+    useFlatListBacking,
     windowRange.end,
     windowRange.start,
   ]);
   runPendingScrollActionRef.current = runPendingScrollAction;
 
   const captureAnchor = useCallback(async (): Promise<VisibleAnchor | null> => {
+    if (useFlatListBacking) {
+      return firstViewableAnchorRef.current;
+    }
+
     const metrics = await getMacScrollViewMetrics(scrollRef.current);
     if (!metrics) {
       return null;
@@ -476,7 +703,7 @@ export function ProgressiveScrollList<TItem>(
       sourceIndex: firstVisible.sourceIndex,
       offsetFromViewportTop: firstVisible.y - metrics.offsetY,
     };
-  }, []);
+  }, [measureItemViewportOffset, useFlatListBacking]);
 
   const exposeHandle = useMemo(() => {
     return {
@@ -519,6 +746,44 @@ export function ProgressiveScrollList<TItem>(
         };
         runPendingScrollActionRef.current();
       },
+      scrollToTop: (options?: { animated?: boolean }) => {
+        pendingScrollActionRef.current = {
+          kind: 'edge',
+          edge: 'top',
+          animated: options?.animated ?? false,
+          startedAtMs: Date.now(),
+        };
+        runPendingScrollActionRef.current();
+      },
+      scrollToBottom: (options?: { animated?: boolean }) => {
+        pendingScrollActionRef.current = {
+          kind: 'edge',
+          edge: 'bottom',
+          animated: options?.animated ?? false,
+          startedAtMs: Date.now(),
+        };
+        runPendingScrollActionRef.current();
+      },
+      scrollCurrentWindowToTop: (options?: { animated?: boolean }) => {
+        pendingScrollActionRef.current = {
+          kind: 'edge',
+          edge: 'top',
+          window: windowRange,
+          animated: options?.animated ?? false,
+          startedAtMs: Date.now(),
+        };
+        runPendingScrollActionRef.current();
+      },
+      scrollCurrentWindowToBottom: (options?: { animated?: boolean }) => {
+        pendingScrollActionRef.current = {
+          kind: 'edge',
+          edge: 'bottom',
+          window: windowRange,
+          animated: options?.animated ?? false,
+          startedAtMs: Date.now(),
+        };
+        runPendingScrollActionRef.current();
+      },
       scrollToItemAnchor: (request: ItemAnchorRequest) => {
         pendingScrollActionRef.current = {
           kind: 'itemAnchor',
@@ -531,21 +796,14 @@ export function ProgressiveScrollList<TItem>(
       getLastWindowChangeAnchor: () => lastWindowChangeAnchorRef.current,
       hasPendingScrollAction: () => pendingScrollActionRef.current != null,
       getItemViewportOffset: async (key: string) => {
-        const layout = rowLayoutsRef.current.get(key);
-        if (!layout) {
-          return null;
-        }
-        const metrics = await getMacScrollViewMetrics(scrollRef.current);
-        if (!metrics) {
-          return null;
-        }
-        return layout.y - metrics.offsetY;
+        return measureItemViewportOffset(key);
       },
       getRenderedWindowRange: () => ({
         start: windowRange.start,
         end: windowRange.end,
         length: data.length,
       }),
+      getDebugLog: () => debugLogRef.current,
       loadMoreTop: () => loadMoreTopRef.current(),
       loadMoreBottom: () => loadMoreBottomRef.current(),
       cancelPendingScrollAction: () => {
@@ -558,7 +816,14 @@ export function ProgressiveScrollList<TItem>(
       getNativeScrollRef: () => scrollRef.current,
       getScrollableNode: () => scrollRef.current?.getScrollableNode?.(),
     };
-  }, [captureAnchor, data.length, scrollToY, windowRange.end, windowRange.start]);
+  }, [
+    captureAnchor,
+    data.length,
+    measureItemViewportOffset,
+    scrollToY,
+    windowRange.end,
+    windowRange.start,
+  ]);
 
   React.useImperativeHandle(listRef as React.Ref<any> | undefined, () => exposeHandle, [
     exposeHandle,
@@ -587,6 +852,7 @@ export function ProgressiveScrollList<TItem>(
           metricsRef.current.offsetY,
       );
       if (bottomGap <= edgeThresholdPx) {
+        appendDebugLog('dataChangeFollowBottom', { bottomGap, edgeThresholdPx });
         pendingScrollActionRef.current = {
           kind: 'edge',
           edge: 'bottom',
@@ -602,6 +868,11 @@ export function ProgressiveScrollList<TItem>(
         return;
       }
       if (anchor) {
+        appendDebugLog('dataChangeRestoreAnchor', {
+          key: anchor.key,
+          sourceIndex: anchor.sourceIndex,
+          offsetFromViewportTop: anchor.offsetFromViewportTop,
+        });
         pendingScrollActionRef.current = {
           kind: 'itemAnchor',
           request: {
@@ -645,6 +916,15 @@ export function ProgressiveScrollList<TItem>(
     async (nextStart: number, nextEnd: number) => {
       const anchor = await captureAnchor();
       const nextWindow = normalizeWindow(nextStart, nextEnd);
+      appendDebugLog('applyWindowChange', {
+        nextStart,
+        nextEnd,
+        normalizedStart: nextWindow.start,
+        normalizedEnd: nextWindow.end,
+        anchorKey: anchor?.key ?? null,
+        anchorSourceIndex: anchor?.sourceIndex ?? null,
+        anchorOffsetFromViewportTop: anchor?.offsetFromViewportTop ?? null,
+      });
       lastWindowChangeAnchorRef.current = anchor;
       if (anchor) {
         pendingScrollActionRef.current = {
@@ -719,10 +999,17 @@ export function ProgressiveScrollList<TItem>(
         contentHeight: Number(nativeEvent?.contentSize?.height ?? 0),
       };
       onScroll?.(event);
+      appendDebugLog('onScroll', metricsRef.current);
+      runPendingScrollActionRef.current();
       if (!autoLoadEdges) {
         return;
       }
+      if (pendingScrollActionRef.current) {
+        appendDebugLog('autoLoadSuppressedPending');
+        return;
+      }
       if (metricsRef.current.offsetY <= edgeThresholdPx && hasMoreAtTop) {
+        appendDebugLog('autoLoadTop', { edgeThresholdPx });
         handleLoadMoreTop();
         return;
       }
@@ -733,6 +1020,7 @@ export function ProgressiveScrollList<TItem>(
           metricsRef.current.offsetY,
       );
       if (bottomGap <= edgeThresholdPx && hasMoreAtBottom) {
+        appendDebugLog('autoLoadBottom', { bottomGap, edgeThresholdPx });
         handleLoadMoreBottom();
       }
     },
@@ -750,6 +1038,21 @@ export function ProgressiveScrollList<TItem>(
   const handleContentSizeChange = useCallback(
     (width: number, height: number) => {
       metricsRef.current.contentHeight = height;
+      appendDebugLog('contentSizeChange', { width, height });
+      const action = pendingScrollActionRef.current;
+      if (
+        action?.kind === 'itemAnchor' &&
+        action.window &&
+        windowRange.start === action.window.start &&
+        windowRange.end === action.window.end
+      ) {
+        action.windowSettled = true;
+        appendDebugLog('itemAnchorWindowSettled', {
+          key: action.request.key,
+          windowStart: action.window.start,
+          windowEnd: action.window.end,
+        });
+      }
       onContentSizeChange?.(width, height);
       runPendingScrollActionRef.current();
     },
@@ -760,6 +1063,7 @@ export function ProgressiveScrollList<TItem>(
     (event: LayoutChangeEvent) => {
       const height = Number(event.nativeEvent?.layout?.height ?? 0);
       metricsRef.current.viewportHeight = height;
+      appendDebugLog('layout', { height });
       onLayout?.(event);
       runPendingScrollActionRef.current();
     },
@@ -815,6 +1119,13 @@ export function ProgressiveScrollList<TItem>(
     return (
       <View
         testID={`progressive-scroll-row-${entry.key}`}
+        ref={(node) => {
+          if (node) {
+            rowRefsRef.current.set(entry.key, node);
+          } else {
+            rowRefsRef.current.delete(entry.key);
+          }
+        }}
         collapsable={false}
         onLayout={(event) => {
           const layout = event.nativeEvent?.layout;
@@ -858,6 +1169,11 @@ export function ProgressiveScrollList<TItem>(
   for (const layoutKey of rowLayoutsRef.current.keys()) {
     if (!mountedKeys.has(layoutKey)) {
       rowLayoutsRef.current.delete(layoutKey);
+    }
+  }
+  for (const refKey of rowRefsRef.current.keys()) {
+    if (!mountedKeys.has(refKey)) {
+      rowRefsRef.current.delete(refKey);
     }
   }
 
@@ -933,6 +1249,26 @@ export function ProgressiveScrollList<TItem>(
         onScrollBeginDrag={handleScrollBeginDrag}
         onScrollEndDrag={onScrollEndDrag}
         onMomentumScrollEnd={onMomentumScrollEnd}
+        onViewableItemsChanged={onViewableItemsChangedRef.current}
+        viewabilityConfig={viewabilityConfigRef.current}
+        onScrollToIndexFailed={(info) => {
+          appendDebugLog('flatListScrollToIndexFailed', {
+            index: info.index,
+            highestMeasuredFrameIndex: info.highestMeasuredFrameIndex,
+            averageItemLength: info.averageItemLength,
+          });
+          const action = pendingScrollActionRef.current;
+          if (action?.kind === 'itemAnchor') {
+            action.usedIndexScroll = false;
+            action.checking = false;
+            const estimatedOffset =
+              Number(info.averageItemLength ?? 0) * Math.max(0, Number(info.index ?? 0));
+            if (Number.isFinite(estimatedOffset) && estimatedOffset > 0) {
+              scrollToY(estimatedOffset, false);
+            }
+          }
+          schedulePendingActionAttempt();
+        }}
         scrollEnabled={scrollEnabled}
         showsVerticalScrollIndicator={showsVerticalScrollIndicator ?? true}
         removeClippedSubviews={false}
