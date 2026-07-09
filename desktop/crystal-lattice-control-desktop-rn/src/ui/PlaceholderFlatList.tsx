@@ -1,5 +1,12 @@
 import React from 'react';
-import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
+import type {
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  StyleProp,
+  ViewStyle,
+  ViewToken,
+} from 'react-native';
 import { ScrollView, View } from 'react-native';
 
 export interface ListRenderItemInfo<TItem> {
@@ -64,6 +71,13 @@ export interface PlaceholderFlatListProps<TItem> {
   onScrollBeginDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onScrollEndDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onMomentumScrollEnd?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onViewableItemsChanged?: (info: { viewableItems: ViewToken[]; changed: ViewToken[] }) => void;
+  viewabilityConfig?: any;
+  onScrollToIndexFailed?: (info: {
+    index: number;
+    highestMeasuredFrameIndex: number;
+    averageItemLength: number;
+  }) => void;
 }
 
 type RowCacheEntry<TItem> = {

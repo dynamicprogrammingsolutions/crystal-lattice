@@ -989,7 +989,9 @@ export const ChatPane = React.memo(function ChatPane({
       TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ? false : FLATLIST_BOTTOM_LOCK,
     messageAnchorBeforeCount: PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT,
     messageAnchorAfterCount: PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT,
-    messageViewportAnchorsEnabled: TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll',
+    messageViewportAnchorsEnabled:
+      TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ||
+      TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList',
     listEdgeMethodsEnabled: TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll',
   });
 
