@@ -109,6 +109,8 @@ export function useProactiveChatScrollPersistence(params: {
   bottomLockEnabled?: boolean;
   messageAnchorBeforeCount?: number;
   messageAnchorAfterCount?: number;
+  messageViewportAnchorsEnabled?: boolean;
+  listEdgeMethodsEnabled?: boolean;
 }): {
   listRef: RefObject<any>;
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -140,6 +142,8 @@ export function useProactiveChatScrollPersistence(params: {
     bottomLockEnabled = false,
     messageAnchorBeforeCount = 40,
     messageAnchorAfterCount = 59,
+    messageViewportAnchorsEnabled = false,
+    listEdgeMethodsEnabled = false,
   } = params;
 
   const listRef = useRef<any>(null);
@@ -165,7 +169,7 @@ export function useProactiveChatScrollPersistence(params: {
   const initialAnchorRef = useRef<ChatScrollAnchor | ChatMessageViewportScrollAnchor | null>(
     isChatScrollAnchor(cachedScrollAnchor)
       ? cachedScrollAnchor
-      : isChatMessageViewportScrollAnchor(cachedScrollAnchor)
+      : messageViewportAnchorsEnabled && isChatMessageViewportScrollAnchor(cachedScrollAnchor)
         ? cachedScrollAnchor
         : null,
   );
@@ -248,13 +252,17 @@ export function useProactiveChatScrollPersistence(params: {
       }
       cancelActiveEdgeScroll();
 
-      if (edge === 'top' && typeof target.scrollToTop === 'function') {
+      if (listEdgeMethodsEnabled && edge === 'top' && typeof target.scrollToTop === 'function') {
         bottomFollowEnabledRef.current = false;
         target.scrollToTop({ animated });
         programmaticScrollUntilRef.current = Date.now() + 250;
         return;
       }
-      if (edge === 'bottom' && typeof target.scrollToBottom === 'function') {
+      if (
+        listEdgeMethodsEnabled &&
+        edge === 'bottom' &&
+        typeof target.scrollToBottom === 'function'
+      ) {
         bottomFollowEnabledRef.current = true;
         target.scrollToBottom({ animated });
         programmaticScrollUntilRef.current = Date.now() + 250;
@@ -373,6 +381,7 @@ export function useProactiveChatScrollPersistence(params: {
       bottomConvergenceStableMs,
       bottomThresholdPx,
       cancelActiveEdgeScroll,
+      listEdgeMethodsEnabled,
       updateDerivedScrollState,
     ],
   );
@@ -501,7 +510,7 @@ export function useProactiveChatScrollPersistence(params: {
       return;
     }
 
-    if (isChatMessageViewportScrollAnchor(anchor)) {
+    if (messageViewportAnchorsEnabled && isChatMessageViewportScrollAnchor(anchor)) {
       if (anchor.pinnedToBottom && typeof target.scrollToEnd === 'function') {
         target.scrollToEnd({ animated: false });
         hasRestoredRef.current = true;
@@ -554,6 +563,7 @@ export function useProactiveChatScrollPersistence(params: {
     enabled,
     messageAnchorAfterCount,
     messageAnchorBeforeCount,
+    messageViewportAnchorsEnabled,
     sessionId,
     updateDerivedScrollState,
   ]);
@@ -588,22 +598,24 @@ export function useProactiveChatScrollPersistence(params: {
       let anchor: ChatScrollAnchor | ChatMessageViewportScrollAnchor =
         createChatScrollAnchor({ bottomGapPx, pinnedToBottom });
 
-      const visibleAnchor =
-        typeof (listRef.current as any)?.getVisibleAnchor === 'function'
-          ? await (listRef.current as any).getVisibleAnchor()
-          : null;
-      const visibleKey =
-        typeof visibleAnchor?.key === 'string' ? visibleAnchor.key : null;
-      const match = visibleKey ? /^msg-(\-?\d+)$/.exec(visibleKey) : null;
-      if (match) {
-        const messageIndex = Number(match[1]);
-        const offsetFromViewportTop = Number(visibleAnchor.offsetFromViewportTop ?? NaN);
-        if (Number.isFinite(messageIndex) && Number.isFinite(offsetFromViewportTop)) {
-          anchor = createChatMessageViewportScrollAnchor({
-            messageIndex,
-            offsetFromViewportTop,
-            pinnedToBottom,
-          });
+      if (messageViewportAnchorsEnabled) {
+        const visibleAnchor =
+          typeof (listRef.current as any)?.getVisibleAnchor === 'function'
+            ? await (listRef.current as any).getVisibleAnchor()
+            : null;
+        const visibleKey =
+          typeof visibleAnchor?.key === 'string' ? visibleAnchor.key : null;
+        const match = visibleKey ? /^msg-(\-?\d+)$/.exec(visibleKey) : null;
+        if (match) {
+          const messageIndex = Number(match[1]);
+          const offsetFromViewportTop = Number(visibleAnchor.offsetFromViewportTop ?? NaN);
+          if (Number.isFinite(messageIndex) && Number.isFinite(offsetFromViewportTop)) {
+            anchor = createChatMessageViewportScrollAnchor({
+              messageIndex,
+              offsetFromViewportTop,
+              pinnedToBottom,
+            });
+          }
         }
       }
 
@@ -630,6 +642,7 @@ export function useProactiveChatScrollPersistence(params: {
       enabled,
       getMessagesForCache,
       bottomThresholdPx,
+      messageViewportAnchorsEnabled,
       onUpdateCache,
       persistThrottleMs,
       sessionId,
@@ -669,11 +682,11 @@ export function useProactiveChatScrollPersistence(params: {
   useEffect(() => {
     initialAnchorRef.current = isChatScrollAnchor(cachedScrollAnchor)
       ? cachedScrollAnchor
-      : isChatMessageViewportScrollAnchor(cachedScrollAnchor)
+      : messageViewportAnchorsEnabled && isChatMessageViewportScrollAnchor(cachedScrollAnchor)
         ? cachedScrollAnchor
         : null;
     maybeRestoreScroll();
-  }, [cachedScrollAnchor, maybeRestoreScroll]);
+  }, [cachedScrollAnchor, maybeRestoreScroll, messageViewportAnchorsEnabled]);
 
   useEffect(() => {
     if (!enabled) {
