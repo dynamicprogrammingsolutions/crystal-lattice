@@ -103,6 +103,11 @@ import {
   type MessageActionDefinition,
   type MessageActionKey,
 } from './messageActions';
+import {
+  getTranscriptRangeControlPresentation,
+  planTranscriptRangeControlAction,
+  type TranscriptRangeControlAction,
+} from './messageRangeControls';
 import { PinnedMessageActionsProvider } from './PinnedMessageActionsContext';
 import { useSessionStatusBarParts } from './useSessionStatusBarParts';
 import { usePersistedChatDraft } from './usePersistedChatDraft';
@@ -224,6 +229,12 @@ const PROGRESSIVE_SCROLL_GROW_ONLY = readGlobalBoolean(
   'CLC_PROGRESSIVE_SCROLL_GROW_ONLY',
   false,
 );
+const TRANSCRIPT_RANGE_CONTROLS = readGlobalBoolean(
+  'CLC_TRANSCRIPT_RANGE_CONTROLS',
+  false,
+);
+const TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE =
+  readOptionalGlobalNumber('CLC_TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE') ?? DEFAULT_HISTORY_WINDOW;
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -2054,6 +2065,56 @@ export const ChatPane = React.memo(function ChatPane({
     [backend, chatController],
   );
 
+  const firstLoadedMessageIndex = messages.length > 0 ? messages[0].index : null;
+  const lastLoadedMessageIndex =
+    messages.length > 0 ? messages[messages.length - 1].index : null;
+  const transcriptRangeControlPresentation = useMemo(
+    () =>
+      TRANSCRIPT_RANGE_CONTROLS
+        ? getTranscriptRangeControlPresentation({
+            startText: rangeStartText,
+            endText: rangeEndText,
+            firstLoadedIndex: firstLoadedMessageIndex,
+            lastLoadedIndex: lastLoadedMessageIndex,
+            pageSize: TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE,
+          })
+        : null,
+    [firstLoadedMessageIndex, lastLoadedMessageIndex, rangeEndText, rangeStartText],
+  );
+  const handleTranscriptRangeAction = useCallback(
+    (action: TranscriptRangeControlAction) => {
+      if (!TRANSCRIPT_RANGE_CONTROLS || reloadInFlight || chatState?.loading) {
+        return;
+      }
+      const plan = planTranscriptRangeControlAction(
+        {
+          startText: rangeStartText,
+          endText: rangeEndText,
+          firstLoadedIndex: firstLoadedMessageIndex,
+          lastLoadedIndex: lastLoadedMessageIndex,
+          pageSize: TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE,
+        },
+        action,
+      );
+      if (!plan) {
+        return;
+      }
+      applyMessageLimitAndReload({
+        startText: plan.startText,
+        endText: plan.endText,
+      }).catch(() => {});
+    },
+    [
+      applyMessageLimitAndReload,
+      chatState?.loading,
+      firstLoadedMessageIndex,
+      lastLoadedMessageIndex,
+      rangeEndText,
+      rangeStartText,
+      reloadInFlight,
+    ],
+  );
+
   const openMessageLimitPopover = useCallback(() => {
     if (Platform.OS !== 'macos') {
       setMessageLimitVisible(true);
@@ -2550,6 +2611,75 @@ export const ChatPane = React.memo(function ChatPane({
     [renderMessageItem, streamingFooter],
   );
 
+  const rangeControlsDisabled = reloadInFlight || (chatState?.loading ?? false);
+  const transcriptRangeTopControls =
+    transcriptRangeControlPresentation &&
+    (transcriptRangeControlPresentation.top || transcriptRangeControlPresentation.showAll) ? (
+      <View style={styles.transcriptRangeControlRow}>
+        {transcriptRangeControlPresentation.top ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={transcriptRangeControlPresentation.top.label}
+            disabled={rangeControlsDisabled}
+            style={({ pressed }) => [
+              styles.transcriptRangeControlButton,
+              rangeControlsDisabled && styles.transcriptRangeControlButtonDisabled,
+              pressed && !rangeControlsDisabled && styles.transcriptRangeControlButtonPressed,
+            ]}
+            onPress={() =>
+              handleTranscriptRangeAction(transcriptRangeControlPresentation.top!.action)
+            }
+          >
+            <Text style={styles.transcriptRangeControlText}>
+              {transcriptRangeControlPresentation.top.label}
+            </Text>
+          </Pressable>
+        ) : null}
+        {transcriptRangeControlPresentation.showAll ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={transcriptRangeControlPresentation.showAll.label}
+            disabled={rangeControlsDisabled}
+            style={({ pressed }) => [
+              styles.transcriptRangeControlButton,
+              styles.transcriptRangeControlButtonSecondary,
+              rangeControlsDisabled && styles.transcriptRangeControlButtonDisabled,
+              pressed && !rangeControlsDisabled && styles.transcriptRangeControlButtonPressed,
+            ]}
+            onPress={() =>
+              handleTranscriptRangeAction(transcriptRangeControlPresentation.showAll!.action)
+            }
+          >
+            <Text style={styles.transcriptRangeControlText}>
+              {transcriptRangeControlPresentation.showAll.label}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+    ) : null;
+  const transcriptRangeBottomControls =
+    transcriptRangeControlPresentation?.bottom ? (
+      <View style={[styles.transcriptRangeControlRow, styles.transcriptRangeControlRowBottom]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={transcriptRangeControlPresentation.bottom.label}
+          disabled={rangeControlsDisabled}
+          style={({ pressed }) => [
+            styles.transcriptRangeControlButton,
+            rangeControlsDisabled && styles.transcriptRangeControlButtonDisabled,
+            pressed && !rangeControlsDisabled && styles.transcriptRangeControlButtonPressed,
+          ]}
+          onPress={() =>
+            handleTranscriptRangeAction(transcriptRangeControlPresentation.bottom!.action)
+          }
+        >
+          <Text style={styles.transcriptRangeControlText}>
+            {transcriptRangeControlPresentation.bottom.label}
+          </Text>
+        </Pressable>
+      </View>
+    ) : null;
+
   return (
 	  <View style={styles.root}>
       <ActionResultModal
@@ -2677,6 +2807,7 @@ export const ChatPane = React.memo(function ChatPane({
         ) : null}
 
         <View style={styles.transcriptFrame}>
+          {transcriptRangeTopControls}
           <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
             {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
               <DependencyFlatList
@@ -2819,6 +2950,7 @@ export const ChatPane = React.memo(function ChatPane({
 	            />
             )}
           </PinnedMessageActionsProvider>
+          {transcriptRangeBottomControls}
 
           {transcriptScroll.canScrollToTop ? (
             <Pressable
@@ -3333,6 +3465,43 @@ function createStyles(theme: ReturnType<typeof useTheme>, styleVariant: TabStrip
     },
     transcriptContent: {
       paddingBottom: 12,
+    },
+    transcriptRangeControlRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 8,
+      paddingBottom: 8,
+    },
+    transcriptRangeControlRowBottom: {
+      paddingTop: 8,
+      paddingBottom: 0,
+    },
+    transcriptRangeControlButton: {
+      minHeight: 30,
+      borderRadius: 8,
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      backgroundColor: theme.surface,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    transcriptRangeControlButtonSecondary: {
+      backgroundColor: theme.surfaceAlt,
+    },
+    transcriptRangeControlButtonPressed: {
+      opacity: 0.8,
+    },
+    transcriptRangeControlButtonDisabled: {
+      opacity: 0.45,
+    },
+    transcriptRangeControlText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.primary,
     },
     transcriptScrollButton: {
       position: 'absolute',
