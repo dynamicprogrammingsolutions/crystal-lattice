@@ -5,7 +5,9 @@ export type TranscriptRangeControlInput = {
   endText: string | null | undefined;
   firstLoadedIndex: number | null;
   lastLoadedIndex: number | null;
+  loadedCount: number;
   pageSize: number;
+  maxRangeSize: number;
 };
 
 export type TranscriptRangePlan = {
@@ -40,6 +42,16 @@ function resolvePageSize(pageSize: number): number {
   return Number.isFinite(pageSize) && pageSize > 0 ? Math.max(1, Math.round(pageSize)) : 50;
 }
 
+function resolveMaxRangeSize(maxRangeSize: number, pageSize: number): number {
+  return Number.isFinite(maxRangeSize) && maxRangeSize > 0
+    ? Math.max(pageSize, Math.round(maxRangeSize))
+    : pageSize * 2;
+}
+
+function formatSuffixRange(count: number): TranscriptRangePlan {
+  return { startText: formatRangePart(-Math.max(1, Math.round(count))), endText: '' };
+}
+
 export function planTranscriptRangeControlAction(
   input: TranscriptRangeControlInput,
   action: TranscriptRangeControlAction,
@@ -47,6 +59,11 @@ export function planTranscriptRangeControlAction(
   const startText = normalizeRangePart(input.startText);
   const endText = normalizeRangePart(input.endText);
   const pageSize = resolvePageSize(input.pageSize);
+  const maxRangeSize = resolveMaxRangeSize(input.maxRangeSize, pageSize);
+  const loadedCount =
+    Number.isFinite(input.loadedCount) && input.loadedCount > 0
+      ? Math.round(input.loadedCount)
+      : 0;
 
   if (action === 'showAll') {
     if (startText === '' && endText === '') {
@@ -60,11 +77,37 @@ export function planTranscriptRangeControlAction(
 
   if (action === 'expandAbove') {
     if (start != null && start < 0 && endText === '') {
-      return { startText: formatRangePart(start - pageSize), endText: '' };
+      const currentCount = Math.abs(start);
+      if (currentCount < maxRangeSize) {
+        return formatSuffixRange(Math.min(maxRangeSize, currentCount + pageSize));
+      }
+      if (input.firstLoadedIndex == null || input.firstLoadedIndex <= 0) {
+        return null;
+      }
+      const nextEnd = Math.max(pageSize, input.firstLoadedIndex + pageSize);
+      const nextStart = Math.max(0, nextEnd - maxRangeSize);
+      return {
+        startText: formatRangePart(nextStart),
+        endText: formatRangePart(nextEnd),
+      };
     }
     if (start != null) {
       if (start <= 0) {
         return null;
+      }
+      if (end != null && end > start) {
+        const currentCount = end - start;
+        if (currentCount < maxRangeSize) {
+          return {
+            startText: formatRangePart(Math.max(0, start - pageSize)),
+            endText,
+          };
+        }
+        const nextStart = Math.max(0, start - pageSize);
+        return {
+          startText: formatRangePart(nextStart),
+          endText: formatRangePart(nextStart + currentCount),
+        };
       }
       return {
         startText: formatRangePart(Math.max(0, start - pageSize)),
@@ -84,6 +127,27 @@ export function planTranscriptRangeControlAction(
   }
 
   if (end != null) {
+    const requestedCount = start != null && end > start ? end - start : end;
+    const reachedEnd =
+      requestedCount > 0 &&
+      loadedCount > 0 &&
+      loadedCount < requestedCount &&
+      (input.lastLoadedIndex == null || input.lastLoadedIndex + 1 < end);
+    if (reachedEnd) {
+      return formatSuffixRange(maxRangeSize);
+    }
+    if (start != null) {
+      if (requestedCount > 0 && requestedCount < maxRangeSize) {
+        return {
+          startText,
+          endText: formatRangePart(end + pageSize),
+        };
+      }
+      return {
+        startText: formatRangePart(start + pageSize),
+        endText: formatRangePart(end + pageSize),
+      };
+    }
     return {
       startText,
       endText: formatRangePart(end + pageSize),
@@ -96,8 +160,7 @@ export function getTranscriptRangeControlPresentation(
   input: TranscriptRangeControlInput,
 ): TranscriptRangeControlPresentation {
   const firstLoadedIndex = input.firstLoadedIndex;
-  const startText = normalizeRangePart(input.startText);
-  const endText = normalizeRangePart(input.endText);
+  const pageSize = resolvePageSize(input.pageSize);
   const topPlan = planTranscriptRangeControlAction(input, 'expandAbove');
   const bottomPlan = planTranscriptRangeControlAction(input, 'expandBelow');
   const showAllPlan = planTranscriptRangeControlAction(input, 'showAll');
@@ -107,11 +170,14 @@ export function getTranscriptRangeControlPresentation(
   return {
     top:
       topPlan && hiddenAbove != null && hiddenAbove > 0
-        ? { label: `${hiddenAbove} messages above`, action: 'expandAbove' }
+        ? {
+            label: `Show ${Math.min(pageSize, hiddenAbove)} older messages`,
+            action: 'expandAbove',
+          }
         : null,
     bottom: bottomPlan
       ? {
-          label: 'Show newer messages',
+          label: `Show ${pageSize} newer messages`,
           action: 'expandBelow',
         }
       : null,

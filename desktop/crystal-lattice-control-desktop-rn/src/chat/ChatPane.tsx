@@ -235,6 +235,9 @@ const TRANSCRIPT_RANGE_CONTROLS = readGlobalBoolean(
 );
 const TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE =
   readOptionalGlobalNumber('CLC_TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE') ?? DEFAULT_HISTORY_WINDOW;
+const TRANSCRIPT_RANGE_CONTROL_MAX_RANGE =
+  readOptionalGlobalNumber('CLC_TRANSCRIPT_RANGE_CONTROL_MAX_RANGE') ??
+  DEFAULT_HISTORY_WINDOW * 2;
 
 const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]> = {
   user: ['modify', 'copy'],
@@ -2076,10 +2079,12 @@ export const ChatPane = React.memo(function ChatPane({
             endText: rangeEndText,
             firstLoadedIndex: firstLoadedMessageIndex,
             lastLoadedIndex: lastLoadedMessageIndex,
+            loadedCount: messages.length,
             pageSize: TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE,
+            maxRangeSize: TRANSCRIPT_RANGE_CONTROL_MAX_RANGE,
           })
         : null,
-    [firstLoadedMessageIndex, lastLoadedMessageIndex, rangeEndText, rangeStartText],
+    [firstLoadedMessageIndex, lastLoadedMessageIndex, messages.length, rangeEndText, rangeStartText],
   );
   const handleTranscriptRangeAction = useCallback(
     (action: TranscriptRangeControlAction) => {
@@ -2092,7 +2097,9 @@ export const ChatPane = React.memo(function ChatPane({
           endText: rangeEndText,
           firstLoadedIndex: firstLoadedMessageIndex,
           lastLoadedIndex: lastLoadedMessageIndex,
+          loadedCount: messages.length,
           pageSize: TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE,
+          maxRangeSize: TRANSCRIPT_RANGE_CONTROL_MAX_RANGE,
         },
         action,
       );
@@ -2109,6 +2116,7 @@ export const ChatPane = React.memo(function ChatPane({
       chatState?.loading,
       firstLoadedMessageIndex,
       lastLoadedMessageIndex,
+      messages.length,
       rangeEndText,
       rangeStartText,
       reloadInFlight,
@@ -2679,6 +2687,13 @@ export const ChatPane = React.memo(function ChatPane({
         </Pressable>
       </View>
     ) : null;
+  const scrollViewTranscriptFooter =
+    streamingFooter || transcriptRangeBottomControls ? (
+      <View>
+        {streamingFooter}
+        {transcriptRangeBottomControls}
+      </View>
+    ) : null;
 
   return (
 	  <View style={styles.root}>
@@ -2807,7 +2822,6 @@ export const ChatPane = React.memo(function ChatPane({
         ) : null}
 
         <View style={styles.transcriptFrame}>
-          {transcriptRangeTopControls}
           <PinnedMessageActionsProvider value={pinnedMessageActionsContextValue}>
             {TRANSCRIPT_LIST_IMPLEMENTATION === 'flatList' ? (
               <DependencyFlatList
@@ -2840,6 +2854,8 @@ export const ChatPane = React.memo(function ChatPane({
 	                  : undefined
 	              }
 	              renderItem={renderTranscriptRow}
+                  ListHeaderComponent={transcriptRangeTopControls}
+                  ListFooterComponent={transcriptRangeBottomControls}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
 	              }
@@ -2875,6 +2891,8 @@ export const ChatPane = React.memo(function ChatPane({
 	                  : undefined
 	              }
 	              renderItem={renderTranscriptRow}
+                  ListHeaderComponent={transcriptRangeTopControls}
+                  ListFooterComponent={transcriptRangeBottomControls}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
 	              }
@@ -2908,6 +2926,8 @@ export const ChatPane = React.memo(function ChatPane({
 	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
 	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
 	              renderItem={renderTranscriptRow}
+                  ListHeaderComponent={transcriptRangeTopControls}
+                  ListFooterComponent={transcriptRangeBottomControls}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
 	              }
@@ -2943,14 +2963,14 @@ export const ChatPane = React.memo(function ChatPane({
 	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
 	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
 	              renderItem={renderMessageItem}
+                  ListHeaderComponent={transcriptRangeTopControls}
 	              ListEmptyComponent={
 	                !chatState?.loading ? <Text style={styles.hintSecondary}>No messages.</Text> : null
 	              }
-	              ListFooterComponent={streamingFooter}
+                  ListFooterComponent={scrollViewTranscriptFooter}
 	            />
             )}
           </PinnedMessageActionsProvider>
-          {transcriptRangeBottomControls}
 
           {transcriptScroll.canScrollToTop ? (
             <Pressable
