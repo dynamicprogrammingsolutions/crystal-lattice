@@ -140,6 +140,40 @@ describe('message range controls', () => {
     ).toEqual({ startText: '', endText: '' });
   });
 
+  test('show last switches back to the page-sized suffix range', () => {
+    expect(
+      planTranscriptRangeControlAction(
+        {
+          startText: '150',
+          endText: '250',
+          firstLoadedIndex: 150,
+          lastLoadedIndex: 249,
+          loadedCount: 100,
+          pageSize: 50,
+          maxRangeSize: 100,
+        },
+        'showLast',
+      ),
+    ).toEqual({ startText: '-50', endText: '' });
+  });
+
+  test('show last is hidden when already showing the last page', () => {
+    expect(
+      planTranscriptRangeControlAction(
+        {
+          startText: '-50',
+          endText: '',
+          firstLoadedIndex: 175,
+          lastLoadedIndex: 224,
+          loadedCount: 50,
+          pageSize: 50,
+          maxRangeSize: 100,
+        },
+        'showLast',
+      ),
+    ).toBeNull();
+  });
+
   test('presentation labels older-message action using page size and hidden count', () => {
     expect(
       getTranscriptRangeControlPresentation({
@@ -150,8 +184,11 @@ describe('message range controls', () => {
         loadedCount: 50,
         pageSize: 50,
         maxRangeSize: 100,
-      }).top,
-    ).toEqual({ label: 'Show 50 older messages', action: 'expandAbove' });
+      }).topButtons,
+    ).toEqual([
+      { id: 'expandAbove', title: 'Show 50 older messages' },
+      { id: 'showAll', title: 'Show all' },
+    ]);
   });
 
   test('presentation hides above control when loaded range starts at zero', () => {
@@ -164,8 +201,8 @@ describe('message range controls', () => {
         loadedCount: 50,
         pageSize: 50,
         maxRangeSize: 100,
-      }).top,
-    ).toBeNull();
+      }).topButtons.find((button) => button.id === 'expandAbove'),
+    ).toBeUndefined();
   });
 
   test('suffix ranges do not offer a newer-messages action', () => {
@@ -178,8 +215,8 @@ describe('message range controls', () => {
         loadedCount: 50,
         pageSize: 50,
         maxRangeSize: 100,
-      }).bottom,
-    ).toBeNull();
+      }).bottomButtons.find((button) => button.id === 'expandBelow'),
+    ).toBeUndefined();
   });
 
   test('open all-message range does not offer a newer-messages action', () => {
@@ -197,5 +234,22 @@ describe('message range controls', () => {
         'expandBelow',
       ),
     ).toBeNull();
+  });
+
+  test('presentation offers show-last at the bottom when not already on the last page', () => {
+    expect(
+      getTranscriptRangeControlPresentation({
+        startText: '150',
+        endText: '250',
+        firstLoadedIndex: 150,
+        lastLoadedIndex: 249,
+        loadedCount: 100,
+        pageSize: 50,
+        maxRangeSize: 100,
+      }).bottomButtons,
+    ).toEqual([
+      { id: 'expandBelow', title: 'Show 50 newer messages' },
+      { id: 'showLast', title: 'Show last 50' },
+    ]);
   });
 });

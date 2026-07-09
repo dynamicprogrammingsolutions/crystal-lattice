@@ -1,4 +1,8 @@
-export type TranscriptRangeControlAction = 'expandAbove' | 'expandBelow' | 'showAll';
+export type TranscriptRangeControlAction =
+  | 'expandAbove'
+  | 'expandBelow'
+  | 'showAll'
+  | 'showLast';
 
 export type TranscriptRangeControlInput = {
   startText: string | null | undefined;
@@ -15,10 +19,14 @@ export type TranscriptRangePlan = {
   endText: string;
 };
 
+export type TranscriptRangeControlButton = {
+  id: TranscriptRangeControlAction;
+  title: string;
+};
+
 export type TranscriptRangeControlPresentation = {
-  top: { label: string; action: 'expandAbove' } | null;
-  bottom: { label: string; action: 'expandBelow' } | null;
-  showAll: { label: string; action: 'showAll' } | null;
+  topButtons: TranscriptRangeControlButton[];
+  bottomButtons: TranscriptRangeControlButton[];
 };
 
 function parseIntegerText(value: string | null | undefined): number | null {
@@ -29,6 +37,7 @@ function parseIntegerText(value: string | null | undefined): number | null {
   const parsed = Number(trimmed);
   return Number.isSafeInteger(parsed) ? parsed : null;
 }
+
 
 function normalizeRangePart(value: string | null | undefined): string {
   return (value ?? '').trim();
@@ -65,6 +74,9 @@ export function planTranscriptRangeControlAction(
       ? Math.round(input.loadedCount)
       : 0;
 
+  const start = parseIntegerText(startText);
+  const end = parseIntegerText(endText);
+
   if (action === 'showAll') {
     if (startText === '' && endText === '') {
       return null;
@@ -72,8 +84,12 @@ export function planTranscriptRangeControlAction(
     return { startText: '', endText: '' };
   }
 
-  const start = parseIntegerText(startText);
-  const end = parseIntegerText(endText);
+  if (action === 'showLast') {
+    if (start === -pageSize && endText === '') {
+      return null;
+    }
+    return formatSuffixRange(pageSize);
+  }
 
   if (action === 'expandAbove') {
     if (start != null && start < 0 && endText === '') {
@@ -164,23 +180,30 @@ export function getTranscriptRangeControlPresentation(
   const topPlan = planTranscriptRangeControlAction(input, 'expandAbove');
   const bottomPlan = planTranscriptRangeControlAction(input, 'expandBelow');
   const showAllPlan = planTranscriptRangeControlAction(input, 'showAll');
+  const showLastPlan = planTranscriptRangeControlAction(input, 'showLast');
   const hiddenAbove =
     firstLoadedIndex != null && firstLoadedIndex > 0 ? firstLoadedIndex + 1 : null;
+  const topButtons: TranscriptRangeControlButton[] = [];
+  const bottomButtons: TranscriptRangeControlButton[] = [];
+
+  if (topPlan && hiddenAbove != null && hiddenAbove > 0) {
+    topButtons.push({
+      id: 'expandAbove',
+      title: `Show ${Math.min(pageSize, hiddenAbove)} older messages`,
+    });
+  }
+  if (showAllPlan) {
+    topButtons.push({ id: 'showAll', title: 'Show all' });
+  }
+  if (bottomPlan) {
+    bottomButtons.push({ id: 'expandBelow', title: `Show ${pageSize} newer messages` });
+  }
+  if (showLastPlan) {
+    bottomButtons.push({ id: 'showLast', title: `Show last ${pageSize}` });
+  }
 
   return {
-    top:
-      topPlan && hiddenAbove != null && hiddenAbove > 0
-        ? {
-            label: `Show ${Math.min(pageSize, hiddenAbove)} older messages`,
-            action: 'expandAbove',
-          }
-        : null,
-    bottom: bottomPlan
-      ? {
-          label: `Show ${pageSize} newer messages`,
-          action: 'expandBelow',
-        }
-      : null,
-    showAll: showAllPlan ? { label: 'Show all', action: 'showAll' } : null,
+    topButtons,
+    bottomButtons,
   };
 }

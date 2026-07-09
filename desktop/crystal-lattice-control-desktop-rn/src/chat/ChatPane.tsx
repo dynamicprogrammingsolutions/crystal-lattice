@@ -107,6 +107,7 @@ import {
   getTranscriptRangeControlPresentation,
   planTranscriptRangeControlAction,
   type TranscriptRangeControlAction,
+  type TranscriptRangeControlButton,
 } from './messageRangeControls';
 import { PinnedMessageActionsProvider } from './PinnedMessageActionsContext';
 import { useSessionStatusBarParts } from './useSessionStatusBarParts';
@@ -2620,71 +2621,42 @@ export const ChatPane = React.memo(function ChatPane({
   );
 
   const rangeControlsDisabled = reloadInFlight || (chatState?.loading ?? false);
+  const renderTranscriptRangeButton = useCallback(
+    (button: TranscriptRangeControlButton, secondary = false) => (
+      <Pressable
+        key={button.id}
+        accessibilityRole="button"
+        accessibilityLabel={button.title}
+        disabled={rangeControlsDisabled}
+        style={({ pressed }) => [
+          styles.transcriptRangeControlButton,
+          secondary && styles.transcriptRangeControlButtonSecondary,
+          rangeControlsDisabled && styles.transcriptRangeControlButtonDisabled,
+          pressed && !rangeControlsDisabled && styles.transcriptRangeControlButtonPressed,
+        ]}
+        onPress={() => handleTranscriptRangeAction(button.id)}
+      >
+        <Text style={styles.transcriptRangeControlText}>{button.title}</Text>
+      </Pressable>
+    ),
+    [handleTranscriptRangeAction, rangeControlsDisabled, styles],
+  );
   const transcriptRangeTopControls =
     transcriptRangeControlPresentation &&
-    (transcriptRangeControlPresentation.top || transcriptRangeControlPresentation.showAll) ? (
+    transcriptRangeControlPresentation.topButtons.length > 0 ? (
       <View style={styles.transcriptRangeControlRow}>
-        {transcriptRangeControlPresentation.top ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={transcriptRangeControlPresentation.top.label}
-            disabled={rangeControlsDisabled}
-            style={({ pressed }) => [
-              styles.transcriptRangeControlButton,
-              rangeControlsDisabled && styles.transcriptRangeControlButtonDisabled,
-              pressed && !rangeControlsDisabled && styles.transcriptRangeControlButtonPressed,
-            ]}
-            onPress={() =>
-              handleTranscriptRangeAction(transcriptRangeControlPresentation.top!.action)
-            }
-          >
-            <Text style={styles.transcriptRangeControlText}>
-              {transcriptRangeControlPresentation.top.label}
-            </Text>
-          </Pressable>
-        ) : null}
-        {transcriptRangeControlPresentation.showAll ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={transcriptRangeControlPresentation.showAll.label}
-            disabled={rangeControlsDisabled}
-            style={({ pressed }) => [
-              styles.transcriptRangeControlButton,
-              styles.transcriptRangeControlButtonSecondary,
-              rangeControlsDisabled && styles.transcriptRangeControlButtonDisabled,
-              pressed && !rangeControlsDisabled && styles.transcriptRangeControlButtonPressed,
-            ]}
-            onPress={() =>
-              handleTranscriptRangeAction(transcriptRangeControlPresentation.showAll!.action)
-            }
-          >
-            <Text style={styles.transcriptRangeControlText}>
-              {transcriptRangeControlPresentation.showAll.label}
-            </Text>
-          </Pressable>
-        ) : null}
+        {transcriptRangeControlPresentation.topButtons.map((button) =>
+          renderTranscriptRangeButton(button, button.id === 'showAll'),
+        )}
       </View>
     ) : null;
   const transcriptRangeBottomControls =
-    transcriptRangeControlPresentation?.bottom ? (
+    transcriptRangeControlPresentation &&
+    transcriptRangeControlPresentation.bottomButtons.length > 0 ? (
       <View style={[styles.transcriptRangeControlRow, styles.transcriptRangeControlRowBottom]}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={transcriptRangeControlPresentation.bottom.label}
-          disabled={rangeControlsDisabled}
-          style={({ pressed }) => [
-            styles.transcriptRangeControlButton,
-            rangeControlsDisabled && styles.transcriptRangeControlButtonDisabled,
-            pressed && !rangeControlsDisabled && styles.transcriptRangeControlButtonPressed,
-          ]}
-          onPress={() =>
-            handleTranscriptRangeAction(transcriptRangeControlPresentation.bottom!.action)
-          }
-        >
-          <Text style={styles.transcriptRangeControlText}>
-            {transcriptRangeControlPresentation.bottom.label}
-          </Text>
-        </Pressable>
+        {transcriptRangeControlPresentation.bottomButtons.map((button) =>
+          renderTranscriptRangeButton(button, button.id === 'showLast'),
+        )}
       </View>
     ) : null;
   const scrollViewTranscriptFooter =
