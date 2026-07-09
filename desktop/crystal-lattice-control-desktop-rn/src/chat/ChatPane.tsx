@@ -162,6 +162,20 @@ function readOptionalGlobalString<T extends string>(
   return typeof value === 'string' && allowed.includes(value as T) ? (value as T) : undefined;
 }
 
+function approximateRenderedContentLength(value: unknown): number {
+  if (value == null) {
+    return 0;
+  }
+  if (typeof value === 'string') {
+    return value.length;
+  }
+  try {
+    return JSON.stringify(value)?.length ?? 1;
+  } catch {
+    return 1;
+  }
+}
+
 const FLATLIST_DISABLE_VIRTUALIZATION = readGlobalBoolean(
   'CLC_FLATLIST_DISABLE_VIRTUALIZATION',
   false,
@@ -194,6 +208,10 @@ const FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS =
   readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS') ?? 200;
 const FLATLIST_BOTTOM_CONVERGENCE_MAX_MS =
   readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_CONVERGENCE_MAX_MS') ?? 3000;
+const FLATLIST_BOTTOM_FOLLOW_WINDOW_MS =
+  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_FOLLOW_WINDOW_MS') ?? 1000;
+const FLATLIST_MANUAL_BOTTOM_FOLLOW_WINDOW_MS =
+  readOptionalGlobalNumber('CLC_FLATLIST_MANUAL_BOTTOM_FOLLOW_WINDOW_MS') ?? 3000;
 const FLATLIST_BOTTOM_LOCK = readGlobalBoolean('CLC_FLATLIST_BOTTOM_LOCK', true);
 const PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE =
   readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE') ?? 50;
@@ -962,6 +980,8 @@ export const ChatPane = React.memo(function ChatPane({
     bottomThresholdPx: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
     bottomConvergenceStableMs: FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS,
     bottomConvergenceMaxMs: FLATLIST_BOTTOM_CONVERGENCE_MAX_MS,
+    bottomFollowWindowMs: FLATLIST_BOTTOM_FOLLOW_WINDOW_MS,
+    manualBottomFollowWindowMs: FLATLIST_MANUAL_BOTTOM_FOLLOW_WINDOW_MS,
     bottomLockEnabled:
       TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ? false : FLATLIST_BOTTOM_LOCK,
     messageAnchorBeforeCount: PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT,
@@ -987,6 +1007,27 @@ export const ChatPane = React.memo(function ChatPane({
 
 
   const streamingRow = chatState?.streamingRow ?? null;
+  const bottomContentVersion = useMemo(() => {
+    const lastMessageIndex = messages.length > 0 ? messages[messages.length - 1].index : null;
+    return JSON.stringify({
+      lastMessageIndex,
+      hasStreaming: !!streamingRow,
+      streamingContentLength: approximateRenderedContentLength(streamingRow?.content),
+      streamingReasoningLength: approximateRenderedContentLength(streamingRow?.reasoning),
+      inlineDisplayCount: inlineActionDisplays.length,
+    });
+  }, [inlineActionDisplays.length, messages, streamingRow]);
+  const previousBottomContentVersionRef = useRef<string | null>(null);
+  useEffect(() => {
+    const previous = previousBottomContentVersionRef.current;
+    previousBottomContentVersionRef.current = bottomContentVersion;
+    if (previous == null || previous === bottomContentVersion) {
+      return;
+    }
+    transcriptScroll.requestBottomFollow('bottomContentChanged', {
+      windowMs: FLATLIST_BOTTOM_FOLLOW_WINDOW_MS,
+    });
+  }, [bottomContentVersion, transcriptScroll]);
 
   const { statusBarParts, ensureAgentsLoaded, agentsLoading } = useSessionStatusBarParts({
     backend,

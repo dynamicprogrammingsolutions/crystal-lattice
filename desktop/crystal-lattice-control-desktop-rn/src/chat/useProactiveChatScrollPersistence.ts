@@ -106,6 +106,8 @@ export function useProactiveChatScrollPersistence(params: {
   bottomThresholdPx?: number;
   bottomConvergenceStableMs?: number;
   bottomConvergenceMaxMs?: number;
+  bottomFollowWindowMs?: number;
+  manualBottomFollowWindowMs?: number;
   bottomLockEnabled?: boolean;
   messageAnchorBeforeCount?: number;
   messageAnchorAfterCount?: number;
@@ -123,6 +125,7 @@ export function useProactiveChatScrollPersistence(params: {
   resetRestore: (reason: string) => void;
   scrollToTop: (animated?: boolean) => void;
   scrollToBottom: (animated?: boolean) => void;
+  requestBottomFollow: (reason: string, options?: { windowMs?: number }) => void;
   canScrollToTop: boolean;
   canScrollToBottom: boolean;
   isNearBottom: boolean;
@@ -139,6 +142,8 @@ export function useProactiveChatScrollPersistence(params: {
     bottomThresholdPx = PINNED_TO_BOTTOM_THRESHOLD_PX,
     bottomConvergenceStableMs = 200,
     bottomConvergenceMaxMs = 3000,
+    bottomFollowWindowMs = 1000,
+    manualBottomFollowWindowMs = 3000,
     bottomLockEnabled = false,
     messageAnchorBeforeCount = 40,
     messageAnchorAfterCount = 59,
@@ -154,6 +159,7 @@ export function useProactiveChatScrollPersistence(params: {
   const pendingEdgeScrollFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
   const activeEdgeScrollRef = useRef<ActiveEdgeScroll | null>(null);
   const bottomFollowEnabledRef = useRef(false);
+  const bottomFollowUntilMsRef = useRef(0);
   const programmaticScrollUntilRef = useRef(0);
   const scrollAffordanceStateRef = useRef({
     canScrollToTop: false,
@@ -186,6 +192,39 @@ export function useProactiveChatScrollPersistence(params: {
     (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === 'true' ||
     (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL === true ||
     (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL === 'true';
+  const bottomFollowDebugEnabled =
+    debugEnabled ||
+    (globalThis as any).CLC_DEBUG_FLATLIST_BOTTOM_FOLLOW === true ||
+    (globalThis as any).CLC_DEBUG_FLATLIST_BOTTOM_FOLLOW === 'true';
+
+  const logBottomFollow = useCallback(
+    (event: string, details?: Record<string, unknown>) => {
+      if (!bottomFollowDebugEnabled) {
+        return;
+      }
+      const contentHeight = contentHeightRef.current;
+      const layoutHeight = layoutHeightRef.current;
+      const offsetY = offsetYRef.current;
+      const maxOffsetY =
+        contentHeight != null && layoutHeight != null
+          ? Math.max(0, contentHeight - layoutHeight)
+          : null;
+      console.log('[flatListBottomFollow]', {
+        connectionId,
+        sessionId,
+        event,
+        offsetY,
+        contentHeight,
+        layoutHeight,
+        maxOffsetY,
+        bottomGapPx: maxOffsetY == null ? null : Math.max(0, maxOffsetY - offsetY),
+        active: bottomFollowEnabledRef.current,
+        untilMs: bottomFollowUntilMsRef.current,
+        ...details,
+      });
+    },
+    [bottomFollowDebugEnabled, connectionId, sessionId],
+  );
 
   const updateDerivedScrollState = useCallback(() => {
     const contentHeight = contentHeightRef.current;
@@ -245,15 +284,24 @@ export function useProactiveChatScrollPersistence(params: {
   }, []);
 
   const scrollToEdge = useCallback(
-    (edge: ScrollEdge, animated = true) => {
+    (
+      edge: ScrollEdge,
+      animated = true,
+      options?: {
+        followWindowMs?: number;
+      },
+    ) => {
       const target = listRef.current;
       if (!target) {
         return;
       }
       cancelActiveEdgeScroll();
+      const now = Date.now();
+      const followWindowMs = Math.max(0, Math.round(options?.followWindowMs ?? 0));
 
       if (listEdgeMethodsEnabled && edge === 'top' && typeof target.scrollToTop === 'function') {
         bottomFollowEnabledRef.current = false;
+        bottomFollowUntilMsRef.current = 0;
         target.scrollToTop({ animated });
         programmaticScrollUntilRef.current = Date.now() + 250;
         return;
@@ -264,6 +312,7 @@ export function useProactiveChatScrollPersistence(params: {
         typeof target.scrollToBottom === 'function'
       ) {
         bottomFollowEnabledRef.current = true;
+        bottomFollowUntilMsRef.current = followWindowMs > 0 ? now + followWindowMs : 0;
         target.scrollToBottom({ animated });
         programmaticScrollUntilRef.current = Date.now() + 250;
         return;
@@ -302,8 +351,10 @@ export function useProactiveChatScrollPersistence(params: {
 
       if (edge === 'bottom') {
         bottomFollowEnabledRef.current = true;
+        bottomFollowUntilMsRef.current = followWindowMs > 0 ? startedAt + followWindowMs : 0;
       } else {
         bottomFollowEnabledRef.current = false;
+        bottomFollowUntilMsRef.current = 0;
       }
 
       const stopActiveScroll = () => {
@@ -331,6 +382,17 @@ export function useProactiveChatScrollPersistence(params: {
               return;
             }
             const now = Date.now();
+            if (
+              edge === 'bottom' &&
+              bottomFollowUntilMsRef.current > 0 &&
+              now > bottomFollowUntilMsRef.current
+            ) {
+              bottomFollowEnabledRef.current = false;
+              bottomFollowUntilMsRef.current = 0;
+              logBottomFollow('stopExpired', { reason: _reason });
+              stopActiveScroll();
+              return;
+            }
             offsetYRef.current = metrics.offsetY;
             contentHeightRef.current = metrics.contentHeight;
             layoutHeightRef.current = metrics.viewportHeight;
@@ -382,6 +444,7 @@ export function useProactiveChatScrollPersistence(params: {
       bottomThresholdPx,
       cancelActiveEdgeScroll,
       listEdgeMethodsEnabled,
+      logBottomFollow,
       updateDerivedScrollState,
     ],
   );
@@ -395,14 +458,69 @@ export function useProactiveChatScrollPersistence(params: {
 
   const scrollToBottom = useCallback(
     (animated = true) => {
-      scrollToEdge('bottom', animated);
+      scrollToEdge('bottom', animated, { followWindowMs: manualBottomFollowWindowMs });
     },
-    [scrollToEdge],
+    [manualBottomFollowWindowMs, scrollToEdge],
   );
 
-  const continueActiveEdgeScroll = useCallback((reason: string) => {
-    activeEdgeScrollRef.current?.runAttempt(reason);
-  }, []);
+  const continueActiveEdgeScroll = useCallback(
+    (reason: string) => {
+      const now = Date.now();
+      const active = activeEdgeScrollRef.current;
+      if (!active) {
+        if (bottomFollowEnabledRef.current && bottomFollowUntilMsRef.current > 0) {
+          const remainingMs = bottomFollowUntilMsRef.current - now;
+          if (remainingMs > 0) {
+            logBottomFollow('restartWithinWindow', { reason, remainingMs });
+            scrollToEdge('bottom', false, { followWindowMs: remainingMs });
+            return;
+          }
+          bottomFollowEnabledRef.current = false;
+          bottomFollowUntilMsRef.current = 0;
+          logBottomFollow('continueExpired', { reason });
+        }
+        return;
+      }
+      if (
+        active.edge === 'bottom' &&
+        bottomFollowUntilMsRef.current > 0 &&
+        now > bottomFollowUntilMsRef.current
+      ) {
+        bottomFollowEnabledRef.current = false;
+        bottomFollowUntilMsRef.current = 0;
+        logBottomFollow('continueExpired', { reason });
+        cancelActiveEdgeScroll();
+        return;
+      }
+      active.runAttempt(reason);
+    },
+    [cancelActiveEdgeScroll, logBottomFollow, scrollToEdge],
+  );
+
+  const requestBottomFollow = useCallback(
+    (reason: string, options?: { windowMs?: number }) => {
+      if (!bottomLockEnabled || !enabled || !hasRestoredRef.current) {
+        logBottomFollow('ignoredDisabled', { reason });
+        return;
+      }
+      if (!isNearBottomRef.current) {
+        logBottomFollow('ignoredNotNearBottom', { reason });
+        return;
+      }
+      const windowMs = Math.max(
+        0,
+        Math.round(options?.windowMs ?? bottomFollowWindowMs),
+      );
+      if (windowMs <= 0) {
+        return;
+      }
+      bottomFollowEnabledRef.current = true;
+      bottomFollowUntilMsRef.current = Date.now() + windowMs;
+      logBottomFollow('start', { reason, windowMs });
+      scrollToEdge('bottom', false, { followWindowMs: windowMs });
+    },
+    [bottomFollowWindowMs, bottomLockEnabled, enabled, logBottomFollow, scrollToEdge],
+  );
 
   const handlePossibleManualScroll = useCallback(() => {
     if (Date.now() <= programmaticScrollUntilRef.current) {
@@ -411,12 +529,12 @@ export function useProactiveChatScrollPersistence(params: {
     if (activeEdgeScrollRef.current) {
       cancelActiveEdgeScroll();
     }
-    if (isNearBottomRef.current && bottomLockEnabled) {
-      bottomFollowEnabledRef.current = true;
-      return;
+    if (!isNearBottomRef.current) {
+      logBottomFollow('stopManualScroll');
     }
     bottomFollowEnabledRef.current = false;
-  }, [bottomLockEnabled, cancelActiveEdgeScroll]);
+    bottomFollowUntilMsRef.current = 0;
+  }, [cancelActiveEdgeScroll, logBottomFollow]);
 
   const logScrollDiagnostics = useCallback(
     (kind: string, event?: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -749,7 +867,6 @@ export function useProactiveChatScrollPersistence(params: {
 
   const onContentSizeChange = useCallback(
     (_width: number, height: number) => {
-      const wasNearBottom = isNearBottomRef.current;
       const resolved = Number(height ?? NaN);
       if (Number.isFinite(resolved)) {
         contentHeightRef.current = resolved;
@@ -772,24 +889,14 @@ export function useProactiveChatScrollPersistence(params: {
         });
       }
       maybeRestoreScroll();
-      if (
-        bottomLockEnabled &&
-        hasRestoredRef.current &&
-        (wasNearBottom || bottomFollowEnabledRef.current)
-      ) {
-        bottomFollowEnabledRef.current = true;
-        scrollToEdge('bottom', false);
-      }
     },
     [
-      bottomLockEnabled,
       connectionId,
       continueActiveEdgeScroll,
       debugEnabled,
       getMessagesForCache,
       maybeRestoreScroll,
       sessionId,
-      scrollToEdge,
       updateDerivedScrollState,
     ],
   );
@@ -798,15 +905,11 @@ export function useProactiveChatScrollPersistence(params: {
     // Persistence still uses native pull-based metrics, but scroll events are
     // useful for lightweight affordance state.
     applyEventMetrics(event);
-    if (isNearBottomRef.current && bottomLockEnabled) {
-      bottomFollowEnabledRef.current = true;
-    }
     handlePossibleManualScroll();
     continueActiveEdgeScroll('scroll');
     logScrollDiagnostics('scroll', event);
   }, [
     applyEventMetrics,
-    bottomLockEnabled,
     continueActiveEdgeScroll,
     handlePossibleManualScroll,
     logScrollDiagnostics,
@@ -815,9 +918,11 @@ export function useProactiveChatScrollPersistence(params: {
   const onScrollBeginDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     applyEventMetrics(event);
     bottomFollowEnabledRef.current = false;
+    bottomFollowUntilMsRef.current = 0;
     cancelActiveEdgeScroll();
+    logBottomFollow('stopBeginDrag');
     logScrollDiagnostics('scrollBeginDrag', event);
-  }, [applyEventMetrics, cancelActiveEdgeScroll, logScrollDiagnostics]);
+	  }, [applyEventMetrics, cancelActiveEdgeScroll, logBottomFollow, logScrollDiagnostics]);
 
   const onScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
     applyEventMetrics(event);
@@ -850,6 +955,7 @@ export function useProactiveChatScrollPersistence(params: {
       resetRestore,
       scrollToTop,
       scrollToBottom,
+      requestBottomFollow,
       canScrollToTop: scrollAffordanceState.canScrollToTop,
       canScrollToBottom: scrollAffordanceState.canScrollToBottom,
       isNearBottom: scrollAffordanceState.isNearBottom,
@@ -865,6 +971,7 @@ export function useProactiveChatScrollPersistence(params: {
     onScrollBeginDrag,
     onScrollEndDrag,
     requestPersist,
+	    requestBottomFollow,
     resetRestore,
     scrollToBottom,
     scrollToTop,
