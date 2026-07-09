@@ -108,6 +108,7 @@ export function useProactiveChatScrollPersistence(params: {
   bottomConvergenceMaxMs?: number;
   bottomFollowWindowMs?: number;
   manualBottomFollowWindowMs?: number;
+  initialBottomFollowWindowMs?: number;
   bottomLockEnabled?: boolean;
   messageAnchorBeforeCount?: number;
   messageAnchorAfterCount?: number;
@@ -144,6 +145,7 @@ export function useProactiveChatScrollPersistence(params: {
     bottomConvergenceMaxMs = 3000,
     bottomFollowWindowMs = 1000,
     manualBottomFollowWindowMs = 3000,
+    initialBottomFollowWindowMs = 5000,
     bottomLockEnabled = false,
     messageAnchorBeforeCount = 40,
     messageAnchorAfterCount = 59,
@@ -344,7 +346,11 @@ export function useProactiveChatScrollPersistence(params: {
 
       const threshold = Math.max(0, bottomThresholdPx);
       const stableMs = Math.max(0, Math.round(bottomConvergenceStableMs));
-      const maxMs = Math.max(stableMs + 1, Math.round(bottomConvergenceMaxMs));
+      const maxMs = Math.max(
+        stableMs + 1,
+        Math.round(bottomConvergenceMaxMs),
+        followWindowMs,
+      );
       const startedAt = Date.now();
       let stableSince: number | null = null;
       let stableTargetOffsetY: number | null = null;
@@ -619,6 +625,12 @@ export function useProactiveChatScrollPersistence(params: {
 
     const anchor = initialAnchorRef.current;
     if (!anchor) {
+      logBottomFollow('initialNoAnchorBottom', {
+        windowMs: initialBottomFollowWindowMs,
+      });
+      scrollToEdge('bottom', false, {
+        followWindowMs: initialBottomFollowWindowMs,
+      });
       hasRestoredRef.current = true;
       return;
     }
@@ -679,10 +691,13 @@ export function useProactiveChatScrollPersistence(params: {
     connectionId,
     debugEnabled,
     enabled,
+    initialBottomFollowWindowMs,
+    logBottomFollow,
     messageAnchorAfterCount,
     messageAnchorBeforeCount,
     messageViewportAnchorsEnabled,
     sessionId,
+    scrollToEdge,
     updateDerivedScrollState,
   ]);
 
