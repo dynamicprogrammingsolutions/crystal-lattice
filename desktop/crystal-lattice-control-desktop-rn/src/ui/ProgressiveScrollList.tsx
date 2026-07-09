@@ -73,6 +73,7 @@ type PendingScrollAction =
       settleFrames?: number;
       windowSettleFrames?: number;
       windowSettled?: boolean;
+      loadingEdge?: 'top' | 'bottom';
     }
   | {
       kind: 'edge';
@@ -84,6 +85,7 @@ type PendingScrollAction =
       stableSinceMs?: number;
       lastMaxOffsetY?: number;
       usedScroll?: boolean;
+      loadingEdge?: 'top' | 'bottom';
     };
 
 function shallowArrayEqual(
@@ -239,6 +241,7 @@ export function ProgressiveScrollList<TItem>(
   const debugLogRef = useRef<Array<Record<string, unknown>>>([]);
   const viewabilityConfigRef = useRef({ itemVisiblePercentThreshold: 1 });
   const [layoutVersion, setLayoutVersion] = useState(0);
+  const [loadingEdge, setLoadingEdge] = useState<'top' | 'bottom' | null>(null);
   const [windowRange, setWindowRange] = useState(() =>
     getWindowForEnd(data.length, resolvedInitialWindowSize),
   );
@@ -406,6 +409,9 @@ export function ProgressiveScrollList<TItem>(
     const now = Date.now();
     if (now - action.startedAtMs > scrollActionTimeoutMs) {
       pendingScrollActionRef.current = null;
+      if (action.loadingEdge) {
+        setLoadingEdge(null);
+      }
       appendDebugLog('pendingActionTimeout', { actionKind: action.kind });
       return;
     }
@@ -479,6 +485,9 @@ export function ProgressiveScrollList<TItem>(
               Date.now() - action.stableSinceMs >= resolvedEdgeScrollStableMs
             ) {
               pendingScrollActionRef.current = null;
+              if (action.loadingEdge) {
+                setLoadingEdge(null);
+              }
               appendDebugLog('edgeComplete', {
                 edge: action.edge,
                 offsetY: metrics.offsetY,
@@ -501,6 +510,9 @@ export function ProgressiveScrollList<TItem>(
     const targetIndex = findSourceIndexForRequest(action.request);
     if (targetIndex == null) {
       pendingScrollActionRef.current = null;
+      if (action.loadingEdge) {
+        setLoadingEdge(null);
+      }
       appendDebugLog('itemAnchorMissingTarget', { request: action.request });
       return;
     }
@@ -584,6 +596,9 @@ export function ProgressiveScrollList<TItem>(
           return;
         }
         pendingScrollActionRef.current = null;
+        if (action.loadingEdge) {
+          setLoadingEdge(null);
+        }
         appendDebugLog('itemAnchorCompleteFlatList', {
           key,
           requestedOffsetFromViewportTop: action.request.offsetFromViewportTop,
@@ -641,6 +656,9 @@ export function ProgressiveScrollList<TItem>(
             ) <= ITEM_ANCHOR_EPSILON_PX
           ) {
             pendingScrollActionRef.current = null;
+            if (action.loadingEdge) {
+              setLoadingEdge(null);
+            }
             return;
           }
           schedulePendingActionAttempt();
@@ -812,6 +830,7 @@ export function ProgressiveScrollList<TItem>(
           pendingActionFrameRef.current = null;
         }
         pendingScrollActionRef.current = null;
+        setLoadingEdge(null);
       },
       getNativeScrollRef: () => scrollRef.current,
       getScrollableNode: () => scrollRef.current?.getScrollableNode?.(),
@@ -913,7 +932,11 @@ export function ProgressiveScrollList<TItem>(
   const visibleItems = data.slice(windowRange.start, windowRange.end);
 
   const applyWindowChange = useCallback(
-    async (nextStart: number, nextEnd: number) => {
+    async (
+      nextStart: number,
+      nextEnd: number,
+      options?: { loadingEdge?: 'top' | 'bottom' },
+    ) => {
       const anchor = await captureAnchor();
       const nextWindow = normalizeWindow(nextStart, nextEnd);
       appendDebugLog('applyWindowChange', {
@@ -939,7 +962,10 @@ export function ProgressiveScrollList<TItem>(
           },
           window: nextWindow,
           startedAtMs: Date.now(),
+          loadingEdge: options?.loadingEdge,
         };
+      } else if (options?.loadingEdge) {
+        setLoadingEdge(null);
       }
       setWindowRange(nextWindow);
       schedulePendingActionAttempt();
@@ -955,40 +981,66 @@ export function ProgressiveScrollList<TItem>(
     ],
   );
 
-  const handleLoadMoreTop = useCallback(() => {
+  const handleLoadMoreTop = useCallback((options?: { auto?: boolean }) => {
+    if (options?.auto && loadingEdge) {
+      return;
+    }
     const nextStart = Math.max(0, windowRange.start - resolvedPageSize);
     const nextEnd = effectiveGrowOnly
       ? windowRange.end
       : Math.min(data.length, nextStart + resolvedMaxWindowSize);
-    applyWindowChange(nextStart, nextEnd).catch(() => {});
+    if (options?.auto) {
+      setLoadingEdge('top');
+    }
+    applyWindowChange(nextStart, nextEnd, {
+      loadingEdge: options?.auto ? 'top' : undefined,
+    }).catch(() => {
+      if (options?.auto) {
+        setLoadingEdge(null);
+      }
+    });
   }, [
     applyWindowChange,
     data.length,
     effectiveGrowOnly,
+    loadingEdge,
     resolvedMaxWindowSize,
     resolvedPageSize,
     windowRange.end,
     windowRange.start,
   ]);
 
-  const handleLoadMoreBottom = useCallback(() => {
+  const handleLoadMoreBottom = useCallback((options?: { auto?: boolean }) => {
+    if (options?.auto && loadingEdge) {
+      return;
+    }
     const nextEnd = Math.min(data.length, windowRange.end + resolvedPageSize);
     const nextStart = effectiveGrowOnly
       ? windowRange.start
       : Math.max(0, nextEnd - resolvedMaxWindowSize);
-    applyWindowChange(nextStart, nextEnd).catch(() => {});
+    if (options?.auto) {
+      setLoadingEdge('bottom');
+    }
+    applyWindowChange(nextStart, nextEnd, {
+      loadingEdge: options?.auto ? 'bottom' : undefined,
+    }).catch(() => {
+      if (options?.auto) {
+        setLoadingEdge(null);
+      }
+    });
   }, [
     applyWindowChange,
     data.length,
     effectiveGrowOnly,
+    loadingEdge,
     resolvedMaxWindowSize,
     resolvedPageSize,
     windowRange.start,
     windowRange.end,
   ]);
 
-  loadMoreTopRef.current = handleLoadMoreTop;
-  loadMoreBottomRef.current = handleLoadMoreBottom;
+  loadMoreTopRef.current = () => handleLoadMoreTop();
+  loadMoreBottomRef.current = () => handleLoadMoreBottom();
 
   const handleScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -1004,13 +1056,17 @@ export function ProgressiveScrollList<TItem>(
       if (!autoLoadEdges) {
         return;
       }
+      if (loadingEdge) {
+        appendDebugLog('autoLoadSuppressedLoading', { loadingEdge });
+        return;
+      }
       if (pendingScrollActionRef.current) {
         appendDebugLog('autoLoadSuppressedPending');
         return;
       }
       if (metricsRef.current.offsetY <= edgeThresholdPx && hasMoreAtTop) {
         appendDebugLog('autoLoadTop', { edgeThresholdPx });
-        handleLoadMoreTop();
+        handleLoadMoreTop({ auto: true });
         return;
       }
       const bottomGap = Math.max(
@@ -1021,7 +1077,7 @@ export function ProgressiveScrollList<TItem>(
       );
       if (bottomGap <= edgeThresholdPx && hasMoreAtBottom) {
         appendDebugLog('autoLoadBottom', { bottomGap, edgeThresholdPx });
-        handleLoadMoreBottom();
+        handleLoadMoreBottom({ auto: true });
       }
     },
     [
@@ -1031,6 +1087,7 @@ export function ProgressiveScrollList<TItem>(
       handleLoadMoreTop,
       hasMoreAtBottom,
       hasMoreAtTop,
+      loadingEdge,
       onScroll,
     ],
   );
@@ -1077,6 +1134,7 @@ export function ProgressiveScrollList<TItem>(
         pendingActionFrameRef.current = null;
       }
       pendingScrollActionRef.current = null;
+      setLoadingEdge(null);
       onScrollBeginDrag?.(event);
     },
     [onScrollBeginDrag],
@@ -1180,14 +1238,28 @@ export function ProgressiveScrollList<TItem>(
   const header = renderMaybeComponent(ListHeaderComponent);
   const footer = renderMaybeComponent(ListFooterComponent);
   const empty = data.length === 0 ? renderMaybeComponent(ListEmptyComponent) : null;
-  const topLoadControl = hasMoreAtTop ? (
+  const renderLoader = (edge: 'top' | 'bottom') => (
+    <View style={styles.loadMoreContainer}>
+      <View
+        testID={`progressive-scroll-loading-${edge}`}
+        accessibilityRole="progressbar"
+        accessibilityLabel={`Loading messages ${edge === 'top' ? 'above' : 'below'}`}
+        style={styles.loadingIndicator}
+      >
+        <Text style={styles.loadMoreButtonText}>Loading...</Text>
+      </View>
+    </View>
+  );
+  const topLoadControl = hasMoreAtTop && autoLoadEdges ? (
+    loadingEdge === 'top' ? renderLoader('top') : null
+  ) : hasMoreAtTop ? (
     <View style={styles.loadMoreContainer}>
       <Pressable
         testID="progressive-scroll-load-top"
         accessibilityRole="button"
         accessibilityLabel="Load messages above"
         style={styles.loadMoreButton}
-        onPress={handleLoadMoreTop}
+        onPress={() => handleLoadMoreTop()}
       >
         <Text style={styles.loadMoreButtonText}>
           {windowRange.start} messages hidden above
@@ -1195,14 +1267,16 @@ export function ProgressiveScrollList<TItem>(
       </Pressable>
     </View>
   ) : null;
-  const bottomLoadControl = hasMoreAtBottom ? (
+  const bottomLoadControl = hasMoreAtBottom && autoLoadEdges ? (
+    loadingEdge === 'bottom' ? renderLoader('bottom') : null
+  ) : hasMoreAtBottom ? (
     <View style={styles.loadMoreContainer}>
       <Pressable
         testID="progressive-scroll-load-bottom"
         accessibilityRole="button"
         accessibilityLabel="Load messages below"
         style={styles.loadMoreButton}
-        onPress={handleLoadMoreBottom}
+        onPress={() => handleLoadMoreBottom()}
       >
         <Text style={styles.loadMoreButtonText}>
           {data.length - windowRange.end} messages hidden below
@@ -1308,6 +1382,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadMoreButton: {
+    minHeight: 32,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D0D0D0',
+    backgroundColor: '#F7F7F7',
+    justifyContent: 'center',
+  },
+  loadingIndicator: {
     minHeight: 32,
     paddingHorizontal: 12,
     paddingVertical: 7,
