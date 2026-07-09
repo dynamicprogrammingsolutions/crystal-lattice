@@ -18,6 +18,8 @@ globalThis.CLC_TRANSCRIPT_LIST_IMPLEMENTATION = "flatList"
 globalThis.CLC_TRANSCRIPT_RANGE_CONTROLS = true;
 globalThis.CLC_TRANSCRIPT_RANGE_CONTROL_PAGE_SIZE = 50;
 
+globalThis.CLC_FLATLIST_MANUAL_BOTTOM_FOLLOW_WINDOW_MS = 5000;
+
 import { AppRegistry } from 'react-native';
 import App from './App';
 import { ProgressiveScrollHarness } from './src/testing/ProgressiveScrollHarness';
