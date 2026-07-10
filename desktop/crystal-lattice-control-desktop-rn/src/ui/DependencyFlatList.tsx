@@ -3,6 +3,7 @@ import { FlatList, View } from 'react-native';
 import type { ViewToken } from 'react-native';
 
 import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
+import { resolveFlatListRenderTuning } from './flatListRenderTuning';
 import type { PlaceholderFlatListProps } from './PlaceholderFlatList';
 
 type DependencyFlatListRow = {
@@ -73,6 +74,7 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     maintainVisibleContentPosition,
     scrollEventThrottle,
     disableVirtualization,
+    eagerRenderThreshold,
     initialNumToRender,
     maxToRenderPerBatch,
     updateCellsBatchingPeriod,
@@ -88,6 +90,25 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     viewabilityConfig,
     onScrollToIndexFailed,
   } = props;
+  const renderTuning = React.useMemo(
+    () =>
+      resolveFlatListRenderTuning({
+        rowCount: data.length,
+        eagerRenderThreshold,
+        initialNumToRender,
+        maxToRenderPerBatch,
+        updateCellsBatchingPeriod,
+        removeClippedSubviews,
+      }),
+    [
+      data.length,
+      eagerRenderThreshold,
+      initialNumToRender,
+      maxToRenderPerBatch,
+      removeClippedSubviews,
+      updateCellsBatchingPeriod,
+    ],
+  );
 
   const cache = cacheRef.current;
   if (!Object.is(lastExtraDataRef.current, extraData)) {
@@ -432,11 +453,11 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
   );
   const diagnosticProps = {
     disableVirtualization,
-    initialNumToRender,
-    maxToRenderPerBatch,
-    updateCellsBatchingPeriod,
+    initialNumToRender: renderTuning.initialNumToRender,
+    maxToRenderPerBatch: renderTuning.maxToRenderPerBatch,
+    updateCellsBatchingPeriod: renderTuning.updateCellsBatchingPeriod,
     windowSize,
-    removeClippedSubviews,
+    removeClippedSubviews: renderTuning.removeClippedSubviews,
   } as any;
 
   return (

@@ -3,6 +3,9 @@
  */
 
 // globalThis.CLC_FLATLIST_MAX_TO_RENDER_PER_BATCH = 100
+// Eagerly render every transcript row at or below this count.
+// Set to 0 or remove this assignment to disable eager rendering.
+globalThis.CLC_FLATLIST_EAGER_RENDER_THRESHOLD = 100;
 //globalThis.CLC_TRANSCRIPT_LIST_IMPLEMENTATION = "scrollView"
 globalThis.CLC_TRANSCRIPT_LIST_IMPLEMENTATION = "flatList"
 

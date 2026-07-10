@@ -180,6 +180,9 @@ const FLATLIST_DISABLE_VIRTUALIZATION = readGlobalBoolean(
   'CLC_FLATLIST_DISABLE_VIRTUALIZATION',
   false,
 );
+const FLATLIST_EAGER_RENDER_THRESHOLD = readOptionalGlobalNumber(
+  'CLC_FLATLIST_EAGER_RENDER_THRESHOLD',
+);
 const FLATLIST_INITIAL_NUM_TO_RENDER = readOptionalGlobalNumber(
   'CLC_FLATLIST_INITIAL_NUM_TO_RENDER',
 );
@@ -2853,6 +2856,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              getItemDependencies={getTranscriptRowDependencies}
 	              scrollEventThrottle={16}
 	              disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
+	              eagerRenderThreshold={FLATLIST_EAGER_RENDER_THRESHOLD}
 	              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
 	              maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
 	              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}

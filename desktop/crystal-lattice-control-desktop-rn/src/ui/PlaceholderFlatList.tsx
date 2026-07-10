@@ -60,6 +60,7 @@ export interface PlaceholderFlatListProps<TItem> {
 
   scrollEventThrottle?: number;
   disableVirtualization?: boolean;
+  eagerRenderThreshold?: number;
   initialNumToRender?: number;
   maxToRenderPerBatch?: number;
   updateCellsBatchingPeriod?: number;
