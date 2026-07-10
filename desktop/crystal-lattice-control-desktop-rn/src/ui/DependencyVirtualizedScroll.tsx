@@ -60,6 +60,7 @@ export function DependencyVirtualizedScroll<TItem>(
     onScroll,
     onScrollBeginDrag,
     onScrollEndDrag,
+    onMomentumScrollBegin,
     onMomentumScrollEnd,
   } = props;
 
@@ -133,6 +134,7 @@ export function DependencyVirtualizedScroll<TItem>(
       onScroll={onScroll}
       onScrollBeginDrag={onScrollBeginDrag}
       onScrollEndDrag={onScrollEndDrag}
+      onMomentumScrollBegin={onMomentumScrollBegin}
       onMomentumScrollEnd={onMomentumScrollEnd}
       keyExtractor={extractRowKey}
       extraData={extraData}

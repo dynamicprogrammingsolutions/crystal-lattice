@@ -62,7 +62,7 @@ RCT_EXPORT_MODULE();
 
 - (NSArray<NSString *> *)supportedEvents
 {
-  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged" ];
+  return @[ @"connectionEditorSaved", @"connectionEditorCancelled", @"agentPickerSelected", @"agentPickerCancelled", @"applicationActionDialogCancelled", @"reactWindowCancelled", @"tabStripStyleChanged", @"sessionsFollowActiveTabChanged", @"clearStoredSessionCachesRequested", @"systemThemeChanged", @"progressiveScrollHarnessCommand" ];
 }
 
 - (void)startObserving
@@ -80,6 +80,11 @@ RCT_EXPORT_MODULE();
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(handleClearStoredSessionCaches:)
                                                name:CLCClearStoredSessionCachesNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleProgressiveScrollHarnessCommand:)
+                                               name:CLCProgressiveScrollHarnessCommandNotification
                                              object:nil];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
@@ -107,6 +112,10 @@ RCT_EXPORT_MODULE();
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCClearStoredSessionCachesNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCProgressiveScrollHarnessCommandNotification
                                                 object:nil];
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
@@ -160,6 +169,58 @@ RCT_EXPORT_MODULE();
 - (void)handleClearStoredSessionCaches:(__unused NSNotification *)notification
 {
   [self sendEventWithName:@"clearStoredSessionCachesRequested" body:@{}];
+}
+
+- (void)handleProgressiveScrollHarnessCommand:(NSNotification *)notification
+{
+  NSString *command = notification.userInfo[CLCProgressiveScrollHarnessCommandUserInfoKey];
+  if (![command isKindOfClass:[NSString class]]) {
+    return;
+  }
+  id postedAtMs = notification.userInfo[@"postedAtMs"];
+  id runId = notification.userInfo[@"runId"];
+  NSMutableDictionary *body = [@{ @"command" : command } mutableCopy];
+  if ([postedAtMs isKindOfClass:[NSNumber class]]) {
+    body[@"postedAtMs"] = postedAtMs;
+  }
+  if ([runId isKindOfClass:[NSString class]]) {
+    body[@"runId"] = runId;
+  }
+  [self sendEventWithName:@"progressiveScrollHarnessCommand" body:body];
+}
+
+RCT_EXPORT_METHOD(recordProgressiveScrollHarnessState:(NSDictionary *)state)
+{
+  NSMutableDictionary *payload = [NSMutableDictionary dictionary];
+  if ([state isKindOfClass:[NSDictionary class]]) {
+    [payload addEntriesFromDictionary:state];
+  }
+  payload[@"recordedAtMs"] = @((long long)([[NSDate date] timeIntervalSince1970] * 1000));
+
+  NSError *error = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:&error];
+  if (data == nil || error != nil) {
+    return;
+  }
+  [data writeToFile:@"/tmp/clc-progressive-scroll-harness-state.json" atomically:YES];
+}
+
+RCT_EXPORT_METHOD(readProgressiveScrollHarnessCommand:(RCTPromiseResolveBlock)resolve
+                  rejecter:(__unused RCTPromiseRejectBlock)reject)
+{
+  NSData *data = [NSData dataWithContentsOfFile:@"/tmp/clc-progressive-scroll-harness-command.json"];
+  if (data == nil) {
+    resolve((id)kCFNull);
+    return;
+  }
+
+  NSDictionary *payload = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+  if (![payload isKindOfClass:[NSDictionary class]]) {
+    resolve((id)kCFNull);
+    return;
+  }
+
+  resolve(payload);
 }
 
 - (void)handleSystemColorsDidChange:(NSNotification *)notification

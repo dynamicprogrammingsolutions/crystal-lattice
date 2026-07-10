@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
 
 import { DesktopRoot } from './src/DesktopRoot';
+import { ProgressiveScrollHarness } from './src/testing/ProgressiveScrollHarness';
 import { useDesktopTheme } from './src/theme/useDesktopTheme';
 import {
   DEFAULT_TAB_STRIP_STYLE,
@@ -14,6 +15,7 @@ import {
 export interface AppProps {
   initialTabStripStyle?: TabStripStyle;
   initialSessionsFollowActiveTabEnabled?: boolean;
+  enableScrollTestHarness?: boolean;
 }
 
 export default function App(props: AppProps) {
@@ -24,14 +26,18 @@ export default function App(props: AppProps) {
   return (
     <ThemeProvider theme={theme}>
       <View style={styles.root}>
-        <DesktopRoot
-          initialTabStripStyle={initialTabStripStyle}
-          initialSessionsFollowActiveTabEnabled={
-            typeof (props as any)?.initialSessionsFollowActiveTabEnabled === 'boolean'
-              ? (props as any).initialSessionsFollowActiveTabEnabled
-              : undefined
-          }
-        />
+        {(props as any)?.enableScrollTestHarness === true ? (
+          <ProgressiveScrollHarness />
+        ) : (
+          <DesktopRoot
+            initialTabStripStyle={initialTabStripStyle}
+            initialSessionsFollowActiveTabEnabled={
+              typeof (props as any)?.initialSessionsFollowActiveTabEnabled === 'boolean'
+                ? (props as any).initialSessionsFollowActiveTabEnabled
+                : undefined
+            }
+          />
+        )}
       </View>
     </ThemeProvider>
   );

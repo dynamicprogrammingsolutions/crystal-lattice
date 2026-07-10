@@ -12,6 +12,7 @@
     "rn": "react-native",
     "start-no-cache": "react-native start --reset-cache",
     "test": "jest",
+    "test:macos-ui": "FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests",
     "pod-install": "cd macos && pod install && cd .."
   },
   "dependencies": {

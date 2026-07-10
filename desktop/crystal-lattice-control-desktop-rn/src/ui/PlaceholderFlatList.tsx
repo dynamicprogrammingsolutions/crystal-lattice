@@ -1,5 +1,12 @@
 import React from 'react';
-import type { LayoutChangeEvent, NativeScrollEvent, NativeSyntheticEvent, StyleProp, ViewStyle } from 'react-native';
+import type {
+  LayoutChangeEvent,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  StyleProp,
+  ViewStyle,
+  ViewToken,
+} from 'react-native';
 import { ScrollView, View } from 'react-native';
 
 export interface ListRenderItemInfo<TItem> {
@@ -37,6 +44,7 @@ export interface PlaceholderFlatListProps<TItem> {
 
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  testID?: string;
 
   ListHeaderComponent?: React.ComponentType<any> | React.ReactElement | null;
   ListFooterComponent?: React.ComponentType<any> | React.ReactElement | null;
@@ -52,6 +60,10 @@ export interface PlaceholderFlatListProps<TItem> {
 
   scrollEventThrottle?: number;
   disableVirtualization?: boolean;
+  eagerRenderThreshold?: number;
+  eagerRenderEligibilityCount?: number;
+  itemAnchorTimeoutMs?: number;
+  itemAnchorMaxAttempts?: number;
   initialNumToRender?: number;
   maxToRenderPerBatch?: number;
   updateCellsBatchingPeriod?: number;
@@ -62,7 +74,20 @@ export interface PlaceholderFlatListProps<TItem> {
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onScrollBeginDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onScrollEndDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onMomentumScrollBegin?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onMomentumScrollEnd?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onViewableItemsChanged?: (info: { viewableItems: ViewToken[]; changed: ViewToken[] }) => void;
+  viewabilityConfig?: any;
+  onScrollToIndexFailed?: (info: {
+    index: number;
+    highestMeasuredFrameIndex: number;
+    averageItemLength: number;
+  }) => void;
+  onScrollActionDiagnostic?: (event: {
+    event: string;
+    reason?: string;
+    details?: Record<string, unknown>;
+  }) => void;
 }
 
 type RowCacheEntry<TItem> = {
@@ -114,6 +139,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     listRef,
     style,
     contentContainerStyle,
+    testID,
     ListHeaderComponent,
     ListFooterComponent,
     ListEmptyComponent,
@@ -124,6 +150,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
     onScroll,
     onScrollBeginDrag,
     onScrollEndDrag,
+    onMomentumScrollBegin,
     onMomentumScrollEnd,
     scrollEnabled,
     showsVerticalScrollIndicator,
@@ -131,7 +158,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
 
   const wrapScrollHandler = React.useCallback(
     (
-      kind: 'scroll' | 'beginDrag' | 'endDrag' | 'momentumEnd',
+      kind: 'scroll' | 'beginDrag' | 'endDrag' | 'momentumBegin' | 'momentumEnd',
       handler?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void,
     ) => {
       if (!debugEnabled && !handler) {
@@ -212,6 +239,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
   return (
     <ScrollView
       ref={listRef}
+      testID={testID}
       style={style}
       contentContainerStyle={contentContainerStyle}
       scrollEventThrottle={scrollEventThrottle}
@@ -220,6 +248,7 @@ export function PlaceholderFlatList<TItem>(props: PlaceholderFlatListProps<TItem
       onScroll={wrapScrollHandler('scroll', onScroll)}
       onScrollBeginDrag={wrapScrollHandler('beginDrag', onScrollBeginDrag)}
       onScrollEndDrag={wrapScrollHandler('endDrag', onScrollEndDrag)}
+      onMomentumScrollBegin={wrapScrollHandler('momentumBegin', onMomentumScrollBegin)}
       onMomentumScrollEnd={wrapScrollHandler('momentumEnd', onMomentumScrollEnd)}
       scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator={showsVerticalScrollIndicator ?? true}

@@ -149,6 +149,117 @@ To learn more about React Native, take a look at the following resources:
 - [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
 - [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
 
+## Transcript scroll diagnostics
+
+Desktop transcript navigation and content-follow diagnostics are disabled by
+default. Enable concise lifecycle logging before the app is registered:
+
+```js
+globalThis.CLC_DEBUG_CHAT_SCROLL_COORDINATOR = true;
+```
+
+Lifecycle mode reports navigation start/completion, bounded content-follow
+lease start/renewal/expiration, interaction cancellation, and operation
+timeouts. Repeated lease renewals are rate-limited so streaming logs remain
+copyable.
+
+For frame-level native observations and correction writes, additionally set:
+
+```js
+globalThis.CLC_DEBUG_CHAT_SCROLL_COORDINATOR_VERBOSE = true;
+```
+
+Verbose mode is intended for focused manual or harness runs and should
+normally remain disabled.
+
+The entry point emits one `[chatScrollBootstrap]` line when lifecycle
+diagnostics are enabled. Each mounted transcript then emits one
+`configuration` event. Check both lines before interpreting a trace:
+
+```text
+maxEdgeCorrections=60
+manualBottomConvergenceMaxMs=15000
+initialBottomConvergenceMaxMs=15000
+```
+
+Far FlatList item-anchor navigation additionally reports:
+
+```text
+listAnchorStarted
+listAnchorProgress
+listAnchorCompleted
+listAnchorStopped
+```
+
+The start event includes the effective `timeoutMs` and `maxAttempts`. These
+settings can be configured before application modules are loaded:
+
+```js
+globalThis.CLC_FLATLIST_MAX_EDGE_CORRECTIONS = 60;
+globalThis.CLC_FLATLIST_ITEM_ANCHOR_TIMEOUT_MS = 15000;
+globalThis.CLC_FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS = 200;
+```
+
+### Stable-geometry manual detachment
+
+The coordinator classifies movement away from a pinned bottom using native
+event-to-event bottom gaps and geometry revisions.
+
+An unexplained movement with stable content/viewport geometry reports:
+
+```text
+awayMotionCandidate
+reason=stableGeometryAwayMotion
+```
+
+The event includes bottom-gap and offset deltas, geometry revisions, active
+operation details, and whether the movement opposed a recent programmatic
+target.
+
+An accepted candidate immediately reports:
+
+```text
+manualBottomDetached
+reason=stableGeometryAwayMotion
+```
+
+It latches `manuallyDetached` affinity, clears any follow lease, and cancels
+the active content-follow operation. Semantic content changes cannot reattach
+the transcript.
+
+Stable manual movement back toward the bottom that crosses into the measured
+bottom threshold reports:
+
+```text
+manualBottomReattachCandidate
+manualBottomReattached
+```
+
+This changes affinity back to `pinned` without issuing a scroll command or
+starting a lease. The next semantic content change can then use normal bounded
+following. Active or recent programmatic navigation cannot trigger this
+manual-return transition. Successful explicit bottom navigation also
+reattaches after convergence.
+
+A candidate that is compatible with a recent programmatic target is retained
+as a diagnostic but reports:
+
+```text
+awayMotionDetachSuppressed
+reason=recentProgrammaticMovementNotOpposed
+```
+
+An away movement observed while layout or semantic content is still settling
+reports:
+
+```text
+awayMotionIgnored
+reason=geometryChanged|recentGeometryChange|semanticContentPending
+```
+
+Candidate output is rate-limited to four lines per second and ignored output
+to two lines per second so a short manual gesture remains copyable.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.
