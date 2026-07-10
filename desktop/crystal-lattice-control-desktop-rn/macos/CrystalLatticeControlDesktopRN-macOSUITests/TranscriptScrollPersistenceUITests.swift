@@ -83,6 +83,10 @@ final class TranscriptScrollPersistenceUITests: XCTestCase {
     state[key] as? [String: Any]
   }
 
+  private func eventCount(_ state: [String: Any], _ event: String) -> Int {
+    intValue(dictionary(state, "diagnosticEventCounts"), event) ?? 0
+  }
+
   private func intValue(_ dictionary: [String: Any]?, _ key: String) -> Int? {
     guard let dictionary else {
       return nil
@@ -215,6 +219,83 @@ final class TranscriptScrollPersistenceUITests: XCTestCase {
       intValue(state, "targetMessageRequestedOffsetFromViewportTop"),
       tolerance: 10
     )
+  }
+
+  func testFlatListBottomNavigationDoesNotCreateContentFollowLease() throws {
+    let app = launchHarness(implementation: "flatList")
+
+    clickHarnessMenu(app, "Transcript Harness Navigation Separation")
+    let state = waitForState(command: "navigationSeparation", timeout: 20)
+
+    XCTAssertEqual(stringValue(state, "implementation"), "flatList")
+    XCTAssertGreaterThanOrEqual(eventCount(state, "navigationStarted"), 1, "\(state)")
+    XCTAssertEqual(eventCount(state, "followLeaseStarted"), 0, "\(state)")
+    XCTAssertEqual(eventCount(state, "followLeaseRenewed"), 0, "\(state)")
+  }
+
+  func testFlatListLongDistanceBottomNavigationReachesMeasuredBottom() throws {
+    let app = launchHarness(implementation: "flatList")
+
+    clickHarnessMenu(app, "Transcript Harness Long Distance Bottom")
+    let state = waitForState(command: "longDistanceBottom", timeout: 45)
+    let configuration = dictionary(state, "effectiveScrollConfiguration")
+
+    XCTAssertEqual(stringValue(state, "implementation"), "flatList")
+    XCTAssertEqual(intValue(configuration, "manualBottomConvergenceMaxMs"), 15000, "\(state)")
+    XCTAssertEqual(intValue(configuration, "maxEdgeCorrections"), 60, "\(state)")
+    XCTAssertGreaterThanOrEqual(intValue(state, "navigationTerminalCount") ?? 0, 1, "\(state)")
+    XCTAssertEqual(eventCount(state, "operationCorrectionLimit"), 0, "\(state)")
+    XCTAssertEqual(eventCount(state, "operationExpired"), 0, "\(state)")
+    XCTAssertLessThanOrEqual(intValue(state, "navigationCorrectionCount") ?? Int.max, 60, "\(state)")
+    XCTAssertLessThanOrEqual(intValue(state, "bottomGapPx") ?? Int.max, 12, "\(state)")
+  }
+
+  func testFlatListFarMessageAnchorUsesConfiguredNavigationBudget() throws {
+    let app = launchHarness(implementation: "flatList")
+
+    clickHarnessMenu(app, "Transcript Harness Far Message Anchor")
+    let state = waitForState(command: "farMessageAnchor", timeout: 40)
+    let anchorConfiguration = dictionary(state, "listAnchorStartedDetails")
+
+    XCTAssertEqual(stringValue(state, "implementation"), "flatList")
+    XCTAssertEqual(intValue(anchorConfiguration, "timeoutMs"), 15000, "\(state)")
+    XCTAssertEqual(intValue(anchorConfiguration, "maxAttempts"), 200, "\(state)")
+    XCTAssertEqual(eventCount(state, "listAnchorStarted"), 1, "\(state)")
+    XCTAssertEqual(eventCount(state, "listAnchorCompleted"), 1, "\(state)")
+    XCTAssertEqual(eventCount(state, "listAnchorStopped"), 0, "\(state)")
+    assertApproxEqual(
+      intValue(state, "farTargetMessageActualOffsetFromViewportTop"),
+      intValue(state, "farTargetMessageRequestedOffsetFromViewportTop"),
+      tolerance: 12
+    )
+  }
+
+  func testFlatListSemanticContentChangeUsesBoundedFollowLease() throws {
+    let app = launchHarness(implementation: "flatList")
+
+    clickHarnessMenu(app, "Transcript Harness Semantic Content Follow")
+    let state = waitForState(command: "semanticContentFollow", timeout: 20)
+
+    XCTAssertEqual(stringValue(state, "implementation"), "flatList")
+    XCTAssertEqual(eventCount(state, "followLeaseStarted"), 1, "\(state)")
+    XCTAssertEqual(eventCount(state, "followLeaseRenewed"), 0, "\(state)")
+    XCTAssertLessThanOrEqual(intValue(state, "contentFollowCorrectionCount") ?? Int.max, 12, "\(state)")
+    XCTAssertGreaterThanOrEqual(intValue(state, "contentFollowTerminalCount") ?? 0, 1, "\(state)")
+    XCTAssertLessThanOrEqual(intValue(state, "bottomGapPx") ?? Int.max, 12, "\(state)")
+  }
+
+  func testFlatListScrollGeometryFeedbackDoesNotRenewFollowLease() throws {
+    let app = launchHarness(implementation: "flatList")
+
+    clickHarnessMenu(app, "Transcript Harness Feedback Loop")
+    let state = waitForState(command: "feedbackLoop", timeout: 20)
+
+    XCTAssertEqual(stringValue(state, "implementation"), "flatList")
+    XCTAssertEqual(eventCount(state, "followLeaseStarted"), 1, "\(state)")
+    XCTAssertEqual(eventCount(state, "followLeaseRenewed"), 0, "\(state)")
+    XCTAssertGreaterThanOrEqual(intValue(state, "feedbackPulseCount") ?? 0, 2, "\(state)")
+    XCTAssertLessThanOrEqual(intValue(state, "contentFollowCorrectionCount") ?? Int.max, 12, "\(state)")
+    XCTAssertGreaterThanOrEqual(intValue(state, "contentFollowTerminalCount") ?? 0, 1, "\(state)")
   }
 
   func testProgressiveScrollPresetMessageAnchorSmoke() throws {

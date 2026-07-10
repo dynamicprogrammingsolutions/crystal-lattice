@@ -433,6 +433,11 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @[ @"Transcript Harness Message Anchor Round Trip", @"transcriptScrollHarnessMessageAnchorRoundTrip:" ],
     @[ @"Transcript Harness Release Delayed Anchor", @"transcriptScrollHarnessReleaseDelayedAnchor:" ],
     @[ @"Transcript Harness Release Delayed Offset Anchor", @"transcriptScrollHarnessReleaseDelayedOffsetAnchor:" ],
+    @[ @"Transcript Harness Navigation Separation", @"transcriptScrollHarnessNavigationSeparation:" ],
+    @[ @"Transcript Harness Long Distance Bottom", @"transcriptScrollHarnessLongDistanceBottom:" ],
+    @[ @"Transcript Harness Far Message Anchor", @"transcriptScrollHarnessFarMessageAnchor:" ],
+    @[ @"Transcript Harness Semantic Content Follow", @"transcriptScrollHarnessSemanticContentFollow:" ],
+    @[ @"Transcript Harness Feedback Loop", @"transcriptScrollHarnessFeedbackLoop:" ],
   ];
 
   for (NSArray<NSString *> *item in items) {
@@ -542,6 +547,31 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 - (void)transcriptScrollHarnessReleaseDelayedOffsetAnchor:(__unused id)sender
 {
   [self postProgressiveScrollHarnessCommand:@"releaseDelayedOffsetAnchor"];
+}
+
+- (void)transcriptScrollHarnessNavigationSeparation:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"navigationSeparation"];
+}
+
+- (void)transcriptScrollHarnessLongDistanceBottom:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"longDistanceBottom"];
+}
+
+- (void)transcriptScrollHarnessFarMessageAnchor:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"farMessageAnchor"];
+}
+
+- (void)transcriptScrollHarnessSemanticContentFollow:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"semanticContentFollow"];
+}
+
+- (void)transcriptScrollHarnessFeedbackLoop:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"feedbackLoop"];
 }
 
 - (void)installSessionsFollowActiveTabMenuWithEnabled:(BOOL)enabled

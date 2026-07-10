@@ -24,6 +24,18 @@ import {
   type ChatMessageViewportScrollAnchor,
   type ChatScrollAnchor,
 } from './chatScroll';
+import {
+  createChatScrollCoordinatorState,
+  evaluateChatScrollOperationBudget,
+  observeChatScrollEdge,
+  reduceChatScrollCoordinator,
+  type ChatScrollBottomAffinity,
+  type ChatScrollCoordinatorEffect,
+  type ChatScrollCoordinatorEvent,
+  type ChatScrollCoordinatorState,
+  type ChatScrollEdge,
+  type ChatScrollOperation,
+} from './chatScrollCoordinator';
 
 type UpdateMessagesCache = (params: {
   connectionId: string;
@@ -32,45 +44,50 @@ type UpdateMessagesCache = (params: {
   scrollAnchor?: unknown;
 }) => void;
 
-type ScrollEdge = 'top' | 'bottom';
-
-type ActiveEdgeScroll = {
-  edge: ScrollEdge;
-  runAttempt: (reason: string) => void;
-};
-
-type ScrollPersistenceDiagnosticEvent = {
+export type ScrollPersistenceDiagnosticEvent = {
   event: string;
   reason?: string;
   details?: Record<string, unknown>;
 };
 
-function scrollToOffsetY(
-  target: any,
-  offsetY: number,
-  context?: {
-    debugEnabled?: boolean;
-    reason?: string;
-    connectionId?: string;
-    sessionId?: string;
-  },
-) {
+/**
+ * Runtime state for one serialized native edge reconciliation.
+ *
+ * Coordinator operation IDs are also cancellation generations: every native
+ * result is checked against the current ID before it may write a scroll
+ * offset. Content-size feedback only marks this operation dirty; it does not
+ * create another concurrent native request.
+ */
+type RuntimeEdgeOperation = {
+  operationId: number;
+  inFlight: boolean;
+  geometryDirty: boolean;
+  corrections: number;
+  stableSinceMs: number | null;
+  stableTargetOffsetY: number | null;
+  lastAttemptAtMs: number;
+};
+
+const INTERACTION_END_SETTLE_MS = 120;
+const DEFAULT_MAX_EDGE_CORRECTIONS = 12;
+const RECONCILIATION_POLL_INTERVAL_MS = 16;
+
+function readGlobalBoolean(name: string): boolean {
+  const value = (globalThis as any)[name];
+  return value === true || value === 'true';
+}
+
+function affinityForAnchor(
+  anchor: ChatScrollAnchor | ChatMessageViewportScrollAnchor | null,
+): ChatScrollBottomAffinity {
+  return !anchor || anchor.pinnedToBottom ? 'pinned' : 'detached';
+}
+
+function scrollToOffsetY(target: any, offsetY: number) {
   if (!target) {
     return;
   }
   const resolved = Math.max(0, Math.round(offsetY));
-  if (context?.debugEnabled) {
-    console.log('[scrollPersist] scrollToOffsetY', {
-      connectionId: context.connectionId,
-      sessionId: context.sessionId,
-      reason: context.reason,
-      requestedOffsetY: offsetY,
-      resolvedOffsetY: resolved,
-      hasScrollToOffset: typeof target.scrollToOffset === 'function',
-      hasScrollTo: typeof target.scrollTo === 'function',
-      hasScrollToEnd: typeof target.scrollToEnd === 'function',
-    });
-  }
   if (typeof target.scrollToOffset === 'function') {
     target.scrollToOffset({ offset: resolved, animated: false });
     return;
@@ -113,20 +130,33 @@ export function useProactiveChatScrollPersistence(params: {
   bottomThresholdPx?: number;
   bottomConvergenceStableMs?: number;
   bottomConvergenceMaxMs?: number;
-  bottomFollowWindowMs?: number;
-  manualBottomFollowWindowMs?: number;
-  initialBottomFollowWindowMs?: number;
-  bottomLockEnabled?: boolean;
+  contentFollowLeaseMs?: number;
+  manualBottomConvergenceMaxMs?: number;
+  initialBottomConvergenceMaxMs?: number;
+  contentFollowEnabled?: boolean;
+  bottomContentRevision?: unknown;
+  maxEdgeCorrections?: number;
   messageAnchorBeforeCount?: number;
   messageAnchorAfterCount?: number;
   messageViewportAnchorsEnabled?: boolean;
   listEdgeMethodsEnabled?: boolean;
+  diagnosticsEnabled?: boolean;
+  diagnosticsVerbose?: boolean;
   onDiagnosticEvent?: (event: ScrollPersistenceDiagnosticEvent) => void;
+  /** @deprecated Use contentFollowLeaseMs. */
+  bottomFollowWindowMs?: number;
+  /** @deprecated Use manualBottomConvergenceMaxMs. */
+  manualBottomFollowWindowMs?: number;
+  /** @deprecated Use initialBottomConvergenceMaxMs. */
+  initialBottomFollowWindowMs?: number;
+  /** @deprecated Use contentFollowEnabled. */
+  bottomLockEnabled?: boolean;
 }): {
   listRef: RefObject<any>;
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onScrollBeginDrag: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onScrollEndDrag: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onMomentumScrollBegin: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onMomentumScrollEnd: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onLayout: (event: LayoutChangeEvent) => void;
   onContentSizeChange: (width: number, height: number) => void;
@@ -134,7 +164,16 @@ export function useProactiveChatScrollPersistence(params: {
   resetRestore: (reason: string) => void;
   scrollToTop: (animated?: boolean) => void;
   scrollToBottom: (animated?: boolean) => void;
-  requestBottomFollow: (reason: string, options?: { windowMs?: number }) => void;
+  notifyBottomContentChange: (
+    reason: string,
+    revision: unknown,
+    options?: { leaseMs?: number },
+  ) => void;
+  onListScrollDiagnostic: (event: {
+    event: string;
+    reason?: string;
+    details?: Record<string, unknown>;
+  }) => void;
   canScrollToTop: boolean;
   canScrollToBottom: boolean;
   isNearBottom: boolean;
@@ -152,27 +191,52 @@ export function useProactiveChatScrollPersistence(params: {
     bottomThresholdPx = PINNED_TO_BOTTOM_THRESHOLD_PX,
     bottomConvergenceStableMs = 200,
     bottomConvergenceMaxMs = 3000,
-    bottomFollowWindowMs = 1000,
-    manualBottomFollowWindowMs = 3000,
-    initialBottomFollowWindowMs = 5000,
-    bottomLockEnabled = false,
+    contentFollowLeaseMs: configuredContentFollowLeaseMs,
+    manualBottomConvergenceMaxMs: configuredManualBottomConvergenceMaxMs,
+    initialBottomConvergenceMaxMs: configuredInitialBottomConvergenceMaxMs,
+    contentFollowEnabled: configuredContentFollowEnabled,
+    bottomContentRevision,
+    maxEdgeCorrections = DEFAULT_MAX_EDGE_CORRECTIONS,
     messageAnchorBeforeCount = 40,
     messageAnchorAfterCount = 59,
     messageViewportAnchorsEnabled = false,
     listEdgeMethodsEnabled = false,
+    diagnosticsEnabled: configuredDiagnosticsEnabled,
+    diagnosticsVerbose: configuredDiagnosticsVerbose,
     onDiagnosticEvent,
+    bottomFollowWindowMs,
+    manualBottomFollowWindowMs,
+    initialBottomFollowWindowMs,
+    bottomLockEnabled,
   } = params;
+
+  const contentFollowLeaseMs =
+    configuredContentFollowLeaseMs ?? bottomFollowWindowMs ?? 1000;
+  const manualBottomConvergenceMaxMs =
+    configuredManualBottomConvergenceMaxMs ?? manualBottomFollowWindowMs ?? 3000;
+  const initialBottomConvergenceMaxMs =
+    configuredInitialBottomConvergenceMaxMs ?? initialBottomFollowWindowMs ?? 5000;
+  const contentFollowEnabled =
+    configuredContentFollowEnabled ?? bottomLockEnabled ?? false;
+  const diagnosticsEnabled =
+    configuredDiagnosticsEnabled ??
+    (readGlobalBoolean('CLC_DEBUG_CHAT_SCROLL_COORDINATOR') ||
+      readGlobalBoolean('CLC_DEBUG_FLATLIST_BOTTOM_FOLLOW'));
+  const diagnosticsVerbose =
+    configuredDiagnosticsVerbose ??
+    readGlobalBoolean('CLC_DEBUG_CHAT_SCROLL_COORDINATOR_VERBOSE');
+
+  const initialAnchor = isChatScrollAnchor(cachedScrollAnchor)
+    ? cachedScrollAnchor
+    : messageViewportAnchorsEnabled && isChatMessageViewportScrollAnchor(cachedScrollAnchor)
+      ? cachedScrollAnchor
+      : null;
 
   const listRef = useRef<any>(null);
   const offsetYRef = useRef(0);
   const contentHeightRef = useRef<number | null>(null);
   const layoutHeightRef = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
-  const pendingEdgeScrollFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
-  const activeEdgeScrollRef = useRef<ActiveEdgeScroll | null>(null);
-  const bottomFollowEnabledRef = useRef(false);
-  const bottomFollowUntilMsRef = useRef(0);
-  const programmaticScrollUntilRef = useRef(0);
   const scrollAffordanceStateRef = useRef({
     canScrollToTop: false,
     canScrollToBottom: false,
@@ -185,77 +249,143 @@ export function useProactiveChatScrollPersistence(params: {
   });
 
   const initialAnchorRef = useRef<ChatScrollAnchor | ChatMessageViewportScrollAnchor | null>(
-    isChatScrollAnchor(cachedScrollAnchor)
-      ? cachedScrollAnchor
-      : messageViewportAnchorsEnabled && isChatMessageViewportScrollAnchor(cachedScrollAnchor)
-        ? cachedScrollAnchor
-        : null,
+    initialAnchor,
   );
-  const wasEnabledRef = useRef(enabled);
   const hasRestoredRef = useRef(false);
+  const wasEnabledRef = useRef(enabled);
+  const lastBottomContentRevisionRef = useRef(bottomContentRevision);
+
+  const coordinatorRef = useRef<ChatScrollCoordinatorState>(
+    createChatScrollCoordinatorState({
+      bottomAffinity: affinityForAnchor(initialAnchor),
+      initialSemanticRevision: bottomContentRevision,
+    }),
+  );
+  const runtimeOperationRef = useRef<RuntimeEdgeOperation | null>(null);
+  const pendingOperationFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
+  const pendingOperationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const runRuntimeOperationRef = useRef<(operationId: number) => void>(() => {});
+  const scheduleRuntimeOperationRef = useRef<(operationId: number) => void>(() => {});
+  const dispatchCoordinatorRef = useRef<(event: ChatScrollCoordinatorEvent) => void>(() => {});
+  const interactionEndTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const followLeaseExpiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const userInteractionActiveRef = useRef(false);
+  const cancelRuntimeOperationOnUnmountRef = useRef<(operationId: number, reason: string) => void>(
+    () => {},
+  );
+  const persistNowOnUnmountRef = useRef<
+    (reason: string, options?: { force?: boolean }) => Promise<void>
+  >(async () => {});
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastPersistAtRef = useRef(0);
-  const pendingReasonRef = useRef<string | null>(null);
-  const lastScrollDiagnosticsAtRef = useRef(0);
-  const lastNativeMetricsDiagnosticsAtRef = useRef(0);
-
-  const debugEnabled =
-    (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === true ||
-    (globalThis as any).CLC_DEBUG_SCROLL_PERSIST === 'true' ||
-    (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL === true ||
-    (globalThis as any).CLC_DEBUG_FLATLIST_SCROLL === 'true';
-  const bottomFollowDebugEnabled =
-    debugEnabled ||
-    (globalThis as any).CLC_DEBUG_FLATLIST_BOTTOM_FOLLOW === true ||
-    (globalThis as any).CLC_DEBUG_FLATLIST_BOTTOM_FOLLOW === 'true';
-
-  const logBottomFollow = useCallback(
-    (event: string, details?: Record<string, unknown>) => {
-      if (!bottomFollowDebugEnabled) {
-        return;
-      }
-      const contentHeight = contentHeightRef.current;
-      const layoutHeight = layoutHeightRef.current;
-      const offsetY = offsetYRef.current;
-      const maxOffsetY =
-        contentHeight != null && layoutHeight != null
-          ? Math.max(0, contentHeight - layoutHeight)
-          : null;
-      console.log('[flatListBottomFollow]', {
-        connectionId,
-        sessionId,
-        event,
-        offsetY,
-        contentHeight,
-        layoutHeight,
-        maxOffsetY,
-        bottomGapPx: maxOffsetY == null ? null : Math.max(0, maxOffsetY - offsetY),
-        active: bottomFollowEnabledRef.current,
-        untilMs: bottomFollowUntilMsRef.current,
-        ...details,
-      });
-    },
-    [bottomFollowDebugEnabled, connectionId, sessionId],
-  );
+  const pendingPersistReasonRef = useRef<string | null>(null);
+  const lastConsoleDiagnosticAtRef = useRef<Record<string, number>>({});
+  const didEmitConfigurationRef = useRef(false);
 
   const emitDiagnostic = useCallback(
     (event: string, reason?: string, details?: Record<string, unknown>) => {
-      onDiagnosticEvent?.({ event, reason, details });
+      const entry = { event, reason, details };
+      onDiagnosticEvent?.(entry);
+
+      if (!diagnosticsEnabled) {
+        return;
+      }
+      const verboseOnly =
+        event === 'operationCorrection' ||
+        event === 'operationObservation' ||
+        event === 'geometryChanged' ||
+        event === 'followLeaseSkipped';
+      if (verboseOnly && !diagnosticsVerbose) {
+        return;
+      }
+      const rateLimitMs =
+        event === 'followLeaseRenewed'
+          ? 1000
+          : event === 'persistSkipped'
+            ? 1000
+          : event === 'operationObservation' ||
+              event === 'geometryChanged' ||
+              event === 'followLeaseSkipped'
+            ? 500
+            : 0;
+      const now = Date.now();
+      const previous = lastConsoleDiagnosticAtRef.current[event] ?? 0;
+      if (rateLimitMs > 0 && now - previous < rateLimitMs) {
+        return;
+      }
+      lastConsoleDiagnosticAtRef.current[event] = now;
+      const payload = {
+        connectionId,
+        sessionId,
+        event,
+        reason: reason ?? null,
+        ...(details ?? {}),
+      };
+      console.log('[chatScrollCoordinator]', JSON.stringify(payload));
     },
-    [onDiagnosticEvent],
+    [
+      connectionId,
+      diagnosticsEnabled,
+      diagnosticsVerbose,
+      onDiagnosticEvent,
+      sessionId,
+    ],
+  );
+
+  useEffect(() => {
+    if (didEmitConfigurationRef.current) {
+      return;
+    }
+    didEmitConfigurationRef.current = true;
+    emitDiagnostic('configuration', 'effectiveValues', {
+      bottomThresholdPx,
+      bottomConvergenceStableMs,
+      bottomConvergenceMaxMs,
+      manualBottomConvergenceMaxMs,
+      initialBottomConvergenceMaxMs,
+      contentFollowLeaseMs,
+      contentFollowEnabled,
+      maxEdgeCorrections,
+      messageViewportAnchorsEnabled,
+      listEdgeMethodsEnabled,
+      diagnosticsVerbose,
+    });
+  }, [
+    bottomConvergenceMaxMs,
+    bottomConvergenceStableMs,
+    bottomThresholdPx,
+    contentFollowEnabled,
+    contentFollowLeaseMs,
+    diagnosticsVerbose,
+    emitDiagnostic,
+    initialBottomConvergenceMaxMs,
+    listEdgeMethodsEnabled,
+    manualBottomConvergenceMaxMs,
+    maxEdgeCorrections,
+    messageViewportAnchorsEnabled,
+  ]);
+
+  const onListScrollDiagnostic = useCallback(
+    (event: {
+      event: string;
+      reason?: string;
+      details?: Record<string, unknown>;
+    }) => {
+      emitDiagnostic(event.event, event.reason, event.details);
+    },
+    [emitDiagnostic],
   );
 
   const updateDerivedScrollState = useCallback(() => {
     const contentHeight = contentHeightRef.current;
     const layoutHeight = layoutHeightRef.current;
-    const offsetY = offsetYRef.current;
     const maxOffsetY =
       contentHeight != null && layoutHeight != null
         ? Math.max(0, contentHeight - layoutHeight)
         : 0;
-    const bottomGapPx = Math.max(0, maxOffsetY - offsetY);
-    const topGapPx = Math.max(0, offsetY);
+    const bottomGapPx = Math.max(0, maxOffsetY - offsetYRef.current);
+    const topGapPx = Math.max(0, offsetYRef.current);
     const threshold = Math.max(0, bottomThresholdPx);
     const isNearBottom = bottomGapPx <= threshold;
     isNearBottomRef.current = isNearBottom;
@@ -265,7 +395,6 @@ export function useProactiveChatScrollPersistence(params: {
       canScrollToBottom: bottomGapPx > threshold,
       isNearBottom,
     };
-
     const current = scrollAffordanceStateRef.current;
     if (
       current.canScrollToTop === next.canScrollToTop &&
@@ -295,369 +424,491 @@ export function useProactiveChatScrollPersistence(params: {
     [updateDerivedScrollState],
   );
 
-  const cancelActiveEdgeScroll = useCallback(() => {
-    if (pendingEdgeScrollFrameRef.current != null) {
-      cancelAnimationFrame(pendingEdgeScrollFrameRef.current);
-      pendingEdgeScrollFrameRef.current = null;
-    }
-    activeEdgeScrollRef.current = null;
-  }, []);
+  const cancelRuntimeOperation = useCallback(
+    (operationId: number, reason: string) => {
+      if (runtimeOperationRef.current?.operationId !== operationId) {
+        return;
+      }
+      if (pendingOperationFrameRef.current != null) {
+        cancelAnimationFrame(pendingOperationFrameRef.current);
+        pendingOperationFrameRef.current = null;
+      }
+      if (pendingOperationTimerRef.current != null) {
+        clearTimeout(pendingOperationTimerRef.current);
+        pendingOperationTimerRef.current = null;
+      }
+      runtimeOperationRef.current = null;
+      emitDiagnostic('runtimeOperationCancelled', reason, { operationId });
+    },
+    [emitDiagnostic],
+  );
+  cancelRuntimeOperationOnUnmountRef.current = cancelRuntimeOperation;
 
-  const scrollToEdge = useCallback(
+  const applyCoordinatorEffects = useCallback(
+    (effects: ChatScrollCoordinatorEffect[]) => {
+      for (const effect of effects) {
+        if (effect.type === 'cancelRuntimeOperation') {
+          cancelRuntimeOperation(effect.operationId, effect.reason);
+        } else {
+          scheduleRuntimeOperationRef.current(effect.operationId);
+        }
+      }
+    },
+    [cancelRuntimeOperation],
+  );
+
+  const dispatchCoordinator = useCallback(
+    (event: ChatScrollCoordinatorEvent) => {
+      const previousLeaseExpiry = coordinatorRef.current.followLease?.expiresAtMs ?? null;
+      const next = reduceChatScrollCoordinator(coordinatorRef.current, event);
+      coordinatorRef.current = next.state;
+      const nextLeaseExpiry = next.state.followLease?.expiresAtMs ?? null;
+      if (previousLeaseExpiry !== nextLeaseExpiry) {
+        if (followLeaseExpiryTimerRef.current) {
+          clearTimeout(followLeaseExpiryTimerRef.current);
+          followLeaseExpiryTimerRef.current = null;
+        }
+        if (nextLeaseExpiry != null) {
+          const delayMs = Math.max(1, nextLeaseExpiry - Date.now() + 1);
+          followLeaseExpiryTimerRef.current = setTimeout(() => {
+            followLeaseExpiryTimerRef.current = null;
+            dispatchCoordinatorRef.current({
+              type: 'geometryChanged',
+              reason: 'followLeaseDeadline',
+              nowMs: Date.now(),
+            });
+          }, delayMs);
+        }
+      }
+      for (const diagnostic of next.diagnostics) {
+        emitDiagnostic(diagnostic.event, diagnostic.reason, diagnostic.details);
+      }
+      applyCoordinatorEffects(next.effects);
+      return next.state;
+    },
+    [applyCoordinatorEffects, emitDiagnostic],
+  );
+  dispatchCoordinatorRef.current = dispatchCoordinator;
+
+  const writeEdge = useCallback(
     (
-      edge: ScrollEdge,
-      animated = true,
-      options?: {
-        followWindowMs?: number;
+      operation: ChatScrollOperation,
+      animated: boolean,
+      context: {
+        reason: string;
+        measuredTargetOffsetY?: number;
+        measuredGapPx?: number;
       },
     ) => {
       const target = listRef.current;
-      if (!target) {
-        return;
+      if (!target || coordinatorRef.current.operation?.id !== operation.id) {
+        return false;
       }
-      cancelActiveEdgeScroll();
-      const now = Date.now();
-      const followWindowMs = Math.max(0, Math.round(options?.followWindowMs ?? 0));
 
-      if (listEdgeMethodsEnabled && edge === 'top' && typeof target.scrollToTop === 'function') {
-        bottomFollowEnabledRef.current = false;
-        bottomFollowUntilMsRef.current = 0;
-        target.scrollToTop({ animated });
-        programmaticScrollUntilRef.current = Date.now() + 250;
-        return;
-      }
+      const measuredTargetOffsetY = context.measuredTargetOffsetY;
+      let targetOffsetY =
+        typeof measuredTargetOffsetY === 'number'
+          ? measuredTargetOffsetY
+          : operation.edge === 'bottom'
+            ? Math.max(0, (contentHeightRef.current ?? 0) - (layoutHeightRef.current ?? 0))
+            : 0;
+
       if (
         listEdgeMethodsEnabled &&
-        edge === 'bottom' &&
+        operation.edge === 'top' &&
+        typeof target.scrollToTop === 'function'
+      ) {
+        target.scrollToTop({ animated });
+        targetOffsetY = 0;
+      } else if (
+        listEdgeMethodsEnabled &&
+        operation.edge === 'bottom' &&
         typeof target.scrollToBottom === 'function'
       ) {
-        bottomFollowEnabledRef.current = true;
-        bottomFollowUntilMsRef.current = followWindowMs > 0 ? now + followWindowMs : 0;
         target.scrollToBottom({ animated });
-        programmaticScrollUntilRef.current = Date.now() + 250;
+      } else if (typeof target.scrollToOffset === 'function') {
+        target.scrollToOffset({ offset: targetOffsetY, animated });
+      } else if (typeof target.scrollTo === 'function') {
+        target.scrollTo({ y: targetOffsetY, animated });
+      } else if (operation.edge === 'bottom' && typeof target.scrollToEnd === 'function') {
+        target.scrollToEnd({ animated });
+      } else {
+        return false;
+      }
+
+      offsetYRef.current = targetOffsetY;
+      updateDerivedScrollState();
+      emitDiagnostic('operationCorrection', context.reason, {
+        operationId: operation.id,
+        purpose: operation.purpose,
+        edge: operation.edge,
+        correction:
+          operation.purpose === 'contentFollow'
+            ? (coordinatorRef.current.followLease?.correctionCount ?? 0) + 1
+            : (runtimeOperationRef.current?.corrections ?? 0) + 1,
+        targetOffsetY: Math.round(targetOffsetY),
+        measuredGapPx:
+          typeof context.measuredGapPx === 'number'
+            ? Math.round(context.measuredGapPx)
+            : null,
+      });
+      return true;
+    },
+    [emitDiagnostic, listEdgeMethodsEnabled, updateDerivedScrollState],
+  );
+
+  const stopOperation = useCallback(
+    (
+      operationId: number,
+      outcome: 'expired' | 'cancelled' | 'correctionLimit' | 'unavailable',
+      reason: string,
+    ) => {
+      if (
+        coordinatorRef.current.operation?.id !== operationId ||
+        runtimeOperationRef.current?.operationId !== operationId
+      ) {
         return;
       }
-
-      const scrollOnce = (nextAnimated: boolean) => {
-        const contentHeight = contentHeightRef.current;
-        const layoutHeight = layoutHeightRef.current;
-        const maxOffsetY =
-          contentHeight != null && layoutHeight != null
-            ? Math.max(0, contentHeight - layoutHeight)
-            : 0;
-        const targetOffsetY = edge === 'bottom' ? maxOffsetY : 0;
-
-        if (typeof target.scrollToOffset === 'function') {
-          target.scrollToOffset({ offset: targetOffsetY, animated: nextAnimated });
-        } else if (typeof target.scrollTo === 'function') {
-          target.scrollTo({ y: targetOffsetY, animated: nextAnimated });
-        } else if (edge === 'bottom' && typeof target.scrollToEnd === 'function') {
-          target.scrollToEnd({ animated: nextAnimated });
-        }
-
-        programmaticScrollUntilRef.current = Date.now() + 250;
-        offsetYRef.current = targetOffsetY;
-        updateDerivedScrollState();
-      };
-
-      scrollOnce(animated);
-
-      const threshold = Math.max(0, bottomThresholdPx);
-      const stableMs = Math.max(0, Math.round(bottomConvergenceStableMs));
-      const maxMs = Math.max(
-        stableMs + 1,
-        Math.round(bottomConvergenceMaxMs),
-        followWindowMs,
-      );
-      const startedAt = Date.now();
-      let stableSince: number | null = null;
-      let stableTargetOffsetY: number | null = null;
-
-      if (edge === 'bottom') {
-        bottomFollowEnabledRef.current = true;
-        bottomFollowUntilMsRef.current = followWindowMs > 0 ? startedAt + followWindowMs : 0;
-      } else {
-        bottomFollowEnabledRef.current = false;
-        bottomFollowUntilMsRef.current = 0;
+      if (pendingOperationFrameRef.current != null) {
+        cancelAnimationFrame(pendingOperationFrameRef.current);
+        pendingOperationFrameRef.current = null;
       }
+      if (pendingOperationTimerRef.current != null) {
+        clearTimeout(pendingOperationTimerRef.current);
+        pendingOperationTimerRef.current = null;
+      }
+      if (runtimeOperationRef.current?.operationId === operationId) {
+        runtimeOperationRef.current = null;
+      }
+      dispatchCoordinator({
+        type: 'operationStopped',
+        operationId,
+        outcome,
+        reason,
+        nowMs: Date.now(),
+      });
+    },
+    [dispatchCoordinator],
+  );
 
-      const stopActiveScroll = () => {
-        if (activeEdgeScrollRef.current?.runAttempt === runAttempt) {
-          activeEdgeScrollRef.current = null;
-        }
+  const scheduleRuntimeOperation = useCallback((operationId: number) => {
+    const operation = coordinatorRef.current.operation;
+    if (!operation || operation.id !== operationId) {
+      return;
+    }
+    let runtime = runtimeOperationRef.current;
+    if (!runtime || runtime.operationId !== operationId) {
+      runtime = {
+        operationId,
+        inFlight: false,
+        geometryDirty: true,
+        corrections: 0,
+        stableSinceMs: null,
+        stableTargetOffsetY: null,
+        lastAttemptAtMs: 0,
       };
+      runtimeOperationRef.current = runtime;
+    } else {
+      runtime.geometryDirty = true;
+    }
+    if (
+      runtime.inFlight ||
+      pendingOperationFrameRef.current != null ||
+      pendingOperationTimerRef.current != null
+    ) {
+      return;
+    }
+    const delayMs = Math.max(
+      0,
+      runtime.lastAttemptAtMs + RECONCILIATION_POLL_INTERVAL_MS - Date.now(),
+    );
+    if (delayMs > 0) {
+      pendingOperationTimerRef.current = setTimeout(() => {
+        pendingOperationTimerRef.current = null;
+        scheduleRuntimeOperationRef.current(operationId);
+      }, delayMs);
+      return;
+    }
+    pendingOperationFrameRef.current = requestAnimationFrame(() => {
+      pendingOperationFrameRef.current = null;
+      runRuntimeOperationRef.current(operationId);
+    });
+  }, []);
+  scheduleRuntimeOperationRef.current = scheduleRuntimeOperation;
 
-      const scheduleAttempt = () => {
-        if (pendingEdgeScrollFrameRef.current != null) {
+  runRuntimeOperationRef.current = (operationId: number) => {
+    const operation = coordinatorRef.current.operation;
+    const runtime = runtimeOperationRef.current;
+    if (
+      !operation ||
+      operation.id !== operationId ||
+      !runtime ||
+      runtime.operationId !== operationId ||
+      coordinatorRef.current.interaction !== 'idle'
+    ) {
+      return;
+    }
+
+    const startedAt = Date.now();
+    runtime.lastAttemptAtMs = startedAt;
+    if (
+      evaluateChatScrollOperationBudget({
+        nowMs: startedAt,
+        deadlineMs: operation.deadlineMs,
+        corrections: 0,
+        maxCorrections: maxEdgeCorrections,
+      }) === 'expired'
+    ) {
+      stopOperation(operationId, 'expired', 'deadlineBeforeMetrics');
+      return;
+    }
+    if (runtime.inFlight) {
+      runtime.geometryDirty = true;
+      return;
+    }
+    runtime.inFlight = true;
+    runtime.geometryDirty = false;
+
+    getMacScrollViewMetrics(listRef.current)
+      .then((metrics) => {
+        const currentOperation = coordinatorRef.current.operation;
+        const currentRuntime = runtimeOperationRef.current;
+        if (
+          !currentOperation ||
+          currentOperation.id !== operationId ||
+          !currentRuntime ||
+          currentRuntime.operationId !== operationId ||
+          coordinatorRef.current.interaction !== 'idle'
+        ) {
           return;
         }
-        pendingEdgeScrollFrameRef.current = requestAnimationFrame(() => {
-          pendingEdgeScrollFrameRef.current = null;
-          runAttempt('frame');
+        currentRuntime.inFlight = false;
+        const geometryChangedWhileInFlight = currentRuntime.geometryDirty;
+        currentRuntime.geometryDirty = false;
+        if (!metrics) {
+          stopOperation(operationId, 'unavailable', 'nativeMetricsUnavailable');
+          return;
+        }
+
+        offsetYRef.current = metrics.offsetY;
+        contentHeightRef.current = metrics.contentHeight;
+        layoutHeightRef.current = metrics.viewportHeight;
+        updateDerivedScrollState();
+
+        const now = Date.now();
+        const budget = evaluateChatScrollOperationBudget({
+          nowMs: now,
+          deadlineMs: currentOperation.deadlineMs,
+          corrections:
+            currentOperation.purpose === 'contentFollow'
+              ? coordinatorRef.current.followLease?.correctionCount ?? 0
+              : currentRuntime.corrections,
+          maxCorrections: maxEdgeCorrections,
         });
-      };
+        if (budget === 'expired') {
+          stopOperation(operationId, 'expired', 'deadlineAfterMetrics');
+          return;
+        }
+        if (geometryChangedWhileInFlight) {
+          currentRuntime.stableSinceMs = null;
+          currentRuntime.stableTargetOffsetY = null;
+          scheduleRuntimeOperationRef.current(operationId);
+          return;
+        }
 
-      const runAttempt = (_reason: string) => {
-        pendingEdgeScrollFrameRef.current = null;
-        getMacScrollViewMetrics(listRef.current)
-          .then((metrics) => {
-            if (!metrics) {
-              stopActiveScroll();
-              return;
-            }
-            const currentTime = Date.now();
-            if (
-              edge === 'bottom' &&
-              bottomFollowUntilMsRef.current > 0 &&
-              currentTime > bottomFollowUntilMsRef.current
-            ) {
-              bottomFollowEnabledRef.current = false;
-              bottomFollowUntilMsRef.current = 0;
-              logBottomFollow('stopExpired', { reason: _reason });
-              stopActiveScroll();
-              return;
-            }
-            offsetYRef.current = metrics.offsetY;
-            contentHeightRef.current = metrics.contentHeight;
-            layoutHeightRef.current = metrics.viewportHeight;
-            updateDerivedScrollState();
+        const observation = observeChatScrollEdge({
+          edge: currentOperation.edge,
+          offsetY: metrics.offsetY,
+          contentHeight: metrics.contentHeight,
+          viewportHeight: metrics.viewportHeight,
+          epsilonPx: bottomThresholdPx,
+        });
+        emitDiagnostic('operationObservation', 'nativeMetrics', {
+          operationId,
+          purpose: currentOperation.purpose,
+          edge: currentOperation.edge,
+          edgeGapPx: Math.round(observation.edgeGapPx),
+          targetOffsetY: Math.round(observation.targetOffsetY),
+          corrections: currentRuntime.corrections,
+        });
 
-            const maxY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
-            const edgeGapPx =
-              edge === 'bottom'
-                ? Math.max(0, maxY - metrics.offsetY)
-                : Math.max(0, metrics.offsetY);
-            if (edgeGapPx <= threshold) {
-              const targetOffsetY = edge === 'bottom' ? maxY : 0;
-              if (
-                stableSince == null ||
-                stableTargetOffsetY == null ||
-                Math.abs(stableTargetOffsetY - targetOffsetY) > threshold
-              ) {
-                stableSince = currentTime;
-                stableTargetOffsetY = targetOffsetY;
-                scheduleAttempt();
-                return;
-              }
-              if (currentTime - stableSince >= stableMs) {
-                stopActiveScroll();
-                return;
-              }
-              scheduleAttempt();
-              return;
-            }
+        if (observation.withinEpsilon) {
+          if (
+            currentRuntime.stableSinceMs == null ||
+            currentRuntime.stableTargetOffsetY == null ||
+            Math.abs(currentRuntime.stableTargetOffsetY - observation.targetOffsetY) >
+              bottomThresholdPx
+          ) {
+            currentRuntime.stableSinceMs = now;
+            currentRuntime.stableTargetOffsetY = observation.targetOffsetY;
+            scheduleRuntimeOperationRef.current(operationId);
+            return;
+          }
+          if (now - currentRuntime.stableSinceMs >= bottomConvergenceStableMs) {
+            runtimeOperationRef.current = null;
+            dispatchCoordinator({
+              type: 'operationCompleted',
+              operationId,
+              reason: 'stable',
+              nowMs: now,
+            });
+            return;
+          }
+          scheduleRuntimeOperationRef.current(operationId);
+          return;
+        }
 
-            stableSince = null;
-            stableTargetOffsetY = null;
-            if (currentTime - startedAt >= maxMs) {
-              stopActiveScroll();
-              return;
-            }
-            scrollOnce(false);
-            scheduleAttempt();
-          })
-          .catch(() => {});
-      };
+        currentRuntime.stableSinceMs = null;
+        currentRuntime.stableTargetOffsetY = null;
+        if (budget === 'correctionLimit') {
+          stopOperation(operationId, 'correctionLimit', 'maxCorrections');
+          return;
+        }
 
-      activeEdgeScrollRef.current = { edge, runAttempt };
-      scheduleAttempt();
+        const wrote = writeEdge(currentOperation, false, {
+          reason: 'reconcile',
+          measuredTargetOffsetY: observation.targetOffsetY,
+          measuredGapPx: observation.edgeGapPx,
+        });
+        if (!wrote) {
+          stopOperation(operationId, 'unavailable', 'missingScrollMethod');
+          return;
+        }
+        if (currentOperation.purpose === 'contentFollow') {
+          dispatchCoordinator({
+            type: 'operationCorrectionIssued',
+            operationId,
+            nowMs: now,
+          });
+        }
+        currentRuntime.corrections += 1;
+        scheduleRuntimeOperationRef.current(operationId);
+      })
+      .catch(() => {
+        if (runtimeOperationRef.current?.operationId === operationId) {
+          runtimeOperationRef.current.inFlight = false;
+        }
+        stopOperation(operationId, 'unavailable', 'nativeMetricsError');
+      });
+  };
+
+  const startNavigation = useCallback(
+    (options: {
+      edge: ChatScrollEdge;
+      animated: boolean;
+      source: 'manual' | 'initialRestore' | 'anchorRestore';
+      reason: string;
+      maxDurationMs: number;
+    }) => {
+      if (interactionEndTimerRef.current) {
+        clearTimeout(interactionEndTimerRef.current);
+        interactionEndTimerRef.current = null;
+      }
+      userInteractionActiveRef.current = false;
+      const state = dispatchCoordinator({
+        type: 'startNavigation',
+        edge: options.edge,
+        source: options.source,
+        reason: options.reason,
+        nowMs: Date.now(),
+        maxDurationMs: options.maxDurationMs,
+      });
+      const operation = state.operation;
+      if (!operation) {
+        return;
+      }
+      const runtime = runtimeOperationRef.current;
+      if (writeEdge(operation, options.animated, { reason: 'navigationInitial' }) && runtime) {
+        runtime.corrections += 1;
+      }
+      scheduleRuntimeOperationRef.current(operation.id);
     },
-    [
-      bottomConvergenceMaxMs,
-      bottomConvergenceStableMs,
-      bottomThresholdPx,
-      cancelActiveEdgeScroll,
-      listEdgeMethodsEnabled,
-      logBottomFollow,
-      updateDerivedScrollState,
-    ],
+    [dispatchCoordinator, writeEdge],
   );
 
   const scrollToTop = useCallback(
     (animated = true) => {
-      scrollToEdge('top', animated);
+      startNavigation({
+        edge: 'top',
+        animated,
+        source: 'manual',
+        reason: 'scrollToTop',
+        maxDurationMs: bottomConvergenceMaxMs,
+      });
     },
-    [scrollToEdge],
+    [bottomConvergenceMaxMs, startNavigation],
   );
 
   const scrollToBottom = useCallback(
     (animated = true) => {
-      scrollToEdge('bottom', animated, { followWindowMs: manualBottomFollowWindowMs });
+      startNavigation({
+        edge: 'bottom',
+        animated,
+        source: 'manual',
+        reason: 'scrollToBottom',
+        maxDurationMs: manualBottomConvergenceMaxMs,
+      });
     },
-    [manualBottomFollowWindowMs, scrollToEdge],
+    [manualBottomConvergenceMaxMs, startNavigation],
   );
 
-  const continueActiveEdgeScroll = useCallback(
-    (reason: string) => {
-      const now = Date.now();
-      const active = activeEdgeScrollRef.current;
-      if (!active) {
-        if (bottomFollowEnabledRef.current && bottomFollowUntilMsRef.current > 0) {
-          const remainingMs = bottomFollowUntilMsRef.current - now;
-          if (remainingMs > 0) {
-            logBottomFollow('restartWithinWindow', { reason, remainingMs });
-            scrollToEdge('bottom', false, { followWindowMs: remainingMs });
-            return;
-          }
-          bottomFollowEnabledRef.current = false;
-          bottomFollowUntilMsRef.current = 0;
-          logBottomFollow('continueExpired', { reason });
-        }
-        return;
-      }
-      if (
-        active.edge === 'bottom' &&
-        bottomFollowUntilMsRef.current > 0 &&
-        now > bottomFollowUntilMsRef.current
-      ) {
-        bottomFollowEnabledRef.current = false;
-        bottomFollowUntilMsRef.current = 0;
-        logBottomFollow('continueExpired', { reason });
-        cancelActiveEdgeScroll();
-        return;
-      }
-      active.runAttempt(reason);
+  const notifyBottomContentChange = useCallback(
+    (reason: string, revision: unknown, options?: { leaseMs?: number }) => {
+      dispatchCoordinator({
+        type: 'semanticContentChanged',
+        revision,
+        reason,
+        nowMs: Date.now(),
+        leaseMs: options?.leaseMs ?? contentFollowLeaseMs,
+        followEnabled: contentFollowEnabled && enabled,
+        restoreComplete: hasRestoredRef.current,
+      });
     },
-    [cancelActiveEdgeScroll, logBottomFollow, scrollToEdge],
+    [
+      contentFollowEnabled,
+      contentFollowLeaseMs,
+      dispatchCoordinator,
+      enabled,
+    ],
   );
 
-  const requestBottomFollow = useCallback(
-    (reason: string, options?: { windowMs?: number }) => {
-      if (!bottomLockEnabled || !enabled || !hasRestoredRef.current) {
-        logBottomFollow('ignoredDisabled', { reason });
-        return;
-      }
-      if (!isNearBottomRef.current) {
-        logBottomFollow('ignoredNotNearBottom', { reason });
-        return;
-      }
-      const windowMs = Math.max(
-        0,
-        Math.round(options?.windowMs ?? bottomFollowWindowMs),
-      );
-      if (windowMs <= 0) {
-        return;
-      }
-      bottomFollowEnabledRef.current = true;
-      bottomFollowUntilMsRef.current = Date.now() + windowMs;
-      logBottomFollow('start', { reason, windowMs });
-      scrollToEdge('bottom', false, { followWindowMs: windowMs });
-    },
-    [bottomFollowWindowMs, bottomLockEnabled, enabled, logBottomFollow, scrollToEdge],
-  );
-
-  const handlePossibleManualScroll = useCallback(() => {
-    if (Date.now() <= programmaticScrollUntilRef.current) {
+  useEffect(() => {
+    if (Object.is(lastBottomContentRevisionRef.current, bottomContentRevision)) {
       return;
     }
-    if (activeEdgeScrollRef.current) {
-      cancelActiveEdgeScroll();
-    }
-    if (!isNearBottomRef.current) {
-      logBottomFollow('stopManualScroll');
-    }
-    bottomFollowEnabledRef.current = false;
-    bottomFollowUntilMsRef.current = 0;
-  }, [cancelActiveEdgeScroll, logBottomFollow]);
-
-  const logScrollDiagnostics = useCallback(
-    (kind: string, event?: NativeSyntheticEvent<NativeScrollEvent>) => {
-      if (!debugEnabled) {
-        return;
-      }
-      const now = Date.now();
-      if (now - lastScrollDiagnosticsAtRef.current < 250) {
-        return;
-      }
-      lastScrollDiagnosticsAtRef.current = now;
-
-      const nativeEvent = event?.nativeEvent;
-      const contentOffsetY = Number(nativeEvent?.contentOffset?.y ?? NaN);
-      const eventContentHeight = Number(nativeEvent?.contentSize?.height ?? NaN);
-      const eventViewportHeight = Number(nativeEvent?.layoutMeasurement?.height ?? NaN);
-      const eventMaxOffsetY =
-        Number.isFinite(eventContentHeight) && Number.isFinite(eventViewportHeight)
-          ? Math.max(0, eventContentHeight - eventViewportHeight)
-          : null;
-
-      console.log('[flatListScroll] event', {
-        connectionId,
-        sessionId,
-        kind,
-        messageCount: getMessagesForCache().length,
-        contentOffsetY: Number.isFinite(contentOffsetY) ? contentOffsetY : null,
-        eventContentHeight: Number.isFinite(eventContentHeight) ? eventContentHeight : null,
-        eventViewportHeight: Number.isFinite(eventViewportHeight) ? eventViewportHeight : null,
-        eventMaxOffsetY,
-        cachedContentHeight: contentHeightRef.current,
-        cachedLayoutHeight: layoutHeightRef.current,
-      });
-
-      if (now - lastNativeMetricsDiagnosticsAtRef.current < 1000) {
-        return;
-      }
-      lastNativeMetricsDiagnosticsAtRef.current = now;
-      getMacScrollViewMetrics(listRef.current)
-        .then((metrics) => {
-          if (!metrics) {
-            console.log('[flatListScroll] nativeMetrics(skip:noMetrics)', {
-              connectionId,
-              sessionId,
-              kind,
-            });
-            return;
-          }
-          console.log('[flatListScroll] nativeMetrics', {
-            connectionId,
-            sessionId,
-            kind,
-            messageCount: getMessagesForCache().length,
-            metrics,
-            nativeMaxOffsetY: Math.max(0, metrics.contentHeight - metrics.viewportHeight),
-            nativeBottomGapPx: Math.max(
-              0,
-              metrics.contentHeight - metrics.viewportHeight - metrics.offsetY,
-            ),
-          });
-        })
-        .catch(() => {});
-    },
-    [connectionId, debugEnabled, getMessagesForCache, sessionId],
-  );
+    lastBottomContentRevisionRef.current = bottomContentRevision;
+    notifyBottomContentChange('bottomContentChanged', bottomContentRevision);
+  }, [bottomContentRevision, notifyBottomContentChange]);
 
   const maybeRestoreScroll = useCallback(() => {
-    if (!enabled) {
-      return;
-    }
-    if (!restoreReady) {
-      emitDiagnostic('restoreSkipped', 'restoreNotReady');
-      return;
-    }
-    if (hasRestoredRef.current) {
+    if (!enabled || !restoreReady || hasRestoredRef.current) {
       return;
     }
     const contentHeight = contentHeightRef.current;
     const layoutHeight = layoutHeightRef.current;
-    if (contentHeight == null || layoutHeight == null) {
-      return;
-    }
-    if (!Number.isFinite(contentHeight) || !Number.isFinite(layoutHeight) || layoutHeight <= 0) {
+    if (
+      contentHeight == null ||
+      layoutHeight == null ||
+      !Number.isFinite(contentHeight) ||
+      !Number.isFinite(layoutHeight) ||
+      layoutHeight <= 0
+    ) {
       return;
     }
 
     const anchor = initialAnchorRef.current;
-    if (!anchor) {
-      emitDiagnostic('restoreStart', 'noAnchorBottom', {
-        initialBottomFollowWindowMs,
-      });
-      logBottomFollow('initialNoAnchorBottom', {
-        windowMs: initialBottomFollowWindowMs,
-      });
-      scrollToEdge('bottom', false, {
-        followWindowMs: initialBottomFollowWindowMs,
+    if (!anchor || anchor.pinnedToBottom) {
+      emitDiagnostic('restoreStarted', !anchor ? 'noAnchorBottom' : 'pinnedBottom', {
+        maxDurationMs: initialBottomConvergenceMaxMs,
       });
       hasRestoredRef.current = true;
-      emitDiagnostic('restoreComplete', 'noAnchorBottom');
+      startNavigation({
+        edge: 'bottom',
+        animated: false,
+        source: !anchor ? 'initialRestore' : 'anchorRestore',
+        reason: !anchor ? 'restoreNoAnchorBottom' : 'restorePinnedBottom',
+        maxDurationMs: initialBottomConvergenceMaxMs,
+      });
       return;
     }
 
@@ -666,86 +917,55 @@ export function useProactiveChatScrollPersistence(params: {
       return;
     }
 
-    if (messageViewportAnchorsEnabled && isChatMessageViewportScrollAnchor(anchor)) {
-      if (anchor.pinnedToBottom && typeof target.scrollToEnd === 'function') {
-        emitDiagnostic('restoreStart', 'messageViewportPinnedBottom', { anchor });
-        target.scrollToEnd({ animated: false });
-        hasRestoredRef.current = true;
-        emitDiagnostic('restoreComplete', 'messageViewportPinnedBottom', { anchor });
-        return;
-      }
-      if (typeof target.scrollToItemAnchor === 'function') {
-        emitDiagnostic('restoreStart', 'messageViewport', { anchor });
-        target.scrollToItemAnchor({
-          key: `msg-${anchor.messageIndex}`,
-          offsetFromViewportTop: anchor.offsetFromViewportTop,
-          beforeCount: messageAnchorBeforeCount,
-          afterCount: messageAnchorAfterCount,
-          animated: false,
-        });
-        hasRestoredRef.current = true;
-        emitDiagnostic('restoreComplete', 'messageViewport', { anchor });
-        return;
-      }
-      hasRestoredRef.current = true;
-      emitDiagnostic('restoreSkipped', 'missingItemAnchorMethod', { anchor });
-      return;
-    }
-
-    if (!isChatScrollAnchor(anchor)) {
-      hasRestoredRef.current = true;
-      emitDiagnostic('restoreSkipped', 'unsupportedAnchor', { anchor });
-      return;
-    }
-    if (contentHeight <= 0 || layoutHeight <= 0) {
-      emitDiagnostic('restoreSkipped', 'awaitingMetrics', {
-        contentHeight,
-        layoutHeight,
-      });
-      return;
-    }
-
-    const maxOffsetY = Math.max(0, contentHeight - layoutHeight);
-    const targetOffsetY = anchor.pinnedToBottom
-      ? maxOffsetY
-      : Math.max(0, maxOffsetY - anchor.bottomGapPx);
-
-    if (debugEnabled) {
-      console.log('[scrollPersist] restore(pull)', {
-        connectionId,
-        sessionId,
-        contentHeight,
-        layoutHeight,
-        maxOffsetY,
-        anchor,
-        targetOffsetY,
-      });
-    }
-
-    emitDiagnostic('restoreStart', 'offsetAnchor', { anchor, targetOffsetY });
-    scrollToOffsetY(target, targetOffsetY, {
-      debugEnabled,
-      reason: 'restore',
-      connectionId,
-      sessionId,
+    dispatchCoordinator({
+      type: 'setBottomAffinity',
+      bottomAffinity: 'detached',
+      reason: 'restoreDetachedAnchor',
+      nowMs: Date.now(),
     });
-    offsetYRef.current = targetOffsetY;
-    updateDerivedScrollState();
+
+    if (
+      messageViewportAnchorsEnabled &&
+      isChatMessageViewportScrollAnchor(anchor) &&
+      typeof target.scrollToItemAnchor === 'function'
+    ) {
+      emitDiagnostic('restoreStarted', 'messageViewport', { anchor });
+      target.scrollToItemAnchor({
+        key: `msg-${anchor.messageIndex}`,
+        offsetFromViewportTop: anchor.offsetFromViewportTop,
+        beforeCount: messageAnchorBeforeCount,
+        afterCount: messageAnchorAfterCount,
+        animated: false,
+      });
+      hasRestoredRef.current = true;
+      emitDiagnostic('restoreScheduled', 'messageViewport', { anchor });
+      return;
+    }
+
+    if (isChatScrollAnchor(anchor)) {
+      const maxOffsetY = Math.max(0, contentHeight - layoutHeight);
+      const targetOffsetY = Math.max(0, maxOffsetY - anchor.bottomGapPx);
+      emitDiagnostic('restoreStarted', 'offsetAnchor', { anchor, targetOffsetY });
+      scrollToOffsetY(target, targetOffsetY);
+      offsetYRef.current = targetOffsetY;
+      updateDerivedScrollState();
+      hasRestoredRef.current = true;
+      emitDiagnostic('restoreCompleted', 'offsetAnchor', { anchor, targetOffsetY });
+      return;
+    }
+
     hasRestoredRef.current = true;
-    emitDiagnostic('restoreComplete', 'offsetAnchor', { anchor, targetOffsetY });
+    emitDiagnostic('restoreSkipped', 'unsupportedAnchor', { anchor });
   }, [
-    connectionId,
-    debugEnabled,
+    dispatchCoordinator,
     emitDiagnostic,
     enabled,
-    initialBottomFollowWindowMs,
-    logBottomFollow,
+    initialBottomConvergenceMaxMs,
     messageAnchorAfterCount,
     messageAnchorBeforeCount,
     messageViewportAnchorsEnabled,
     restoreReady,
-    sessionId,
-    scrollToEdge,
+    startNavigation,
     updateDerivedScrollState,
   ]);
 
@@ -767,9 +987,7 @@ export function useProactiveChatScrollPersistence(params: {
 
       const metrics = await getMacScrollViewMetrics(listRef.current);
       if (!metrics) {
-        if (debugEnabled) {
-          console.log('[scrollPersist] persist(skip:noMetrics)', { connectionId, sessionId, reason });
-        }
+        emitDiagnostic('persistSkipped', 'nativeMetricsUnavailable');
         return;
       }
 
@@ -779,10 +997,10 @@ export function useProactiveChatScrollPersistence(params: {
       let anchor: ChatScrollAnchor | ChatMessageViewportScrollAnchor =
         createChatScrollAnchor({ bottomGapPx, pinnedToBottom });
 
-      if (messageViewportAnchorsEnabled) {
+      if (messageViewportAnchorsEnabled && !pinnedToBottom) {
         const visibleAnchor =
-          typeof (listRef.current as any)?.getVisibleAnchor === 'function'
-            ? await (listRef.current as any).getVisibleAnchor()
+          typeof listRef.current?.getVisibleAnchor === 'function'
+            ? await listRef.current.getVisibleAnchor()
             : null;
         const visibleKey =
           typeof visibleAnchor?.key === 'string' ? visibleAnchor.key : null;
@@ -794,23 +1012,20 @@ export function useProactiveChatScrollPersistence(params: {
             anchor = createChatMessageViewportScrollAnchor({
               messageIndex,
               offsetFromViewportTop,
-              pinnedToBottom,
+              pinnedToBottom: false,
             });
           }
         }
       }
 
-      if (debugEnabled) {
-        console.log('[scrollPersist] persist(pull)', {
-          connectionId,
-          sessionId,
-          reason,
-          metrics,
-          anchor,
-        });
-      }
-
-      emitDiagnostic('persistAnchor', reason, { anchor, metrics });
+      emitDiagnostic('persistAnchor', reason, {
+        anchor,
+        metrics: {
+          offsetY: Math.round(metrics.offsetY),
+          viewportHeight: Math.round(metrics.viewportHeight),
+          contentHeight: Math.round(metrics.contentHeight),
+        },
+      });
       onUpdateCache({
         connectionId,
         sessionId,
@@ -819,12 +1034,11 @@ export function useProactiveChatScrollPersistence(params: {
       });
     },
     [
+      bottomThresholdPx,
       connectionId,
-      debugEnabled,
       emitDiagnostic,
       enabled,
       getMessagesForCache,
-      bottomThresholdPx,
       messageViewportAnchorsEnabled,
       onUpdateCache,
       persistThrottleMs,
@@ -842,33 +1056,38 @@ export function useProactiveChatScrollPersistence(params: {
           clearTimeout(persistTimerRef.current);
           persistTimerRef.current = null;
         }
-        pendingReasonRef.current = null;
+        pendingPersistReasonRef.current = null;
         persistNow(reason, { force: options.force }).catch(() => {});
         return;
       }
-      pendingReasonRef.current = reason;
+      pendingPersistReasonRef.current = reason;
       if (persistTimerRef.current) {
         clearTimeout(persistTimerRef.current);
       }
       persistTimerRef.current = setTimeout(() => {
-        const nextReason = pendingReasonRef.current ?? 'unknown';
-        pendingReasonRef.current = null;
+        const nextReason = pendingPersistReasonRef.current ?? 'unknown';
+        pendingPersistReasonRef.current = null;
         persistTimerRef.current = null;
         persistNow(nextReason, { force: options?.force }).catch(() => {});
       }, persistDebounceMs);
     },
     [enabled, persistDebounceMs, persistNow],
   );
+  persistNowOnUnmountRef.current = persistNow;
 
   const resetRestore = useCallback(
     (reason: string) => {
-      if (debugEnabled) {
-        console.log('[scrollPersist] restore(reset)', { connectionId, sessionId, reason });
-      }
+      dispatchCoordinator({ type: 'clear', reason, nowMs: Date.now() });
+      dispatchCoordinator({
+        type: 'setBottomAffinity',
+        bottomAffinity: affinityForAnchor(initialAnchorRef.current),
+        reason: `${reason}:anchorAffinity`,
+        nowMs: Date.now(),
+      });
       hasRestoredRef.current = false;
       maybeRestoreScroll();
     },
-    [connectionId, debugEnabled, maybeRestoreScroll, sessionId],
+    [dispatchCoordinator, maybeRestoreScroll],
   );
 
   useEffect(() => {
@@ -886,17 +1105,10 @@ export function useProactiveChatScrollPersistence(params: {
     if (!wasEnabled && enabled) {
       resetRestore('becameEnabled');
     }
-  }, [enabled, resetRestore]);
-
-  useEffect(() => {
-    if (enabled) {
-      return;
+    if (wasEnabled && !enabled) {
+      dispatchCoordinator({ type: 'clear', reason: 'becameDisabled', nowMs: Date.now() });
     }
-    if (persistTimerRef.current) {
-      clearTimeout(persistTimerRef.current);
-      persistTimerRef.current = null;
-    }
-  }, [enabled]);
+  }, [dispatchCoordinator, enabled, resetRestore]);
 
   useEffect(() => {
     return () => {
@@ -904,10 +1116,34 @@ export function useProactiveChatScrollPersistence(params: {
         clearTimeout(persistTimerRef.current);
         persistTimerRef.current = null;
       }
-      cancelActiveEdgeScroll();
-      persistNow('unmount', { force: true }).catch(() => {});
+      if (interactionEndTimerRef.current) {
+        clearTimeout(interactionEndTimerRef.current);
+        interactionEndTimerRef.current = null;
+      }
+      if (followLeaseExpiryTimerRef.current) {
+        clearTimeout(followLeaseExpiryTimerRef.current);
+        followLeaseExpiryTimerRef.current = null;
+      }
+      const operationId = coordinatorRef.current.operation?.id;
+      if (operationId != null) {
+        cancelRuntimeOperationOnUnmountRef.current(operationId, 'unmount');
+      }
+      persistNowOnUnmountRef.current('unmount', { force: true }).catch(() => {});
     };
-  }, [cancelActiveEdgeScroll, persistNow]);
+  }, []);
+
+  const signalGeometryChanged = useCallback(
+    (reason: string) => {
+      emitDiagnostic('geometryChanged', reason, {
+        contentHeight:
+          contentHeightRef.current == null ? null : Math.round(contentHeightRef.current),
+        viewportHeight:
+          layoutHeightRef.current == null ? null : Math.round(layoutHeightRef.current),
+      });
+      dispatchCoordinator({ type: 'geometryChanged', reason, nowMs: Date.now() });
+    },
+    [dispatchCoordinator, emitDiagnostic],
+  );
 
   const onLayout = useCallback(
     (event: LayoutChangeEvent) => {
@@ -916,26 +1152,10 @@ export function useProactiveChatScrollPersistence(params: {
         layoutHeightRef.current = height;
       }
       updateDerivedScrollState();
-      continueActiveEdgeScroll('layout');
-      if (debugEnabled) {
-        console.log('[flatListScroll] layout', {
-          connectionId,
-          sessionId,
-          height: Number.isFinite(height) ? height : null,
-          messageCount: getMessagesForCache().length,
-        });
-      }
       maybeRestoreScroll();
+      signalGeometryChanged('layout');
     },
-    [
-      connectionId,
-      continueActiveEdgeScroll,
-      debugEnabled,
-      getMessagesForCache,
-      maybeRestoreScroll,
-      sessionId,
-      updateDerivedScrollState,
-    ],
+    [maybeRestoreScroll, signalGeometryChanged, updateDerivedScrollState],
   );
 
   const onContentSizeChange = useCallback(
@@ -945,82 +1165,133 @@ export function useProactiveChatScrollPersistence(params: {
         contentHeightRef.current = resolved;
       }
       updateDerivedScrollState();
-      continueActiveEdgeScroll('contentSizeChange');
-      if (debugEnabled) {
-        const layoutHeight = layoutHeightRef.current;
-        console.log('[flatListScroll] contentSizeChange', {
-          connectionId,
-          sessionId,
-          width: _width,
-          height: Number.isFinite(resolved) ? resolved : null,
-          layoutHeight,
-          maxOffsetY:
-            Number.isFinite(resolved) && layoutHeight != null
-              ? Math.max(0, resolved - layoutHeight)
-              : null,
-          messageCount: getMessagesForCache().length,
-        });
-      }
       maybeRestoreScroll();
+      signalGeometryChanged('contentSizeChange');
     },
-    [
-      connectionId,
-      continueActiveEdgeScroll,
-      debugEnabled,
-      getMessagesForCache,
-      maybeRestoreScroll,
-      sessionId,
-      updateDerivedScrollState,
-    ],
+    [maybeRestoreScroll, signalGeometryChanged, updateDerivedScrollState],
   );
 
-  const onScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    // Persistence still uses native pull-based metrics, but scroll events are
-    // useful for lightweight affordance state.
-    applyEventMetrics(event);
-    handlePossibleManualScroll();
-    continueActiveEdgeScroll('scroll');
-    logScrollDiagnostics('scroll', event);
-  }, [
-    applyEventMetrics,
-    continueActiveEdgeScroll,
-    handlePossibleManualScroll,
-    logScrollDiagnostics,
-  ]);
+  const onScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      applyEventMetrics(event);
+      const operationId = coordinatorRef.current.operation?.id;
+      if (operationId != null) {
+        scheduleRuntimeOperationRef.current(operationId);
+      }
+    },
+    [applyEventMetrics],
+  );
 
-  const onScrollBeginDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    applyEventMetrics(event);
-    bottomFollowEnabledRef.current = false;
-    bottomFollowUntilMsRef.current = 0;
-    cancelActiveEdgeScroll();
-    logBottomFollow('stopBeginDrag');
-    logScrollDiagnostics('scrollBeginDrag', event);
-	  }, [applyEventMetrics, cancelActiveEdgeScroll, logBottomFollow, logScrollDiagnostics]);
+  const beginInteraction = useCallback(
+    (
+      interaction: 'dragging' | 'momentum',
+      reason: string,
+      event: NativeSyntheticEvent<NativeScrollEvent>,
+    ) => {
+      if (interactionEndTimerRef.current) {
+        clearTimeout(interactionEndTimerRef.current);
+        interactionEndTimerRef.current = null;
+      }
+      userInteractionActiveRef.current = true;
+      applyEventMetrics(event);
+      dispatchCoordinator({
+        type: 'interactionBegan',
+        interaction,
+        reason,
+        nowMs: Date.now(),
+      });
+    },
+    [applyEventMetrics, dispatchCoordinator],
+  );
 
-  const onScrollEndDrag = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    applyEventMetrics(event);
-    continueActiveEdgeScroll('scrollEndDrag');
-    logScrollDiagnostics('scrollEndDrag', event);
-    // If end-drag events are delivered, opportunistically persist.
-    requestPersist('scrollEndDrag');
-  }, [applyEventMetrics, continueActiveEdgeScroll, logScrollDiagnostics, requestPersist]);
+  const finishInteraction = useCallback(
+    (reason: string, event?: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (interactionEndTimerRef.current) {
+        clearTimeout(interactionEndTimerRef.current);
+        interactionEndTimerRef.current = null;
+      }
+      if (event) {
+        applyEventMetrics(event);
+      }
+      userInteractionActiveRef.current = false;
+      dispatchCoordinator({
+        type: 'interactionEnded',
+        atBottom: isNearBottomRef.current,
+        reason,
+        nowMs: Date.now(),
+      });
+    },
+    [applyEventMetrics, dispatchCoordinator],
+  );
+
+  const onScrollBeginDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      beginInteraction('dragging', 'scrollBeginDrag', event);
+    },
+    [beginInteraction],
+  );
+
+  const onScrollEndDrag = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      applyEventMetrics(event);
+      requestPersist('scrollEndDrag');
+      if (interactionEndTimerRef.current) {
+        clearTimeout(interactionEndTimerRef.current);
+      }
+      interactionEndTimerRef.current = setTimeout(() => {
+        interactionEndTimerRef.current = null;
+        finishInteraction('scrollEndDragSettled');
+      }, INTERACTION_END_SETTLE_MS);
+    },
+    [applyEventMetrics, finishInteraction, requestPersist],
+  );
+
+  const onMomentumScrollBegin = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      if (userInteractionActiveRef.current) {
+        beginInteraction('momentum', 'momentumScrollBegin', event);
+        return;
+      }
+      // Some RN list implementations emit momentum callbacks for animated
+      // programmatic navigation. Without a preceding drag this is observation,
+      // not user intent, and must not cancel the navigation operation.
+      applyEventMetrics(event);
+      const operationId = coordinatorRef.current.operation?.id;
+      if (operationId != null) {
+        scheduleRuntimeOperationRef.current(operationId);
+      }
+    },
+    [applyEventMetrics, beginInteraction],
+  );
 
   const onMomentumScrollEnd = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      applyEventMetrics(event);
-      continueActiveEdgeScroll('momentumScrollEnd');
-      logScrollDiagnostics('momentumScrollEnd', event);
-      requestPersist('scrollMomentumEnd');
+      if (userInteractionActiveRef.current) {
+        finishInteraction('momentumScrollEnd', event);
+        requestPersist('scrollMomentumEnd');
+      } else {
+        applyEventMetrics(event);
+        const operationId = coordinatorRef.current.operation?.id;
+        if (operationId != null) {
+          scheduleRuntimeOperationRef.current(operationId);
+          emitDiagnostic('persistSkipped', 'programmaticMomentumDuringOperation', {
+            operationId,
+          });
+        } else {
+          requestPersist('programmaticMomentumEnd');
+        }
+      }
     },
-    [applyEventMetrics, continueActiveEdgeScroll, logScrollDiagnostics, requestPersist],
+    [applyEventMetrics, emitDiagnostic, finishInteraction, requestPersist],
   );
 
-  const result = useMemo(() => {
-    return {
+  const result = useMemo(
+    () => ({
       listRef,
       onScroll,
       onScrollBeginDrag,
       onScrollEndDrag,
+      onMomentumScrollBegin,
       onMomentumScrollEnd,
       onLayout,
       onContentSizeChange,
@@ -1028,27 +1299,31 @@ export function useProactiveChatScrollPersistence(params: {
       resetRestore,
       scrollToTop,
       scrollToBottom,
-      requestBottomFollow,
+      notifyBottomContentChange,
+      onListScrollDiagnostic,
       canScrollToTop: scrollAffordanceState.canScrollToTop,
       canScrollToBottom: scrollAffordanceState.canScrollToBottom,
       isNearBottom: scrollAffordanceState.isNearBottom,
-    };
-  }, [
-    scrollAffordanceState.canScrollToBottom,
-    scrollAffordanceState.canScrollToTop,
-    scrollAffordanceState.isNearBottom,
-    onContentSizeChange,
-    onLayout,
-    onMomentumScrollEnd,
-    onScroll,
-    onScrollBeginDrag,
-    onScrollEndDrag,
-    requestPersist,
-	    requestBottomFollow,
-    resetRestore,
-    scrollToBottom,
-    scrollToTop,
-  ]);
+    }),
+    [
+      notifyBottomContentChange,
+      onListScrollDiagnostic,
+      onContentSizeChange,
+      onLayout,
+      onMomentumScrollBegin,
+      onMomentumScrollEnd,
+      onScroll,
+      onScrollBeginDrag,
+      onScrollEndDrag,
+      requestPersist,
+      resetRestore,
+      scrollAffordanceState.canScrollToBottom,
+      scrollAffordanceState.canScrollToTop,
+      scrollAffordanceState.isNearBottom,
+      scrollToBottom,
+      scrollToTop,
+    ],
+  );
 
   return result;
 }

@@ -149,6 +149,57 @@ To learn more about React Native, take a look at the following resources:
 - [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
 - [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
 
+## Transcript scroll diagnostics
+
+Desktop transcript navigation and content-follow diagnostics are disabled by
+default. Enable concise lifecycle logging before the app is registered:
+
+```js
+globalThis.CLC_DEBUG_CHAT_SCROLL_COORDINATOR = true;
+```
+
+Lifecycle mode reports navigation start/completion, bounded content-follow
+lease start/renewal/expiration, interaction cancellation, and operation
+timeouts. Repeated lease renewals are rate-limited so streaming logs remain
+copyable.
+
+For frame-level native observations and correction writes, additionally set:
+
+```js
+globalThis.CLC_DEBUG_CHAT_SCROLL_COORDINATOR_VERBOSE = true;
+```
+
+Verbose mode is intended for focused manual or harness runs and should
+normally remain disabled.
+
+The entry point emits one `[chatScrollBootstrap]` line when lifecycle
+diagnostics are enabled. Each mounted transcript then emits one
+`configuration` event. Check both lines before interpreting a trace:
+
+```text
+maxEdgeCorrections=60
+manualBottomConvergenceMaxMs=15000
+initialBottomConvergenceMaxMs=15000
+```
+
+Far FlatList item-anchor navigation additionally reports:
+
+```text
+listAnchorStarted
+listAnchorProgress
+listAnchorCompleted
+listAnchorStopped
+```
+
+The start event includes the effective `timeoutMs` and `maxAttempts`. These
+settings can be configured before application modules are loaded:
+
+```js
+globalThis.CLC_FLATLIST_MAX_EDGE_CORRECTIONS = 60;
+globalThis.CLC_FLATLIST_ITEM_ANCHOR_TIMEOUT_MS = 15000;
+globalThis.CLC_FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS = 200;
+```
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

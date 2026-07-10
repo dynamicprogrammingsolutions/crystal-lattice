@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { IndexedMessage } from '@crystal-lattice/frontend-sdk';
@@ -28,8 +28,14 @@ type HarnessProps = {
 
 const TOTAL_MESSAGES = 180;
 const TARGET_MESSAGE_INDEX = 120;
+const FAR_TARGET_MESSAGE_INDEX = 170;
 const TARGET_MESSAGE_OFFSET = 40;
 const TARGET_SCROLL_OFFSET = 420;
+const HARNESS_CONTENT_FOLLOW_LEASE_MS = 700;
+const HARNESS_NAVIGATION_MAX_MS = 15000;
+const HARNESS_MAX_EDGE_CORRECTIONS = 60;
+const HARNESS_ITEM_ANCHOR_TIMEOUT_MS = 15000;
+const HARNESS_ITEM_ANCHOR_MAX_ATTEMPTS = 200;
 
 function buildMessages(): HarnessMessage[] {
   return Array.from({ length: TOTAL_MESSAGES }, (_, index) => {
@@ -99,7 +105,9 @@ export function TranscriptScrollPersistenceHarness({
 }: HarnessProps): React.JSX.Element {
   const implementation = normalizeImplementation(transcriptScrollListImplementation);
   const backingList = normalizeBackingList(progressiveScrollBackingList);
-  const messages = useMemo(() => buildMessages(), []);
+  const [messages, setMessages] = useState<HarnessMessage[]>(() => buildMessages());
+  const [bottomContentRevision, setBottomContentRevision] = useState(0);
+  const [geometryPulseHeight, setGeometryPulseHeight] = useState(0);
   const [cachedScrollAnchor, setCachedScrollAnchor] = useState<unknown>(null);
   const [restoreReady, setRestoreReady] = useState(initialRestoreReady);
   const [restoreVersion, setRestoreVersion] = useState(0);
@@ -108,11 +116,61 @@ export function TranscriptScrollPersistenceHarness({
   const cachedScrollAnchorRef = useRef<unknown>(null);
   const restoreReadyRef = useRef(initialRestoreReady);
   const diagnosticsRef = useRef<Array<Record<string, unknown>>>([]);
+  const diagnosticEventCountsRef = useRef<Record<string, number>>({});
+  const contentFollowCorrectionCountRef = useRef(0);
+  const contentFollowTerminalCountRef = useRef(0);
+  const navigationCorrectionCountRef = useRef(0);
+  const navigationTerminalCountRef = useRef(0);
+  const listAnchorStartedDetailsRef = useRef<Record<string, unknown> | null>(null);
+  const effectiveScrollConfigurationRef = useRef<Record<string, unknown> | null>(null);
+  const feedbackPulseEnabledRef = useRef(false);
+  const feedbackPulseCountRef = useRef(0);
   const lastCommandKeyRef = useRef<string | null>(null);
   const pendingResetReasonRef = useRef<string | null>(null);
 
   const recordDiagnostic = useCallback((entry: Record<string, unknown>) => {
-    diagnosticsRef.current = [...diagnosticsRef.current.slice(-79), { at: Date.now(), ...entry }];
+    diagnosticsRef.current = [...diagnosticsRef.current.slice(-119), { at: Date.now(), ...entry }];
+    const event = typeof entry.event === 'string' ? entry.event : 'unknown';
+    diagnosticEventCountsRef.current[event] =
+      (diagnosticEventCountsRef.current[event] ?? 0) + 1;
+    const details =
+      entry.details != null && typeof entry.details === 'object'
+        ? (entry.details as Record<string, unknown>)
+        : null;
+    const purpose = details?.purpose;
+    if (event === 'operationCorrection') {
+      if (purpose === 'contentFollow') {
+        contentFollowCorrectionCountRef.current += 1;
+      } else if (purpose === 'navigation') {
+        navigationCorrectionCountRef.current += 1;
+      }
+    }
+    if (
+      event === 'operationCompleted' ||
+      event === 'operationExpired' ||
+      event === 'operationCorrectionLimit' ||
+      event === 'operationUnavailable' ||
+      event === 'operationCancelled'
+    ) {
+      if (purpose === 'contentFollow') {
+        contentFollowTerminalCountRef.current += 1;
+      } else if (purpose === 'navigation') {
+        navigationTerminalCountRef.current += 1;
+      }
+    }
+    if (event === 'listAnchorStarted') {
+      listAnchorStartedDetailsRef.current = details;
+    }
+  }, []);
+
+  const resetDiagnostics = useCallback(() => {
+    diagnosticsRef.current = [];
+    diagnosticEventCountsRef.current = {};
+    contentFollowCorrectionCountRef.current = 0;
+    contentFollowTerminalCountRef.current = 0;
+    navigationCorrectionCountRef.current = 0;
+    navigationTerminalCountRef.current = 0;
+    listAnchorStartedDetailsRef.current = null;
   }, []);
 
   useEffect(() => {
@@ -136,6 +194,9 @@ export function TranscriptScrollPersistenceHarness({
   );
   const handleDiagnosticEvent = useCallback(
     (event: { event: string; reason?: string; details?: Record<string, unknown> }) => {
+      if (event.event === 'configuration') {
+        effectiveScrollConfigurationRef.current = event.details ?? null;
+      }
       recordDiagnostic({
         event: event.event,
         reason: event.reason ?? null,
@@ -154,6 +215,12 @@ export function TranscriptScrollPersistenceHarness({
     enabled: true,
     restoreReady,
     bottomThresholdPx: 4,
+    contentFollowEnabled: true,
+    contentFollowLeaseMs: HARNESS_CONTENT_FOLLOW_LEASE_MS,
+    manualBottomConvergenceMaxMs: HARNESS_NAVIGATION_MAX_MS,
+    initialBottomConvergenceMaxMs: HARNESS_NAVIGATION_MAX_MS,
+    bottomContentRevision,
+    maxEdgeCorrections: HARNESS_MAX_EDGE_CORRECTIONS,
     messageViewportAnchorsEnabled:
       implementation === 'flatList' || implementation === 'progressiveScroll',
     listEdgeMethodsEnabled: implementation === 'progressiveScroll',
@@ -200,8 +267,13 @@ export function TranscriptScrollPersistenceHarness({
             ? getItemViewportOffset(`msg-${TARGET_MESSAGE_INDEX}`)
             : null,
         ),
+        Promise.resolve(
+          typeof getItemViewportOffset === 'function'
+            ? getItemViewportOffset(`msg-${FAR_TARGET_MESSAGE_INDEX}`)
+            : null,
+        ),
       ])
-        .then(([metrics, visibleAnchor, targetOffset]) => {
+        .then(([metrics, visibleAnchor, targetOffset, farTargetOffset]) => {
           const maxOffsetY =
             metrics != null ? Math.max(0, metrics.contentHeight - metrics.viewportHeight) : null;
           DesktopWindowManager?.recordProgressiveScrollHarnessState?.({
@@ -215,11 +287,29 @@ export function TranscriptScrollPersistenceHarness({
             targetMessageRequestedOffsetFromViewportTop: TARGET_MESSAGE_OFFSET,
             targetMessageActualOffsetFromViewportTop:
               typeof targetOffset === 'number' ? Math.round(targetOffset) : null,
+            farTargetMessageIndex: FAR_TARGET_MESSAGE_INDEX,
+            farTargetMessageRequestedOffsetFromViewportTop: TARGET_MESSAGE_OFFSET,
+            farTargetMessageActualOffsetFromViewportTop:
+              typeof farTargetOffset === 'number' ? Math.round(farTargetOffset) : null,
             targetScrollOffsetY: TARGET_SCROLL_OFFSET,
             offsetY: metrics ? Math.round(metrics.offsetY) : null,
             viewportHeight: metrics ? Math.round(metrics.viewportHeight) : null,
             contentHeight: metrics ? Math.round(metrics.contentHeight) : null,
             maxOffsetY: maxOffsetY == null ? null : Math.round(maxOffsetY),
+            bottomGapPx:
+              metrics && maxOffsetY != null
+                ? Math.round(Math.max(0, maxOffsetY - metrics.offsetY))
+                : null,
+            bottomContentRevision,
+            geometryPulseHeight,
+            feedbackPulseCount: feedbackPulseCountRef.current,
+            diagnosticEventCounts: diagnosticEventCountsRef.current,
+            contentFollowCorrectionCount: contentFollowCorrectionCountRef.current,
+            contentFollowTerminalCount: contentFollowTerminalCountRef.current,
+            navigationCorrectionCount: navigationCorrectionCountRef.current,
+            navigationTerminalCount: navigationTerminalCountRef.current,
+            effectiveScrollConfiguration: effectiveScrollConfigurationRef.current,
+            listAnchorStartedDetails: listAnchorStartedDetailsRef.current,
             savedAnchor: describeAnchor(savedAnchorRef.current),
             cachedAnchor: describeAnchor(cachedScrollAnchorRef.current),
             visibleAnchor: visibleAnchor
@@ -248,6 +338,8 @@ export function TranscriptScrollPersistenceHarness({
     },
     [
       backingList,
+      bottomContentRevision,
+      geometryPulseHeight,
       implementation,
       scrollHarnessRunId,
       status,
@@ -277,6 +369,38 @@ export function TranscriptScrollPersistenceHarness({
     [recordHarnessState, transcriptScroll, waitForListSettled],
   );
 
+  const waitForNavigationSettled = useCallback(
+    (callback: () => void, timeoutMs = HARNESS_NAVIGATION_MAX_MS + 1500) => {
+      const startedAt = Date.now();
+      const poll = () => {
+        const settled = diagnosticsRef.current.some((entry) => {
+          if (
+            entry.event !== 'operationCompleted' &&
+            entry.event !== 'operationExpired' &&
+            entry.event !== 'operationCorrectionLimit' &&
+            entry.event !== 'operationUnavailable' &&
+            entry.event !== 'operationCancelled'
+          ) {
+            return false;
+          }
+          const details = entry.details;
+          return (
+            details != null &&
+            typeof details === 'object' &&
+            (details as Record<string, unknown>).purpose === 'navigation'
+          );
+        });
+        if (settled || Date.now() - startedAt >= timeoutMs) {
+          callback();
+          return;
+        }
+        setTimeout(poll, 80);
+      };
+      setTimeout(poll, 80);
+    },
+    [],
+  );
+
   const executeCommand = useCallback(
     (command: string) => {
       setStatus(`command ${command}`);
@@ -284,6 +408,122 @@ export function TranscriptScrollPersistenceHarness({
 
       if (command === 'read') {
         recordHarnessState(command, 'command read');
+        return;
+      }
+
+      if (command === 'navigationSeparation') {
+        resetDiagnostics();
+        feedbackPulseEnabledRef.current = false;
+        feedbackPulseCountRef.current = 0;
+        setGeometryPulseHeight(0);
+        transcriptScroll.scrollToBottom(false);
+        waitForNavigationSettled(() => {
+          // This is an intentionally geometry-only change. It must not create
+          // or renew a semantic content-follow lease.
+          setGeometryPulseHeight(120);
+          setTimeout(() => {
+            recordHarnessState(command, 'command navigationSeparation');
+          }, HARNESS_CONTENT_FOLLOW_LEASE_MS + 500);
+        });
+        return;
+      }
+
+      if (command === 'longDistanceBottom') {
+        resetDiagnostics();
+        feedbackPulseEnabledRef.current = false;
+        feedbackPulseCountRef.current = 0;
+        const allMessages = buildMessages();
+        setMessages(allMessages.slice(0, 20));
+        setTimeout(() => {
+          resetDiagnostics();
+          transcriptScroll.scrollToBottom(false);
+          let nextCount = 40;
+          const growTranscript = () => {
+            setMessages(allMessages.slice(0, nextCount));
+            if (nextCount < allMessages.length) {
+              nextCount = Math.min(allMessages.length, nextCount + 20);
+              setTimeout(growTranscript, 80);
+            }
+          };
+          setTimeout(growTranscript, 40);
+          waitForNavigationSettled(() => {
+            recordHarnessState(command, 'command longDistanceBottom');
+          });
+        }, 250);
+        return;
+      }
+
+      if (command === 'farMessageAnchor') {
+        resetDiagnostics();
+        transcriptScroll.scrollToTop(false);
+        waitForNavigationSettled(() => {
+          resetDiagnostics();
+          transcriptScroll.listRef.current?.scrollToItemAnchor?.({
+            key: `msg-${FAR_TARGET_MESSAGE_INDEX}`,
+            sourceIndex: FAR_TARGET_MESSAGE_INDEX,
+            offsetFromViewportTop: TARGET_MESSAGE_OFFSET,
+            beforeCount: 40,
+            afterCount: 9,
+            animated: false,
+          });
+          waitForListSettled(
+            () => recordHarnessState(command, 'command farMessageAnchor'),
+            HARNESS_ITEM_ANCHOR_TIMEOUT_MS + 1500,
+          );
+        });
+        return;
+      }
+
+      if (command === 'semanticContentFollow') {
+        resetDiagnostics();
+        feedbackPulseEnabledRef.current = false;
+        feedbackPulseCountRef.current = 0;
+        setGeometryPulseHeight(0);
+        transcriptScroll.scrollToBottom(false);
+        waitForNavigationSettled(() => {
+          setMessages((current) => [
+            ...current,
+            {
+              index: current.length,
+              message: {
+                role: 'assistant',
+                content:
+                  'Semantic content-follow harness row. '.repeat(18),
+              },
+            },
+          ]);
+          setBottomContentRevision((current) => current + 1);
+          setTimeout(() => {
+            recordHarnessState(command, 'command semanticContentFollow');
+          }, HARNESS_CONTENT_FOLLOW_LEASE_MS + 900);
+        });
+        return;
+      }
+
+      if (command === 'feedbackLoop') {
+        resetDiagnostics();
+        feedbackPulseEnabledRef.current = true;
+        feedbackPulseCountRef.current = 0;
+        setGeometryPulseHeight(0);
+        transcriptScroll.scrollToBottom(false);
+        waitForNavigationSettled(() => {
+          setMessages((current) => [
+            ...current,
+            {
+              index: current.length,
+              message: {
+                role: 'assistant',
+                content:
+                  'Feedback-loop harness row. '.repeat(24),
+              },
+            },
+          ]);
+          setBottomContentRevision((current) => current + 1);
+          setTimeout(() => {
+            feedbackPulseEnabledRef.current = false;
+            recordHarnessState(command, 'command feedbackLoop');
+          }, HARNESS_CONTENT_FOLLOW_LEASE_MS + 1200);
+        });
         return;
       }
 
@@ -419,9 +659,28 @@ export function TranscriptScrollPersistenceHarness({
       persistAndRecord,
       recordDiagnostic,
       recordHarnessState,
+      resetDiagnostics,
       transcriptScroll,
       waitForListSettled,
+      waitForNavigationSettled,
     ],
+  );
+
+  const handleContentSizeChange = useCallback(
+    (width: number, height: number) => {
+      transcriptScroll.onContentSizeChange(width, height);
+      if (!feedbackPulseEnabledRef.current || feedbackPulseCountRef.current >= 6) {
+        return;
+      }
+      feedbackPulseCountRef.current += 1;
+      const nextHeight = feedbackPulseCountRef.current % 2 === 0 ? 24 : 96;
+      setTimeout(() => {
+        if (feedbackPulseEnabledRef.current) {
+          setGeometryPulseHeight(nextHeight);
+        }
+      }, 40);
+    },
+    [transcriptScroll],
   );
 
   useEffect(() => {
@@ -496,12 +755,23 @@ export function TranscriptScrollPersistenceHarness({
     keyExtractor: (item: HarnessMessage) => `msg-${item.index}`,
     scrollEventThrottle: 16,
     onLayout: transcriptScroll.onLayout,
-    onContentSizeChange: transcriptScroll.onContentSizeChange,
+    onContentSizeChange: handleContentSizeChange,
     onScroll: transcriptScroll.onScroll,
     onScrollBeginDrag: transcriptScroll.onScrollBeginDrag,
     onScrollEndDrag: transcriptScroll.onScrollEndDrag,
+    onMomentumScrollBegin: transcriptScroll.onMomentumScrollBegin,
     onMomentumScrollEnd: transcriptScroll.onMomentumScrollEnd,
+    itemAnchorTimeoutMs: HARNESS_ITEM_ANCHOR_TIMEOUT_MS,
+    itemAnchorMaxAttempts: HARNESS_ITEM_ANCHOR_MAX_ATTEMPTS,
+    onScrollActionDiagnostic: transcriptScroll.onListScrollDiagnostic,
     renderItem,
+    ListFooterComponent:
+      geometryPulseHeight > 0 ? (
+        <View
+          testID="transcript-scroll-geometry-pulse"
+          style={{ height: geometryPulseHeight }}
+        />
+      ) : null,
   };
 
   return (

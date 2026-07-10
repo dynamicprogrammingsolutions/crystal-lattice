@@ -53,6 +53,23 @@ describe('resolveFlatListRenderTuning', () => {
     });
   });
 
+  it('keeps transient synthetic rows eager when the message count is at the threshold', () => {
+    expect(
+      resolveFlatListRenderTuning({
+        rowCount: 101,
+        eagerRenderEligibilityCount: 100,
+        eagerRenderThreshold: 100,
+        ...configuredTuning,
+      }),
+    ).toEqual({
+      eagerRenderAll: true,
+      initialNumToRender: 101,
+      maxToRenderPerBatch: 101,
+      updateCellsBatchingPeriod: 0,
+      removeClippedSubviews: false,
+    });
+  });
+
   it('uses a valid minimum batch size for an empty transcript', () => {
     expect(
       resolveFlatListRenderTuning({

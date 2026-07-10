@@ -162,20 +162,6 @@ function readOptionalGlobalString<T extends string>(
   return typeof value === 'string' && allowed.includes(value as T) ? (value as T) : undefined;
 }
 
-function approximateRenderedContentLength(value: unknown): number {
-  if (value == null) {
-    return 0;
-  }
-  if (typeof value === 'string') {
-    return value.length;
-  }
-  try {
-    return JSON.stringify(value)?.length ?? 1;
-  } catch {
-    return 1;
-  }
-}
-
 const FLATLIST_DISABLE_VIRTUALIZATION = readGlobalBoolean(
   'CLC_FLATLIST_DISABLE_VIRTUALIZATION',
   false,
@@ -211,12 +197,24 @@ const FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS =
   readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS') ?? 200;
 const FLATLIST_BOTTOM_CONVERGENCE_MAX_MS =
   readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_CONVERGENCE_MAX_MS') ?? 3000;
-const FLATLIST_BOTTOM_FOLLOW_WINDOW_MS =
-  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_FOLLOW_WINDOW_MS') ?? 1000;
-const FLATLIST_MANUAL_BOTTOM_FOLLOW_WINDOW_MS =
-  readOptionalGlobalNumber('CLC_FLATLIST_MANUAL_BOTTOM_FOLLOW_WINDOW_MS') ?? 3000;
-const FLATLIST_INITIAL_BOTTOM_FOLLOW_WINDOW_MS =
-  readOptionalGlobalNumber('CLC_FLATLIST_INITIAL_BOTTOM_FOLLOW_WINDOW_MS') ?? 5000;
+const FLATLIST_CONTENT_FOLLOW_LEASE_MS =
+  readOptionalGlobalNumber('CLC_FLATLIST_CONTENT_FOLLOW_LEASE_MS') ??
+  readOptionalGlobalNumber('CLC_FLATLIST_BOTTOM_FOLLOW_WINDOW_MS') ??
+  1000;
+const FLATLIST_MANUAL_BOTTOM_CONVERGENCE_MAX_MS =
+  readOptionalGlobalNumber('CLC_FLATLIST_MANUAL_BOTTOM_CONVERGENCE_MAX_MS') ??
+  readOptionalGlobalNumber('CLC_FLATLIST_MANUAL_BOTTOM_FOLLOW_WINDOW_MS') ??
+  3000;
+const FLATLIST_INITIAL_BOTTOM_CONVERGENCE_MAX_MS =
+  readOptionalGlobalNumber('CLC_FLATLIST_INITIAL_BOTTOM_CONVERGENCE_MAX_MS') ??
+  readOptionalGlobalNumber('CLC_FLATLIST_INITIAL_BOTTOM_FOLLOW_WINDOW_MS') ??
+  5000;
+const FLATLIST_MAX_EDGE_CORRECTIONS =
+  readOptionalGlobalNumber('CLC_FLATLIST_MAX_EDGE_CORRECTIONS') ?? 12;
+const FLATLIST_ITEM_ANCHOR_TIMEOUT_MS =
+  readOptionalGlobalNumber('CLC_FLATLIST_ITEM_ANCHOR_TIMEOUT_MS') ?? 3000;
+const FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS =
+  readOptionalGlobalNumber('CLC_FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS') ?? 50;
 const FLATLIST_BOTTOM_LOCK = readGlobalBoolean('CLC_FLATLIST_BOTTOM_LOCK', true);
 const PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE =
   readOptionalGlobalNumber('CLC_PROGRESSIVE_SCROLL_INITIAL_WINDOW_SIZE') ?? 50;
@@ -606,7 +604,10 @@ export const ChatPane = React.memo(function ChatPane({
   // These are config-aware and filter based on the session's agent config.
   // Used ONLY for session_action and message_action in the chat context.
   // Do NOT combine with global application UI elements from useApplicationPlugins().
-  const sessionAppUiElements = sessionAppUiSchemaState?.elements ?? [];
+  const sessionAppUiElements = useMemo(
+    () => sessionAppUiSchemaState?.elements ?? [],
+    [sessionAppUiSchemaState?.elements],
+  );
 
   // Session-scoped actions for chat context (config-aware)
   const visibleSessionActions = useMemo(
@@ -979,6 +980,19 @@ export const ChatPane = React.memo(function ChatPane({
     composerRef,
   });
 
+  const streamingRow = chatState?.streamingRow ?? null;
+  const bottomContentRevisionRef = useRef(0);
+  const bottomContentRevision = useMemo(() => {
+    bottomContentRevisionRef.current += 1;
+    return {
+      sequence: bottomContentRevisionRef.current,
+      messageCount: messages.length,
+      lastMessageIndex: messages.length > 0 ? messages[messages.length - 1].index : null,
+      streamingRequestId: streamingRow?.requestId ?? null,
+      inlineDisplayCount: inlineActionDisplays.length,
+    };
+  }, [inlineActionDisplays, messages, streamingRow]);
+
   const transcriptScroll = useProactiveChatScrollPersistence({
     connectionId,
     sessionId,
@@ -990,11 +1004,13 @@ export const ChatPane = React.memo(function ChatPane({
     bottomThresholdPx: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
     bottomConvergenceStableMs: FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS,
     bottomConvergenceMaxMs: FLATLIST_BOTTOM_CONVERGENCE_MAX_MS,
-    bottomFollowWindowMs: FLATLIST_BOTTOM_FOLLOW_WINDOW_MS,
-    manualBottomFollowWindowMs: FLATLIST_MANUAL_BOTTOM_FOLLOW_WINDOW_MS,
-    initialBottomFollowWindowMs: FLATLIST_INITIAL_BOTTOM_FOLLOW_WINDOW_MS,
-    bottomLockEnabled:
+    contentFollowLeaseMs: FLATLIST_CONTENT_FOLLOW_LEASE_MS,
+    manualBottomConvergenceMaxMs: FLATLIST_MANUAL_BOTTOM_CONVERGENCE_MAX_MS,
+    initialBottomConvergenceMaxMs: FLATLIST_INITIAL_BOTTOM_CONVERGENCE_MAX_MS,
+    maxEdgeCorrections: FLATLIST_MAX_EDGE_CORRECTIONS,
+    contentFollowEnabled:
       TRANSCRIPT_LIST_IMPLEMENTATION === 'progressiveScroll' ? false : FLATLIST_BOTTOM_LOCK,
+    bottomContentRevision,
     messageAnchorBeforeCount: PROGRESSIVE_SCROLL_ANCHOR_BEFORE_COUNT,
     messageAnchorAfterCount: PROGRESSIVE_SCROLL_ANCHOR_AFTER_COUNT,
     messageViewportAnchorsEnabled:
@@ -1013,30 +1029,6 @@ export const ChatPane = React.memo(function ChatPane({
       requestPersistTranscriptScroll('tabHidden', { force: true, immediate: true });
     }
   }, [isVisible, requestPersistTranscriptScroll]);
-
-
-  const streamingRow = chatState?.streamingRow ?? null;
-  const bottomContentVersion = useMemo(() => {
-    const lastMessageIndex = messages.length > 0 ? messages[messages.length - 1].index : null;
-    return JSON.stringify({
-      lastMessageIndex,
-      hasStreaming: !!streamingRow,
-      streamingContentLength: approximateRenderedContentLength(streamingRow?.content),
-      streamingReasoningLength: approximateRenderedContentLength(streamingRow?.reasoning),
-      inlineDisplayCount: inlineActionDisplays.length,
-    });
-  }, [inlineActionDisplays.length, messages, streamingRow]);
-  const previousBottomContentVersionRef = useRef<string | null>(null);
-  useEffect(() => {
-    const previous = previousBottomContentVersionRef.current;
-    previousBottomContentVersionRef.current = bottomContentVersion;
-    if (previous == null || previous === bottomContentVersion) {
-      return;
-    }
-    transcriptScroll.requestBottomFollow('bottomContentChanged', {
-      windowMs: FLATLIST_BOTTOM_FOLLOW_WINDOW_MS,
-    });
-  }, [bottomContentVersion, transcriptScroll]);
 
   const { statusBarParts, ensureAgentsLoaded, agentsLoading } = useSessionStatusBarParts({
     backend,
@@ -2857,6 +2849,10 @@ export const ChatPane = React.memo(function ChatPane({
 	              scrollEventThrottle={16}
 	              disableVirtualization={FLATLIST_DISABLE_VIRTUALIZATION}
 	              eagerRenderThreshold={FLATLIST_EAGER_RENDER_THRESHOLD}
+	              eagerRenderEligibilityCount={messages.length}
+	              itemAnchorTimeoutMs={FLATLIST_ITEM_ANCHOR_TIMEOUT_MS}
+	              itemAnchorMaxAttempts={FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS}
+	              onScrollActionDiagnostic={transcriptScroll.onListScrollDiagnostic}
 	              initialNumToRender={FLATLIST_INITIAL_NUM_TO_RENDER}
 	              maxToRenderPerBatch={FLATLIST_MAX_TO_RENDER_PER_BATCH}
 	              updateCellsBatchingPeriod={FLATLIST_UPDATE_CELLS_BATCHING_PERIOD}
@@ -2866,6 +2862,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
 	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+	              onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
 	              onScrollEndDrag={
 	                FLATLIST_FORWARD_SCROLL_END_DRAG
 	                  ? transcriptScroll.onScrollEndDrag
@@ -2903,6 +2900,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
 	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+	              onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
 	              onScrollEndDrag={
 	                FLATLIST_FORWARD_SCROLL_END_DRAG
 	                  ? transcriptScroll.onScrollEndDrag
@@ -2946,6 +2944,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
 	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+	              onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
 	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
 	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
 	              renderItem={renderTranscriptRow}
@@ -2983,6 +2982,7 @@ export const ChatPane = React.memo(function ChatPane({
 	              onContentSizeChange={transcriptScroll.onContentSizeChange}
 	              onScroll={transcriptScroll.onScroll}
 	              onScrollBeginDrag={transcriptScroll.onScrollBeginDrag}
+	              onMomentumScrollBegin={transcriptScroll.onMomentumScrollBegin}
 	              onScrollEndDrag={transcriptScroll.onScrollEndDrag}
 	              onMomentumScrollEnd={transcriptScroll.onMomentumScrollEnd}
 	              renderItem={renderMessageItem}

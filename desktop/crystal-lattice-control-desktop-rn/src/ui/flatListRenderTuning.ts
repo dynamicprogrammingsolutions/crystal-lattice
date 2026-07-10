@@ -8,6 +8,7 @@ export type FlatListRenderTuning = {
 
 export function resolveFlatListRenderTuning(params: {
   rowCount: number;
+  eagerRenderEligibilityCount?: number;
   eagerRenderThreshold?: number;
   initialNumToRender?: number;
   maxToRenderPerBatch?: number;
@@ -23,7 +24,12 @@ export function resolveFlatListRenderTuning(params: {
     params.eagerRenderThreshold > 0
       ? Math.floor(params.eagerRenderThreshold)
       : 0;
-  const eagerRenderAll = threshold > 0 && rowCount <= threshold;
+  const eligibilityCount =
+    typeof params.eagerRenderEligibilityCount === 'number' &&
+    Number.isFinite(params.eagerRenderEligibilityCount)
+      ? Math.max(0, Math.floor(params.eagerRenderEligibilityCount))
+      : rowCount;
+  const eagerRenderAll = threshold > 0 && eligibilityCount <= threshold;
 
   if (!eagerRenderAll) {
     return {

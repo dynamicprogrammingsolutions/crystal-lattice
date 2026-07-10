@@ -48,6 +48,8 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     viewOffset: number;
     animated: boolean;
     attempts: number;
+    startedAtMs: number;
+    deadlineMs: number;
   } | null>(null);
   const pendingItemAnchorRef = React.useRef<{
     key: string;
@@ -55,6 +57,8 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     viewOffset: number;
     animated: boolean;
     attempts: number;
+    startedAtMs: number;
+    deadlineMs: number;
   } | null>(null);
 
   const {
@@ -75,6 +79,9 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     scrollEventThrottle,
     disableVirtualization,
     eagerRenderThreshold,
+    eagerRenderEligibilityCount,
+    itemAnchorTimeoutMs = 3000,
+    itemAnchorMaxAttempts = 50,
     initialNumToRender,
     maxToRenderPerBatch,
     updateCellsBatchingPeriod,
@@ -85,15 +92,20 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     onScroll,
     onScrollBeginDrag,
     onScrollEndDrag,
+    onMomentumScrollBegin,
     onMomentumScrollEnd,
     onViewableItemsChanged,
     viewabilityConfig,
     onScrollToIndexFailed,
+    onScrollActionDiagnostic,
   } = props;
+  const resolvedItemAnchorTimeoutMs = Math.max(1, Math.round(itemAnchorTimeoutMs));
+  const resolvedItemAnchorMaxAttempts = Math.max(1, Math.round(itemAnchorMaxAttempts));
   const renderTuning = React.useMemo(
     () =>
       resolveFlatListRenderTuning({
         rowCount: data.length,
+        eagerRenderEligibilityCount,
         eagerRenderThreshold,
         initialNumToRender,
         maxToRenderPerBatch,
@@ -102,6 +114,7 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
       }),
     [
       data.length,
+      eagerRenderEligibilityCount,
       eagerRenderThreshold,
       initialNumToRender,
       maxToRenderPerBatch,
@@ -216,6 +229,34 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     };
     return anchor;
   }, [measureItemViewportOffset]);
+  const emitScrollActionDiagnostic = React.useCallback(
+    (event: string, reason?: string, details?: Record<string, unknown>) => {
+      onScrollActionDiagnostic?.({ event, reason, details });
+    },
+    [onScrollActionDiagnostic],
+  );
+  const finishPendingItemAnchor = React.useCallback(
+    (
+      event: 'listAnchorCompleted' | 'listAnchorStopped',
+      reason: string,
+      pending = pendingItemAnchorRef.current,
+      details?: Record<string, unknown>,
+    ) => {
+      if (!pending) {
+        return;
+      }
+      pendingItemAnchorRef.current = null;
+      pendingScrollToIndexRetryRef.current = null;
+      emitScrollActionDiagnostic(event, reason, {
+        key: pending.key,
+        index: pending.index,
+        attempts: pending.attempts,
+        durationMs: Math.max(0, Date.now() - pending.startedAtMs),
+        ...details,
+      });
+    },
+    [emitScrollActionDiagnostic],
+  );
   const retryItemAnchor = React.useCallback(() => {
     const pending = pendingItemAnchorRef.current;
     if (!pending) {
@@ -234,13 +275,27 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
           typeof actualOffset === 'number' &&
           Math.abs(actualOffset - pending.viewOffset) <= 4
         ) {
-          pendingItemAnchorRef.current = null;
-          pendingScrollToIndexRetryRef.current = null;
+          finishPendingItemAnchor('listAnchorCompleted', 'stable', pending, {
+            requestedOffset: Math.round(pending.viewOffset),
+            actualOffset: Math.round(actualOffset),
+          });
           return;
         }
-        if (pending.attempts >= 12) {
-          pendingItemAnchorRef.current = null;
-          pendingScrollToIndexRetryRef.current = null;
+        const now = Date.now();
+        if (now > pending.deadlineMs) {
+          finishPendingItemAnchor('listAnchorStopped', 'deadline', pending, {
+            timeoutMs: resolvedItemAnchorTimeoutMs,
+            actualOffset:
+              typeof actualOffset === 'number' ? Math.round(actualOffset) : null,
+          });
+          return;
+        }
+        if (pending.attempts >= resolvedItemAnchorMaxAttempts) {
+          finishPendingItemAnchor('listAnchorStopped', 'maxAttempts', pending, {
+            maxAttempts: resolvedItemAnchorMaxAttempts,
+            actualOffset:
+              typeof actualOffset === 'number' ? Math.round(actualOffset) : null,
+          });
           return;
         }
         const nextPending = {
@@ -248,6 +303,16 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
           attempts: pending.attempts + 1,
         };
         pendingItemAnchorRef.current = nextPending;
+        if (nextPending.attempts === 1 || nextPending.attempts % 10 === 0) {
+          emitScrollActionDiagnostic('listAnchorProgress', 'retry', {
+            key: nextPending.key,
+            index: nextPending.index,
+            attempts: nextPending.attempts,
+            elapsedMs: Math.max(0, now - nextPending.startedAtMs),
+            actualOffset:
+              typeof actualOffset === 'number' ? Math.round(actualOffset) : null,
+          });
+        }
         const issueIndexRetry = () => {
           if (pendingItemAnchorRef.current !== nextPending) {
             return;
@@ -282,7 +347,14 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
         issueIndexRetry();
       });
     });
-  }, [measureItemViewportOffset, rows.length]);
+  }, [
+    emitScrollActionDiagnostic,
+    finishPendingItemAnchor,
+    measureItemViewportOffset,
+    resolvedItemAnchorMaxAttempts,
+    resolvedItemAnchorTimeoutMs,
+    rows.length,
+  ]);
   const renderRow = React.useCallback(
     ({ item }: { item: DependencyFlatListRow }) => {
       if (!item.value) {
@@ -359,7 +431,11 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     (info: { index: number; highestMeasuredFrameIndex: number; averageItemLength: number }) => {
       onScrollToIndexFailed?.(info);
       const pending = pendingScrollToIndexRetryRef.current;
-      if (pending && pending.attempts < 5) {
+      if (pending && Date.now() > pending.deadlineMs) {
+        finishPendingItemAnchor('listAnchorStopped', 'scrollToIndexDeadline');
+        return;
+      }
+      if (pending && pending.attempts < resolvedItemAnchorMaxAttempts) {
         pendingScrollToIndexRetryRef.current = {
           ...pending,
           attempts: pending.attempts + 1,
@@ -386,18 +462,41 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
             setTimeout(retryPendingScrollToIndex, 100);
           });
       } else if (pending) {
-        pendingScrollToIndexRetryRef.current = null;
+        finishPendingItemAnchor('listAnchorStopped', 'scrollToIndexMaxAttempts');
       }
     },
-    [onScrollToIndexFailed, retryPendingScrollToIndex, rows.length],
+    [
+      finishPendingItemAnchor,
+      onScrollToIndexFailed,
+      resolvedItemAnchorMaxAttempts,
+      retryPendingScrollToIndex,
+      rows.length,
+    ],
+  );
+  const cancelPendingItemAnchor = React.useCallback(
+    (reason: string) => {
+      finishPendingItemAnchor('listAnchorStopped', reason);
+    },
+    [finishPendingItemAnchor],
+  );
+  const handleScrollBeginDrag = React.useCallback(
+    (event: Parameters<NonNullable<typeof onScrollBeginDrag>>[0]) => {
+      cancelPendingItemAnchor('userInteraction');
+      onScrollBeginDrag?.(event);
+    },
+    [cancelPendingItemAnchor, onScrollBeginDrag],
   );
   React.useImperativeHandle(
     listRef,
     () => ({
-      scrollToOffset: (options: { offset: number; animated?: boolean }) =>
-        flatListRef.current?.scrollToOffset?.(options),
-      scrollToEnd: (options?: { animated?: boolean }) =>
-        flatListRef.current?.scrollToEnd?.(options),
+      scrollToOffset: (options: { offset: number; animated?: boolean }) => {
+        cancelPendingItemAnchor('supersededByOffset');
+        flatListRef.current?.scrollToOffset?.(options);
+      },
+      scrollToEnd: (options?: { animated?: boolean }) => {
+        cancelPendingItemAnchor('supersededByEnd');
+        flatListRef.current?.scrollToEnd?.(options);
+      },
       scrollToIndex: (options: {
         index: number;
         animated?: boolean;
@@ -422,16 +521,25 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
               ? request.sourceIndex
               : undefined;
         if (index == null || index < 0 || index >= rows.length) {
+          emitScrollActionDiagnostic('listAnchorStopped', 'missingItem', {
+            key: request.key ?? null,
+            sourceIndex: request.sourceIndex ?? null,
+          });
           return;
         }
         const viewOffset = Number.isFinite(request.offsetFromViewportTop)
           ? request.offsetFromViewportTop
           : 0;
+        const startedAtMs = Date.now();
+        const deadlineMs = startedAtMs + resolvedItemAnchorTimeoutMs;
+        cancelPendingItemAnchor('replaced');
         pendingScrollToIndexRetryRef.current = {
           index,
           viewOffset,
           animated: request.animated ?? false,
           attempts: 0,
+          startedAtMs,
+          deadlineMs,
         };
         pendingItemAnchorRef.current = {
           key: rows[index].key,
@@ -439,7 +547,16 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
           viewOffset,
           animated: request.animated ?? false,
           attempts: 0,
+          startedAtMs,
+          deadlineMs,
         };
+        emitScrollActionDiagnostic('listAnchorStarted', 'scrollToItemAnchor', {
+          key: rows[index].key,
+          index,
+          requestedOffset: Math.round(viewOffset),
+          timeoutMs: resolvedItemAnchorTimeoutMs,
+          maxAttempts: resolvedItemAnchorMaxAttempts,
+        });
         flatListRef.current?.scrollToIndex?.({
           index,
           animated: request.animated ?? false,
@@ -449,7 +566,17 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
         retryItemAnchor();
       },
     }),
-    [captureVisibleAnchor, indexByKey, measureItemViewportOffset, retryItemAnchor, rows],
+    [
+      cancelPendingItemAnchor,
+      captureVisibleAnchor,
+      emitScrollActionDiagnostic,
+      indexByKey,
+      measureItemViewportOffset,
+      resolvedItemAnchorMaxAttempts,
+      resolvedItemAnchorTimeoutMs,
+      retryItemAnchor,
+      rows,
+    ],
   );
   const diagnosticProps = {
     disableVirtualization,
@@ -472,8 +599,9 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
       onLayout={onLayout}
       onContentSizeChange={onContentSizeChange}
       onScroll={onScroll}
-      onScrollBeginDrag={onScrollBeginDrag}
+      onScrollBeginDrag={handleScrollBeginDrag}
       onScrollEndDrag={onScrollEndDrag}
+      onMomentumScrollBegin={onMomentumScrollBegin}
       onMomentumScrollEnd={onMomentumScrollEnd}
       keyExtractor={extractRowKey}
       extraData={extraData}

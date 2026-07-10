@@ -197,6 +197,7 @@ export function ProgressiveScrollList<TItem>(
     onScroll,
     onScrollBeginDrag,
     onScrollEndDrag,
+    onMomentumScrollBegin,
     onMomentumScrollEnd,
     scrollEnabled,
     showsVerticalScrollIndicator,
@@ -1361,6 +1362,7 @@ export function ProgressiveScrollList<TItem>(
         onScroll={handleScroll}
         onScrollBeginDrag={handleScrollBeginDrag}
         onScrollEndDrag={onScrollEndDrag}
+        onMomentumScrollBegin={onMomentumScrollBegin}
         onMomentumScrollEnd={onMomentumScrollEnd}
         onViewableItemsChanged={onViewableItemsChangedRef.current}
         viewabilityConfig={viewabilityConfigRef.current}
@@ -1401,6 +1403,7 @@ export function ProgressiveScrollList<TItem>(
       onScroll={handleScroll}
       onScrollBeginDrag={handleScrollBeginDrag}
       onScrollEndDrag={onScrollEndDrag}
+      onMomentumScrollBegin={onMomentumScrollBegin}
       onMomentumScrollEnd={onMomentumScrollEnd}
       scrollEnabled={scrollEnabled}
       showsVerticalScrollIndicator={showsVerticalScrollIndicator ?? true}
