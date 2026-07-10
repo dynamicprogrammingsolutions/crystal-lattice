@@ -3,6 +3,7 @@
  */
 
 // globalThis.CLC_FLATLIST_MAX_TO_RENDER_PER_BATCH = 100
+//globalThis.CLC_TRANSCRIPT_LIST_IMPLEMENTATION = "scrollView"
 globalThis.CLC_TRANSCRIPT_LIST_IMPLEMENTATION = "flatList"
 
 // globalThis.CLC_TRANSCRIPT_LIST_IMPLEMENTATION = "progressiveScroll"
@@ -23,6 +24,7 @@ globalThis.CLC_FLATLIST_MANUAL_BOTTOM_FOLLOW_WINDOW_MS = 5000;
 import { AppRegistry } from 'react-native';
 import App from './App';
 import { ProgressiveScrollHarness } from './src/testing/ProgressiveScrollHarness';
+import { TranscriptScrollPersistenceHarness } from './src/testing/TranscriptScrollPersistenceHarness';
 import { ConnectionEditorWindow } from './src/windows/ConnectionEditorWindow';
 import { AgentPickerWindow } from './src/windows/AgentPickerWindow';
 import { ActionsPopoverView } from './src/windows/ActionsPopoverView';
@@ -35,6 +37,7 @@ import { name as appName } from './app.json';
 
 AppRegistry.registerComponent(appName, () => App);
 AppRegistry.registerComponent('ProgressiveScrollHarness', () => ProgressiveScrollHarness);
+AppRegistry.registerComponent('TranscriptScrollPersistenceHarness', () => TranscriptScrollPersistenceHarness);
 AppRegistry.registerComponent('ConnectionEditorWindow', () => ConnectionEditorWindow);
 AppRegistry.registerComponent('AgentPickerWindow', () => AgentPickerWindow);
 AppRegistry.registerComponent('ActionsPopoverView', () => ActionsPopoverView);

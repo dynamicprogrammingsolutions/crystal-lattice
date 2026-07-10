@@ -230,7 +230,7 @@ export function ProgressiveScrollList<TItem>(
   const lastExtraDataRef = useRef(extraData);
   const rowLayoutsRef = useRef<Map<string, RowLayout>>(new Map());
   const rowRefsRef = useRef<Map<string, any>>(new Map());
-  const firstViewableAnchorRef = useRef<VisibleAnchor | null>(null);
+  const viewableAnchorsRef = useRef<Array<{ key: string; sourceIndex: number }>>([]);
   const pendingScrollActionRef = useRef<PendingScrollAction | null>(null);
   const pendingActionFrameRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
   const runPendingScrollActionRef = useRef<() => void>(() => {});
@@ -275,17 +275,18 @@ export function ProgressiveScrollList<TItem>(
         isViewable?: boolean;
       }>;
     }) => {
+      const anchors = viewableItems
+        .filter((entry) => entry.isViewable !== false && entry.item)
+        .map((entry) => entry.item as RenderedEntry<TItem>)
+        .filter((entry) => entry?.key?.startsWith('msg-'))
+        .map((entry) => ({ key: entry.key, sourceIndex: entry.sourceIndex }));
+      viewableAnchorsRef.current = anchors;
       const first = viewableItems
         .filter((entry) => entry.isViewable !== false && entry.item)
         .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))[0];
       if (!first?.item) {
         return;
       }
-      firstViewableAnchorRef.current = {
-        key: first.item.key,
-        sourceIndex: first.item.sourceIndex,
-        offsetFromViewportTop: 0,
-      };
       appendDebugLog('viewableAnchor', {
         key: first.item.key,
         sourceIndex: first.item.sourceIndex,
@@ -347,7 +348,11 @@ export function ProgressiveScrollList<TItem>(
                 resolve(null);
                 return;
               }
-              resolve(y);
+              getMacScrollViewMetrics(scrollRef.current)
+                .then((metrics) => {
+                  resolve(metrics ? y - metrics.offsetY : y);
+                })
+                .catch(() => resolve(y));
             },
             () => resolve(null),
           );
@@ -590,19 +595,32 @@ export function ProgressiveScrollList<TItem>(
           return;
         }
         action.checking = false;
-        action.settleFrames = (action.settleFrames ?? 0) + 1;
-        if (action.settleFrames < 6) {
-          schedulePendingActionAttempt();
-          return;
-        }
-        pendingScrollActionRef.current = null;
-        if (action.loadingEdge) {
-          setLoadingEdge(null);
-        }
-        appendDebugLog('itemAnchorCompleteFlatList', {
-          key,
-          requestedOffsetFromViewportTop: action.request.offsetFromViewportTop,
-          settleFrames: action.settleFrames,
+        const settleFrames = (action.settleFrames ?? 0) + 1;
+        action.settleFrames = settleFrames;
+        measureItemViewportOffset(key).then((actualOffset) => {
+          if (pendingScrollActionRef.current !== action) {
+            return;
+          }
+          const matches =
+            typeof actualOffset === 'number' &&
+            Math.abs(actualOffset - action.request.offsetFromViewportTop) <=
+              ITEM_ANCHOR_EPSILON_PX;
+          if (!matches && settleFrames < 8) {
+            action.usedIndexScroll = false;
+            schedulePendingActionAttempt();
+            return;
+          }
+          pendingScrollActionRef.current = null;
+          if (action.loadingEdge) {
+            setLoadingEdge(null);
+          }
+          appendDebugLog('itemAnchorCompleteFlatList', {
+            key,
+            requestedOffsetFromViewportTop: action.request.offsetFromViewportTop,
+            actualOffsetFromViewportTop:
+              typeof actualOffset === 'number' ? actualOffset : null,
+            settleFrames,
+          });
         });
       });
       return;
@@ -692,7 +710,28 @@ export function ProgressiveScrollList<TItem>(
 
   const captureAnchor = useCallback(async (): Promise<VisibleAnchor | null> => {
     if (useFlatListBacking) {
-      return firstViewableAnchorRef.current;
+      const candidates = viewableAnchorsRef.current;
+      if (candidates.length === 0) {
+        return null;
+      }
+      const measured = await Promise.all(
+        candidates.map(async (candidate) => ({
+          ...candidate,
+          offsetFromViewportTop: await measureItemViewportOffset(candidate.key),
+        })),
+      );
+      const visible = measured
+        .filter((candidate) => typeof candidate.offsetFromViewportTop === 'number')
+        .sort((a, b) => (a.offsetFromViewportTop ?? 0) - (b.offsetFromViewportTop ?? 0))[0];
+      if (!visible || typeof visible.offsetFromViewportTop !== 'number') {
+        return null;
+      }
+      const anchor = {
+        key: visible.key,
+        sourceIndex: visible.sourceIndex,
+        offsetFromViewportTop: visible.offsetFromViewportTop,
+      };
+      return anchor;
     }
 
     const metrics = await getMacScrollViewMetrics(scrollRef.current);

@@ -1,13 +1,20 @@
 import React from 'react';
-import { FlatList } from 'react-native';
+import { FlatList, View } from 'react-native';
 import type { ViewToken } from 'react-native';
 
+import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
 import type { PlaceholderFlatListProps } from './PlaceholderFlatList';
 
 type DependencyFlatListRow = {
   key: string;
   value: React.ReactElement | null;
   sourceIndex: number;
+};
+
+type VisibleAnchor = {
+  key: string;
+  sourceIndex: number;
+  offsetFromViewportTop: number;
 };
 
 type RowCacheEntry<TItem> = {
@@ -33,12 +40,16 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
   const flatListRef = React.useRef<FlatList<DependencyFlatListRow> | null>(null);
   const cacheRef = React.useRef<Map<string, RowCacheEntry<TItem>>>(new Map());
   const lastExtraDataRef = React.useRef(props.extraData);
-  const firstViewableAnchorRef = React.useRef<{
-    key: string;
-    sourceIndex: number;
-    offsetFromViewportTop: number;
-  } | null>(null);
+  const rowRefsRef = React.useRef<Map<string, any>>(new Map());
+  const viewableAnchorsRef = React.useRef<Array<{ key: string; sourceIndex: number }>>([]);
   const pendingScrollToIndexRetryRef = React.useRef<{
+    index: number;
+    viewOffset: number;
+    animated: boolean;
+    attempts: number;
+  } | null>(null);
+  const pendingItemAnchorRef = React.useRef<{
+    key: string;
     index: number;
     viewOffset: number;
     animated: boolean;
@@ -122,7 +133,157 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
   }
 
   const extractRowKey = React.useCallback((row: DependencyFlatListRow) => row.key, []);
-  const renderRow = React.useCallback(({ item }: { item: DependencyFlatListRow }) => item.value, []);
+  const getNativeScrollTarget = React.useCallback(() => {
+    return (
+      (flatListRef.current as any)?.getNativeScrollRef?.() ??
+      flatListRef.current?.getScrollableNode?.() ??
+      flatListRef.current
+    );
+  }, []);
+  const measureItemViewportOffset = React.useCallback(
+    (key: string): Promise<number | null> => {
+      const rowRef = rowRefsRef.current.get(key);
+      const nativeScrollRef = getNativeScrollTarget();
+      if (!rowRef || !nativeScrollRef || typeof rowRef.measureLayout !== 'function') {
+        return Promise.resolve(null);
+      }
+      return new Promise((resolve) => {
+        try {
+          rowRef.measureLayout(
+            nativeScrollRef,
+            (_x: number, y: number) => {
+              if (!Number.isFinite(y)) {
+                resolve(null);
+                return;
+              }
+              getMacScrollViewMetrics(flatListRef.current)
+                .then((metrics) => {
+                  resolve(metrics ? y - metrics.offsetY : y);
+                })
+                .catch(() => resolve(y));
+            },
+            () => resolve(null),
+          );
+        } catch {
+          resolve(null);
+        }
+      });
+    },
+    [getNativeScrollTarget],
+  );
+  const captureVisibleAnchor = React.useCallback(async (): Promise<VisibleAnchor | null> => {
+    const candidates = viewableAnchorsRef.current;
+    if (candidates.length === 0) {
+      return null;
+    }
+    const measured = await Promise.all(
+      candidates.map(async (candidate) => ({
+        ...candidate,
+        offsetFromViewportTop: await measureItemViewportOffset(candidate.key),
+      })),
+    );
+    const visible = measured
+      .filter((candidate) => typeof candidate.offsetFromViewportTop === 'number')
+      .sort((a, b) => (a.offsetFromViewportTop ?? 0) - (b.offsetFromViewportTop ?? 0))[0];
+    if (!visible || typeof visible.offsetFromViewportTop !== 'number') {
+      return null;
+    }
+    const anchor = {
+      key: visible.key,
+      sourceIndex: visible.sourceIndex,
+      offsetFromViewportTop: visible.offsetFromViewportTop,
+    };
+    return anchor;
+  }, [measureItemViewportOffset]);
+  const retryItemAnchor = React.useCallback(() => {
+    const pending = pendingItemAnchorRef.current;
+    if (!pending) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      const current = pendingItemAnchorRef.current;
+      if (current !== pending) {
+        return;
+      }
+      measureItemViewportOffset(pending.key).then((actualOffset) => {
+        if (pendingItemAnchorRef.current !== pending) {
+          return;
+        }
+        if (
+          typeof actualOffset === 'number' &&
+          Math.abs(actualOffset - pending.viewOffset) <= 4
+        ) {
+          pendingItemAnchorRef.current = null;
+          pendingScrollToIndexRetryRef.current = null;
+          return;
+        }
+        if (pending.attempts >= 12) {
+          pendingItemAnchorRef.current = null;
+          pendingScrollToIndexRetryRef.current = null;
+          return;
+        }
+        const nextPending = {
+          ...pending,
+          attempts: pending.attempts + 1,
+        };
+        pendingItemAnchorRef.current = nextPending;
+        const issueIndexRetry = () => {
+          if (pendingItemAnchorRef.current !== nextPending) {
+            return;
+          }
+          flatListRef.current?.scrollToIndex?.({
+            index: pending.index,
+            animated: false,
+            viewPosition: 0,
+            viewOffset: pending.viewOffset,
+          });
+          retryItemAnchor();
+        };
+        if (actualOffset == null) {
+          getMacScrollViewMetrics(flatListRef.current)
+            .then((metrics) => {
+              if (pendingItemAnchorRef.current !== nextPending) {
+                return;
+              }
+              if (metrics && rows.length > 1) {
+                const maxOffsetY = Math.max(0, metrics.contentHeight - metrics.viewportHeight);
+                const ratio = Math.max(0, Math.min(1, pending.index / (rows.length - 1)));
+                flatListRef.current?.scrollToOffset?.({
+                  offset: Math.round(maxOffsetY * ratio),
+                  animated: false,
+                });
+              }
+              setTimeout(issueIndexRetry, 100);
+            })
+            .catch(() => setTimeout(issueIndexRetry, 100));
+          return;
+        }
+        issueIndexRetry();
+      });
+    });
+  }, [measureItemViewportOffset, rows.length]);
+  const renderRow = React.useCallback(
+    ({ item }: { item: DependencyFlatListRow }) => {
+      if (!item.value) {
+        return null;
+      }
+      return (
+        <View
+          ref={(node) => {
+            if (node) {
+              rowRefsRef.current.set(item.key, node);
+            } else {
+              rowRefsRef.current.delete(item.key);
+            }
+          }}
+          collapsable={false}
+        >
+          {item.value}
+        </View>
+      );
+    },
+    [],
+  );
   const indexByKey = React.useMemo(() => {
     const next = new Map<string, number>();
     rows.forEach((row, index) => {
@@ -136,32 +297,22 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
   );
   const handleViewableItemsChanged = React.useRef(
     (info: { viewableItems: ViewToken[]; changed: ViewToken[] }) => {
-      const first = info.viewableItems
+      const anchors = info.viewableItems
         .filter((token) => token.isViewable && token.item)
-        .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))[0];
-      const row = first?.item as DependencyFlatListRow | undefined;
-      if (row && row.key.startsWith('msg-')) {
-        firstViewableAnchorRef.current = {
-          key: row.key,
-          sourceIndex: row.sourceIndex,
-          offsetFromViewportTop: 0,
-        };
-      }
+        .map((token) => token.item as DependencyFlatListRow)
+        .filter((row) => row?.key?.startsWith('msg-'))
+        .map((row) => ({ key: row.key, sourceIndex: row.sourceIndex }));
+      viewableAnchorsRef.current = anchors;
       onViewableItemsChanged?.(info);
     },
   );
   handleViewableItemsChanged.current = (info) => {
-    const first = info.viewableItems
+    const anchors = info.viewableItems
       .filter((token) => token.isViewable && token.item)
-      .sort((a, b) => (a.index ?? 0) - (b.index ?? 0))[0];
-    const row = first?.item as DependencyFlatListRow | undefined;
-    if (row && row.key.startsWith('msg-')) {
-      firstViewableAnchorRef.current = {
-        key: row.key,
-        sourceIndex: row.sourceIndex,
-        offsetFromViewportTop: 0,
-      };
-    }
+      .map((token) => token.item as DependencyFlatListRow)
+      .filter((row) => row?.key?.startsWith('msg-'))
+      .map((row) => ({ key: row.key, sourceIndex: row.sourceIndex }));
+    viewableAnchorsRef.current = anchors;
     onViewableItemsChanged?.(info);
   };
   const onViewableItemsChangedStable = React.useCallback(
@@ -174,7 +325,6 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
     if (!pending) {
       return;
     }
-    pendingScrollToIndexRetryRef.current = null;
     requestAnimationFrame(() => {
       flatListRef.current?.scrollToIndex?.({
         index: pending.index,
@@ -193,16 +343,32 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
           ...pending,
           attempts: pending.attempts + 1,
         };
-        const approximateOffset = Math.max(
+        const averageOffset = Math.max(
           0,
-          Math.min(info.index, Math.max(0, info.highestMeasuredFrameIndex)) *
-            Math.max(1, info.averageItemLength || 1),
+          Math.max(0, info.index) * Math.max(1, info.averageItemLength || 1),
         );
-        flatListRef.current?.scrollToOffset?.({ offset: approximateOffset, animated: false });
-        retryPendingScrollToIndex();
+        getMacScrollViewMetrics(flatListRef.current)
+          .then((metrics) => {
+            const ratioOffset =
+              metrics && rows.length > 1
+                ? Math.max(0, metrics.contentHeight - metrics.viewportHeight) *
+                  Math.max(0, Math.min(1, info.index / (rows.length - 1)))
+                : 0;
+            flatListRef.current?.scrollToOffset?.({
+              offset: Math.max(averageOffset, ratioOffset),
+              animated: false,
+            });
+            setTimeout(retryPendingScrollToIndex, 100);
+          })
+          .catch(() => {
+            flatListRef.current?.scrollToOffset?.({ offset: averageOffset, animated: false });
+            setTimeout(retryPendingScrollToIndex, 100);
+          });
+      } else if (pending) {
+        pendingScrollToIndexRetryRef.current = null;
       }
     },
-    [onScrollToIndexFailed, retryPendingScrollToIndex],
+    [onScrollToIndexFailed, retryPendingScrollToIndex, rows.length],
   );
   React.useImperativeHandle(
     listRef,
@@ -219,7 +385,9 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
       }) => flatListRef.current?.scrollToIndex?.(options),
       getNativeScrollRef: () => flatListRef.current,
       getScrollableNode: () => flatListRef.current?.getScrollableNode?.(),
-      getVisibleAnchor: async () => firstViewableAnchorRef.current,
+      getVisibleAnchor: captureVisibleAnchor,
+      getItemViewportOffset: (key: string) => measureItemViewportOffset(key),
+      hasPendingScrollAction: () => pendingItemAnchorRef.current != null,
       scrollToItemAnchor: (request: {
         key?: string;
         sourceIndex?: number;
@@ -235,8 +403,17 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
         if (index == null || index < 0 || index >= rows.length) {
           return;
         }
-        const viewOffset = Math.max(0, request.offsetFromViewportTop);
+        const viewOffset = Number.isFinite(request.offsetFromViewportTop)
+          ? request.offsetFromViewportTop
+          : 0;
         pendingScrollToIndexRetryRef.current = {
+          index,
+          viewOffset,
+          animated: request.animated ?? false,
+          attempts: 0,
+        };
+        pendingItemAnchorRef.current = {
+          key: rows[index].key,
           index,
           viewOffset,
           animated: request.animated ?? false,
@@ -248,9 +425,10 @@ export function DependencyFlatList<TItem>(props: PlaceholderFlatListProps<TItem>
           viewPosition: 0,
           viewOffset,
         });
+        retryItemAnchor();
       },
     }),
-    [indexByKey, listRef, rows.length],
+    [captureVisibleAnchor, indexByKey, measureItemViewportOffset, retryItemAnchor, rows],
   );
   const diagnosticProps = {
     disableVirtualization,

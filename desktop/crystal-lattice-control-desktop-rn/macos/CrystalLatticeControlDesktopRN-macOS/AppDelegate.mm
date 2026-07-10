@@ -52,10 +52,16 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 {
   BOOL enableScrollTestHarness =
       EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS") || LaunchArgumentPresent(@"--scroll-test-harness");
-  if (enableScrollTestHarness) {
+  BOOL enableTranscriptScrollPersistenceHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_SCROLL_PERSISTENCE_HARNESS") ||
+      LaunchArgumentPresent(@"--transcript-scroll-persistence-harness");
+  BOOL enableAnyScrollHarness = enableScrollTestHarness || enableTranscriptScrollPersistenceHarness;
+  if (enableAnyScrollHarness) {
     RCTDevLoadingViewSetEnabled(NO);
   }
-  self.moduleName = enableScrollTestHarness ? @"ProgressiveScrollHarness" : @"CrystalLatticeControlDesktopRN";
+  self.moduleName = enableTranscriptScrollPersistenceHarness
+      ? @"TranscriptScrollPersistenceHarness"
+      : (enableScrollTestHarness ? @"ProgressiveScrollHarness" : @"CrystalLatticeControlDesktopRN");
   NSString *tabStripStyle = [self loadTabStripStylePreference];
   BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
   self.initialProps = @{
@@ -65,6 +71,9 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @"scrollHarnessRunId" : [NSProcessInfo processInfo].environment[@"CLC_SCROLL_HARNESS_RUN_ID"] ?: @"",
     @"scrollHarnessBackingList" : [NSProcessInfo processInfo].environment[@"CLC_PROGRESSIVE_SCROLL_BACKING_LIST"] ?: @"scrollView",
     @"scrollHarnessGrowOnly" : @(EnvironmentFlagEnabled(@"CLC_PROGRESSIVE_SCROLL_GROW_ONLY")),
+    @"transcriptScrollListImplementation" : [NSProcessInfo processInfo].environment[@"CLC_TRANSCRIPT_SCROLL_LIST_IMPLEMENTATION"] ?: @"scrollView",
+    @"progressiveScrollBackingList" : [NSProcessInfo processInfo].environment[@"CLC_PROGRESSIVE_SCROLL_BACKING_LIST"] ?: @"scrollView",
+    @"initialRestoreReady" : @(!EnvironmentFlagEnabled(@"CLC_TRANSCRIPT_SCROLL_RESTORE_READY_FALSE")),
   };
   self.dependencyProvider = [RCTAppDependencyProvider new];
 
@@ -76,11 +85,11 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   // - support opening additional main windows
   [self ensureMainWindowsTrackingInitialized];
   [self trackMainWindowIfNeeded:(NSWindow *)self.window];
-  if (enableScrollTestHarness) {
+  if (enableAnyScrollHarness) {
     NSWindow *window = (NSWindow *)self.window;
-    window.title = @"ProgressiveScrollHarness";
-    window.accessibilityLabel = @"ProgressiveScrollHarness";
-    window.accessibilityIdentifier = @"ProgressiveScrollHarnessWindow";
+    window.title = self.moduleName;
+    window.accessibilityLabel = self.moduleName;
+    window.accessibilityIdentifier = [NSString stringWithFormat:@"%@Window", self.moduleName];
     [(NSWindow *)self.window makeKeyAndOrderFront:nil];
     [NSApp activateIgnoringOtherApps:YES];
   }
@@ -90,6 +99,9 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   [self installClearStoredSessionCachesMenu];
   if (enableScrollTestHarness) {
     [self installProgressiveScrollHarnessMenu];
+  }
+  if (enableTranscriptScrollPersistenceHarness) {
+    [self installTranscriptScrollPersistenceHarnessMenu];
   }
 }
 
@@ -279,7 +291,10 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 
 - (NSURL *)bundleURL
 {
-  if (EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS") || LaunchArgumentPresent(@"--scroll-test-harness")) {
+  if (EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_SCROLL_PERSISTENCE_HARNESS") ||
+      LaunchArgumentPresent(@"--scroll-test-harness") ||
+      LaunchArgumentPresent(@"--transcript-scroll-persistence-harness")) {
     return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
   }
 
@@ -398,6 +413,38 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   [mainMenu addItem:harnessMenuItem];
 }
 
+- (void)installTranscriptScrollPersistenceHarnessMenu
+{
+  NSMenu *mainMenu = [NSApp mainMenu];
+  if (mainMenu == nil) {
+    return;
+  }
+
+  NSMenuItem *harnessMenuItem =
+      [[NSMenuItem alloc] initWithTitle:@"Transcript Scroll Harness" action:nil keyEquivalent:@""];
+  NSMenu *harnessMenu = [[NSMenu alloc] initWithTitle:@"Transcript Scroll Harness"];
+  harnessMenuItem.submenu = harnessMenu;
+
+  NSArray<NSArray<NSString *> *> *items = @[
+    @[ @"Transcript Harness Read", @"transcriptScrollHarnessRead:" ],
+    @[ @"Transcript Harness Offset Round Trip", @"transcriptScrollHarnessOffsetRoundTrip:" ],
+    @[ @"Transcript Harness Message Anchor Save", @"transcriptScrollHarnessMessageAnchorSave:" ],
+    @[ @"Transcript Harness Message Anchor Restore", @"transcriptScrollHarnessMessageAnchorRestore:" ],
+    @[ @"Transcript Harness Message Anchor Round Trip", @"transcriptScrollHarnessMessageAnchorRoundTrip:" ],
+    @[ @"Transcript Harness Release Delayed Anchor", @"transcriptScrollHarnessReleaseDelayedAnchor:" ],
+    @[ @"Transcript Harness Release Delayed Offset Anchor", @"transcriptScrollHarnessReleaseDelayedOffsetAnchor:" ],
+  ];
+
+  for (NSArray<NSString *> *item in items) {
+    SEL selector = NSSelectorFromString(item[1]);
+    NSMenuItem *menuItem = [[NSMenuItem alloc] initWithTitle:item[0] action:selector keyEquivalent:@""];
+    menuItem.target = self;
+    [harnessMenu addItem:menuItem];
+  }
+
+  [mainMenu addItem:harnessMenuItem];
+}
+
 - (void)postProgressiveScrollHarnessCommand:(NSString *)command
 {
   NSDictionary *payload = @{
@@ -460,6 +507,41 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 - (void)progressiveScrollHarnessLoadBelow:(__unused id)sender
 {
   [self postProgressiveScrollHarnessCommand:@"loadBelow"];
+}
+
+- (void)transcriptScrollHarnessRead:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"read"];
+}
+
+- (void)transcriptScrollHarnessOffsetRoundTrip:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"offsetRoundTrip"];
+}
+
+- (void)transcriptScrollHarnessMessageAnchorSave:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"messageAnchorSave"];
+}
+
+- (void)transcriptScrollHarnessMessageAnchorRestore:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"messageAnchorRestore"];
+}
+
+- (void)transcriptScrollHarnessMessageAnchorRoundTrip:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"messageAnchorRoundTrip"];
+}
+
+- (void)transcriptScrollHarnessReleaseDelayedAnchor:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"releaseDelayedMessageAnchor"];
+}
+
+- (void)transcriptScrollHarnessReleaseDelayedOffsetAnchor:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"releaseDelayedOffsetAnchor"];
 }
 
 - (void)installSessionsFollowActiveTabMenuWithEnabled:(BOOL)enabled

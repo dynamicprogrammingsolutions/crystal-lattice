@@ -358,6 +358,7 @@ const DEFAULT_PINNED_SESSION_ACTION_KEYS: ActionKey[] = ['reload'];
 const DEFAULT_PINNED_COMPOSER_ACTION_KEYS: ActionKey[] = ['append', 'resend', 'cancel'];
 
 export interface ChatPaneProps {
+  isVisible: boolean;
 	isActive: boolean;
   connectionId: string;
   connectionName: string;
@@ -367,6 +368,7 @@ export interface ChatPaneProps {
   subtitle?: string;
   backend: AgentBackend | null;
   cachedEntry: MessagesCacheEntry | null;
+  messagesCacheHydrated?: boolean;
   onOpenSessionTab?: (params: {
     connectionId: string;
     sessionId: string;
@@ -388,6 +390,7 @@ export interface ChatPaneProps {
 }
 
 export const ChatPane = React.memo(function ChatPane({
+  isVisible,
 	isActive,
 	connectionId,
 	connectionName,
@@ -397,6 +400,7 @@ export const ChatPane = React.memo(function ChatPane({
 	subtitle,
 	backend,
 	cachedEntry,
+  messagesCacheHydrated = true,
 	onOpenSessionTab,
 	onUpdateCache,
 	styleVariant = 'toolbarTabs',
@@ -979,6 +983,7 @@ export const ChatPane = React.memo(function ChatPane({
     getMessagesForCache,
     onUpdateCache,
     enabled: isActive,
+    restoreReady: messagesCacheHydrated,
     bottomThresholdPx: FLATLIST_BOTTOM_SCROLL_THRESHOLD_PX,
     bottomConvergenceStableMs: FLATLIST_BOTTOM_CONVERGENCE_STABLE_MS,
     bottomConvergenceMaxMs: FLATLIST_BOTTOM_CONVERGENCE_MAX_MS,
@@ -996,19 +1001,15 @@ export const ChatPane = React.memo(function ChatPane({
   });
 
   const requestPersistTranscriptScroll = transcriptScroll.requestPersist;
-  const resetTranscriptRestore = transcriptScroll.resetRestore;
 
-  const prevIsActiveRef = useRef(isActive);
+  const prevIsVisibleRef = useRef(isVisible);
   useEffect(() => {
-    const prev = prevIsActiveRef.current;
-    prevIsActiveRef.current = isActive;
-    if (prev && !isActive) {
-      requestPersistTranscriptScroll('tabDeactivated');
+    const prev = prevIsVisibleRef.current;
+    prevIsVisibleRef.current = isVisible;
+    if (prev && !isVisible) {
+      requestPersistTranscriptScroll('tabHidden', { force: true, immediate: true });
     }
-    if (!prev && isActive) {
-      resetTranscriptRestore('becameActive');
-    }
-  }, [isActive, requestPersistTranscriptScroll, resetTranscriptRestore]);
+  }, [isVisible, requestPersistTranscriptScroll]);
 
 
   const streamingRow = chatState?.streamingRow ?? null;

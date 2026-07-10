@@ -15,6 +15,7 @@
 		514201582437B4B40078DB4F /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 514201572437B4B40078DB4F /* main.m */; };
 		5885FD2ABEAD4A72BF171608 /* Fonts in Resources */ = {isa = PBXBuildFile; fileRef = AB85723B3B404E1E97A72B48 /* Fonts */; };
 		8D1000010000000000000001 /* ProgressiveScrollListUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000020000000000000001 /* ProgressiveScrollListUITests.swift */; };
+		8D1000110000000000000001 /* TranscriptScrollPersistenceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D1000120000000000000001 /* TranscriptScrollPersistenceUITests.swift */; };
 		8511A5CB7F0EEA26F5AEBDF8 /* libPods-CrystalLatticeControlDesktopRN-macOS.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F75F6C0EDC82A9FC4070C341 /* libPods-CrystalLatticeControlDesktopRN-macOS.a */; };
 		9A6C6A4F88C14999A6E50C11 /* DesktopWindowManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = 9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */; };
 		B1C2D3E4F5A60718293A4B6C /* MacCheckboxManager.mm in Sources */ = {isa = PBXBuildFile; fileRef = B1C2D3E4F5A60718293A4B5C /* MacCheckboxManager.mm */; };
@@ -35,6 +36,7 @@
 		514201592437B4B40078DB4F /* CrystalLatticeControlDesktopRN.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CrystalLatticeControlDesktopRN.entitlements; sourceTree = "<group>"; };
 		5990908CD441EB630A5FC7CF /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		8D1000020000000000000001 /* ProgressiveScrollListUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressiveScrollListUITests.swift; sourceTree = "<group>"; };
+		8D1000120000000000000001 /* TranscriptScrollPersistenceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptScrollPersistenceUITests.swift; sourceTree = "<group>"; };
 		8D1000030000000000000001 /* CrystalLatticeControlDesktopRN-macOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CrystalLatticeControlDesktopRN-macOSUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		9A6C6A4D88C14999A6E50C11 /* DesktopWindowManager.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DesktopWindowManager.h; sourceTree = "<group>"; };
 		9A6C6A4E88C14999A6E50C11 /* DesktopWindowManager.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DesktopWindowManager.mm; sourceTree = "<group>"; };
@@ -142,6 +144,7 @@
 			isa = PBXGroup;
 			children = (
 				8D1000020000000000000001 /* ProgressiveScrollListUITests.swift */,
+				8D1000120000000000000001 /* TranscriptScrollPersistenceUITests.swift */,
 			);
 			path = "CrystalLatticeControlDesktopRN-macOSUITests";
 			sourceTree = "<group>";
@@ -426,6 +429,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8D1000010000000000000001 /* ProgressiveScrollListUITests.swift in Sources */,
+				8D1000110000000000000001 /* TranscriptScrollPersistenceUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

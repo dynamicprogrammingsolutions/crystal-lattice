@@ -39,6 +39,12 @@ type ActiveEdgeScroll = {
   runAttempt: (reason: string) => void;
 };
 
+type ScrollPersistenceDiagnosticEvent = {
+  event: string;
+  reason?: string;
+  details?: Record<string, unknown>;
+};
+
 function scrollToOffsetY(
   target: any,
   offsetY: number,
@@ -101,6 +107,7 @@ export function useProactiveChatScrollPersistence(params: {
   getMessagesForCache: () => IndexedMessage[];
   onUpdateCache: UpdateMessagesCache;
   enabled?: boolean;
+  restoreReady?: boolean;
   persistDebounceMs?: number;
   persistThrottleMs?: number;
   bottomThresholdPx?: number;
@@ -114,6 +121,7 @@ export function useProactiveChatScrollPersistence(params: {
   messageAnchorAfterCount?: number;
   messageViewportAnchorsEnabled?: boolean;
   listEdgeMethodsEnabled?: boolean;
+  onDiagnosticEvent?: (event: ScrollPersistenceDiagnosticEvent) => void;
 }): {
   listRef: RefObject<any>;
   onScroll: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
@@ -122,7 +130,7 @@ export function useProactiveChatScrollPersistence(params: {
   onMomentumScrollEnd: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
   onLayout: (event: LayoutChangeEvent) => void;
   onContentSizeChange: (width: number, height: number) => void;
-  requestPersist: (reason: string) => void;
+  requestPersist: (reason: string, options?: { force?: boolean; immediate?: boolean }) => void;
   resetRestore: (reason: string) => void;
   scrollToTop: (animated?: boolean) => void;
   scrollToBottom: (animated?: boolean) => void;
@@ -138,6 +146,7 @@ export function useProactiveChatScrollPersistence(params: {
     getMessagesForCache,
     onUpdateCache,
     enabled = true,
+    restoreReady = true,
     persistDebounceMs = 250,
     persistThrottleMs = 1000,
     bottomThresholdPx = PINNED_TO_BOTTOM_THRESHOLD_PX,
@@ -151,6 +160,7 @@ export function useProactiveChatScrollPersistence(params: {
     messageAnchorAfterCount = 59,
     messageViewportAnchorsEnabled = false,
     listEdgeMethodsEnabled = false,
+    onDiagnosticEvent,
   } = params;
 
   const listRef = useRef<any>(null);
@@ -181,6 +191,7 @@ export function useProactiveChatScrollPersistence(params: {
         ? cachedScrollAnchor
         : null,
   );
+  const wasEnabledRef = useRef(enabled);
   const hasRestoredRef = useRef(false);
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -226,6 +237,13 @@ export function useProactiveChatScrollPersistence(params: {
       });
     },
     [bottomFollowDebugEnabled, connectionId, sessionId],
+  );
+
+  const emitDiagnostic = useCallback(
+    (event: string, reason?: string, details?: Record<string, unknown>) => {
+      onDiagnosticEvent?.({ event, reason, details });
+    },
+    [onDiagnosticEvent],
   );
 
   const updateDerivedScrollState = useCallback(() => {
@@ -387,11 +405,11 @@ export function useProactiveChatScrollPersistence(params: {
               stopActiveScroll();
               return;
             }
-            const now = Date.now();
+            const currentTime = Date.now();
             if (
               edge === 'bottom' &&
               bottomFollowUntilMsRef.current > 0 &&
-              now > bottomFollowUntilMsRef.current
+              currentTime > bottomFollowUntilMsRef.current
             ) {
               bottomFollowEnabledRef.current = false;
               bottomFollowUntilMsRef.current = 0;
@@ -416,12 +434,12 @@ export function useProactiveChatScrollPersistence(params: {
                 stableTargetOffsetY == null ||
                 Math.abs(stableTargetOffsetY - targetOffsetY) > threshold
               ) {
-                stableSince = now;
+                stableSince = currentTime;
                 stableTargetOffsetY = targetOffsetY;
                 scheduleAttempt();
                 return;
               }
-              if (now - stableSince >= stableMs) {
+              if (currentTime - stableSince >= stableMs) {
                 stopActiveScroll();
                 return;
               }
@@ -431,7 +449,7 @@ export function useProactiveChatScrollPersistence(params: {
 
             stableSince = null;
             stableTargetOffsetY = null;
-            if (now - startedAt >= maxMs) {
+            if (currentTime - startedAt >= maxMs) {
               stopActiveScroll();
               return;
             }
@@ -611,6 +629,10 @@ export function useProactiveChatScrollPersistence(params: {
     if (!enabled) {
       return;
     }
+    if (!restoreReady) {
+      emitDiagnostic('restoreSkipped', 'restoreNotReady');
+      return;
+    }
     if (hasRestoredRef.current) {
       return;
     }
@@ -625,6 +647,9 @@ export function useProactiveChatScrollPersistence(params: {
 
     const anchor = initialAnchorRef.current;
     if (!anchor) {
+      emitDiagnostic('restoreStart', 'noAnchorBottom', {
+        initialBottomFollowWindowMs,
+      });
       logBottomFollow('initialNoAnchorBottom', {
         windowMs: initialBottomFollowWindowMs,
       });
@@ -632,6 +657,7 @@ export function useProactiveChatScrollPersistence(params: {
         followWindowMs: initialBottomFollowWindowMs,
       });
       hasRestoredRef.current = true;
+      emitDiagnostic('restoreComplete', 'noAnchorBottom');
       return;
     }
 
@@ -642,11 +668,14 @@ export function useProactiveChatScrollPersistence(params: {
 
     if (messageViewportAnchorsEnabled && isChatMessageViewportScrollAnchor(anchor)) {
       if (anchor.pinnedToBottom && typeof target.scrollToEnd === 'function') {
+        emitDiagnostic('restoreStart', 'messageViewportPinnedBottom', { anchor });
         target.scrollToEnd({ animated: false });
         hasRestoredRef.current = true;
+        emitDiagnostic('restoreComplete', 'messageViewportPinnedBottom', { anchor });
         return;
       }
       if (typeof target.scrollToItemAnchor === 'function') {
+        emitDiagnostic('restoreStart', 'messageViewport', { anchor });
         target.scrollToItemAnchor({
           key: `msg-${anchor.messageIndex}`,
           offsetFromViewportTop: anchor.offsetFromViewportTop,
@@ -655,9 +684,24 @@ export function useProactiveChatScrollPersistence(params: {
           animated: false,
         });
         hasRestoredRef.current = true;
+        emitDiagnostic('restoreComplete', 'messageViewport', { anchor });
         return;
       }
       hasRestoredRef.current = true;
+      emitDiagnostic('restoreSkipped', 'missingItemAnchorMethod', { anchor });
+      return;
+    }
+
+    if (!isChatScrollAnchor(anchor)) {
+      hasRestoredRef.current = true;
+      emitDiagnostic('restoreSkipped', 'unsupportedAnchor', { anchor });
+      return;
+    }
+    if (contentHeight <= 0 || layoutHeight <= 0) {
+      emitDiagnostic('restoreSkipped', 'awaitingMetrics', {
+        contentHeight,
+        layoutHeight,
+      });
       return;
     }
 
@@ -678,6 +722,7 @@ export function useProactiveChatScrollPersistence(params: {
       });
     }
 
+    emitDiagnostic('restoreStart', 'offsetAnchor', { anchor, targetOffsetY });
     scrollToOffsetY(target, targetOffsetY, {
       debugEnabled,
       reason: 'restore',
@@ -687,15 +732,18 @@ export function useProactiveChatScrollPersistence(params: {
     offsetYRef.current = targetOffsetY;
     updateDerivedScrollState();
     hasRestoredRef.current = true;
+    emitDiagnostic('restoreComplete', 'offsetAnchor', { anchor, targetOffsetY });
   }, [
     connectionId,
     debugEnabled,
+    emitDiagnostic,
     enabled,
     initialBottomFollowWindowMs,
     logBottomFollow,
     messageAnchorAfterCount,
     messageAnchorBeforeCount,
     messageViewportAnchorsEnabled,
+    restoreReady,
     sessionId,
     scrollToEdge,
     updateDerivedScrollState,
@@ -738,7 +786,7 @@ export function useProactiveChatScrollPersistence(params: {
             : null;
         const visibleKey =
           typeof visibleAnchor?.key === 'string' ? visibleAnchor.key : null;
-        const match = visibleKey ? /^msg-(\-?\d+)$/.exec(visibleKey) : null;
+        const match = visibleKey ? /^msg-(-?\d+)$/.exec(visibleKey) : null;
         if (match) {
           const messageIndex = Number(match[1]);
           const offsetFromViewportTop = Number(visibleAnchor.offsetFromViewportTop ?? NaN);
@@ -762,6 +810,7 @@ export function useProactiveChatScrollPersistence(params: {
         });
       }
 
+      emitDiagnostic('persistAnchor', reason, { anchor, metrics });
       onUpdateCache({
         connectionId,
         sessionId,
@@ -772,6 +821,7 @@ export function useProactiveChatScrollPersistence(params: {
     [
       connectionId,
       debugEnabled,
+      emitDiagnostic,
       enabled,
       getMessagesForCache,
       bottomThresholdPx,
@@ -783,8 +833,17 @@ export function useProactiveChatScrollPersistence(params: {
   );
 
   const requestPersist = useCallback(
-    (reason: string) => {
+    (reason: string, options?: { force?: boolean; immediate?: boolean }) => {
       if (!enabled) {
+        return;
+      }
+      if (options?.immediate) {
+        if (persistTimerRef.current) {
+          clearTimeout(persistTimerRef.current);
+          persistTimerRef.current = null;
+        }
+        pendingReasonRef.current = null;
+        persistNow(reason, { force: options.force }).catch(() => {});
         return;
       }
       pendingReasonRef.current = reason;
@@ -795,7 +854,7 @@ export function useProactiveChatScrollPersistence(params: {
         const nextReason = pendingReasonRef.current ?? 'unknown';
         pendingReasonRef.current = null;
         persistTimerRef.current = null;
-        persistNow(nextReason).catch(() => {});
+        persistNow(nextReason, { force: options?.force }).catch(() => {});
       }, persistDebounceMs);
     },
     [enabled, persistDebounceMs, persistNow],
@@ -822,12 +881,11 @@ export function useProactiveChatScrollPersistence(params: {
   }, [cachedScrollAnchor, maybeRestoreScroll, messageViewportAnchorsEnabled]);
 
   useEffect(() => {
-    if (!enabled) {
-      return;
+    const wasEnabled = wasEnabledRef.current;
+    wasEnabledRef.current = enabled;
+    if (!wasEnabled && enabled) {
+      resetRestore('becameEnabled');
     }
-    // On first mount, treat as "previously inactive" so cached scroll anchor
-    // restores even if the tab starts active.
-    resetRestore('mount');
   }, [enabled, resetRestore]);
 
   useEffect(() => {

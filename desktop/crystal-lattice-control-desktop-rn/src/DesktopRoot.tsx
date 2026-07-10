@@ -831,6 +831,7 @@ export function DesktopRoot({
 	                  getBackend={getBackend}
 	                  sessionsCache={sessionsCache}
 	                  messagesCache={messagesCache}
+                    messagesCacheHydrated={messagesCacheHydrated}
 	                  onUpdateCache={updateMessagesCache}
 	                  onOpenSessionTab={openTab}
 	                />
