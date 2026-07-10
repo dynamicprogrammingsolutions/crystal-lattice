@@ -248,6 +248,201 @@ describe('chatScrollCoordinator', () => {
     expect(staleCompletion.state).toEqual(state);
   });
 
+  it('latches manual detachment and cancels an active content-follow operation', () => {
+    let state = apply(createChatScrollCoordinatorState(), {
+      type: 'semanticContentChanged',
+      revision: 1,
+      reason: 'streamDelta',
+      nowMs: 100,
+      leaseMs: 1000,
+      followEnabled: true,
+      restoreComplete: true,
+    });
+    const operationId = state.operation!.id;
+
+    const transition = reduceChatScrollCoordinator(state, {
+      type: 'manualAwayMotionDetected',
+      reason: 'stableGeometryAwayMotion',
+      nowMs: 200,
+      deltaBottomGapPx: 11,
+      deltaOffsetY: -11,
+      recentProgrammaticWrite: false,
+      movementOpposesProgrammaticTarget: false,
+    });
+    state = transition.state;
+
+    expect(state.bottomAffinity).toBe('manuallyDetached');
+    expect(state.followLease).toBeNull();
+    expect(state.operation).toBeNull();
+    expect(transition.effects).toContainEqual({
+      type: 'cancelRuntimeOperation',
+      operationId,
+      reason: 'stableGeometryAwayMotion',
+    });
+    expect(transition.diagnostics).toContainEqual({
+      event: 'manualBottomDetached',
+      reason: 'stableGeometryAwayMotion',
+      details: {
+        deltaBottomGapPx: 11,
+        deltaOffsetY: -11,
+        recentProgrammaticWrite: false,
+        movementOpposesProgrammaticTarget: false,
+        cancelledOperationId: operationId,
+        cancelledOperationPurpose: 'contentFollow',
+      },
+    });
+  });
+
+  it('does not reattach a manual detachment merely because interaction ends near bottom', () => {
+    let state = apply(createChatScrollCoordinatorState(), {
+      type: 'manualAwayMotionDetected',
+      reason: 'stableGeometryAwayMotion',
+      nowMs: 100,
+      deltaBottomGapPx: 3,
+      deltaOffsetY: -3,
+      recentProgrammaticWrite: false,
+      movementOpposesProgrammaticTarget: false,
+    });
+
+    state = apply(state, {
+      type: 'interactionEnded',
+      atBottom: true,
+      reason: 'scrollEndDrag',
+      nowMs: 150,
+    });
+
+    expect(state.bottomAffinity).toBe('manuallyDetached');
+  });
+
+  it('does not open follow leases while manually detached', () => {
+    let state = apply(createChatScrollCoordinatorState(), {
+      type: 'manualAwayMotionDetected',
+      reason: 'stableGeometryAwayMotion',
+      nowMs: 100,
+      deltaBottomGapPx: 8,
+      deltaOffsetY: -8,
+      recentProgrammaticWrite: false,
+      movementOpposesProgrammaticTarget: false,
+    });
+
+    const transition = reduceChatScrollCoordinator(state, {
+      type: 'semanticContentChanged',
+      revision: 2,
+      reason: 'streamDelta',
+      nowMs: 200,
+      leaseMs: 1000,
+      followEnabled: true,
+      restoreComplete: true,
+    });
+    state = transition.state;
+
+    expect(state.bottomAffinity).toBe('manuallyDetached');
+    expect(state.followLease).toBeNull();
+    expect(state.operation).toBeNull();
+    expect(transition.diagnostics[0]).toMatchObject({
+      event: 'followLeaseSkipped',
+      details: {
+        skipReason: 'manuallyDetached',
+      },
+    });
+  });
+
+  it('re-pins without starting a lease when manual movement reaches bottom', () => {
+    let state = apply(createChatScrollCoordinatorState(), {
+      type: 'manualAwayMotionDetected',
+      reason: 'stableGeometryAwayMotion',
+      nowMs: 100,
+      deltaBottomGapPx: 40,
+      deltaOffsetY: -40,
+      recentProgrammaticWrite: false,
+      movementOpposesProgrammaticTarget: false,
+    });
+
+    const transition = reduceChatScrollCoordinator(state, {
+      type: 'manualReturnToBottomDetected',
+      reason: 'stableGeometryReachedBottom',
+      nowMs: 200,
+      deltaTowardBottomPx: 40,
+      deltaOffsetY: 40,
+    });
+    state = transition.state;
+
+    expect(state.bottomAffinity).toBe('pinned');
+    expect(state.followLease).toBeNull();
+    expect(state.operation).toBeNull();
+    expect(transition.effects).toEqual([]);
+    expect(transition.diagnostics).toEqual([
+      {
+        event: 'manualBottomReattached',
+        reason: 'stableGeometryReachedBottom',
+        details: {
+          deltaTowardBottomPx: 40,
+          deltaOffsetY: 40,
+        },
+      },
+    ]);
+  });
+
+  it('does not manually re-pin while navigation owns the viewport', () => {
+    let state = apply(createChatScrollCoordinatorState(), {
+      type: 'manualAwayMotionDetected',
+      reason: 'stableGeometryAwayMotion',
+      nowMs: 100,
+      deltaBottomGapPx: 40,
+      deltaOffsetY: -40,
+      recentProgrammaticWrite: false,
+      movementOpposesProgrammaticTarget: false,
+    });
+    state = apply(state, {
+      type: 'startNavigation',
+      edge: 'bottom',
+      source: 'manual',
+      reason: 'scrollToBottom',
+      nowMs: 150,
+      maxDurationMs: 5000,
+    });
+
+    state = apply(state, {
+      type: 'manualReturnToBottomDetected',
+      reason: 'stableGeometryReachedBottom',
+      nowMs: 200,
+      deltaTowardBottomPx: 40,
+      deltaOffsetY: 40,
+    });
+
+    expect(state.bottomAffinity).toBe('manuallyDetached');
+    expect(state.operation?.purpose).toBe('navigation');
+  });
+
+  it('reattaches a manual detachment after explicit bottom navigation completes', () => {
+    let state = apply(createChatScrollCoordinatorState(), {
+      type: 'manualAwayMotionDetected',
+      reason: 'stableGeometryAwayMotion',
+      nowMs: 100,
+      deltaBottomGapPx: 8,
+      deltaOffsetY: -8,
+      recentProgrammaticWrite: false,
+      movementOpposesProgrammaticTarget: false,
+    });
+    state = apply(state, {
+      type: 'startNavigation',
+      edge: 'bottom',
+      source: 'manual',
+      reason: 'scrollToBottom',
+      nowMs: 200,
+      maxDurationMs: 5000,
+    });
+    const operationId = state.operation!.id;
+    state = apply(state, {
+      type: 'operationCompleted',
+      operationId,
+      reason: 'stable',
+      nowMs: 300,
+    });
+
+    expect(state.bottomAffinity).toBe('pinned');
+  });
+
   it('uses interaction end to determine future follow eligibility', () => {
     let state = apply(createChatScrollCoordinatorState(), {
       type: 'interactionBegan',

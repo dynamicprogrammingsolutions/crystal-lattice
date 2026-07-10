@@ -434,6 +434,9 @@ static BOOL LaunchArgumentPresent(NSString *argument)
     @[ @"Transcript Harness Release Delayed Anchor", @"transcriptScrollHarnessReleaseDelayedAnchor:" ],
     @[ @"Transcript Harness Release Delayed Offset Anchor", @"transcriptScrollHarnessReleaseDelayedOffsetAnchor:" ],
     @[ @"Transcript Harness Navigation Separation", @"transcriptScrollHarnessNavigationSeparation:" ],
+    @[ @"Transcript Harness Prepare Manual Detach", @"transcriptScrollHarnessPrepareManualDetach:" ],
+    @[ @"Transcript Harness Semantic After Manual Detach", @"transcriptScrollHarnessSemanticAfterManualDetach:" ],
+    @[ @"Transcript Harness Semantic After Manual Reattach", @"transcriptScrollHarnessSemanticAfterManualReattach:" ],
     @[ @"Transcript Harness Long Distance Bottom", @"transcriptScrollHarnessLongDistanceBottom:" ],
     @[ @"Transcript Harness Far Message Anchor", @"transcriptScrollHarnessFarMessageAnchor:" ],
     @[ @"Transcript Harness Semantic Content Follow", @"transcriptScrollHarnessSemanticContentFollow:" ],
@@ -552,6 +555,21 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 - (void)transcriptScrollHarnessNavigationSeparation:(__unused id)sender
 {
   [self postProgressiveScrollHarnessCommand:@"navigationSeparation"];
+}
+
+- (void)transcriptScrollHarnessPrepareManualDetach:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"prepareManualDetach"];
+}
+
+- (void)transcriptScrollHarnessSemanticAfterManualDetach:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"semanticAfterManualDetach"];
+}
+
+- (void)transcriptScrollHarnessSemanticAfterManualReattach:(__unused id)sender
+{
+  [self postProgressiveScrollHarnessCommand:@"semanticAfterManualReattach"];
 }
 
 - (void)transcriptScrollHarnessLongDistanceBottom:(__unused id)sender

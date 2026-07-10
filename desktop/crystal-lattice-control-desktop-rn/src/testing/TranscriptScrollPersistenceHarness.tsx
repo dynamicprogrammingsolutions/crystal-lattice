@@ -428,6 +428,56 @@ export function TranscriptScrollPersistenceHarness({
         return;
       }
 
+      if (command === 'prepareManualDetach') {
+        resetDiagnostics();
+        feedbackPulseEnabledRef.current = false;
+        feedbackPulseCountRef.current = 0;
+        transcriptScroll.scrollToBottom(false);
+        waitForNavigationSettled(() => {
+          resetDiagnostics();
+          recordHarnessState(command, 'command prepareManualDetach');
+        });
+        return;
+      }
+
+      if (command === 'semanticAfterManualDetach') {
+        setMessages((current) => [
+          ...current,
+          {
+            index: current.length,
+            message: {
+              role: 'assistant',
+              content:
+                'Semantic update after a manual bottom detachment. '.repeat(8),
+            },
+          },
+        ]);
+        setBottomContentRevision((current) => current + 1);
+        setTimeout(() => {
+          recordHarnessState(command, 'command semanticAfterManualDetach');
+        }, HARNESS_CONTENT_FOLLOW_LEASE_MS + 500);
+        return;
+      }
+
+      if (command === 'semanticAfterManualReattach') {
+        setMessages((current) => [
+          ...current,
+          {
+            index: current.length,
+            message: {
+              role: 'assistant',
+              content:
+                'Semantic update after returning manually to bottom. '.repeat(8),
+            },
+          },
+        ]);
+        setBottomContentRevision((current) => current + 1);
+        setTimeout(() => {
+          recordHarnessState(command, 'command semanticAfterManualReattach');
+        }, HARNESS_CONTENT_FOLLOW_LEASE_MS + 500);
+        return;
+      }
+
       if (command === 'longDistanceBottom') {
         resetDiagnostics();
         feedbackPulseEnabledRef.current = false;

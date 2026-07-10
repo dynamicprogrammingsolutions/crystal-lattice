@@ -36,6 +36,15 @@ import {
   type ChatScrollEdge,
   type ChatScrollOperation,
 } from './chatScrollCoordinator';
+import {
+  classifyChatScrollAwayMotion,
+  classifyChatScrollReturnToBottom,
+  refreshChatScrollMotionGeometry,
+  shouldDetachForChatScrollAwayMotion,
+  shouldReattachForChatScrollReturnToBottom,
+  type ChatScrollMotionSample,
+  type ChatScrollProgrammaticWrite,
+} from './chatScrollMotionDiagnostics';
 
 type UpdateMessagesCache = (params: {
   connectionId: string;
@@ -71,6 +80,12 @@ type RuntimeEdgeOperation = {
 const INTERACTION_END_SETTLE_MS = 120;
 const DEFAULT_MAX_EDGE_CORRECTIONS = 12;
 const RECONCILIATION_POLL_INTERVAL_MS = 16;
+const AWAY_MOTION_DIAGNOSTIC_MIN_PX = 2;
+const AWAY_MOTION_GEOMETRY_EPSILON_PX = 0.5;
+const AWAY_MOTION_GEOMETRY_SETTLE_MS = 100;
+const AWAY_MOTION_SEMANTIC_SETTLE_MS = 250;
+const AWAY_MOTION_PROGRAMMATIC_WINDOW_MS = 500;
+const RETURN_TO_BOTTOM_MIN_TOWARD_PX = 0.5;
 
 function readGlobalBoolean(name: string): boolean {
   const value = (globalThis as any)[name];
@@ -237,6 +252,15 @@ export function useProactiveChatScrollPersistence(params: {
   const contentHeightRef = useRef<number | null>(null);
   const layoutHeightRef = useRef<number | null>(null);
   const isNearBottomRef = useRef(true);
+  const geometryRevisionRef = useRef(0);
+  const lastGeometryChangeAtMsRef = useRef(0);
+  const lastSemanticContentChangeAtMsRef = useRef(0);
+  const lastObservedNativeMotionSampleRef = useRef<ChatScrollMotionSample | null>(
+    null,
+  );
+  const lastProgrammaticWriteRef = useRef<ChatScrollProgrammaticWrite | null>(
+    null,
+  );
   const scrollAffordanceStateRef = useRef({
     canScrollToTop: false,
     canScrollToBottom: false,
@@ -295,7 +319,9 @@ export function useProactiveChatScrollPersistence(params: {
         event === 'operationCorrection' ||
         event === 'operationObservation' ||
         event === 'geometryChanged' ||
-        event === 'followLeaseSkipped';
+        event === 'followLeaseSkipped' ||
+        event === 'awayMotionIgnored' ||
+        event === 'manualBottomReattachIgnored';
       if (verboseOnly && !diagnosticsVerbose) {
         return;
       }
@@ -304,9 +330,15 @@ export function useProactiveChatScrollPersistence(params: {
           ? 1000
           : event === 'persistSkipped'
             ? 1000
+            : event === 'awayMotionCandidate'
+              ? 250
+              : event === 'manualBottomReattachCandidate'
+                ? 250
           : event === 'operationObservation' ||
               event === 'geometryChanged' ||
-              event === 'followLeaseSkipped'
+              event === 'followLeaseSkipped' ||
+              event === 'awayMotionIgnored' ||
+              event === 'manualBottomReattachIgnored'
             ? 500
             : 0;
       const now = Date.now();
@@ -350,6 +382,11 @@ export function useProactiveChatScrollPersistence(params: {
       messageViewportAnchorsEnabled,
       listEdgeMethodsEnabled,
       diagnosticsVerbose,
+      awayMotionDiagnosticMinPx: AWAY_MOTION_DIAGNOSTIC_MIN_PX,
+      awayMotionGeometrySettleMs: AWAY_MOTION_GEOMETRY_SETTLE_MS,
+      awayMotionSemanticSettleMs: AWAY_MOTION_SEMANTIC_SETTLE_MS,
+      awayMotionProgrammaticWindowMs:
+        AWAY_MOTION_PROGRAMMATIC_WINDOW_MS,
     });
   }, [
     bottomConvergenceMaxMs,
@@ -423,6 +460,190 @@ export function useProactiveChatScrollPersistence(params: {
     },
     [updateDerivedScrollState],
   );
+
+  const observeNativeMotionForDiagnostics = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>, eventSource: string) => {
+      const metrics = readScrollMetricsFromEvent(event);
+      if (
+        metrics.offsetY == null ||
+        metrics.contentHeight == null ||
+        metrics.viewportHeight == null
+      ) {
+        return;
+      }
+      const now = Date.now();
+      const previous = lastObservedNativeMotionSampleRef.current;
+      if (
+        previous &&
+        (Math.abs(previous.contentHeight - metrics.contentHeight) >
+          AWAY_MOTION_GEOMETRY_EPSILON_PX ||
+          Math.abs(previous.viewportHeight - metrics.viewportHeight) >
+            AWAY_MOTION_GEOMETRY_EPSILON_PX)
+      ) {
+        geometryRevisionRef.current += 1;
+        lastGeometryChangeAtMsRef.current = now;
+      }
+      const current: ChatScrollMotionSample = {
+        atMs: now,
+        offsetY: metrics.offsetY,
+        contentHeight: metrics.contentHeight,
+        viewportHeight: metrics.viewportHeight,
+        geometryRevision: geometryRevisionRef.current,
+      };
+      lastObservedNativeMotionSampleRef.current = current;
+      if (!previous) {
+        return;
+      }
+      if (
+        coordinatorRef.current.bottomAffinity === 'manuallyDetached'
+      ) {
+        const diagnostic = classifyChatScrollReturnToBottom({
+          previous,
+          current,
+          bottomThresholdPx,
+          minTowardMovementPx: RETURN_TO_BOTTOM_MIN_TOWARD_PX,
+          geometryEpsilonPx: AWAY_MOTION_GEOMETRY_EPSILON_PX,
+          lastGeometryChangeAtMs: lastGeometryChangeAtMsRef.current,
+          geometrySettleMs: AWAY_MOTION_GEOMETRY_SETTLE_MS,
+          lastSemanticContentChangeAtMs:
+            lastSemanticContentChangeAtMsRef.current,
+          recentProgrammaticWrite: lastProgrammaticWriteRef.current,
+          programmaticWriteWindowMs:
+            AWAY_MOTION_PROGRAMMATIC_WINDOW_MS,
+        });
+        if (!diagnostic) {
+          return;
+        }
+        const operation = coordinatorRef.current.operation;
+        emitDiagnostic(
+          diagnostic.kind === 'candidate'
+            ? 'manualBottomReattachCandidate'
+            : 'manualBottomReattachIgnored',
+          diagnostic.reason,
+          {
+            eventSource,
+            interaction: coordinatorRef.current.interaction,
+            activeOperationId: operation?.id ?? null,
+            activeOperationPurpose: operation?.purpose ?? null,
+            activeOperationEdge: operation?.edge ?? null,
+            ...diagnostic.details,
+          },
+        );
+        if (
+          operation != null ||
+          !shouldReattachForChatScrollReturnToBottom(diagnostic)
+        ) {
+          return;
+        }
+        dispatchCoordinatorRef.current({
+          type: 'manualReturnToBottomDetected',
+          reason: diagnostic.reason,
+          nowMs: now,
+          deltaTowardBottomPx: Number(
+            diagnostic.details.deltaTowardBottomPx ?? 0,
+          ),
+          deltaOffsetY: Number(diagnostic.details.deltaOffsetY ?? 0),
+        });
+        return;
+      }
+      if (coordinatorRef.current.bottomAffinity !== 'pinned') {
+        return;
+      }
+
+      const diagnostic = classifyChatScrollAwayMotion({
+        previous,
+        current,
+        minAwayMovementPx: AWAY_MOTION_DIAGNOSTIC_MIN_PX,
+        geometryEpsilonPx: AWAY_MOTION_GEOMETRY_EPSILON_PX,
+        lastGeometryChangeAtMs: lastGeometryChangeAtMsRef.current,
+        geometrySettleMs: AWAY_MOTION_GEOMETRY_SETTLE_MS,
+        lastSemanticContentChangeAtMs:
+          lastSemanticContentChangeAtMsRef.current,
+        semanticContentSettleMs: AWAY_MOTION_SEMANTIC_SETTLE_MS,
+        recentProgrammaticWrite: lastProgrammaticWriteRef.current,
+        programmaticWriteWindowMs: AWAY_MOTION_PROGRAMMATIC_WINDOW_MS,
+      });
+      if (!diagnostic) {
+        return;
+      }
+      const operation = coordinatorRef.current.operation;
+      emitDiagnostic(
+        diagnostic.kind === 'candidate'
+          ? 'awayMotionCandidate'
+          : 'awayMotionIgnored',
+        diagnostic.reason,
+        {
+          eventSource,
+          bottomAffinity: coordinatorRef.current.bottomAffinity,
+          interaction: coordinatorRef.current.interaction,
+          followLeaseActive:
+            coordinatorRef.current.followLease != null &&
+            now <= coordinatorRef.current.followLease.expiresAtMs,
+          activeOperationId: operation?.id ?? null,
+          activeOperationPurpose: operation?.purpose ?? null,
+          activeOperationEdge: operation?.edge ?? null,
+          ...diagnostic.details,
+        },
+      );
+      if (diagnostic.kind !== 'candidate') {
+        return;
+      }
+      const recentProgrammaticWrite =
+        diagnostic.details.recentProgrammaticWrite === true;
+      const movementOpposesProgrammaticTarget =
+        diagnostic.details.movementOpposesProgrammaticTarget === true;
+      if (!shouldDetachForChatScrollAwayMotion(diagnostic)) {
+        emitDiagnostic(
+          'awayMotionDetachSuppressed',
+          'recentProgrammaticMovementNotOpposed',
+          {
+            eventSource,
+            ...diagnostic.details,
+          },
+        );
+        return;
+      }
+      dispatchCoordinatorRef.current({
+        type: 'manualAwayMotionDetected',
+        reason: diagnostic.reason,
+        nowMs: now,
+        deltaBottomGapPx: Number(
+          diagnostic.details.deltaBottomGapPx ?? 0,
+        ),
+        deltaOffsetY: Number(diagnostic.details.deltaOffsetY ?? 0),
+        recentProgrammaticWrite,
+        movementOpposesProgrammaticTarget,
+      });
+    },
+    [bottomThresholdPx, emitDiagnostic],
+  );
+
+  const markGeometryChangedForMotionDiagnostics = useCallback(
+    (previousValue: number | null, nextValue: number) => {
+      if (
+        previousValue == null ||
+        Math.abs(previousValue - nextValue) >
+          AWAY_MOTION_GEOMETRY_EPSILON_PX
+      ) {
+        geometryRevisionRef.current += 1;
+        lastGeometryChangeAtMsRef.current = Date.now();
+      }
+    },
+    [],
+  );
+
+  const refreshObservedMotionGeometryBaseline = useCallback(() => {
+    lastObservedNativeMotionSampleRef.current =
+      refreshChatScrollMotionGeometry(
+        lastObservedNativeMotionSampleRef.current,
+        {
+          atMs: Date.now(),
+          contentHeight: contentHeightRef.current,
+          viewportHeight: layoutHeightRef.current,
+          geometryRevision: geometryRevisionRef.current,
+        },
+      );
+  }, []);
 
   const cancelRuntimeOperation = useCallback(
     (operationId: number, reason: string) => {
@@ -536,6 +757,13 @@ export function useProactiveChatScrollPersistence(params: {
         return false;
       }
 
+      lastProgrammaticWriteRef.current = {
+        atMs: Date.now(),
+        operationId: operation.id,
+        purpose: operation.purpose,
+        edge: operation.edge,
+        targetOffsetY,
+      };
       offsetYRef.current = targetOffsetY;
       updateDerivedScrollState();
       emitDiagnostic('operationCorrection', context.reason, {
@@ -854,6 +1082,7 @@ export function useProactiveChatScrollPersistence(params: {
 
   const notifyBottomContentChange = useCallback(
     (reason: string, revision: unknown, options?: { leaseMs?: number }) => {
+      lastSemanticContentChangeAtMsRef.current = Date.now();
       dispatchCoordinator({
         type: 'semanticContentChanged',
         revision,
@@ -1149,37 +1378,60 @@ export function useProactiveChatScrollPersistence(params: {
     (event: LayoutChangeEvent) => {
       const height = Number(event.nativeEvent?.layout?.height ?? NaN);
       if (Number.isFinite(height)) {
+        markGeometryChangedForMotionDiagnostics(
+          layoutHeightRef.current,
+          height,
+        );
         layoutHeightRef.current = height;
+        refreshObservedMotionGeometryBaseline();
       }
       updateDerivedScrollState();
       maybeRestoreScroll();
       signalGeometryChanged('layout');
     },
-    [maybeRestoreScroll, signalGeometryChanged, updateDerivedScrollState],
+    [
+      markGeometryChangedForMotionDiagnostics,
+      maybeRestoreScroll,
+      refreshObservedMotionGeometryBaseline,
+      signalGeometryChanged,
+      updateDerivedScrollState,
+    ],
   );
 
   const onContentSizeChange = useCallback(
     (_width: number, height: number) => {
       const resolved = Number(height ?? NaN);
       if (Number.isFinite(resolved)) {
+        markGeometryChangedForMotionDiagnostics(
+          contentHeightRef.current,
+          resolved,
+        );
         contentHeightRef.current = resolved;
+        refreshObservedMotionGeometryBaseline();
       }
       updateDerivedScrollState();
       maybeRestoreScroll();
       signalGeometryChanged('contentSizeChange');
     },
-    [maybeRestoreScroll, signalGeometryChanged, updateDerivedScrollState],
+    [
+      markGeometryChangedForMotionDiagnostics,
+      maybeRestoreScroll,
+      refreshObservedMotionGeometryBaseline,
+      signalGeometryChanged,
+      updateDerivedScrollState,
+    ],
   );
 
   const onScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      observeNativeMotionForDiagnostics(event, 'scroll');
       applyEventMetrics(event);
       const operationId = coordinatorRef.current.operation?.id;
       if (operationId != null) {
         scheduleRuntimeOperationRef.current(operationId);
       }
     },
-    [applyEventMetrics],
+    [applyEventMetrics, observeNativeMotionForDiagnostics],
   );
 
   const beginInteraction = useCallback(
@@ -1193,6 +1445,7 @@ export function useProactiveChatScrollPersistence(params: {
         interactionEndTimerRef.current = null;
       }
       userInteractionActiveRef.current = true;
+      observeNativeMotionForDiagnostics(event, reason);
       applyEventMetrics(event);
       dispatchCoordinator({
         type: 'interactionBegan',
@@ -1201,7 +1454,11 @@ export function useProactiveChatScrollPersistence(params: {
         nowMs: Date.now(),
       });
     },
-    [applyEventMetrics, dispatchCoordinator],
+    [
+      applyEventMetrics,
+      dispatchCoordinator,
+      observeNativeMotionForDiagnostics,
+    ],
   );
 
   const finishInteraction = useCallback(
@@ -1211,6 +1468,7 @@ export function useProactiveChatScrollPersistence(params: {
         interactionEndTimerRef.current = null;
       }
       if (event) {
+        observeNativeMotionForDiagnostics(event, reason);
         applyEventMetrics(event);
       }
       userInteractionActiveRef.current = false;
@@ -1221,7 +1479,11 @@ export function useProactiveChatScrollPersistence(params: {
         nowMs: Date.now(),
       });
     },
-    [applyEventMetrics, dispatchCoordinator],
+    [
+      applyEventMetrics,
+      dispatchCoordinator,
+      observeNativeMotionForDiagnostics,
+    ],
   );
 
   const onScrollBeginDrag = useCallback(
@@ -1255,13 +1517,14 @@ export function useProactiveChatScrollPersistence(params: {
       // Some RN list implementations emit momentum callbacks for animated
       // programmatic navigation. Without a preceding drag this is observation,
       // not user intent, and must not cancel the navigation operation.
+      observeNativeMotionForDiagnostics(event, 'programmaticMomentumBegin');
       applyEventMetrics(event);
       const operationId = coordinatorRef.current.operation?.id;
       if (operationId != null) {
         scheduleRuntimeOperationRef.current(operationId);
       }
     },
-    [applyEventMetrics, beginInteraction],
+    [applyEventMetrics, beginInteraction, observeNativeMotionForDiagnostics],
   );
 
   const onMomentumScrollEnd = useCallback(
@@ -1270,6 +1533,7 @@ export function useProactiveChatScrollPersistence(params: {
         finishInteraction('momentumScrollEnd', event);
         requestPersist('scrollMomentumEnd');
       } else {
+        observeNativeMotionForDiagnostics(event, 'programmaticMomentumEnd');
         applyEventMetrics(event);
         const operationId = coordinatorRef.current.operation?.id;
         if (operationId != null) {
@@ -1282,7 +1546,13 @@ export function useProactiveChatScrollPersistence(params: {
         }
       }
     },
-    [applyEventMetrics, emitDiagnostic, finishInteraction, requestPersist],
+    [
+      applyEventMetrics,
+      emitDiagnostic,
+      finishInteraction,
+      observeNativeMotionForDiagnostics,
+      requestPersist,
+    ],
   );
 
   const result = useMemo(

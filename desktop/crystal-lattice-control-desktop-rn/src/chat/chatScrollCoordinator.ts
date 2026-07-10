@@ -6,7 +6,10 @@
  * revision. Geometry events may reconcile an existing operation/lease, but
  * can never grant or extend follow permission.
  */
-export type ChatScrollBottomAffinity = 'pinned' | 'detached';
+export type ChatScrollBottomAffinity =
+  | 'pinned'
+  | 'detached'
+  | 'manuallyDetached';
 
 export type ChatScrollInteraction = 'idle' | 'dragging' | 'momentum';
 
@@ -92,6 +95,22 @@ export type ChatScrollCoordinatorEvent =
       bottomAffinity: ChatScrollBottomAffinity;
       reason: string;
       nowMs: number;
+    }
+  | {
+      type: 'manualAwayMotionDetected';
+      reason: string;
+      nowMs: number;
+      deltaBottomGapPx: number;
+      deltaOffsetY: number;
+      recentProgrammaticWrite: boolean;
+      movementOpposesProgrammaticTarget: boolean;
+    }
+  | {
+      type: 'manualReturnToBottomDetected';
+      reason: string;
+      nowMs: number;
+      deltaTowardBottomPx: number;
+      deltaOffsetY: number;
     }
   | { type: 'operationCorrectionIssued'; operationId: number; nowMs: number }
   | { type: 'operationCompleted'; operationId: number; reason: string; nowMs: number }
@@ -262,7 +281,7 @@ export function reduceChatScrollCoordinator(
         : state.interaction !== 'idle'
           ? 'userInteracting'
           : state.bottomAffinity !== 'pinned'
-            ? 'detached'
+            ? state.bottomAffinity
             : state.operation?.purpose === 'navigation'
               ? 'navigationActive'
               : null;
@@ -438,11 +457,17 @@ export function reduceChatScrollCoordinator(
   }
 
   if (event.type === 'interactionEnded') {
+    const bottomAffinity =
+      previousState.bottomAffinity === 'manuallyDetached'
+        ? 'manuallyDetached'
+        : event.atBottom
+          ? 'pinned'
+          : 'detached';
     return transition(
       {
         ...previousState,
         interaction: 'idle',
-        bottomAffinity: event.atBottom ? 'pinned' : 'detached',
+        bottomAffinity,
         followLease: null,
         operation: null,
       },
@@ -453,7 +478,69 @@ export function reduceChatScrollCoordinator(
             reason: event.reason,
             details: {
               atBottom: event.atBottom,
-              bottomAffinity: event.atBottom ? 'pinned' : 'detached',
+              bottomAffinity,
+            },
+          },
+        ],
+      },
+    );
+  }
+
+  if (event.type === 'manualAwayMotionDetected') {
+    const operation = previousState.operation;
+    if (previousState.bottomAffinity !== 'pinned') {
+      return transition(previousState);
+    }
+    return transition(
+      {
+        ...previousState,
+        bottomAffinity: 'manuallyDetached',
+        followLease: null,
+        operation: null,
+      },
+      {
+        effects: cancelOperationEffect(operation, event.reason),
+        diagnostics: [
+          {
+            event: 'manualBottomDetached',
+            reason: event.reason,
+            details: {
+              deltaBottomGapPx: event.deltaBottomGapPx,
+              deltaOffsetY: event.deltaOffsetY,
+              recentProgrammaticWrite: event.recentProgrammaticWrite,
+              movementOpposesProgrammaticTarget:
+                event.movementOpposesProgrammaticTarget,
+              cancelledOperationId: operation?.id ?? null,
+              cancelledOperationPurpose: operation?.purpose ?? null,
+            },
+          },
+        ],
+      },
+    );
+  }
+
+  if (event.type === 'manualReturnToBottomDetected') {
+    if (
+      previousState.bottomAffinity !== 'manuallyDetached' ||
+      previousState.operation != null
+    ) {
+      return transition(previousState);
+    }
+    return transition(
+      {
+        ...previousState,
+        bottomAffinity: 'pinned',
+        followLease: null,
+        operation: null,
+      },
+      {
+        diagnostics: [
+          {
+            event: 'manualBottomReattached',
+            reason: event.reason,
+            details: {
+              deltaTowardBottomPx: event.deltaTowardBottomPx,
+              deltaOffsetY: event.deltaOffsetY,
             },
           },
         ],

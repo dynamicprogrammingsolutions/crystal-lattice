@@ -31,8 +31,8 @@ globalThis.CLC_FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS = 200;
 
 // Lifecycle diagnostics are concise and off by default. Enable verbose mode
 // only when frame-level observations/corrections are needed.
-globalThis.CLC_DEBUG_CHAT_SCROLL_COORDINATOR = true;
-globalThis.CLC_DEBUG_CHAT_SCROLL_COORDINATOR_VERBOSE = true;
+// globalThis.CLC_DEBUG_CHAT_SCROLL_COORDINATOR = true;
+// globalThis.CLC_DEBUG_CHAT_SCROLL_COORDINATOR_VERBOSE = true;
 
 if (globalThis.CLC_DEBUG_CHAT_SCROLL_COORDINATOR === true) {
   console.log(

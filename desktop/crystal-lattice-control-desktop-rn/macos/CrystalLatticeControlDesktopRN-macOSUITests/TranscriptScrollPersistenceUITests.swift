@@ -233,6 +233,47 @@ final class TranscriptScrollPersistenceUITests: XCTestCase {
     XCTAssertEqual(eventCount(state, "followLeaseRenewed"), 0, "\(state)")
   }
 
+  func testFlatListManualAwayMovementDetachesAndBlocksFutureContentFollow() throws {
+    let app = launchHarness(implementation: "flatList")
+
+    clickHarnessMenu(app, "Transcript Harness Prepare Manual Detach")
+    _ = waitForState(command: "prepareManualDetach", timeout: 20)
+
+    let list = app.scrollViews.firstMatch
+    XCTAssertTrue(list.waitForExistence(timeout: 10), app.debugDescription)
+    list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+      .scroll(byDeltaX: 0, deltaY: 240)
+
+    RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+    clickHarnessMenu(app, "Transcript Harness Semantic After Manual Detach")
+    let state = waitForState(command: "semanticAfterManualDetach", timeout: 20)
+
+    XCTAssertEqual(stringValue(state, "implementation"), "flatList")
+    XCTAssertGreaterThanOrEqual(eventCount(state, "awayMotionCandidate"), 1, "\(state)")
+    XCTAssertEqual(eventCount(state, "manualBottomDetached"), 1, "\(state)")
+    XCTAssertGreaterThanOrEqual(eventCount(state, "followLeaseSkipped"), 1, "\(state)")
+    XCTAssertEqual(eventCount(state, "followLeaseStarted"), 0, "\(state)")
+    XCTAssertEqual(eventCount(state, "followLeaseRenewed"), 0, "\(state)")
+    XCTAssertGreaterThan(intValue(state, "bottomGapPx") ?? 0, 12, "\(state)")
+
+    list.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+      .scroll(byDeltaX: 0, deltaY: -600)
+
+    RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+    clickHarnessMenu(app, "Transcript Harness Semantic After Manual Reattach")
+    let reattachedState = waitForState(command: "semanticAfterManualReattach", timeout: 20)
+
+    XCTAssertGreaterThanOrEqual(
+      eventCount(reattachedState, "manualBottomReattachCandidate"),
+      1,
+      "\(reattachedState)"
+    )
+    XCTAssertEqual(eventCount(reattachedState, "manualBottomReattached"), 1, "\(reattachedState)")
+    XCTAssertEqual(eventCount(reattachedState, "followLeaseStarted"), 1, "\(reattachedState)")
+    XCTAssertEqual(eventCount(reattachedState, "followLeaseRenewed"), 0, "\(reattachedState)")
+    XCTAssertLessThanOrEqual(intValue(reattachedState, "bottomGapPx") ?? Int.max, 12, "\(reattachedState)")
+  }
+
   func testFlatListLongDistanceBottomNavigationReachesMeasuredBottom() throws {
     let app = launchHarness(implementation: "flatList")
 

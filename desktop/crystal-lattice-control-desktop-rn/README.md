@@ -200,6 +200,66 @@ globalThis.CLC_FLATLIST_ITEM_ANCHOR_TIMEOUT_MS = 15000;
 globalThis.CLC_FLATLIST_ITEM_ANCHOR_MAX_ATTEMPTS = 200;
 ```
 
+### Stable-geometry manual detachment
+
+The coordinator classifies movement away from a pinned bottom using native
+event-to-event bottom gaps and geometry revisions.
+
+An unexplained movement with stable content/viewport geometry reports:
+
+```text
+awayMotionCandidate
+reason=stableGeometryAwayMotion
+```
+
+The event includes bottom-gap and offset deltas, geometry revisions, active
+operation details, and whether the movement opposed a recent programmatic
+target.
+
+An accepted candidate immediately reports:
+
+```text
+manualBottomDetached
+reason=stableGeometryAwayMotion
+```
+
+It latches `manuallyDetached` affinity, clears any follow lease, and cancels
+the active content-follow operation. Semantic content changes cannot reattach
+the transcript.
+
+Stable manual movement back toward the bottom that crosses into the measured
+bottom threshold reports:
+
+```text
+manualBottomReattachCandidate
+manualBottomReattached
+```
+
+This changes affinity back to `pinned` without issuing a scroll command or
+starting a lease. The next semantic content change can then use normal bounded
+following. Active or recent programmatic navigation cannot trigger this
+manual-return transition. Successful explicit bottom navigation also
+reattaches after convergence.
+
+A candidate that is compatible with a recent programmatic target is retained
+as a diagnostic but reports:
+
+```text
+awayMotionDetachSuppressed
+reason=recentProgrammaticMovementNotOpposed
+```
+
+An away movement observed while layout or semantic content is still settling
+reports:
+
+```text
+awayMotionIgnored
+reason=geometryChanged|recentGeometryChange|semanticContentPending
+```
+
+Candidate output is rate-limited to four lines per second and ignored output
+to two lines per second so a short manual gesture remains copyable.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.
