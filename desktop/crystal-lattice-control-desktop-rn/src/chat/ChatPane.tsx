@@ -78,6 +78,7 @@ import { closeDesktopPopover, openDesktopPopover } from '../windows/desktopPopov
 import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverContent';
 import { setActiveSessionSettingsWindow } from '../windows/sessionSettingsCoordinator';
 import { setActiveSessionPluginsWindow } from '../windows/sessionPluginsCoordinator';
+import { setActiveSessionSnapshotsWindow } from '../windows/sessionSnapshotsCoordinator';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { pickMacAttachment } from '../native/MacAttachmentPicker';
 import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
@@ -268,7 +269,13 @@ const DEFAULT_PINNED_MESSAGE_ACTIONS_BY_ROLE: Record<string, MessageActionKey[]>
   tool: ['copy'],
 };
 
-type ChatSessionActionKey = 'reload' | 'agentSwitch' | 'messageLimit' | 'settings' | 'plugins';
+type ChatSessionActionKey =
+  | 'reload'
+  | 'agentSwitch'
+  | 'messageLimit'
+  | 'settings'
+  | 'plugins'
+  | 'snapshots';
 
 type ChatComposerActionKey = 'append' | 'appendAs' | 'resend' | 'cancel';
 
@@ -346,6 +353,7 @@ const BUILTIN_SESSION_ACTIONS: ActionDefinition[] = [
   { key: 'messageLimit', label: 'Message limit', iconName: 'sliders' },
   { key: 'settings', label: 'Settings…', iconName: 'settings' },
   { key: 'plugins', label: 'Plugins…', iconName: 'package' },
+  { key: 'snapshots', label: 'Snapshots…', iconName: 'camera' },
 ];
 
 const BUILTIN_COMPOSER_ACTIONS: ActionDefinition[] = [
@@ -2361,6 +2369,32 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
 
+      if (action === 'snapshots') {
+        if (!backend) {
+          return;
+        }
+
+        setActiveSessionSnapshotsWindow({
+          state: {
+            id: `session-snapshots:${connectionId}:${sessionId}`,
+            connectionId,
+            connectionName,
+            sessionId,
+            backend,
+          },
+        });
+
+        DesktopWindowManager?.openReactWindow({
+          windowKey: 'sessionSnapshots',
+          moduleName: 'SessionSnapshotsWindow',
+          title: 'Snapshots',
+          width: 560,
+          height: 640,
+          initialProps: {},
+        });
+        return;
+      }
+
       const pluginEl = visibleSessionActions.find((el) => el.id === key);
       if (pluginEl) {
         openPluginDialogForElement(pluginEl, {
@@ -2787,6 +2821,9 @@ export const ChatPane = React.memo(function ChatPane({
                   return true;
                 }
                 return false;
+              }
+              if (key === 'snapshots') {
+                return !backend;
               }
               return false;
             }}

@@ -18,6 +18,7 @@ import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWind
 import { clearActiveSessionSettingsWindow } from './windows/sessionSettingsCoordinator';
 import { cancelAttachmentMetadataWindowFromSystem } from './windows/attachmentMetadataCoordinator';
 import { clearActiveSessionPluginsWindow } from './windows/sessionPluginsCoordinator';
+import { clearActiveSessionSnapshotsWindow } from './windows/sessionSnapshotsCoordinator';
 import { useMessagesCache } from './cache/useMessagesCache';
 import { useSessionsCache } from './cache/useSessionsCache';
 import { desktopEventBus } from './events/desktopEventBus';
@@ -662,6 +663,9 @@ export function DesktopRoot({
         }
         if (windowKey === 'sessionPlugins') {
           clearActiveSessionPluginsWindow();
+        }
+        if (windowKey === 'sessionSnapshots') {
+          clearActiveSessionSnapshotsWindow();
         }
         if (windowKey === 'attachmentMetadata') {
           cancelAttachmentMetadataWindowFromSystem();

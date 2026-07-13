@@ -68,6 +68,7 @@ const {
 } = require('./src/windows/ApplicationActionDialogWindow');
 const { SessionSettingsWindow } = require('./src/windows/SessionSettingsWindow');
 const { SessionPluginsWindow } = require('./src/windows/SessionPluginsWindow');
+const { SessionSnapshotsWindow } = require('./src/windows/SessionSnapshotsWindow');
 const { AttachmentMetadataWindow } = require('./src/windows/AttachmentMetadataWindow');
 const { name: appName } = require('./app.json');
 
@@ -81,4 +82,5 @@ AppRegistry.registerComponent('MessageLimitPopoverView', () => MessageLimitPopov
 AppRegistry.registerComponent('ApplicationActionDialogWindow', () => ApplicationActionDialogWindow);
 AppRegistry.registerComponent('SessionSettingsWindow', () => SessionSettingsWindow);
 AppRegistry.registerComponent('SessionPluginsWindow', () => SessionPluginsWindow);
+AppRegistry.registerComponent('SessionSnapshotsWindow', () => SessionSnapshotsWindow);
 AppRegistry.registerComponent('AttachmentMetadataWindow', () => AttachmentMetadataWindow);
