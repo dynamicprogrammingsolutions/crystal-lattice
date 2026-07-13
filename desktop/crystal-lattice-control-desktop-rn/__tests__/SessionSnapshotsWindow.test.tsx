@@ -23,6 +23,11 @@ function makeBackend(opts: {
   listThrows?: Error;
   create?: SnapshotSummary;
   createThrows?: Error;
+  selectedSnapshotId?: string | null;
+  selectThrows?: Error;
+  clearThrows?: Error;
+  restoreThrows?: Error;
+  deleteThrows?: Error;
 } = {}) {
   const list = opts.list ?? [];
   const created = opts.create ?? {
@@ -34,6 +39,11 @@ function makeBackend(opts: {
   const calls = {
     listSessionSnapshots: 0,
     createSessionSnapshot: 0,
+    getSelectedSessionSnapshot: 0,
+    selectSessionSnapshot: 0,
+    clearSelectedSessionSnapshot: 0,
+    restoreSessionSnapshot: 0,
+    deleteSessionSnapshot: 0,
   };
   const backend: any = {
     listSessionSnapshots: async () => {
@@ -50,8 +60,38 @@ function makeBackend(opts: {
       }
       return created;
     },
+    getSelectedSessionSnapshot: async () => {
+      calls.getSelectedSessionSnapshot += 1;
+      return opts.selectedSnapshotId ?? null;
+    },
+    selectSessionSnapshot: async (_sessionId: string, snapshotId: string) => {
+      calls.selectSessionSnapshot += 1;
+      if (opts.selectThrows) {
+        throw opts.selectThrows;
+      }
+      opts.selectedSnapshotId = snapshotId;
+    },
+    clearSelectedSessionSnapshot: async () => {
+      calls.clearSelectedSessionSnapshot += 1;
+      if (opts.clearThrows) {
+        throw opts.clearThrows;
+      }
+      opts.selectedSnapshotId = null;
+    },
+    restoreSessionSnapshot: async () => {
+      calls.restoreSessionSnapshot += 1;
+      if (opts.restoreThrows) {
+        throw opts.restoreThrows;
+      }
+    },
+    deleteSessionSnapshot: async () => {
+      calls.deleteSessionSnapshot += 1;
+      if (opts.deleteThrows) {
+        throw opts.deleteThrows;
+      }
+    },
   };
-  return { backend, calls };
+  return { backend, calls, opts };
 }
 
 let renderer: ReactTestRenderer.ReactTestRenderer | null = null;
@@ -241,4 +281,144 @@ test('renders error message when listing fails', async () => {
   const root = r.root;
 
   expect(findAllByText(root, 'boom').length).toBeGreaterThan(0);
+});
+
+test('select calls backend.selectSessionSnapshot then refreshes selected', async () => {
+  const { backend, calls, opts } = makeBackend({
+    list: [{ snapshot_id: 'snap-1', created_at: '2026-06-17T12:00:00Z', reason: 'manual' }],
+  });
+  setActive(backend);
+
+  const r = await renderAndWait(<SessionSnapshotsWindow />);
+  const root = r.root;
+
+  expect(calls.selectSessionSnapshot).toBe(0);
+  expect(calls.getSelectedSessionSnapshot).toBe(1);
+
+  const selectPressable = findPressableByText(root, 'Select');
+
+  await ReactTestRenderer.act(async () => {
+    selectPressable.props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(calls.selectSessionSnapshot).toBe(1);
+  expect(calls.getSelectedSessionSnapshot).toBe(2);
+  expect(opts.selectedSnapshotId).toBe('snap-1');
+});
+
+test('selected item shows Selected label and disables Select button', async () => {
+  const { backend } = makeBackend({
+    list: [
+      { snapshot_id: 'snap-1', created_at: '2026-06-17T12:00:00Z', reason: 'manual' },
+      { snapshot_id: 'snap-2', created_at: '2026-06-17T13:00:00Z', reason: null },
+    ],
+    selectedSnapshotId: 'snap-1',
+  });
+  setActive(backend);
+
+  const r = await renderAndWait(<SessionSnapshotsWindow />);
+  const root = r.root;
+
+  expect(findAllByText(root, 'Selected').length).toBeGreaterThan(0);
+  expect(findAllByText(root, 'Select').length).toBeGreaterThan(0);
+
+  const selectedPressable = findPressableByText(root, 'Selected');
+  expect(selectedPressable.props.disabled).toBe(true);
+});
+
+test('live session button appears only when a snapshot is selected', async () => {
+  const { backend } = makeBackend({ list: [] });
+  setActive(backend);
+
+  const r = await renderAndWait(<SessionSnapshotsWindow />);
+  expect(findAllByText(r.root, 'Live session').length).toBe(0);
+});
+
+test('live session button clears the selected snapshot', async () => {
+  const { backend, calls, opts } = makeBackend({
+    list: [{ snapshot_id: 'snap-1', created_at: '2026-06-17T12:00:00Z', reason: 'manual' }],
+    selectedSnapshotId: 'snap-1',
+  });
+  setActive(backend);
+
+  const r = await renderAndWait(<SessionSnapshotsWindow />);
+  const root = r.root;
+
+  expect(findAllByText(root, 'Live session').length).toBeGreaterThan(0);
+  expect(calls.clearSelectedSessionSnapshot).toBe(0);
+
+  const livePressable = findPressableByText(root, 'Live session');
+
+  await ReactTestRenderer.act(async () => {
+    livePressable.props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(calls.clearSelectedSessionSnapshot).toBe(1);
+  expect(opts.selectedSnapshotId).toBeNull();
+});
+
+test('restore calls backend.restoreSessionSnapshot then reloads list and selected', async () => {
+  const { backend, calls } = makeBackend({
+    list: [{ snapshot_id: 'snap-1', created_at: '2026-06-17T12:00:00Z', reason: 'manual' }],
+  });
+  setActive(backend);
+
+  const r = await renderAndWait(<SessionSnapshotsWindow />);
+  const root = r.root;
+
+  const restorePressables = root.findAll(
+    (node: any) => typeof node.props?.onPress === 'function',
+  );
+  const restorePressable = restorePressables.find((node: any) =>
+    (node as ReactTestRenderer.ReactTestInstance)
+      .findAll((n: any) => typeof n === 'object' && n !== null && n.children?.some?.((c: any) => typeof c === 'string' && c === 'Restore'))
+      .length > 0,
+  );
+  expect(restorePressable).toBeDefined();
+
+  await ReactTestRenderer.act(async () => {
+    restorePressable!.props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(calls.restoreSessionSnapshot).toBe(1);
+  expect(calls.listSessionSnapshots).toBeGreaterThanOrEqual(2);
+  expect(calls.getSelectedSessionSnapshot).toBeGreaterThanOrEqual(2);
+});
+
+test('delete calls backend.deleteSessionSnapshot then reloads list', async () => {
+  const { backend, calls } = makeBackend({
+    list: [{ snapshot_id: 'snap-1', created_at: '2026-06-17T12:00:00Z', reason: 'manual' }],
+  });
+  setActive(backend);
+
+  const r = await renderAndWait(<SessionSnapshotsWindow />);
+  const root = r.root;
+
+  const deletePressable = root
+    .findAll((node: any) => typeof node.props?.onPress === 'function')
+    .find((node: any) =>
+      (node as ReactTestRenderer.ReactTestInstance)
+        .findAll((n: any) => typeof n === 'object' && n !== null && n.children?.some?.((c: any) => typeof c === 'string' && c === 'Delete'))
+        .length > 0,
+    );
+  expect(deletePressable).toBeDefined();
+
+  await ReactTestRenderer.act(async () => {
+    deletePressable!.props.onPress();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(calls.deleteSessionSnapshot).toBe(1);
+  expect(calls.listSessionSnapshots).toBeGreaterThanOrEqual(2);
 });

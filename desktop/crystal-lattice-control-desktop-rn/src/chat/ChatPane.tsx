@@ -81,6 +81,7 @@ import { setActiveSessionPluginsWindow } from '../windows/sessionPluginsCoordina
 import { setActiveSessionSnapshotsWindow } from '../windows/sessionSnapshotsCoordinator';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { pickMacAttachment } from '../native/MacAttachmentPicker';
+import { SnapshotReadonlyBanner } from './SnapshotReadonlyBanner';
 import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
 import {
   buildAttachmentMetadataDefaults,
@@ -445,6 +446,7 @@ export const ChatPane = React.memo(function ChatPane({
   const [attachmentBackgroundOperation, setAttachmentBackgroundOperation] =
     useState<AttachmentBackgroundOperation>(null);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
+  const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
   const composerRef = useRef<MacTextViewHandle | null>(null);
   const attachmentPlusButtonRef = useRef<any>(null);
   const attemptedInitialLoadRef = useRef(false);
@@ -856,6 +858,69 @@ export const ChatPane = React.memo(function ChatPane({
     }
   }, [chatController, rangeEndText, rangeStartText]);
 
+  const refreshSelectedSnapshot = useCallback(async () => {
+    if (!backend) {
+      setSelectedSnapshotId(null);
+      return;
+    }
+    try {
+      const next = await backend.getSelectedSessionSnapshot(sessionId);
+      setSelectedSnapshotId(next);
+    } catch {
+      setSelectedSnapshotId(null);
+    }
+  }, [backend, sessionId]);
+
+  const handleClearSelectedSnapshot = useCallback(async () => {
+    if (!backend) {
+      return;
+    }
+    try {
+      await backend.clearSelectedSessionSnapshot(sessionId);
+      await refreshSelectedSnapshot();
+    } catch (err: any) {
+      const message =
+        typeof err?.message === 'string' && err.message
+          ? err.message
+          : 'Failed to return to live session.';
+      Alert.alert('Error', message);
+    }
+  }, [backend, refreshSelectedSnapshot, sessionId]);
+
+  useEffect(() => {
+    if (!backend) {
+      setSelectedSnapshotId(null);
+      return;
+    }
+    void refreshSelectedSnapshot();
+  }, [backend, refreshSelectedSnapshot]);
+
+  useEffect(() => {
+    if (!chatController) {
+      return;
+    }
+    chatController.setEventsListener((events) => {
+      let needsRefresh = false;
+      for (const ev of events) {
+        const type = (ev as any)?.type;
+        if (
+          type === 'session_snapshot_selected' ||
+          type === 'session_snapshot_cleared' ||
+          type === 'session_restored_from_snapshot'
+        ) {
+          needsRefresh = true;
+          break;
+        }
+      }
+      if (needsRefresh) {
+        void refreshSelectedSnapshot();
+      }
+    });
+    return () => {
+      chatController.setEventsListener(null);
+    };
+  }, [chatController, refreshSelectedSnapshot]);
+
   const persistCacheSnapshot = useCallback(() => {
     if (!chatController) {
       return;
@@ -1073,7 +1138,8 @@ export const ChatPane = React.memo(function ChatPane({
     !sendInFlight &&
     !chatState?.activeRequestId &&
     !attachmentActionInProgress &&
-    !unresolvedAttachmentDraft;
+    !unresolvedAttachmentDraft &&
+    !selectedSnapshotId;
 
   const canSendNow = canSend && (composeText.trim().length > 0 || hasAttachments);
 
@@ -1500,7 +1566,8 @@ export const ChatPane = React.memo(function ChatPane({
     unresolvedAttachmentDraft,
   ]);
 
-  const canRunComposerActions = backend != null && chatController != null && isActive;
+  const canRunComposerActions =
+    backend != null && chatController != null && isActive && !selectedSnapshotId;
 
   const canOpenAttachmentPlus =
     canRunComposerActions &&
@@ -2870,6 +2937,14 @@ export const ChatPane = React.memo(function ChatPane({
               <Text style={styles.retryButtonText}>Retry</Text>
             </Pressable>
           </View>
+        ) : null}
+
+        {selectedSnapshotId ? (
+          <SnapshotReadonlyBanner
+            snapshotId={selectedSnapshotId}
+            onClear={handleClearSelectedSnapshot}
+            disabled={!backend}
+          />
         ) : null}
 
         <View style={styles.transcriptFrame}>
