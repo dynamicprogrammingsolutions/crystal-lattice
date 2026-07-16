@@ -10,7 +10,9 @@ Finish the persistent subagent feature by verifying the shared runtime across al
 - [ ] Verify child sessions remain visible and have useful existing title/subtitle metadata without frontend changes.
 - [ ] Verify application request exclusivity across all adapters and request entry points.
 - [ ] Verify restart recovery through newly constructed application instances for background and blocking adapters.
+- [ ] Document the user-approved common configuration shape and every justified vendor-specific variation.
 - [ ] Add configuration examples showing how configured agents are exposed to each vendor tool surface.
+- [ ] Verify configuration order is preserved by each adapter wherever definitions are presented to the model.
 - [ ] Add or update package manifests, dependencies, and default configuration only where needed.
 - [ ] Document persistence, visibility, idempotency, cancellation, and checkpoint-level recovery semantics.
 - [ ] Clearly document the at-least-once limitation for interrupted nested tools.

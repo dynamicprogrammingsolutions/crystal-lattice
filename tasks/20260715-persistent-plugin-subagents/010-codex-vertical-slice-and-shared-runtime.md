@@ -9,6 +9,8 @@ Build the first real persistent subagent implementation using the selected upstr
 - [ ] Implement the Codex-compatible spawn, wait, persistent follow-up/input, list/status, and close behavior selected for V1.
 - [ ] Run spawned children in the background so multiple sequential spawn tool calls can produce concurrent child work.
 - [ ] Create every child as a persisted, visible application session using a configured agent.
+- [ ] Resolve subagent definitions to existing configured application agents instead of duplicating their provider, model, plugin, and tool configuration.
+- [ ] Preserve configured subagent order through loading and Codex model-facing presentation.
 - [ ] Store authoritative relationship and run information in child metadata.
 - [ ] Append the child ID exactly once to the parent session's `subagent_session_ids` metadata list.
 - [ ] Add useful existing title/subtitle metadata to child sessions without requiring new UI.

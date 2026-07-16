@@ -62,6 +62,35 @@ Follow the existing principle documented in `plugins/tool-compat-shared/README.m
 
 The shared implementation should be a normal non-plugin library package. Vendor-facing tool plugins should live in the relevant existing vendor tool packages.
 
+### User configuration
+
+- Users must be able to configure an ordered list of subagent definitions that resolve to existing configured application agents.
+- Configuration order must be preserved. Some vendor adapters may include available agents in model-facing tool descriptions or system instructions where ordering can affect behavior.
+- A definition must contain enough information to identify the model-facing subagent and resolve its target configured agent. The exact required fields are not fixed by this plan.
+- Vendor adapters may use different configuration fields or structures only when the difference is justified by their upstream model-facing behavior. Shared concepts should remain consistent where practical.
+- Subagent configuration must not duplicate provider, model, plugin, or tool configuration already owned by the referenced application agent unless an adapter-specific override is explicitly required.
+
+A conceptual example, not the approved final schema:
+
+```json
+{
+  "subagents": [
+    {
+      "name": "researcher",
+      "agent_id": "research-agent",
+      "description": "Investigate the codebase and return technical findings."
+    },
+    {
+      "name": "reviewer",
+      "agent_id": "review-agent",
+      "description": "Review proposed changes for correctness and missing tests."
+    }
+  ]
+}
+```
+
+The array order is significant and must survive configuration loading. The final location of this list, field names, optional fields, defaults, validation behavior, and vendor-specific extensions are intentionally not decided here.
+
 ### Model-facing behavior
 
 Provide separate model-facing implementations:
@@ -71,6 +100,14 @@ Provide separate model-facing implementations:
 - Gemini-compatible configured-specialist tools generated from agent definitions, with blocking execution and appropriate limits/completion behavior.
 
 Schemas, descriptions, supported arguments, result text, and errors must be verified against fixtures or contract tests derived from the inspected upstream revisions.
+
+## Implementation decision requiring user confirmation
+
+The final complete user-facing subagent configuration shape is intentionally not decided by this plan. It is a task-wide public interface decision.
+
+Before implementation commits to a configuration schema, the completing agent must present the proposed common shape, placement, defaults, validation behavior, ordering semantics, vendor-specific variations, and representative examples to the user for confirmation.
+
+This decision applies across all subtasks. It must not be treated as complete or owned solely by the first vendor adapter.
 
 ### Child sessions and relationships
 
