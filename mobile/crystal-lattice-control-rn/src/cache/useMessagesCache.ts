@@ -42,6 +42,12 @@ export interface UseMessagesCacheResult {
     sessionId: string,
     scrollAnchor: ChatScrollAnchor,
   ) => void;
+  saveMessagesHistoryRange: (
+    connectionId: string,
+    sessionId: string,
+    rangeStartText: string,
+    rangeEndText: string,
+  ) => void;
   deleteConnectionMessagesCache: (connectionId: string) => void;
   clearMessagesCache: () => void;
 }
@@ -295,6 +301,55 @@ export function useMessagesCache(store: KeyValueStore): UseMessagesCacheResult {
     });
   }, [commitMessagesCache, enqueuePersistence, store]);
 
+  const saveMessagesHistoryRange = useCallback((
+    connectionId: string,
+    sessionId: string,
+    rangeStartText: string,
+    rangeEndText: string,
+  ) => {
+    const prev = messagesCacheRef.current;
+    const bySession = prev[connectionId] ?? {};
+    const existing = bySession[sessionId];
+
+    const entry: MessagesCacheEntry = existing
+      ? {
+          ...existing,
+          rangeStartText,
+          rangeEndText,
+        }
+      : {
+          connectionId,
+          sessionId,
+          messages: [],
+          lastLoadedAt: null,
+          composeText: '',
+          cursorEventId: null,
+          eventsCursorId: null,
+          activeRequestId: null,
+          rangeStartText,
+          rangeEndText,
+        };
+
+    const nextCache: MessagesCache = {
+      ...prev,
+      [connectionId]: {
+        ...bySession,
+        [sessionId]: entry,
+      },
+    };
+    commitMessagesCache(nextCache);
+
+    enqueuePersistence(async () => {
+      try {
+        indexRef.current = await persistSessionScopedMessagesCacheEntry(store, {
+          index: indexRef.current,
+          entry,
+        });
+      } catch {
+      }
+    });
+  }, [commitMessagesCache, enqueuePersistence, store]);
+
   const deleteConnectionMessagesCache = useCallback((connectionId: string) => {
     const prev = messagesCacheRef.current;
     if (!(connectionId in prev)) {
@@ -335,6 +390,7 @@ export function useMessagesCache(store: KeyValueStore): UseMessagesCacheResult {
     updateMessagesCache,
     saveMessagesComposeText,
     saveMessagesScrollAnchor,
+    saveMessagesHistoryRange,
     deleteConnectionMessagesCache,
     clearMessagesCache,
   };

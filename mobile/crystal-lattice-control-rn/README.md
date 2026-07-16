@@ -37,6 +37,23 @@ This is the React Native mobile client for Crystal Lattice. It connects to the C
 - This includes: Node.js, JDK, Android Studio, Android SDK, and emulator setup
 - **Physical device strongly recommended** for network testing (emulators are unreliable for mDNS/Bonjour discovery)
 
+### Detox E2E tests
+
+- Install AppleSimUtils for iOS Simulator control:
+  ```bash
+  brew tap wix/brew
+  brew trust wix/brew
+  brew install applesimutils
+  ```
+- Create an iOS Simulator and Android AVD, or use the local defaults:
+  - iOS: `iPhone 17 Pro`
+  - Android: `Medium_Phone_API_36.1`
+- Override those names when needed:
+  ```bash
+  export DETOX_IOS_DEVICE="iPhone 16 Pro"
+  export DETOX_ANDROID_AVD="Pixel_8_API_35"
+  ```
+
 ## Installation
 
 1. **Navigate to the React Native app directory:**
@@ -133,6 +150,36 @@ npx react-native run-android
 3. Click the Run button
 
 **Note:** Make sure you have an emulator running or a device connected via USB with USB debugging enabled.
+
+## Running Detox transcript tests
+
+The transcript scroll suite launches a deterministic 300-message harness that
+uses the same production inverted FlatList viewport and chevron controls as the
+normal chat screen. The E2E builds bundle JavaScript and do not require Metro.
+
+Build and run on iOS:
+
+```bash
+npm run detox:build:ios
+npm run detox:test:transcript:ios
+```
+
+Build and run on Android:
+
+```bash
+npm run detox:build:android
+npm run detox:test:transcript:android
+```
+
+The Android test command prepares and stops the selected AVD before Detox starts
+it in read-only mode. This acknowledges Android's one-time immersive-mode
+confirmation so it cannot steal window focus during automation. The build script
+also creates the standard ignored Android debug keystore when it is missing.
+
+Failure artifacts are written below `artifacts/detox/`. Logs and screenshots are
+retained for failures; iOS also retains failure videos. The Android E2E build
+uses the dedicated `e2e` build type so Detox can use localhost WebSocket traffic
+without changing the production release manifest.
 
 ## Usage
 

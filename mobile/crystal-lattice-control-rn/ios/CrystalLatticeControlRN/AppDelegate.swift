@@ -23,8 +23,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     window = UIWindow(frame: UIScreen.main.bounds)
 
+    let moduleName = ProcessInfo.processInfo.arguments.contains {
+      $0 == "-clcTranscriptScrollHarness" || $0 == "clcTranscriptScrollHarness"
+    } ? "MobileTranscriptScrollHarness" : "CrystalLatticeControlRN"
+
     factory.startReactNative(
-      withModuleName: "CrystalLatticeControlRN",
+      withModuleName: moduleName,
       in: window,
       launchOptions: launchOptions
     )

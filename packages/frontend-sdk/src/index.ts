@@ -161,6 +161,17 @@ export type { ChatControllerState, StreamingRow, RequestErrorState } from './cha
 export { ChatController } from './chat/chatController';
 
 export { selectLastAssistantMessage, deriveChatStatusBarParts } from './chat/presentation';
+export type {
+  TranscriptRangeControlAction,
+  TranscriptRangeControlInput,
+  TranscriptRangePlan,
+  TranscriptRangeControlButton,
+  TranscriptRangeControlPresentation,
+} from './chat/messageRangeControls';
+export {
+  getTranscriptRangeControlPresentation,
+  planTranscriptRangeControlAction,
+} from './chat/messageRangeControls';
 
 export type { SessionUiSchemaControllerState } from './uiSchema/sessionUiSchemaController';
 export { SessionUiSchemaController } from './uiSchema/sessionUiSchemaController';
