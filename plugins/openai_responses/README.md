@@ -235,15 +235,35 @@ Relevant keys:
   - checked-in offline snapshot of the public Codex model catalog
   - refresh it with `python scripts/refresh_openai_responses_models.py`
   - used when live Codex fetching fails or when you want offline coverage from a recent repo update
+  - current snapshot source commit: `50b82133850d940627cf307d77e280619bfafe25` (2026-07-17); includes `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`
 - `chatgpt_account_id`
 - `chatgpt_client_version`
 - `strip_leading_system_or_developer_message`
 
-ChatGPT model-discovery precedence:
+ChatGPT model-discovery precedence (later sources override earlier per model id):
 
-- live Codex catalog overrides the checked-in Codex snapshot
-- checked-in Codex snapshot overrides manual fallback models
-- manual fallback models only fill gaps
+- checked-in manual fallback models (`openai_chatgpt_manual_models.json`)
+- checked-in Codex snapshot (`openai_codex_models.json`)
+- live Codex GitHub catalog (`openai/codex` `main` `codex-rs/models-manager/models.json`)
+
+The live Codex catalog is the authoritative source. The checked-in snapshot is a
+pinned fallback used when live GitHub access fails. Manual models only fill gaps
+that neither upstream source publishes.
+
+Last-resort fallback: the direct ChatGPT `/models` endpoint
+(`https://chatgpt.com/backend-api/codex/models?client_version=...`) is only
+contacted when both the live Codex fetch fails and the checked-in snapshot is
+empty. When the snapshot is available, the ChatGPT `/models` endpoint is not
+called. The endpoint has been observed to return an empty `models` list even
+when upstream catalogs already list GPT-5.6, so tests and callers must not rely
+on it as a primary discovery source.
+
+The bare `gpt-5.6` alias is intentionally not published in the model picker.
+OpenAI examples use `gpt-5.6` as a routing alias to `gpt-5.6-sol`, but the
+authoritative Codex catalog publishes only the three explicit family IDs
+(`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`). Users can still type `gpt-5.6`
+manually in the model field; the API will route it, but the UI will not suggest
+it as an option.
 
 Defaults:
 
@@ -618,8 +638,10 @@ transcript.
 - ChatGPT-backed requests use top-level `instructions` and `store: false`.
 - Flex processing and prompt-cache retention are automatically disabled when
   the ChatGPT endpoint is selected.
-- ChatGPT `/models` discovery may still require `client_version`; if discovery
-  is unavailable, pin `model` explicitly in config.
+- ChatGPT `/models` discovery is a last-resort fallback, only contacted when
+  both the live Codex catalog fetch fails and the checked-in Codex snapshot is
+  empty. It may still require `client_version`; if discovery is unavailable,
+  pin `model` explicitly in config.
 - Native compaction is intentionally different from human-readable summary
   insertion. It preserves provider-native compacted artifacts for future
   Responses requests instead of replacing history with a plain assistant

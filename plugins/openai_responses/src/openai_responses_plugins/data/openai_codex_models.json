@@ -1,5 +1,5 @@
 {
-  "fetched_at": "2026-04-24T10:02:27+00:00",
+  "fetched_at": "2026-07-17T20:51:17+00:00",
   "models": {
     "codex-auto-review": {
       "description": "Automatic approval review model for Codex.",
@@ -9,17 +9,12 @@
     "gpt-5.2": {
       "description": "Optimized for professional work and long-running agents.",
       "id": "gpt-5.2",
-      "name": "gpt-5.2"
-    },
-    "gpt-5.3-codex": {
-      "description": "Coding-optimized model.",
-      "id": "gpt-5.3-codex",
-      "name": "gpt-5.3-codex"
+      "name": "GPT-5.2"
     },
     "gpt-5.4": {
       "description": "Strong model for everyday coding.",
       "id": "gpt-5.4",
-      "name": "gpt-5.4"
+      "name": "GPT-5.4"
     },
     "gpt-5.4-mini": {
       "description": "Small, fast, and cost-efficient model for simpler coding tasks.",
@@ -30,8 +25,24 @@
       "description": "Frontier model for complex coding, research, and real-world work.",
       "id": "gpt-5.5",
       "name": "GPT-5.5"
+    },
+    "gpt-5.6-luna": {
+      "description": "Fast and affordable agentic coding model.",
+      "id": "gpt-5.6-luna",
+      "name": "GPT-5.6-Luna"
+    },
+    "gpt-5.6-sol": {
+      "description": "Latest frontier agentic coding model.",
+      "id": "gpt-5.6-sol",
+      "name": "GPT-5.6-Sol"
+    },
+    "gpt-5.6-terra": {
+      "description": "Balanced agentic coding model for everyday work.",
+      "id": "gpt-5.6-terra",
+      "name": "GPT-5.6-Terra"
     }
   },
   "source_base_url": "https://raw.githubusercontent.com/openai/codex",
+  "source_commit": "50b82133850d940627cf307d77e280619bfafe25",
   "version": 1
 }

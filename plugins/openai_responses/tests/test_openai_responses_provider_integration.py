@@ -47,7 +47,9 @@ def _upload_backed_image_test_config(api_key: str) -> dict[str, object]:
 
 def _build_attachment_core() -> AgentCore:
     core = AgentCore()
-    core.register_provider(OpenAIResponsesProvider, [OpenAIResponsesAttachmentsExtension])
+    core.register_provider(
+        OpenAIResponsesProvider, [OpenAIResponsesAttachmentsExtension]
+    )
     return core
 
 
@@ -74,7 +76,9 @@ def _generate_red_square_png(tmp_path: Path) -> Path:
     except FileNotFoundError:
         pytest.skip("magick not available; skipping generated-image integration test")
     except subprocess.CalledProcessError as exc:
-        pytest.fail(f"failed to generate test image with ImageMagick: {exc.stderr.strip()}")
+        pytest.fail(
+            f"failed to generate test image with ImageMagick: {exc.stderr.strip()}"
+        )
 
     if not image_path.exists():
         pytest.fail("ImageMagick did not create the expected test image")
@@ -103,7 +107,9 @@ def _generate_text_pdf(tmp_path: Path) -> Path:
     except FileNotFoundError:
         pytest.skip("magick not available; skipping generated-pdf integration test")
     except subprocess.CalledProcessError as exc:
-        pytest.fail(f"failed to generate test PDF with ImageMagick: {exc.stderr.strip()}")
+        pytest.fail(
+            f"failed to generate test PDF with ImageMagick: {exc.stderr.strip()}"
+        )
 
     if not pdf_path.exists():
         pytest.fail("ImageMagick did not create the expected test PDF")
@@ -136,12 +142,42 @@ def test_openai_responses_get_models_real_api(ensure_openai_api_key: str) -> Non
 
     assert isinstance(models, list)
     assert models
-    assert all(isinstance(model.get("id"), str) and model["id"] for model in models[:20])
+    assert all(
+        isinstance(model.get("id"), str) and model["id"] for model in models[:20]
+    )
 
 
 @pytest.mark.integration
 @pytest.mark.openai
-def test_openai_responses_non_streaming_gpt5mini_real_api(ensure_openai_api_key: str) -> None:
+def test_openai_responses_get_models_includes_gpt_5_6_family_real_api(
+    ensure_openai_api_key: str,
+) -> None:
+    _ = ensure_openai_api_key
+
+    provider = OpenAIResponsesProvider()
+    config = {
+        "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
+        "timeout": 120,
+    }
+
+    models = provider.get_models(config)
+
+    assert isinstance(models, list)
+    model_ids = {
+        model["id"] for model in models if isinstance(model, dict) and model.get("id")
+    }
+    expected = {"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"}
+    missing = expected - model_ids
+    assert (
+        not missing
+    ), f"expected GPT-5.6 family IDs missing from API model list: {sorted(missing)}"
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_non_streaming_gpt5mini_real_api(
+    ensure_openai_api_key: str,
+) -> None:
     core = AgentCore()
     core.register_provider(OpenAIResponsesProvider)
 
@@ -153,7 +189,9 @@ def test_openai_responses_non_streaming_gpt5mini_real_api(ensure_openai_api_key:
     }
 
     session = core.create_session()
-    session = core.add_message(session, "user", "Reply with exactly: OPENAI_RESPONSES_OK")
+    session = core.add_message(
+        session, "user", "Reply with exactly: OPENAI_RESPONSES_OK"
+    )
 
     new_session, responses = core.send_request(session, config)
 
@@ -167,12 +205,17 @@ def test_openai_responses_non_streaming_gpt5mini_real_api(ensure_openai_api_key:
 
     native_history = (new_session.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
-    assert any(isinstance(item, dict) and item.get("type") == "message" for item in native_history)
+    assert any(
+        isinstance(item, dict) and item.get("type") == "message"
+        for item in native_history
+    )
 
 
 @pytest.mark.integration
 @pytest.mark.openai
-def test_openai_responses_streaming_gpt5mini_real_api(ensure_openai_api_key: str) -> None:
+def test_openai_responses_streaming_gpt5mini_real_api(
+    ensure_openai_api_key: str,
+) -> None:
     core = AgentCore()
     core.register_provider(OpenAIResponsesProvider)
 
@@ -214,7 +257,10 @@ def test_openai_responses_streaming_gpt5mini_real_api(ensure_openai_api_key: str
 
     native_history = (final_session.metadata or {}).get("native_messages")
     assert isinstance(native_history, list)
-    assert any(isinstance(item, dict) and item.get("type") == "message" for item in native_history)
+    assert any(
+        isinstance(item, dict) and item.get("type") == "message"
+        for item in native_history
+    )
     assert all(
         not (
             isinstance(item, dict)
@@ -239,7 +285,12 @@ def test_openai_responses_stream_cancel_soon_after_send_real_api(
     }
     state = provider.init(config)
     native_messages = provider.to_native_messages(
-        [{"role": "user", "content": "Write a long detailed essay about distributed systems."}],
+        [
+            {
+                "role": "user",
+                "content": "Write a long detailed essay about distributed systems.",
+            }
+        ],
         state,
     )
     native_messages, state = provider.initialize_request(
@@ -322,7 +373,9 @@ def test_openai_responses_stream_cancel_after_first_partial_real_api(
             break
         time.sleep(0.05)
     else:
-        raise AssertionError("OpenAI Responses stream did not emit a partial before cancellation")
+        raise AssertionError(
+            "OpenAI Responses stream did not emit a partial before cancellation"
+        )
 
     assert provider.cancel_request("openai_responses_cancel_after_partial") is True
 
@@ -491,7 +544,9 @@ def test_openai_responses_uploaded_image_real_api(
             isinstance(entry, dict)
             and isinstance((entry.get("uploaded_part") or {}).get("file_id"), str)
             and (entry.get("uploaded_part") or {}).get("type") == "input_image"
-            for entry in (item.get("_metadata") or {}).get("_openai_responses_uploaded_attachments", [])
+            for entry in (item.get("_metadata") or {}).get(
+                "_openai_responses_uploaded_attachments", []
+            )
         )
         for item in native_history
     )
@@ -546,7 +601,9 @@ def test_openai_responses_uploaded_pdf_real_api(
             isinstance(entry, dict)
             and isinstance((entry.get("uploaded_part") or {}).get("file_id"), str)
             and (entry.get("uploaded_part") or {}).get("type") == "input_file"
-            for entry in (item.get("_metadata") or {}).get("_openai_responses_uploaded_attachments", [])
+            for entry in (item.get("_metadata") or {}).get(
+                "_openai_responses_uploaded_attachments", []
+            )
         )
         for item in native_history
     )
@@ -612,8 +669,11 @@ def test_openai_responses_session_asset_image_real_api(
         and isinstance(item.get("_metadata"), dict)
         and any(
             isinstance(entry, dict)
-            and (entry.get("multipart_part") or {}).get("content", {}).get("asset_ref") == image_record.asset_ref()
-            for entry in (item.get("_metadata") or {}).get("_openai_responses_attachment_sources", [])
+            and (entry.get("multipart_part") or {}).get("content", {}).get("asset_ref")
+            == image_record.asset_ref()
+            for entry in (item.get("_metadata") or {}).get(
+                "_openai_responses_attachment_sources", []
+            )
         )
         for item in native_history
     )
@@ -679,8 +739,11 @@ def test_openai_responses_session_asset_pdf_real_api(
         and isinstance(item.get("_metadata"), dict)
         and any(
             isinstance(entry, dict)
-            and (entry.get("multipart_part") or {}).get("content", {}).get("asset_ref") == pdf_record.asset_ref()
-            for entry in (item.get("_metadata") or {}).get("_openai_responses_attachment_sources", [])
+            and (entry.get("multipart_part") or {}).get("content", {}).get("asset_ref")
+            == pdf_record.asset_ref()
+            for entry in (item.get("_metadata") or {}).get(
+                "_openai_responses_attachment_sources", []
+            )
         )
         for item in native_history
     )

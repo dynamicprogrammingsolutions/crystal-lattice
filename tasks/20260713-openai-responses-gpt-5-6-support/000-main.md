@@ -4,7 +4,7 @@ Add complete GPT-5.6 Sol, Terra, and Luna support to the OpenAI Responses provid
 
 ## Task checklist
 
-- [ ] `tasks/20260713-openai-responses-gpt-5-6-support/010-refresh-model-catalog.md`
+- [x] `tasks/20260713-openai-responses-gpt-5-6-support/010-refresh-model-catalog.md`
 - [ ] `tasks/20260713-openai-responses-gpt-5-6-support/020-add-reasoning-effort-levels.md`
 - [ ] `tasks/20260713-openai-responses-gpt-5-6-support/030-add-reasoning-pro-mode.md`
 - [ ] `tasks/20260713-openai-responses-gpt-5-6-support/040-add-reasoning-context.md`
