@@ -70,6 +70,18 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "system_message_enabled": true,
       "codex_developer_messages": [
         {
+          "model_regex": "^(openai/)?gpt-5\\.6-sol$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-sol/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.6-terra$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-terra/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.6-luna$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-luna/instructions_default.md}"
+        },
+        {
           "model_regex": "^(openai/)?gpt-5\\.5$",
           "personality": "default",
           "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_default.md}"

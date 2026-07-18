@@ -9,7 +9,7 @@ Add complete GPT-5.6 Sol, Terra, and Luna support to the OpenAI Responses provid
 - [x] `tasks/20260713-openai-responses-gpt-5-6-support/030-add-reasoning-pro-mode.md`
 - [ ] `tasks/20260713-openai-responses-gpt-5-6-support/040-add-reasoning-context.md`
 - [x] `tasks/20260713-openai-responses-gpt-5-6-support/050-update-pricing-and-cost-estimation.md`
-- [ ] `tasks/20260713-openai-responses-gpt-5-6-support/060-add-gpt56-codex-system-instructions.md`
+- [x] `tasks/20260713-openai-responses-gpt-5-6-support/060-add-gpt56-codex-system-instructions.md`
 - [ ] `tasks/20260713-openai-responses-gpt-5-6-support/070-programmatic-tool-calling.md`
 
 ## Investigation snapshot

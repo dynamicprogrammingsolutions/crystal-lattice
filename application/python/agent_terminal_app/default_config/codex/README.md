@@ -6,10 +6,15 @@ It was moved from `docs/codex-default-instructions/` into the application-local
 reference archive at
 `application/python/agent_terminal_app/default_config/system_messages/reference/default-system-instructions/codex/`.
 
-Source:
+Sources:
 - Repository: `https://github.com/openai/codex`
-- File: `codex-rs/core/models.json`
-- Commit: `39869f74435cb199d56ca5d53cf198f7c5332eec`
+- File (current): `codex-rs/models-manager/models.json`
+- File (historical, pre-`models-manager`): `codex-rs/core/models.json`
+- Commit for `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`:
+  `2f7d89b1419bf7064346855b0acde23514b1ebc5` (2026-07-13)
+- Commit for older models (`gpt-5` through `gpt-5.4`):
+  `39869f74435cb199d56ca5d53cf198f7c5332eec`
+- Commit for `gpt-5.5`: `c10f95ddac7b35095d334dece2ebcf69bcde61fc` (2026-04-24)
 
 ## What each file means
 
@@ -42,6 +47,41 @@ The only placeholder used by the bundled templates is:
 - `{{ personality }}`
   - Replaced at runtime with a personality string from `model_messages.instructions_variables`.
   - Default selection uses `personality_default` when no explicit personality is set.
+
+## GPT-5.6 family notes
+
+The `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna` subfolders were imported from
+upstream commit `2f7d89b1419bf7064346855b0acde23514b1ebc5`.
+
+Key differences from older templated models:
+
+- The GPT-5.6 templates have **no `{{ personality }}` placeholder**. The personality
+  text is embedded directly in the template body.
+- All three `model_messages.instructions_variables` personality values
+  (`personality_default`, `personality_friendly`, `personality_pragmatic`) are empty
+  strings at the inspected commit.
+- Because there is no placeholder to substitute and all personality variables are
+  empty, `instructions_default.md` is byte-identical to
+  `model_messages.instructions_template.md` and `base_instructions.md` for each
+  GPT-5.6 model.
+- Only `instructions_default.md` is provided per GPT-5.6 model. No
+  `instructions_friendly.md` or `instructions_pragmatic.md` files are created,
+  because the upstream provides no distinct friendly/pragmatic prose for these
+  models. The default-config `codex_developer_messages` rows for GPT-5.6 omit the
+  `personality` field, so all three personality selections (default, friendly,
+  pragmatic) resolve to the same `instructions_default.md` via the fallback path
+  in `select_codex_developer_message.py`.
+
+`gpt-5.6-terra` and `gpt-5.6-luna` are byte-identical at the inspected commit
+(sha256 `78a2fc84e1bffa421d865c1a2ade4185d3d33ef38e6a15157f0ff1a89b7d52ec`),
+but they are kept as separate directories so a future upstream divergence is
+not hidden. `gpt-5.6-sol` has a distinct template
+(sha256 `e9778714d505f3dd04d44db4394024c5fab5bf6554fc9faa3cdf9cf776b63bb9`)
+with an extra paragraph in the Personality section.
+
+The bare `gpt-5.6` alias is intentionally not mapped here. Authoritative Codex
+catalog discovery publishes only the three explicit family IDs, so the bare
+alias falls through to the `.*` fallback row in `codex_developer_messages`.
 
 ## Runtime selection notes
 
