@@ -16,12 +16,43 @@ from agent_core.types import ProviderExtensionPlugin
 _REASONING_STATE_KEY = "_openai_responses_reasoning"
 _RAW_REASONING_METADATA_KEY = "openai_responses_reasoning"
 _REASONING_FALLBACK_TEXT = "Reasoning present but not exposed by model."
-_REASONING_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh")
+_REASONING_EFFORTS = (
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+    "max",
+    "ultra",
+)
+_UNKNOWN_MODEL_REASONING_EFFORTS = (
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+)
 _REASONING_SUMMARIES = ("auto", "concise", "detailed")
 _REASONING_INCLUDE_VALUE = "reasoning.encrypted_content"
 
-_MODEL_REASONING_EFFORT_PATTERNS: Tuple[Tuple[re.Pattern[str], Tuple[str, ...]], ...] = (
+_MODEL_REASONING_EFFORT_PATTERNS: Tuple[
+    Tuple[re.Pattern[str], Tuple[str, ...]], ...
+] = (
     (re.compile(r"^gpt-5-pro(?:-|$)"), ("high",)),
+    (
+        re.compile(r"^gpt-5\.6-(?:sol|terra)(?:-|$)"),
+        ("low", "medium", "high", "xhigh", "max", "ultra"),
+    ),
+    (
+        re.compile(r"^gpt-5\.6-luna(?:-|$)"),
+        ("low", "medium", "high", "xhigh", "max"),
+    ),
+    (
+        re.compile(r"^gpt-5\.6(?:-|$)"),
+        ("low", "medium", "high", "xhigh", "max", "ultra"),
+    ),
     (re.compile(r"^gpt-5\.(?:2|4)(?:-|$)"), ("none", "low", "medium", "high", "xhigh")),
     (re.compile(r"^gpt-5\.1(?:-|$)"), ("none", "low", "medium", "high")),
     (re.compile(r"^gpt-5(?:-|$)"), ("minimal", "low", "medium", "high")),
@@ -33,7 +64,9 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
     version: str = "0.1.0"
     priority: int = 50
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         return ["ext:openai_responses_reasoning"]
 
     def required_tags(self) -> List[str]:
@@ -81,7 +114,7 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         for pattern, efforts in _MODEL_REASONING_EFFORT_PATTERNS:
             if pattern.search(normalized):
                 return efforts
-        return _REASONING_EFFORTS
+        return _UNKNOWN_MODEL_REASONING_EFFORTS
 
     def get_ui_elements(
         self,
@@ -101,17 +134,23 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                 "type": "select",
                 "key": "reasoning_effort",
                 "label": "Reasoning Effort",
-                "options": [{"value": value, "label": value} for value in supported_efforts],
+                "options": [
+                    {"value": value, "label": value} for value in supported_efforts
+                ],
             },
             {
                 "type": "select",
                 "key": "reasoning_summary",
                 "label": "Reasoning Summary",
-                "options": [{"value": value, "label": value} for value in _REASONING_SUMMARIES],
+                "options": [
+                    {"value": value, "label": value} for value in _REASONING_SUMMARIES
+                ],
             },
         ]
 
-    def _normalize_reasoning_config(self, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _normalize_reasoning_config(
+        self, config: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         reasoning: Dict[str, Any] = {}
         model = self._resolve_model_id(config, None)
         supported_efforts = self._supported_reasoning_efforts_for_model(model)
@@ -167,7 +206,9 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                 fragments.append(text)
         return "\n".join(fragments).strip()
 
-    def _extract_reasoning_metadata(self, native_messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _extract_reasoning_metadata(
+        self, native_messages: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         reasoning_items: List[Dict[str, Any]] = []
         reasoning_summary: List[Dict[str, Any]] = []
         encrypted_content: List[Any] = []
@@ -175,7 +216,10 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         summary_fragments: List[str] = []
 
         for native_item in native_messages:
-            if not isinstance(native_item, dict) or native_item.get("type") != "reasoning":
+            if (
+                not isinstance(native_item, dict)
+                or native_item.get("type") != "reasoning"
+            ):
                 continue
 
             cleaned_item = {k: v for k, v in native_item.items() if k != "_metadata"}
@@ -183,7 +227,9 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
 
             summary = native_item.get("summary")
             if isinstance(summary, list) and summary:
-                reasoning_summary.extend([entry for entry in summary if isinstance(entry, dict)])
+                reasoning_summary.extend(
+                    [entry for entry in summary if isinstance(entry, dict)]
+                )
                 summary_text = self._summary_text_from_entries(summary)
                 if summary_text:
                     summary_fragments.append(summary_text)
@@ -199,11 +245,15 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         if not reasoning_items:
             return {}
 
-        reasoning_summary_text = "\n".join(part for part in summary_fragments if part).strip()
+        reasoning_summary_text = "\n".join(
+            part for part in summary_fragments if part
+        ).strip()
         reasoning_content_text = "\n".join(
             part for part in reasoning_fragments if part
         ).strip()
-        reasoning_text = reasoning_summary_text or reasoning_content_text or _REASONING_FALLBACK_TEXT
+        reasoning_text = (
+            reasoning_summary_text or reasoning_content_text or _REASONING_FALLBACK_TEXT
+        )
 
         raw_metadata: Dict[str, Any] = {"items": reasoning_items}
         if reasoning_summary:
@@ -247,7 +297,9 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                     if item not in deduped:
                         deduped.append(item)
                 merged_raw[target_key] = deduped
-            elif target_key not in merged_raw and isinstance(incoming, list) and incoming:
+            elif (
+                target_key not in merged_raw and isinstance(incoming, list) and incoming
+            ):
                 merged_raw[target_key] = list(incoming)
 
         for source_key, target_key in (
@@ -263,13 +315,17 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                     merged_raw[target_key] = incoming_clean
                 elif not incoming_clean:
                     merged_raw[target_key] = existing_clean
-                elif existing_clean == incoming_clean or incoming_clean in existing_clean:
+                elif (
+                    existing_clean == incoming_clean or incoming_clean in existing_clean
+                ):
                     merged_raw[target_key] = existing_clean
                 elif existing_clean in incoming_clean:
                     merged_raw[target_key] = incoming_clean
                 else:
                     merged_raw[target_key] = f"{existing_clean}\n{incoming_clean}"
-            elif target_key not in merged_raw and isinstance(incoming, str) and incoming:
+            elif (
+                target_key not in merged_raw and isinstance(incoming, str) and incoming
+            ):
                 merged_raw[target_key] = incoming.strip()
 
         if merged_raw:
@@ -278,11 +334,15 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         reasoning_value = extra.get("reasoning")
         if isinstance(reasoning_value, str) and reasoning_value.strip():
             merged["reasoning"] = reasoning_value.strip()
-        elif "reasoning" not in merged and isinstance(merged_raw.get("summary_text"), str):
+        elif "reasoning" not in merged and isinstance(
+            merged_raw.get("summary_text"), str
+        ):
             summary_text = merged_raw["summary_text"].strip()
             if summary_text:
                 merged["reasoning"] = summary_text
-        elif "reasoning" not in merged and isinstance(merged_raw.get("content_text"), str):
+        elif "reasoning" not in merged and isinstance(
+            merged_raw.get("content_text"), str
+        ):
             content_text = merged_raw["content_text"].strip()
             if content_text:
                 merged["reasoning"] = content_text
@@ -301,8 +361,14 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                 out.append(message)
                 continue
 
-            metadata = message.get("metadata") if isinstance(message.get("metadata"), dict) else {}
-            native_indices = metadata.get("native_indices") if isinstance(metadata, dict) else None
+            metadata = (
+                message.get("metadata")
+                if isinstance(message.get("metadata"), dict)
+                else {}
+            )
+            native_indices = (
+                metadata.get("native_indices") if isinstance(metadata, dict) else None
+            )
             if not isinstance(native_indices, list):
                 out.append(message)
                 continue
@@ -320,7 +386,9 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
             out.append(
                 {
                     **message,
-                    "metadata": self._merge_reasoning_metadata(metadata, reasoning_metadata),
+                    "metadata": self._merge_reasoning_metadata(
+                        metadata, reasoning_metadata
+                    ),
                 }
             )
 
@@ -334,14 +402,20 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         config = state.get("config")
         config_dict = dict(config) if isinstance(config, dict) else {}
         request_options = config_dict.get("request_options")
-        merged_request_options = dict(request_options) if isinstance(request_options, dict) else {}
+        merged_request_options = (
+            dict(request_options) if isinstance(request_options, dict) else {}
+        )
 
         include_values: List[str] = []
         raw_include = merged_request_options.get("include")
         if isinstance(raw_include, list):
-            include_values = [item for item in raw_include if isinstance(item, str) and item]
+            include_values = [
+                item for item in raw_include if isinstance(item, str) and item
+            ]
         elif isinstance(raw_include, tuple):
-            include_values = [item for item in raw_include if isinstance(item, str) and item]
+            include_values = [
+                item for item in raw_include if isinstance(item, str) and item
+            ]
         if _REASONING_INCLUDE_VALUE not in include_values:
             include_values.append(_REASONING_INCLUDE_VALUE)
         merged_request_options["include"] = include_values
@@ -371,9 +445,16 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         _ = native_chunk
-        return list(partial_messages), list(final_messages), list(native_messages), state
+        return (
+            list(partial_messages),
+            list(final_messages),
+            list(native_messages),
+            state,
+        )
 
     def finalize(
         self,

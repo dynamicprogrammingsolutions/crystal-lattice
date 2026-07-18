@@ -501,12 +501,34 @@ These require `plugins.request_options_feature.RequestOptionsFeature` to be
 loaded.
 
 - `reasoning_effort`: model-specific effort value. Current UI options are:
-  - GPT-5 models: `minimal`, `low`, `medium`, `high`
-  - GPT-5.1 models: `none`, `low`, `medium`, `high`
+  - GPT-5.6 Sol and Terra: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
+  - GPT-5.6 Luna: `low`, `medium`, `high`, `xhigh`, `max` (no `ultra`)
   - GPT-5.2 and GPT-5.4 models: `none`, `low`, `medium`, `high`, `xhigh`
+  - GPT-5.1 models: `none`, `low`, `medium`, `high`
+  - GPT-5 models: `minimal`, `low`, `medium`, `high`
   - GPT-5 pro: `high`
-  - unknown models: fallback UI shows all documented values
+  - unknown models: fallback UI shows `none`, `minimal`, `low`, `medium`,
+    `high`, `xhigh` (no `max` or `ultra`)
 - `reasoning_summary`: one of `auto`, `concise`, `detailed`
+
+The bare `gpt-5.6` alias is not published in the model picker (per the model
+catalog decision), but if a user types it manually the reasoning extension
+treats it as the Sol alias and offers the Sol effort set including `ultra`.
+
+`ultra` is a multi-agent coordination mode: by default it coordinates four
+agents and consumes substantially more tokens than `max` or lower effort
+levels. It is not an efficiency mode. Use it only when the workflow demands
+it, and prefer Sol (the cheapest `ultra`-capable model) for tests and
+experiments.
+
+No default `reasoning_effort` is inferred. If the key is unset, no `effort`
+is injected and the OpenAI API applies its own built-in default for the
+selected model. Unsupported `reasoning_effort` values for the selected model
+are silently dropped (no error is raised; the value is simply not injected).
+Users who need to force an unsupported effort for an unknown model can set
+`request_options.reasoning.effort` directly as an expert escape hatch; the
+config-level `reasoning_effort` takes precedence over the raw
+`request_options` value when both are present.
 
 Assistant messages always expose the frontend-friendly field
 `metadata.reasoning`. OpenAI-specific raw reasoning data is preserved under
