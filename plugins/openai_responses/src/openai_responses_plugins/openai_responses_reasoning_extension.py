@@ -36,6 +36,7 @@ _UNKNOWN_MODEL_REASONING_EFFORTS = (
 )
 _REASONING_SUMMARIES = ("auto", "concise", "detailed")
 _REASONING_INCLUDE_VALUE = "reasoning.encrypted_content"
+_REASONING_MODES = ("pro",)
 
 _MODEL_REASONING_EFFORT_PATTERNS: Tuple[
     Tuple[re.Pattern[str], Tuple[str, ...]], ...
@@ -56,6 +57,16 @@ _MODEL_REASONING_EFFORT_PATTERNS: Tuple[
     (re.compile(r"^gpt-5\.(?:2|4)(?:-|$)"), ("none", "low", "medium", "high", "xhigh")),
     (re.compile(r"^gpt-5\.1(?:-|$)"), ("none", "low", "medium", "high")),
     (re.compile(r"^gpt-5(?:-|$)"), ("minimal", "low", "medium", "high")),
+)
+
+# Effort tuples produced by the GPT-5.6 patterns above. Used to gate Pro
+# reasoning mode without re-scanning the patterns. Kept in sync with the
+# three GPT-5.6 entries in ``_MODEL_REASONING_EFFORT_PATTERNS``.
+_GPT_5_6_REASONING_EFFORTS = frozenset(
+    {
+        ("low", "medium", "high", "xhigh", "max", "ultra"),
+        ("low", "medium", "high", "xhigh", "max"),
+    }
 )
 
 
@@ -84,6 +95,15 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                 "type": "string",
                 "required": False,
                 "enum": list(_REASONING_SUMMARIES),
+            },
+            "reasoning_mode": {
+                "type": "string",
+                "required": False,
+                "enum": list(_REASONING_MODES),
+                "description": (
+                    "Reasoning mode for supported models. 'pro' enables Pro "
+                    "mode (GPT-5.6 family only). Absence means standard mode."
+                ),
             },
         }
 
@@ -116,6 +136,12 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                 return efforts
         return _UNKNOWN_MODEL_REASONING_EFFORTS
 
+    def _model_supports_pro_reasoning(self, model: str) -> bool:
+        return (
+            self._supported_reasoning_efforts_for_model(model)
+            in _GPT_5_6_REASONING_EFFORTS
+        )
+
     def get_ui_elements(
         self,
         config: Optional[Dict[str, Any]] = None,
@@ -125,11 +151,10 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         if tags is not None and "supports_reasoning" not in tags:
             return []
 
-        supported_efforts = self._supported_reasoning_efforts_for_model(
-            self._resolve_model_id(config, models)
-        )
+        model_id = self._resolve_model_id(config, models)
+        supported_efforts = self._supported_reasoning_efforts_for_model(model_id)
 
-        return [
+        elements: List[Dict[str, Any]] = [
             {
                 "type": "select",
                 "key": "reasoning_effort",
@@ -148,6 +173,20 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
             },
         ]
 
+        if self._model_supports_pro_reasoning(model_id):
+            elements.append(
+                {
+                    "type": "select",
+                    "key": "reasoning_mode",
+                    "label": "Reasoning Mode",
+                    "options": [
+                        {"value": value, "label": value} for value in _REASONING_MODES
+                    ],
+                }
+            )
+
+        return elements
+
     def _normalize_reasoning_config(
         self, config: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
@@ -162,6 +201,14 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         summary = config.get("reasoning_summary")
         if isinstance(summary, str) and summary in _REASONING_SUMMARIES:
             reasoning["summary"] = summary
+
+        mode = config.get("reasoning_mode")
+        if (
+            isinstance(mode, str)
+            and mode in _REASONING_MODES
+            and self._model_supports_pro_reasoning(model)
+        ):
+            reasoning["mode"] = mode
 
         return reasoning or None
 

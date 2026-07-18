@@ -474,6 +474,11 @@ usage footer renders `tier: priority` when OpenAI reports that tier, and cost
 estimation uses priority-tier pricing when the checked-in or manual pricing
 data defines it.
 
+Pro reasoning mode (`reasoning_mode: "pro"`) is a nested reasoning control and
+is independent of Fast mode's `service_tier: "priority"`. Both can be enabled
+at the same time on GPT-5.6 models; they touch different parts of the
+outbound payload and neither overwrites the other.
+
 ## Benchmark script
 
 The repo includes a benchmark helper at
@@ -510,10 +515,17 @@ loaded.
   - unknown models: fallback UI shows `none`, `minimal`, `low`, `medium`,
     `high`, `xhigh` (no `max` or `ultra`)
 - `reasoning_summary`: one of `auto`, `concise`, `detailed`
+- `reasoning_mode`: optional string enum `["pro"]`, GPT-5.6 family only
+  (Sol, Terra, Luna, and the bare `gpt-5.6` alias). Absence means standard
+  mode. When set to `"pro"`, the extension injects `reasoning.mode: "pro"`
+  into the outbound request. The extension never sends `"mode": "standard"`
+  because omission is the standard-mode signal and `standard` is the API
+  default.
 
 The bare `gpt-5.6` alias is not published in the model picker (per the model
 catalog decision), but if a user types it manually the reasoning extension
-treats it as the Sol alias and offers the Sol effort set including `ultra`.
+treats it as the Sol alias and offers the Sol effort set including `ultra`
+and the Pro reasoning mode control.
 
 `ultra` is a multi-agent coordination mode: by default it coordinates four
 agents and consumes substantially more tokens than `max` or lower effort
@@ -521,18 +533,47 @@ levels. It is not an efficiency mode. Use it only when the workflow demands
 it, and prefer Sol (the cheapest `ultra`-capable model) for tests and
 experiments.
 
-No default `reasoning_effort` is inferred. If the key is unset, no `effort`
-is injected and the OpenAI API applies its own built-in default for the
-selected model. Unsupported `reasoning_effort` values for the selected model
-are silently dropped (no error is raised; the value is simply not injected).
-Users who need to force an unsupported effort for an unknown model can set
-`request_options.reasoning.effort` directly as an expert escape hatch; the
-config-level `reasoning_effort` takes precedence over the raw
-`request_options` value when both are present.
+`reasoning.mode` and `reasoning.effort` are independent: mode selects
+standard or pro execution, while `reasoning.effort` controls how much
+reasoning the model applies within that mode. If `reasoning_effort` is unset,
+GPT-5.6 defaults to `medium` in both modes (per the official reasoning
+guide).
+
+No default `reasoning_effort` or `reasoning_mode` is inferred. If the key is
+unset, no `effort` or `mode` is injected and the OpenAI API applies its own
+built-in default for the selected model. Unsupported `reasoning_effort`
+values for the selected model are silently dropped (no error is raised; the
+value is simply not injected). `reasoning_mode: "pro"` is silently dropped
+for non-GPT-5.6 models, matching the same silent-drop behavior. Users who
+need to force an unsupported effort or mode for an unknown model can set
+`request_options.reasoning.effort` or `request_options.reasoning.mode`
+directly as an expert escape hatch; the config-level `reasoning_effort` and
+`reasoning_mode` take precedence over the raw `request_options` values when
+both are present.
 
 Assistant messages always expose the frontend-friendly field
 `metadata.reasoning`. OpenAI-specific raw reasoning data is preserved under
 `metadata.openai_responses_reasoning`.
+
+#### Pro mode billing
+
+Pro reasoning mode (`reasoning_mode: "pro"`) performs more model work than
+standard mode and increases token usage and cost. Pro mode bills the
+aggregated model-work tokens at the selected model's standard per-token
+rates. There is no separate Pro-mode pricing table and no new
+`service_tier` value for Pro mode.
+
+Cost estimation in this bundle continues to use the selected model's
+standard-tier pricing entry from `data/openai_model_pricing.json` (or the
+manual ChatGPT fallback). Pro mode does not introduce a priority-tier or
+flex-tier price lookup. Priority-tier pricing applies only when Fast mode
+reports `service_tier: "priority"`; Pro mode does not change the service
+tier and does not trigger priority-tier pricing.
+
+Existing Pro model IDs (e.g. `gpt-5.5-pro`, `gpt-5.4-pro`) keep their
+current behavior and pricing; they are distinct model SKUs, not a
+reasoning-mode billing category. "Pro mode" the reasoning setting is
+distinct from "-pro" the model SKU suffix.
 
 ### Verbosity keys
 

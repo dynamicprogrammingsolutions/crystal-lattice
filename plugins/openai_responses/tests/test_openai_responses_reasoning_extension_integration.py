@@ -278,3 +278,56 @@ def test_openai_responses_reasoning_effort_ultra_gpt_5_6_sol_real_api(
     reasoning = _RecordingApiProvider.recorded_requests[0].get("reasoning")
     assert isinstance(reasoning, dict)
     assert reasoning.get("effort") == "ultra"
+
+
+def _gpt_5_6_pro_mode_config(api_key: str) -> dict[str, object]:
+    return {
+        "model": "gpt-5.6-sol",
+        "api_key": api_key,
+        "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
+        "timeout": 240,
+        "reasoning_mode": "pro",
+        "reasoning_effort": "medium",
+        "reasoning_summary": "concise",
+    }
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_reasoning_mode_pro_gpt_5_6_sol_real_api(
+    ensure_openai_api_key: str,
+) -> None:
+    _RecordingApiProvider.recorded_requests = []
+    core = _build_recording_core()
+    config = _gpt_5_6_pro_mode_config(ensure_openai_api_key)
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "Reply with exactly: GPT56_PRO_OK")
+
+    try:
+        final_message = None
+        for event in core.send_request_stream(session, config):
+            if event["type"] == "final":
+                messages = event.get("messages") or []
+                if messages:
+                    final_message = messages[-1]
+    except (
+        Exception
+    ) as exc:  # noqa: BLE001 - capture exact API rejection for documentation
+        pytest.xfail(
+            f"Public OpenAI API rejected reasoning_mode=pro for gpt-5.6-sol: "
+            f"{type(exc).__name__}: {exc}"
+        )
+
+    assert final_message is not None
+    assert final_message.get("role") == "assistant"
+    assert "GPT56_PRO_OK" in (final_message.get("content") or "")
+
+    assert (
+        _RecordingApiProvider.recorded_requests
+    ), "expected at least one recorded request"
+    reasoning = _RecordingApiProvider.recorded_requests[0].get("reasoning")
+    assert isinstance(reasoning, dict)
+    assert reasoning.get("mode") == "pro"
+    assert reasoning.get("effort") == "medium"
+    assert reasoning.get("summary") == "concise"
