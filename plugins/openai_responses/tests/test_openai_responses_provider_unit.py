@@ -4103,6 +4103,72 @@ def test_response_internal_metadata_preserves_service_tier() -> None:
     assert response_md["_openai_responses_service_tier"] == "flex"
 
 
+def test_response_internal_metadata_extracts_reasoning_context() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {
+            "id": "resp_ctx_1",
+            "reasoning": {"context": "all_turns"},
+        }
+    )
+
+    assert response_md["_openai_responses_reasoning_context"] == "all_turns"
+
+
+def test_response_internal_metadata_extracts_current_turn_context() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {
+            "id": "resp_ctx_2",
+            "reasoning": {"context": "current_turn"},
+        }
+    )
+
+    assert response_md["_openai_responses_reasoning_context"] == "current_turn"
+
+
+def test_response_internal_metadata_omits_reasoning_context_when_absent() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_no_ctx", "reasoning": {"effort": "medium"}}
+    )
+
+    assert "_openai_responses_reasoning_context" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_context_when_no_reasoning_obj() -> (
+    None
+):
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata({"id": "resp_no_reasoning"})
+
+    assert "_openai_responses_reasoning_context" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_context_when_not_string() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_bad_ctx", "reasoning": {"context": 123}}
+    )
+
+    assert "_openai_responses_reasoning_context" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_context_when_empty() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_empty_ctx", "reasoning": {"context": ""}}
+    )
+
+    assert "_openai_responses_reasoning_context" not in response_md
+
+
 def test_cancel_request_returns_false_for_unknown_request() -> None:
     provider = OpenAIResponsesProvider()
     assert provider.cancel_request("missing-request") is False

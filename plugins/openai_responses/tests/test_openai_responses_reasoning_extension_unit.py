@@ -967,3 +967,634 @@ def test_initialize_request_pro_mode_and_fast_mode_coexist() -> None:
     assert isinstance(payload.get("reasoning"), dict)
     assert payload["reasoning"]["mode"] == "pro"
     assert payload["reasoning"]["effort"] == "medium"
+
+
+# ---------------------------------------------------------------------------
+# Reasoning context (reasoning_context / reasoning.context) — task 040
+# ---------------------------------------------------------------------------
+
+
+def _reasoning_context_elements(
+    elements: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    for element in elements:
+        if element.get("key") == "reasoning_context":
+            return element
+    return None
+
+
+def _context_footer_element(
+    elements: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    for element in elements:
+        if (
+            element.get("ui_type") == "message_footer"
+            and element.get("data") == "metadata.openai_responses_reasoning.context"
+        ):
+            return element
+    return None
+
+
+def test_get_config_schema_includes_reasoning_context_enum() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    schema = ext.get_config_schema()
+    context_entry = schema["reasoning_context"]
+
+    assert context_entry["type"] == "string"
+    assert context_entry["required"] is False
+    assert context_entry["enum"] == ["auto", "current_turn", "all_turns"]
+
+
+def test_get_ui_elements_shows_reasoning_context_for_gpt_5_6_sol() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6-sol"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-sol"}],
+    )
+
+    context_element = _reasoning_context_elements(elements)
+    assert context_element is not None
+    assert context_element["type"] == "select"
+    assert context_element["label"] == "Reasoning Context"
+    assert context_element["options"] == [
+        {"value": "auto", "label": "auto"},
+        {"value": "current_turn", "label": "current_turn"},
+        {"value": "all_turns", "label": "all_turns"},
+    ]
+
+
+def test_get_ui_elements_shows_reasoning_context_for_gpt_5_6_luna() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6-luna"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-luna"}],
+    )
+
+    context_element = _reasoning_context_elements(elements)
+    assert context_element is not None
+    assert context_element["options"] == [
+        {"value": "auto", "label": "auto"},
+        {"value": "current_turn", "label": "current_turn"},
+        {"value": "all_turns", "label": "all_turns"},
+    ]
+
+
+def test_get_ui_elements_shows_reasoning_context_for_bare_gpt_5_6_alias() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6"}],
+    )
+
+    context_element = _reasoning_context_elements(elements)
+    assert context_element is not None
+
+
+def test_get_ui_elements_hides_reasoning_context_for_older_models() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    for model in (
+        "gpt-5-mini",
+        "gpt-5.1-mini",
+        "gpt-5.2",
+        "gpt-5.4",
+        "gpt-5-pro",
+        "o3-mini",
+    ):
+        elements = ext.get_ui_elements(
+            config={"model": model},
+            tags=["supports_reasoning"],
+            models=[{"id": model}],
+        )
+        assert (
+            _reasoning_context_elements(elements) is None
+        ), f"reasoning_context should not appear for {model}"
+
+
+def test_get_ui_elements_includes_context_footer() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6-sol"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-sol"}],
+    )
+
+    footer = _context_footer_element(elements)
+    assert footer is not None
+    assert footer["ui_type"] == "message_footer"
+    assert footer["data"] == "metadata.openai_responses_reasoning.context"
+    assert footer["template"] == "context: {{data}}"
+    assert footer["condition"] == {
+        "path": "metadata.openai_responses_reasoning.context",
+        "exists": True,
+    }
+
+
+def test_get_ui_elements_context_footer_present_for_luna() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6-luna"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-luna"}],
+    )
+
+    assert _context_footer_element(elements) is not None
+
+
+def test_get_ui_elements_context_footer_present_for_older_models() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    # The footer element definition is unconditional (not model-gated) because
+    # the ``condition`` handles per-message visibility. It should appear in the
+    # element list for all models, but only render when the metadata path
+    # exists.
+    for model in ("gpt-5-mini", "o3-mini"):
+        elements = ext.get_ui_elements(
+            config={"model": model},
+            tags=["supports_reasoning"],
+            models=[{"id": model}],
+        )
+        assert (
+            _context_footer_element(elements) is not None
+        ), f"context footer should be defined for {model}"
+
+
+def test_get_ui_elements_context_footer_distinct_from_config_selects() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6-sol"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-sol"}],
+    )
+
+    context_select = _reasoning_context_elements(elements)
+    footer = _context_footer_element(elements)
+    assert context_select is not None
+    assert footer is not None
+    assert context_select.get("type") == "select"
+    assert footer.get("ui_type") == "message_footer"
+    # The select has no ui_type (defaults to "config"); the footer has no "type".
+    assert "ui_type" not in context_select
+    assert "type" not in footer
+
+
+def test_init_drops_reasoning_context_for_gpt_5_4() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.4",
+        "reasoning_context": "all_turns",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    assert "_openai_responses_reasoning" not in state
+
+
+def test_init_drops_reasoning_context_for_unknown_model() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "o3-mini",
+        "reasoning_context": "all_turns",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    assert "_openai_responses_reasoning" not in state
+
+
+def test_init_normalizes_auto_to_omission() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "auto",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    # ``auto`` normalizes to omission: no ``context`` key in the reasoning
+    # state. The state itself may be empty (no reasoning config at all) or
+    # may contain other reasoning fields, but must not contain ``context``.
+    reasoning = state.get("_openai_responses_reasoning")
+    if reasoning is not None:
+        assert "context" not in reasoning
+
+
+def test_init_preserves_current_turn_for_luna() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-luna",
+        "reasoning_context": "current_turn",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    reasoning = state["_openai_responses_reasoning"]
+    assert reasoning["context"] == "current_turn"
+
+
+def test_init_preserves_all_turns_for_sol() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "all_turns",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    reasoning = state["_openai_responses_reasoning"]
+    assert reasoning["context"] == "all_turns"
+
+
+def test_init_drops_invalid_reasoning_context_value() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "later",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    reasoning = state.get("_openai_responses_reasoning")
+    if reasoning is not None:
+        assert "context" not in reasoning
+
+
+def test_initialize_request_injects_context_all_turns_for_sol() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "all_turns",
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    reasoning = new_state["config"]["request_options"]["reasoning"]
+    assert reasoning["context"] == "all_turns"
+
+
+def test_initialize_request_injects_context_current_turn_for_luna() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-luna",
+        "reasoning_context": "current_turn",
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    reasoning = new_state["config"]["request_options"]["reasoning"]
+    assert reasoning["context"] == "current_turn"
+
+
+def test_initialize_request_context_composes_with_effort_summary_and_mode() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "all_turns",
+        "reasoning_effort": "medium",
+        "reasoning_summary": "concise",
+        "reasoning_mode": "pro",
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    reasoning = new_state["config"]["request_options"]["reasoning"]
+    assert reasoning == {
+        "context": "all_turns",
+        "effort": "medium",
+        "summary": "concise",
+        "mode": "pro",
+    }
+
+
+def test_initialize_request_auto_context_omits_wire_field() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "auto",
+        "reasoning_effort": "medium",
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    reasoning = new_state["config"]["request_options"]["reasoning"]
+    assert reasoning == {"effort": "medium"}
+    assert "context" not in reasoning
+
+
+def test_initialize_request_context_preserves_unrelated_existing_reasoning_fields() -> (
+    None
+):
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "all_turns",
+        "reasoning_summary": "concise",
+        "request_options": {
+            "reasoning": {
+                "summary": "auto",
+                "generate_summary": True,
+            },
+        },
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    reasoning = new_state["config"]["request_options"]["reasoning"]
+    assert reasoning["context"] == "all_turns"
+    assert reasoning["summary"] == "concise"
+    assert reasoning["generate_summary"] is True
+
+
+def test_initialize_request_config_context_overrides_request_options_context() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "all_turns",
+        "request_options": {
+            "reasoning": {"context": "current_turn"},
+        },
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    reasoning = new_state["config"]["request_options"]["reasoning"]
+    assert reasoning["context"] == "all_turns"
+
+
+def test_initialize_request_preserves_raw_request_options_context_when_config_unset() -> (
+    None
+):
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "request_options": {
+            "reasoning": {"context": "all_turns"},
+        },
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    reasoning = new_state["config"]["request_options"]["reasoning"]
+    assert reasoning["context"] == "all_turns"
+
+
+def test_initialize_request_auto_context_does_not_override_raw_context() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "auto",
+        "request_options": {
+            "reasoning": {"context": "all_turns"},
+        },
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    reasoning = new_state["config"]["request_options"]["reasoning"]
+    # ``auto`` normalizes to omission, so the raw expert escape hatch is
+    # preserved (config does not clobber raw when config normalizes to
+    # omission).
+    assert reasoning["context"] == "all_turns"
+
+
+def test_initialize_request_context_all_turns_keeps_encrypted_content_include() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "all_turns",
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    include = new_state["config"]["request_options"]["include"]
+    assert "reasoning.encrypted_content" in include
+    assert include.count("reasoning.encrypted_content") == 1
+
+
+def test_initialize_request_context_all_turns_preserves_raw_include_values() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "all_turns",
+        "request_options": {
+            "include": ["message.input_image.image_url"],
+        },
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    include = new_state["config"]["request_options"]["include"]
+    assert include == ["message.input_image.image_url", "reasoning.encrypted_content"]
+
+
+def test_initialize_request_context_all_turns_preserves_unrelated_request_options() -> (
+    None
+):
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "reasoning_context": "all_turns",
+        "request_options": {
+            "temperature": 0.2,
+            "top_p": 0.9,
+        },
+    }
+
+    state = ext.init(config, {"config": config})
+    _, new_state = ext.initialize_request([], state)
+
+    request_options = new_state["config"]["request_options"]
+    assert request_options["temperature"] == 0.2
+    assert request_options["top_p"] == 0.9
+    assert request_options["reasoning"]["context"] == "all_turns"
+
+
+def test_from_native_messages_extracts_effective_context_from_reasoning_item_metadata() -> (
+    None
+):
+    provider = OpenAIResponsesProvider()
+    ext = OpenAIResponsesReasoningExtension()
+
+    native_messages = [
+        {
+            "type": "reasoning",
+            "id": "rs_ctx_1",
+            "summary": [{"type": "summary_text", "text": "Used internal reasoning."}],
+            "content": None,
+            "encrypted_content": "enc_blob_1",
+            "status": None,
+            "_metadata": {
+                "response_id": "resp_ctx_1",
+                "_openai_responses_reasoning_context": "all_turns",
+            },
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Done."}],
+            "_metadata": {
+                "response_id": "resp_ctx_1",
+                "_openai_responses_reasoning_context": "all_turns",
+            },
+        },
+    ]
+
+    core_messages = provider.from_native_messages(native_messages, {})
+    enriched = ext.from_native_messages(native_messages, core_messages)
+
+    metadata = enriched[-1]["metadata"]
+    assert metadata["openai_responses_reasoning"]["context"] == "all_turns"
+
+
+def test_from_native_messages_extracts_effective_context_from_message_item_metadata() -> (
+    None
+):
+    provider = OpenAIResponsesProvider()
+    ext = OpenAIResponsesReasoningExtension()
+
+    # Response with no reasoning items but an effective context reported on
+    # the message item's internal metadata.
+    native_messages = [
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Simple response."}],
+            "_metadata": {
+                "response_id": "resp_ctx_2",
+                "_openai_responses_reasoning_context": "current_turn",
+            },
+        },
+    ]
+
+    core_messages = provider.from_native_messages(native_messages, {})
+    enriched = ext.from_native_messages(native_messages, core_messages)
+
+    metadata = enriched[-1].get("metadata") or {}
+    raw_reasoning = metadata.get("openai_responses_reasoning") or {}
+    assert raw_reasoning.get("context") == "current_turn"
+
+
+def test_from_native_messages_omits_context_when_response_does_not_report_it() -> None:
+    provider = OpenAIResponsesProvider()
+    ext = OpenAIResponsesReasoningExtension()
+
+    native_messages = [
+        {
+            "type": "reasoning",
+            "id": "rs_no_ctx",
+            "summary": [{"type": "summary_text", "text": "No context reported."}],
+            "content": None,
+            "encrypted_content": "enc_blob_no_ctx",
+            "status": None,
+            "_metadata": {"response_id": "resp_no_ctx"},
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Done."}],
+            "_metadata": {"response_id": "resp_no_ctx"},
+        },
+    ]
+
+    core_messages = provider.from_native_messages(native_messages, {})
+    enriched = ext.from_native_messages(native_messages, core_messages)
+
+    metadata = enriched[-1]["metadata"]
+    assert "context" not in metadata["openai_responses_reasoning"]
+
+
+def test_from_native_messages_context_survives_merge_across_segments() -> None:
+    provider = OpenAIResponsesProvider()
+    ext = OpenAIResponsesReasoningExtension()
+
+    # Two response segments with different effective contexts. The merge
+    # should use the latest non-empty value.
+    native_messages = [
+        {
+            "type": "reasoning",
+            "id": "rs_seg_1",
+            "summary": [{"type": "summary_text", "text": "First reasoning."}],
+            "content": None,
+            "encrypted_content": "enc_seg_1",
+            "status": None,
+            "_metadata": {
+                "response_id": "resp_seg_1",
+                "_openai_responses_reasoning_context": "current_turn",
+            },
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "First answer."}],
+            "_metadata": {
+                "response_id": "resp_seg_1",
+                "_openai_responses_reasoning_context": "current_turn",
+            },
+        },
+        {
+            "type": "reasoning",
+            "id": "rs_seg_2",
+            "summary": [{"type": "summary_text", "text": "Second reasoning."}],
+            "content": None,
+            "encrypted_content": "enc_seg_2",
+            "status": None,
+            "_metadata": {
+                "response_id": "resp_seg_2",
+                "_openai_responses_reasoning_context": "all_turns",
+            },
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "Second answer."}],
+            "_metadata": {
+                "response_id": "resp_seg_2",
+                "_openai_responses_reasoning_context": "all_turns",
+            },
+        },
+    ]
+
+    core_messages = provider.from_native_messages(native_messages, {})
+    enriched = ext.from_native_messages(native_messages, core_messages)
+
+    # The last assistant message should have the latest non-empty context.
+    last_assistant = [m for m in enriched if m.get("role") == "assistant"][-1]
+    metadata = last_assistant["metadata"]
+    assert metadata["openai_responses_reasoning"]["context"] == "all_turns"

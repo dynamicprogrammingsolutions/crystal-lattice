@@ -622,3 +622,111 @@ def test_session_asset_attachment_history_rebuilds_original_asset_ref(tmp_path) 
             "metadata": {},
         }
     ]
+
+
+def test_native_history_retains_reasoning_items_with_encrypted_content_for_follow_up() -> (
+    None
+):
+    """Reasoning items with ``encrypted_content`` must survive core/native
+    conversion and be replayed into the follow-up request's ``input``.
+
+    This verifies that the existing native-history replay mechanism is
+    sufficient for ``reasoning.context: "all_turns"`` — no second
+    conversation-state mechanism is needed. The API's requirement ("manually
+    replaying the complete response history") is already satisfied by the
+    retained native history.
+    """
+    _ScriptedNativeHistoryProvider.last_client = None
+    _ScriptedNativeHistoryProvider.scripted_payloads = [
+        {
+            "id": "resp_enc_1",
+            "output": [
+                {
+                    "type": "reasoning",
+                    "id": "rs_enc_1",
+                    "summary": [
+                        {"type": "summary_text", "text": "first reasoning with encrypted content"}
+                    ],
+                    "content": None,
+                    "encrypted_content": "enc_blob_abc123",
+                    "status": None,
+                },
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "output_text", "text": "First answer"}
+                    ],
+                },
+            ],
+        },
+        {
+            "id": "resp_enc_2",
+            "output": [
+                {
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {"type": "output_text", "text": "Second answer"}
+                    ],
+                }
+            ],
+        },
+    ]
+
+    core = _build_core()
+    config = _config()
+
+    session = core.create_session()
+    session = core.add_message(session, "user", "first turn")
+    session_after_first, first_responses = core.send_request(session, config)
+
+    assert first_responses[-1]["content"] == "First answer"
+
+    # After turn 1, the retained native history must contain the reasoning
+    # item with its ``encrypted_content`` intact.
+    native_after_first = (
+        session_after_first.metadata or {}
+    ).get("native_messages") or []
+    reasoning_items_after_first = [
+        item
+        for item in native_after_first
+        if isinstance(item, dict) and item.get("type") == "reasoning"
+    ]
+    assert reasoning_items_after_first, "expected a reasoning item after turn 1"
+    assert any(
+        item.get("encrypted_content") == "enc_blob_abc123"
+        for item in reasoning_items_after_first
+    ), "reasoning item must retain its encrypted_content"
+
+    session_after_first = core.add_message(
+        session_after_first,
+        "user",
+        "second turn",
+        config=config,
+    )
+    _session_after_second, second_responses = core.send_request(
+        session_after_first, config
+    )
+
+    assert second_responses[-1]["content"] == "Second answer"
+
+    client = _ScriptedNativeHistoryProvider.last_client
+    assert client is not None
+    assert len(client.responses.calls) == 2
+
+    # The second request's ``input`` must contain the reasoning item from
+    # turn 1 (with its ``encrypted_content``), replayed via native history.
+    second_input = client.responses.calls[1]["input"]
+    reasoning_in_second_input = [
+        item
+        for item in second_input
+        if isinstance(item, dict) and item.get("type") == "reasoning"
+    ]
+    assert reasoning_in_second_input, (
+        "expected the reasoning item from turn 1 to be replayed into turn 2"
+    )
+    assert any(
+        item.get("encrypted_content") == "enc_blob_abc123"
+        for item in reasoning_in_second_input
+    ), "replayed reasoning item must retain its encrypted_content"

@@ -521,11 +521,35 @@ loaded.
   into the outbound request. The extension never sends `"mode": "standard"`
   because omission is the standard-mode signal and `standard` is the API
   default.
+- `reasoning_context`: optional string enum `["auto", "current_turn",
+  "all_turns"]`, GPT-5.6 family only (Sol, Terra, Luna, and the bare
+  `gpt-5.6` alias). Controls which available reasoning items the model can
+  use on supported models:
+  - `auto`: uses the selected model's default. Omitting `reasoning_context`
+    has the same effect as `auto`. The extension normalizes `auto` to
+    omission (no `context` key is injected), matching the official
+    semantics and the existing `reasoning_mode` omission precedent.
+  - `current_turn`: makes reasoning from the active turn available without
+    rendering earlier-turn reasoning into the next sample.
+  - `all_turns`: renders available, compatible reasoning items from
+    earlier turns into the next sample. Only has an effect when earlier
+    response reasoning items are available (via retained native history).
+  On the first request, `current_turn` and `all_turns` behave the same
+  because no earlier reasoning exists. `all_turns` does not create missing
+  reasoning items; it only renders existing ones. The setting is silently
+  dropped for non-GPT-5.6 models, matching the existing silent-drop
+  behavior for unsupported `reasoning_effort` and `reasoning_mode`. Users
+  who need to force a context value on an older reasoning model can set
+  `request_options.reasoning.context` directly as an expert escape hatch;
+  the config-level `reasoning_context` takes precedence over the raw
+  `request_options.reasoning.context` when both are present. When
+  `reasoning_context` is `auto` or unset, the raw
+  `request_options.reasoning.context` is preserved.
 
 The bare `gpt-5.6` alias is not published in the model picker (per the model
 catalog decision), but if a user types it manually the reasoning extension
-treats it as the Sol alias and offers the Sol effort set including `ultra`
-and the Pro reasoning mode control.
+treats it as the Sol alias and offers the Sol effort set including `ultra`,
+the Pro reasoning mode control, and the reasoning context control.
 
 `ultra` is a multi-agent coordination mode: by default it coordinates four
 agents and consumes substantially more tokens than `max` or lower effort
@@ -539,21 +563,32 @@ reasoning the model applies within that mode. If `reasoning_effort` is unset,
 GPT-5.6 defaults to `medium` in both modes (per the official reasoning
 guide).
 
-No default `reasoning_effort` or `reasoning_mode` is inferred. If the key is
-unset, no `effort` or `mode` is injected and the OpenAI API applies its own
-built-in default for the selected model. Unsupported `reasoning_effort`
-values for the selected model are silently dropped (no error is raised; the
-value is simply not injected). `reasoning_mode: "pro"` is silently dropped
-for non-GPT-5.6 models, matching the same silent-drop behavior. Users who
-need to force an unsupported effort or mode for an unknown model can set
-`request_options.reasoning.effort` or `request_options.reasoning.mode`
-directly as an expert escape hatch; the config-level `reasoning_effort` and
-`reasoning_mode` take precedence over the raw `request_options` values when
-both are present.
+No default `reasoning_effort`, `reasoning_mode`, or `reasoning_context` is
+inferred. If the key is unset, no `effort`, `mode`, or `context` is injected
+and the OpenAI API applies its own built-in default for the selected model.
+Unsupported `reasoning_effort` values for the selected model are silently
+dropped (no error is raised; the value is simply not injected).
+`reasoning_mode: "pro"` is silently dropped for non-GPT-5.6 models, matching
+the same silent-drop behavior. `reasoning_context: "current_turn"` or
+`"all_turns"` is silently dropped for non-GPT-5.6 models. Users who need to
+force an unsupported effort, mode, or context for an unknown model can set
+`request_options.reasoning.effort`, `request_options.reasoning.mode`, or
+`request_options.reasoning.context` directly as an expert escape hatch; the
+config-level `reasoning_effort`, `reasoning_mode`, and `reasoning_context`
+take precedence over the raw `request_options` values when both are present.
 
 Assistant messages always expose the frontend-friendly field
 `metadata.reasoning`. OpenAI-specific raw reasoning data is preserved under
-`metadata.openai_responses_reasoning`.
+`metadata.openai_responses_reasoning`. The effective reasoning context
+reported by the response (if any) is preserved as
+`metadata.openai_responses_reasoning.context` (one of `current_turn` or
+`all_turns`). If the response does not report an effective context, the
+`context` sub-key is absent (not fabricated). The effective context is also
+surfaced as a `message_footer` UI element (`context: {{data}}`) that renders
+`metadata.openai_responses_reasoning.context` under each assistant message
+when present. The footer is conditionally rendered — it is hidden when the
+response does not report an effective context, so it does not fabricate a
+value.
 
 #### Pro mode billing
 
@@ -596,6 +631,11 @@ turn-aware heuristics. That estimate is kept separate from the raw provider
 usage payload and is used for ChatGPT-mode pricing instead of any
 backend-reported cached-token field. By default it is not displayed; enable
 `show_estimated_cached_tokens` if you want the footer.
+
+The reasoning extension contributes its own `message_footer` element for the
+effective reasoning context (`context: all_turns` / `current_turn`),
+parallel to the usage footers above. It renders only when
+`metadata.openai_responses_reasoning.context` is present (see Reasoning keys).
 
 #### Pricing snapshot and cost estimation
 
@@ -773,8 +813,14 @@ transcript.
 - API-key mode supports both non-streaming and streaming Responses requests.
 - ChatGPT mode is streaming-only in the current implementation. Non-streaming
   requests fail with a clear error.
-- The provider retains Responses-native history so future turns can replay
-  native items rather than flattening everything to plain chat text.
+- The provider retains Responses-native history (including reasoning items
+  with `encrypted_content`) so future turns can replay native items rather
+  than flattening everything to plain chat text. This retained native history
+  is what makes `reasoning.context: "all_turns"` effective on follow-up turns:
+  the API renders the earlier reasoning items into the next sample. No second
+  conversation-state mechanism is needed — the existing native replay already
+  satisfies the API's "manually replaying the complete response history"
+  requirement.
 - Reasoning requests include `reasoning.encrypted_content` so raw reasoning can
   be preserved even when the model does not expose readable reasoning text.
 - Verbosity support is model-gated and currently follows the provider tag check

@@ -15,6 +15,7 @@ from agent_core.types import ProviderExtensionPlugin
 
 _REASONING_STATE_KEY = "_openai_responses_reasoning"
 _RAW_REASONING_METADATA_KEY = "openai_responses_reasoning"
+_RAW_REASONING_CONTEXT_METADATA_KEY = "_openai_responses_reasoning_context"
 _REASONING_FALLBACK_TEXT = "Reasoning present but not exposed by model."
 _REASONING_EFFORTS = (
     "none",
@@ -37,6 +38,8 @@ _UNKNOWN_MODEL_REASONING_EFFORTS = (
 _REASONING_SUMMARIES = ("auto", "concise", "detailed")
 _REASONING_INCLUDE_VALUE = "reasoning.encrypted_content"
 _REASONING_MODES = ("pro",)
+_REASONING_CONTEXTS = ("auto", "current_turn", "all_turns")
+_REASONING_CONTEXT_INJECT_VALUES = ("current_turn", "all_turns")
 
 _MODEL_REASONING_EFFORT_PATTERNS: Tuple[
     Tuple[re.Pattern[str], Tuple[str, ...]], ...
@@ -105,6 +108,19 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                     "mode (GPT-5.6 family only). Absence means standard mode."
                 ),
             },
+            "reasoning_context": {
+                "type": "string",
+                "required": False,
+                "enum": list(_REASONING_CONTEXTS),
+                "description": (
+                    "Reasoning context for supported models. 'current_turn' "
+                    "makes reasoning from the active turn available without "
+                    "rendering earlier-turn reasoning. 'all_turns' renders "
+                    "compatible reasoning items from earlier turns into the "
+                    "next sample (GPT-5.6 family only). 'auto' and absence "
+                    "both normalize to omission (the API default applies)."
+                ),
+            },
         }
 
     def _resolve_model_id(
@@ -141,6 +157,17 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
             self._supported_reasoning_efforts_for_model(model)
             in _GPT_5_6_REASONING_EFFORTS
         )
+
+    def _model_supports_reasoning_context(self, model: str) -> bool:
+        # Conservative gating: the official reasoning guide says
+        # ``reasoning.context`` support is model-dependent, and the Codex
+        # catalog does not publish per-model capability data. Gate to the
+        # GPT-5.6 family (the same check used for Pro mode) until official
+        # per-model capability data is available. Users who need to force a
+        # context value on an older reasoning model can set
+        # ``request_options.reasoning.context`` directly as an expert escape
+        # hatch.
+        return self._model_supports_pro_reasoning(model)
 
     def get_ui_elements(
         self,
@@ -185,6 +212,38 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                 }
             )
 
+        if self._model_supports_reasoning_context(model_id):
+            elements.append(
+                {
+                    "type": "select",
+                    "key": "reasoning_context",
+                    "label": "Reasoning Context",
+                    "options": [
+                        {"value": value, "label": value}
+                        for value in _REASONING_CONTEXTS
+                    ],
+                }
+            )
+
+        # Message footer for the effective reasoning context. Unconditional
+        # (not model-gated) because the ``condition`` handles per-message
+        # visibility: the footer only renders when
+        # ``metadata.openai_responses_reasoning.context`` is present, so it
+        # does not fabricate a value for models or responses that do not
+        # report an effective context. Mirrors the usage extension's
+        # ``message_footer`` pattern for ``usage_service_tier``.
+        elements.append(
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.openai_responses_reasoning.context",
+                "template": "context: {{data}}",
+                "condition": {
+                    "path": "metadata.openai_responses_reasoning.context",
+                    "exists": True,
+                },
+            }
+        )
+
         return elements
 
     def _normalize_reasoning_config(
@@ -209,6 +268,22 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
             and self._model_supports_pro_reasoning(model)
         ):
             reasoning["mode"] = mode
+
+        context = config.get("reasoning_context")
+        if (
+            isinstance(context, str)
+            and context in _REASONING_CONTEXT_INJECT_VALUES
+            and self._model_supports_reasoning_context(model)
+        ):
+            reasoning["context"] = context
+        # ``auto`` normalizes to omission (do not inject ``context``). This
+        # matches the official semantics ("omitting reasoning.context has the
+        # same effect as auto") and the existing ``reasoning_mode`` precedent
+        # (omit ``standard``, the API default). Both ``absent`` and ``auto``
+        # produce the same outbound request: no ``context`` key. An invalid
+        # value or a non-GPT-5.6 model is silently dropped (no error, no
+        # injection), matching the existing silent-drop behavior for
+        # unsupported ``reasoning_effort`` and ``reasoning_mode``.
 
         return reasoning or None
 
@@ -261,12 +336,26 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
         encrypted_content: List[Any] = []
         reasoning_fragments: List[str] = []
         summary_fragments: List[str] = []
+        effective_context: Optional[str] = None
 
         for native_item in native_messages:
-            if (
-                not isinstance(native_item, dict)
-                or native_item.get("type") != "reasoning"
-            ):
+            if not isinstance(native_item, dict):
+                continue
+
+            # Extract the effective reasoning context from the first relevant
+            # native item's internal metadata. The provider attaches the same
+            # ``_metadata._openai_responses_reasoning_context`` to every output
+            # item of a response, so reading from any item (reasoning or
+            # otherwise) is sufficient. This handles responses that report
+            # an effective context but produce no reasoning items.
+            if effective_context is None:
+                internal_md = native_item.get("_metadata")
+                if isinstance(internal_md, dict):
+                    context_value = internal_md.get(_RAW_REASONING_CONTEXT_METADATA_KEY)
+                    if isinstance(context_value, str) and context_value:
+                        effective_context = context_value
+
+            if native_item.get("type") != "reasoning":
                 continue
 
             cleaned_item = {k: v for k, v in native_item.items() if k != "_metadata"}
@@ -289,7 +378,7 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
             if encrypted is not None:
                 encrypted_content.append(encrypted)
 
-        if not reasoning_items:
+        if not reasoning_items and effective_context is None:
             return {}
 
         reasoning_summary_text = "\n".join(
@@ -311,9 +400,11 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
             raw_metadata["content_text"] = reasoning_content_text
         if encrypted_content:
             raw_metadata["encrypted_content"] = encrypted_content
+        if effective_context is not None:
+            raw_metadata["context"] = effective_context
 
         metadata: Dict[str, Any] = {_RAW_REASONING_METADATA_KEY: raw_metadata}
-        if reasoning_text:
+        if reasoning_items and reasoning_text:
             metadata["reasoning"] = reasoning_text
         return metadata
 
@@ -374,6 +465,18 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
                 target_key not in merged_raw and isinstance(incoming, str) and incoming
             ):
                 merged_raw[target_key] = incoming.strip()
+
+        # Effective reasoning context: latest non-empty string wins. All
+        # output items from one response share the same effective context, so
+        # across response segments in a tool-loop the latest non-empty value
+        # reflects the most recent response's effective mode.
+        incoming_context = incoming_raw.get("context")
+        if isinstance(incoming_context, str) and incoming_context.strip():
+            merged_raw["context"] = incoming_context.strip()
+        elif "context" not in merged_raw and isinstance(incoming_context, str):
+            cleaned = incoming_context.strip()
+            if cleaned:
+                merged_raw["context"] = cleaned
 
         if merged_raw:
             merged[_RAW_REASONING_METADATA_KEY] = merged_raw

@@ -103,6 +103,7 @@ JsonObject = Dict[str, Any]
 _DEFAULT_CHATGPT_CLIENT_VERSION = "0.1.0"
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
+_RAW_REASONING_CONTEXT_METADATA_KEY = "_openai_responses_reasoning_context"
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
 _COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
@@ -2345,6 +2346,12 @@ class OpenAIResponsesProvider(ProviderPlugin):
         service_tier = response_obj.get("service_tier")
         if isinstance(service_tier, str) and service_tier:
             md[_RAW_SERVICE_TIER_METADATA_KEY] = service_tier
+
+        reasoning_obj = self._safe_dict_payload(response_obj.get("reasoning"))
+        if reasoning_obj:
+            reasoning_context = reasoning_obj.get("context")
+            if isinstance(reasoning_context, str) and reasoning_context:
+                md[_RAW_REASONING_CONTEXT_METADATA_KEY] = reasoning_context
 
         return md
 
