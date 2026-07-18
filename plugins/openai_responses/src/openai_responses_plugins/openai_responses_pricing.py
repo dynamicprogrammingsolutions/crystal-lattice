@@ -15,7 +15,6 @@ from html import unescape
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
-
 DEFAULT_PRICING_PAGE_URLS = (
     "https://developers.openai.com/api/docs/pricing?latest-pricing=standard",
     "https://developers.openai.com/api/docs/pricing?latest-pricing=flex",
@@ -28,7 +27,13 @@ _TEXT_TOKEN_TABLE_RE = re.compile(
     re.DOTALL,
 )
 _TIER_RE = re.compile(r'"tier":\[\d+,"([^"]+)"\]')
-_ROW_RE = re.compile(r'\[\[0,"([^"]+)"\],\[0,([^\]]+)\],\[0,([^\]]+)\],\[0,([^\]]+)\]\]')
+# Each row starts with the model name followed by one or more price cells.
+# Legacy rows have three prices (input, cached input, output); GPT-5.6+ rows
+# have four prices (input, cached input, cache writes, output). Capture the
+# full price-cell list and interpret by position downstream so the parser
+# supports both row shapes without losing older model entries.
+_ROW_RE = re.compile(r'\[\[0,"([^"]+)"\]((?:,\[0,(?:[^\]]+)\])+)\]')
+_PRICE_CELL_RE = re.compile(r"\[0,([^\]]+)\]")
 _CONTEXT_SUFFIX_RE = re.compile(r"\s+\([^)]*context length[^)]*\)$", re.IGNORECASE)
 
 
@@ -134,7 +139,9 @@ def _pricing_block_from_mapping(pricing: Any) -> Optional[Dict[str, Optional[flo
 
     input_price = pricing.get("input_per_1m")
     output_price = pricing.get("output_per_1m")
-    if not isinstance(input_price, (int, float)) or not isinstance(output_price, (int, float)):
+    if not isinstance(input_price, (int, float)) or not isinstance(
+        output_price, (int, float)
+    ):
         return None
 
     cached_price = pricing.get("cached_input_per_1m")
@@ -142,14 +149,22 @@ def _pricing_block_from_mapping(pricing: Any) -> Optional[Dict[str, Optional[flo
     if isinstance(cached_price, (int, float)):
         cached_value = float(cached_price)
 
+    cache_write_price = pricing.get("cache_write_per_1m")
+    cache_write_value: Optional[float] = None
+    if isinstance(cache_write_price, (int, float)):
+        cache_write_value = float(cache_write_price)
+
     return {
         "input_per_1m": float(input_price),
         "cached_input_per_1m": cached_value,
+        "cache_write_per_1m": cache_write_value,
         "output_per_1m": float(output_price),
     }
 
 
-def _pricing_block(entry: Dict[str, Any], service_tier: str | None = None) -> Optional[Dict[str, Optional[float]]]:
+def _pricing_block(
+    entry: Dict[str, Any], service_tier: str | None = None
+) -> Optional[Dict[str, Optional[float]]]:
     normalized_tier = normalize_service_tier(service_tier)
     service_tiers = entry.get("service_tiers") if isinstance(entry, dict) else None
     if isinstance(service_tiers, dict) and normalized_tier:
@@ -158,7 +173,9 @@ def _pricing_block(entry: Dict[str, Any], service_tier: str | None = None) -> Op
             return tier_pricing
 
         if normalized_tier in {"default", "auto", "standard"}:
-            standard_pricing = _pricing_block_from_mapping(service_tiers.get("standard"))
+            standard_pricing = _pricing_block_from_mapping(
+                service_tiers.get("standard")
+            )
             if standard_pricing is not None:
                 return standard_pricing
             return _pricing_block_from_mapping(entry.get("pricing"))
@@ -203,28 +220,56 @@ def estimate_usage_cost(
 
     input_tokens = usage.get("input_tokens")
     output_tokens = usage.get("output_tokens")
-    if not isinstance(input_tokens, (int, float)) or not isinstance(output_tokens, (int, float)):
+    if not isinstance(input_tokens, (int, float)) or not isinstance(
+        output_tokens, (int, float)
+    ):
         return None
 
-    cached_tokens = 0
+    cached_read_tokens = 0
+    cache_write_tokens = 0
     details = usage.get("input_tokens_details")
     if isinstance(details, dict):
         raw_cached = details.get("cached_tokens")
         if isinstance(raw_cached, (int, float)):
-            cached_tokens = max(0, int(raw_cached))
+            cached_read_tokens = max(0, int(raw_cached))
+        raw_cache_write = details.get("cache_write_tokens")
+        if isinstance(raw_cache_write, (int, float)):
+            cache_write_tokens = max(0, int(raw_cache_write))
 
     input_total = max(0, int(input_tokens))
     output_total = max(0, int(output_tokens))
-    cached_total = min(input_total, cached_tokens)
-    uncached_total = input_total - cached_total
+
+    # Split input into three mutually exclusive buckets so the same token is
+    # never charged twice. If the reported detail counters are inconsistent
+    # (their sum exceeds input_total), reduce the larger counter to fit and
+    # clamp ordinary_input_tokens to zero. This keeps cost estimation
+    # deterministic and non-negative without rejecting the whole payload.
+    if cached_read_tokens + cache_write_tokens > input_total:
+        if cached_read_tokens >= cache_write_tokens:
+            cached_read_tokens = max(0, input_total - cache_write_tokens)
+        else:
+            cache_write_tokens = max(0, input_total - cached_read_tokens)
+        ordinary_input_tokens = 0
+    else:
+        ordinary_input_tokens = input_total - cached_read_tokens - cache_write_tokens
 
     cached_price = pricing.get("cached_input_per_1m")
-    if cached_total > 0 and cached_price is None:
+    if cached_read_tokens > 0 and cached_price is None:
         return None
 
+    cache_write_price = pricing.get("cache_write_per_1m")
+    if cache_write_tokens > 0 and cache_write_price is None:
+        # Fall back to the ordinary input rate when the provider reports
+        # billable cache writes but the published pricing block does not
+        # include a separate cache-write column. This keeps older models
+        # estimable instead of returning None and hiding the model entirely.
+        cache_write_price = pricing["input_per_1m"]
+
     estimated = (
-        uncached_total * pricing["input_per_1m"]
-        + cached_total * (cached_price if cached_price is not None else 0.0)
+        ordinary_input_tokens * pricing["input_per_1m"]
+        + cached_read_tokens * (cached_price if cached_price is not None else 0.0)
+        + cache_write_tokens
+        * (cache_write_price if cache_write_price is not None else 0.0)
         + output_total * pricing["output_per_1m"]
     ) / 1_000_000.0
 
@@ -249,16 +294,41 @@ def extract_visible_text_token_tier_pricing_from_page_html(
         if not tier:
             continue
 
-        for raw_model, raw_input, raw_cached, raw_output in _ROW_RE.findall(props):
+        for raw_model, raw_price_cells in _ROW_RE.findall(props):
             model = normalize_pricing_table_model_name(raw_model)
             if not model:
                 continue
 
-            input_price = _coerce_price(raw_input)
-            cached_input_price = _coerce_price(raw_cached)
-            output_price = _coerce_price(raw_output)
+            price_cells = _PRICE_CELL_RE.findall(raw_price_cells)
+            if len(price_cells) < 3:
+                continue
+
+            input_price = _coerce_price(price_cells[0])
+            output_price = _coerce_price(price_cells[-1])
             if input_price is None or output_price is None:
                 continue
+
+            tier_pricing: Dict[str, Any] = {
+                "input_per_1m": input_price,
+                "output_per_1m": output_price,
+            }
+
+            if len(price_cells) == 3:
+                # Legacy row: input, cached input, output.
+                cached_input_price = _coerce_price(price_cells[1])
+                if cached_input_price is not None:
+                    tier_pricing["cached_input_per_1m"] = cached_input_price
+            else:
+                # New row: input, cached input, cache writes, output.
+                # Any extra middle cells beyond the first two and the last are
+                # ignored; the OpenAI table currently has exactly four price
+                # columns for GPT-5.6+ rows.
+                cached_input_price = _coerce_price(price_cells[1])
+                if cached_input_price is not None:
+                    tier_pricing["cached_input_per_1m"] = cached_input_price
+                cache_write_price = _coerce_price(price_cells[2])
+                if cache_write_price is not None:
+                    tier_pricing["cache_write_per_1m"] = cache_write_price
 
             entry = model_entries.setdefault(
                 model,
@@ -269,28 +339,34 @@ def extract_visible_text_token_tier_pricing_from_page_html(
                 },
             )
             service_tiers = entry.setdefault("service_tiers", {})
-            tier_pricing = {
-                "input_per_1m": input_price,
-                "output_per_1m": output_price,
-            }
-            if cached_input_price is not None:
-                tier_pricing["cached_input_per_1m"] = cached_input_price
             service_tiers[tier] = tier_pricing
 
     if not model_entries:
-        raise RuntimeError(f"no visible text-token pricing tables found in {source_url}")
+        raise RuntimeError(
+            f"no visible text-token pricing tables found in {source_url}"
+        )
 
     return model_entries
 
 
-def merge_pricing_entry(existing: Dict[str, Any] | None, incoming: Dict[str, Any]) -> Dict[str, Any]:
+def merge_pricing_entry(
+    existing: Dict[str, Any] | None, incoming: Dict[str, Any]
+) -> Dict[str, Any]:
     existing_entry = existing if isinstance(existing, dict) else {}
     incoming_entry = incoming if isinstance(incoming, dict) else {}
 
     merged: Dict[str, Any] = {**existing_entry, **incoming_entry}
 
-    existing_tiers = existing_entry.get("service_tiers") if isinstance(existing_entry, dict) else None
-    incoming_tiers = incoming_entry.get("service_tiers") if isinstance(incoming_entry, dict) else None
+    existing_tiers = (
+        existing_entry.get("service_tiers")
+        if isinstance(existing_entry, dict)
+        else None
+    )
+    incoming_tiers = (
+        incoming_entry.get("service_tiers")
+        if isinstance(incoming_entry, dict)
+        else None
+    )
     merged_tiers: Dict[str, Any] = {}
     if isinstance(existing_tiers, dict):
         merged_tiers.update(existing_tiers)

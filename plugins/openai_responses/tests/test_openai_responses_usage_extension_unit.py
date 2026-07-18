@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
 
-from openai_responses_plugins.openai_responses_usage_extension import OpenAIResponsesUsageExtension
-
+from openai_responses_plugins.openai_responses_usage_extension import (
+    OpenAIResponsesUsageExtension,
+)
 
 RAW_USAGE_KEY = "_openai_responses_usage_raw"
 
@@ -73,9 +75,14 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
         "output_tokens_details": {"reasoning_tokens": 7},
         "total_tokens": 1290,
     }
-    final_messages: List[Dict[str, Any]] = [_assistant_output_item("hi", response_id="resp_1")]
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_1")
+    ]
     native_messages: List[Dict[str, Any]] = list(final_messages)
-    native_chunk = {"type": "response.completed", "response": {"id": "resp_1", "usage": usage}}
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_1", "usage": usage},
+    }
 
     _partials, finals, new_native, _state = ext.process_chunk(
         native_chunk=native_chunk,
@@ -117,7 +124,9 @@ def test_streaming_usage_attaches_openrouter_compatible_fields() -> None:
     assert md.get("usage_effective_auth_mode_label") == "API"
 
 
-def test_streaming_usage_surfaces_flex_tier_and_uses_tier_pricing(tmp_path: Path) -> None:
+def test_streaming_usage_surfaces_flex_tier_and_uses_tier_pricing(
+    tmp_path: Path,
+) -> None:
     ext = OpenAIResponsesUsageExtension()
 
     snapshot_path = tmp_path / "pricing.json"
@@ -162,7 +171,10 @@ def test_streaming_usage_surfaces_flex_tier_and_uses_tier_pricing(tmp_path: Path
         )
     ]
     native_messages: List[Dict[str, Any]] = list(final_messages)
-    native_chunk = {"type": "response.completed", "response": {"id": "resp_flex", "usage": usage}}
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_flex", "usage": usage},
+    }
 
     _partials, finals, _new_native, _state = ext.process_chunk(
         native_chunk=native_chunk,
@@ -183,24 +195,50 @@ def test_streaming_usage_surfaces_flex_tier_and_uses_tier_pricing(tmp_path: Path
     assert md.get("usage_total_cost_formatted") == "$0.000202"
 
 
-def test_streaming_usage_uses_manual_model_pricing_when_snapshot_is_missing_model() -> None:
+def test_streaming_usage_uses_manual_model_pricing_when_snapshot_is_missing_model(
+    tmp_path: Path,
+) -> None:
     ext = OpenAIResponsesUsageExtension()
+
+    # Use an empty snapshot so the manual ChatGPT fallback is exercised.
+    empty_snapshot_path = tmp_path / "empty_pricing.json"
+    empty_snapshot_path.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "fetched_at": "2026-07-13T00:00:00+00:00",
+                "source_base_url": "https://developers.openai.com/api/docs/pricing",
+                "models": {},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     usage = {
         "input_tokens": 1000,
         "input_tokens_details": {"cached_tokens": 200},
         "output_tokens": 100,
     }
-    final_messages: List[Dict[str, Any]] = [_assistant_output_item("hi", response_id="resp_manual")]
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_manual")
+    ]
     native_messages: List[Dict[str, Any]] = list(final_messages)
-    native_chunk = {"type": "response.completed", "response": {"id": "resp_manual", "usage": usage}}
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_manual", "usage": usage},
+    }
 
     _partials, finals, _new_native, _state = ext.process_chunk(
         native_chunk=native_chunk,
         partial_messages=[],
         final_messages=final_messages,
         native_messages=native_messages,
-        state={"config": {"model": "gpt-5.5"}},
+        state={
+            "config": {
+                "model": "gpt-5.5",
+                "pricing_snapshot_path": str(empty_snapshot_path),
+            }
+        },
     )
 
     md = finals[0].get("_metadata") or {}
@@ -208,8 +246,24 @@ def test_streaming_usage_uses_manual_model_pricing_when_snapshot_is_missing_mode
     assert md.get("usage_total_cost_formatted") == "$0.007100"
 
 
-def test_streaming_usage_uses_manual_priority_tier_pricing_when_snapshot_is_missing_model() -> None:
+def test_streaming_usage_uses_manual_priority_tier_pricing_when_snapshot_is_missing_model(
+    tmp_path: Path,
+) -> None:
     ext = OpenAIResponsesUsageExtension()
+
+    # Use an empty snapshot so the manual ChatGPT fallback is exercised.
+    empty_snapshot_path = tmp_path / "empty_pricing.json"
+    empty_snapshot_path.write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "fetched_at": "2026-07-13T00:00:00+00:00",
+                "source_base_url": "https://developers.openai.com/api/docs/pricing",
+                "models": {},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     usage = {
         "input_tokens": 1000,
@@ -234,7 +288,12 @@ def test_streaming_usage_uses_manual_priority_tier_pricing_when_snapshot_is_miss
         partial_messages=[],
         final_messages=final_messages,
         native_messages=native_messages,
-        state={"config": {"model": "gpt-5.5"}},
+        state={
+            "config": {
+                "model": "gpt-5.5",
+                "pricing_snapshot_path": str(empty_snapshot_path),
+            }
+        },
     )
 
     md = finals[0].get("_metadata") or {}
@@ -264,7 +323,10 @@ def test_streaming_usage_marks_tool_call_turns_and_attaches_to_assistant_item() 
     native_messages: List[Dict[str, Any]] = list(final_messages)
 
     _partials, finals, _new_native, _state = ext.process_chunk(
-        native_chunk={"type": "response.completed", "response": {"id": "resp_2", "usage": usage}},
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_2", "usage": usage},
+        },
         partial_messages=[],
         final_messages=final_messages,
         native_messages=native_messages,
@@ -282,7 +344,11 @@ def test_streaming_usage_marks_tool_call_turns_and_attaches_to_assistant_item() 
     assert assistant_md.get("usage_turn_cached_tokens_cumulative_formatted") == "0"
     assert assistant_md.get("usage_turn_output_tokens_cumulative_formatted") == "10"
     assert assistant_md.get("usage_turn_reasoning_tokens_cumulative_formatted") == "2"
-    assert assistant_md.get("turn") == {"id": 1, "has_tool_calls": True, "is_terminal": False}
+    assert assistant_md.get("turn") == {
+        "id": 1,
+        "has_tool_calls": True,
+        "is_terminal": False,
+    }
 
 
 def test_streaming_usage_marks_custom_tool_call_turns_correctly() -> None:
@@ -311,7 +377,10 @@ def test_streaming_usage_marks_custom_tool_call_turns_correctly() -> None:
     native_messages: List[Dict[str, Any]] = list(final_messages)
 
     _partials, finals, _new_native, _state = ext.process_chunk(
-        native_chunk={"type": "response.completed", "response": {"id": "resp_custom", "usage": usage}},
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_custom", "usage": usage},
+        },
         partial_messages=[],
         final_messages=final_messages,
         native_messages=native_messages,
@@ -320,11 +389,15 @@ def test_streaming_usage_marks_custom_tool_call_turns_correctly() -> None:
 
     assistant_md = finals[1].get("_metadata") or {}
     assert assistant_md.get("usage") == usage
-    assert assistant_md.get("has_tool_calls") is True  # Should be True for custom_tool_call
+    assert (
+        assistant_md.get("has_tool_calls") is True
+    )  # Should be True for custom_tool_call
     assert assistant_md.get("usage_total_cost") == pytest.approx(0.0000375, rel=1e-9)
 
 
-def test_nonstreaming_finalize_extracts_raw_usage_and_computes_cumulative_totals() -> None:
+def test_nonstreaming_finalize_extracts_raw_usage_and_computes_cumulative_totals() -> (
+    None
+):
     ext = OpenAIResponsesUsageExtension()
 
     native_messages: List[Dict[str, Any]] = [
@@ -400,7 +473,9 @@ def test_nonstreaming_finalize_extracts_raw_usage_and_computes_cumulative_totals
     assert RAW_USAGE_KEY not in md
 
 
-def test_from_native_messages_lifts_usage_from_tool_call_item_to_assistant_message() -> None:
+def test_from_native_messages_lifts_usage_from_tool_call_item_to_assistant_message() -> (
+    None
+):
     ext = OpenAIResponsesUsageExtension()
 
     native_messages: List[Dict[str, Any]] = [
@@ -480,6 +555,7 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
     assert data_paths == [
         "metadata.usage_prompt_tokens_formatted",
         "metadata.usage_cached_tokens_formatted",
+        "metadata.usage_cache_write_tokens_formatted",
         "metadata.usage_completion_tokens_formatted",
         "metadata.usage_service_tier",
         "metadata.usage_total_cost_formatted",
@@ -496,7 +572,11 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
             "eq": "chatgpt",
         }
     }
-    assert elements[3]["condition"] == {
+    assert elements[2]["condition"] == {
+        "path": "metadata.usage_cache_write_tokens_formatted",
+        "exists": True,
+    }
+    assert elements[4]["condition"] == {
         "any": [
             {"path": "metadata.usage_service_tier", "eq": "flex"},
             {"path": "metadata.usage_service_tier", "eq": "priority"},
@@ -517,10 +597,21 @@ def test_chatgpt_estimated_cached_tokens_follow_turn_algorithm() -> None:
         _user_item("u7"),
     ]
 
-    assert ext._estimated_cached_tokens_for_current(history[:1], {"input_tokens": 20}) == 0
-    assert ext._estimated_cached_tokens_for_current(history[:2], {"input_tokens": 30}) == 20
-    assert ext._estimated_cached_tokens_for_current(history[:4], {"input_tokens": 50}) == 20
-    assert ext._estimated_cached_tokens_for_current(history[:5], {"input_tokens": 60}) == 50
+    assert (
+        ext._estimated_cached_tokens_for_current(history[:1], {"input_tokens": 20}) == 0
+    )
+    assert (
+        ext._estimated_cached_tokens_for_current(history[:2], {"input_tokens": 30})
+        == 20
+    )
+    assert (
+        ext._estimated_cached_tokens_for_current(history[:4], {"input_tokens": 50})
+        == 20
+    )
+    assert (
+        ext._estimated_cached_tokens_for_current(history[:5], {"input_tokens": 60})
+        == 50
+    )
     assert ext._estimated_cached_tokens_for_current(history, {"input_tokens": 80}) == 50
 
 
@@ -536,7 +627,10 @@ def test_chatgpt_estimated_cached_tokens_ignore_tool_results() -> None:
         _tool_result_item("call_2"),
     ]
 
-    assert ext._estimated_cached_tokens_for_current(history[:2], {"input_tokens": 30}) == 20
+    assert (
+        ext._estimated_cached_tokens_for_current(history[:2], {"input_tokens": 30})
+        == 20
+    )
     assert ext._estimated_cached_tokens_for_current(history, {"input_tokens": 50}) == 20
 
 
@@ -545,10 +639,14 @@ def test_chatgpt_streaming_usage_keeps_raw_usage_separate_and_estimates_cost() -
 
     base_native: List[Dict[str, Any]] = [
         _user_item("u1"),
-        _assistant_usage_item("a2", input_tokens=20, output_tokens=4, response_id="resp_prev"),
+        _assistant_usage_item(
+            "a2", input_tokens=20, output_tokens=4, response_id="resp_prev"
+        ),
         _user_item("u3"),
     ]
-    final_messages: List[Dict[str, Any]] = [_assistant_output_item("a4", response_id="resp_4")]
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("a4", response_id="resp_4")
+    ]
     native_messages: List[Dict[str, Any]] = [*base_native, *final_messages]
     usage = {
         "input_tokens": 50,
@@ -556,11 +654,19 @@ def test_chatgpt_streaming_usage_keeps_raw_usage_separate_and_estimates_cost() -
     }
 
     _partials, finals, _new_native, _state = ext.process_chunk(
-        native_chunk={"type": "response.completed", "response": {"id": "resp_4", "usage": usage}},
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_4", "usage": usage},
+        },
         partial_messages=[],
         final_messages=final_messages,
         native_messages=native_messages,
-        state={"config": {"model": "gpt-5-mini", "_openai_responses_effective_auth_mode": "chatgpt"}},
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "_openai_responses_effective_auth_mode": "chatgpt",
+            }
+        },
     )
 
     md = finals[0].get("_metadata") or {}
@@ -573,12 +679,16 @@ def test_chatgpt_streaming_usage_keeps_raw_usage_separate_and_estimates_cost() -
     assert md.get("usage_total_cost") == pytest.approx(0.000028, rel=1e-9)
 
 
-def test_chatgpt_usage_ignores_reported_cached_tokens_for_cost_and_uses_estimate() -> None:
+def test_chatgpt_usage_ignores_reported_cached_tokens_for_cost_and_uses_estimate() -> (
+    None
+):
     ext = OpenAIResponsesUsageExtension()
 
     base_native: List[Dict[str, Any]] = [
         _user_item("u1"),
-        _assistant_usage_item("a2", input_tokens=20, output_tokens=4, response_id="resp_prev"),
+        _assistant_usage_item(
+            "a2", input_tokens=20, output_tokens=4, response_id="resp_prev"
+        ),
         _user_item("u3"),
     ]
     usage = {
@@ -586,15 +696,25 @@ def test_chatgpt_usage_ignores_reported_cached_tokens_for_cost_and_uses_estimate
         "input_tokens_details": {"cached_tokens": 12},
         "output_tokens": 10,
     }
-    final_messages: List[Dict[str, Any]] = [_assistant_output_item("hi", response_id="resp_1")]
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_1")
+    ]
     native_messages: List[Dict[str, Any]] = [*base_native, *final_messages]
 
     _partials, finals, _new_native, _state = ext.process_chunk(
-        native_chunk={"type": "response.completed", "response": {"id": "resp_1", "usage": usage}},
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_1", "usage": usage},
+        },
         partial_messages=[],
         final_messages=final_messages,
         native_messages=native_messages,
-        state={"config": {"model": "gpt-5-mini", "_openai_responses_effective_auth_mode": "chatgpt"}},
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "_openai_responses_effective_auth_mode": "chatgpt",
+            }
+        },
     )
 
     md = finals[0].get("_metadata") or {}
@@ -633,11 +753,16 @@ def test_turn_cached_cumulative_prefers_estimated_cached_tokens_when_present() -
         "input_tokens_details": {"cached_tokens": 12},
         "output_tokens": 10,
     }
-    final_messages: List[Dict[str, Any]] = [_assistant_output_item("hi", response_id="resp_1")]
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_1")
+    ]
     native_messages: List[Dict[str, Any]] = [*base_native, *final_messages]
 
     _partials, finals, _new_native, _state = ext.process_chunk(
-        native_chunk={"type": "response.completed", "response": {"id": "resp_1", "usage": usage}},
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_1", "usage": usage},
+        },
         partial_messages=[],
         final_messages=final_messages,
         native_messages=native_messages,
@@ -655,25 +780,37 @@ def test_turn_cached_cumulative_prefers_estimated_cached_tokens_when_present() -
     assert md.get("usage_turn_cached_tokens_cumulative_formatted") == "38"
 
 
-def test_chatgpt_estimated_cached_tokens_are_shown_as_zero_for_first_turn_message() -> None:
+def test_chatgpt_estimated_cached_tokens_are_shown_as_zero_for_first_turn_message() -> (
+    None
+):
     ext = OpenAIResponsesUsageExtension()
 
     usage = {
         "input_tokens": 40,
         "output_tokens": 8,
     }
-    final_messages: List[Dict[str, Any]] = [_assistant_output_item("hi", response_id="resp_1")]
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_1")
+    ]
     native_messages: List[Dict[str, Any]] = [
         _user_item("u1"),
         *final_messages,
     ]
 
     _partials, finals, _new_native, _state = ext.process_chunk(
-        native_chunk={"type": "response.completed", "response": {"id": "resp_1", "usage": usage}},
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_1", "usage": usage},
+        },
         partial_messages=[],
         final_messages=final_messages,
         native_messages=native_messages,
-        state={"config": {"model": "gpt-5-mini", "_openai_responses_effective_auth_mode": "chatgpt"}},
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "_openai_responses_effective_auth_mode": "chatgpt",
+            }
+        },
     )
 
     md = finals[0].get("_metadata") or {}
@@ -710,10 +847,14 @@ def test_api_mode_does_not_synthesize_estimated_cached_tokens() -> None:
 
     base_native: List[Dict[str, Any]] = [
         _user_item("u1"),
-        _assistant_usage_item("a2", input_tokens=20, output_tokens=4, response_id="resp_prev"),
+        _assistant_usage_item(
+            "a2", input_tokens=20, output_tokens=4, response_id="resp_prev"
+        ),
         _user_item("u3"),
     ]
-    final_messages: List[Dict[str, Any]] = [_assistant_output_item("a4", response_id="resp_4")]
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("a4", response_id="resp_4")
+    ]
     native_messages: List[Dict[str, Any]] = [*base_native, *final_messages]
     usage = {
         "input_tokens": 50,
@@ -721,11 +862,19 @@ def test_api_mode_does_not_synthesize_estimated_cached_tokens() -> None:
     }
 
     _partials, finals, _new_native, _state = ext.process_chunk(
-        native_chunk={"type": "response.completed", "response": {"id": "resp_4", "usage": usage}},
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_4", "usage": usage},
+        },
         partial_messages=[],
         final_messages=final_messages,
         native_messages=native_messages,
-        state={"config": {"model": "gpt-5-mini", "_openai_responses_effective_auth_mode": "api"}},
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "_openai_responses_effective_auth_mode": "api",
+            }
+        },
     )
 
     md = finals[0].get("_metadata") or {}
@@ -733,3 +882,245 @@ def test_api_mode_does_not_synthesize_estimated_cached_tokens() -> None:
     assert "usage_estimated_cached_tokens" not in md
     expected_cost = ((50 * 0.25) + (10 * 2.0)) / 1_000_000.0
     assert md.get("usage_total_cost") == pytest.approx(expected_cost, rel=1e-9)
+
+
+# ---------------------------------------------------------------------------
+# Cache-write token accounting tests (GPT-5.6 support).
+# ---------------------------------------------------------------------------
+
+
+def test_streaming_usage_exposes_cache_write_tokens_formatted() -> None:
+    """API mode usage with cache_write_tokens emits the formatted footer."""
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 100, "cache_write_tokens": 42},
+        "output_tokens": 50,
+    }
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_cw")
+    ]
+    native_messages: List[Dict[str, Any]] = list(final_messages)
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_cw", "usage": usage},
+    }
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5-mini"}},
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_cache_write_tokens_formatted") == "42"
+    assert md.get("usage_turn_cache_write_tokens_cumulative") == 42
+    assert md.get("usage_turn_cache_write_tokens_cumulative_formatted") == "42"
+
+
+def test_streaming_usage_includes_cache_write_in_cumulative_turn_totals() -> None:
+    """Two assistant items in the same turn sum cache-write tokens."""
+    ext = OpenAIResponsesUsageExtension()
+
+    base_native: List[Dict[str, Any]] = [
+        _user_item("u1"),
+        _assistant_output_item(
+            "a2",
+            response_id="resp_prev",
+            extra_metadata={
+                "usage": {
+                    "input_tokens": 100,
+                    "input_tokens_details": {"cache_write_tokens": 30},
+                    "output_tokens": 5,
+                },
+                "turn": {"id": 1, "has_tool_calls": True, "is_terminal": False},
+                "usage_total_cost": 0.0001,
+            },
+        ),
+    ]
+    usage = {
+        "input_tokens": 200,
+        "input_tokens_details": {"cache_write_tokens": 25},
+        "output_tokens": 10,
+    }
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("a3", response_id="resp_3")
+    ]
+    native_messages: List[Dict[str, Any]] = [*base_native, *final_messages]
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_3", "usage": usage},
+        },
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5-mini"}},
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_turn_cache_write_tokens_cumulative") == 55
+    assert md.get("usage_turn_cache_write_tokens_cumulative_formatted") == "55"
+
+
+def test_streaming_usage_preserves_cache_write_in_provider_native_metadata() -> None:
+    """metadata.usage.input_tokens_details.cache_write_tokens is preserved."""
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {
+        "input_tokens": 500,
+        "input_tokens_details": {"cached_tokens": 50, "cache_write_tokens": 75},
+        "output_tokens": 20,
+    }
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_preserve")
+    ]
+    native_messages: List[Dict[str, Any]] = list(final_messages)
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_preserve", "usage": usage},
+    }
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5-mini"}},
+    )
+
+    md = finals[0].get("_metadata") or {}
+    public_usage = md.get("usage")
+    assert isinstance(public_usage, dict)
+    details = public_usage.get("input_tokens_details")
+    assert isinstance(details, dict)
+    assert details.get("cache_write_tokens") == 75
+
+
+def test_chatgpt_usage_preserves_backend_reported_cache_write_tokens() -> None:
+    """ChatGPT mode with backend-reported cache_write_tokens keeps it in effective_usage
+    and the estimator prices it at the cache-write rate."""
+    ext = OpenAIResponsesUsageExtension()
+
+    base_native: List[Dict[str, Any]] = [
+        _user_item("u1"),
+        _assistant_usage_item(
+            "a2", input_tokens=20, output_tokens=4, response_id="resp_prev"
+        ),
+        _user_item("u3"),
+    ]
+    usage = {
+        "input_tokens": 100,
+        "input_tokens_details": {"cache_write_tokens": 15},
+        "output_tokens": 10,
+    }
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_cw_chatgpt")
+    ]
+    native_messages: List[Dict[str, Any]] = [*base_native, *final_messages]
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_cw_chatgpt", "usage": usage},
+        },
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "_openai_responses_effective_auth_mode": "chatgpt",
+            }
+        },
+    )
+
+    md = finals[0].get("_metadata") or {}
+    # The backend-reported cache_write_tokens should be preserved in the public usage
+    public_usage = md.get("usage")
+    assert isinstance(public_usage, dict)
+    details = public_usage.get("input_tokens_details")
+    assert isinstance(details, dict)
+    assert details.get("cache_write_tokens") == 15
+    # The formatted footer should be present
+    assert md.get("usage_cache_write_tokens_formatted") == "15"
+    # The cumulative should include the write tokens
+    assert md.get("usage_turn_cache_write_tokens_cumulative") == 15
+    # The estimated cached tokens should still be produced (estimate preserved)
+    assert md.get("usage_estimated_cached_tokens") == 20
+
+
+def test_chatgpt_usage_does_not_synthesize_cache_write_tokens_when_omitted() -> None:
+    """ChatGPT mode with no cache_write_tokens field → write bucket is 0;
+    no synthesis from the cached-read estimate."""
+    ext = OpenAIResponsesUsageExtension()
+
+    base_native: List[Dict[str, Any]] = [
+        _user_item("u1"),
+        _assistant_usage_item(
+            "a2", input_tokens=20, output_tokens=4, response_id="resp_prev"
+        ),
+        _user_item("u3"),
+    ]
+    usage = {
+        "input_tokens": 100,
+        "output_tokens": 10,
+    }
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_no_cw")
+    ]
+    native_messages: List[Dict[str, Any]] = [*base_native, *final_messages]
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_no_cw", "usage": usage},
+        },
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "_openai_responses_effective_auth_mode": "chatgpt",
+            }
+        },
+    )
+
+    md = finals[0].get("_metadata") or {}
+    # No cache_write_tokens_formatted footer should be emitted
+    assert "usage_cache_write_tokens_formatted" not in md
+    # Cumulative cache-write should be 0
+    assert md.get("usage_turn_cache_write_tokens_cumulative") == 0
+    # The estimated cached tokens should still be produced (estimate preserved)
+    assert md.get("usage_estimated_cached_tokens") == 20
+    # The public usage should not have cache_write_tokens synthesized
+    public_usage = md.get("usage")
+    assert isinstance(public_usage, dict)
+    details = public_usage.get("input_tokens_details")
+    if isinstance(details, dict):
+        assert "cache_write_tokens" not in details or details.get(
+            "cache_write_tokens"
+        ) in (None, 0)
+
+
+def test_usage_ui_elements_include_cache_write_footer_when_present() -> None:
+    """UI element list includes the cache-write footer with the right condition."""
+    ext = OpenAIResponsesUsageExtension()
+
+    elements = ext.get_ui_elements(config={}, tags=["openai_responses"], models=[])
+    cache_write_elements = [
+        el
+        for el in elements
+        if el.get("data") == "metadata.usage_cache_write_tokens_formatted"
+    ]
+    assert len(cache_write_elements) == 1
+    assert cache_write_elements[0]["template"] == "cache write: {{data}}"
+    assert cache_write_elements[0]["condition"] == {
+        "path": "metadata.usage_cache_write_tokens_formatted",
+        "exists": True,
+    }

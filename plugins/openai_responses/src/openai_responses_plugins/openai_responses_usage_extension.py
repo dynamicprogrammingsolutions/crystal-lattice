@@ -16,7 +16,6 @@ from .openai_responses_codex_models import (
     load_manual_chatgpt_model_pricing as _load_manual_chatgpt_model_pricing_shared,
 )
 
-
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _PUBLIC_USAGE_METADATA_KEYS = (
@@ -24,10 +23,13 @@ _PUBLIC_USAGE_METADATA_KEYS = (
     "usage_turn_input_tokens_cumulative_formatted",
     "usage_turn_cached_tokens_cumulative",
     "usage_turn_cached_tokens_cumulative_formatted",
+    "usage_turn_cache_write_tokens_cumulative",
+    "usage_turn_cache_write_tokens_cumulative_formatted",
     "usage_turn_output_tokens_cumulative",
     "usage_turn_output_tokens_cumulative_formatted",
     "usage_prompt_tokens_formatted",
     "usage_cached_tokens_formatted",
+    "usage_cache_write_tokens_formatted",
     "usage_estimated_cached_tokens",
     "usage_estimated_cached_tokens_formatted",
     "usage_completion_tokens_formatted",
@@ -97,6 +99,15 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     }
                 },
             },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_cache_write_tokens_formatted",
+                "template": "cache write: {{data}}",
+                "condition": {
+                    "path": "metadata.usage_cache_write_tokens_formatted",
+                    "exists": True,
+                },
+            },
             *(
                 [
                     {
@@ -105,7 +116,10 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                         "template": "estimated cached: {{data}}",
                         "condition": {
                             "all": [
-                                {"path": "metadata.usage_effective_auth_mode", "eq": "chatgpt"},
+                                {
+                                    "path": "metadata.usage_effective_auth_mode",
+                                    "eq": "chatgpt",
+                                },
                                 {
                                     "path": "metadata.usage_estimated_cached_tokens_formatted",
                                     "exists": True,
@@ -114,7 +128,8 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                         },
                     }
                 ]
-                if isinstance(config, dict) and config.get("show_estimated_cached_tokens") is True
+                if isinstance(config, dict)
+                and config.get("show_estimated_cached_tokens") is True
                 else []
             ),
             {
@@ -134,7 +149,8 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                         },
                     }
                 ]
-                if isinstance(config, dict) and config.get("show_openai_auth_mode") is True
+                if isinstance(config, dict)
+                and config.get("show_openai_auth_mode") is True
                 else []
             ),
             {
@@ -185,7 +201,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             },
         ]
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         _ = (config, models)
         return ["ext:openai_responses_usage"]
 
@@ -225,7 +243,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
             extra_md: Dict[str, Any] = {}
             for index in native_indices:
-                if not isinstance(index, int) or not (0 <= index < len(native_messages)):
+                if not isinstance(index, int) or not (
+                    0 <= index < len(native_messages)
+                ):
                     continue
                 native_item = native_messages[index]
                 if not isinstance(native_item, dict):
@@ -306,6 +326,16 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             return max(0, int(value))
         return None
 
+    @staticmethod
+    def _usage_cache_write_tokens(usage: Dict[str, Any]) -> Optional[int]:
+        details = usage.get("input_tokens_details")
+        if not isinstance(details, dict):
+            return None
+        value = details.get("cache_write_tokens")
+        if isinstance(value, (int, float)):
+            return max(0, int(value))
+        return None
+
     @classmethod
     def _effective_cached_tokens_from_internal(cls, internal: Any) -> Optional[int]:
         if not isinstance(internal, dict):
@@ -316,6 +346,17 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         usage = cls._public_usage_from_internal(internal)
         if isinstance(usage, dict):
             return cls._usage_cached_tokens(usage)
+        return None
+
+    @classmethod
+    def _effective_cache_write_tokens_from_internal(
+        cls, internal: Any
+    ) -> Optional[int]:
+        if not isinstance(internal, dict):
+            return None
+        usage = cls._public_usage_from_internal(internal)
+        if isinstance(usage, dict):
+            return cls._usage_cache_write_tokens(usage)
         return None
 
     @staticmethod
@@ -412,7 +453,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         return item_type in {"function_call", "custom_tool_call"}
 
     @classmethod
-    def _reduced_history_markers(cls, native_items: List[Dict[str, Any]]) -> List[Tuple[str, int]]:
+    def _reduced_history_markers(
+        cls, native_items: List[Dict[str, Any]]
+    ) -> List[Tuple[str, int]]:
         reduced: List[Tuple[str, int]] = []
         for item in native_items:
             if cls._is_reduced_history_user_item(item):
@@ -426,7 +469,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         return reduced
 
     @classmethod
-    def _estimated_cached_tokens_from_markers(cls, markers: List[Tuple[str, int]]) -> List[int]:
+    def _estimated_cached_tokens_from_markers(
+        cls, markers: List[Tuple[str, int]]
+    ) -> List[int]:
         estimates: List[int] = []
         previous_turn_first_usage_input: Optional[int] = None
         current_turn_first_usage_input: Optional[int] = None
@@ -484,7 +529,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         return None
 
     @staticmethod
-    def _attach_internal_md(item: Dict[str, Any], extra: Dict[str, Any]) -> Dict[str, Any]:
+    def _attach_internal_md(
+        item: Dict[str, Any], extra: Dict[str, Any]
+    ) -> Dict[str, Any]:
         base = item.get("_metadata")
         base_md = base if isinstance(base, dict) else {}
         cleaned = {k: v for k, v in base_md.items() if k != _RAW_USAGE_METADATA_KEY}
@@ -549,7 +596,10 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         current_open: Optional[int] = None
 
         for item in native_items:
-            if cls._item_is_turn_usage_boundary(item) and item.get("role") in ("user", "system"):
+            if cls._item_is_turn_usage_boundary(item) and item.get("role") in (
+                "user",
+                "system",
+            ):
                 current_open = None
                 continue
             usage = cls._item_usage_for_estimation(item)
@@ -561,7 +611,11 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             if not cls._item_turn_has_tool_calls(item):
                 current_open = None
 
-        return current_open if current_open is not None else (last_assigned + 1 if last_assigned > 0 else 1)
+        return (
+            current_open
+            if current_open is not None
+            else (last_assigned + 1 if last_assigned > 0 else 1)
+        )
 
     def _build_usage_metadata(
         self,
@@ -572,6 +626,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
     ) -> Dict[str, Any]:
         prompt_tokens_str = None
         cached_tokens_str = None
+        cache_write_tokens_str = None
         estimated_cached_tokens = None
         estimated_cached_tokens_str = None
         completion_tokens_str = None
@@ -580,7 +635,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
         config = state.get("config") if isinstance(state, dict) else None
         model = config.get("model") if isinstance(config, dict) else None
-        snapshot_path = config.get("pricing_snapshot_path") if isinstance(config, dict) else None
+        snapshot_path = (
+            config.get("pricing_snapshot_path") if isinstance(config, dict) else None
+        )
         manual_pricing = self._manual_model_pricing()
         service_tier = self._service_tier_from_items(current_items)
         effective_auth_mode = self._effective_auth_mode(state)
@@ -591,18 +648,33 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
         reported_cached = None
         try:
-            reported_cached = (usage.get("input_tokens_details") or {}).get("cached_tokens")
+            reported_cached = (usage.get("input_tokens_details") or {}).get(
+                "cached_tokens"
+            )
         except Exception:
             reported_cached = None
         if isinstance(reported_cached, (int, float)):
             cached_tokens_str = f"{int(reported_cached):,}"
 
+        reported_cache_write = self._usage_cache_write_tokens(usage)
+        if isinstance(reported_cache_write, int):
+            cache_write_tokens_str = f"{reported_cache_write:,}"
+
         effective_usage = usage
         if effective_auth_mode == "chatgpt":
-            estimated_cached_tokens = self._estimated_cached_tokens_for_current(base_native, usage)
+            estimated_cached_tokens = self._estimated_cached_tokens_for_current(
+                base_native, usage
+            )
             if isinstance(estimated_cached_tokens, int):
                 estimated_cached_tokens_str = f"{estimated_cached_tokens:,}"
-        if effective_auth_mode == "chatgpt" and isinstance(estimated_cached_tokens, int):
+        if effective_auth_mode == "chatgpt" and isinstance(
+            estimated_cached_tokens, int
+        ):
+            # Preserve the existing ChatGPT cached-read estimation logic: replace
+            # ``cached_tokens`` with the turn-aware estimate. Do NOT synthesize
+            # ``cache_write_tokens`` from the estimate; preserve any backend-
+            # reported write counter so the estimator can price it at the
+            # cache-write rate when present.
             details = (
                 dict(usage.get("input_tokens_details"))
                 if isinstance(usage.get("input_tokens_details"), dict)
@@ -621,7 +693,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                     effective_usage,
                     model=model,
                     service_tier=service_tier,
-                    snapshot_path=snapshot_path if isinstance(snapshot_path, str) else None,
+                    snapshot_path=(
+                        snapshot_path if isinstance(snapshot_path, str) else None
+                    ),
                     manual_entries=manual_pricing,
                 )
             except Exception:
@@ -635,6 +709,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         base_total_turn = 0.0
         base_total_turn_input = 0
         base_total_turn_cached = 0
+        base_total_turn_cache_write = 0
         base_total_turn_output = 0
         base_total_turn_reasoning = 0
 
@@ -666,15 +741,24 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 input_tokens = self._usage_input_tokens(usage_prev)
                 if isinstance(input_tokens, int):
                     base_total_turn_input += input_tokens
-                cached_tokens = self._effective_cached_tokens_from_internal(internal_prev)
+                cached_tokens = self._effective_cached_tokens_from_internal(
+                    internal_prev
+                )
                 if isinstance(cached_tokens, int):
                     base_total_turn_cached += cached_tokens
+                cache_write_tokens = self._effective_cache_write_tokens_from_internal(
+                    internal_prev
+                )
+                if isinstance(cache_write_tokens, int):
+                    base_total_turn_cache_write += cache_write_tokens
                 output_tokens = self._usage_output_tokens(usage_prev)
                 if isinstance(output_tokens, int):
                     base_total_turn_output += output_tokens
                 base_total_turn_reasoning += self._usage_reasoning_tokens(usage_prev)
 
-        effective_total_cost = float(total_cost) if isinstance(total_cost, (int, float)) else 0.0
+        effective_total_cost = (
+            float(total_cost) if isinstance(total_cost, (int, float)) else 0.0
+        )
         cumulative_cost = base_total + effective_total_cost
         usage_turn_cumulative = base_total_turn + effective_total_cost
         current_input = self._usage_input_tokens(usage) or 0
@@ -683,15 +767,20 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             if isinstance(estimated_cached_tokens, int)
             else self._usage_cached_tokens(usage) or 0
         )
+        current_cache_write = self._usage_cache_write_tokens(usage) or 0
         current_output = self._usage_output_tokens(usage) or 0
         usage_turn_input_cumulative = base_total_turn_input + current_input
         usage_turn_cached_cumulative = base_total_turn_cached + current_cached
+        usage_turn_cache_write_cumulative = (
+            base_total_turn_cache_write + current_cache_write
+        )
         usage_turn_output_cumulative = base_total_turn_output + current_output
         current_reasoning = self._usage_reasoning_tokens(usage)
         usage_turn_reasoning_cumulative = base_total_turn_reasoning + current_reasoning
 
         has_tool_calls = any(
-            isinstance(it, dict) and it.get("type") in ("function_call", "custom_tool_call")
+            isinstance(it, dict)
+            and it.get("type") in ("function_call", "custom_tool_call")
             for it in current_items
         )
 
@@ -704,7 +793,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 "is_terminal": not has_tool_calls,
             },
             "usage_effective_auth_mode": effective_auth_mode,
-            "usage_effective_auth_mode_label": self._effective_auth_mode_label(effective_auth_mode),
+            "usage_effective_auth_mode_label": self._effective_auth_mode_label(
+                effective_auth_mode
+            ),
             "usage_total_cost": effective_total_cost,
             "usage_total_cost_cumulative": cumulative_cost,
             "usage_total_cost_cumulative_formatted": f"${cumulative_cost:.6f}",
@@ -717,6 +808,10 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             "usage_turn_cached_tokens_cumulative": usage_turn_cached_cumulative,
             "usage_turn_cached_tokens_cumulative_formatted": self._format_token_count(
                 usage_turn_cached_cumulative
+            ),
+            "usage_turn_cache_write_tokens_cumulative": usage_turn_cache_write_cumulative,
+            "usage_turn_cache_write_tokens_cumulative_formatted": self._format_token_count(
+                usage_turn_cache_write_cumulative
             ),
             "usage_turn_output_tokens_cumulative": usage_turn_output_cumulative,
             "usage_turn_output_tokens_cumulative_formatted": self._format_token_count(
@@ -735,10 +830,18 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             extra_md["usage_prompt_tokens_formatted"] = prompt_tokens_str
         if cached_tokens_str is not None and effective_auth_mode != "chatgpt":
             extra_md["usage_cached_tokens_formatted"] = cached_tokens_str
+        if (
+            cache_write_tokens_str is not None
+            and reported_cache_write is not None
+            and reported_cache_write > 0
+        ):
+            extra_md["usage_cache_write_tokens_formatted"] = cache_write_tokens_str
         if estimated_cached_tokens is not None:
             extra_md["usage_estimated_cached_tokens"] = estimated_cached_tokens
         if estimated_cached_tokens_str is not None:
-            extra_md["usage_estimated_cached_tokens_formatted"] = estimated_cached_tokens_str
+            extra_md["usage_estimated_cached_tokens_formatted"] = (
+                estimated_cached_tokens_str
+            )
         if completion_tokens_str is not None:
             extra_md["usage_completion_tokens_formatted"] = completion_tokens_str
         if cost_str is not None and effective_total_cost != 0.0:
@@ -751,7 +854,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         pricing = _load_manual_chatgpt_model_pricing_shared()
         return pricing or None
 
-    def _extract_stream_usage(self, native_chunk: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _extract_stream_usage(
+        self, native_chunk: Optional[Dict[str, Any]]
+    ) -> Optional[Dict[str, Any]]:
         if not isinstance(native_chunk, dict):
             return None
         if native_chunk.get("type") == "response.completed":
@@ -772,7 +877,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         final_messages: List[Dict[str, Any]],
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
-    ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]]:
+    ) -> Tuple[
+        List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], Dict[str, Any]
+    ]:
         usage = self._extract_stream_usage(native_chunk)
         if not isinstance(usage, dict) or not usage or not final_messages:
             return partial_messages, final_messages, native_messages, state
@@ -805,9 +912,13 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                 if not isinstance(native_item, dict):
                     continue
                 if rel_idx == attach_idx:
-                    new_native[start + rel_idx] = self._attach_internal_md(native_item, extra_md)
+                    new_native[start + rel_idx] = self._attach_internal_md(
+                        native_item, extra_md
+                    )
                 else:
-                    new_native[start + rel_idx] = self._attach_internal_md(native_item, {})
+                    new_native[start + rel_idx] = self._attach_internal_md(
+                        native_item, {}
+                    )
 
         return partial_messages, new_finals, new_native, state
 
@@ -877,7 +988,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             for idx, item in enumerate(native_messages)
             if idx not in response_index_set and isinstance(item, dict)
         ]
-        extra_md = self._build_usage_metadata(current_usage, base_native, current_items, state)
+        extra_md = self._build_usage_metadata(
+            current_usage, base_native, current_items, state
+        )
         attach_rel_idx = self._select_attach_index(current_items)
         if attach_rel_idx is None:
             return final_messages, native_messages, state
@@ -888,7 +1001,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             item = native_messages[abs_idx]
             if not isinstance(item, dict):
                 continue
-            updated = self._attach_internal_md(item, extra_md if abs_idx == attach_abs_idx else {})
+            updated = self._attach_internal_md(
+                item, extra_md if abs_idx == attach_abs_idx else {}
+            )
             item.clear()
             item.update(updated)
 

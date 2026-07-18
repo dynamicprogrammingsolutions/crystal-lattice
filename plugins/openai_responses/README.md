@@ -597,6 +597,87 @@ usage payload and is used for ChatGPT-mode pricing instead of any
 backend-reported cached-token field. By default it is not displayed; enable
 `show_estimated_cached_tokens` if you want the footer.
 
+#### Pricing snapshot and cost estimation
+
+The checked-in pricing snapshot at
+`src/openai_responses_plugins/data/openai_model_pricing.json` is the
+runtime source of truth for estimated dollar cost. It is refreshed from
+the official OpenAI pricing page via
+`python scripts/refresh_openai_responses_pricing.py`.
+
+Each model entry has a top-level `pricing` block (the standard-tier
+projection) and a `service_tiers` mapping with per-tier rates. The
+supported tiers are `standard`, `batch`, `flex`, and `priority`. Each
+tier pricing block has up to four token-price columns:
+
+- `input_per_1m`: ordinary input tokens (dollars per 1M tokens)
+- `cached_input_per_1m`: cached-read tokens (cache hits)
+- `cache_write_per_1m`: billable cache-write tokens (GPT-5.6+; omitted on
+  legacy models)
+- `output_per_1m`: output/completion tokens
+
+The cost estimator splits `usage.input_tokens` into three mutually
+exclusive input buckets so the same token is never charged twice:
+
+```text
+cached_read_tokens    = max(0, usage.input_tokens_details.cached_tokens)
+cache_write_tokens    = max(0, usage.input_tokens_details.cache_write_tokens)
+ordinary_input_tokens = max(0, input_tokens - cached_read_tokens - cache_write_tokens)
+```
+
+The estimated cost is:
+
+```text
+estimated = (
+    ordinary_input_tokens * input_per_1m
+  + cached_read_tokens   * cached_input_per_1m
+  + cache_write_tokens   * cache_write_per_1m
+  + output_tokens        * output_per_1m
+) / 1_000_000.0
+```
+
+When `cache_write_tokens > 0` but the resolved pricing block has no
+`cache_write_per_1m` (e.g., a legacy model with only three price columns),
+the estimator falls back to `input_per_1m` for the cache-write bucket so
+the model remains estimable.
+
+When the reported detail counters are inconsistent (their sum exceeds
+`input_tokens`), the estimator reduces the larger counter to fit and
+clamps `ordinary_input_tokens` to zero. This keeps cost estimation
+deterministic and non-negative without rejecting the whole payload.
+
+GPT-5.6 implicit caching can create a billable managed cache write even
+when the client does not add an explicit cache breakpoint. The estimator
+uses the reported `cache_write_tokens` counter; it does not infer write
+tokens from prompt shape, cache keys, or estimated cache hits.
+
+#### ChatGPT cost estimate caveat
+
+ChatGPT users are generally governed by subscription limits/rate limits
+rather than direct API per-token billing. The dollar value produced by
+this framework is an **API-equivalent estimate** useful for comparison,
+not an invoice amount.
+
+For ChatGPT-backed requests:
+
+- Cached-read tokens are estimated using the turn-aware heuristic
+  described above; the estimate replaces `cached_tokens` for pricing.
+- `cache_write_tokens` is **not** synthesized from the estimate. When the
+  ChatGPT backend reports `cache_write_tokens`, the estimator prices it at
+  the cache-write rate. When the backend omits `cache_write_tokens`, the
+  estimate cannot include cache-write cost and reports only ordinary +
+  cached-read + output. The usage footer explicitly reports when the
+  write counter is absent.
+- `service_tier: "default"` resolves to standard pricing;
+  `service_tier: "priority"` (Fast mode) resolves to priority pricing.
+
+#### Explicit cache boundaries
+
+Explicit cache-boundary support (`prompt_cache_options`,
+`prompt_cache_breakpoint`) is intentionally unsupported for the current
+use case. The framework relies on implicit caching and the
+session-owned `prompt_cache_key`.
+
 ### Prompt caching keys
 
 - `enable_prompt_cache_key`: defaults to `true`; set to `false` to disable automatic session-owned prompt cache keys

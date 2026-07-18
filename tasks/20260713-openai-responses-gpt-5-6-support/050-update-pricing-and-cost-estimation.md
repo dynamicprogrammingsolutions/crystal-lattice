@@ -4,22 +4,22 @@ Update the OpenAI pricing parser and snapshots for GPT-5.6's new cache-write col
 
 ## Requirements checklist
 
-- [ ] Update the pricing parser to support the new four-price row shape.
-- [ ] Preserve support for legacy three-price rows.
-- [ ] Store cache-write price separately from cached-input/read price.
-- [ ] Refresh standard, batch, flex, and priority rates for Sol, Terra, and Luna.
-- [ ] Keep cost estimation correct for default/standard, flex, and priority service tiers.
-- [ ] Parse and preserve `usage.input_tokens_details.cache_write_tokens`.
-- [ ] Charge reported cache-write tokens at the cache-write rate without double-counting them as ordinary input.
-- [ ] Preserve and display cache-write token counts in usage metadata and cumulative turn usage.
-- [ ] Make ChatGPT GPT-5.6 usage produce a non-zero API-equivalent estimate when usage is available.
-- [ ] Verify the session-owned prompt cache key is generated, remains stable, and is sent on ChatGPT requests.
-- [ ] Clearly label/document ChatGPT dollar cost as an estimate, not subscription billing.
-- [ ] Add or update parser, merge, resolver, and cost-estimation unit tests.
-- [ ] Add a separate real API pricing/usage integration test.
-- [ ] Add separate saved-login ChatGPT default-tier and priority-tier pricing tests and run them with credentials from `~/.crystal`.
-- [ ] Update pricing documentation and checked-in snapshot provenance.
-- [ ] Report unavailable or rejected API/ChatGPT credentials as not-run verification with the exact reason.
+- [x] Update the pricing parser to support the new four-price row shape.
+- [x] Preserve support for legacy three-price rows.
+- [x] Store cache-write price separately from cached-input/read price.
+- [x] Refresh standard, batch, flex, and priority rates for Sol, Terra, and Luna.
+- [x] Keep cost estimation correct for default/standard, flex, and priority service tiers.
+- [x] Parse and preserve `usage.input_tokens_details.cache_write_tokens`.
+- [x] Charge reported cache-write tokens at the cache-write rate without double-counting them as ordinary input.
+- [x] Preserve and display cache-write token counts in usage metadata and cumulative turn usage.
+- [x] Make ChatGPT GPT-5.6 usage produce a non-zero API-equivalent estimate when usage is available.
+- [x] Verify the session-owned prompt cache key is generated, remains stable, and is sent on ChatGPT requests.
+- [x] Clearly label/document ChatGPT dollar cost as an estimate, not subscription billing.
+- [x] Add or update parser, merge, resolver, and cost-estimation unit tests.
+- [x] Add a separate real API pricing/usage integration test.
+- [x] Add separate saved-login ChatGPT default-tier and priority-tier pricing tests and run them with credentials from `~/.crystal`.
+- [x] Update pricing documentation and checked-in snapshot provenance.
+- [x] Report unavailable or rejected API/ChatGPT credentials as not-run verification with the exact reason.
 
 Parent Task: `tasks/20260713-openai-responses-gpt-5-6-support/000-main.md`
 
@@ -329,3 +329,326 @@ Documentation:
   current use case.
 - Document that ChatGPT cache-write cost cannot be inferred when its backend
   omits `cache_write_tokens`.
+
+## Execution plan
+
+(Approved and added during completion. The ChatGPT cached-token estimation
+logic is preserved as-is; only cache-write accounting is added on top.)
+
+### 1. Pricing-table parsing
+
+Replace the fixed 3-column `_ROW_RE` with a variable-column parser that
+interprets rows by position:
+
+- 3 columns → legacy `input, cached_input, output`
+- 4 columns → new `input, cached_input, cache_write, output`
+
+`cache_write_per_1m` is stored as `Optional[float]` (same convention as
+`cached_input_per_1m`).
+
+### 2. Snapshot schema changes
+
+Additive field `cache_write_per_1m` on each tier pricing block and on the
+top-level `pricing` projection. Keep `version: 2`.
+
+### 3. Usage extraction
+
+Read `usage.input_tokens_details.cache_write_tokens` as a non-negative int.
+Split input into three mutually exclusive buckets:
+
+```text
+cached_read_tokens    = max(0, cached_tokens)
+cache_write_tokens    = max(0, cache_write_tokens)
+ordinary_input_tokens = max(0, input_tokens - cached_read - cache_write)
+```
+
+### 4. Cache-write accounting and cost formula
+
+```text
+estimated = (
+    ordinary_input_tokens * input_per_1m
+  + cached_read_tokens   * cached_input_per_1m
+  + cache_write_tokens   * cache_write_per_1m
+  + output_tokens        * output_per_1m
+) / 1_000_000.0
+```
+
+Clamp inconsistent detail counters so the larger counter is reduced to fit
+within `input_tokens` and `ordinary_input_tokens` is clamped to 0. When
+`cache_write_tokens > 0` but `cache_write_per_1m` is missing, fall back to
+`input_per_1m`.
+
+### 5. Cumulative metadata and usage formatting
+
+Preserve the existing ChatGPT cached-read estimation logic unchanged. Add
+cache-write fields on top:
+
+- `usage_cache_write_tokens_formatted`
+- `usage_turn_cache_write_tokens_cumulative`
+- `usage_turn_cache_write_tokens_cumulative_formatted`
+
+For ChatGPT mode: preserve any backend-reported `cache_write_tokens` in
+`effective_usage`; do NOT synthesize it from the cached-read estimate.
+Continue replacing `cached_tokens` with the estimate (current behavior).
+
+### 6. Where changes belong
+
+| Area | Files |
+| --- | --- |
+| Pricing parsing | `openai_responses_pricing.py` |
+| Usage formatting | `openai_responses_usage_extension.py` |
+| Checked-in data | `data/openai_model_pricing.json`, `data/openai_chatgpt_manual_models.json` |
+| Tests | `tests/test_openai_responses_pricing_unit.py`, `tests/test_openai_responses_usage_extension_unit.py`, new `tests/test_openai_responses_pricing_real_api.py`, new `tests/test_openai_responses_chatgpt_pricing_manual_integration.py` |
+| Docs | `plugins/openai_responses/README.md` |
+
+### 7. Human decisions
+
+- Malformed counters: clamp, do not reject.
+- Double-count prevention: `ordinary = max(0, input - cached - write)`.
+- ChatGPT omitted write counters: do not synthesize; report explicitly.
+- Manual pricing fallbacks: only add GPT-5.6 manual entries if the refreshed
+  snapshot still misses a model or tier.
+
+### 8. Changed contracts
+
+Pricing block dict adds `cache_write_per_1m: Optional[float]`. Public usage
+metadata adds the three cache-write fields listed above. Cost formula as in
+section 4.
+
+### 9. Unit tests
+
+18 pricing parser/resolver/estimator tests in
+`test_openai_responses_pricing_unit.py` (including a mixed
+ordinary/read/write/output calculation for `gpt-5.6-sol` standard tier
+expected to cost `$0.054`).
+
+6 usage extension tests in `test_openai_responses_usage_extension_unit.py`
+covering per-turn, cumulative, native-metadata, ChatGPT-reported,
+ChatGPT-omitted, and UI-element cases.
+
+### 10. Integration tests
+
+- Real API test in `test_openai_responses_pricing_real_api.py` gated on
+  `OPENAI_API_KEY`, using `gpt-5.6-luna` and a stable `prompt_cache_key`.
+- ChatGPT saved-login default-tier test using `AgentApplication` (so the
+  `opcache_*` key is auto-generated) and a `_RecordingChatGPTProvider`.
+- ChatGPT saved-login priority-tier (Fast mode) test that `xfail`s with an
+  explicit message when the backend does not report `priority`.
+
+### 11. Snapshot refresh, provenance, and documentation
+
+Refresh via `python scripts/refresh_openai_responses_pricing.py`. If the live
+fetch fails, hand-edit using the authoritative rates from the "Authoritative
+GPT-5.6 rates" section and document the fallback. Update README with the
+four-bucket formula, cache-write column, ChatGPT estimate caveat, and
+explicit-cache-boundary exclusion.
+
+### 12. Implementation order
+
+1. Parser + estimator fix in `openai_responses_pricing.py`
+2. Pricing unit tests
+3. Usage extension fix in `openai_responses_usage_extension.py`
+4. Usage extension unit tests
+5. Snapshot refresh
+6. Manual fallback check
+7. Real API integration test
+8. ChatGPT saved-login integration tests
+9. README update
+10. Full non-integration suite
+
+### 13. Verification commands
+
+```bash
+pytest plugins/openai_responses/tests -q
+pytest plugins/openai_responses/tests/test_openai_responses_pricing_unit.py -q
+pytest plugins/openai_responses/tests/test_openai_responses_usage_extension_unit.py -q
+pytest plugins/openai_responses/tests/test_openai_responses_pricing_real_api.py \
+  -m "integration and api and not slow_integration and openai" -q
+CHATGPT_TEST_STATE_DIR="$HOME/.crystal" \
+OPENAI_RESPONSES_CHATGPT_MODEL="gpt-5.6-luna" \
+  pytest plugins/openai_responses/tests/test_openai_responses_chatgpt_pricing_manual_integration.py \
+    -m "manual_integration and integration and openai" -q
+ruff check plugins/openai_responses/src plugins/openai_responses/tests scripts/refresh_openai_responses_pricing.py
+black plugins/openai_responses/src plugins/openai_responses/tests scripts/refresh_openai_responses_pricing.py
+pyright
+```
+
+### 14. Risks and expected limitations
+
+- Live pricing page structure change → hand-edit fallback.
+- ChatGPT backend variability → report actual values, do not assert fixed.
+- Priority tier availability → `xfail` with explicit message.
+- Cache-write price fallback to `input_per_1m` is pragmatic; documented.
+- Explicit cache boundaries are out of scope.
+- ChatGPT cache-write cost cannot be inferred when omitted.
+- ChatGPT cached-read estimate is preserved as-is, not replaced.
+- Pro reasoning mode uses normal rates, no multiplier.
+- Raw `AgentCore` callers must supply `prompt_cache_key` manually.
+
+## Completion Notes
+
+(Added during completion.)
+
+### What was done
+
+1. **Parser fix** (`openai_responses_pricing.py`): replaced the fixed 3-column
+   `_ROW_RE` with a variable-column parser that captures the model name plus
+   a variable-length price-cell list. A new `_PRICE_CELL_RE` extracts
+   individual price cells. The parser interprets rows by position:
+   3 cells → legacy (input, cached, output); 4 cells → new
+   (input, cached, cache_write, output). `cache_write_per_1m` is stored as
+   `Optional[float]`, matching the `cached_input_per_1m` convention.
+
+2. **Estimator fix** (`openai_responses_pricing.py`): `estimate_usage_cost`
+   now reads `usage.input_tokens_details.cache_write_tokens`, splits input
+   into three mutually exclusive buckets (ordinary, cached-read, cache-write),
+   and applies the four-bucket cost formula. Inconsistent detail counters are
+   clamped (the larger counter is reduced to fit; ordinary is clamped to 0).
+   When `cache_write_tokens > 0` but `cache_write_per_1m` is missing, the
+   estimator falls back to `input_per_1m` so legacy models remain estimable.
+
+3. **`_pricing_block_from_mapping`** extended to read `cache_write_per_1m`.
+
+4. **Usage extension** (`openai_responses_usage_extension.py`):
+   - Added `_usage_cache_write_tokens` helper.
+   - Added `_effective_cache_write_tokens_from_internal` helper.
+   - Extended `_build_usage_metadata` to:
+     - Emit `usage_cache_write_tokens_formatted` when the count is present
+       and non-zero.
+     - Track `usage_turn_cache_write_tokens_cumulative` and
+       `usage_turn_cache_write_tokens_cumulative_formatted` across the turn.
+     - Preserve backend-reported `cache_write_tokens` in ChatGPT mode (no
+       synthesis from the cached-read estimate).
+   - Added the `usage_cache_write_tokens_formatted` UI footer element with
+     `exists` condition.
+   - Added the three new keys to `_PUBLIC_USAGE_METADATA_KEYS`.
+   - **Preserved the existing ChatGPT cached-read estimation logic
+     unchanged** — the `_estimated_cached_tokens_for_current` heuristic
+     continues to replace `cached_tokens` for ChatGPT-mode pricing.
+
+5. **Snapshot refresh**: ran
+   `python scripts/refresh_openai_responses_pricing.py` successfully. The
+   refreshed `openai_model_pricing.json` now includes `gpt-5.6-sol`,
+   `gpt-5.6-terra`, and `gpt-5.6-luna` with all four tiers (standard, batch,
+   flex, priority) and `cache_write_per_1m` for each tier. Rates match the
+   authoritative rates from the task file. No manual GPT-5.6 fallback entry
+   was needed. The existing `gpt-5.5` manual entry in
+   `openai_chatgpt_manual_models.json` was left unchanged.
+
+6. **Unit tests**:
+   - `test_openai_responses_pricing_unit.py`: added 18 new tests covering
+     legacy 3-column parsing, new 4-column parsing, all GPT-5.6 tiers, merge
+     preservation, default/flex/priority estimation, cached-read rate,
+     cache-write rate, ordinary exclusion, mixed-bucket calculation
+     (`gpt-5.6-sol` standard = $0.054), missing counter defaults, missing
+     price fallback, oversized counter clamping, and snapshot refresh
+     regression.
+   - `test_openai_responses_usage_extension_unit.py`: added 6 new tests
+     covering cache-write formatted footer, cumulative turn totals, native
+     metadata preservation, ChatGPT-reported cache-write preservation,
+     ChatGPT-omitted cache-write (no synthesis), and UI element presence.
+   - Updated 2 existing manual-fallback tests to use an empty snapshot via
+     `pricing_snapshot_path` (the refreshed snapshot now includes `gpt-5.5`,
+     so the default snapshot can no longer exercise the manual fallback).
+   - Updated the UI elements test to include the new cache-write footer.
+
+7. **Real API integration test** (`test_openai_responses_pricing_real_api.py`):
+   gated on `OPENAI_API_KEY`. Uses `gpt-5.6-luna` with a stable
+   `prompt_cache_key`. Verifies the snapshot resolves GPT-5.6 Luna with
+   `cache_write_per_1m`, usage metadata is present, cost is positive and
+   formatted, and follow-up counters are reported. Explicitly prints when
+   `cache_write_tokens` is absent. **Result: 1 passed** (run with
+   `OPENAI_API_KEY` from `.env`). The API response did not report
+   `cache_write_tokens` for the short test prompt; the test explicitly
+   reported this and skipped the cache-write rate verification.
+
+8. **ChatGPT saved-login integration tests**
+   (`test_openai_responses_chatgpt_pricing_manual_integration.py`):
+   - Default-tier test: uses `AgentApplication` to verify auto-generation of
+     the `opcache_*` key, then uses `_RecordingChatGPTProvider` to verify the
+     exact key is sent and reused on a follow-up turn. Asserts positive
+     estimated cost, `usage_effective_auth_mode == "chatgpt"`, and preserved
+     estimated cached tokens. Explicitly reports when the backend omits
+     `cache_write_tokens`. **Result: 1 passed** with
+     `CHATGPT_TEST_STATE_DIR="$HOME/.crystal"` and
+     `OPENAI_RESPONSES_CHATGPT_MODEL="gpt-5.6-luna"`. Backend reported
+     `service_tier=default` and omitted `cache_write_tokens`; the test
+     explicitly reported both.
+   - Priority-tier (Fast mode) test: verifies the outgoing request uses
+     `service_tier: "priority"` and the `opcache_*` key is sent. `xfail`s
+     with an explicit message when the backend does not report `priority`.
+     **Result: 1 xfailed** (backend reported `default`, not `priority` —
+     the test correctly `xfail`ed with the explicit message).
+
+9. **README** (`plugins/openai_responses/README.md`): added a
+   "Pricing snapshot and cost estimation" subsection documenting the four
+   token-price columns, the three-bucket split, the cost formula, the
+   cache-write price fallback, the clamp behavior, and implicit cache-write
+   accounting. Added a "ChatGPT cost estimate caveat" subsection stating
+   that ChatGPT dollar cost is an API-equivalent estimate, not subscription
+   billing, and that cache-write cost cannot be inferred when the backend
+   omits `cache_write_tokens`. Added an "Explicit cache boundaries"
+   subsection stating that `prompt_cache_options`/`prompt_cache_breakpoint`
+   are intentionally unsupported.
+
+### Verification commands and results
+
+```bash
+# Fast default package suite (non-integration)
+pytest plugins/openai_responses/tests -q
+# Result: 328 passed, 3 failed (pre-existing attachment failures), 70 deselected
+
+# Pricing unit tests
+pytest plugins/openai_responses/tests/test_openai_responses_pricing_unit.py -q
+# Result: 28 passed
+
+# Usage extension unit tests
+pytest plugins/openai_responses/tests/test_openai_responses_usage_extension_unit.py -q
+# Result: 24 passed
+
+# Real API pricing integration test (requires OPENAI_API_KEY)
+pytest plugins/openai_responses/tests/test_openai_responses_pricing_real_api.py \
+  -m "integration and api and not slow_integration and openai" -q
+# Result: 1 passed
+
+# ChatGPT saved-login pricing tests (requires ~/.crystal credentials)
+CHATGPT_TEST_STATE_DIR="$HOME/.crystal" \
+OPENAI_RESPONSES_CHATGPT_MODEL="gpt-5.6-luna" \
+  pytest plugins/openai_responses/tests/test_openai_responses_chatgpt_pricing_manual_integration.py \
+    -m "manual_integration and integration and openai" -q
+# Result: 1 passed, 1 xfailed (priority-tier xfailed as expected)
+
+# Lint/format
+ruff check <modified files>  # All checks passed
+black <modified files>        # All files formatted
+```
+
+### Pre-existing failures (not caused by this task)
+
+Three tests in `test_openai_responses_native_history_regressions.py` fail
+both before and after these changes:
+- `test_uploaded_attachment_history_rebuilds_original_multipart_content`
+- `test_uploaded_attachment_history_slice_and_fork_keep_coherent_native_segments`
+- `test_session_asset_attachment_history_rebuilds_original_asset_ref`
+
+These are attachment-upload regressions unrelated to pricing/usage and were
+confirmed failing on the base commit before any changes.
+
+### Credential/API gating
+
+- `OPENAI_API_KEY` was available in the repo root `.env` and the real API
+  test ran successfully (1 passed).
+- `~/.crystal/auth/chatgpt-auth.json` was available and valid. Both ChatGPT
+  saved-login tests ran successfully (1 passed, 1 xfailed as expected).
+- No credentials were printed or logged.
+
+### Files changed
+
+- `plugins/openai_responses/src/openai_responses_plugins/openai_responses_pricing.py`
+- `plugins/openai_responses/src/openai_responses_plugins/openai_responses_usage_extension.py`
+- `plugins/openai_responses/src/openai_responses_plugins/data/openai_model_pricing.json`
+- `plugins/openai_responses/tests/test_openai_responses_pricing_unit.py`
+- `plugins/openai_responses/tests/test_openai_responses_usage_extension_unit.py`
+- `plugins/openai_responses/tests/test_openai_responses_pricing_real_api.py` (new)
+- `plugins/openai_responses/tests/test_openai_responses_chatgpt_pricing_manual_integration.py` (new)
+- `plugins/openai_responses/README.md`
