@@ -496,6 +496,127 @@ def test_streaming_usage_marks_custom_tool_call_turns_correctly() -> None:
     assert assistant_md.get("usage_total_cost") == pytest.approx(0.0000375, rel=1e-9)
 
 
+def test_streaming_usage_keeps_open_turn_id_when_preceding_history_is_retained() -> (
+    None
+):
+    """A resumed tool turn keeps its ID when its preceding turns remain intact."""
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {"input_tokens": 30, "output_tokens": 10}
+    final_messages = [_assistant_output_item("turn 3 complete", response_id="resp_3b")]
+    native_messages = [
+        _user_item("turn 1"),
+        _assistant_output_item(
+            "turn 1 complete",
+            response_id="resp_1",
+            extra_metadata={
+                "usage": {"input_tokens": 10, "output_tokens": 2},
+                "turn": {"id": 1, "has_tool_calls": False, "is_terminal": True},
+            },
+        ),
+        _user_item("turn 2"),
+        _assistant_output_item(
+            "turn 2 complete",
+            response_id="resp_2",
+            extra_metadata={
+                "usage": {"input_tokens": 20, "output_tokens": 4},
+                "turn": {"id": 2, "has_tool_calls": False, "is_terminal": True},
+            },
+        ),
+        _user_item("turn 3"),
+        _assistant_output_item(
+            "turn 3 requested tools",
+            response_id="resp_3a",
+            extra_metadata={
+                "usage": {"input_tokens": 25, "output_tokens": 6},
+                "turn": {"id": 3, "has_tool_calls": True, "is_terminal": False},
+                "duration_ms": 170_257,
+            },
+        ),
+        {"type": "function_call_output", "call_id": "call_3", "output": "ok"},
+        *final_messages,
+    ]
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_3b", "usage": usage},
+        },
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5-mini"}},
+    )
+
+    assert (finals[0].get("_metadata") or {}).get("turn") == {
+        "id": 3,
+        "has_tool_calls": False,
+        "is_terminal": True,
+    }
+
+
+def test_streaming_usage_preserves_open_turn_id_after_partial_compaction() -> None:
+    """Regression for turn 1 compacted, turn 2 retained, and turn 3 restarted.
+
+    This mirrors the affected session shape:
+
+    - turn 1 (messages 0-9) is replaced by compacted native history;
+    - turn 2 (messages 10-19) remains a completed turn with ID 2;
+    - turn 3 is suspended after a tool-call response with ID 3;
+    - the restarted request must finish turn 3, retaining ID 3.
+
+    The duration feature groups history solely by ``_metadata.turn.id``. If
+    this continuation is stamped as ID 2, it loses turn 3's prior duration and
+    can include duration from the retained completed turn 2 instead.
+    """
+    ext = OpenAIResponsesUsageExtension()
+
+    continuation_usage = {"input_tokens": 30, "output_tokens": 10}
+    final_messages = [_assistant_output_item("turn 3 complete", response_id="resp_3b")]
+    native_messages = [
+        {"type": "compaction_summary", "encrypted_content": "turn-1-summary"},
+        _user_item("turn 2"),
+        _assistant_output_item(
+            "turn 2 complete",
+            response_id="resp_2",
+            extra_metadata={
+                "usage": {"input_tokens": 20, "output_tokens": 4},
+                "turn": {"id": 2, "has_tool_calls": False, "is_terminal": True},
+                "duration_ms": 35_139,
+            },
+        ),
+        _user_item("turn 3"),
+        _assistant_output_item(
+            "turn 3 requested tools",
+            response_id="resp_3a",
+            extra_metadata={
+                "usage": {"input_tokens": 25, "output_tokens": 6},
+                "turn": {"id": 3, "has_tool_calls": True, "is_terminal": False},
+                "duration_ms": 170_257,
+            },
+        ),
+        {"type": "function_call_output", "call_id": "call_3", "output": "ok"},
+        *final_messages,
+    ]
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_3b", "usage": continuation_usage},
+        },
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5-mini"}},
+    )
+
+    assert (finals[0].get("_metadata") or {}).get("turn") == {
+        "id": 3,
+        "has_tool_calls": False,
+        "is_terminal": True,
+    }
+
+
 def test_nonstreaming_finalize_extracts_raw_usage_and_computes_cumulative_totals() -> (
     None
 ):

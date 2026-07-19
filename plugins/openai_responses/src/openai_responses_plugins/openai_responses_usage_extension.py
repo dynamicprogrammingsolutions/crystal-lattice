@@ -614,12 +614,32 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             return False
         return not cls._item_turn_has_tool_calls(item)
 
+    @staticmethod
+    def _item_turn_id(item: Any) -> Optional[int]:
+        if not isinstance(item, dict):
+            return None
+        internal = item.get("_metadata")
+        if not isinstance(internal, dict):
+            return None
+        turn = internal.get("turn")
+        if not isinstance(turn, dict):
+            return None
+        value = turn.get("id")
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return None
+        return int(value)
+
     @classmethod
     def _current_turn_id(cls, native_items: List[Dict[str, Any]]) -> int:
         last_assigned = 0
+        max_seen_turn_id = 0
         current_open: Optional[int] = None
 
         for item in native_items:
+            existing_turn_id = cls._item_turn_id(item)
+            if existing_turn_id is not None:
+                max_seen_turn_id = max(max_seen_turn_id, existing_turn_id)
+
             if cls._item_is_turn_usage_boundary(item) and item.get("role") in (
                 "user",
                 "system",
@@ -629,17 +649,20 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             usage = cls._item_usage_for_estimation(item)
             if not isinstance(usage, dict):
                 continue
-            if current_open is None:
-                current_open = last_assigned + 1
-            last_assigned = max(last_assigned, current_open)
+
+            if existing_turn_id is not None:
+                if current_open is None:
+                    current_open = existing_turn_id
+                last_assigned = max(last_assigned, existing_turn_id)
+            elif current_open is None:
+                current_open = max(last_assigned, max_seen_turn_id) + 1
+
             if not cls._item_turn_has_tool_calls(item):
                 current_open = None
 
-        return (
-            current_open
-            if current_open is not None
-            else (last_assigned + 1 if last_assigned > 0 else 1)
-        )
+        if current_open is not None:
+            return current_open
+        return max(last_assigned, max_seen_turn_id) + 1
 
     def _build_usage_metadata(
         self,
