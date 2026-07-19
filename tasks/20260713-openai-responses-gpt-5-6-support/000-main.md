@@ -11,6 +11,7 @@ Add complete GPT-5.6 Sol, Terra, and Luna support to the OpenAI Responses provid
 - [x] `tasks/20260713-openai-responses-gpt-5-6-support/050-update-pricing-and-cost-estimation.md`
 - [x] `tasks/20260713-openai-responses-gpt-5-6-support/060-add-gpt56-codex-system-instructions.md`
 - [ ] `tasks/20260713-openai-responses-gpt-5-6-support/070-programmatic-tool-calling.md`
+  - DEPENDS ON `tasks/20260717-tool-call-interceptor-capability.md` (generic `ToolCallInterceptor` capability in `agent_app`; the 070 task implements only the provider-specific `ProgrammaticToolCallingInterceptor`).
 
 ## Investigation snapshot
 
