@@ -7,7 +7,13 @@ from pathlib import Path
 
 def _load_module():
     root = Path(__file__).resolve().parents[3]
-    path = root / "scripts" / "openai_responses_tier_matrix_store.py"
+    path = (
+        root
+        / "plugins"
+        / "openai_responses"
+        / "benchmark"
+        / "openai_responses_tier_matrix_store.py"
+    )
     spec = importlib.util.spec_from_file_location("openai_responses_tier_matrix_store", path)
     assert spec is not None
     assert spec.loader is not None

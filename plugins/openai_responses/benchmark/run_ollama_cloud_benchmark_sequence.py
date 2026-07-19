@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
+BENCHMARK_DIR = Path(__file__).resolve().parent
 STATE_PATH = Path("/tmp/ollama_cloud_benchmark_sequence_state.json")
 LOG_DIR = Path("/tmp/ollama_cloud_benchmark_logs")
 
@@ -73,9 +74,9 @@ def main() -> int:
 
         cmd = [
             sys.executable,
-            str(REPO_ROOT / "scripts" / "run_openai_responses_tier_matrix.py"),
+            str(BENCHMARK_DIR / "run_openai_responses_tier_matrix.py"),
             "--agent-config-json",
-            str(REPO_ROOT / "scripts" / "kimi_ollama_benchmark_agent.json"),
+            str(BENCHMARK_DIR / "kimi_ollama_benchmark_agent.json"),
             "--model",
             job["model"],
             "--repeat",

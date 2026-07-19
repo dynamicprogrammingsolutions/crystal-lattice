@@ -6,10 +6,10 @@ from pathlib import Path
 from typing import Optional
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = REPO_ROOT / "scripts"
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+REPO_ROOT = Path(__file__).resolve().parents[3]
+BENCHMARK_DIR = Path(__file__).resolve().parent
+if str(BENCHMARK_DIR) not in sys.path:
+    sys.path.insert(0, str(BENCHMARK_DIR))
 
 from openai_responses_tier_matrix_store import (  # noqa: E402
     DEFAULT_RESULTS_JSON_PATH,

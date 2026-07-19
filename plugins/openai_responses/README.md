@@ -232,7 +232,7 @@ Relevant keys:
   - used only when a model is missing from upstream sources
 - `src/openai_responses_plugins/data/openai_codex_models.json`
   - checked-in offline snapshot of the public Codex model catalog
-  - refresh it with `python scripts/refresh_openai_responses_models.py`
+  - refresh it with `python plugins/openai_responses/benchmark/refresh_openai_responses_models.py`
   - used when live Codex fetching fails or when you want offline coverage from a recent repo update
   - current snapshot source commit: `50b82133850d940627cf307d77e280619bfafe25` (2026-07-17); includes `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`
 - `chatgpt_account_id`
@@ -478,7 +478,9 @@ the outbound payload and neither overwrites the other. Pro mode is API-only
 ## Benchmark script
 
 The repo includes a benchmark helper at
-`scripts/run_openai_responses_tier_matrix.py`.
+`plugins/openai_responses/benchmark/run_openai_responses_tier_matrix.py`.
+See `plugins/openai_responses/benchmark/README.md` for the full benchmark and
+snapshot-refresh tooling guide.
 
 Useful options:
 
@@ -658,7 +660,7 @@ The checked-in pricing snapshot at
 `src/openai_responses_plugins/data/openai_model_pricing.json` is the
 runtime source of truth for estimated dollar cost. It is refreshed from
 the official OpenAI pricing page via
-`python scripts/refresh_openai_responses_pricing.py`.
+`python plugins/openai_responses/benchmark/refresh_openai_responses_pricing.py`.
 
 Each model entry has a top-level `pricing` block (the standard-tier
 projection) and a `service_tiers` mapping with per-tier rates. The

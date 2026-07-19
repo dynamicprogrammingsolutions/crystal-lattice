@@ -134,7 +134,14 @@ export async function startBackendServer(options: {
   };
 }): Promise<StartedServer> {
   const repoRoot = findRepoRoot(process.cwd());
-  const runnerPath = path.join(repoRoot, 'scripts', 'run_backend_server_for_ts_integration_tests.py');
+  const runnerPath = path.join(
+    repoRoot,
+    'packages',
+    'frontend-sdk',
+    'src',
+    'integration',
+    'run_backend_server_for_ts_integration_tests.py',
+  );
   if (!fs.existsSync(runnerPath)) {
     throw new Error(`Missing runner script: ${runnerPath}`);
   }

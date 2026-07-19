@@ -14,7 +14,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 PLUGIN_SRC = REPO_ROOT / "plugins" / "openai_responses" / "src"
 plugin_src_str = str(PLUGIN_SRC)
 if plugin_src_str not in sys.path:

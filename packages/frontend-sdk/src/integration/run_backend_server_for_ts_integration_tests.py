@@ -13,7 +13,7 @@ exercise:
 
 Usage:
 
-  python scripts/run_backend_server_for_ts_integration_tests.py \
+  python packages/frontend-sdk/src/integration/run_backend_server_for_ts_integration_tests.py \
     --config /path/to/config.json \
     --sessions /tmp/sessions \
     --port 9010
@@ -29,7 +29,7 @@ import time
 
 
 def _add_repo_paths() -> None:
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path(__file__).resolve().parents[4]
     core_python = repo_root / "core" / "python"
     application_python = repo_root / "application" / "python"
 

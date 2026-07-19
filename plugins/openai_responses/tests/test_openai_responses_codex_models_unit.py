@@ -13,7 +13,7 @@ from openai_responses_plugins.openai_responses_codex_models import (
     normalize_model_descriptor,
     normalize_models_payload,
 )
-from scripts.refresh_openai_responses_models import refresh_snapshot
+from refresh_openai_responses_models import refresh_snapshot
 
 
 def test_merge_model_descriptors_applies_later_source_precedence() -> None:
@@ -111,7 +111,7 @@ def test_refresh_models_snapshot_writes_payload(monkeypatch, tmp_path: Path) -> 
     output_path = tmp_path / "models.json"
 
     monkeypatch.setattr(
-        "scripts.refresh_openai_responses_models.build_live_snapshot_payload",
+        "refresh_openai_responses_models.build_live_snapshot_payload",
         lambda timeout: {
             "version": 1,
             "fetched_at": "2026-03-15T00:00:00+00:00",
@@ -249,7 +249,7 @@ def test_refresh_models_snapshot_preserves_gpt_5_6_family(
     output_path = tmp_path / "models.json"
 
     monkeypatch.setattr(
-        "scripts.refresh_openai_responses_models.build_live_snapshot_payload",
+        "refresh_openai_responses_models.build_live_snapshot_payload",
         lambda timeout: {
             "version": 1,
             "fetched_at": "2026-07-13T00:00:00+00:00",

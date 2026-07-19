@@ -13,7 +13,7 @@ from openai_responses_plugins.openai_responses_pricing import (
     normalize_pricing_table_model_name,
     resolve_pricing_entry,
 )
-from scripts.refresh_openai_responses_pricing import refresh_snapshot
+from refresh_openai_responses_pricing import refresh_snapshot
 
 
 def test_extract_visible_text_token_tier_pricing_from_page_html_parses_tiers() -> None:
@@ -320,7 +320,7 @@ def test_refresh_snapshot_writes_visible_pricing_rows_and_preserves_existing_mod
         return html
 
     monkeypatch.setattr(
-        "scripts.refresh_openai_responses_pricing._fetch_text", fake_fetch
+        "refresh_openai_responses_pricing._fetch_text", fake_fetch
     )
 
     output_path = tmp_path / "pricing.json"
@@ -700,7 +700,7 @@ def test_refresh_snapshot_includes_gpt_5_6_family(monkeypatch, tmp_path) -> None
         return html
 
     monkeypatch.setattr(
-        "scripts.refresh_openai_responses_pricing._fetch_text", fake_fetch
+        "refresh_openai_responses_pricing._fetch_text", fake_fetch
     )
 
     output_path = tmp_path / "pricing.json"

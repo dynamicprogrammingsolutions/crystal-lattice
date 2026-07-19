@@ -14,8 +14,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence
 from dotenv import load_dotenv
 
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_DIR = REPO_ROOT / "scripts"
+REPO_ROOT = Path(__file__).resolve().parents[3]
+BENCHMARK_DIR = Path(__file__).resolve().parent
 CORE_PY = REPO_ROOT / "core/python"
 OPENAI_RESPONSES_SRC = REPO_ROOT / "plugins/openai_responses/src"
 TIMESTAMP_EXTENSION_SRC = REPO_ROOT / "plugins/timestamp-extension/src"
@@ -27,7 +27,7 @@ REFERENCE_OPENAI_COMPATIBLE_SRC = (
 )
 
 for candidate in (
-    SCRIPTS_DIR,
+    BENCHMARK_DIR,
     REPO_ROOT,
     CORE_PY,
     OPENAI_RESPONSES_SRC,
