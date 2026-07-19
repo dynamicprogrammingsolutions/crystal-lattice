@@ -1,7 +1,8 @@
 """OpenAI Responses Fast mode extension.
 
-Owns ChatGPT-only Fast mode configuration and request-state injection. The
-wire-level OpenAI service tier for Fast mode is ``priority``.
+Owns Fast mode configuration and request-state injection. The wire-level
+OpenAI service tier for Fast mode is ``priority``. Fast mode applies to
+both API-key and ChatGPT auth modes.
 """
 
 from __future__ import annotations
@@ -12,26 +13,10 @@ from agent_core.types import ProviderExtensionPlugin
 
 
 _ENABLE_FAST_MODE_KEY = "enable_fast_mode"
-_ENABLE_FAST_MODE_FOR_API_KEY = "enable_fast_mode_for_api_requests"
 _FAST_MODE_STATE_KEY = "openai_responses_fast_mode"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _PUBLIC_SERVICE_TIER_KEY = "openai_service_tier"
 _PUBLIC_FAST_MODE_APPLIED_KEY = "fast_mode_applied"
-
-
-def _effective_auth_mode(config: Dict[str, Any]) -> str:
-    raw = config.get("_openai_responses_effective_auth_mode")
-    if isinstance(raw, str) and raw.strip().lower() in {"api", "chatgpt"}:
-        return raw.strip().lower()
-    requested = config.get("auth_mode")
-    if not isinstance(requested, str):
-        return "api"
-    normalized = requested.strip().lower()
-    if normalized == "api_key":
-        return "api"
-    if normalized == "chatgpt":
-        return "chatgpt"
-    return "api"
 
 
 class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
@@ -39,7 +24,9 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
     version: str = "0.1.0"
     priority: int = 55
 
-    def get_tags(self, config: Dict[str, Any], models: List[Dict[str, Any]]) -> List[str]:
+    def get_tags(
+        self, config: Dict[str, Any], models: List[Dict[str, Any]]
+    ) -> List[str]:
         _ = config, models
         return ["ext:openai_responses_fast_mode"]
 
@@ -52,15 +39,9 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
                 "type": "boolean",
                 "required": False,
                 "default": False,
-                "description": self._fast_mode_description(enable_for_api=False),
-            },
-            _ENABLE_FAST_MODE_FOR_API_KEY: {
-                "type": "boolean",
-                "required": False,
-                "default": False,
                 "description": (
-                    "Allow Fast mode to apply to API-authenticated requests when enabled. "
-                    "This setting is config-only and does not surface as a separate UI control."
+                    'Applies ``service_tier: "priority"`` to Responses calls '
+                    "for both API-key and ChatGPT auth modes."
                 ),
             },
         }
@@ -71,15 +52,16 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        enable_for_api = False
-        if isinstance(config, dict):
-            enable_for_api = config.get(_ENABLE_FAST_MODE_FOR_API_KEY) is True
+        _ = tags, models
         return [
             {
                 "type": "checkbox",
                 "key": _ENABLE_FAST_MODE_KEY,
                 "label": "Enable Fast mode",
-                "description": self._fast_mode_description(enable_for_api=enable_for_api),
+                "description": (
+                    'Applies ``service_tier: "priority"`` to Responses calls '
+                    "for both API-key and ChatGPT auth modes."
+                ),
             },
         ]
 
@@ -108,13 +90,21 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
                 out.append(message)
                 continue
 
-            metadata = message.get("metadata") if isinstance(message.get("metadata"), dict) else {}
-            native_indices = metadata.get("native_indices") if isinstance(metadata, dict) else None
+            metadata = (
+                message.get("metadata")
+                if isinstance(message.get("metadata"), dict)
+                else {}
+            )
+            native_indices = (
+                metadata.get("native_indices") if isinstance(metadata, dict) else None
+            )
             if not isinstance(native_indices, list):
                 out.append(message)
                 continue
 
-            service_tier = self._service_tier_from_native_indices(native_messages, native_indices)
+            service_tier = self._service_tier_from_native_indices(
+                native_messages, native_indices
+            )
             if not isinstance(service_tier, str) or not service_tier:
                 out.append(message)
                 continue
@@ -137,13 +127,6 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
         native_messages: List[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-        config = state.get("config") if isinstance(state.get("config"), dict) else {}
-        effective_auth_mode = _effective_auth_mode(config)
-        if effective_auth_mode == "api" and config.get(_ENABLE_FAST_MODE_FOR_API_KEY) is not True:
-            return native_messages, state
-        if effective_auth_mode not in {"api", "chatgpt"}:
-            return native_messages, state
-
         fast_settings = state.get(_FAST_MODE_STATE_KEY)
         if not isinstance(fast_settings, dict):
             return native_messages, state
@@ -155,15 +138,6 @@ class OpenAIResponsesFastModeExtension(ProviderExtensionPlugin):
         payload = dict(request.get("payload") or {})
         payload["service_tier"] = "priority"
         return native_messages, {**state, "request": {**request, "payload": payload}}
-
-    @staticmethod
-    def _fast_mode_description(*, enable_for_api: bool) -> str:
-        if enable_for_api:
-            return (
-                "Applies to ChatGPT-authenticated requests, and also to API-authenticated "
-                "requests when explicitly enabled in config."
-            )
-        return "Applies to ChatGPT-authenticated requests only."
 
     def _service_tier_from_native_indices(
         self,

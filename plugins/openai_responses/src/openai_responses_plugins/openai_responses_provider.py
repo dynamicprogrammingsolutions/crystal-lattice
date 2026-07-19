@@ -104,6 +104,7 @@ _DEFAULT_CHATGPT_CLIENT_VERSION = "0.1.0"
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
 _RAW_REASONING_CONTEXT_METADATA_KEY = "_openai_responses_reasoning_context"
+_RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"
 _IMAGE_ATTACHMENT_TYPES = ["png", "jpg", "jpeg", "webp", "gif"]
 _PDF_ATTACHMENT_TYPES = ["pdf"]
 _COMPACTION_ITEM_TYPES = {"compaction", "compaction_summary"}
@@ -1943,9 +1944,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         "type": "provider_native_tool_result",
                         "format": "openai.responses",
                         "output": [
-                            dict(part)
-                            for part in raw_output
-                            if isinstance(part, dict)
+                            dict(part) for part in raw_output if isinstance(part, dict)
                         ],
                         "text": output,
                     }
@@ -2071,9 +2070,7 @@ class OpenAIResponsesProvider(ProviderPlugin):
                         "type": "provider_native_tool_result",
                         "format": "openai.responses",
                         "output": [
-                            dict(part)
-                            for part in raw_output
-                            if isinstance(part, dict)
+                            dict(part) for part in raw_output if isinstance(part, dict)
                         ],
                         "text": output,
                     }
@@ -2352,6 +2349,9 @@ class OpenAIResponsesProvider(ProviderPlugin):
             reasoning_context = reasoning_obj.get("context")
             if isinstance(reasoning_context, str) and reasoning_context:
                 md[_RAW_REASONING_CONTEXT_METADATA_KEY] = reasoning_context
+            reasoning_mode = reasoning_obj.get("mode")
+            if isinstance(reasoning_mode, str) and reasoning_mode:
+                md[_RAW_REASONING_MODE_METADATA_KEY] = reasoning_mode
 
         return md
 

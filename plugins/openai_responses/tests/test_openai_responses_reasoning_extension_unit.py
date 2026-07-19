@@ -691,6 +691,74 @@ def test_get_ui_elements_hides_reasoning_mode_without_supports_reasoning_tag() -
     assert _reasoning_mode_elements(elements) is None
 
 
+def test_get_ui_elements_shows_reasoning_mode_for_api_auth() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6-sol", "auth_mode": "api"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-sol"}],
+    )
+
+    mode_element = _reasoning_mode_elements(elements)
+    assert mode_element is not None
+    assert mode_element["options"] == [{"value": "pro", "label": "pro"}]
+
+
+def test_get_ui_elements_shows_reasoning_mode_for_auto_auth() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6-sol", "auth_mode": "auto"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-sol"}],
+    )
+
+    mode_element = _reasoning_mode_elements(elements)
+    assert mode_element is not None
+    assert mode_element["options"] == [{"value": "pro", "label": "pro"}]
+
+
+def test_get_ui_elements_shows_reasoning_mode_for_default_auth() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6-sol"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-sol"}],
+    )
+
+    mode_element = _reasoning_mode_elements(elements)
+    assert mode_element is not None
+    assert mode_element["options"] == [{"value": "pro", "label": "pro"}]
+
+
+def test_get_ui_elements_shows_reasoning_mode_for_api_key_auth() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6-sol", "auth_mode": "api_key"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-sol"}],
+    )
+
+    mode_element = _reasoning_mode_elements(elements)
+    assert mode_element is not None
+    assert mode_element["options"] == [{"value": "pro", "label": "pro"}]
+
+
+def test_get_ui_elements_hides_reasoning_mode_for_chatgpt_auth() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+
+    elements = ext.get_ui_elements(
+        config={"model": "gpt-5.6-sol", "auth_mode": "chatgpt"},
+        tags=["supports_reasoning"],
+        models=[{"id": "gpt-5.6-sol"}],
+    )
+
+    assert _reasoning_mode_elements(elements) is None
+
+
 def test_init_drops_reasoning_mode_pro_for_gpt_5_4() -> None:
     ext = OpenAIResponsesReasoningExtension()
     config = {
@@ -729,6 +797,101 @@ def test_init_preserves_reasoning_mode_pro_for_luna() -> None:
 
     reasoning = state["_openai_responses_reasoning"]
     assert reasoning["mode"] == "pro"
+
+
+def test_init_drops_reasoning_mode_pro_for_chatgpt_effective_auth() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "auth_mode": "chatgpt",
+        "_openai_responses_effective_auth_mode": "chatgpt",
+        "reasoning_mode": "pro",
+        "reasoning_effort": "medium",
+        "reasoning_summary": "concise",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    reasoning = state.get("_openai_responses_reasoning")
+    assert isinstance(reasoning, dict)
+    assert "mode" not in reasoning
+    assert reasoning["effort"] == "medium"
+    assert reasoning["summary"] == "concise"
+
+
+def test_init_preserves_reasoning_mode_pro_for_api_effective_auth() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "auth_mode": "api",
+        "_openai_responses_effective_auth_mode": "api",
+        "reasoning_mode": "pro",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    reasoning = state["_openai_responses_reasoning"]
+    assert reasoning["mode"] == "pro"
+
+
+def test_init_drops_reasoning_mode_pro_for_auto_resolving_to_chatgpt() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "auth_mode": "auto",
+        "_openai_responses_effective_auth_mode": "chatgpt",
+        "reasoning_mode": "pro",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    # When pro mode is the only reasoning config and it is dropped, the
+    # reasoning state is absent entirely (normalize returns None).
+    reasoning = state.get("_openai_responses_reasoning")
+    if reasoning is not None:
+        assert isinstance(reasoning, dict)
+        assert "mode" not in reasoning
+    else:
+        assert "_openai_responses_reasoning" not in state
+
+
+def test_init_preserves_reasoning_mode_pro_for_auto_resolving_to_api() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "auth_mode": "auto",
+        "_openai_responses_effective_auth_mode": "api",
+        "reasoning_mode": "pro",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    reasoning = state["_openai_responses_reasoning"]
+    assert reasoning["mode"] == "pro"
+
+
+def test_init_preserves_effort_and_summary_for_chatgpt_auth() -> None:
+    ext = OpenAIResponsesReasoningExtension()
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "auth_mode": "chatgpt",
+        "_openai_responses_effective_auth_mode": "chatgpt",
+        "reasoning_effort": "medium",
+        "reasoning_summary": "concise",
+        "reasoning_mode": "pro",
+    }
+
+    state = ext.init(config, {"config": config})
+
+    reasoning = state["_openai_responses_reasoning"]
+    assert reasoning["effort"] == "medium"
+    assert reasoning["summary"] == "concise"
+    assert "mode" not in reasoning
 
 
 def test_initialize_request_injects_pro_mode_for_sol() -> None:
@@ -944,8 +1107,8 @@ def test_initialize_request_pro_mode_and_fast_mode_coexist() -> None:
     config = {
         **_base_state()["config"],
         "model": "gpt-5.6-sol",
-        "auth_mode": "chatgpt",
-        "_openai_responses_effective_auth_mode": "chatgpt",
+        "auth_mode": "api",
+        "_openai_responses_effective_auth_mode": "api",
         "reasoning_mode": "pro",
         "reasoning_effort": "medium",
         "enable_fast_mode": True,
@@ -967,6 +1130,45 @@ def test_initialize_request_pro_mode_and_fast_mode_coexist() -> None:
     assert isinstance(payload.get("reasoning"), dict)
     assert payload["reasoning"]["mode"] == "pro"
     assert payload["reasoning"]["effort"] == "medium"
+
+
+def test_initialize_request_pro_mode_dropped_for_chatgpt_while_fast_mode_applies() -> (
+    None
+):
+    reasoning_ext = OpenAIResponsesReasoningExtension()
+    fast_mode_ext = OpenAIResponsesFastModeExtension()
+    request_options_feature = RequestOptionsFeature()
+
+    config = {
+        **_base_state()["config"],
+        "model": "gpt-5.6-sol",
+        "auth_mode": "chatgpt",
+        "_openai_responses_effective_auth_mode": "chatgpt",
+        "reasoning_mode": "pro",
+        "reasoning_effort": "medium",
+        "reasoning_summary": "concise",
+        "enable_fast_mode": True,
+    }
+    state: Dict[str, Any] = {
+        "config": config,
+        "request": {"payload": {"model": "gpt-5.6-sol"}, "headers": {}},
+    }
+
+    state = reasoning_ext.init(config, state)
+    state = fast_mode_ext.init(config, state)
+
+    _, state = reasoning_ext.initialize_request([], state)
+    _, state = fast_mode_ext.initialize_request([], state)
+    _, state = request_options_feature.initialize_request([], state)
+
+    payload = state["request"]["payload"]
+    # Fast mode still applies for ChatGPT auth.
+    assert payload["service_tier"] == "priority"
+    # Pro mode is dropped for ChatGPT auth; effort and summary are preserved.
+    assert isinstance(payload.get("reasoning"), dict)
+    assert "mode" not in payload["reasoning"]
+    assert payload["reasoning"]["effort"] == "medium"
+    assert payload["reasoning"]["summary"] == "concise"
 
 
 # ---------------------------------------------------------------------------

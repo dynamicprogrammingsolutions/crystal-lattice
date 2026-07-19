@@ -8,12 +8,18 @@ import pytest
 from dotenv import load_dotenv
 
 from agent_core import AgentCore
+from openai_responses_plugins.openai_responses_fast_mode_extension import (
+    OpenAIResponsesFastModeExtension,
+)
 from openai_responses_plugins.openai_responses_provider import OpenAIResponsesProvider
 from openai_responses_plugins.openai_responses_reasoning_extension import (
     OpenAIResponsesReasoningExtension,
 )
 from openai_responses_plugins.openai_responses_tools_extension import (
     OpenAIResponsesToolsExtension,
+)
+from openai_responses_plugins.openai_responses_usage_extension import (
+    OpenAIResponsesUsageExtension,
 )
 from plugins.file_reader_tool import FileReaderTool
 from plugins.request_options_feature import RequestOptionsFeature
@@ -335,6 +341,97 @@ def test_openai_responses_reasoning_mode_pro_gpt_5_6_sol_real_api(
     assert reasoning.get("mode") == "pro"
     assert reasoning.get("effort") == "medium"
     assert reasoning.get("summary") == "concise"
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_reasoning_mode_pro_footer_visible_real_api(
+    ensure_openai_api_key: str,
+) -> None:
+    """Pro mode footer: the API returns ``reasoning.mode: "pro"`` in the
+    response, and the usage extension surfaces it as
+    ``metadata.usage_reasoning_mode == "pro"``.
+    """
+    _RecordingApiProvider.recorded_requests = []
+    core = AgentCore()
+    core.register_provider(
+        _RecordingApiProvider,
+        extensions=[OpenAIResponsesReasoningExtension, OpenAIResponsesUsageExtension],
+    )
+    core.register_feature(RequestOptionsFeature)
+    config = _gpt_5_6_pro_mode_config(ensure_openai_api_key)
+
+    session = core.create_session()
+    session = core.add_message(
+        session, "user", "Reply with exactly: GPT56_PRO_FOOTER_OK"
+    )
+
+    final_message = None
+    for event in core.send_request_stream(session, config):
+        if event["type"] == "final":
+            messages = event.get("messages") or []
+            if messages:
+                final_message = messages[-1]
+
+    assert final_message is not None
+    assert final_message.get("role") == "assistant"
+    assert "GPT56_PRO_FOOTER_OK" in (final_message.get("content") or "")
+
+    assert _RecordingApiProvider.recorded_requests
+    reasoning = _RecordingApiProvider.recorded_requests[0].get("reasoning")
+    assert isinstance(reasoning, dict)
+    assert reasoning.get("mode") == "pro"
+
+    metadata = final_message.get("metadata") or {}
+    assert metadata.get("usage_reasoning_mode") == "pro"
+
+
+@pytest.mark.integration
+@pytest.mark.openai
+def test_openai_responses_fast_mode_priority_footer_visible_real_api(
+    ensure_openai_api_key: str,
+) -> None:
+    """Fast mode footer for API auth: the API accepts ``service_tier:
+    "priority"`` for API-authenticated requests and returns
+    ``service_tier: "priority"`` in the response. The usage extension
+    surfaces it as ``metadata.usage_service_tier == "priority"``.
+    """
+    _RecordingApiProvider.recorded_requests = []
+    core = AgentCore()
+    core.register_provider(
+        _RecordingApiProvider,
+        extensions=[OpenAIResponsesFastModeExtension, OpenAIResponsesUsageExtension],
+    )
+    config = {
+        "model": "gpt-5.6-sol",
+        "api_key": ensure_openai_api_key,
+        "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
+        "timeout": 120,
+        "enable_fast_mode": True,
+    }
+
+    session = core.create_session()
+    session = core.add_message(
+        session, "user", "Reply with exactly: GPT56_FAST_FOOTER_OK"
+    )
+
+    final_message = None
+    for event in core.send_request_stream(session, config):
+        if event["type"] == "final":
+            messages = event.get("messages") or []
+            if messages:
+                final_message = messages[-1]
+
+    assert final_message is not None
+    assert final_message.get("role") == "assistant"
+    assert "GPT56_FAST_FOOTER_OK" in (final_message.get("content") or "")
+
+    assert _RecordingApiProvider.recorded_requests
+    payload = _RecordingApiProvider.recorded_requests[0]
+    assert payload.get("service_tier") == "priority"
+
+    metadata = final_message.get("metadata") or {}
+    assert metadata.get("usage_service_tier") == "priority"
 
 
 # ---------------------------------------------------------------------------

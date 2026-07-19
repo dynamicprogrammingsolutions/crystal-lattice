@@ -4169,7 +4169,71 @@ def test_response_internal_metadata_omits_reasoning_context_when_empty() -> None
     assert "_openai_responses_reasoning_context" not in response_md
 
 
-def test_cancel_request_returns_false_for_unknown_request() -> None:
+def test_response_internal_metadata_extracts_reasoning_mode() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {
+            "id": "resp_mode_1",
+            "reasoning": {"mode": "pro"},
+        }
+    )
+
+    assert response_md["_openai_responses_reasoning_mode"] == "pro"
+
+
+def test_response_internal_metadata_extracts_reasoning_mode_and_context() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {
+            "id": "resp_mode_ctx",
+            "reasoning": {"mode": "pro", "context": "all_turns"},
+        }
+    )
+
+    assert response_md["_openai_responses_reasoning_mode"] == "pro"
+    assert response_md["_openai_responses_reasoning_context"] == "all_turns"
+
+
+def test_response_internal_metadata_omits_reasoning_mode_when_absent() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_no_mode", "reasoning": {"effort": "medium"}}
+    )
+
+    assert "_openai_responses_reasoning_mode" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_mode_when_no_reasoning_obj() -> (
+    None
+):
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata({"id": "resp_no_reasoning_obj"})
+
+    assert "_openai_responses_reasoning_mode" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_mode_when_not_string() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_bad_mode", "reasoning": {"mode": 123}}
+    )
+
+    assert "_openai_responses_reasoning_mode" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_mode_when_empty() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_empty_mode", "reasoning": {"mode": ""}}
+    )
+
+    assert "_openai_responses_reasoning_mode" not in response_md
     provider = OpenAIResponsesProvider()
     assert provider.cancel_request("missing-request") is False
 

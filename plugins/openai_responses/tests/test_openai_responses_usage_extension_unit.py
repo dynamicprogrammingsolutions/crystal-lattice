@@ -302,6 +302,107 @@ def test_streaming_usage_uses_manual_priority_tier_pricing_when_snapshot_is_miss
     assert md.get("usage_total_cost_formatted") == "$0.007100"
 
 
+def test_streaming_usage_surfaces_reasoning_mode_pro() -> None:
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 200},
+        "output_tokens": 100,
+    }
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item(
+            "hi",
+            response_id="resp_pro_mode",
+            extra_metadata={"_openai_responses_reasoning_mode": "pro"},
+        )
+    ]
+    native_messages: List[Dict[str, Any]] = list(final_messages)
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_pro_mode", "usage": usage},
+    }
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5.6-sol"}},
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_reasoning_mode") == "pro"
+
+
+def test_streaming_usage_omits_reasoning_mode_when_absent() -> None:
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 200},
+        "output_tokens": 100,
+    }
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item("hi", response_id="resp_no_mode")
+    ]
+    native_messages: List[Dict[str, Any]] = list(final_messages)
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_no_mode", "usage": usage},
+    }
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5.6-sol"}},
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert "usage_reasoning_mode" not in md
+
+
+def test_streaming_usage_surfaces_service_tier_priority_and_reasoning_mode_pro() -> (
+    None
+):
+    ext = OpenAIResponsesUsageExtension()
+
+    usage = {
+        "input_tokens": 1000,
+        "input_tokens_details": {"cached_tokens": 200},
+        "output_tokens": 100,
+    }
+    final_messages: List[Dict[str, Any]] = [
+        _assistant_output_item(
+            "hi",
+            response_id="resp_both",
+            extra_metadata={
+                "_openai_responses_service_tier": "priority",
+                "_openai_responses_reasoning_mode": "pro",
+            },
+        )
+    ]
+    native_messages: List[Dict[str, Any]] = list(final_messages)
+    native_chunk = {
+        "type": "response.completed",
+        "response": {"id": "resp_both", "usage": usage},
+    }
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk=native_chunk,
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={"config": {"model": "gpt-5.6-sol"}},
+    )
+
+    md = finals[0].get("_metadata") or {}
+    assert md.get("usage_service_tier") == "priority"
+    assert md.get("usage_reasoning_mode") == "pro"
+
+
 def test_streaming_usage_marks_tool_call_turns_and_attaches_to_assistant_item() -> None:
     ext = OpenAIResponsesUsageExtension()
 
@@ -558,6 +659,7 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
         "metadata.usage_cache_write_tokens_formatted",
         "metadata.usage_completion_tokens_formatted",
         "metadata.usage_service_tier",
+        "metadata.usage_reasoning_mode",
         "metadata.usage_total_cost_formatted",
         "metadata.usage_turn_cost_cumulative_formatted",
         "metadata.usage_turn_reasoning_tokens_cumulative_formatted",
@@ -581,6 +683,10 @@ def test_usage_ui_elements_match_openrouter_usage_fields() -> None:
             {"path": "metadata.usage_service_tier", "eq": "flex"},
             {"path": "metadata.usage_service_tier", "eq": "priority"},
         ]
+    }
+    assert elements[5]["condition"] == {
+        "path": "metadata.usage_reasoning_mode",
+        "eq": "pro",
     }
 
 

@@ -176,7 +176,6 @@ combination.
       "timeout": 120,
       "enable_flex_processing": false,
       "enable_fast_mode": false,
-      "enable_fast_mode_for_api_requests": false,
       "flex_timeout_seconds": 300,
       "enable_flex_retries": true,
       "flex_max_retries": 2,
@@ -204,7 +203,7 @@ What this enables:
 - usage and cost metadata
 - GPT-5 verbosity controls
 - flex processing controls for supported OpenAI accounts
-- Fast mode controls for ChatGPT-backed requests, with optional API opt-in
+- Fast mode controls for both API-key and ChatGPT-backed requests
 - prompt caching settings plus a regenerate-key session action
 - a native compaction session action for longer conversations
 
@@ -459,25 +458,22 @@ selects the ChatGPT endpoint.
 
 ### Fast mode
 
-Fast mode controls are available through:
+Fast mode applies `service_tier: "priority"` to Responses calls for both
+API-key and ChatGPT auth modes. The control is:
 
-- `enable_fast_mode`: enable `service_tier: "priority"` for ChatGPT-backed
-  Responses calls
-- `enable_fast_mode_for_api_requests`: config-only opt-in that lets
-  `enable_fast_mode` also apply `service_tier: "priority"` to API-backed
-  Responses calls
+- `enable_fast_mode`: enable `service_tier: "priority"` for Responses calls
+  (applies to both API-key and ChatGPT auth modes)
 
-By default, Fast mode applies only to ChatGPT-backed requests. When
-`enable_fast_mode_for_api_requests: true` is set in config, the same Fast mode
-toggle also applies `service_tier: "priority"` to API-backed requests. The
-usage footer renders `tier: priority` when OpenAI reports that tier, and cost
-estimation uses priority-tier pricing when the checked-in or manual pricing
-data defines it.
+The usage footer renders `tier: priority` when OpenAI reports that tier, and
+cost estimation uses priority-tier pricing when the checked-in or manual
+pricing data defines it. The footer also renders `mode: pro` when the
+response reports `reasoning.mode: "pro"` (Pro reasoning mode, see below).
 
 Pro reasoning mode (`reasoning_mode: "pro"`) is a nested reasoning control and
 is independent of Fast mode's `service_tier: "priority"`. Both can be enabled
-at the same time on GPT-5.6 models; they touch different parts of the
-outbound payload and neither overwrites the other.
+at the same time on GPT-5.6 models with API auth; they touch different parts of
+the outbound payload and neither overwrites the other. Pro mode is API-only
+(see "Pro mode billing" below for the auth-mode gating).
 
 ## Benchmark script
 
@@ -520,7 +516,13 @@ loaded.
   mode. When set to `"pro"`, the extension injects `reasoning.mode: "pro"`
   into the outbound request. The extension never sends `"mode": "standard"`
   because omission is the standard-mode signal and `standard` is the API
-  default.
+  default. **API-only**: the Pro mode UI control is shown only when
+  `auth_mode` is `api` or `auto` (or unset, which defaults to `api`); it is
+  hidden when `auth_mode` is `chatgpt`. The extension does not inject
+  `reasoning.mode` when the effective auth mode resolves to `chatgpt`,
+  matching the ChatGPT backend's actual behavior (it rejects
+  `reasoning.mode: "pro"`). `reasoning_effort` and `reasoning_summary` are
+  unaffected by auth mode and are still injected for ChatGPT auth.
 - `reasoning_context`: optional string enum `["auto", "current_turn",
   "all_turns"]`, GPT-5.6 family only (Sol, Terra, Luna, and the bare
   `gpt-5.6` alias). Controls which available reasoning items the model can
@@ -598,6 +600,14 @@ aggregated model-work tokens at the selected model's standard per-token
 rates. There is no separate Pro-mode pricing table and no new
 `service_tier` value for Pro mode.
 
+Pro mode is **API-only**: the UI control is hidden when `auth_mode` is
+`chatgpt`, and the extension does not inject `reasoning.mode` when the
+effective auth mode resolves to ChatGPT. The ChatGPT backend rejects
+`reasoning.mode: "pro"` with `reasoning.mode is not supported with this
+model`, so the gating matches the backend's actual behavior rather than
+sending a rejected field. Fast mode (`service_tier: "priority"`) applies
+to both API and ChatGPT auth modes and is independent of Pro mode.
+
 Cost estimation in this bundle continues to use the selected model's
 standard-tier pricing entry from `data/openai_model_pricing.json` (or the
 manual ChatGPT fallback). Pro mode does not introduce a priority-tier or
@@ -636,6 +646,11 @@ The reasoning extension contributes its own `message_footer` element for the
 effective reasoning context (`context: all_turns` / `current_turn`),
 parallel to the usage footers above. It renders only when
 `metadata.openai_responses_reasoning.context` is present (see Reasoning keys).
+
+The usage extension also surfaces `usage_reasoning_mode` metadata and a
+`mode: pro` footer entry when the response reports `reasoning.mode: "pro"`.
+This is additive to the existing `usage_service_tier` / `tier: priority`
+footer for Fast mode. Standard mode is the default and is not shown.
 
 #### Pricing snapshot and cost estimation
 

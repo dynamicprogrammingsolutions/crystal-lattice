@@ -956,3 +956,670 @@ All commands run with `/Users/ferenci84/Dev/Mine/ai-agent-platform/.venv/bin/pyt
   precedence; Fast mode cross-reference; Pro mode billing subsection)
 - `tasks/20260713-openai-responses-gpt-5-6-support/030-add-reasoning-pro-mode.md`
   (this file: execution plan + completion notes)
+
+## Follow-up execution plan
+
+(Proposed 2026-07-18. Awaiting user approval before implementation. No code
+changes have been made yet for this follow-up.)
+
+### Goal
+
+Three adjustments to the auth-mode gating and footer surfacing for Pro mode
+and Fast mode:
+
+1. **Pro mode becomes API-only** (reverse of the current Fast mode pattern):
+   UI shows the Pro mode control only when `auth_mode` is `api` or `auto`
+   (or unset, which defaults to `api`); hidden when `auth_mode` is
+   `chatgpt`. Request injection skips `reasoning.mode` when the effective
+   auth mode resolves to `chatgpt`.
+
+2. **Fast mode becomes enabled for both endpoints**: remove the
+   `enable_fast_mode_for_api_requests` opt-in and the auth-mode check in
+   `initialize_request`. Fast mode injects `service_tier: "priority"`
+   whenever `enable_fast_mode: true`, regardless of auth mode. Verified
+   that the public API accepts `service_tier: "priority"` for
+   API-authenticated `gpt-5.6-sol` requests.
+
+3. **Footer shows both Pro mode and Fast mode when available in the
+   response**: the provider already extracts `service_tier` from the
+   response; add extraction of `reasoning.mode` and surface both in the
+   usage footer. The API returns `reasoning.mode: "pro"` for Pro mode
+   requests and `service_tier: "priority"` for Fast mode requests
+   (verified via direct SDK calls on 2026-07-18).
+
+### Change 1: Pro mode auth-mode gating (API-only)
+
+#### Reasoning extension changes
+
+`openai_responses_reasoning_extension.py`:
+
+- Import `effective_auth_mode` and `normalize_auth_mode` from
+  `openai_responses_runtime` (the canonical shared helpers already used
+  by the provider, flex, and prompt-caching extensions).
+- `get_ui_elements()`: before appending the `reasoning_mode` select,
+  check the requested auth mode via `normalize_auth_mode(config.get("auth_mode"))`.
+  Only append the control when the result is not `"chatgpt"` (i.e., show
+  for `api`, `auto`, and unset/default). This is the requested mode, not
+  the effective mode, because the UI reflects what the user is
+  configuring.
+- `_normalize_reasoning_config()`: add a fourth condition to the
+  existing `reasoning_mode` guard: `effective_auth_mode(config) != "chatgpt"`.
+  This skips `mode` when the effective auth mode resolves to ChatGPT,
+  mirroring how the flex processing extension skips `service_tier: "flex"`
+  for ChatGPT. The effective auth mode is available at `init()` time
+  because the ChatGPT auth feature (priority 10) runs before the
+  reasoning extension (priority 50) and sets
+  `_openai_responses_effective_auth_mode`.
+
+No change to `initialize_request()` — the existing merge still works
+because `mode` is simply absent from the reasoning state when the
+effective auth mode is ChatGPT.
+
+#### Behavior matrix
+
+| Requested `auth_mode` | Effective auth mode | UI shows Pro control | Request injects `mode: "pro"` |
+| --- | --- | --- | --- |
+| `api` (or unset) | `api` | yes | yes |
+| `auto` | `api` | yes | yes |
+| `auto` | `chatgpt` | yes | no (skipped by `_normalize_reasoning_config`) |
+| `chatgpt` | `chatgpt` | no | no |
+
+### Change 2: Fast mode enabled for both endpoints
+
+#### Fast mode extension changes
+
+`openai_responses_fast_mode_extension.py`:
+
+- `get_config_schema()`: remove the `enable_fast_mode_for_api_requests`
+  entry. Keep only `enable_fast_mode`.
+- `get_ui_elements()`: remove the `enable_for_api` branching. The
+  description becomes a single string: "Applies `service_tier: "priority"`
+  to Responses calls for both API-key and ChatGPT auth modes."
+- `_fast_mode_description()`: remove (no longer needed).
+- `initialize_request()`: remove the auth-mode check entirely. Inject
+  `service_tier: "priority"` whenever `_FAST_MODE_STATE_KEY` is present
+  in state (set by `init()` when `enable_fast_mode: true`). Keep the
+  `request` dict guard.
+
+#### Backwards compatibility for `enable_fast_mode_for_api_requests`
+
+The key is removed from the schema. Existing configs that set it to
+`true` will simply ignore the key (the schema no longer advertises it,
+and the extension no longer reads it). This is a minor breaking change
+for configs that relied on the opt-in, but the new behavior is a
+strict superset (Fast mode now works for both endpoints), so the opt-in
+is no longer meaningful. The README and tests will be updated to
+reflect this.
+
+### Change 3: Footer visibility for Pro mode and Fast mode
+
+#### Provider changes
+
+`openai_responses_provider.py`:
+
+- Add `_RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"`
+  next to the existing `_RAW_REASONING_CONTEXT_METADATA_KEY`.
+- In `_response_internal_metadata()`, after extracting
+  `reasoning.context`, also extract `reasoning.mode`:
+  ```python
+  reasoning_mode = reasoning_obj.get("mode")
+  if isinstance(reasoning_mode, str) and reasoning_mode:
+      md[_RAW_REASONING_MODE_METADATA_KEY] = reasoning_mode
+  ```
+  The response metadata is already attached to all output items by
+  `_attach_internal_metadata_to_output()`, so no further plumbing is
+  needed.
+
+#### Usage extension changes
+
+`openai_responses_usage_extension.py`:
+
+- Add `_RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"`
+  constant (mirroring `_RAW_SERVICE_TIER_METADATA_KEY`).
+- Add `_reasoning_mode_from_items()` static method (mirroring
+  `_service_tier_from_items()`) that reads the reasoning mode from the
+  first item's internal metadata.
+- In `_build_usage_metadata()`, call `reasoning_mode =
+  self._reasoning_mode_from_items(current_items)` alongside the existing
+  `service_tier` extraction.
+- Add `"usage_reasoning_mode": reasoning_mode` to `extra_md` when
+  `reasoning_mode` is a non-empty string.
+- Add `"usage_reasoning_mode"` to `_PUBLIC_USAGE_METADATA_KEYS`.
+- In `get_ui_elements()`, add a new footer entry after the existing
+  `usage_service_tier` entry:
+  ```python
+  {
+      "ui_type": "message_footer",
+      "data": "metadata.usage_reasoning_mode",
+      "template": "mode: {{data}}",
+      "condition": {
+          "path": "metadata.usage_reasoning_mode",
+          "eq": "pro",
+      },
+  },
+  ```
+  This shows `mode: pro` only when the response reported
+  `reasoning.mode: "pro"`. Standard mode is the default and is not
+  shown (matching the existing pattern where `service_tier: "default"`
+  is not shown in the footer).
+
+The existing `usage_service_tier` footer entry already shows
+`tier: priority` when Fast mode reports `service_tier: "priority"` and
+`tier: flex` when flex processing reports `service_tier: "flex"`. No
+change needed for the Fast mode footer — it will now appear for both
+API and ChatGPT auth modes because Fast mode is enabled for both.
+
+#### Fast mode extension `from_native_messages` — no change needed
+
+The Fast mode extension already surfaces `openai_service_tier` and
+`fast_mode_applied` in `from_native_messages()`. The usage extension
+reads the raw `_openai_responses_service_tier` from internal metadata
+for the footer. No change needed here.
+
+### Exact unit tests
+
+#### Pro mode auth-mode gating (reasoning extension unit tests)
+
+Add to `test_openai_responses_reasoning_extension_unit.py`:
+
+UI visibility:
+- `test_get_ui_elements_shows_reasoning_mode_for_api_auth` —
+  `auth_mode: "api"` shows the Pro mode control for `gpt-5.6-sol`.
+- `test_get_ui_elements_shows_reasoning_mode_for_auto_auth` —
+  `auth_mode: "auto"` shows the Pro mode control.
+- `test_get_ui_elements_shows_reasoning_mode_for_default_auth` — no
+  `auth_mode` set shows the Pro mode control (defaults to `api`).
+- `test_get_ui_elements_hides_reasoning_mode_for_chatgpt_auth` —
+  `auth_mode: "chatgpt"` hides the Pro mode control even for
+  `gpt-5.6-sol`.
+
+Request injection:
+- `test_init_drops_reasoning_mode_pro_for_chatgpt_effective_auth` —
+  `_openai_responses_effective_auth_mode: "chatgpt"` drops `mode` from
+  reasoning state; `_openai_responses_reasoning` either absent or
+  present without `mode`.
+- `test_init_preserves_reasoning_mode_pro_for_api_effective_auth` —
+  `_openai_responses_effective_auth_mode: "api"` keeps `mode: "pro"`.
+- `test_init_drops_reasoning_mode_pro_for_auto_resolving_to_chatgpt` —
+  `auth_mode: "auto"` with
+  `_openai_responses_effective_auth_mode: "chatgpt"` drops `mode`.
+- `test_init_preserves_reasoning_mode_pro_for_auto_resolving_to_api` —
+  `auth_mode: "auto"` with
+  `_openai_responses_effective_auth_mode: "api"` keeps `mode: "pro"`.
+- `test_init_preserves_effort_and_summary_for_chatgpt_auth` —
+  `auth_mode: "chatgpt"` with `reasoning_effort: "medium"` and
+  `reasoning_summary: "concise"` still injects `effort` and `summary`
+  (only `mode` is dropped, not the other reasoning fields).
+
+Update existing tests that assumed Pro mode is auth-mode-agnostic:
+- `test_get_ui_elements_shows_reasoning_mode_for_gpt_5_6_sol` — add
+  `auth_mode: "api"` to the config (or verify the default is `api`).
+- `test_get_ui_elements_shows_reasoning_mode_for_gpt_5_6_luna` — same.
+- `test_get_ui_elements_shows_reasoning_mode_for_bare_gpt_5_6_alias` —
+  same.
+
+#### Fast mode changes (Fast mode extension unit tests)
+
+Update `test_openai_responses_fast_mode_extension_unit.py`:
+
+- `test_extension_name_tags_schema_and_required_tags` — schema now has
+  only `enable_fast_mode` (not `enable_fast_mode_for_api_requests`).
+  Update the description assertion.
+- `test_get_ui_elements_exposes_fast_mode_toggle` — description is the
+  new unified string.
+- Remove `test_get_ui_elements_mentions_api_when_api_fast_mode_is_enabled_in_config`
+  (key no longer exists).
+- `test_initialize_request_is_noop_for_api_auth` → rename to
+  `test_initialize_request_injects_priority_for_api_auth` — now asserts
+  `service_tier == "priority"` for API auth.
+- Remove `test_initialize_request_injects_priority_for_api_auth_when_explicitly_enabled`
+  (key no longer exists).
+- `test_initialize_request_injects_priority_service_tier_for_chatgpt` —
+  still passes (ChatGPT still injects).
+- `test_init_and_initialize_request_are_noops_when_fast_mode_disabled` —
+  still passes.
+- `test_from_native_messages_surfaces_priority_service_tier_metadata` —
+  still passes.
+
+#### Footer visibility (usage extension unit tests)
+
+Add to `test_openai_responses_usage_extension_unit.py`:
+
+- `test_streaming_usage_surfaces_reasoning_mode_pro` — native item with
+  `_metadata._openai_responses_reasoning_mode: "pro"` →
+  `metadata.usage_reasoning_mode == "pro"`.
+- `test_streaming_usage_omits_reasoning_mode_when_absent` — no
+  `_openai_responses_reasoning_mode` in native items →
+  `usage_reasoning_mode` not in metadata.
+- `test_streaming_usage_surfaces_service_tier_priority_and_reasoning_mode_pro`
+  — both `_openai_responses_service_tier: "priority"` and
+  `_openai_responses_reasoning_mode: "pro"` → both `usage_service_tier`
+  and `usage_reasoning_mode` present (verifies coexistence).
+- Update the `get_ui_elements` test (if any) to include the new
+  `mode: {{data}}` footer entry.
+
+### Integration tests
+
+#### Real API tests
+
+Add to `test_openai_responses_reasoning_extension_integration.py`:
+
+- `test_openai_responses_reasoning_mode_pro_footer_visible_real_api` —
+  `gpt-5.6-sol` with `reasoning_mode: "pro"`, API auth. Asserts:
+  successful completion, `metadata.usage_reasoning_mode == "pro"`, and
+  the recorded request has `reasoning.mode == "pro"`. This verifies the
+  footer surfaces Pro mode for API auth.
+
+Add to `test_openai_responses_reasoning_extension_integration.py` (or a
+new Fast mode integration test file):
+
+- `test_openai_responses_fast_mode_priority_footer_visible_real_api` —
+  `gpt-5.6-sol` with `enable_fast_mode: true`, API auth (no
+  `enable_fast_mode_for_api_requests` needed anymore). Asserts:
+  successful completion, `metadata.usage_service_tier == "priority"`,
+  and the recorded request has `service_tier == "priority"`. This
+  verifies Fast mode now works for API auth and the footer surfaces it.
+
+#### ChatGPT saved-login tests
+
+**Existing Fast mode test (retest after change):**
+`test_openai_responses_chatgpt_auth_manual_integration.py::
+test_openai_responses_chatgpt_saved_login_fast_mode_round_trip` already
+exists and xfails. Confirmed on 2026-07-18: the ChatGPT backend reports
+`service_tier='default'` for `gpt-5.6-luna` even when the outgoing request
+sends `service_tier: "priority"`. The xfail reason is:
+`ChatGPT backend reported service_tier='default' for model gpt-5.6-luna;
+some accounts or models may not have Fast mode access.`
+
+This change does **not** alter ChatGPT-auth behavior (Fast mode still
+injects `service_tier: "priority"` for ChatGPT auth, same as before). The
+test should still xfail with the same reason after the change. Re-run it
+to confirm the xfail is unchanged — if it starts passing (backend now
+honors priority), update the test to a hard assert; if it still xfails,
+leave it as-is. Do not remove the xfail or weaken it into a skip.
+
+**Existing pricing test (note, not fixed in this task):**
+`test_openai_responses_chatgpt_pricing_manual_integration.py::
+test_openai_responses_chatgpt_saved_login_priority_tier_pricing` has a
+similar xfail for `reported_tier != "priority"`, but on 2026-07-18 it
+failed with `RuntimeError: OpenAI Responses stream failed: terminal
+event error: unknown error` before reaching the xfail. This is a
+separate backend/terminal-error issue, not caused by the Fast mode
+change. Leave it for the pricing task (050) to investigate; do not try to
+fix it here.
+
+**Pro mode test (update for new gating):**
+`test_openai_responses_chatgpt_reasoning_pro_mode_manual_integration.py::
+test_openai_responses_chatgpt_reasoning_mode_pro_gpt_5_6_sol` currently
+xfails because the ChatGPT backend rejects `reasoning.mode: "pro"`. With
+the new auth-mode gating, the extension will not inject `mode` for
+ChatGPT auth, so the request will not include `reasoning.mode`. Update
+the test:
+- Remove the `pytest.xfail` — the request should now succeed.
+- Assert the recorded request does NOT contain `reasoning.mode` (the
+  extension skips it for ChatGPT auth).
+- Assert `metadata.usage_reasoning_mode` is absent or not `"pro"` (the
+  backend didn't receive `mode: "pro"`, so it won't report it).
+- Keep the credential gate (skip with exact reason if the saved login is
+  missing/expired/invalid).
+
+### Documentation updates
+
+`plugins/openai_responses/README.md`:
+
+1. **Reasoning keys section** — update the `reasoning_mode` bullet to
+   state it is API-only: shown when `auth_mode` is `api` or `auto`,
+   hidden when `auth_mode` is `chatgpt`; not injected when the effective
+   auth mode resolves to ChatGPT.
+2. **Fast mode section** — update to state Fast mode now applies to
+   both API and ChatGPT auth modes. Remove the
+   `enable_fast_mode_for_api_requests` bullet. Update the description
+   to not mention "ChatGPT-only" or "API opt-in".
+3. **Pro mode billing subsection** — add a note that Pro mode is
+   API-only; ChatGPT auth does not inject `reasoning.mode`.
+4. **Usage keys section** — mention the new `usage_reasoning_mode`
+   metadata field and the `mode: pro` footer entry.
+
+### Implementation order
+
+1. Edit `openai_responses_reasoning_extension.py`: import
+   `effective_auth_mode`/`normalize_auth_mode`; add auth-mode guard to
+   `get_ui_elements()` and `_normalize_reasoning_config()`.
+2. Edit `openai_responses_fast_mode_extension.py`: remove
+   `enable_fast_mode_for_api_requests` from schema, UI, and
+   `initialize_request()`; simplify description.
+3. Edit `openai_responses_provider.py`: add
+   `_RAW_REASONING_MODE_METADATA_KEY` and extract `reasoning.mode` in
+   `_response_internal_metadata()`.
+4. Edit `openai_responses_usage_extension.py`: add
+   `_RAW_REASONING_MODE_METADATA_KEY`, `_reasoning_mode_from_items()`,
+   `usage_reasoning_mode` metadata, and the `mode: {{data}}` footer
+   entry.
+5. Edit `scripts/run_openai_responses_tier_matrix.py`: remove
+   `enable_fast_mode_for_api_requests=True` from the `api-priority`
+   `MatrixCase` (the key no longer exists; `enable_fast_mode=True` alone
+   is sufficient for API auth now). The unit test
+   `test_run_openai_responses_tier_matrix_unit.py` only asserts case
+   names, so it will still pass.
+6. Add/update unit tests for all four source files.
+7. Run unit tests to confirm all pass.
+8. Add real API integration tests for Pro mode footer and Fast mode
+   API-auth footer.
+9. Update ChatGPT Pro mode test to reflect the new auth-mode gating
+   (no xfail; assert `reasoning.mode` absent from recorded request).
+10. Update README.
+11. Run fast default plugin suite.
+12. Run real API integration tests.
+13. Run ChatGPT saved-login tests with `~/.crystal`:
+    - Re-run `test_openai_responses_chatgpt_saved_login_fast_mode_round_trip`
+      to confirm the xfail is unchanged (ChatGPT backend still reports
+      `service_tier='default'`).
+    - Run the updated Pro mode test to confirm it now passes (no xfail).
+14. Lint/format.
+15. Append follow-up completion notes and update `000-main.md` if
+    needed.
+
+### Verification commands
+
+- Unit tests (focused):
+  ```
+  pytest plugins/openai_responses/tests/test_openai_responses_reasoning_extension_unit.py \
+         plugins/openai_responses/tests/test_openai_responses_fast_mode_extension_unit.py \
+         plugins/openai_responses/tests/test_openai_responses_usage_extension_unit.py -q
+  ```
+- Fast default plugin suite:
+  ```
+  pytest plugins/openai_responses/tests -q
+  ```
+- Real API Pro mode footer:
+  ```
+  pytest plugins/openai_responses/tests/test_openai_responses_reasoning_extension_integration.py \
+    -m 'integration and api and not slow_integration and openai' -q
+  ```
+- Real API Fast mode footer (new test for API auth):
+  ```
+  pytest plugins/openai_responses/tests/test_openai_responses_reasoning_extension_integration.py \
+    -m 'integration and api and not slow_integration and openai' -q
+  ```
+- ChatGPT saved-login Pro mode (updated, no longer xfail):
+  ```bash
+  CHATGPT_TEST_STATE_DIR="$HOME/.crystal" \
+  OPENAI_RESPONSES_CHATGPT_MODEL="gpt-5.6-sol" \
+    pytest plugins/openai_responses/tests/test_openai_responses_chatgpt_reasoning_pro_mode_manual_integration.py \
+      -m "manual_integration and integration and openai" -q
+  ```
+- ChatGPT saved-login Fast mode (existing, should still pass):
+  ```bash
+  CHATGPT_TEST_STATE_DIR="$HOME/.crystal" \
+    pytest plugins/openai_responses/tests/test_openai_responses_chatgpt_auth_manual_integration.py \
+      -m "manual_integration and integration and openai" -q
+  ```
+- Lint/format: `ruff check <changed files>` and `black <changed files>`.
+
+### Compatibility risks
+
+- **`enable_fast_mode_for_api_requests` removal**: configs that set
+  this key will silently ignore it. The new behavior is a strict
+  superset (Fast mode works for both endpoints), so no functionality is
+  lost. The key is removed from the schema, so config validation will
+  not flag it (the schema is opt-in, not strict). The tier matrix script
+  (`scripts/run_openai_responses_tier_matrix.py`) also sets this key in
+  the `api-priority` case and will be updated.
+- **Pro mode API-only gating**: users who previously set
+  `reasoning_mode: "pro"` with `auth_mode: "chatgpt"` will see the
+  control hidden and the mode not injected. This is the intended
+  behavior change. The ChatGPT backend already rejected
+  `reasoning.mode: "pro"`, so this change makes the extension match the
+  backend's behavior rather than sending a rejected field.
+- **Footer entry for `usage_reasoning_mode`**: new metadata field. No
+  existing test should break (it's additive). The footer only shows
+  `mode: pro` when the response reports it, so standard-mode requests
+  are unaffected.
+- **ChatGPT Fast mode xfail is pre-existing and unchanged**: the
+  existing `test_openai_responses_chatgpt_saved_login_fast_mode_round_trip`
+  test xfails because the ChatGPT backend reports `service_tier='default'`
+  (not `"priority"`) even when `service_tier: "priority"` is sent. This
+  change does not alter ChatGPT-auth behavior, so the xfail should still
+  trigger. The test is re-run after the change to confirm. The xfail is
+  not a regression — it documents a real backend limitation.
+- **Pre-existing test failures**: the 3 failures in
+  `test_openai_responses_native_history_regressions.py` are unchanged
+  (same as tasks 010/020/030). The
+  `test_openai_responses_chatgpt_saved_login_priority_tier_pricing`
+  failure (RuntimeError: terminal event error) is a separate
+  backend/terminal-error issue, not caused by this change; it is left
+  for the pricing task (050) to investigate.
+- **ChatGPT login expiry**: the saved login expires
+  `2026-07-29T13:11:12Z` (refreshed since the original task 030). If
+  implementation runs after that, the ChatGPT tests will skip with an
+  exact reason and must be reported as not run.
+
+### Prerequisite assumptions
+
+- Task 030 is committed (`4921e63a`): `reasoning_mode` config key,
+  `_model_supports_pro_reasoning`, schema/UI/normalization, 21 unit
+  tests, real API test, ChatGPT test (xfail), README updates.
+- The public OpenAI API accepts `service_tier: "priority"` for
+  API-authenticated `gpt-5.6-sol` requests and returns
+  `service_tier: "priority"` in the response (verified 2026-07-18).
+- The public OpenAI API returns `reasoning.mode: "pro"` in the
+  response when Pro mode is requested (verified 2026-07-18).
+- The ChatGPT backend rejects `reasoning.mode: "pro"` with
+  `reasoning.mode is not supported with this model` (verified
+  2026-07-18).
+- The ChatGPT backend reports `service_tier: "default"` (not
+  `"priority"`) even when `service_tier: "priority"` is sent in the
+  request (confirmed 2026-07-18 via
+  `test_openai_responses_chatgpt_saved_login_fast_mode_round_trip`
+  xfail). The existing test documents this with an xfail and is
+  re-run after the change to confirm the behavior is unchanged.
+- `OPENAI_API_KEY` is available in repo root `.env`.
+- The saved ChatGPT login at `~/.crystal/auth/chatgpt-auth.json` is
+  valid through `2026-07-29T13:11:12Z` (refreshed since the original
+  task 030).
+- The shared `effective_auth_mode` and `normalize_auth_mode` helpers
+  in `openai_responses_runtime.py` are the canonical implementations
+  used by the provider, flex, and prompt-caching extensions.
+
+## Follow-up completion notes
+
+(Added 2026-07-19 during follow-up implementation. All three changes
+implemented and verified.)
+
+### What changed
+
+#### Change 1: Pro mode API-only gating
+
+`openai_responses_reasoning_extension.py`:
+- Imported `effective_auth_mode` and `normalize_auth_mode` from
+  `openai_responses_runtime` (the canonical shared helpers).
+- `get_ui_elements()`: the `reasoning_mode` select is now shown only when
+  `normalize_auth_mode(config.get("auth_mode")) != "chatgpt"` (i.e., for
+  `api`, `auto`, `api_key`, and unset/default). Hidden when `chatgpt`.
+- `_normalize_reasoning_config()`: added a 4th guard to the
+  `reasoning_mode` check: `effective_auth_mode(config) != "chatgpt"`. This
+  skips `mode` when the effective auth mode resolves to ChatGPT.
+  `effort` and `summary` are unaffected and still injected for ChatGPT
+  auth.
+
+#### Change 2: Fast mode enabled for both endpoints
+
+`openai_responses_fast_mode_extension.py`:
+- Removed `enable_fast_mode_for_api_requests` from the schema, UI, and
+  `initialize_request()`.
+- Removed the `_effective_auth_mode()` helper and `_fast_mode_description()`
+  method (no longer needed).
+- `initialize_request()` now injects `service_tier: "priority"` whenever
+  `_FAST_MODE_STATE_KEY` is present in state (set by `init()` when
+  `enable_fast_mode: true`), regardless of auth mode.
+- Updated the docstring and UI description to state Fast mode applies to
+  both API-key and ChatGPT auth modes.
+
+#### Change 3: Footer visibility for Pro mode and Fast mode
+
+`openai_responses_provider.py`:
+- Added `_RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"`.
+- In `_response_internal_metadata()`, extract `reasoning.mode` from the
+  response object alongside the existing `reasoning.context` extraction.
+
+`openai_responses_usage_extension.py`:
+- Added `_RAW_REASONING_MODE_METADATA_KEY` constant.
+- Added `_reasoning_mode_from_items()` static method (mirrors
+  `_service_tier_from_items()`).
+- In `_build_usage_metadata()`, extract `reasoning_mode` from items and
+  attach `usage_reasoning_mode` to public metadata when present.
+- Added `usage_reasoning_mode` to `_PUBLIC_USAGE_METADATA_KEYS`.
+- Added a `mode: {{data}}` footer entry in `get_ui_elements()` shown when
+  `usage_reasoning_mode == "pro"`.
+
+#### Tier matrix script
+
+`scripts/run_openai_responses_tier_matrix.py`:
+- Removed `enable_fast_mode_for_api_requests` from the `MatrixCase`
+  dataclass, the `api-priority` case definition, the config builder, and
+  the metric line formatter. The `api-priority` case now uses
+  `enable_fast_mode=True` alone (sufficient for API auth).
+
+### Tests added/updated
+
+#### Unit tests
+- `test_openai_responses_reasoning_extension_unit.py`: added 11 new
+  tests for auth-mode gating (5 UI visibility: api/auto/default/api_key/
+  chatgpt; 5 request injection: chatgpt-effective/api-effective/auto-
+  resolving-to-chatgpt/auto-resolving-to-api/effort+summary-preserved-
+  for-chatgpt; 1 coexistence test for ChatGPT auth verifying Pro mode
+  dropped while Fast mode applies). Updated the existing
+  `test_initialize_request_pro_mode_and_fast_mode_coexist` to use API
+  auth.
+- `test_openai_responses_fast_mode_extension_unit.py`: updated schema
+  test (only `enable_fast_mode`), UI description test (new unified
+  string), renamed `test_initialize_request_is_noop_for_api_auth` to
+  `test_initialize_request_injects_priority_for_api_auth`, removed
+  `test_get_ui_elements_mentions_api_when_api_fast_mode_is_enabled_in_config`
+  and `test_initialize_request_injects_priority_for_api_auth_when_explicitly_enabled`,
+  added 2 new tests for auto-resolving-to-api and auto-resolving-to-
+  chatgpt.
+- `test_openai_responses_usage_extension_unit.py`: added 3 new tests
+  for reasoning mode surfacing (pro surfaced, omitted when absent,
+  coexistence with service_tier priority). Updated the UI elements
+  test to include the new `usage_reasoning_mode` footer entry.
+- `test_openai_responses_provider_unit.py`: added 6 new tests for
+  `reasoning.mode` extraction (pro extracted, pro+context extracted,
+  omitted when absent/no-obj/not-string/empty).
+- `application/python/tests/test_openai_responses_flex_processing_endpoints.py`:
+  renamed `test_openai_fast_mode_injects_priority_for_chatgpt_only` to
+  `test_openai_fast_mode_injects_priority_for_both_auth_modes` and
+  updated assertions (API auth now injects `service_tier: "priority"`).
+
+#### Integration tests
+- `test_openai_responses_reasoning_extension_integration.py`: added 2
+  new real API tests:
+  `test_openai_responses_reasoning_mode_pro_footer_visible_real_api`
+  (verifies `usage_reasoning_mode == "pro"` in metadata) and
+  `test_openai_responses_fast_mode_priority_footer_visible_real_api`
+  (verifies `usage_service_tier == "priority"` for API auth, new since
+  Fast mode now works for API).
+- `test_openai_responses_chatgpt_reasoning_pro_mode_manual_integration.py`:
+  updated `test_openai_responses_chatgpt_reasoning_mode_pro_gpt_5_6_sol`
+  to remove the `pytest.xfail` (the extension now skips `mode` for
+  ChatGPT auth, so the request succeeds). Asserts `reasoning.mode` is
+  absent from the recorded request and `usage_reasoning_mode` is not
+  `"pro"`.
+
+### Verification results
+
+- Unit tests (focused): 221 passed.
+- Full fast default plugin suite (`pytest plugins/openai_responses/tests
+  -q`): 384 passed, 3 pre-existing failures in
+  `test_openai_responses_native_history_regressions.py` (unchanged from
+  tasks 010/020/030), 76 deselected (integration).
+- Tier matrix unit tests: 9 passed.
+- Real API integration tests
+  (`pytest plugins/openai_responses/tests/test_openai_responses_reasoning_extension_integration.py
+  -m 'integration and api and not slow_integration and openai' -q`):
+  8 passed, 1 pre-existing xfailed (ultra effort).
+- ChatGPT Pro mode test
+  (`CHATGPT_TEST_STATE_DIR=$HOME/.crystal OPENAI_RESPONSES_CHATGPT_MODEL=gpt-5.6-sol pytest
+  plugins/openai_responses/tests/test_openai_responses_chatgpt_reasoning_pro_mode_manual_integration.py
+  -m 'manual_integration and integration and openai' -q`):
+  1 passed (no xfail — the extension now skips `mode` for ChatGPT auth,
+  so the request succeeds without `reasoning.mode`).
+- ChatGPT Fast mode test (retest after change, `gpt-5.6-sol`):
+  1 xfailed with `ChatGPT backend reported service_tier='default' for
+  model gpt-5.6-sol` — the xfail is unchanged (ChatGPT backend still
+  reports `service_tier='default'` for Fast mode). Transient 503/terminal
+  errors were observed for `gpt-5.6-luna` and `gpt-5.5` during testing;
+  these are backend availability issues, not caused by this change.
+- Application tests
+  (`pytest application/python/tests/test_openai_responses_flex_processing_endpoints.py
+  -m integration -q`): 3 passed.
+- Lint/format: `ruff check` and `black` clean on all changed files.
+
+### Findings
+
+- The public OpenAI API accepts `service_tier: "priority"` for
+  API-authenticated `gpt-5.6-sol` requests and returns
+  `service_tier: "priority"` in the response (verified 2026-07-18).
+- The public OpenAI API returns `reasoning.mode: "pro"` in the response
+  when Pro mode is requested (verified 2026-07-18).
+- The ChatGPT backend rejects `reasoning.mode: "pro"` with
+  `reasoning.mode is not supported with this model` (verified
+  2026-07-18). With the new auth-mode gating, the extension does not
+  inject `mode` for ChatGPT auth, so the request succeeds without
+  `reasoning.mode`.
+- The ChatGPT backend reports `service_tier: "default"` (not
+  `"priority"`) for Fast mode requests (confirmed 2026-07-18). The
+  existing xfail in
+  `test_openai_responses_chatgpt_saved_login_fast_mode_round_trip`
+  documents this backend limitation and is unchanged by this follow-up.
+- The `test_openai_responses_chatgpt_saved_login_priority_tier_pricing`
+  test (in `test_openai_responses_chatgpt_pricing_manual_integration.py`)
+  currently fails with `RuntimeError: terminal event error: unknown
+  error` before reaching its xfail. This is a separate backend/terminal-
+  error issue, not caused by this change; left for the pricing task (050)
+  to investigate.
+- The `test_add_message_returns_400_for_pdf_without_upload_mode` test
+  (in `application/python/tests/test_openai_responses_attachment_endpoints.py`)
+  is a pre-existing failure (confirmed by stashing changes and running
+  the test on the unmodified tree). Not caused by this change.
+
+### Files changed
+
+- `plugins/openai_responses/src/openai_responses_plugins/openai_responses_reasoning_extension.py`
+  (import `effective_auth_mode`/`normalize_auth_mode`; auth-mode guard
+  in `get_ui_elements()` and `_normalize_reasoning_config()`)
+- `plugins/openai_responses/src/openai_responses_plugins/openai_responses_fast_mode_extension.py`
+  (removed `enable_fast_mode_for_api_requests`, `_effective_auth_mode`,
+  `_fast_mode_description`; simplified `initialize_request()`;
+  updated docstring/schema/UI description)
+- `plugins/openai_responses/src/openai_responses_plugins/openai_responses_provider.py`
+  (added `_RAW_REASONING_MODE_METADATA_KEY`; extract `reasoning.mode`
+  in `_response_internal_metadata()`)
+- `plugins/openai_responses/src/openai_responses_plugins/openai_responses_usage_extension.py`
+  (added `_RAW_REASONING_MODE_METADATA_KEY`,
+  `_reasoning_mode_from_items()`, `usage_reasoning_mode` metadata,
+  `mode: {{data}}` footer entry)
+- `plugins/openai_responses/tests/test_openai_responses_reasoning_extension_unit.py`
+  (11 new tests + updated coexistence test)
+- `plugins/openai_responses/tests/test_openai_responses_fast_mode_extension_unit.py`
+  (updated schema/UI/API-auth tests; removed 2 obsolete tests; added 2
+  auto-auth tests)
+- `plugins/openai_responses/tests/test_openai_responses_usage_extension_unit.py`
+  (3 new reasoning mode tests + updated UI elements test)
+- `plugins/openai_responses/tests/test_openai_responses_provider_unit.py`
+  (6 new `reasoning.mode` extraction tests)
+- `plugins/openai_responses/tests/test_openai_responses_reasoning_extension_integration.py`
+  (2 new real API footer tests)
+- `plugins/openai_responses/tests/test_openai_responses_chatgpt_reasoning_pro_mode_manual_integration.py`
+  (updated Pro mode test: no xfail, assert `reasoning.mode` absent)
+- `application/python/tests/test_openai_responses_flex_processing_endpoints.py`
+  (renamed/updated Fast mode test for both auth modes)
+- `scripts/run_openai_responses_tier_matrix.py` (removed
+  `enable_fast_mode_for_api_requests` from `MatrixCase`, config builder,
+  metric formatter)
+- `plugins/openai_responses/README.md` (Fast mode section: both
+  endpoints; reasoning keys: Pro mode API-only; Pro mode billing:
+  API-only note; usage keys: `usage_reasoning_mode` footer; config
+  example: removed `enable_fast_mode_for_api_requests`)
+- `tasks/20260713-openai-responses-gpt-5-6-support/030-add-reasoning-pro-mode.md`
+  (this file: follow-up execution plan + completion notes)

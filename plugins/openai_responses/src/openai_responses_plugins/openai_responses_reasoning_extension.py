@@ -12,6 +12,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from agent_core.types import ProviderExtensionPlugin
 
+from .openai_responses_runtime import (
+    effective_auth_mode as _effective_auth_mode,
+    normalize_auth_mode as _normalize_auth_mode,
+)
+
 
 _REASONING_STATE_KEY = "_openai_responses_reasoning"
 _RAW_REASONING_METADATA_KEY = "openai_responses_reasoning"
@@ -200,7 +205,10 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
             },
         ]
 
-        if self._model_supports_pro_reasoning(model_id):
+        if self._model_supports_pro_reasoning(model_id) and (
+            not isinstance(config, dict)
+            or _normalize_auth_mode(config.get("auth_mode")) != "chatgpt"
+        ):
             elements.append(
                 {
                     "type": "select",
@@ -266,6 +274,7 @@ class OpenAIResponsesReasoningExtension(ProviderExtensionPlugin):
             isinstance(mode, str)
             and mode in _REASONING_MODES
             and self._model_supports_pro_reasoning(model)
+            and _effective_auth_mode(config) != "chatgpt"
         ):
             reasoning["mode"] = mode
 

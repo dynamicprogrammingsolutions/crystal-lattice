@@ -18,6 +18,7 @@ from .openai_responses_codex_models import (
 
 _RAW_USAGE_METADATA_KEY = "_openai_responses_usage_raw"
 _RAW_SERVICE_TIER_METADATA_KEY = "_openai_responses_service_tier"
+_RAW_REASONING_MODE_METADATA_KEY = "_openai_responses_reasoning_mode"
 _PUBLIC_USAGE_METADATA_KEYS = (
     "usage_turn_input_tokens_cumulative",
     "usage_turn_input_tokens_cumulative_formatted",
@@ -36,6 +37,7 @@ _PUBLIC_USAGE_METADATA_KEYS = (
     "usage_effective_auth_mode",
     "usage_effective_auth_mode_label",
     "usage_service_tier",
+    "usage_reasoning_mode",
     "usage_total_cost",
     "usage_total_cost_formatted",
     "usage_total_cost_cumulative",
@@ -162,6 +164,15 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
                         {"path": "metadata.usage_service_tier", "eq": "flex"},
                         {"path": "metadata.usage_service_tier", "eq": "priority"},
                     ]
+                },
+            },
+            {
+                "ui_type": "message_footer",
+                "data": "metadata.usage_reasoning_mode",
+                "template": "mode: {{data}}",
+                "condition": {
+                    "path": "metadata.usage_reasoning_mode",
+                    "eq": "pro",
                 },
             },
             {
@@ -529,6 +540,19 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         return None
 
     @staticmethod
+    def _reasoning_mode_from_items(items: List[Dict[str, Any]]) -> Optional[str]:
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            internal = item.get("_metadata")
+            if not isinstance(internal, dict):
+                continue
+            reasoning_mode = internal.get(_RAW_REASONING_MODE_METADATA_KEY)
+            if isinstance(reasoning_mode, str) and reasoning_mode:
+                return reasoning_mode
+        return None
+
+    @staticmethod
     def _attach_internal_md(
         item: Dict[str, Any], extra: Dict[str, Any]
     ) -> Dict[str, Any]:
@@ -640,6 +664,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
         )
         manual_pricing = self._manual_model_pricing()
         service_tier = self._service_tier_from_items(current_items)
+        reasoning_mode = self._reasoning_mode_from_items(current_items)
         effective_auth_mode = self._effective_auth_mode(state)
 
         input_tokens = usage.get("input_tokens")
@@ -825,6 +850,9 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
 
         if isinstance(service_tier, str) and service_tier:
             extra_md["usage_service_tier"] = service_tier
+
+        if isinstance(reasoning_mode, str) and reasoning_mode:
+            extra_md["usage_reasoning_mode"] = reasoning_mode
 
         if prompt_tokens_str is not None:
             extra_md["usage_prompt_tokens_formatted"] = prompt_tokens_str

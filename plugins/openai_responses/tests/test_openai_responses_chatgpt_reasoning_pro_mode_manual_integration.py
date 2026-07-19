@@ -185,6 +185,11 @@ def _send_streaming_request(
 @pytest.mark.integration
 @pytest.mark.openai
 def test_openai_responses_chatgpt_reasoning_mode_pro_gpt_5_6_sol() -> None:
+    """Pro mode is API-only: the reasoning extension skips ``reasoning.mode``
+    when the effective auth mode resolves to ChatGPT. The request should
+    succeed without ``reasoning.mode`` in the outgoing payload, and the
+    footer should not report ``usage_reasoning_mode == "pro"``.
+    """
     load_dotenv(REPO_ROOT / ".env")
 
     credentials_path = _credentials_path()
@@ -203,16 +208,7 @@ def test_openai_responses_chatgpt_reasoning_mode_pro_gpt_5_6_sol() -> None:
         config=config,
     )
 
-    try:
-        final_session, final_messages = _send_streaming_request(core, session, config)
-    except (
-        Exception
-    ) as exc:  # noqa: BLE001 - capture exact backend rejection for documentation
-        pytest.xfail(
-            f"ChatGPT backend rejected reasoning.mode=pro for {model}; "
-            f"API acceptance is recorded in the real API test. "
-            f"Rejection: {type(exc).__name__}: {exc}"
-        )
+    final_session, final_messages = _send_streaming_request(core, session, config)
 
     final = final_messages[-1]
     assert final.get("role") == "assistant"
@@ -223,10 +219,16 @@ def test_openai_responses_chatgpt_reasoning_mode_pro_gpt_5_6_sol() -> None:
         _RecordingChatGPTProvider.recorded_requests
     ), "expected at least one recorded request"
     reasoning = _RecordingChatGPTProvider.recorded_requests[0].get("reasoning")
+    # Pro mode is dropped for ChatGPT auth; effort and summary are preserved.
     assert isinstance(reasoning, dict)
-    assert reasoning.get("mode") == "pro"
+    assert (
+        "mode" not in reasoning
+    ), "reasoning.mode must not be injected for ChatGPT auth (API-only gating)"
     assert reasoning.get("effort") == "medium"
+    assert reasoning.get("summary") == "concise"
 
     metadata = final.get("metadata") or {}
     assert isinstance(metadata, dict)
     assert metadata.get("usage_effective_auth_mode") == "chatgpt"
+    # The backend did not receive mode=pro, so it must not report it.
+    assert metadata.get("usage_reasoning_mode") != "pro"

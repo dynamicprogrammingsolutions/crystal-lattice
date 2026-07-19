@@ -22,7 +22,9 @@ TIMESTAMP_EXTENSION_SRC = REPO_ROOT / "plugins/timestamp-extension/src"
 FEATURE_SYSTEM_MESSAGE_SRC = REPO_ROOT / "plugins/feature-system-message/src"
 TOOL_COMPAT_SHARED_SRC = REPO_ROOT / "plugins/tool-compat-shared/src"
 FEATURE_REQUEST_OPTIONS_SRC = REPO_ROOT / "plugins/feature-request-options/src"
-REFERENCE_OPENAI_COMPATIBLE_SRC = REPO_ROOT / "plugins/reference-openai-compatible-provider/src"
+REFERENCE_OPENAI_COMPATIBLE_SRC = (
+    REPO_ROOT / "plugins/reference-openai-compatible-provider/src"
+)
 
 for candidate in (
     SCRIPTS_DIR,
@@ -48,8 +50,12 @@ from agent_app.config import (  # noqa: E402
     resolve_config_mixins,
     resolve_placeholders,
 )
-from feature_system_message.system_message_feature import SystemMessageFeature  # noqa: E402
-from feature_request_options.request_options_feature import RequestOptionsFeature  # noqa: E402
+from feature_system_message.system_message_feature import (  # noqa: E402
+    SystemMessageFeature,
+)
+from feature_request_options.request_options_feature import (  # noqa: E402
+    RequestOptionsFeature,
+)
 from openai_responses_plugins import (  # noqa: E402
     OpenAIResponsesChatGPTAuthFeature,
     OpenAIResponsesFastModeExtension,
@@ -86,7 +92,6 @@ class MatrixCase:
     auth_mode: str
     enable_flex_processing: bool = False
     enable_fast_mode: bool = False
-    enable_fast_mode_for_api_requests: bool = False
 
 
 @dataclass(frozen=True)
@@ -156,7 +161,24 @@ def _line_for_index(index: int, *, punctuated: bool) -> str:
         "lattice",
         "fallow",
     ]
-    punctuation = [",", ".", ";", ":", "!", "?", "(", ")", "[", "]", "{", "}", "\"", "'", "-", "..."]
+    punctuation = [
+        ",",
+        ".",
+        ";",
+        ":",
+        "!",
+        "?",
+        "(",
+        ")",
+        "[",
+        "]",
+        "{",
+        "}",
+        '"',
+        "'",
+        "-",
+        "...",
+    ]
     parts: List[str] = []
     for word_idx in range(12):
         token = tokens[(index + word_idx) % len(tokens)]
@@ -190,7 +212,9 @@ def build_benchmark_prompt(
     desired_output_tokens: int,
 ) -> BenchmarkPrompt:
     if desired_input_tokens <= desired_output_tokens:
-        raise ValueError("desired_input_tokens must be greater than desired_output_tokens")
+        raise ValueError(
+            "desired_input_tokens must be greater than desired_output_tokens"
+        )
     if desired_output_tokens <= 0:
         raise ValueError("desired_output_tokens must be positive")
 
@@ -213,12 +237,7 @@ def build_benchmark_prompt(
         punctuated=True,
     )
 
-    user_template = (
-        "CONTEXT\n"
-        "{context}\n\n"
-        "TEXT_TO_NORMALIZE\n"
-        "{transform_text}"
-    )
+    user_template = "CONTEXT\n" "{context}\n\n" "TEXT_TO_NORMALIZE\n" "{transform_text}"
 
     current_user = user_template.format(context="", transform_text=transform_text)
     approx_instruction_tokens = approx_token_count(instructions)
@@ -228,9 +247,13 @@ def build_benchmark_prompt(
     context_text = ""
     approx_context_tokens = 0
     if remaining > 0:
-        context_text, approx_context_tokens = _build_text_block(remaining, punctuated=False)
+        context_text, approx_context_tokens = _build_text_block(
+            remaining, punctuated=False
+        )
 
-    user_message = user_template.format(context=context_text, transform_text=transform_text)
+    user_message = user_template.format(
+        context=context_text, transform_text=transform_text
+    )
     approx_user_tokens = approx_token_count(user_message)
 
     return BenchmarkPrompt(
@@ -276,9 +299,12 @@ def _base_config(model: str, desired_output_tokens: int) -> Dict[str, Any]:
     config: Dict[str, Any] = {
         "model": model,
         "base_url": os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1",
-        "chatgpt_base_url": os.getenv("OPENAI_CHATGPT_BASE_URL") or "https://chatgpt.com/backend-api/codex",
+        "chatgpt_base_url": os.getenv("OPENAI_CHATGPT_BASE_URL")
+        or "https://chatgpt.com/backend-api/codex",
         "timeout": 600,
-        "max_output_tokens": max(int(desired_output_tokens * 1.25), desired_output_tokens + 256),
+        "max_output_tokens": max(
+            int(desired_output_tokens * 1.25), desired_output_tokens + 256
+        ),
         "verbosity": "low",
     }
     api_key = os.getenv("OPENAI_API_KEY")
@@ -302,7 +328,9 @@ def _resolve_agent_target(config_json: Path, agent_id: str) -> ResolvedBenchmark
     os.environ.update(overlay_env)
 
     raw_config = load_raw_config(config_json)
-    resolved_config, _placeholder_errors = resolve_placeholders(raw_config, env=resolution_env)
+    resolved_config, _placeholder_errors = resolve_placeholders(
+        raw_config, env=resolution_env
+    )
     mixin_resolved_config, _mixin_errors = resolve_config_mixins(resolved_config)
     base_agent_config = build_agent_config(mixin_resolved_config, agent_id)
 
@@ -320,10 +348,14 @@ def _resolve_agent_target(config_json: Path, agent_id: str) -> ResolvedBenchmark
     )
 
 
-def _resolve_simplified_agent_target(agent_config_json: Path) -> ResolvedBenchmarkTarget:
+def _resolve_simplified_agent_target(
+    agent_config_json: Path,
+) -> ResolvedBenchmarkTarget:
     payload = json.loads(agent_config_json.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
-        raise RuntimeError(f"simplified agent config at {agent_config_json} is not a JSON object")
+        raise RuntimeError(
+            f"simplified agent config at {agent_config_json} is not a JSON object"
+        )
 
     base_config = payload.get("base_config")
     if not isinstance(base_config, dict):
@@ -369,22 +401,27 @@ def _case_config(
         config["auth_mode"] = case.auth_mode
         config["enable_flex_processing"] = case.enable_flex_processing
         config["enable_fast_mode"] = case.enable_fast_mode
-        config["enable_fast_mode_for_api_requests"] = case.enable_fast_mode_for_api_requests
         if case.auth_mode == "chatgpt":
             if credentials_path is None:
-                raise RuntimeError("ChatGPT credentials path is required for chatgpt runs")
+                raise RuntimeError(
+                    "ChatGPT credentials path is required for chatgpt runs"
+                )
             config["chatgpt_credentials_path"] = str(credentials_path)
             config["show_openai_auth_mode"] = True
         return config
 
     if provider_family == REFERENCE_OPENAI_COMPATIBLE_FAMILY:
         if not isinstance(base_agent_config, dict):
-            raise RuntimeError("base_agent_config is required for reference_openai_compatible runs")
+            raise RuntimeError(
+                "base_agent_config is required for reference_openai_compatible runs"
+            )
         return {
             **base_agent_config,
             "model": model,
             "timeout": base_agent_config.get("timeout", 600),
-            "max_output_tokens": max(int(desired_output_tokens * 1.25), desired_output_tokens + 256),
+            "max_output_tokens": max(
+                int(desired_output_tokens * 1.25), desired_output_tokens + 256
+            ),
         }
 
     raise ValueError(f"unsupported provider family: {provider_family}")
@@ -407,8 +444,12 @@ def _send_streaming_request(
     if not (
         provider_family == OPENAI_RESPONSES_FAMILY and spec.case.auth_mode == "chatgpt"
     ):
-        session = core.add_message(session, "developer", spec.prompt.instructions, config=run_config)
-    session = core.add_message(session, "user", spec.prompt.user_message, config=run_config)
+        session = core.add_message(
+            session, "developer", spec.prompt.instructions, config=run_config
+        )
+    session = core.add_message(
+        session, "user", spec.prompt.user_message, config=run_config
+    )
 
     final_session = None
     final_messages = None
@@ -417,7 +458,11 @@ def _send_streaming_request(
             final_session = chunk.get("session")
             final_messages = chunk.get("messages")
 
-    if final_session is None or not isinstance(final_messages, list) or not final_messages:
+    if (
+        final_session is None
+        or not isinstance(final_messages, list)
+        or not final_messages
+    ):
         raise RuntimeError("stream did not yield a final assistant message")
 
     final = final_messages[-1]
@@ -454,7 +499,12 @@ def _extract_metrics(final: Dict[str, Any], prompt: BenchmarkPrompt) -> Dict[str
     output_tokens = _safe_int(usage.get("output_tokens"))
     duration_ms = _safe_int(metadata.get("duration_ms"))
     turn_tps = _safe_float(metadata.get("turn_tps"))
-    if turn_tps is None and duration_ms and output_tokens is not None and duration_ms > 0:
+    if (
+        turn_tps is None
+        and duration_ms
+        and output_tokens is not None
+        and duration_ms > 0
+    ):
         turn_tps = output_tokens / (duration_ms / 1000.0)
 
     content = final.get("content")
@@ -464,7 +514,9 @@ def _extract_metrics(final: Dict[str, Any], prompt: BenchmarkPrompt) -> Dict[str
         "reported_service_tier": metadata.get("usage_service_tier") or "default",
         "effective_auth_mode": metadata.get("usage_effective_auth_mode") or "",
         "duration_ms": duration_ms,
-        "duration_seconds": (duration_ms / 1000.0) if isinstance(duration_ms, int) else None,
+        "duration_seconds": (
+            (duration_ms / 1000.0) if isinstance(duration_ms, int) else None
+        ),
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "turn_tps": turn_tps,
@@ -487,12 +539,13 @@ def build_matrix_cases(run_scope: str, provider_family: str) -> List[MatrixCase]
         cases.extend(
             [
                 MatrixCase(name="api-default", auth_mode="api"),
-                MatrixCase(name="api-flex", auth_mode="api", enable_flex_processing=True),
+                MatrixCase(
+                    name="api-flex", auth_mode="api", enable_flex_processing=True
+                ),
                 MatrixCase(
                     name="api-priority",
                     auth_mode="api",
                     enable_fast_mode=True,
-                    enable_fast_mode_for_api_requests=True,
                 ),
             ]
         )
@@ -500,13 +553,17 @@ def build_matrix_cases(run_scope: str, provider_family: str) -> List[MatrixCase]
         cases.extend(
             [
                 MatrixCase(name="chatgpt-default", auth_mode="chatgpt"),
-                MatrixCase(name="chatgpt-priority", auth_mode="chatgpt", enable_fast_mode=True),
+                MatrixCase(
+                    name="chatgpt-priority", auth_mode="chatgpt", enable_fast_mode=True
+                ),
             ]
         )
     return cases
 
 
-def parse_case_names(case_names: Optional[str], available_cases: Sequence[MatrixCase]) -> List[MatrixCase]:
+def parse_case_names(
+    case_names: Optional[str], available_cases: Sequence[MatrixCase]
+) -> List[MatrixCase]:
     if not isinstance(case_names, str) or not case_names.strip():
         return list(available_cases)
     wanted = [item.strip() for item in case_names.split(",") if item.strip()]
@@ -632,7 +689,11 @@ def run_specs(
         (spec.model, spec.case.name, spec.repeat_index): idx
         for idx, spec in enumerate(specs)
     }
-    out.sort(key=lambda item: order[(item.spec.model, item.spec.case.name, item.spec.repeat_index)])
+    out.sort(
+        key=lambda item: order[
+            (item.spec.model, item.spec.case.name, item.spec.repeat_index)
+        ]
+    )
     return out
 
 
@@ -642,7 +703,6 @@ def _format_metric_lines(result: RunResult) -> Iterable[str]:
     yield f"auth_mode={spec.case.auth_mode}"
     yield f"enable_flex_processing={spec.case.enable_flex_processing}"
     yield f"enable_fast_mode={spec.case.enable_fast_mode}"
-    yield f"enable_fast_mode_for_api_requests={spec.case.enable_fast_mode_for_api_requests}"
     yield f"approx_input_tokens_target={spec.prompt.approx_total_input_tokens}"
     yield f"approx_output_tokens_target={spec.prompt.approx_transform_tokens}"
     yield f"approx_context_tokens={spec.prompt.approx_context_tokens}"
@@ -695,7 +755,9 @@ def _aggregate_results(results: Sequence[RunResult]) -> List[Dict[str, Any]]:
                 "mean_tps": mean(tps_values) if tps_values else None,
                 "min_tps": min(tps_values) if tps_values else None,
                 "max_tps": max(tps_values) if tps_values else None,
-                "mean_duration_seconds": mean(duration_values) if duration_values else None,
+                "mean_duration_seconds": (
+                    mean(duration_values) if duration_values else None
+                ),
             }
         )
     return summaries
@@ -719,7 +781,11 @@ def _default_output_path(models: Sequence[str]) -> Path:
         label = models[0].replace("/", "_")
     else:
         label = f"{len(models)}models"
-    return REPO_ROOT / "artifacts" / f"openai_responses_tier_matrix_{label}_{timestamp}.txt"
+    return (
+        REPO_ROOT
+        / "artifacts"
+        / f"openai_responses_tier_matrix_{label}_{timestamp}.txt"
+    )
 
 
 def _default_profile(desired_input_tokens: int, desired_output_tokens: int) -> str:
@@ -775,17 +841,26 @@ def _build_result_records(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run an OpenAI Responses tier benchmark matrix.")
+    parser = argparse.ArgumentParser(
+        description="Run an OpenAI Responses tier benchmark matrix."
+    )
     parser.add_argument(
         "--agent-config-json",
         help="Simplified benchmark agent config JSON with provider_family and base_config.",
     )
-    parser.add_argument("--config-json", help="Optional config JSON path used to resolve an agent config.")
+    parser.add_argument(
+        "--config-json",
+        help="Optional config JSON path used to resolve an agent config.",
+    )
     parser.add_argument("--agent-id", help="Agent id to resolve from --config-json.")
     parser.add_argument("--model", help="Single model to benchmark.")
     parser.add_argument("--models", help="Comma-separated model list to benchmark.")
-    parser.add_argument("--case-names", help="Comma-separated explicit case names to run.")
-    parser.add_argument("--repeat", type=int, default=1, help="Repeat count for each row.")
+    parser.add_argument(
+        "--case-names", help="Comma-separated explicit case names to run."
+    )
+    parser.add_argument(
+        "--repeat", type=int, default=1, help="Repeat count for each row."
+    )
     parser.add_argument(
         "--execution-mode",
         choices=("sequential", "parallel"),
@@ -853,24 +928,36 @@ def main() -> int:
     elif args.config_json or args.agent_id:
         if not (args.config_json and args.agent_id):
             raise RuntimeError("--config-json and --agent-id must be provided together")
-        resolved_target = _resolve_agent_target(Path(args.config_json).expanduser(), args.agent_id)
+        resolved_target = _resolve_agent_target(
+            Path(args.config_json).expanduser(), args.agent_id
+        )
 
     models = parse_models(
         args.model or (resolved_target.model if resolved_target is not None else None),
         args.models,
     )
     batch_started_at = datetime.now(timezone.utc).isoformat()
-    output_path = Path(args.output).expanduser() if args.output else _default_output_path(models)
+    output_path = (
+        Path(args.output).expanduser() if args.output else _default_output_path(models)
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     results_json_path = Path(args.results_json).expanduser()
-    profile = args.profile or _default_profile(args.desired_input_tokens, args.desired_output_tokens)
+    profile = args.profile or _default_profile(
+        args.desired_input_tokens, args.desired_output_tokens
+    )
 
     provider_family = (
-        resolved_target.family if resolved_target is not None else OPENAI_RESPONSES_FAMILY
+        resolved_target.family
+        if resolved_target is not None
+        else OPENAI_RESPONSES_FAMILY
     )
-    cases = parse_case_names(args.case_names, build_matrix_cases(args.run_scope, provider_family))
+    cases = parse_case_names(
+        args.case_names, build_matrix_cases(args.run_scope, provider_family)
+    )
     credentials_path: Optional[Path] = None
-    if provider_family == OPENAI_RESPONSES_FAMILY and any(case.auth_mode == "chatgpt" for case in cases):
+    if provider_family == OPENAI_RESPONSES_FAMILY and any(
+        case.auth_mode == "chatgpt" for case in cases
+    ):
         credentials_path = Path(args.chatgpt_credentials_path).expanduser()
         _load_saved_credentials(credentials_path)
 
@@ -895,7 +982,9 @@ def main() -> int:
         desired_output_tokens=args.desired_output_tokens,
         execution_mode=args.execution_mode,
         max_workers=args.max_workers,
-        base_agent_config=(resolved_target.config if resolved_target is not None else None),
+        base_agent_config=(
+            resolved_target.config if resolved_target is not None else None
+        ),
     )
     summaries = _aggregate_results(results)
 
