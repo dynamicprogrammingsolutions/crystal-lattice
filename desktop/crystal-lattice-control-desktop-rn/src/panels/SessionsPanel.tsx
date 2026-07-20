@@ -783,6 +783,7 @@ function SessionsPanelInner({
             return (
               <Pressable
                 key={session.session_id}
+                testID={`session-row-${session.session_id}`}
                 style={(state) => {
                   const pressedOrHovered =
                     ((state as any).hovered as boolean | undefined) || state.pressed;
@@ -801,7 +802,12 @@ function SessionsPanelInner({
               >
                 <View style={styles.rowMain}>
                   <View style={styles.rowTitleRow}>
-                    <Text style={styles.rowTitle}>{title}</Text>
+                    <Text
+                      style={styles.rowTitle}
+                      testID={`session-title-${session.session_id}`}
+                    >
+                      {title}
+                    </Text>
                     {pinnedToggleElement ? (
                       <Pressable
                         style={(state) => {
@@ -834,9 +840,17 @@ function SessionsPanelInner({
                   <Text style={styles.rowId} numberOfLines={1}>
                     {session.session_id}
                   </Text>
-                  <Text style={styles.rowSubtitle}>{subtitle}</Text>
+                  <Text
+                    style={styles.rowSubtitle}
+                    testID={`session-subtitle-${session.session_id}`}
+                  >
+                    {subtitle}
+                  </Text>
                   {meta ? (
-                    <Text style={styles.rowMeta}>
+                    <Text
+                      style={styles.rowMeta}
+                      testID={`session-meta-${session.session_id}`}
+                    >
                       {meta}
                     </Text>
                   ) : null}

@@ -1,3 +1,27 @@
+global.__fbBatchedBridgeConfig = global.__fbBatchedBridgeConfig || {
+  remoteModuleConfig: [],
+};
+
+jest.mock('@crystal-lattice/react-native-mac-text-view', () => {
+  const React = require('react');
+  const { TextInput } = require('react-native');
+
+  const MacTextView = React.forwardRef((props, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      setText: () => {},
+      focus: () => {},
+    }));
+    return React.createElement(TextInput, {
+      ...props,
+      defaultValue: props.initialText,
+    });
+  });
+
+  return {
+    MacTextView,
+  };
+});
+
 jest.mock(
   '@react-native-async-storage/async-storage',
   () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'),

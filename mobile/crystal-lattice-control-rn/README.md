@@ -151,7 +151,7 @@ npx react-native run-android
 
 **Note:** Make sure you have an emulator running or a device connected via USB with USB debugging enabled.
 
-## Running Detox transcript tests
+## Running Detox tests
 
 The transcript scroll suite launches a deterministic 300-message harness that
 uses the same production inverted FlatList viewport and chevron controls as the
@@ -169,6 +169,14 @@ Build and run on Android:
 ```bash
 npm run detox:build:android
 npm run detox:test:transcript:android
+```
+
+The deterministic session-list harness exercises application-derived row
+presentation, server ordering, ordinary action fallback, and dialog prefill:
+
+```bash
+npm run detox:test:session-list:ios
+npm run detox:test:session-list:android
 ```
 
 The Android test command prepares and stops the selected AVD before Detox starts

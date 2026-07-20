@@ -96,6 +96,7 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
           <View key={action.key} style={styles.menuItem}>
             <TouchableOpacity
               style={styles.menuItemLeft}
+              testID={`actions-menu-action-${String(action.key)}`}
               onPress={onPressAction}
               disabled={disabled}
             >

@@ -624,12 +624,14 @@ export function ApplicationActionDialogLayout({
       <View style={styles.modalButtonsRow}>
         <TouchableOpacity
           style={[styles.button, styles.secondaryButton, styles.modalButton]}
+          testID="application-action-dialog-cancel"
           onPress={onCancel}
         >
           <Text style={styles.buttonTextSecondary}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.button, styles.primaryButton, styles.modalButton]}
+          testID="application-action-dialog-primary"
           onPress={handlePrimary}
         >
           <Text style={styles.buttonText}>OK</Text>

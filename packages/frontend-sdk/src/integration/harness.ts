@@ -373,6 +373,8 @@ export async function startBackendViaCLI(options: {
     stop,
   };
 }
+
+export interface StartedBridge {
   bridgeUrl: string;
   stop: () => Promise<void>;
   suspend?: () => Promise<void>;

@@ -274,6 +274,37 @@ Scope control for this completion:
 - no HTTP filter query API, message-action generalization, session-view action
   generalization, or action-result display changes are included here.
 
+## Follow-up coverage plan
+
+Added after completion review with explicit user approval.
+
+- [x] Add FastAPI `TestClient` coverage for the serialized `/sessions` and
+  `/sessions/{id}/summary` contracts, including ordering, limits, metadata
+  projection, exact-summary parity, and missing-session handling.
+- [x] Add mobile `SessionsScreen` component coverage for application-derived
+  presentation, server ordering, ordinary-action fallback, and dialog prefill.
+- [x] Exercise the real frontend SDK dialog-initialization helper from the
+  React Native component regression test instead of duplicating that helper in
+  the Jest mock.
+- [x] Add a deterministic mobile session-list harness and Detox smoke suite for
+  iOS Simulator and Android Emulator, covering native row presentation,
+  ordering, ordinary-action fallback, and prefill behavior.
+- [x] Add focused frontend SDK transport, action-path edge-case, and React
+  diagnostics propagation tests.
+- [x] Add a real-backend mobile session-list component integration test.
+- [x] Add generic desktop `SessionsPanel` component coverage for
+  application-derived presentation and server ordering.
+- [ ] Add mobile, desktop, and macOS native UI coverage for the concrete rich
+  actions in
+  `tasks/20260719-plugin-session-archive-filters/030-rich-session-list-actions.md`.
+- [ ] Add configured pin/archive/status state tests with the concrete rich
+  action work in
+  `tasks/20260719-plugin-session-archive-filters/030-rich-session-list-actions.md`.
+
+All foundation-owned follow-ups are complete. The remaining items are
+explicitly deferred to task 030 because they require the concrete rich-action
+implementations and configured pin/archive/status plugins.
+
 ## Completion Notes
 
 Added during task completion.
@@ -318,6 +349,55 @@ Verification completed:
 - Frontend SDK: `211 passed`; React bindings: `15 passed`; shared React Native
   components: `7 passed`.
 - Mobile action-dialog regression tests: `4 passed`.
+
+Follow-up coverage execution:
+
+- Added FastAPI `TestClient` coverage for serialized list and exact-summary
+  responses, modification-time fallback ordering, post-order limit behavior,
+  metadata projection, malformed-record isolation, and HTTP 404 handling.
+- Added mobile `SessionsScreen` component tests proving that application-derived
+  presentation wins over local fields, server order is preserved, malformed
+  rich configuration retains the ordinary form, and stored metadata supplies
+  dialog prefill.
+- Removed the duplicate dialog-initialization implementation from the mobile
+  component test so it now exercises the real frontend SDK helper.
+- Added stable session-row, action-menu, action-item, and dialog-control test
+  identifiers at the production component boundaries.
+- Added a deterministic `MobileSessionListHarness`, native launch routing,
+  dedicated package scripts, and a two-scenario Detox suite.
+- Verified the Detox suite on both iPhone 17 Pro Simulator and
+  `Medium_Phone_API_36.1`: `2 passed` on each platform.
+- Broader follow-up verification: `62 passed` across the focused Python
+  application/server suites; `73 passed` in the complete mobile Jest suite;
+  frontend SDK `211 passed`; React bindings `15 passed`; shared React Native
+  components `7 passed`; mobile TypeScript passed.
+- Targeted ESLint was not run because the mobile package currently has no
+  discoverable ESLint configuration; its existing `lint` script fails before
+  analyzing source files for the same reason.
+- Added frontend SDK transport coverage for list and exact-summary responses,
+  plus action-path coverage for arrays, explicit `null`, false, zero, empty
+  strings, and genuinely missing values.
+- Added React selector coverage proving session-list diagnostics propagate
+  through `useApplicationPlugins`.
+- Added a real-backend mobile integration that uses the actual
+  `session-title-app` and message-count plugin, verifies HTTP summaries, opens
+  the real list action, checks stored prefill, submits a title mutation, and
+  observes the refreshed screen.
+- Restored the missing `StartedBridge` interface declaration in the shared
+  integration harness; this had prevented every mobile real-backend component
+  test from collecting. All six mobile real-backend integration tests now
+  pass.
+- Added desktop `SessionsPanel` component coverage for application-derived
+  presentation, server ordering, and open-tab presentation propagation.
+- Added the standard desktop React Native Jest bridge bootstrap and a public
+  API mock for the macOS-only text host component, allowing `App.test.tsx` and
+  all 14 desktop suites to execute. All 82 desktop assertions pass; the
+  combined Jest command still exits nonzero after completion because an
+  existing `DependencyFlatList` timer accesses the Jest environment after
+  teardown. The `DependencyFlatList` suite and the new `SessionsPanel` suite
+  both pass independently.
+- Updated frontend verification totals: frontend SDK `215 passed`; React
+  bindings `16 passed`; shared React Native components `7 passed`.
 - Mobile TypeScript check: passed.
 - Targeted Python Ruff and Black checks: passed.
 - Documentation preparation and MkDocs build: passed with only pre-existing

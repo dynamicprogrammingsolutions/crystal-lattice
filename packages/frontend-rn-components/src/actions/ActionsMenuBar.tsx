@@ -43,6 +43,7 @@ export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefin
   onChangePinned: (nextPinned: ActionKey[]) => void;
   onAction: (key: ActionKey) => void;
   onOpenMenu?: () => void;
+  menuButtonTestID?: string;
   isActionDisabled?: (key: ActionKey) => boolean;
   isActive?: boolean;
 
@@ -208,6 +209,8 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
           <TouchableOpacity
             style={styles.iconButton}
             hitSlop={ICON_BUTTON_HIT_SLOP}
+            accessibilityLabel={`Open ${props.title}`}
+            testID={props.menuButtonTestID}
             onPress={() => {
               if (isMacOSPopoverMenu) {
                 const anchorTag = menuAnchorRef.current

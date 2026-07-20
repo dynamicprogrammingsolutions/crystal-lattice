@@ -578,11 +578,17 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       <TouchableOpacity
         key={s.session_id}
         style={styles.sessionItem}
+        testID={`session-row-${s.session_id}`}
 	      onPress={() => navigateToSession(s.session_id)}
       >
         <View style={styles.sessionHeaderRow}>
           <View style={styles.sessionHeaderTextColumn}>
-            <Text style={styles.sessionTitle}>{title}</Text>
+            <Text
+              style={styles.sessionTitle}
+              testID={`session-title-${s.session_id}`}
+            >
+              {title}
+            </Text>
           </View>
           {pinnedToggleElement ? (
             <TouchableOpacity
@@ -606,11 +612,21 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         </View>
         <Text style={styles.sessionId}>{s.session_id}</Text>
         {subtitle ? (
-          <Text style={styles.sessionSubtitle}>{subtitle}</Text>
+          <Text
+            style={styles.sessionSubtitle}
+            testID={`session-subtitle-${s.session_id}`}
+          >
+            {subtitle}
+          </Text>
         ) : s.preview ? (
           <Text style={styles.sessionPreview}>{s.preview}</Text>
         ) : null}
-        <Text style={styles.sessionMeta}>{metaText || `Updated: ${modifiedLabel}`}</Text>
+        <Text
+          style={styles.sessionMeta}
+          testID={`session-meta-${s.session_id}`}
+        >
+          {metaText || `Updated: ${modifiedLabel}`}
+        </Text>
         {hasAnyActions && (
           <View style={styles.sessionActionsRow}>
             <SessionActionsBar
@@ -629,6 +645,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               extraActions={pluginSessionActionDefs}
               availableActions={BUILTIN_SESSION_LIST_ACTIONS}
               isActive={isActive}
+              menuButtonTestID={`session-actions-menu-${s.session_id}`}
               modalContentStyle={styles.sessionActionsModalContent}
             />
           </View>

@@ -72,7 +72,9 @@ export function useApplicationPluginsContext(): ApplicationPluginsContextValue {
   return useContext(ApplicationPluginsContext);
 }
 
-export function useApplicationPlugins(): UseApplicationPluginsResult {
+export function selectApplicationPlugins(
+  value: ApplicationPluginsContextValue,
+): UseApplicationPluginsResult {
   const {
     actionsById,
     sessionActions,
@@ -81,7 +83,7 @@ export function useApplicationPlugins(): UseApplicationPluginsResult {
     sessionListFields,
     sessionListPinnedToggles,
     sessionListDiagnostics,
-  } = useApplicationPluginsContext();
+  } = value;
   return {
     actionsById,
     sessionActions,
@@ -91,4 +93,8 @@ export function useApplicationPlugins(): UseApplicationPluginsResult {
     sessionListPinnedToggles,
     sessionListDiagnostics,
   };
+}
+
+export function useApplicationPlugins(): UseApplicationPluginsResult {
+  return selectApplicationPlugins(useApplicationPluginsContext());
 }
