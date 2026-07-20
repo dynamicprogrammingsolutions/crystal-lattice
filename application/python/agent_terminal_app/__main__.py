@@ -63,6 +63,11 @@ def _configure_logging(
 
     # Standard library logging: always keep stdout; optionally add file.
     if log_file:
+        # Ensure the parent directory exists (e.g. .crystal/ may not
+        # have been created yet when logging is configured).
+        parent = Path(log_file).parent
+        if str(parent) and not parent.exists():
+            parent.mkdir(parents=True, exist_ok=True)
         handler = logging.FileHandler(log_file)
         handler.setLevel(effective_level)
         formatter = logging.Formatter(
