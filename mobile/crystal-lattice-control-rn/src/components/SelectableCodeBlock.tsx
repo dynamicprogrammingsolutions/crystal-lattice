@@ -1,9 +1,10 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, type TextStyle, View } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Alert, Pressable, ScrollView, StyleSheet, type TextStyle, View } from 'react-native';
 import {
   SelectableCodeBlockView,
   type SelectableCodeToken,
 } from '@ferenci84/react-native-selectable-code-block';
+import Clipboard from '@react-native-clipboard/clipboard';
 import Icon from 'react-native-vector-icons/Feather';
 import lowlight from 'lowlight';
 import * as hljsStyles from 'react-syntax-highlighter/styles/hljs';
@@ -158,6 +159,10 @@ const SelectableCodeBlock: React.FC<SelectableCodeBlockProps> = ({
   );
   const lineHeight = Math.round(theme.typography.fontSize.code * 1.25);
   const baseCodeColor = colorValueToString(stylesheet.hljs?.color) || theme.text;
+  const handleCopyCode = useCallback(() => {
+    Clipboard.setString(code);
+    Alert.alert('Copied', 'Copied to clipboard.');
+  }, [code]);
   const selectableCodeBlock = (
     <SelectableCodeBlockView
       tokens={selectableTokens}
@@ -187,13 +192,32 @@ const SelectableCodeBlock: React.FC<SelectableCodeBlockProps> = ({
     >
       <View style={[styles.codeBlockToolbar, { borderBottomColor: theme.border }]}>
         <Pressable
+          accessibilityLabel="Copy code"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={handleCopyCode}
+          style={[
+            styles.toolbarButton,
+            {
+              backgroundColor: theme.surfaceAlt,
+              borderColor: theme.border,
+            },
+          ]}
+        >
+          <Icon
+            name="copy"
+            size={15}
+            color={theme.text}
+          />
+        </Pressable>
+        <Pressable
           accessibilityLabel={wrapLines ? 'Disable line wrapping' : 'Enable line wrapping'}
           accessibilityRole="button"
           accessibilityState={{ selected: wrapLines }}
           hitSlop={8}
           onPress={() => setWrapLines((current) => !current)}
           style={[
-            styles.wrapButton,
+            styles.toolbarButton,
             {
               backgroundColor: wrapLines ? theme.primary : theme.surfaceAlt,
               borderColor: wrapLines ? theme.primary : theme.border,
@@ -243,11 +267,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderBottomWidth: StyleSheet.hairlineWidth,
     flexDirection: 'row',
+    gap: 6,
     justifyContent: 'flex-end',
     minHeight: 32,
     paddingHorizontal: 6,
   },
-  wrapButton: {
+  toolbarButton: {
     alignItems: 'center',
     borderRadius: 6,
     borderWidth: StyleSheet.hairlineWidth,

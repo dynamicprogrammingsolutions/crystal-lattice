@@ -1,5 +1,7 @@
 import React from 'react';
 import TestRenderer from 'react-test-renderer';
+import { Alert } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import type { SelectableCodeToken } from '@ferenci84/react-native-selectable-code-block';
 import SelectableCodeBlock, { tokenizeCode } from '../src/components/SelectableCodeBlock';
 
@@ -7,6 +9,10 @@ const tokenStyle = {
   'hljs-keyword': { color: '#ff0000' },
   'hljs-number': { color: '#00ff00' },
 };
+
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 test('tokenizeCode highlights known languages', () => {
   const tokens = tokenizeCode('const value = 1;\n', 'ts', tokenStyle);
@@ -71,4 +77,30 @@ test('SelectableCodeBlock renders selectable highlighted token data', () => {
   expect(selectableCodeBlockView.props.tokens[0]).toEqual(
     expect.objectContaining({ text: expect.any(String) }),
   );
+});
+
+test('SelectableCodeBlock can copy the complete raw code from the toolbar', () => {
+  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const code = 'const value = 1;\n';
+  let renderer: TestRenderer.ReactTestRenderer;
+
+  TestRenderer.act(() => {
+    renderer = TestRenderer.create(
+      <SelectableCodeBlock
+        code={code}
+        language="ts"
+      />,
+    );
+  });
+
+  const copyButton = renderer!.root.find(
+    (node) => node.props.accessibilityLabel === 'Copy code',
+  );
+
+  TestRenderer.act(() => {
+    copyButton.props.onPress();
+  });
+
+  expect(Clipboard.setString).toHaveBeenCalledWith(code);
+  expect(alertSpy).toHaveBeenCalledWith('Copied', 'Copied to clipboard.');
 });
