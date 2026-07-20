@@ -33,7 +33,14 @@ const FALLBACK_LIGHT: Theme = {
   textMuted: '#8E8E93',
   textOnPrimary: '#FFFFFF',
   danger: '#FF3B30',
+  dangerMuted: 'rgba(255, 59, 48, 0.12)',
   success: '#34C759',
+  successMuted: 'rgba(52, 199, 89, 0.12)',
+  warning: '#FF9500',
+  warningMuted: 'rgba(255, 149, 0, 0.12)',
+  notification: '#007AFF',
+  notificationMuted: 'rgba(0, 122, 255, 0.12)',
+  message: '#0A84FF',
   bubbleUserBg: 'rgba(0, 122, 255, 0.12)',
   bubbleSystemBorder: '#D1D1D6',
   bubbleToolBg: 'rgba(142, 142, 147, 0.08)',
@@ -61,7 +68,14 @@ const FALLBACK_DARK: Theme = {
   textMuted: '#8E8E93',
   textOnPrimary: '#FFFFFF',
   danger: '#FF453A',
+  dangerMuted: 'rgba(255, 69, 58, 0.22)',
   success: '#32D74B',
+  successMuted: 'rgba(50, 215, 75, 0.22)',
+  warning: '#FF9F0A',
+  warningMuted: 'rgba(255, 159, 10, 0.22)',
+  notification: '#0A84FF',
+  notificationMuted: 'rgba(10, 132, 255, 0.22)',
+  message: '#0A84FF',
   bubbleUserBg: '#0040A5',
   bubbleSystemBorder: '#5A5A5E',
   bubbleToolBg: 'rgba(142, 142, 147, 0.25)',
@@ -89,6 +103,16 @@ export function buildDesktopTheme(payload: MacOSSystemThemePayload | null): Them
   const textOnPrimary = pickTextOnColor(primary);
   const primaryMuted = withAlpha(primary, isDark ? 0.22 : 0.12);
 
+  const notification = payload.notification || primary;
+  const notificationMuted = withAlpha(notification, isDark ? 0.22 : 0.12);
+  const warning = payload.warning || (isDark ? '#FF9F0A' : '#FF9500');
+  const warningMuted = withAlpha(warning, isDark ? 0.22 : 0.12);
+  const danger = payload.danger;
+  const dangerMuted = withAlpha(danger, isDark ? 0.22 : 0.12);
+  const success = payload.success;
+  const successMuted = withAlpha(success, isDark ? 0.22 : 0.12);
+  const message = notification;
+
   const border = scaleAlpha(payload.separator, isDark ? 1.55 : 1.85);
   const divider = scaleAlpha(payload.separator, isDark ? 1.85 : 2.25);
 
@@ -109,8 +133,15 @@ export function buildDesktopTheme(payload: MacOSSystemThemePayload | null): Them
     textSecondary: payload.textSecondary,
     textMuted: payload.textMuted,
     textOnPrimary,
-    danger: payload.danger,
-    success: payload.success,
+    danger,
+    dangerMuted,
+    success,
+    successMuted,
+    warning,
+    warningMuted,
+    notification,
+    notificationMuted,
+    message,
     bubbleUserBg: withAlpha(primary, isDark ? 0.22 : 0.12),
     bubbleSystemBorder: border,
     bubbleToolBg: withAlpha(payload.textSecondary, isDark ? 0.18 : 0.08),

@@ -336,6 +336,8 @@ static NSColor *CLCSystemColor(NSString *selectorName, NSColor *fallback)
     @"textMuted" : CLCColorToString(CLCSystemColor(@"tertiaryLabelColor", [NSColor disabledControlTextColor]), preferredAppearance),
     @"danger" : CLCColorToString(CLCSystemColor(@"systemRedColor", [NSColor redColor]), preferredAppearance),
     @"success" : CLCColorToString(CLCSystemColor(@"systemGreenColor", [NSColor greenColor]), preferredAppearance),
+    @"warning" : CLCColorToString(CLCSystemColor(@"systemYellowColor", [NSColor yellowColor]), preferredAppearance),
+    @"notification" : CLCColorToString(CLCSystemColor(@"systemBlueColor", [NSColor blueColor]), preferredAppearance),
   };
 }
 - (void)emitSystemThemeChanged

@@ -52,9 +52,9 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       gap: 10,
       paddingHorizontal: 12,
       paddingVertical: 8,
-      backgroundColor: theme.primaryMuted,
+      backgroundColor: theme.notificationMuted,
       borderBottomWidth: borderWidth,
-      borderBottomColor: theme.border,
+      borderBottomColor: theme.notification,
     },
     text: {
       flex: 1,

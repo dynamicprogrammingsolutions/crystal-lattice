@@ -36,7 +36,7 @@ jest.mock('@crystal-lattice/frontend-sdk', () => ({
 
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
-  const { Text, TextInput, View } = require('react-native');
+  const { Pressable, Text, TextInput, View } = require('react-native');
   const theme = {
     typography: {
       fontSize: {
@@ -65,7 +65,14 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     textMuted: '#666',
     textOnPrimary: '#fff',
     danger: '#f00',
+    dangerMuted: 'rgba(255, 0, 0, 0.12)',
     success: '#0a0',
+    successMuted: 'rgba(0, 170, 0, 0.12)',
+    warning: '#FF9500',
+    warningMuted: 'rgba(255, 149, 0, 0.12)',
+    notification: '#007AFF',
+    notificationMuted: 'rgba(0, 122, 255, 0.12)',
+    message: '#0A84FF',
     bubbleUserBg: '#fff',
     bubbleSystemBorder: '#ddd',
     bubbleToolBg: '#fff',
@@ -136,6 +143,38 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     useTheme: () => theme,
     DropdownMenuSurface: ({ visible, children }: { visible: boolean; children: any }) =>
       visible ? React.createElement(React.Fragment, null, children) : null,
+    SessionListFiltersPanel: ({
+      schema,
+      values,
+      onChange,
+      onReset,
+      onShowAll,
+    }) =>
+      React.createElement(
+        View,
+        { testID: 'session-filters-panel' },
+        (schema?.filters || [])
+          .filter((filter) => filter.id !== schema?.mainSearch?.id)
+          .map((filter) =>
+            React.createElement(
+              Pressable,
+              {
+                key: filter.id,
+                testID: `session-filter-${filter.id}`,
+                onPress: () => onChange(filter.id, values[filter.id]),
+              },
+              React.createElement(Text, null, filter.label),
+            ),
+          ),
+        React.createElement(Pressable, {
+          testID: 'session-filters-show-all',
+          onPress: onShowAll,
+        }),
+        React.createElement(Pressable, {
+          testID: 'session-filters-reset',
+          onPress: onReset,
+        }),
+      ),
 
     ActionsMenuBar: () => null,
     ApplicationActionDialog: ({ visible }: { visible: boolean }) => (visible ? React.createElement(View, null) : null),

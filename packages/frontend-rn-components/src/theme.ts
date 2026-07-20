@@ -28,7 +28,14 @@ export interface Theme {
   textMuted: string;
   textOnPrimary: string;
   danger: string;
+  dangerMuted: string;
   success: string;
+  successMuted: string;
+  warning: string;
+  warningMuted: string;
+  notification: string;
+  notificationMuted: string;
+  message: string;
   bubbleUserBg: string;
   bubbleSystemBorder: string;
   bubbleToolBg: string;
@@ -69,7 +76,14 @@ const defaultLightTheme: Theme = {
   textMuted: '#8E8E93',
   textOnPrimary: '#FFFFFF',
   danger: '#FF3B30',
+  dangerMuted: 'rgba(255, 59, 48, 0.12)',
   success: '#34C759',
+  successMuted: 'rgba(52, 199, 89, 0.12)',
+  warning: '#FF9500',
+  warningMuted: 'rgba(255, 149, 0, 0.12)',
+  notification: '#007AFF',
+  notificationMuted: 'rgba(0, 122, 255, 0.12)',
+  message: '#0A84FF',
   bubbleUserBg: 'rgba(0, 122, 255, 0.12)',
   bubbleSystemBorder: '#E5E5EA',
   bubbleToolBg: 'rgba(142, 142, 147, 0.08)',
