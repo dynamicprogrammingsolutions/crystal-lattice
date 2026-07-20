@@ -89,6 +89,8 @@ def test_session_pinned_contributes_legacy_toggle_and_boolean_filter(
     )
 
     assert legacy_toggle["action_id"] == "toggle_session_pinned"
+    assert legacy_toggle["data"] == "metadata.favorite"
+    assert legacy_toggle["missing_value"] is False
     assert pin_filter == {
         "ui_type": "session_list_filter",
         "id": "pinned_state",

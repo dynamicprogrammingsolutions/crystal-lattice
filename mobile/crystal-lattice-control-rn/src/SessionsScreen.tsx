@@ -20,6 +20,7 @@ import {
   groupSessionListFields,
   normalizeActionDisplayForSurface,
   pickDefaultAgentId,
+  resolveSessionListPath,
   runApplicationAction,
   type RunActionContext,
 } from '@crystal-lattice/frontend-sdk';
@@ -72,6 +73,21 @@ const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
 const DEFAULT_PINNED_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
 
 const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings', 'plugins'];
+
+function resolvePinnedState(
+  session: SessionSummary,
+  pinnedToggleElement: ActionUiElement | undefined,
+): boolean {
+  const dataPath =
+    typeof pinnedToggleElement?.data === 'string' && pinnedToggleElement.data
+      ? pinnedToggleElement.data
+      : 'metadata.pinned';
+  const resolved = resolveSessionListPath(session, dataPath);
+  const value = resolved.found
+    ? resolved.value
+    : pinnedToggleElement?.missing_value;
+  return value === true;
+}
 
 type ActionDisplayEntry = {
   key: string;
@@ -573,8 +589,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	    const subtitle = presentation.subtitle;
 	    const metaText = presentation.meta;
 
-    const isPinned = !!s.pinned;
     const pinnedToggleElement = sessionListPinnedToggles[0];
+    const isPinned = resolvePinnedState(s, pinnedToggleElement);
 
     const actions = sessionListActions ?? [];
 
@@ -612,6 +628,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
             <TouchableOpacity
               style={styles.pinIconButton}
               hitSlop={PIN_BUTTON_HIT_SLOP}
+              testID={`session-pin-toggle-${s.session_id}`}
+              accessibilityRole="button"
+              accessibilityLabel={isPinned ? 'Unpin session' : 'Pin session'}
+              accessibilityState={{ selected: isPinned }}
               onPress={() => {
                 if (!backend) {
                   Alert.alert('Error', 'No active connection');
@@ -624,6 +644,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
                 name="star"
                 size={18}
                 color={isPinned ? '#FFCC00' : theme.textSecondary}
+                testID={`session-pin-icon-${s.session_id}`}
               />
             </TouchableOpacity>
           ) : null}

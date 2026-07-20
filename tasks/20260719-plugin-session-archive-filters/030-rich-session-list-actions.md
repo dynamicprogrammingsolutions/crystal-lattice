@@ -47,8 +47,11 @@ Task 030 must extend that existing ordinary action with
 `rich_ui.kind: "list"` and immediate selection. Do not recreate or rename the
 plugin, action, filter, option values, or metadata configuration. The pin
 plugin likewise already emits `pinned_state`; task 030 retains only the
-ordinary rich-toggle migration for its row action. Archive and ordering work
-remain wholly owned here.
+ordinary rich-toggle migration for its row action. A manual-test regression
+repair in task 020 also updated `session-ordering-buckets-app` to read the
+configured pin key from `session_summary.metadata`. Task 030 must preserve and
+verify that ordering behavior while replacing the temporary legacy row
+control. Archive work remains wholly owned here.
 
 ## Rich action contract
 
@@ -336,7 +339,9 @@ Extend the existing `session-status-app` action with its rich list. Keep its
 one internal option definition authoritative for the existing fallback form
 and status filter plus the new rich list.
 
-Update `session-ordering-buckets-app` to resolve the configured pin metadata key and inspect `session_summary.metadata`. Preserve its existing recency/pin/last-updated priority semantics.
+Retain the existing `session-ordering-buckets-app` resolution of the configured
+pin metadata key from `session_summary.metadata`, and keep its
+recency/pin/last-updated priority semantics covered while migrating the pin UI.
 
 Plugin project names, stable IDs shown in this task, and the touched default/example configurations should receive a final scope review before files are added.
 

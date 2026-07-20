@@ -65,6 +65,8 @@ class SessionPinnedAppPlugin:
                 "label": "Pin/unpin session",
                 "icon": "star",
                 "order": 0,
+                "data": f"metadata.{pinned_key}",
+                "missing_value": False,
                 "action_id": "toggle_session_pinned",
                 "param_map": {
                     "session_id": "$session.session_id",

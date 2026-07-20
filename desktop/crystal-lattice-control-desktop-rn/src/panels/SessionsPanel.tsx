@@ -37,6 +37,7 @@ import {
   deriveSessionListPresentationFromGroups,
   groupSessionListFields,
   normalizeActionDisplayForSurface,
+  resolveSessionListPath,
   runApplicationAction,
 } from '@crystal-lattice/frontend-sdk';
 
@@ -66,6 +67,21 @@ const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_ac
 const SESSION_DOUBLE_CLICK_MS = 300;
 const SESSIONS_STALE_MS = 30_000;
 const DEFAULT_PINNED_SESSION_LIST_ACTION_KEYS: ActionKey[] = [];
+
+function resolvePinnedState(
+  session: SessionSummary,
+  pinnedToggleElement: ActionUiElement | null,
+): boolean {
+  const dataPath =
+    typeof pinnedToggleElement?.data === 'string' && pinnedToggleElement.data
+      ? pinnedToggleElement.data
+      : 'metadata.pinned';
+  const resolved = resolveSessionListPath(session, dataPath);
+  const value = resolved.found
+    ? resolved.value
+    : pinnedToggleElement?.missing_value;
+  return value === true;
+}
 
 type ActionDisplayEntry = {
   key: string;
@@ -866,6 +882,7 @@ function SessionsPanelInner({
               80,
             );
             const meta = presentation.meta;
+            const isPinned = resolvePinnedState(session, pinnedToggleElement);
 
             return (
               <Pressable
@@ -897,6 +914,13 @@ function SessionsPanelInner({
                     </Text>
                     {pinnedToggleElement ? (
                       <Pressable
+                        testID={`session-pin-toggle-${session.session_id}`}
+                        accessibilityRole="button"
+                        accessibilityLabel={isPinned ? 'Unpin session' : 'Pin session'}
+                        accessibilityState={{
+                          disabled: !isOnline,
+                          selected: isPinned,
+                        }}
                         style={(state) => {
                           const pinnedHovered = (state as any).hovered as boolean | undefined;
                           return [
@@ -914,9 +938,10 @@ function SessionsPanelInner({
                         }}
                       >
                         <Text
+                          testID={`session-pin-icon-${session.session_id}`}
                           style={[
                             styles.pinButtonText,
-                            { color: session.pinned ? '#FFCC00' : theme.textSecondary },
+                            { color: isPinned ? '#FFCC00' : theme.textSecondary },
                           ]}
                         >
                           ★

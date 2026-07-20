@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """Application-level plugin for bucketed session list ordering.
 
 This plugin computes lightweight ordering fields for sessions and exposes
@@ -15,11 +13,14 @@ The default strategy is:
 Ordering is expressed via numeric fields:
 
 * ``updated_24h_rank`` – 0 for sessions updated in the last 24h, 1 otherwise.
-* ``pinned_rank`` – 0 for pinned sessions, 1 for unpinned or missing.
+* ``pinned_rank`` – 0 when the configured session metadata value is pinned,
+  1 for unpinned or missing.
 * ``last_updated_sort_key`` – negative epoch seconds for last-updated time,
   so that smaller values correspond to more recent sessions when sorting
   ascending.
 """
+
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
@@ -55,6 +56,14 @@ class SessionOrderingBucketsAppPlugin:
                     "falling back to 'modified' when missing."
                 ),
             },
+            "session_pinned_metadata_key": {
+                "type": "string",
+                "description": (
+                    "Session metadata key used to determine pinned ordering. "
+                    "This should match session-pinned-app and defaults to 'pinned'."
+                ),
+                "default": "pinned",
+            },
         }
 
     def get_ui_elements(
@@ -67,22 +76,39 @@ class SessionOrderingBucketsAppPlugin:
         # This plugin is ordering-only and does not contribute UI elements.
         return []
 
-    def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover - trivial
-        application_cfg = app_config.get("application") if isinstance(app_config, dict) else {}
+    def init(
+        self, app_config: Dict[str, Any]
+    ) -> Dict[str, Any]:  # pragma: no cover - trivial
+        application_cfg = (
+            app_config.get("application") if isinstance(app_config, dict) else {}
+        )
 
         raw_window = application_cfg.get("session_order_24h_window_seconds")
         window_seconds: float
-        if isinstance(raw_window, (int, float)) and not isinstance(raw_window, bool) and raw_window > 0:
+        if (
+            isinstance(raw_window, (int, float))
+            and not isinstance(raw_window, bool)
+            and raw_window > 0
+        ):
             window_seconds = float(raw_window)
         else:
             window_seconds = 86400.0
 
         raw_use_updated = application_cfg.get("session_order_use_updated_at")
-        use_updated_at = bool(raw_use_updated) if isinstance(raw_use_updated, bool) else True
+        use_updated_at = (
+            bool(raw_use_updated) if isinstance(raw_use_updated, bool) else True
+        )
+
+        raw_pinned_key = application_cfg.get("session_pinned_metadata_key")
+        if isinstance(raw_pinned_key, str) and raw_pinned_key.strip():
+            pinned_metadata_key = raw_pinned_key.strip()
+        else:
+            pinned_metadata_key = "pinned"
 
         self._state = {
             "window_seconds": window_seconds,
             "use_updated_at": use_updated_at,
+            "pinned_metadata_key": pinned_metadata_key,
         }
         return dict(self._state)
 
@@ -127,7 +153,9 @@ class SessionOrderingBucketsAppPlugin:
             summary = {}
 
         window_seconds = state.get("window_seconds", 86400.0)
-        if not isinstance(window_seconds, (int, float)) or isinstance(window_seconds, bool):
+        if not isinstance(window_seconds, (int, float)) or isinstance(
+            window_seconds, bool
+        ):
             window_seconds = 86400.0
 
         use_updated_at = state.get("use_updated_at", True)
@@ -141,7 +169,9 @@ class SessionOrderingBucketsAppPlugin:
             effective_updated = float(updated_val)
         else:
             modified_val = summary.get("modified")
-            if isinstance(modified_val, (int, float)) and not isinstance(modified_val, bool):
+            if isinstance(modified_val, (int, float)) and not isinstance(
+                modified_val, bool
+            ):
                 effective_updated = float(modified_val)
             else:
                 # Neutral baseline when no usable timestamp is present.
@@ -155,7 +185,14 @@ class SessionOrderingBucketsAppPlugin:
         else:
             updated_24h_rank = 1
 
-        pinned_flag = bool(summary.get("pinned"))
+        pinned_metadata_key = state.get("pinned_metadata_key", "pinned")
+        if not isinstance(pinned_metadata_key, str) or not pinned_metadata_key:
+            pinned_metadata_key = "pinned"
+        metadata = summary.get("metadata")
+        pinned_value = (
+            metadata.get(pinned_metadata_key) if isinstance(metadata, dict) else None
+        )
+        pinned_flag = pinned_value is True
         pinned_rank = 0 if pinned_flag else 1
 
         last_updated_sort_key = -effective_updated

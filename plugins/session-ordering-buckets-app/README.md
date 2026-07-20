@@ -2,6 +2,10 @@
 
 Application-level plugin defining bucketed ordering for session lists.
 
+Pinned rank is derived from `session_summary.metadata.pinned` by default.
+Set `application.session_pinned_metadata_key` to the same custom key used by
+`session-pinned-app`; no top-level `pinned` summary field is required.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

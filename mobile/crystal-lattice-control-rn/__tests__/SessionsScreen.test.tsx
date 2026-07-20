@@ -5,6 +5,7 @@ import {
   buildActionDialogInitialValues,
   normalizeSessionListActionElement,
   normalizeSessionListFilterSchema,
+  type ActionUiElement,
   type SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
 import {
@@ -193,6 +194,7 @@ const refreshApplicationPlugins = jest.fn(async () => {});
 
 function applicationPluginsResult(
   sessionListFilterSchema = EMPTY_FILTER_SCHEMA,
+  sessionListPinnedToggles: ActionUiElement[] = [],
 ) {
   return {
     actionsById: {
@@ -216,7 +218,7 @@ function applicationPluginsResult(
       },
     ],
     sessionListFilterSchema,
-    sessionListPinnedToggles: [],
+    sessionListPinnedToggles,
     sessionListDiagnostics: normalizedAction.diagnostics,
   };
 }
@@ -636,12 +638,34 @@ test('uses the built-in pin and status filter declarations', () => {
           ],
         },
       ]),
+      [
+        {
+          ui_type: 'session_list_toggle_pinned',
+          plugin: 'session_pinned',
+          id: 'toggle_session_pinned_star',
+          label: 'Pin/unpin session',
+          action_id: 'toggle_session_pinned',
+          data: 'metadata.pinned',
+          missing_value: false,
+        },
+      ],
     ),
   );
 
   renderScreen();
   expect(screen.getByTestId('session-row-ordinary-todo')).toBeTruthy();
   expect(screen.getByTestId('session-row-pinned-done')).toBeTruthy();
+  expect(
+    screen.getByTestId('session-pin-toggle-ordinary-todo').props
+      .accessibilityState.selected,
+  ).toBe(false);
+  expect(
+    screen.getByTestId('session-pin-toggle-pinned-done').props
+      .accessibilityState.selected,
+  ).toBe(true);
+  expect(screen.getByTestId('session-pin-icon-pinned-done').props.color).toBe(
+    '#FFCC00',
+  );
   expect(screen.queryByTestId('session-filters-active-count')).toBeNull();
 
   fireEvent.press(screen.getByTestId('session-filters-open'));

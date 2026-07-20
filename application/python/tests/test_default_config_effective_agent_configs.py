@@ -68,6 +68,14 @@ def test_default_config_effective_agent_configs_stay_intact(
     assert len(search_elements) == 1
     assert search_elements[0]["id"] == "session_search"
     assert search_elements[0]["main_search"] is True
+    pin_toggle = next(
+        element
+        for element in app.get_application_ui_schema()
+        if element.get("plugin") == "session_pinned"
+        and element.get("ui_type") == "session_list_toggle_pinned"
+    )
+    assert pin_toggle["data"] == "metadata.pinned"
+    assert pin_toggle["missing_value"] is False
     list_filters = {
         element["id"]: element
         for element in app.get_application_ui_schema()

@@ -146,6 +146,88 @@ def test_session_list_http_contract_serializes_shared_summaries(
     assert "missing" in missing.json()["detail"]
 
 
+def test_session_list_http_contract_orders_configured_pinned_metadata(
+    tmp_path: Path,
+) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "echo": {
+                        "provider": "echo_openai_like",
+                        "model": "test-model",
+                    }
+                },
+                "plugins": [
+                    "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+                    f"path:{ROOT / 'plugins' / 'session-pinned-app'}",
+                    f"path:{ROOT / 'plugins' / 'session-ordering-buckets-app'}",
+                ],
+                "agents": {"default": {"provider": "echo"}},
+                "application": {
+                    "session_pinned_metadata_key": "favorite",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    session_root = tmp_path / "sessions"
+    application = AgentApplication(str(config_path), str(session_root))
+    server_mod.app.dependency_overrides[server_mod.get_agent_app] = lambda: application
+    client = TestClient(server_mod.app)
+
+    try:
+        _save_session(
+            application,
+            session_id="pinned-older",
+            preview="pinned preview",
+            metadata={},
+        )
+        _save_session(
+            application,
+            session_id="unpinned-newer",
+            preview="unpinned preview",
+            metadata={},
+        )
+        result = application.execute_application_action(
+            plugin_id="session_pinned",
+            action_id="toggle_session_pinned",
+            params={"session_id": "pinned-older"},
+        )
+        assert result["mutations"]["updated_session_ids"] == ["pinned-older"]
+
+        pinned_path = session_root / "pinned-older.json"
+        unpinned_path = session_root / "unpinned-newer.json"
+        os.utime(pinned_path, ns=(1_000_000_000, 1_000_000_000))
+        os.utime(unpinned_path, ns=(2_000_000_000, 2_000_000_000))
+
+        response = client.get("/sessions")
+        assert response.status_code == 200
+        summaries = response.json()["sessions"]
+        assert [summary["session_id"] for summary in summaries] == [
+            "pinned-older",
+            "unpinned-newer",
+        ]
+        assert summaries[0]["metadata"]["favorite"] is True
+        assert summaries[0]["pinned_rank"] == 0
+        assert summaries[1]["pinned_rank"] == 1
+        assert "pinned" not in summaries[0]
+
+        ui_response = client.get("/application/ui-schema")
+        assert ui_response.status_code == 200
+        pin_toggle = next(
+            element
+            for element in ui_response.json()["elements"]
+            if element.get("ui_type") == "session_list_toggle_pinned"
+        )
+        assert pin_toggle["data"] == "metadata.favorite"
+        assert pin_toggle["missing_value"] is False
+    finally:
+        server_mod.app.dependency_overrides.clear()
+        application.close()
+
+
 def test_session_list_http_contract_isolates_a_malformed_record(
     session_list_http_client: Tuple[TestClient, AgentApplication, Path],
 ) -> None:

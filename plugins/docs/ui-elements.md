@@ -744,6 +744,12 @@ the current declarations' defaults and removes stale values.
 Built-in pin and status plugins demonstrate inactive-by-default metadata
 filters:
 
+The current legacy pin row control carries the same configured `data` and
+`missing_value` as its `pinned_state` filter. Mobile and desktop resolve that
+path against `SessionSummary`; they do not depend on a feature-specific
+top-level `pinned` field. For the default configuration these values are
+`metadata.pinned` and `false`.
+
 ```python
 {
     "ui_type": "session_list_filter",

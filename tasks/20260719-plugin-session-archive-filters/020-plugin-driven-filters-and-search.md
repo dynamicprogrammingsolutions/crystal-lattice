@@ -26,6 +26,7 @@ Deliver the expanded declarative filter contract, replace hardcoded session sear
 - [x] Follow up: add the baseline `session-status-app` ordinary action and multi-select filter, leaving rich-list presentation to task 030.
 - [x] Follow up: enable both filter providers in the maintained default configuration and verify terminal, HTTP, mobile, and desktop behavior.
 - [x] Follow up: update plugin documentation, automated coverage, manual-testing guidance, and completion notes.
+- [x] Manual-test regression repair: restore configured pin ordering and active-star state without restoring the removed top-level summary field.
 
 Parent Task: `tasks/20260719-plugin-session-archive-filters/000-main.md`
 
@@ -736,8 +737,10 @@ Added during completion of the built-in pin/status filter follow-up.
   is Any, missing values behave as false, and its Not pinned/Pinned choices
   carry the declared star icon and muted/warning tones.
 - The existing pin action and `session_list_toggle_pinned` row contribution
-  remain unchanged for compatibility. Task 030 still owns migration to an
-  ordinary rich toggle.
+  remain for compatibility. The legacy row contribution now declares the same
+  configured metadata path and missing value as the filter so graphical
+  clients can render current state without a top-level summary field. Task 030
+  still owns migration to an ordinary rich toggle.
 - Added `plugins/session-status-app` with stable plugin ID `session_status`,
   action/UI ID `set_session_status`, filter ID `session_status`, and
   configurable `session_status_metadata_key`.
@@ -800,8 +803,8 @@ Added during completion of the built-in pin/status filter follow-up.
   accesses Jest after teardown. The task-owned desktop suite exits cleanly.
 - A broad desktop `tsc --noEmit` remains blocked by existing unrelated Feather
   declaration, ChatPane optional-string, and theme `shadow` errors. This
-  follow-up changes no desktop production TypeScript, and its component suite
-  passes.
+  follow-up's focused desktop component suite passes without introducing
+  another reported TypeScript error.
 
 ### Manual acceptance handoff
 
@@ -809,3 +812,40 @@ The rebuilt deterministic native harness verified the light-theme production
 controls on iPhone 17 Pro and `Medium_Phone_API_36.1`. Human visual checks of
 the personal backend on mobile/desktop, especially dark-theme appearance and
 desktop popover placement, remain appropriate using the seven steps above.
+
+## Pin-state regression repair
+
+Added after manual testing exposed an incomplete task-010 summary-contract
+migration.
+
+- Confirmed pin mutations and `pinned_state` filtering were correct, but the
+  ordering plugin and mobile/desktop star controls still read the removed
+  top-level `summary.pinned` value.
+- `session-pinned-app` now publishes `data` and `missing_value` on its temporary
+  legacy row control from `session_pinned_metadata_key`.
+- Mobile and desktop resolve that declared path against shared summary
+  metadata, expose selected-state accessibility semantics, and use the active
+  yellow star only when the resolved Boolean value is true.
+- `session-ordering-buckets-app` now reads the same configured metadata key
+  from `session_summary.metadata`, while preserving recency bucket, pin rank,
+  and last-updated ordering priorities.
+- Regression coverage uses summaries with no top-level `pinned` field,
+  exercises a custom metadata key, toggles through the real pin action, proves
+  public HTTP ordering with a newer unpinned peer, and checks active-star state
+  in mobile, desktop, and real-backend component scenarios.
+
+Regression verification:
+
+- Pin and ordering plugin suites: 9 passed.
+- FastAPI session-list contract: 3 passed.
+- Mobile Jest: 21 suites and 81 tests passed.
+- Mobile production TypeScript check: passed.
+- Mobile real-backend component integration: 1 passed.
+- Desktop `SessionsPanel`: 3 passed.
+- Focused Ruff and Black checks: passed.
+- MkDocs prepare/build: passed with the repository's pre-existing warnings.
+- The explicitly enabled default-config integration reached plugin loading but
+  remains blocked before its assertions by the pre-existing `attr.Converter`
+  import failures in MCP Runtime and Codex tools.
+- Broad desktop `tsc --noEmit` still reports only the previously recorded
+  Feather declarations, ChatPane optional-string, and theme `shadow` errors.

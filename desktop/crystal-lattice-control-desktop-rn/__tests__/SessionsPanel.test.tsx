@@ -2,6 +2,7 @@ import React from 'react';
 
 let mockSessions: any[] = [];
 let mockFilterSchema: any = null;
+let mockPinnedToggles: any[] = [];
 
 jest.mock('@crystal-lattice/frontend-sdk-react', () => {
   const ReactModule = require('react');
@@ -39,7 +40,7 @@ jest.mock('@crystal-lattice/frontend-sdk-react', () => {
       ],
       sessionListFilterSchema:
         mockFilterSchema ?? normalizeSessionListFilterSchema([]),
-      sessionListPinnedToggles: [],
+      sessionListPinnedToggles: mockPinnedToggles,
       sessionListDiagnostics: [],
     }),
     useHydrateControllerFromCache: () => {},
@@ -93,6 +94,7 @@ import { SessionsPanel } from '../src/panels/SessionsPanel';
 describe('SessionsPanel', () => {
   beforeEach(() => {
     mockFilterSchema = null;
+    mockPinnedToggles = [];
   });
 
   it('renders server presentation in server order and propagates it to tabs', () => {
@@ -210,6 +212,17 @@ describe('SessionsPanel', () => {
   });
 
   it('renders the built-in pin and status filter declarations', () => {
+    mockPinnedToggles = [
+      {
+        ui_type: 'session_list_toggle_pinned',
+        plugin: 'session_pinned',
+        id: 'toggle_session_pinned_star',
+        label: 'Pin/unpin session',
+        action_id: 'toggle_session_pinned',
+        data: 'metadata.favorite',
+        missing_value: false,
+      },
+    ];
     mockFilterSchema = normalizeSessionListFilterSchema([
       {
         ui_type: 'session_list_filter',
@@ -225,7 +238,7 @@ describe('SessionsPanel', () => {
         id: 'pinned_state',
         label: 'Pinned',
         icon: 'star',
-        data: 'metadata.pinned',
+        data: 'metadata.favorite',
         type: 'boolean',
         match: 'equals',
         missing_value: false,
@@ -280,7 +293,7 @@ describe('SessionsPanel', () => {
         session_id: 'pinned-done',
         modified: 1,
         preview: 'pinned',
-        metadata: { pinned: true, status: 'done' },
+        metadata: { favorite: true, status: 'done' },
         presentation: {
           title: 'Pinned done',
           subtitle: null,
@@ -308,6 +321,21 @@ describe('SessionsPanel', () => {
     );
     expect(rendered.getByTestId('session-row-visible')).toBeTruthy();
     expect(rendered.getByTestId('session-row-pinned-done')).toBeTruthy();
+    expect(
+      rendered.getByTestId('session-pin-toggle-visible').props
+        .accessibilityState.selected,
+    ).toBe(false);
+    expect(
+      rendered.getByTestId('session-pin-toggle-pinned-done').props
+        .accessibilityState.selected,
+    ).toBe(true);
+    expect(
+      rendered.getByTestId('session-pin-icon-pinned-done').props.style,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ color: '#FFCC00' }),
+      ]),
+    );
     expect(rendered.queryByTestId('session-filters-active-count')).toBeNull();
     fireEvent.press(rendered.getByTestId('session-filters-open'));
     expect(rendered.getByTestId('session-filters-panel')).toBeTruthy();

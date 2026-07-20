@@ -28,7 +28,7 @@ def test_order_bucket_fields_and_specs(monkeypatch: pytest.MonkeyPatch) -> None:
             "session_id": "s_recent_pinned",
             "session_summary": {
                 "session_updated_at": fake_now - 3600,
-                "pinned": True,
+                "metadata": {"pinned": True},
             },
         },
         state=state,
@@ -41,7 +41,7 @@ def test_order_bucket_fields_and_specs(monkeypatch: pytest.MonkeyPatch) -> None:
             "session_id": "s_recent_unpinned",
             "session_summary": {
                 "session_updated_at": fake_now - 7200,
-                "pinned": False,
+                "metadata": {"pinned": False},
             },
         },
         state=state,
@@ -54,7 +54,7 @@ def test_order_bucket_fields_and_specs(monkeypatch: pytest.MonkeyPatch) -> None:
             "session_id": "s_old_pinned",
             "session_summary": {
                 "session_updated_at": fake_now - 3 * 86400,
-                "pinned": True,
+                "metadata": {"pinned": True},
             },
         },
         state=state,

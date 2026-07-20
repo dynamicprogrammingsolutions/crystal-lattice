@@ -4,7 +4,8 @@ Application-level plugin that toggles and filters pinned state on sessions.
 
 The plugin stores the state under `metadata.pinned` by default. Set
 `application.session_pinned_metadata_key` to use another metadata key. The
-same resolved key drives both the mutation and the declarative filter.
+same resolved key drives the mutation, the legacy row star's active state,
+and the declarative filter.
 
 It contributes:
 

@@ -91,13 +91,16 @@ const SERVER_CONFIG = {
     'path:${env:REPO_ROOT}/plugins/session-main-search-app',
     'path:${env:REPO_ROOT}/plugins/session-pinned-app',
     'path:${env:REPO_ROOT}/plugins/session-status-app',
+    'path:${env:REPO_ROOT}/plugins/session-ordering-buckets-app',
   ],
   agents: {
     default: {
       provider: 'echo',
     },
   },
-  application: {},
+  application: {
+    session_pinned_metadata_key: 'favorite',
+  },
 };
 
 describe('SessionsScreen real-backend component integration', () => {
@@ -147,10 +150,34 @@ describe('SessionsScreen real-backend component integration', () => {
       },
     });
     expect(pinResult.status).toBe('ok');
+    await started.backend.appendMessage(otherSessionId, {
+      role: 'user',
+      content: 'newer unpinned update',
+    });
 
     const summaries = await started.backend.listSessions();
     const summary = summaries.find((item) => item.session_id === sessionId);
+    const otherSummary = summaries.find(
+      (item) => item.session_id === otherSessionId,
+    );
     expect(summary).toBeTruthy();
+    expect(otherSummary).toBeTruthy();
+    expect(summaries.map((item) => item.session_id)).toEqual([
+      sessionId,
+      otherSessionId,
+    ]);
+    expect(summary).toEqual(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ favorite: true }),
+        pinned_rank: 0,
+      }),
+    );
+    expect(summary).not.toHaveProperty('pinned');
+    expect(otherSummary).toEqual(
+      expect.objectContaining({
+        pinned_rank: 1,
+      }),
+    );
     expect(summary!.presentation).toEqual({
       title: 'Real backend title',
       subtitle: 'Real backend subtitle',
@@ -170,8 +197,16 @@ describe('SessionsScreen real-backend component integration', () => {
         }),
         expect.objectContaining({
           plugin: 'session_pinned',
+          ui_type: 'session_list_toggle_pinned',
+          id: 'toggle_session_pinned_star',
+          data: 'metadata.favorite',
+          missing_value: false,
+        }),
+        expect.objectContaining({
+          plugin: 'session_pinned',
           ui_type: 'session_list_filter',
           id: 'pinned_state',
+          data: 'metadata.favorite',
           default: null,
         }),
         expect.objectContaining({
@@ -212,6 +247,17 @@ describe('SessionsScreen real-backend component integration', () => {
     expect(screen.getByTestId(`session-meta-${sessionId}`)).toHaveTextContent(
       '1 messages',
     );
+    expect(
+      (await screen.findByTestId(`session-pin-toggle-${sessionId}`)).props
+        .accessibilityState.selected,
+    ).toBe(true);
+    expect(screen.getByTestId(`session-pin-icon-${sessionId}`).props.color).toBe(
+      '#FFCC00',
+    );
+    expect(
+      screen.getByTestId(`session-pin-toggle-${otherSessionId}`).props
+        .accessibilityState.selected,
+    ).toBe(false);
     expect(screen.queryByText('real backend preview')).toBeNull();
 
     await waitFor(() => {
