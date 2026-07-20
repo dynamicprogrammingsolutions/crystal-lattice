@@ -4,7 +4,7 @@ export type {
   IndexedMessage,
 } from './types/messages';
 
-export type { SessionSummary } from './types/sessions';
+export type { SessionSummary, SessionSummaryPresentation } from './types/sessions';
 
 export type { SessionPluginEntry } from './types/sessionPlugins';
 
@@ -156,6 +156,29 @@ export {
   deriveSessionListPresentation,
   deriveSessionListPresentationFromGroups,
 } from './sessions/sessionListPresentation';
+export type {
+  ActionDialog,
+  ActionDialogInput,
+  ActionDialogKind,
+  ActionDialogPrefillContext,
+  NormalizationResult,
+  SessionListActionElement,
+  SessionListActionPresentation,
+  SessionListContractDiagnostic,
+  SessionListOrderSpec,
+  SessionListPathResult,
+  SessionListRichUi,
+} from './sessions/sessionListContracts';
+export {
+  buildActionDialogInitialValues,
+  formatSessionListFieldValue,
+  normalizeSessionListActionElement,
+  normalizeSessionListFieldElement,
+  normalizeSessionListOrderSpec,
+  resolveActionDialogInitialValue,
+  resolveSessionListActionPresentation,
+  resolveSessionListPath,
+} from './sessions/sessionListContracts';
 
 export type { ChatControllerState, StreamingRow, RequestErrorState } from './chat/chatController';
 export { ChatController } from './chat/chatController';

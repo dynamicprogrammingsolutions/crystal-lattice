@@ -28,6 +28,17 @@ function createBackend(): AgentBackend {
   } as unknown as AgentBackend;
 }
 
+function sessionListAction(id: string, label = 'List') {
+  return {
+    id,
+    ui_type: 'session_list_action',
+    plugin: 'fixture',
+    label,
+    action_id: `${id}-action`,
+    dialog: { kind: 'none' },
+  };
+}
+
 describe('PluginsRegistry', () => {
   it('does not poison the cache after a failed load and retries on the next load', async () => {
     const backend = createBackend();
@@ -35,7 +46,7 @@ describe('PluginsRegistry', () => {
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValueOnce([{ id: 'action-1', label: 'Action 1' }]);
     (backend.listApplicationUiSchema as any)
-      .mockResolvedValueOnce([{ id: 'session-list-action', ui_type: 'session_list_action', label: 'List' }]);
+      .mockResolvedValueOnce([sessionListAction('session-list-action')]);
 
     const first = new PluginsRegistry({ backend, cacheKey: 'plugins-registry-retry' });
     await first.load();
@@ -43,7 +54,7 @@ describe('PluginsRegistry', () => {
     expect(first.getSnapshot().sessionListActions).toEqual([]);
 
     (backend.listApplicationUiSchema as any).mockResolvedValueOnce([
-      { id: 'session-list-action', ui_type: 'session_list_action', label: 'List' },
+      sessionListAction('session-list-action'),
     ]);
     const second = new PluginsRegistry({ backend, cacheKey: 'plugins-registry-retry' });
     await second.load();
@@ -61,8 +72,8 @@ describe('PluginsRegistry', () => {
       .mockResolvedValueOnce([{ id: 'action-1', label: 'Action 1' }])
       .mockRejectedValueOnce(new Error('refresh failed'));
     (backend.listApplicationUiSchema as any)
-      .mockResolvedValueOnce([{ id: 'session-list-action', ui_type: 'session_list_action', label: 'List' }])
-      .mockResolvedValueOnce([{ id: 'session-list-action', ui_type: 'session_list_action', label: 'List' }]);
+      .mockResolvedValueOnce([sessionListAction('session-list-action')])
+      .mockResolvedValueOnce([sessionListAction('session-list-action')]);
 
     const registry = new PluginsRegistry({ backend, cacheKey: 'plugins-registry-refresh' });
     await registry.load();
@@ -82,8 +93,8 @@ describe('PluginsRegistry', () => {
       .mockResolvedValueOnce([{ id: 'action-1', label: 'Action 1' }])
       .mockResolvedValueOnce([{ id: 'action-2', label: 'Action 2' }]);
     (backend.listApplicationUiSchema as any)
-      .mockResolvedValueOnce([{ id: 'session-list-action-1', ui_type: 'session_list_action', label: 'List 1' }])
-      .mockResolvedValueOnce([{ id: 'session-list-action-2', ui_type: 'session_list_action', label: 'List 2' }]);
+      .mockResolvedValueOnce([sessionListAction('session-list-action-1', 'List 1')])
+      .mockResolvedValueOnce([sessionListAction('session-list-action-2', 'List 2')]);
 
     const first = new PluginsRegistry({ backend, cacheKey: 'plugins-registry-invalidate' });
     await first.load();
@@ -98,5 +109,30 @@ describe('PluginsRegistry', () => {
     expect(backend.listApplicationActions).toHaveBeenCalledTimes(2);
     expect(second.getSnapshot().actionsById['action-2']).toMatchObject({ id: 'action-2' });
     expect(second.getSnapshot().sessionListActions[0]).toMatchObject({ id: 'session-list-action-2' });
+  });
+
+  it('keeps an ordinary list action when rich_ui is malformed', async () => {
+    const backend = createBackend();
+    (backend.listApplicationActions as any).mockResolvedValueOnce([]);
+    (backend.listApplicationUiSchema as any).mockResolvedValueOnce([
+      {
+        ...sessionListAction('ordinary-fallback'),
+        dialog: { kind: 'confirm', message: 'Continue?' },
+        rich_ui: { value_path: 'metadata.value' },
+      },
+    ]);
+
+    const registry = new PluginsRegistry({
+      backend,
+      cacheKey: 'plugins-registry-rich-fallback',
+    });
+    await registry.load();
+
+    expect(registry.getSnapshot().sessionListActions).toHaveLength(1);
+    expect(registry.getSnapshot().sessionListActions[0].dialog.kind).toBe('confirm');
+    expect(registry.getSnapshot().sessionListActions[0].rich_ui).toBeUndefined();
+    expect(
+      registry.getSnapshot().sessionListDiagnostics.map((diagnostic) => diagnostic.code),
+    ).toContain('invalid_session_list_rich_ui');
   });
 });

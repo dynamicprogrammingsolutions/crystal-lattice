@@ -2853,6 +2853,86 @@ def test_get_session_summary_matches_list_sessions_entry(tmp_path: Path) -> None
     summary_resp = server_mod.get_session_summary(session_id, app_instance=app)
 
     assert summary_resp["session"] == list_entry
+    assert summary_resp["session"] == app.get_session_summary(session_id)
+
+
+def test_http_and_terminal_session_lists_delegate_to_shared_application_result(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+    from agent_terminal_app.terminal_app import TerminalApplication
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root))
+
+    created = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = created["session"]["session_id"]
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "shared list pipeline", "metadata": None},
+        app_instance=app,
+    )
+
+    direct = app.list_session_summaries()
+    http = server_mod.list_sessions(app_instance=app)["sessions"]
+    terminal = TerminalApplication(
+        config_path=config_path,
+        session_root=session_root,
+        agent_app=app,
+    ).list_sessions_metadata()
+
+    assert http == direct
+    assert terminal == direct
+    assert direct[0]["presentation"]["title"] == "shared list pipeline"
+
+
+def test_terminal_session_list_adapter_forwards_query_without_scanning(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app.terminal_app import TerminalApplication
+
+    calls: list[Dict[str, Any]] = []
+    expected = [
+        {
+            "session_id": "delegated",
+            "modified": 1.0,
+            "preview": "",
+            "metadata": {},
+            "presentation": {
+                "title": "Session delegate",
+                "subtitle": None,
+                "meta": None,
+            },
+        }
+    ]
+
+    class StubApplication:
+        def list_session_summaries(self, **kwargs: Any) -> list[Dict[str, Any]]:
+            calls.append(kwargs)
+            return expected
+
+    terminal = TerminalApplication(
+        config_path=tmp_path / "unused.json",
+        session_root=tmp_path / "must-not-be-scanned",
+        agent_app=StubApplication(),  # type: ignore[arg-type]
+    )
+
+    result = terminal.list_sessions_metadata(
+        limit=3,
+        filter_values={"status": "done"},
+        apply_filter_defaults=True,
+    )
+
+    assert result is expected
+    assert calls == [
+        {
+            "filter_values": {"status": "done"},
+            "apply_filter_defaults": True,
+            "limit": 3,
+        }
+    ]
 
 
 def test_get_session_summary_reflects_metadata_changes(tmp_path: Path) -> None:

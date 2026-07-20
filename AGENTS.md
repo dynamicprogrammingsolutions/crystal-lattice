@@ -291,6 +291,8 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 - For history-modifying features (`slice_session`, `modify_message`, `/delete`, `/modify`), cover both core and app/terminal behavior.
 
 **Plugin + test fixture placement**
+- Keep package-specific tests and fixtures in the owning package's test directory.
+- Put cross-cutting tests and fixtures used by multiple packages or runtimes under `test/`; put shared fixture files under `test/fixture/`.
 - Do not add new `core/python/tests` that depend on repo-root `plugins/` (use `core/python/tests/fixtures` instead).
 - Test-only plugins/fixtures live under `core/python/tests` (prefer `core/python/tests/fixtures`).
 - Core-packaged plugins that still ship with `agent-core` live under `core/python/plugins`.

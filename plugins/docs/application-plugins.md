@@ -8,6 +8,7 @@ Runtime references (source of truth):
 
 - Protocol: `core/python/agent_app/app_plugins.py`
 - Application context: `core/python/agent_app/application_future.py`
+- Shared session listing: `core/python/agent_app/session_listing.py`
 
 Reference implementations:
 
@@ -36,6 +37,9 @@ Application plugins are ideal for features that need:
 | Capability | Method/Access | Description |
 |------------|---------------|-------------|
 | Load sessions | `app.load_session(session_id)` | Load a session from the session store |
+| List session summaries | `app.list_session_summaries(...)` | Build shared fields, presentation, ordering, optional in-process filtering, and limits |
+| Load one session summary | `app.get_session_summary(session_id)` | Build the same summary contract for one exact ID without list filtering |
+| List diagnostics | `app.get_session_list_diagnostics()` | Inspect nonfatal field/action/order diagnostics from the latest list query |
 | Save sessions | `app.save_session(session)` | Persist a session to the session store |
 | Server settings | `app.get_server_settings()` | Read application-owned server-scoped settings |
 | Update server settings | `app.patch_server_settings(values, source=...)` | Persist server-scoped setting updates and run lifecycle triggers |
@@ -268,6 +272,7 @@ Actions can include a `trigger` field to be automatically invoked during applica
 
 | Trigger | When it runs |
 |---------|--------------|
+| `session_list` | While the application builds each shared session summary |
 | `session_create` | After a new session is created |
 | `session_save_prepare` | Before a session is saved |
 | `request_prepare` | Before an LLM request |
@@ -327,8 +332,7 @@ def get_ui_elements(
     self,
     state: Dict[str, Any],
     config: Optional[Dict[str, Any]] = None,
-    tags: Optional[List[str]] = None,
-    models: Optional[List[Dict[str, Any]]] = None,
+    context: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     return [
         # Session action button
@@ -367,6 +371,108 @@ def get_ui_elements(
         },
     ]
 ```
+
+---
+
+### Session-list contributions
+
+Application plugins can contribute three independent parts of a session list:
+
+1. ordinary row actions via `ui_type: "session_list_action"`;
+2. presentation fields via `ui_type: "session_list_field"`;
+3. declarative filters via `ui_type: "session_list_filter"`.
+
+They can also define an action with `trigger: "session_list"` to compute
+summary fields and ordering:
+
+```python
+def get_actions(self, state):
+    return [
+        {
+            "id": "compute_list_values",
+            "label": "Compute list values",
+            "trigger": "session_list",
+            "inputs": {
+                "session_id": {"type": "string", "required": True},
+                "session_summary": {"required": True},
+                "session": {"required": False},
+            },
+        }
+    ]
+
+
+def execute_action(self, app, action_id, params, context, state):
+    summary = params["session_summary"]
+    rank = 0 if summary.get("metadata", {}).get("important") else 1
+    return {
+        "session_list_fields": {
+            "importance_rank": rank,
+        },
+        "session_list_order": [
+            {
+                "key": "importance_rank",
+                "direction": "asc",
+                "fallback": 1,
+                "priority": 10,
+            }
+        ],
+    }
+```
+
+`AgentApplication` is the application-facing authority for enumeration,
+summary construction, trigger execution, presentation, and ordering. HTTP and
+terminal adapters call the application methods rather than inspect a
+filesystem session root.
+
+The returned summary shape is:
+
+```typescript
+interface SessionSummary {
+  session_id: string;
+  modified: number;
+  preview: string;
+  metadata: Record<string, unknown>;
+  presentation: {
+    title: string;
+    subtitle: string | null;
+    meta: string | null;
+  };
+  [contributedField: string]: unknown;
+}
+```
+
+`metadata.native_messages` is excluded because it may contain a heavyweight
+provider-native copy of the transcript. Feature values such as pin, archive,
+or status remain under their configured `metadata.*` paths rather than being
+projected into feature-specific top-level fields.
+
+The query API is:
+
+```python
+app.list_session_summaries(
+    filter_values=None,
+    apply_filter_defaults=False,
+    limit=None,
+)
+```
+
+Ordering happens first, optional in-process filtering second, and `limit`
+last. HTTP requests the unfiltered collection. Terminal integrations can
+supply filter state in-process. `app.get_session_summary(session_id)` is exact
+and independent of list filters.
+
+Public HTTP adapters expose:
+
+```text
+GET /sessions
+GET /sessions/{session_id}/summary
+GET /application/ui-schema
+```
+
+The first two return application-derived summaries. The global UI-schema
+endpoint carries list action, field, and filter declarations. See
+[UI elements](ui-elements.md) and [Plugin actions](actions.md) for complete
+normalization, fallback, dialog, filter, and ordering rules.
 
 ---
 

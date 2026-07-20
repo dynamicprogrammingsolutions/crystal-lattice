@@ -4,18 +4,18 @@ Establish the shared application-layer session-list pipeline and the ordinary-ac
 
 ## Requirements checklist
 
-- [ ] `AgentApplication` is the single application-facing authority for session summary construction, presentation derivation, plugin-contributed fields, and ordering.
-- [ ] HTTP and terminal consumers receive equivalent ordered summaries without scanning session files or interpreting ordering independently.
-- [ ] The session-store abstraction exposes enough implementation-neutral enumeration and change-state information for session listing without leaking filesystem paths to consumers.
-- [ ] Session summaries contain the shared context defined by the parent task and omit heavyweight private metadata.
-- [ ] `trigger: "session_list"` application actions can contribute summary fields and deterministic order specifications for every application consumer.
-- [ ] Invalid order specifications or one failing list-trigger action cannot make the complete session list unavailable.
-- [ ] Modification time descending is the only non-plugin fallback order.
-- [ ] An ordinary `session_list_action` remains executable through `dialog` whether `rich_ui` is absent, unsupported, unknown, or malformed.
-- [ ] Rich presentation configuration is contained entirely under one optional `rich_ui` key and does not create another action `ui_type`.
-- [ ] Every runtime that interprets an overlapping part of the session-list contract follows shared normalization and evaluation semantics.
-- [ ] The affected sections of `plugins/docs` accurately describe runtime behavior, including `session_list_action`, all supported dialog kinds, parameter mapping, prefill, pinned actions, rich fallback, list fields, filters, and list-trigger ordering.
-- [ ] All requirements above have automated unit or integration coverage.
+- [x] `AgentApplication` is the single application-facing authority for session summary construction, presentation derivation, plugin-contributed fields, and ordering.
+- [x] HTTP and terminal consumers receive equivalent ordered summaries without scanning session files or interpreting ordering independently.
+- [x] The session-store abstraction exposes enough implementation-neutral enumeration and change-state information for session listing without leaking filesystem paths to consumers.
+- [x] Session summaries contain the shared context defined by the parent task and omit heavyweight private metadata.
+- [x] `trigger: "session_list"` application actions can contribute summary fields and deterministic order specifications for every application consumer.
+- [x] Invalid order specifications or one failing list-trigger action cannot make the complete session list unavailable.
+- [x] Modification time descending is the only non-plugin fallback order.
+- [x] An ordinary `session_list_action` remains executable through `dialog` whether `rich_ui` is absent, unsupported, unknown, or malformed.
+- [x] Rich presentation configuration is contained entirely under one optional `rich_ui` key and does not create another action `ui_type`.
+- [x] Every runtime that interprets an overlapping part of the session-list contract follows shared normalization and evaluation semantics.
+- [x] The affected sections of `plugins/docs` accurately describe runtime behavior, including `session_list_action`, all supported dialog kinds, parameter mapping, prefill, pinned actions, rich fallback, list fields, filters, and list-trigger ordering.
+- [x] All requirements above have automated unit or integration coverage.
 
 Parent Task: `tasks/20260719-plugin-session-archive-filters/000-main.md`
 
@@ -226,3 +226,104 @@ Terminal application tests must prove delegation and parity, with no independent
 Python/TypeScript conformance tests must cover the shared summary, presentation, ordinary-action fallback, and order contracts.
 
 Documentation preparation/build must complete successfully for the affected pages.
+
+### Approved completion plan
+
+Added during task completion after explicit user approval.
+
+1. Extend the primary `SessionStore` boundary with implementation-neutral
+   `list_records` and `get_record` operations returning opaque session IDs,
+   public modification timestamps, and equality-only revision tokens.
+   Filesystem paths and stat handling remain inside `FilesystemSessionStore`.
+2. Add a focused `core/python/agent_app/session_listing.py` service. It owns
+   base-summary construction, private metadata projection, preview extraction,
+   per-application caching, `session_list` trigger execution, contributed
+   fields, presentation derivation, order validation/application, structured
+   nonfatal diagnostics, and the ordering/filter/limit query sequence.
+3. Keep `AgentApplication` thin: construct the service, expose
+   `list_session_summaries`, exact `get_session_summary`, and diagnostic
+   delegation, and invalidate affected cache entries after application-owned
+   saves and deletes.
+4. Remove HTTP-owned filesystem access, caching, trigger execution, and
+   ordering from `server.py`; make the list and single-summary routes direct
+   application adapters. Replace terminal filesystem scanning with delegation
+   to the same application query.
+5. Establish language-neutral conformance fixtures under
+   `test/fixture/session-list/v1/` and focused frontend SDK normalizers for paths,
+   list fields/order declarations, ordinary `session_list_action` dialogs, and
+   optional `rich_ui`. Preserve ordinary actions when rich configuration is
+   absent, unknown, unsupported, or malformed.
+6. Prefer application-derived summary presentation in frontend consumers while
+   retaining the existing field evaluator as a compatibility/conformance
+   fallback. Extract dialog-prefill initialization into shared pure logic and
+   enforce resolved-prefill-before-default semantics.
+7. Correct only the affected sections of
+   `plugins/docs/ui-elements.md`, `plugins/docs/actions.md`, and
+   `plugins/docs/application-plugins.md`.
+8. Verify store/application behavior, HTTP and terminal parity, shared
+   Python/TypeScript conformance, ordinary rich fallback, prefill behavior,
+   relevant default suites, targeted lint/type checks, and docs preparation
+   plus MkDocs build.
+
+Scope control for this completion:
+
+- task 020 retains ownership of declarative filter evaluation and terminal /
+  mobile / desktop filter integration;
+- task 030 retains ownership of concrete rich `toggle` / `list` renderers and
+  pin, archive, status, and pinned-ordering plugin conversion;
+- no HTTP filter query API, message-action generalization, session-view action
+  generalization, or action-result display changes are included here.
+
+## Completion Notes
+
+Added during task completion.
+
+- Added `SessionStoreRecord`, `SessionStore.list_records`, and
+  `SessionStore.get_record`. `FilesystemSessionStore` now supplies opaque
+  revision tokens and modification timestamps without exposing paths.
+- Added the focused `agent_app.session_listing.SessionListService` and thin
+  `AgentApplication` delegation for list queries, exact summaries, diagnostics,
+  filter-evaluator installation, and mutation invalidation.
+- Moved summary construction, metadata projection, previews, per-application
+  caching, list-trigger execution, contributed fields, deterministic
+  mixed-direction ordering, presentation derivation, and query sequencing out
+  of the HTTP server.
+- Replaced HTTP and terminal filesystem scans with shared application calls.
+  The server's private session-root lookup, global summary cache, special
+  trigger dispatcher, pinned fallback sorting, and order interpreter were
+  removed.
+- Added shared language-neutral contract cases under
+  `test/fixture/session-list/v1/` and matching Python/TypeScript coverage for path
+  resolution, missing values, presentation, deterministic datetime formatting,
+  ordinary action normalization, rich fallback, prefill, and order
+  normalization.
+- Added frontend SDK normalization and nonfatal diagnostics for session-list
+  actions and fields. Unknown rich kinds remain transportable; malformed rich
+  configuration is removed without losing a valid ordinary action.
+- Extracted action-dialog initialization into shared pure logic. Resolved
+  `prefill_from` values now take precedence over nonempty defaults in both
+  shared React Native dialog implementations.
+- Corrected the affected public contract documentation in
+  `plugins/docs/ui-elements.md`, `plugins/docs/actions.md`, and
+  `plugins/docs/application-plugins.md`.
+
+Verification completed:
+
+- Full default core suite with an adequate process file-descriptor limit:
+  `401 passed, 26 deselected, 1 xfailed`.
+- Session-list foundation tests: `10 passed`.
+- HTTP server tests: `50 passed, 11 deselected`.
+- Terminal application tests: `36 passed, 2 deselected`.
+- Shared server/terminal event tests: `2 passed`.
+- Frontend SDK: `211 passed`; React bindings: `15 passed`; shared React Native
+  components: `7 passed`.
+- Mobile action-dialog regression tests: `4 passed`.
+- Mobile TypeScript check: passed.
+- Targeted Python Ruff and Black checks: passed.
+- Documentation preparation and MkDocs build: passed with only pre-existing
+  navigation/reference warnings.
+
+The complete application test directory was also attempted, but collection is
+gated by unrelated optional plugin dependencies absent from the active
+environment (`mcp_shared` and `openai`). All application files directly
+affected by this task were run successfully as listed above.

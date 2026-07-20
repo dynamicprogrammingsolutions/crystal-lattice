@@ -1,0 +1,421 @@
+{
+  "path_cases": [
+    {
+      "name": "nested value",
+      "root": {
+        "metadata": {
+          "status": "done"
+        }
+      },
+      "path": "metadata.status",
+      "expected": {
+        "found": true,
+        "value": "done"
+      }
+    },
+    {
+      "name": "explicit null is present",
+      "root": {
+        "metadata": {
+          "status": null
+        }
+      },
+      "path": "metadata.status",
+      "expected": {
+        "found": true,
+        "value": null
+      }
+    },
+    {
+      "name": "array index",
+      "root": {
+        "values": [
+          "zero",
+          "one"
+        ]
+      },
+      "path": "values.1",
+      "expected": {
+        "found": true,
+        "value": "one"
+      }
+    },
+    {
+      "name": "missing key",
+      "root": {
+        "metadata": {}
+      },
+      "path": "metadata.status",
+      "expected": {
+        "found": false
+      }
+    },
+    {
+      "name": "invalid array index",
+      "root": {
+        "values": [
+          "zero"
+        ]
+      },
+      "path": "values.first",
+      "expected": {
+        "found": false
+      }
+    }
+  ],
+  "presentation_cases": [
+    {
+      "name": "ordered role candidates and joined meta",
+      "summary": {
+        "session_id": "abcdefgh-1234",
+        "modified": 10,
+        "preview": "Preview fallback",
+        "metadata": {
+          "title": "",
+          "alternate_title": "Contract title",
+          "subtitle": "Contract subtitle"
+        },
+        "count": 3,
+        "state": "done"
+      },
+      "fields": [
+        {
+          "ui_type": "session_list_field",
+          "plugin": "fixture",
+          "id": "empty-title",
+          "role": "title",
+          "data": "metadata.title",
+          "template": "{{data}}",
+          "order": 0
+        },
+        {
+          "ui_type": "session_list_field",
+          "plugin": "fixture",
+          "id": "alternate-title",
+          "role": "title",
+          "data": "metadata.alternate_title",
+          "template": "{{data}}",
+          "order": 1
+        },
+        {
+          "ui_type": "session_list_field",
+          "plugin": "fixture",
+          "id": "subtitle",
+          "role": "subtitle",
+          "data": "metadata.subtitle",
+          "template": "{{ data }}",
+          "order": 0
+        },
+        {
+          "ui_type": "session_list_field",
+          "plugin": "fixture",
+          "id": "count",
+          "role": "meta",
+          "data": "count",
+          "template": "{{data}} messages",
+          "order": 0
+        },
+        {
+          "ui_type": "session_list_field",
+          "plugin": "fixture",
+          "id": "state",
+          "role": "meta",
+          "data": "state",
+          "template": "State: {{data}}",
+          "order": 1
+        }
+      ],
+      "expected": {
+        "title": "Contract title",
+        "subtitle": "Contract subtitle",
+        "meta": "3 messages · State: done"
+      }
+    },
+    {
+      "name": "preview fallback",
+      "summary": {
+        "session_id": "abcdefgh-1234",
+        "modified": 10,
+        "preview": "Preview fallback",
+        "metadata": {}
+      },
+      "fields": [],
+      "expected": {
+        "title": "Preview fallback",
+        "subtitle": null,
+        "meta": null
+      }
+    },
+    {
+      "name": "session id fallback",
+      "summary": {
+        "session_id": "abcdefgh-1234",
+        "modified": 10,
+        "preview": "",
+        "metadata": {}
+      },
+      "fields": [],
+      "expected": {
+        "title": "Session abcdefgh",
+        "subtitle": null,
+        "meta": null
+      }
+    },
+    {
+      "name": "deterministic datetime formatting",
+      "summary": {
+        "session_id": "datetime",
+        "modified": 1700000000,
+        "preview": "",
+        "metadata": {},
+        "updated": 1700000000
+      },
+      "fields": [
+        {
+          "ui_type": "session_list_field",
+          "plugin": "fixture",
+          "id": "updated",
+          "role": "meta",
+          "data": "updated",
+          "template": "Updated: {{data}}",
+          "order": 0,
+          "metadata": {
+            "format": "datetime"
+          }
+        }
+      ],
+      "expected": {
+        "title": "Session datetime",
+        "subtitle": null,
+        "meta": "Updated: 2023-11-14T22:13:20Z"
+      }
+    }
+  ],
+  "order_spec_cases": [
+    {
+      "name": "valid order",
+      "raw": {
+        "key": "metadata.status",
+        "direction": "asc",
+        "fallback": "todo",
+        "priority": 20
+      },
+      "expected": {
+        "valid": true,
+        "value": {
+          "key": "metadata.status",
+          "direction": "asc",
+          "fallback": "todo",
+          "priority": 20
+        }
+      }
+    },
+    {
+      "name": "default priority",
+      "raw": {
+        "key": "modified",
+        "direction": "desc"
+      },
+      "expected": {
+        "valid": true,
+        "value": {
+          "key": "modified",
+          "direction": "desc",
+          "priority": 100
+        }
+      }
+    },
+    {
+      "name": "invalid direction",
+      "raw": {
+        "key": "modified",
+        "direction": "sideways",
+        "fallback": 0,
+        "priority": 10
+      },
+      "expected": {
+        "valid": false,
+        "diagnostic_code": "invalid_session_list_order_spec"
+      }
+    },
+    {
+      "name": "boolean priority is invalid",
+      "raw": {
+        "key": "modified",
+        "direction": "desc",
+        "fallback": 0,
+        "priority": true
+      },
+      "expected": {
+        "valid": false,
+        "diagnostic_code": "invalid_session_list_order_spec"
+      }
+    }
+  ],
+  "action_cases": [
+    {
+      "name": "ordinary form without rich ui",
+      "raw": {
+        "ui_type": "session_list_action",
+        "plugin": "fixture",
+        "id": "edit",
+        "label": "Edit",
+        "action_id": "edit_action",
+        "param_map": {
+          "session_id": "$session.session_id",
+          "value": "$dialog.value"
+        },
+        "dialog": {
+          "kind": "form",
+          "inputs": [
+            {
+              "name": "value",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "expected": {
+        "valid": true,
+        "dialog_kind": "form",
+        "rich_state": "absent",
+        "fallback_mode": "dialog"
+      }
+    },
+    {
+      "name": "unknown rich kind is preserved but unsupported",
+      "raw": {
+        "ui_type": "session_list_action",
+        "plugin": "fixture",
+        "id": "future",
+        "label": "Future",
+        "action_id": "future_action",
+        "dialog": {
+          "kind": "confirm",
+          "message": "Continue?"
+        },
+        "rich_ui": {
+          "kind": "future_kind",
+          "value_path": "metadata.value"
+        }
+      },
+      "expected": {
+        "valid": true,
+        "dialog_kind": "confirm",
+        "rich_state": "preserved",
+        "fallback_mode": "dialog"
+      }
+    },
+    {
+      "name": "malformed rich ui is removed without losing ordinary action",
+      "raw": {
+        "ui_type": "session_list_action",
+        "plugin": "fixture",
+        "id": "malformed-rich",
+        "label": "Malformed rich",
+        "action_id": "malformed_rich_action",
+        "dialog": {
+          "kind": "none"
+        },
+        "rich_ui": {
+          "value_path": "metadata.value"
+        }
+      },
+      "expected": {
+        "valid": true,
+        "dialog_kind": "none",
+        "rich_state": "dropped",
+        "fallback_mode": "dialog",
+        "diagnostic_code": "invalid_session_list_rich_ui"
+      }
+    },
+    {
+      "name": "invalid ordinary dialog invalidates the action",
+      "raw": {
+        "ui_type": "session_list_action",
+        "plugin": "fixture",
+        "id": "bad-dialog",
+        "label": "Bad dialog",
+        "action_id": "bad_dialog_action",
+        "dialog": {
+          "kind": "future_dialog"
+        },
+        "rich_ui": {
+          "kind": "future_kind"
+        }
+      },
+      "expected": {
+        "valid": false,
+        "diagnostic_code": "invalid_session_list_action"
+      }
+    }
+  ],
+  "prefill_cases": [
+    {
+      "name": "resolved prefill wins over nonempty default",
+      "field": {
+        "name": "status",
+        "type": "select",
+        "prefill_from": "$session.metadata.status",
+        "default": "todo"
+      },
+      "context": {
+        "session": {
+          "metadata": {
+            "status": "done"
+          }
+        }
+      },
+      "expected": "done"
+    },
+    {
+      "name": "missing prefill uses default",
+      "field": {
+        "name": "status",
+        "type": "select",
+        "prefill_from": "$session.metadata.status",
+        "default": "todo"
+      },
+      "context": {
+        "session": {
+          "metadata": {}
+        }
+      },
+      "expected": "todo"
+    },
+    {
+      "name": "empty prefill uses default",
+      "field": {
+        "name": "status",
+        "type": "select",
+        "prefill_from": "$session.metadata.status",
+        "default": "todo"
+      },
+      "context": {
+        "session": {
+          "metadata": {
+            "status": ""
+          }
+        }
+      },
+      "expected": "todo"
+    },
+    {
+      "name": "false prefill is usable",
+      "field": {
+        "name": "archived",
+        "type": "boolean",
+        "prefill_from": "$session.metadata.archived",
+        "default": true
+      },
+      "context": {
+        "session": {
+          "metadata": {
+            "archived": false
+          }
+        }
+      },
+      "expected": "false"
+    }
+  ]
+}

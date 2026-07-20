@@ -1,6 +1,10 @@
 import type { SessionListFieldElement } from '../types/plugins';
 import type { SessionSummary } from '../types/sessions';
-import { extractByPath, renderTemplate, formatValueForElement } from '../utils/uiSchema';
+import { renderTemplate } from '../utils/uiSchema';
+import {
+  formatSessionListFieldValue,
+  resolveSessionListPath,
+} from './sessionListContracts';
 
 export interface SessionListFieldGroups {
   titleFields: SessionListFieldElement[];
@@ -31,15 +35,30 @@ export function deriveSessionListPresentationFromGroups(
   session: SessionSummary,
   groups: SessionListFieldGroups,
 ): SessionListPresentation {
+  const supplied = session.presentation;
+  if (
+    supplied &&
+    typeof supplied.title === 'string' &&
+    supplied.title.length > 0 &&
+    (supplied.subtitle === null || typeof supplied.subtitle === 'string') &&
+    (supplied.meta === null || typeof supplied.meta === 'string')
+  ) {
+    return supplied;
+  }
+
   const sessionIdPrefix = session.session_id?.slice(0, 8) ?? '';
 
   const title = (() => {
     for (const field of groups.titleFields) {
       const path = field.data;
       if (typeof path !== 'string' || !path) continue;
-      const value = extractByPath(session as any, path);
+      const resolved = resolveSessionListPath(session, path);
+      const value = resolved.found ? resolved.value : undefined;
       if (value === null || value === undefined || value === '') continue;
-      const text = renderTemplate(field.template ?? '{{data}}', value);
+      const text = renderTemplate(
+        field.template ?? '{{data}}',
+        formatSessionListFieldValue(field, value),
+      );
       if (text) return text;
     }
 
@@ -54,9 +73,13 @@ export function deriveSessionListPresentationFromGroups(
     for (const field of groups.subtitleFields) {
       const path = field.data;
       if (typeof path !== 'string' || !path) continue;
-      const value = extractByPath(session as any, path);
+      const resolved = resolveSessionListPath(session, path);
+      const value = resolved.found ? resolved.value : undefined;
       if (value === null || value === undefined || value === '') continue;
-      const text = renderTemplate(field.template ?? '{{data}}', value);
+      const text = renderTemplate(
+        field.template ?? '{{data}}',
+        formatSessionListFieldValue(field, value),
+      );
       if (text) return text;
     }
     return null;
@@ -67,8 +90,9 @@ export function deriveSessionListPresentationFromGroups(
     for (const field of groups.metaFields) {
       const path = field.data;
       if (typeof path !== 'string' || !path) continue;
-      const rawValue = extractByPath(session as any, path);
-      const valueForTemplate: any = formatValueForElement(field as any, rawValue);
+      const resolved = resolveSessionListPath(session, path);
+      const rawValue = resolved.found ? resolved.value : undefined;
+      const valueForTemplate = formatSessionListFieldValue(field, rawValue);
       if (valueForTemplate === null || valueForTemplate === undefined || valueForTemplate === '') {
         continue;
       }

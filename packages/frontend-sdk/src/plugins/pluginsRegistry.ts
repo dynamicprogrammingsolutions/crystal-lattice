@@ -5,15 +5,24 @@ import type {
   ApplicationUiElement,
   SessionListFieldElement,
 } from '../types/plugins';
+import type {
+  SessionListActionElement,
+  SessionListContractDiagnostic,
+} from '../sessions/sessionListContracts';
+import {
+  normalizeSessionListActionElement,
+  normalizeSessionListFieldElement,
+} from '../sessions/sessionListContracts';
 import { SimpleSubscribable } from '../util/subscribable';
 
 export interface PluginsResult {
   actionsById: Record<string, ApplicationActionDefinition>;
   sessionActions: ActionUiElement[];
   messageActions: ActionUiElement[];
-  sessionListActions: ActionUiElement[];
+  sessionListActions: SessionListActionElement[];
   sessionListFields: SessionListFieldElement[];
   sessionListPinnedToggles: ActionUiElement[];
+  sessionListDiagnostics: SessionListContractDiagnostic[];
 }
 
 export interface PluginsRegistryState extends PluginsResult {
@@ -33,6 +42,7 @@ const EMPTY_RESULT: PluginsResult = {
   sessionListActions: [],
   sessionListFields: [],
   sessionListPinnedToggles: [],
+  sessionListDiagnostics: [],
 };
 
 const CACHE: Map<string, CacheEntry | undefined> = new Map();
@@ -52,12 +62,26 @@ function buildResultFromEntry(entry: CacheEntry | undefined): PluginsResult {
   const elements = Array.isArray(entry.elements) ? entry.elements : [];
   const sessionActions = elements.filter((el) => el && (el as any).ui_type === 'session_action') as ActionUiElement[];
   const messageActions = elements.filter((el) => el && (el as any).ui_type === 'message_action') as ActionUiElement[];
-  const sessionListActions = elements.filter(
-    (el) => el && (el as any).ui_type === 'session_list_action',
-  ) as ActionUiElement[];
-  const sessionListFields = elements.filter(
-    (el) => el && (el as any).ui_type === 'session_list_field',
-  ) as SessionListFieldElement[];
+  const sessionListActions: SessionListActionElement[] = [];
+  const sessionListFields: SessionListFieldElement[] = [];
+  const sessionListDiagnostics: SessionListContractDiagnostic[] = [];
+  elements.forEach((element) => {
+    if (element && (element as any).ui_type === 'session_list_action') {
+      const normalized = normalizeSessionListActionElement(element);
+      sessionListDiagnostics.push(...normalized.diagnostics);
+      if (normalized.value) {
+        sessionListActions.push(normalized.value);
+      }
+      return;
+    }
+    if (element && (element as any).ui_type === 'session_list_field') {
+      const normalized = normalizeSessionListFieldElement(element);
+      sessionListDiagnostics.push(...normalized.diagnostics);
+      if (normalized.value) {
+        sessionListFields.push(normalized.value);
+      }
+    }
+  });
   const sessionListPinnedToggles = elements.filter(
     (el) => el && (el as any).ui_type === 'session_list_toggle_pinned',
   ) as ActionUiElement[];
@@ -69,6 +93,7 @@ function buildResultFromEntry(entry: CacheEntry | undefined): PluginsResult {
     sessionListActions,
     sessionListFields,
     sessionListPinnedToggles,
+    sessionListDiagnostics,
   };
 }
 
@@ -80,6 +105,7 @@ function buildResultFromState(state: PluginsRegistryState): PluginsResult {
     sessionListActions: state.sessionListActions || [],
     sessionListFields: state.sessionListFields || [],
     sessionListPinnedToggles: state.sessionListPinnedToggles || [],
+    sessionListDiagnostics: state.sessionListDiagnostics || [],
   };
 }
 

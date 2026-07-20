@@ -80,6 +80,38 @@ jest.mock('@crystal-lattice/frontend-sdk', () => ({
       })
       .filter(Boolean);
   },
+  buildActionDialogInitialValues: (inputs: any[], context: any) => {
+    const resolve = (root: any, path: string) =>
+      path.split('.').reduce((current, part) => {
+        if (!current || typeof current !== 'object' || !(part in current)) {
+          return undefined;
+        }
+        return current[part];
+      }, root);
+
+    return inputs.reduce((values, field) => {
+      let prefilled;
+      if (typeof field.prefill_from === 'string') {
+        if (field.prefill_from.startsWith('$session.')) {
+          prefilled = resolve(
+            context?.session,
+            field.prefill_from.slice('$session.'.length),
+          );
+        } else if (field.prefill_from.startsWith('$message.')) {
+          prefilled = resolve(
+            context?.message,
+            field.prefill_from.slice('$message.'.length),
+          );
+        }
+      }
+      const initial =
+        prefilled !== undefined && prefilled !== null && prefilled !== ''
+          ? prefilled
+          : field.default;
+      values[field.name] = initial === undefined || initial === null ? '' : String(initial);
+      return values;
+    }, {} as Record<string, string>);
+  },
 }));
 
 import {
@@ -218,4 +250,45 @@ test('application action form submits embedded form values', () => {
     callback_url: 'http://127.0.0.1:41793/callback?code=abc&state=xyz',
     note: '',
   });
+});
+
+test('resolved prefill takes precedence over a nonempty default', () => {
+  const ref = React.createRef<ApplicationActionFormHandle>();
+
+  ReactTestRenderer.act(() => {
+    ReactTestRenderer.create(
+      <ApplicationActionForm
+        ref={ref}
+        form={{
+          kind: 'form',
+          inputs: [
+            {
+              name: 'status',
+              type: 'select',
+              prefill_from: '$session.metadata.status',
+              default: 'todo',
+              options: [
+                { value: 'todo', label: 'To do' },
+                { value: 'done', label: 'Done' },
+              ],
+            },
+          ],
+        }}
+        prefillContext={{
+          session: {
+            metadata: {
+              status: 'done',
+            },
+          },
+        }}
+      />,
+    );
+  });
+
+  let submitted: Record<string, any> | null = null;
+  ReactTestRenderer.act(() => {
+    submitted = ref.current!.submit();
+  });
+
+  expect(submitted).toEqual({ status: 'done' });
 });

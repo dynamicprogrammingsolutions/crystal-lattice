@@ -20,7 +20,7 @@ Make session-list summaries, ordering, search, filters, and rich actions plugin-
 
 ## Task checklist
 
-- [ ] `tasks/20260719-plugin-session-archive-filters/010-session-list-foundation.md`
+- [x] `tasks/20260719-plugin-session-archive-filters/010-session-list-foundation.md`
 - [ ] `tasks/20260719-plugin-session-archive-filters/020-plugin-driven-filters-and-search.md`
   - DEPENDS ON `tasks/20260719-plugin-session-archive-filters/010-session-list-foundation.md`
 - [ ] `tasks/20260719-plugin-session-archive-filters/030-rich-session-list-actions.md`

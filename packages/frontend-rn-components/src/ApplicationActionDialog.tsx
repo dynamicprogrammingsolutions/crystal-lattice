@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 
 import {
-  extractByPath,
+  buildActionDialogInitialValues,
   normalizeSelectOptions,
   type NormalizedSelectOption,
 } from '@crystal-lattice/frontend-sdk';
@@ -149,45 +149,7 @@ export const ApplicationActionForm = forwardRef<ApplicationActionFormHandle, App
         return;
       }
 
-      const initial: Record<string, string> = {};
-      inputs.forEach((field) => {
-        const key = field.name;
-        if (!key) return;
-        const def = field.default;
-
-        let prefilled: string | undefined;
-        const src = field.prefill_from;
-        if (typeof src === 'string' && src) {
-          let root: any = null;
-          let path: string | null = null;
-          if (src.startsWith('$session.')) {
-            root = prefillContext?.session;
-            path = src.slice('$session.'.length);
-          } else if (src.startsWith('$message.')) {
-            root = prefillContext?.message;
-            path = src.slice('$message.'.length);
-          }
-          if (root && path) {
-            const value = extractByPath(root, path);
-            if (value !== undefined && value !== null && value !== '') {
-              prefilled = String(value);
-            }
-          }
-        }
-
-        let value: string;
-        if (prefilled !== undefined && (def === undefined || def === null || String(def) === '')) {
-          value = prefilled;
-        } else if (def === undefined || def === null) {
-          value = '';
-        } else if (typeof def === 'string') {
-          value = def;
-        } else {
-          value = String(def);
-        }
-
-        initial[key] = value;
-      });
+      const initial = buildActionDialogInitialValues(inputs, prefillContext);
 
       setValuesByName(initial);
       initialValuesByNameRef.current = initial;
@@ -434,45 +396,7 @@ export function ApplicationActionDialogLayout({
       return;
     }
 
-    const initial: Record<string, string> = {};
-    inputs.forEach((field) => {
-      const key = field.name;
-      if (!key) return;
-      const def = field.default;
-
-      let prefilled: string | undefined;
-      const src = field.prefill_from;
-      if (typeof src === 'string' && src) {
-        let root: any = null;
-        let path: string | null = null;
-        if (src.startsWith('$session.')) {
-          root = prefillContext?.session;
-          path = src.slice('$session.'.length);
-        } else if (src.startsWith('$message.')) {
-          root = prefillContext?.message;
-          path = src.slice('$message.'.length);
-        }
-        if (root && path) {
-          const value = extractByPath(root, path);
-          if (value !== undefined && value !== null && value !== '') {
-            prefilled = String(value);
-          }
-        }
-      }
-
-      let value: string;
-      if (prefilled !== undefined && (def === undefined || def === null || String(def) === '')) {
-        value = prefilled;
-      } else if (def === undefined || def === null) {
-        value = '';
-      } else if (typeof def === 'string') {
-        value = def;
-      } else {
-        value = String(def);
-      }
-
-      initial[key] = value;
-    });
+    const initial = buildActionDialogInitialValues(inputs, prefillContext);
 
     setValuesByName(initial);
     initialValuesByNameRef.current = initial;

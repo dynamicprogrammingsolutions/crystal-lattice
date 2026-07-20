@@ -16,13 +16,14 @@ Runtime references for the current codebase:
 
 - `core/python/agent_app/app_plugins.py`
 - `core/python/agent_app/application_future.py`
+- `core/python/agent_app/session_listing.py`
 - `core/python/agent_core/types.py`
 - `core/python/agent_core/core.py`
 - `application/python/agent_terminal_app/server.py`
 
 ## Overview
 
-After the update, actions will follow these rules:
+Actions follow these rules:
 
 - Application plugins continue to define actions with `get_actions(...)` and
   execute them with `execute_action(...)`.
@@ -231,7 +232,7 @@ Examples:
 
 The meaning of common triggers is:
 
-- `session_list`: the application/server is building session-list summary data
+- `session_list`: the application is building shared session-list summary data
 - `session_create`: a new session has just been created and may need initial
   session-owned settings
 - `session_save_prepare`: a session is about to be persisted and may need
@@ -259,6 +260,125 @@ The meaning of common triggers is:
   need to record or clean up related state
 
 Actions without a `trigger` are manual actions.
+
+## `session_list` trigger contract
+
+`session_list` is a cold-path application trigger owned by
+`AgentApplication`. HTTP and terminal adapters do not discover or execute these
+actions independently.
+
+The application runs every matching application-plugin action once per stored
+session, in application plugin configuration order and action declaration
+order. It supplies only inputs the action declares:
+
+| Declared input | Supplied value |
+| --- | --- |
+| `session_id` | Opaque session ID |
+| `session_summary` | Summary accumulated so far, including fields from earlier actions |
+| `session` | Loaded live `Session` object |
+
+Execution context includes:
+
+```python
+{
+    "lifecycle": "session_list",
+    "trigger_source": "application",
+    "session_id": session_id,
+}
+```
+
+An action that does not need full history should omit `session`; this lets the
+application avoid treating a failed/malformed load as a prerequisite for that
+action. List-trigger actions should be deterministic for a stored session and
+should not mutate it as a side effect.
+
+### Contributed fields
+
+An action can add JSON-serializable fields:
+
+```python
+return {
+    "session_list_fields": {
+        "message_count": len(session.messages),
+        "status_rank": 20,
+    }
+}
+```
+
+Contributed fields become top-level members of the shared summary and are
+available to later trigger actions, `session_list_field` paths, order
+specifications, and filters. The application reserves:
+
+- `session_id`
+- `modified`
+- `preview`
+- `metadata`
+- `presentation`
+
+Invalid keys, reserved-key writes, and non-JSON-serializable values are
+reported and ignored individually.
+
+### Contributed ordering
+
+An action can contribute one order object or an ordered list:
+
+```python
+return {
+    "session_list_fields": {
+        "status_rank": 20,
+        "last_updated_sort_key": -summary["modified"],
+    },
+    "session_list_order": [
+        {
+            "key": "status_rank",
+            "direction": "asc",
+            "fallback": 100,
+            "priority": 20,
+        },
+        {
+            "key": "last_updated_sort_key",
+            "direction": "asc",
+            "fallback": 0,
+            "priority": 30,
+        },
+    ],
+}
+```
+
+Each specification has:
+
+| Field | Contract |
+| --- | --- |
+| `key` | Required non-empty dotted path into the shared summary |
+| `direction` | Required `asc` or `desc` |
+| `fallback` | Required when the key is missing from any summary |
+| `priority` | Optional integer, default `100`; lower values run first |
+
+Specifications compose by:
+
+1. ascending `priority`;
+2. application plugin configuration order;
+3. action and specification declaration order within the plugin.
+
+Each key keeps its own direction. Modification time descending is applied first
+as the stable final tie-break and is also the complete fallback when no valid
+plugin order remains. There is no built-in pinned-first fallback.
+
+Missing is distinct from explicit `null`, false, zero, and an empty string.
+Values for one order key must be mutually comparable scalar values. Invalid
+directions, priorities, missing fallbacks, conflicting declarations, or
+non-sortable/incompatible values invalidate only that specification.
+
+Ordering always occurs before filtering. Filtering preserves that order, and a
+query `limit` is applied after both.
+
+### Failure isolation and diagnostics
+
+A failed list-trigger action affects only that action for that session. Other
+actions and summaries remain available. Invalid contributed fields, UI fields,
+and order specifications are likewise isolated. `AgentApplication` exposes
+structured diagnostics from the latest list query, while HTTP continues to
+return the stable `{"sessions": [...]}` response shape.
 
 ## Standard built-in lifecycle set
 
@@ -925,12 +1045,13 @@ by one session and one provider/config context, especially when it needs to:
 
 ## Relation to existing `session_list` actions
 
-The current code already has one server-interpreted triggered-action pattern:
-application-plugin actions with `trigger: "session_list"`.
+Application-plugin actions with `trigger: "session_list"` run through the
+dedicated application session-list service described above. They are not
+server-interpreted and are not core/provider lifecycle actions.
 
-The runtime generalizes that idea so lifecycle triggers are no longer a
-server-only special case and can also be used by non-application plugins
-through shared application/core orchestration.
+Other dynamic lifecycle triggers continue through shared application/core
+orchestration. `session_list` is distinct because its result contributes to a
+read-only multi-session query rather than mutating one current session.
 
 ## Core-side lifecycle vocabulary
 

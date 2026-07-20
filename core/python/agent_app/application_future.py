@@ -43,6 +43,7 @@ from .config import (
 )
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
+from .session_listing import SessionListFilterEvaluator, SessionListService
 from .sessions import (
     FilesystemSessionStore,
     NullSnapshotSelectionStore,
@@ -538,6 +539,40 @@ class AgentApplication:
             runtime_state_root=self._runtime_state_root,
             runtime_store=self._runtime_store,
             tool_runtime=self._runtime_store,
+        )
+        application_ref = weakref.ref(self)
+
+        def _require_application() -> "AgentApplication":
+            application = application_ref()
+            if application is None:
+                raise RuntimeError("AgentApplication is no longer available")
+            return application
+
+        def _list_session_actions() -> List[Dict[str, Any]]:
+            return _require_application().get_application_actions()
+
+        def _list_session_ui_elements() -> List[Dict[str, Any]]:
+            return _require_application().get_application_ui_schema()
+
+        def _execute_session_list_action(
+            plugin_id: str,
+            action_id: str,
+            params: Dict[str, Any],
+            context: Optional[Dict[str, Any]],
+        ) -> Dict[str, Any]:
+            return _require_application().execute_application_action(
+                plugin_id,
+                action_id,
+                params,
+                context=context,
+            )
+
+        self._session_list_service = SessionListService(
+            store=self._session_store,
+            list_actions=_list_session_actions,
+            list_ui_elements=_list_session_ui_elements,
+            execute_action=_execute_session_list_action,
+            logger=self._logger,
         )
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
@@ -3057,6 +3092,39 @@ class AgentApplication:
         )
         return core, base_cfg, session
 
+    def list_session_summaries(
+        self,
+        *,
+        filter_values: Optional[Dict[str, object]] = None,
+        apply_filter_defaults: bool = False,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return shared ordered summaries for all live stored sessions."""
+
+        return self._session_list_service.list_session_summaries(
+            filter_values=filter_values,
+            apply_filter_defaults=apply_filter_defaults,
+            limit=limit,
+        )
+
+    def get_session_summary(self, session_id: str) -> Dict[str, Any]:
+        """Return the shared unfiltered summary for one exact session id."""
+
+        return self._session_list_service.get_session_summary(session_id)
+
+    def get_session_list_diagnostics(self) -> List[Dict[str, Any]]:
+        """Return structured nonfatal diagnostics from the latest list query."""
+
+        return self._session_list_service.get_last_diagnostics()
+
+    def set_session_list_filter_evaluator(
+        self,
+        evaluator: SessionListFilterEvaluator,
+    ) -> None:
+        """Install the in-process filter evaluator used by terminal queries."""
+
+        self._session_list_service.set_filter_evaluator(evaluator)
+
     def load_session_record(self, session_id: str) -> Optional[Session]:
         """Load a session from the underlying store.
 
@@ -3172,6 +3240,7 @@ class AgentApplication:
 
     def _save_session_low_level(self, session: Session) -> Session:
         self._session_store.save(session)
+        self._session_list_service.invalidate(session.session_id)
         return self.load_session_record(session.session_id) or session
 
     def save_session(
@@ -3227,6 +3296,7 @@ class AgentApplication:
                 context={"session_id": session_id},
             )
         self._session_store.delete(session_id)
+        self._session_list_service.invalidate(session_id)
 
     def create_session(
         self, agent_id: str

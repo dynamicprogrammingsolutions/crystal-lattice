@@ -197,63 +197,20 @@ class TerminalApplication:
         self._last_event_id = None
         return session
 
-    def list_sessions_metadata(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Return metadata for stored sessions ordered by modification time.
+    def list_sessions_metadata(
+        self,
+        limit: Optional[int] = None,
+        *,
+        filter_values: Optional[Dict[str, object]] = None,
+        apply_filter_defaults: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Return shared application-layer summaries for stored sessions."""
 
-        Each entry contains ``session_id``, ``modified`` (float timestamp),
-        and ``preview`` (first user message snippet).
-        """
-
-        root = self._session_root
-        try:
-            exists = root.exists()
-        except Exception:
-            return []
-        if not exists:
-            return []
-
-        items: List[Dict[str, Any]] = []
-        for path in root.glob("*.json"):
-            try:
-                stat = path.stat()
-            except OSError:
-                continue
-
-            session_id = path.stem
-            preview = ""
-
-            try:
-                data = path.read_text(encoding="utf-8")
-                raw = json.loads(data)
-                messages = raw.get("messages") or []
-                for msg in messages:
-                    if not isinstance(msg, dict):
-                        continue
-                    if msg.get("role") != "user":
-                        continue
-                    content = msg.get("content")
-                    if isinstance(content, str) and content:
-                        single = " ".join(content.split())
-                        if len(single) > 80:
-                            preview = single[:77] + "..."
-                        else:
-                            preview = single
-                        break
-            except Exception:
-                preview = ""
-
-            items.append(
-                {
-                    "session_id": session_id,
-                    "modified": float(stat.st_mtime),
-                    "preview": preview,
-                }
-            )
-
-        items.sort(key=lambda entry: entry["modified"], reverse=True)
-        if limit is not None and limit >= 0:
-            items = items[:limit]
-        return items
+        return self._app.list_session_summaries(
+            filter_values=filter_values,
+            apply_filter_defaults=apply_filter_defaults,
+            limit=limit,
+        )
 
     def switch_session(self, session_id: str) -> Session:
         """Load an existing session by id and make it active."""
@@ -943,9 +900,10 @@ class TerminalApplication:
         # - If it is empty but was previously saved, update the file.
         # - If it is empty and has never been saved (initial ephemeral
         #   session), keep it purely in memory.
-        session_path = self._session_root / f"{session.session_id}.json"
         is_empty = not session.messages
-        is_persisted = session_path.exists()
+        is_persisted = (
+            self._app.load_live_session_record(session.session_id) is not None
+        )
         should_save = (not is_empty) or is_persisted
 
         if should_save:

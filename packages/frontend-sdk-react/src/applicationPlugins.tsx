@@ -17,6 +17,7 @@ const defaultContext: ApplicationPluginsContextValue = {
   sessionListActions: [],
   sessionListFields: [],
   sessionListPinnedToggles: [],
+  sessionListDiagnostics: [],
   loading: false,
   error: null,
   refresh: async () => {},
@@ -79,6 +80,7 @@ export function useApplicationPlugins(): UseApplicationPluginsResult {
     sessionListActions,
     sessionListFields,
     sessionListPinnedToggles,
+    sessionListDiagnostics,
   } = useApplicationPluginsContext();
   return {
     actionsById,
@@ -87,5 +89,6 @@ export function useApplicationPlugins(): UseApplicationPluginsResult {
     sessionListActions,
     sessionListFields,
     sessionListPinnedToggles,
+    sessionListDiagnostics,
   };
 }

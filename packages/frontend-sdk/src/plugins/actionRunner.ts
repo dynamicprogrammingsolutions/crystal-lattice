@@ -9,6 +9,7 @@ import type {
   ExecuteActionResponseOk,
 } from '../types/plugins';
 import type { SessionSummary } from '../types/sessions';
+import { resolveSessionListPath } from '../sessions/sessionListContracts';
 
 export type ActionEffect =
   | { type: 'navigateToSession'; sessionId: string }
@@ -53,17 +54,6 @@ function shouldUseSessionScopedActionEndpoint(
   );
 }
 
-function getFromPath(root: any, path: string): any {
-  if (!root) return undefined;
-  const parts = path.split('.');
-  let current: any = root;
-  for (const part of parts) {
-    if (current == null) return undefined;
-    current = current[part];
-  }
-  return current;
-}
-
 function getFormFieldSubmitEmpty(form: any, fieldName: string): boolean {
   if (!form || typeof form !== 'object') return false;
   if (form.kind !== 'form') return false;
@@ -97,16 +87,19 @@ function buildActionInputs(options: {
         const sessionRoot =
           (context.sessionSummary as any) ||
           (context.sessionId ? ({ session_id: context.sessionId } as any) : null);
-        value = getFromPath(sessionRoot, path);
+        const resolved = resolveSessionListPath(sessionRoot, path);
+        value = resolved.found ? resolved.value : undefined;
       } else if (source.startsWith('$message.')) {
         const path = source.slice('$message.'.length);
         const root = context.messageContext
           ? { index: context.messageContext.index, ...(context.messageContext.message as any) }
           : null;
-        value = getFromPath(root, path);
+        const resolved = resolveSessionListPath(root, path);
+        value = resolved.found ? resolved.value : undefined;
       } else if (source.startsWith('$dialog.')) {
         const path = source.slice('$dialog.'.length);
-        value = getFromPath(context.dialogValues || {}, path);
+        const resolved = resolveSessionListPath(context.dialogValues || {}, path);
+        value = resolved.found ? resolved.value : undefined;
         if (
           value === undefined &&
           context.dialogValues &&
@@ -116,7 +109,8 @@ function buildActionInputs(options: {
         }
       } else if (source.startsWith('$form.')) {
         const path = source.slice('$form.'.length);
-        value = getFromPath(context.formValues || {}, path);
+        const resolved = resolveSessionListPath(context.formValues || {}, path);
+        value = resolved.found ? resolved.value : undefined;
         if (
           value === undefined &&
           context.formValues &&
@@ -126,7 +120,8 @@ function buildActionInputs(options: {
         }
       } else if (source.startsWith('$context.')) {
         const path = source.slice('$context.'.length);
-        value = getFromPath(context, path);
+        const resolved = resolveSessionListPath(context, path);
+        value = resolved.found ? resolved.value : undefined;
       }
 
       if (value !== undefined) {
