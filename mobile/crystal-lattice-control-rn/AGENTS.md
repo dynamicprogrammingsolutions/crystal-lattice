@@ -202,6 +202,15 @@ For bridge mode, ensure the Elixir bridge is up and reachable at the WebSocket U
 - Use the existing Jest setup (`npm test`).
 - Prefer **component‑level tests** for new screens/components using `react-test-renderer`.
 - Test UI states that involve network errors by mocking `AgentBackend` (and/or a `Transport` passed into `RestAgentBackend`).
+- For backend-facing behavior, add a real-backend component integration using
+  the shared backend harness, public HTTP routes, `RestAgentBackend`, and actual
+  plugins where plugin contributions are part of the behavior.
+- Detox harnesses must render production screens/components with deterministic
+  state rather than duplicate the tested interaction in test-only UI. Wire new
+  harnesses through each platform's launch path and run the scenario on both
+  iOS and Android when both are supported.
+- Use stable production test identifiers based on entity or action IDs; avoid
+  relying only on visible text, row position, or generated menu order.
 - Do not add new test frameworks; extend the current Jest configuration in `jest.config.js`.
 
 When you make a behavior change that affects message rendering, session loading, or
