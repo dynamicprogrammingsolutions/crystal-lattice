@@ -44,6 +44,10 @@ from .config import (
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
 from .session_listing import SessionListFilterEvaluator, SessionListService
+from .session_filters import (
+    SessionListFilterEngine,
+    coerce_session_list_filter_input,
+)
 from .sessions import (
     FilesystemSessionStore,
     NullSnapshotSelectionStore,
@@ -567,12 +571,14 @@ class AgentApplication:
                 context=context,
             )
 
+        self._session_list_filter_engine = SessionListFilterEngine()
         self._session_list_service = SessionListService(
             store=self._session_store,
             list_actions=_list_session_actions,
             list_ui_elements=_list_session_ui_elements,
             execute_action=_execute_session_list_action,
             logger=self._logger,
+            filter_evaluator=self._session_list_filter_engine,
         )
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
@@ -3116,6 +3122,35 @@ class AgentApplication:
         """Return structured nonfatal diagnostics from the latest list query."""
 
         return self._session_list_service.get_last_diagnostics()
+
+    def get_session_list_filter_schema(self) -> Dict[str, Any]:
+        """Return the normalized declarative session-list filter schema."""
+
+        return self._session_list_filter_engine.schema(
+            self.get_application_ui_schema()
+        ).to_dict()
+
+    def coerce_session_list_filter_input(
+        self,
+        filter_id: str,
+        raw_value: str | Sequence[str],
+    ) -> object:
+        """Coerce terminal-style input using the current filter declaration."""
+
+        schema = self._session_list_filter_engine.schema(
+            self.get_application_ui_schema()
+        )
+        declaration = next(
+            (
+                item
+                for item in schema.filters
+                if item.element_id == filter_id
+            ),
+            None,
+        )
+        if declaration is None:
+            raise KeyError(f"Unknown session-list filter {filter_id!r}")
+        return coerce_session_list_filter_input(declaration, raw_value)
 
     def set_session_list_filter_evaluator(
         self,

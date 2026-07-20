@@ -20,6 +20,7 @@ from .event_rendering import (
     _extract_by_path,
 )
 from .runtime_layout import load_runtime_layout
+from .session_query import parse_session_query
 from .terminal_app import (
     TerminalApplication,
     TerminalUserError,
@@ -445,26 +446,97 @@ def _agent_completion(app: TerminalApplication, text: str) -> List[Completion]:
 
 
 def _session_completion(app: TerminalApplication, text: str) -> List[Completion]:
-    sessions = app.list_sessions_metadata()
+    stripped = text.lstrip()
+    filter_marker = "--filter "
+    marker_index = stripped.rfind(filter_marker)
+    if marker_index >= 0:
+        assignment = stripped[marker_index + len(filter_marker) :]
+        if " " not in assignment:
+            if "=" not in assignment:
+                prefix = assignment
+                schema = app.session_filter_schema()
+                return [
+                    Completion(
+                        f"{declaration['id']}=",
+                        start_position=-len(prefix),
+                        display=declaration["id"],
+                        display_meta=declaration.get("type", "filter"),
+                    )
+                    for declaration in schema.get("filters", [])
+                    if isinstance(declaration, dict)
+                    and isinstance(declaration.get("id"), str)
+                    and declaration.get("main_search") is not True
+                    and declaration["id"].startswith(prefix)
+                ]
 
-    prefix = text
-    # Only complete a single token after /session
-    if " " in prefix:
+            filter_id, _, raw_prefix = assignment.partition("=")
+            value_prefix = raw_prefix.rsplit(",", 1)[-1]
+            values = app.session_filter_completion_values(filter_id)
+            return [
+                Completion(
+                    value,
+                    start_position=-len(value_prefix),
+                    display=value,
+                    display_meta=filter_id,
+                )
+                for value in values
+                if value.startswith(value_prefix)
+            ]
+
+    last_token = stripped.rsplit(" ", 1)[-1]
+    if last_token.startswith("--") and "--filter".startswith(last_token):
+        return [
+            Completion(
+                "--filter",
+                start_position=-len(last_token),
+                display="--filter",
+                display_meta="session filter",
+            )
+        ]
+
+    try:
+        query = parse_session_query(stripped)
+    except ValueError:
         return []
 
+    try:
+        sessions = app.query_sessions_metadata(
+            search_text=query.search_text,
+            filter_inputs=query.filter_inputs,
+        )
+    except TerminalUserError:
+        try:
+            sessions = app.query_sessions_metadata(
+                filter_inputs=query.filter_inputs,
+            )
+        except TerminalUserError:
+            return []
+        if query.search_text:
+            sessions = [
+                entry
+                for entry in sessions
+                if isinstance(entry.get("session_id"), str)
+                and entry["session_id"].startswith(query.search_text)
+            ]
+
+    replacement_prefix = query.search_text
     completions: List[Completion] = []
     for entry in sessions:
         sid = entry.get("session_id")
         if not isinstance(sid, str) or not sid:
             continue
-        if prefix and not sid.startswith(prefix):
-            continue
-        preview = entry.get("preview")
-        meta = preview if isinstance(preview, str) else ""
+        presentation = entry.get("presentation")
+        title = (
+            presentation.get("title")
+            if isinstance(presentation, dict)
+            and isinstance(presentation.get("title"), str)
+            else entry.get("preview")
+        )
+        meta = title if isinstance(title, str) else ""
         completions.append(
             Completion(
                 sid,
-                start_position=-len(prefix),
+                start_position=-len(replacement_prefix),
                 display=sid,
                 display_meta=meta,
             )
@@ -582,32 +654,27 @@ async def _cmd_session(
     write: Callable[[str], None],
     ui_state: Dict[str, Any],
 ) -> None:
-    sessions = app.list_sessions_metadata()
-    if not sessions:
-        raise TerminalUserError("no saved sessions found")
+    try:
+        query = parse_session_query(arg or "")
+    except ValueError as exc:
+        raise TerminalUserError(str(exc)) from exc
 
-    selection = (arg or "").strip()
-
-    # If a session identifier (or index) is provided, switch immediately.
-    if selection:
-        target: Optional[str] = None
-        ids = [entry.get("session_id") for entry in sessions]
-        ids = [sid for sid in ids if isinstance(sid, str) and sid]
-        if selection.isdigit():
-            index = int(selection)
-            if 1 <= index <= len(ids):
-                target = ids[index - 1]
-        if target is None and selection in ids:
-            target = selection
-
-        if target is None:
-            raise TerminalUserError(f"unknown session: {selection!r}")
-
-        session = app.switch_session(target)
+    if query.search_text and app.is_saved_session_id(query.search_text):
+        session = app.switch_session(query.search_text)
         write(f"[session] switched to {session.session_id!r}")
         return
 
-    # No argument: show a simple text-based selection.
+    all_sessions = app.list_sessions_metadata()
+    if not all_sessions:
+        raise TerminalUserError("no saved sessions found")
+
+    sessions = app.query_sessions_metadata(
+        search_text=query.search_text,
+        filter_inputs=query.filter_inputs,
+    )
+    if not sessions:
+        raise TerminalUserError("no sessions match the active filters")
+
     ui_state["pending_session_choices"] = [
         entry.get("session_id")
         for entry in sessions
@@ -619,15 +686,21 @@ async def _cmd_session(
     except RuntimeError:
         current_session_id = None
 
-    write("\n[session] Available sessions (most recent first):")
+    write("\n[session] Matching sessions:")
     for index, entry in enumerate(sessions, 1):
         sid = entry.get("session_id")
         if not isinstance(sid, str) or not sid:
             continue
         marker = "*" if sid == current_session_id else " "
-        preview = entry.get("preview") if isinstance(entry.get("preview"), str) else ""
-        if preview:
-            write(f"  {index}. [{marker}] {sid} - {preview}")
+        presentation = entry.get("presentation")
+        title = (
+            presentation.get("title")
+            if isinstance(presentation, dict)
+            and isinstance(presentation.get("title"), str)
+            else entry.get("preview")
+        )
+        if isinstance(title, str) and title and title != sid:
+            write(f"  {index}. [{marker}] {sid} - {title}")
         else:
             write(f"  {index}. [{marker}] {sid}")
     write("[session] Enter session id or number (empty to cancel):")

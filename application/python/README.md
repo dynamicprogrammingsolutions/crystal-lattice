@@ -452,7 +452,13 @@ Common slash commands:
 
 - `/help` - list commands and shortcuts.
 - `/new` - start a new session.
-- `/session` - inspect or switch sessions.
+- `/session` - list sessions using plugin filter defaults.
+- `/session <exact-session-id>` - switch directly, even when filters hide it.
+- `/session <search text>` - search through the configured main-search filter
+  and display ordered numbered choices.
+- `/session --filter <filter-id>=<value> [search text]` - apply command-local
+  Boolean, text, or select overrides. Use `any` to deactivate Boolean/select
+  filters; multiple selects use comma-separated CSV values.
 - `/agent` - switch between configured agents.
 - `/send` - send a request with current history.
 - `/append` - add a message without sending.
@@ -461,6 +467,20 @@ Common slash commands:
 - `/set` - update config overrides from plugin UI schema entries.
 - `/cancel` - cancel an active request.
 - `/exit` or `/quit` - exit the terminal.
+
+The maintained default configuration includes pin and status filters. Examples:
+
+```text
+/session --filter pinned_state=true
+/session --filter pinned_state=false
+/session --filter session_status=todo,blocked
+/session --filter pinned_state=any --filter session_status=any
+```
+
+Pin and status default to Any, so enabling their plugins does not hide
+sessions. Existing sessions without pin metadata are not pinned; sessions
+without status behave as `todo`. Mobile and desktop expose the same
+declarations through the filter control adjacent to search.
 
 Keyboard shortcuts:
 

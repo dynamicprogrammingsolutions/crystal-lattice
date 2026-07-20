@@ -5,10 +5,10 @@ Make session-list summaries, ordering, search, filters, and rich actions plugin-
 ## Requirements checklist
 
 - [ ] HTTP and terminal session lists use one application-layer summary, presentation, and ordering pipeline.
-- [ ] Pin, archive, status, search, and filter capabilities appear only when their contributing plugins are installed and enabled.
+- [ ] Pin, archive, status, enhanced main-search, and non-main filter capabilities appear only when their contributing plugins are installed and enabled; mobile and desktop retain the approved compatibility fallback search when no main-search plugin is available.
 - [ ] Every enhanced session-list action remains a valid ordinary `session_list_action`; unsupported rich presentations fall back to the action's ordinary dialog behavior.
 - [ ] Session filters support text, boolean, single-select, and multi-select controls with deterministic declarative matching.
-- [ ] The ordinary session search is supplied by a plugin-defined main-search filter and behaves consistently in terminal, mobile, and desktop.
+- [ ] Terminal free-text search and the enhanced ordinary search are supplied by a plugin-defined main-search filter; mobile and desktop retain a shared summary-text fallback when no unambiguous plugin declaration exists.
 - [ ] Pinning, archiving, and status are stored under configurable session metadata keys and are available through plugin-defined actions and filters.
 - [ ] Pinning and archiving have state-aware rich toggle presentations, while status has both an ordinary form and a rich immediate-selection list presentation.
 - [ ] Plugin-contributed ordering, including pinned ordering, is applied before filtering and is shared by HTTP and terminal consumers.
@@ -21,7 +21,7 @@ Make session-list summaries, ordering, search, filters, and rich actions plugin-
 ## Task checklist
 
 - [x] `tasks/20260719-plugin-session-archive-filters/010-session-list-foundation.md`
-- [ ] `tasks/20260719-plugin-session-archive-filters/020-plugin-driven-filters-and-search.md`
+- [x] `tasks/20260719-plugin-session-archive-filters/020-plugin-driven-filters-and-search.md`
   - DEPENDS ON `tasks/20260719-plugin-session-archive-filters/010-session-list-foundation.md`
 - [ ] `tasks/20260719-plugin-session-archive-filters/030-rich-session-list-actions.md`
   - DEPENDS ON `tasks/20260719-plugin-session-archive-filters/010-session-list-foundation.md`
@@ -138,6 +138,9 @@ Matching and state rules:
 - Filtering preserves input order.
 - `main_search` is valid only for a text filter.
 - Zero or one effective main-search filter is valid. Competing declarations produce a clear schema error rather than an arbitrary winner.
+- Mobile and desktop retain a shared case-insensitive summary-text fallback
+  search when no unambiguous main-search declaration is available. Terminal
+  free-text search remains plugin-driven.
 
 ### Default built-in behavior
 

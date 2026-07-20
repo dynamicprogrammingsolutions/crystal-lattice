@@ -31,6 +31,25 @@ Depends On: `tasks/20260719-plugin-session-archive-filters/010-session-list-foun
 
 Depends On: `tasks/20260719-plugin-session-archive-filters/020-plugin-driven-filters-and-search.md`
 
+## Baseline status handoff
+
+The follow-up implementation owned by
+`tasks/20260719-plugin-session-archive-filters/020-plugin-driven-filters-and-search.md`
+now creates `plugins/session-status-app` with:
+
+- the stable `set_session_status` application action;
+- its ordinary `session_list_action` select form;
+- the stable multi-select `session_status` filter;
+- configurable metadata-key handling, immutable mutation, events,
+  checkpoints, default configuration, documentation, and cross-layer tests.
+
+Task 030 must extend that existing ordinary action with
+`rich_ui.kind: "list"` and immediate selection. Do not recreate or rename the
+plugin, action, filter, option values, or metadata configuration. The pin
+plugin likewise already emits `pinned_state`; task 030 retains only the
+ordinary rich-toggle migration for its row action. Archive and ordering work
+remain wholly owned here.
+
 ## Rich action contract
 
 ### Common behavior
@@ -313,7 +332,9 @@ Migrate `session-pinned-app` to one ordinary `session_list_action`, remove `sess
 
 Add `session-archive-app` using the immutable metadata mutation, lock, event, checkpoint, and action-result pattern proven by pinning.
 
-Add `session-status-app` with one set-status action. Keep one internal option definition and derive the fallback form, rich list, and status filter from it.
+Extend the existing `session-status-app` action with its rich list. Keep its
+one internal option definition authoritative for the existing fallback form
+and status filter plus the new rich list.
 
 Update `session-ordering-buckets-app` to resolve the configured pin metadata key and inspect `session_summary.metadata`. Preserve its existing recency/pin/last-updated priority semantics.
 

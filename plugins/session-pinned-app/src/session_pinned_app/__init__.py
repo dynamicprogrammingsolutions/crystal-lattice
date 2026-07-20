@@ -1,8 +1,8 @@
-"""Application-level plugin for pinning/unpinning sessions.
+"""Application-level plugin for pinning and filtering sessions.
 
 This plugin toggles a boolean flag in session metadata (for example,
-``metadata["pinned"]``) and exposes a lightweight UI element that can be
-used by frontends to render a star-style pinned toggle per session row.
+``metadata["pinned"]``), exposes the existing lightweight pin control, and
+contributes a declarative Boolean filter over the same configured metadata key.
 """
 
 from __future__ import annotations
@@ -36,6 +36,7 @@ class SessionPinnedAppPlugin:
                     "Metadata key used for storing pinned state on "
                     "sessions. When not set, defaults to 'pinned'."
                 ),
+                "default": "pinned",
             },
         }
 
@@ -46,12 +47,16 @@ class SessionPinnedAppPlugin:
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        """Expose a dedicated session-list toggle element.
+        """Expose the legacy pin control and a declarative pin filter.
 
         Frontends can treat this as a star-style pin toggle attached to
         each row in the sessions list. The element delegates to the
-        ``toggle_session_pinned`` action.
+        ``toggle_session_pinned`` action. The filter uses the same configured
+        metadata key and defaults to Any so enabling the plugin does not hide
+        sessions.
         """
+
+        pinned_key = state.get("pinned_metadata_key") or "pinned"
 
         return [
             {
@@ -65,10 +70,38 @@ class SessionPinnedAppPlugin:
                     "session_id": "$session.session_id",
                 },
                 "dialog": {"kind": "none"},
-            }
+            },
+            {
+                "ui_type": "session_list_filter",
+                "id": "pinned_state",
+                "label": "Pinned",
+                "icon": "star",
+                "order": 10,
+                "type": "boolean",
+                "match": "equals",
+                "data": f"metadata.{pinned_key}",
+                "missing_value": False,
+                "default": None,
+                "options": [
+                    {
+                        "value": False,
+                        "label": "Not pinned",
+                        "icon": "star",
+                        "tone": "muted",
+                    },
+                    {
+                        "value": True,
+                        "label": "Pinned",
+                        "icon": "star",
+                        "tone": "warning",
+                    },
+                ],
+            },
         ]
 
-    def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover - trivial
+    def init(
+        self, app_config: Dict[str, Any]
+    ) -> Dict[str, Any]:  # pragma: no cover - trivial
         application_cfg = app_config.get("application")
         if not isinstance(application_cfg, dict):
             application_cfg = {}

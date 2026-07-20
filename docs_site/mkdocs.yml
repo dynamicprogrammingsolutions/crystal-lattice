@@ -158,9 +158,11 @@ nav:
     - reference-openai-compatible-provider: built-in-plugins/reference-openai-compatible-provider/index.md
     - session-actions-app: built-in-plugins/session-actions-app/index.md
     - session-asset-attachments: built-in-plugins/session-asset-attachments/index.md
+    - session-main-search-app: built-in-plugins/session-main-search-app/index.md
     - session-message-count-meta-app: built-in-plugins/session-message-count-meta-app/index.md
     - session-ordering-buckets-app: built-in-plugins/session-ordering-buckets-app/index.md
     - session-pinned-app: built-in-plugins/session-pinned-app/index.md
+    - session-status-app: built-in-plugins/session-status-app/index.md
     - session-timestamp-meta-app: built-in-plugins/session-timestamp-meta-app/index.md
     - session-title-app: built-in-plugins/session-title-app/index.md
     - skill-shared: built-in-plugins/skill-shared/index.md

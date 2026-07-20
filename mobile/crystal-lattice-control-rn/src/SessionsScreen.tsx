@@ -25,6 +25,7 @@ import {
 } from '@crystal-lattice/frontend-sdk';
 import {
   ApplicationActionDialog,
+  SessionListFiltersPanel,
   SessionActionsBar,
   type SessionActionDefinition,
   type SessionActionKey,
@@ -32,6 +33,7 @@ import {
 import {
   useAgentsController,
   useHydrateControllerFromCache,
+  useSessionListFilters,
   useSessionsController,
 } from '@crystal-lattice/frontend-sdk-react';
 import { useTheme, type Theme } from './theme';
@@ -137,7 +139,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     hydrate: hydrateSessionsCache,
   });
 
-  const [filterText, setFilterText] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const loading = sessionsLoading || actionLoading;
   const error = sessionsState?.error ?? (!backend ? 'No active connection' : null);
@@ -157,8 +158,25 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     sessionListActions,
     actionsById,
     sessionListFields,
+    sessionListFilterSchema,
     sessionListPinnedToggles,
   } = useApplicationPlugins();
+  const {
+    schema: effectiveFilterSchema,
+    values: sessionFilterValues,
+    mainSearch,
+    searchText,
+    nonMainFilters,
+    activeNonMainFilterCount,
+    setFilterValue,
+    setSearchText,
+    reset: resetSessionFilters,
+    showAll: showAllSessions,
+    filterSessions,
+  } = useSessionListFilters({
+    connectionId,
+    schema: sessionListFilterSchema,
+  });
   const {
     error: applicationPluginsError,
     refresh: refreshApplicationPlugins,
@@ -188,6 +206,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [pluginsSessionId, setPluginsSessionId] = useState<string | null>(null);
+  const [filtersVisible, setFiltersVisible] = useState(false);
 
   const closeNonPluginOverlays = useCallback(() => {
     setAgentPickerVisible(false);
@@ -195,6 +214,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     setSettingsVisible(false);
     setServerSettingsVisible(false);
     setPluginsVisible(false);
+    setFiltersVisible(false);
   }, []);
 
   const navigateToSession = useCallback(
@@ -537,14 +557,12 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     [sessionListFields],
   );
 
-  const filteredSessions = sessions.filter((s) => {
-    if (!filterText.trim()) return true;
-    const q = filterText.toLowerCase();
-    return (
-      s.session_id.toLowerCase().includes(q) ||
-      (s.preview || '').toLowerCase().includes(q)
-    );
-  });
+  const filteredSessions = useMemo(
+    () => filterSessions(sessions),
+    [filterSessions, sessions],
+  );
+  const hasActiveFilters =
+    searchText !== '' || activeNonMainFilterCount > 0;
 
   const renderSessionItem = (s: SessionSummary) => {
     const modifiedDate = new Date(s.modified * 1000);
@@ -675,15 +693,59 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         </View>
       </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Filter by id or preview"
-        placeholderTextColor={theme.textSecondary}
-        value={filterText}
-        onChangeText={setFilterText}
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
+      <View style={styles.filterControlsRow}>
+        <TextInput
+          testID="session-main-search"
+          accessibilityLabel={mainSearch.label}
+          style={styles.input}
+          placeholder={mainSearch.label}
+          placeholderTextColor={theme.textSecondary}
+          value={searchText}
+          onChangeText={setSearchText}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {nonMainFilters.length > 0 ? (
+          <TouchableOpacity
+            testID="session-filters-open"
+            accessibilityLabel="Open session filters"
+            style={[
+              styles.filterButton,
+              activeNonMainFilterCount > 0
+                ? styles.filterButtonActive
+                : null,
+            ]}
+            onPress={() => setFiltersVisible(true)}
+          >
+            <Icon
+              name="filter"
+              size={18}
+              color={
+                activeNonMainFilterCount > 0
+                  ? theme.primary
+                  : theme.textSecondary
+              }
+            />
+            {activeNonMainFilterCount > 0 ? (
+              <Text
+                testID="session-filters-active-count"
+                style={styles.filterCount}
+              >
+                {activeNonMainFilterCount}
+              </Text>
+            ) : null}
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      {sessionListFilterSchema.mainSearchConflict ? (
+        <Text
+          testID="session-filter-schema-warning"
+          style={styles.filterWarning}
+        >
+          Multiple plugins declare the main session search. Using fallback search.
+        </Text>
+      ) : null}
 
       {loading && (
         <View style={styles.loadingContainer}>
@@ -697,7 +759,13 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       )}
 
       {!loading && filteredSessions.length === 0 && !error && (
-        <Text style={styles.emptyText}>No sessions found. Create one to get started.</Text>
+        <Text style={styles.emptyText}>
+          {sessions.length === 0
+            ? 'No sessions found. Create one to get started.'
+            : hasActiveFilters
+              ? 'No sessions match the active search or filters.'
+              : 'No sessions match the current filter defaults.'}
+        </Text>
       )}
 
       <FlatList
@@ -706,6 +774,29 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         keyExtractor={(item) => item.session_id}
         renderItem={({ item }) => renderSessionItem(item)}
       />
+
+      <Modal
+        visible={filtersVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFiltersVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.filtersModalContent}>
+            <SessionListFiltersPanel
+              schema={effectiveFilterSchema}
+              values={sessionFilterValues}
+              onChange={setFilterValue}
+              onReset={resetSessionFilters}
+              onShowAll={showAllSessions}
+              onRequestClose={() => setFiltersVisible(false)}
+              renderIcon={({ name, size, color }) => (
+                <Icon name={name} size={size} color={color} />
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
 
 	  {agentPickerVisible && (
 	    <Modal
@@ -896,14 +987,47 @@ const createStyles = (theme: Theme) =>
       fontWeight: '600',
     },
     input: {
+      flex: 1,
       backgroundColor: theme.surface,
       borderWidth: 1,
       borderColor: theme.border,
       borderRadius: 8,
       padding: 10,
-      marginBottom: 12,
       fontSize: 14,
       color: theme.text,
+    },
+    filterControlsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 12,
+    },
+    filterButton: {
+      width: 42,
+      height: 42,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      backgroundColor: theme.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterButtonActive: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primaryMuted,
+    },
+    filterCount: {
+      position: 'absolute',
+      right: 3,
+      top: 1,
+      color: theme.primary,
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    filterWarning: {
+      color: theme.danger,
+      fontSize: 12,
+      marginBottom: 8,
     },
     loadingContainer: {
       flexDirection: 'row',
@@ -1000,6 +1124,12 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surface,
       borderRadius: 12,
       padding: 16,
+    },
+    filtersModalContent: {
+      width: '90%',
+      maxHeight: '80%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
     },
     modalTitle: {
       fontSize: 18,

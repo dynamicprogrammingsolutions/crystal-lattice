@@ -18,6 +18,8 @@ import Icon from 'react-native-vector-icons/Feather';
 import {
   ActionsMenuBar,
   ApplicationActionDialog,
+  DropdownMenuSurface,
+  SessionListFiltersPanel,
   useTheme,
   type ActionDefinition,
   type ActionKey,
@@ -45,6 +47,7 @@ import {
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
   usePluginActionDialog,
+  useSessionListFilters,
   useSessionsController,
 } from '@crystal-lattice/frontend-sdk-react';
 
@@ -183,8 +186,9 @@ function SessionsPanelInner({
     ? sessionsSnapshot?.sessions ?? []
     : cachedSessions;
 
-  const [filterText, setFilterText] = useState('');
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const filterAnchorRef = useRef<any>(null);
 
   // Sliding window pagination for session list
   const INITIAL_WINDOW_SIZE = 50;
@@ -192,12 +196,6 @@ function SessionsPanelInner({
   const MAX_WINDOW_SIZE = 100;
   const [windowStart, setWindowStart] = useState(0);
   const [windowEnd, setWindowEnd] = useState(INITIAL_WINDOW_SIZE);
-
-  // Reset window when filter changes or sessions reload
-  useEffect(() => {
-    setWindowStart(0);
-    setWindowEnd(Math.min(INITIAL_WINDOW_SIZE, filteredSessions.length));
-  }, [filterText, sessions.length]);
 
   const subtitle = useMemo(() => {
     if (!focusedConnectionName) {
@@ -258,8 +256,25 @@ function SessionsPanelInner({
     actionsById,
     sessionListActions,
     sessionListFields,
+    sessionListFilterSchema,
     sessionListPinnedToggles,
   } = useApplicationPlugins();
+  const {
+    schema: effectiveFilterSchema,
+    values: sessionFilterValues,
+    mainSearch,
+    searchText,
+    nonMainFilters,
+    activeNonMainFilterCount,
+    setFilterValue,
+    setSearchText,
+    reset: resetSessionFilters,
+    showAll: showAllSessions,
+    filterSessions,
+  } = useSessionListFilters({
+    connectionId,
+    schema: sessionListFilterSchema,
+  });
 
   const fieldGroups = useMemo(
     () => groupSessionListFields(sessionListFields || []),
@@ -481,21 +496,22 @@ function SessionsPanelInner({
     }
   }, [agentsController, backend, connectionId, focusedConnectionName]);
 
-  const filteredSessions = useMemo(() => {
-    const query = filterText.trim().toLowerCase();
-    if (!query) {
-      return sessions;
-    }
-    return sessions.filter((sessionSummary) => {
-      if (sessionSummary.session_id.toLowerCase().includes(query)) return true;
-      if ((sessionSummary.preview || '').toLowerCase().includes(query)) return true;
-      const presentation = deriveSessionListPresentationFromGroups(sessionSummary, fieldGroups);
-      if (presentation.title.toLowerCase().includes(query)) return true;
-      if ((presentation.subtitle || '').toLowerCase().includes(query)) return true;
-      if ((presentation.meta || '').toLowerCase().includes(query)) return true;
-      return false;
-    });
-  }, [fieldGroups, filterText, sessions]);
+  const filteredSessions = useMemo(
+    () => filterSessions(sessions),
+    [filterSessions, sessions],
+  );
+  const hasActiveFilters =
+    searchText !== '' || activeNonMainFilterCount > 0;
+
+  useEffect(() => {
+    setWindowStart(0);
+    setWindowEnd(Math.min(INITIAL_WINDOW_SIZE, filteredSessions.length));
+  }, [
+    effectiveFilterSchema.identity,
+    filteredSessions.length,
+    sessionFilterValues,
+    sessions.length,
+  ]);
 
   // Show only visible window of filtered sessions
   const visibleSessions = filteredSessions.slice(windowStart, windowEnd);
@@ -684,14 +700,72 @@ function SessionsPanelInner({
 
       <View style={styles.controlsRow}>
         <TextInput
+          testID="session-main-search"
+          accessibilityLabel={mainSearch.label}
           style={styles.searchInput}
-          placeholder="Search"
+          placeholder={mainSearch.label}
           placeholderTextColor={theme.textMuted}
-          value={filterText}
-          onChangeText={setFilterText}
+          value={searchText}
+          onChangeText={setSearchText}
           autoCapitalize="none"
           autoCorrect={false}
         />
+
+        {nonMainFilters.length > 0 ? (
+          <>
+            <View ref={filterAnchorRef} collapsable={false}>
+              <Pressable
+                testID="session-filters-open"
+                accessibilityLabel="Open session filters"
+                style={(state) => {
+                  const hovered = (state as any).hovered as boolean | undefined;
+                  return [
+                    styles.filterButton,
+                    activeNonMainFilterCount > 0 && styles.filterButtonActive,
+                    (hovered || state.pressed) && styles.filterButtonHovered,
+                  ];
+                }}
+                onPress={() => setFiltersVisible((current) => !current)}
+              >
+                <Icon
+                  name="filter"
+                  size={15}
+                  color={
+                    activeNonMainFilterCount > 0
+                      ? theme.primary
+                      : theme.textSecondary
+                  }
+                />
+                {activeNonMainFilterCount > 0 ? (
+                  <Text
+                    testID="session-filters-active-count"
+                    style={styles.filterCount}
+                  >
+                    {activeNonMainFilterCount}
+                  </Text>
+                ) : null}
+              </Pressable>
+            </View>
+            <DropdownMenuSurface
+              visible={filtersVisible}
+              onRequestClose={() => setFiltersVisible(false)}
+              anchorRef={filterAnchorRef}
+              menuStyle={styles.filtersMenu}
+            >
+              <SessionListFiltersPanel
+                schema={effectiveFilterSchema}
+                values={sessionFilterValues}
+                onChange={setFilterValue}
+                onReset={resetSessionFilters}
+                onShowAll={showAllSessions}
+                onRequestClose={() => setFiltersVisible(false)}
+                renderIcon={({ name, size, color }) => (
+                  <Icon name={name} size={size} color={color} />
+                )}
+              />
+            </DropdownMenuSurface>
+          </>
+        ) : null}
 
         <Pressable
           style={(state) => {
@@ -709,6 +783,15 @@ function SessionsPanelInner({
           <Text style={styles.newButtonText}>{openingAgentPicker ? '…' : 'New'}</Text>
         </Pressable>
       </View>
+
+      {sessionListFilterSchema.mainSearchConflict ? (
+        <Text
+          testID="session-filter-schema-warning"
+          style={styles.filterWarning}
+        >
+          Multiple plugins declare the main session search. Using fallback search.
+        </Text>
+      ) : null}
 
       {(sessionsLoading || pluginActionRunning) && (
         <View style={styles.loadingRow}>
@@ -756,7 +839,11 @@ function SessionsPanelInner({
           {visibleSessions.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>
-                {filterText.trim() ? 'No sessions match your search.' : 'No sessions.'}
+                {sessions.length === 0
+                  ? 'No sessions.'
+                  : hasActiveFilters
+                    ? 'No sessions match the active search or filters.'
+                    : 'No sessions match the current filter defaults.'}
               </Text>
               {!isOnline ? (
                 <Text style={styles.emptyMeta}>Open the connection to refresh.</Text>
@@ -974,6 +1061,44 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       fontSize: 12,
       color: theme.text,
       backgroundColor: theme.backgroundAlt,
+    },
+    filterButton: {
+      width: 32,
+      height: 32,
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.backgroundAlt,
+    },
+    filterButtonActive: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primaryMuted,
+    },
+    filterButtonHovered: {
+      opacity: 0.9,
+    },
+    filterCount: {
+      position: 'absolute',
+      right: 2,
+      top: 0,
+      color: theme.primary,
+      fontSize: 9,
+      fontWeight: '900',
+    },
+    filtersMenu: {
+      width: 360,
+      maxHeight: 560,
+      paddingVertical: 0,
+    },
+    filterWarning: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderBottomWidth: separatorWidth,
+      borderBottomColor: theme.border,
+      color: theme.danger,
+      fontSize: 11,
     },
     newButton: {
       borderWidth: separatorWidth,

@@ -19,6 +19,7 @@ const SESSION_SUMMARIES: SessionSummary[] = [
     preview: 'conflicting first preview',
     metadata: {
       local_title: 'Local first title',
+      pinned: true,
       status: 'done',
     },
     presentation: {
@@ -46,8 +47,8 @@ const SESSION_SUMMARIES: SessionSummary[] = [
 function successfulActionResponse(): ExecuteActionResponse {
   return {
     status: 'ok',
-    plugin: 'session_list_harness',
-    action_id: 'set_status',
+    plugin: 'session_status',
+    action_id: 'set_session_status',
     result: {
       mutations: {
         created_session_ids: [],
@@ -92,8 +93,8 @@ function createHarnessBackend(
     listSessions: async () => SESSION_SUMMARIES,
     listApplicationActions: async () => [
       {
-        plugin: 'session_list_harness',
-        id: 'set_status',
+        plugin: 'session_status',
+        id: 'set_session_status',
         label: 'Set status',
         inputs: {
           session_id: { type: 'string', required: true },
@@ -102,6 +103,73 @@ function createHarnessBackend(
       },
     ],
     listApplicationUiSchema: async () => [
+      {
+        ui_type: 'session_list_filter',
+        plugin: 'session_list_harness',
+        id: 'session_search',
+        label: 'Search',
+        icon: 'search',
+        order: 0,
+        data: [
+          'session_id',
+          'preview',
+          'presentation.title',
+          'presentation.subtitle',
+          'presentation.meta',
+        ],
+        type: 'text',
+        match: 'contains',
+        case_sensitive: false,
+        default: '',
+        main_search: true,
+      },
+      {
+        ui_type: 'session_list_filter',
+        plugin: 'session_pinned',
+        id: 'pinned_state',
+        label: 'Pinned',
+        icon: 'star',
+        order: 10,
+        data: 'metadata.pinned',
+        type: 'boolean',
+        match: 'equals',
+        missing_value: false,
+        default: null,
+        options: [
+          {
+            value: false,
+            label: 'Not pinned',
+            icon: 'star',
+            tone: 'muted',
+          },
+          {
+            value: true,
+            label: 'Pinned',
+            icon: 'star',
+            tone: 'warning',
+          },
+        ],
+      },
+      {
+        ui_type: 'session_list_filter',
+        plugin: 'session_status',
+        id: 'session_status',
+        label: 'Status',
+        icon: 'circle',
+        order: 20,
+        data: 'metadata.status',
+        type: 'select',
+        match: 'one_of',
+        multiple: true,
+        missing_value: 'todo',
+        default: [],
+        options: [
+          { value: 'todo', label: 'To do', tone: 'muted' },
+          { value: 'in_progress', label: 'In progress', tone: 'primary' },
+          { value: 'blocked', label: 'Blocked', tone: 'danger' },
+          { value: 'done', label: 'Done', tone: 'success' },
+        ],
+      },
       {
         ui_type: 'session_list_field',
         plugin: 'session_list_harness',
@@ -113,18 +181,18 @@ function createHarnessBackend(
       },
       {
         ui_type: 'session_list_action',
-        plugin: 'session_list_harness',
-        id: 'edit-status',
-        label: 'Edit status',
-        icon: 'edit-3',
-        action_id: 'set_status',
+        plugin: 'session_status',
+        id: 'set_session_status',
+        label: 'Set status',
+        icon: 'circle',
+        action_id: 'set_session_status',
         param_map: {
           session_id: '$session.session_id',
           status: '$dialog.status',
         },
         dialog: {
           kind: 'form',
-          title: 'Edit status',
+          title: 'Set status',
           inputs: [
             {
               name: 'status',
@@ -133,14 +201,17 @@ function createHarnessBackend(
               default: 'todo',
               prefill_from: '$session.metadata.status',
               options: [
-                { value: 'todo', label: 'To do' },
-                { value: 'done', label: 'Done' },
+                { value: 'todo', label: 'To do', tone: 'muted' },
+                {
+                  value: 'in_progress',
+                  label: 'In progress',
+                  tone: 'primary',
+                },
+                { value: 'blocked', label: 'Blocked', tone: 'danger' },
+                { value: 'done', label: 'Done', tone: 'success' },
               ],
             },
           ],
-        },
-        rich_ui: {
-          value_path: 'metadata.status',
         },
       },
     ],

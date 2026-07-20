@@ -17,6 +17,22 @@ const SUMMARY = {
 };
 
 describe('RestAgentBackend session listing', () => {
+  it('uses the unfiltered sessions endpoint when no limit is requested', async () => {
+    const transport = {
+      request: vi.fn(async () => ({
+        status: 200,
+        data: { sessions: [SUMMARY] },
+      })),
+    } as unknown as Transport;
+    const backend = new RestAgentBackend({ transport });
+
+    await expect(backend.listSessions()).resolves.toEqual([SUMMARY]);
+    expect(transport.request).toHaveBeenCalledWith({
+      method: 'GET',
+      path: '/sessions',
+    });
+  });
+
   it('preserves ordered application summaries and serializes limit', async () => {
     const second = {
       ...SUMMARY,

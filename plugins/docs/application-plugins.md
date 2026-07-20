@@ -461,6 +461,25 @@ last. HTTP requests the unfiltered collection. Terminal integrations can
 supply filter state in-process. `app.get_session_summary(session_id)` is exact
 and independent of list filters.
 
+`session_list_filter` is metadata, not an action: it has no `action_id` and is
+never passed to `execute_action`. One valid text filter may set
+`main_search: true`. Terminal free-text search requires that declaration.
+Mobile and desktop use it when available and retain a shared local summary-text
+fallback search when it is absent or ambiguous; ambiguity is still exposed as
+a schema diagnostic. See [UI elements](ui-elements.md), under
+“Session-list filters,” for the full type, default, matching, Reset, and
+Show-all contract.
+
+The built-in `session-pinned-app` and `session-status-app` plugins are concrete
+examples of keeping actions and filters aligned around one configurable
+metadata key. Pinning retains its existing toggle action and contributes an
+inactive-by-default Boolean filter. Status contributes an ordinary select-form
+row action and an inactive-by-default multi-select filter. Missing status
+behaves as `todo`; selecting `todo` for an old session is therefore a no-op
+unless a different explicit value was stored. Both mutation actions save a new
+immutable `Session`, publish `session_metadata_updated`, record a checkpoint,
+and report updated-session mutations.
+
 Public HTTP adapters expose:
 
 ```text

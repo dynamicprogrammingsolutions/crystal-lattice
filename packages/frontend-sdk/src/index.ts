@@ -179,6 +179,29 @@ export {
   resolveSessionListActionPresentation,
   resolveSessionListPath,
 } from './sessions/sessionListContracts';
+export type {
+  SessionListFilterElement,
+  SessionListFilterEvaluation,
+  SessionListFilterMatch,
+  SessionListFilterSchema,
+  SessionListFilterType,
+  SessionListFilterValues,
+  SessionListOption,
+  SessionListOptionTone,
+  SessionListOptionValue,
+} from './sessions/sessionListFilters';
+export {
+  FRONTEND_FALLBACK_SESSION_SEARCH_ID,
+  countActiveSessionListFilters,
+  createSessionListFilterValues,
+  evaluateSessionListFilters,
+  inactiveSessionListFilterValue,
+  isSessionListFilterActive,
+  normalizeSessionListFilterSchema,
+  reconcileSessionListFilterValues,
+  validateSessionListFilterValue,
+  withFrontendFallbackSessionSearch,
+} from './sessions/sessionListFilters';
 
 export type { ChatControllerState, StreamingRow, RequestErrorState } from './chat/chatController';
 export { ChatController } from './chat/chatController';

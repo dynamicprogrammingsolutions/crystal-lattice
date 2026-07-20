@@ -41,25 +41,26 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
         ? dialog.inputs
         : [];
       const values = buildActionDialogInitialValues(inputs, prefillContext);
+      const fieldName = inputs[0]?.name || 'unknown';
+      const submittedValues =
+        fieldName === 'status'
+          ? { ...values, status: 'blocked' }
+          : { ...values, title: 'Updated through SessionsScreen' };
       return ReactModule.createElement(
         View,
         { testID: 'real-application-action-dialog' },
         ReactModule.createElement(
           Text,
-          { testID: 'real-dialog-prefill-title' },
-          values.title,
+          { testID: `real-dialog-prefill-${fieldName}` },
+          values[fieldName],
         ),
         ReactModule.createElement(
           TouchableOpacity,
           {
-            testID: 'real-dialog-submit',
-            onPress: () =>
-              onSubmit({
-                ...values,
-                title: 'Updated through SessionsScreen',
-              }),
+            testID: `real-dialog-submit-${fieldName}`,
+            onPress: () => onSubmit(submittedValues),
           },
-          ReactModule.createElement(Text, null, 'Submit title'),
+          ReactModule.createElement(Text, null, `Submit ${fieldName}`),
         ),
       );
     },
@@ -87,6 +88,9 @@ const SERVER_CONFIG = {
     'plugins.echo_openai_like_provider.EchoOpenAILikeProvider',
     'path:${env:REPO_ROOT}/plugins/session-title-app',
     'path:${env:REPO_ROOT}/plugins/session-message-count-meta-app',
+    'path:${env:REPO_ROOT}/plugins/session-main-search-app',
+    'path:${env:REPO_ROOT}/plugins/session-pinned-app',
+    'path:${env:REPO_ROOT}/plugins/session-status-app',
   ],
   agents: {
     default: {
@@ -112,6 +116,7 @@ describe('SessionsScreen real-backend component integration', () => {
       startupTimeoutMs: 30000,
     });
     const sessionId = await createMobileComponentSession(started.backend);
+    const otherSessionId = await createMobileComponentSession(started.backend);
     await started.backend.appendMessage(sessionId, {
       role: 'user',
       content: 'real backend preview',
@@ -128,6 +133,20 @@ describe('SessionsScreen real-backend component integration', () => {
       },
     });
     expect(titleResult.status).toBe('ok');
+    await started.backend.appendMessage(otherSessionId, {
+      role: 'user',
+      content: 'other backend preview',
+    });
+    const pinResult = await started.backend.executeSessionAction!({
+      sessionId,
+      pluginId: 'session_pinned',
+      actionId: 'toggle_session_pinned',
+      actionOwner: 'application',
+      inputs: {
+        session_id: sessionId,
+      },
+    });
+    expect(pinResult.status).toBe('ok');
 
     const summaries = await started.backend.listSessions();
     const summary = summaries.find((item) => item.session_id === sessionId);
@@ -139,6 +158,30 @@ describe('SessionsScreen real-backend component integration', () => {
     });
     await expect(started.backend.getSessionSummary(sessionId)).resolves.toEqual(
       summary,
+    );
+    const applicationUi = await started.backend.listApplicationUiSchema();
+    expect(applicationUi).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          plugin: 'session_main_search',
+          ui_type: 'session_list_filter',
+          id: 'session_search',
+          main_search: true,
+        }),
+        expect.objectContaining({
+          plugin: 'session_pinned',
+          ui_type: 'session_list_filter',
+          id: 'pinned_state',
+          default: null,
+        }),
+        expect.objectContaining({
+          plugin: 'session_status',
+          ui_type: 'session_list_filter',
+          id: 'session_status',
+          multiple: true,
+          missing_value: 'todo',
+        }),
+      ]),
     );
 
     renderWithMobileProviders(
@@ -171,6 +214,18 @@ describe('SessionsScreen real-backend component integration', () => {
     );
     expect(screen.queryByText('real backend preview')).toBeNull();
 
+    await waitFor(() => {
+      expect(
+        screen.getAllByTestId('real-session-action-edit_title_from_list'),
+      ).toHaveLength(2);
+    });
+    fireEvent.changeText(
+      await screen.findByTestId('session-main-search'),
+      'Real backend title',
+    );
+    expect(screen.getByTestId(`session-row-${sessionId}`)).toBeTruthy();
+    expect(screen.queryByTestId(`session-row-${otherSessionId}`)).toBeNull();
+
     fireEvent.press(
       await screen.findByTestId(
         'real-session-action-edit_title_from_list',
@@ -180,7 +235,8 @@ describe('SessionsScreen real-backend component integration', () => {
     expect(screen.getByTestId('real-dialog-prefill-title')).toHaveTextContent(
       'Real backend title',
     );
-    fireEvent.press(screen.getByTestId('real-dialog-submit'));
+    fireEvent.changeText(screen.getByTestId('session-main-search'), '');
+    fireEvent.press(screen.getByTestId('real-dialog-submit-title'));
 
     await waitFor(async () => {
       const updated = await started!.backend.getSessionSummary(sessionId);
@@ -189,5 +245,35 @@ describe('SessionsScreen real-backend component integration', () => {
     expect(
       await screen.findByText('Updated through SessionsScreen'),
     ).toBeTruthy();
+
+    fireEvent.press(
+      screen.getAllByTestId('real-session-action-set_session_status')[0],
+    );
+    expect(await screen.findByTestId('real-application-action-dialog')).toBeTruthy();
+    expect(screen.getByTestId('real-dialog-prefill-status')).toHaveTextContent(
+      'todo',
+    );
+    fireEvent.press(screen.getByTestId('real-dialog-submit-status'));
+
+    await waitFor(async () => {
+      const updated = await started!.backend.getSessionSummary(sessionId);
+      expect(updated.metadata.status).toBe('blocked');
+    });
+
+    fireEvent.press(await screen.findByTestId('session-filters-open'));
+    fireEvent.press(
+      await screen.findByTestId('session-filter-pinned_state-option-true'),
+    );
+    expect(screen.getByTestId(`session-row-${sessionId}`)).toBeTruthy();
+    expect(screen.queryByTestId(`session-row-${otherSessionId}`)).toBeNull();
+    fireEvent.press(
+      screen.getByTestId('session-filter-session_status-option-2'),
+    );
+    expect(screen.getByTestId('session-filters-active-count')).toHaveTextContent(
+      '2',
+    );
+    fireEvent.press(screen.getByTestId('session-filters-show-all'));
+    expect(screen.getByTestId(`session-row-${sessionId}`)).toBeTruthy();
+    expect(screen.getByTestId(`session-row-${otherSessionId}`)).toBeTruthy();
   }, 60000);
 });

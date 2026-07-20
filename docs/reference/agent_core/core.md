@@ -1900,6 +1900,18 @@ for call in tool_calls:
     if display_payload is not None:
         metadata["display"] = display_payload
 
+    # Merge tool-supplied metadata from the result dict. Tools may
+    # return a ``metadata`` mapping (e.g. ``{"bash": {"end_cwd": ...}}``)
+    # to attach immutable, session-persistent metadata to the tool
+    # result message. Core-managed keys above are not overwritten.
+    result_metadata = (
+        last_result.get("metadata") if isinstance(last_result, dict) else None
+    )
+    if isinstance(result_metadata, dict) and result_metadata:
+        for key, value in result_metadata.items():
+            if key not in metadata:
+                metadata[key] = value
+
     tool_message = {
         "role": "tool",
         "content": registry.inspect_result(tool_result_value).text,

@@ -37,8 +37,14 @@ class SessionListFilterEvaluator(Protocol):
         ui_elements: Sequence[Dict[str, Any]],
         filter_values: Optional[Dict[str, object]],
         apply_filter_defaults: bool,
-    ) -> List[Dict[str, Any]]:  # pragma: no cover - protocol
+    ) -> "SessionListFilterEvaluation | List[Dict[str, Any]]":  # pragma: no cover - protocol
         ...
+
+
+@dataclass(frozen=True)
+class SessionListFilterEvaluation:
+    summaries: List[Dict[str, Any]]
+    diagnostics: Tuple["SessionListDiagnostic", ...] = ()
 
 
 def _identity_filter_evaluator(
@@ -251,12 +257,17 @@ class SessionListService:
                 diagnostics.extend(entry_diagnostics)
 
             ordered = self._apply_ordering(summaries, all_specs, diagnostics)
-            filtered = self._filter_evaluator(
+            filter_evaluation = self._filter_evaluator(
                 ordered,
                 ui_elements=ui_elements,
                 filter_values=filter_values,
                 apply_filter_defaults=apply_filter_defaults,
             )
+            if isinstance(filter_evaluation, SessionListFilterEvaluation):
+                filtered = filter_evaluation.summaries
+                diagnostics.extend(filter_evaluation.diagnostics)
+            else:
+                filtered = filter_evaluation
             if limit is not None and isinstance(limit, int) and not isinstance(limit, bool):
                 if limit >= 0:
                     filtered = filtered[:limit]
@@ -979,6 +990,7 @@ def derive_session_list_presentation(
 __all__ = [
     "ResolvedPath",
     "SessionListDiagnostic",
+    "SessionListFilterEvaluation",
     "SessionListFilterEvaluator",
     "SessionListService",
     "derive_session_list_presentation",

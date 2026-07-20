@@ -80,10 +80,10 @@ describe("mobile session-list contracts", () => {
       .toBeVisible()
       .withTimeout(30000);
     await element(by.id("session-actions-menu-server-first")).tap();
-    await waitFor(element(by.id("actions-menu-action-edit-status")))
+    await waitFor(element(by.id("actions-menu-action-set_session_status")))
       .toBeVisible()
       .withTimeout(30000);
-    await element(by.id("actions-menu-action-edit-status")).tap();
+    await element(by.id("actions-menu-action-set_session_status")).tap();
 
     await waitFor(element(by.id("action-dialog-select-status-done")))
       .toBeVisible()
@@ -93,5 +93,68 @@ describe("mobile session-list contracts", () => {
     await waitFor(element(by.id("session-list-harness-submission")))
       .toHaveText("server-first:done")
       .withTimeout(30000);
+  });
+
+  it("uses the plugin-declared main search", async () => {
+    await launchHarness();
+
+    await waitFor(element(by.id("session-main-search")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await element(by.id("session-main-search")).replaceText("server-first");
+    await waitFor(element(by.id("session-row-server-first")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await detoxExpect(element(by.id("session-row-server-second"))).not.toExist();
+  });
+
+  it("applies non-main filters and supports Show all and Reset", async () => {
+    await launchHarness();
+
+    await waitFor(element(by.id("session-filters-open")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await detoxExpect(
+      element(by.id("session-filters-active-count")),
+    ).not.toExist();
+    await element(by.id("session-filters-open")).tap();
+    await waitFor(element(by.id("session-filter-pinned_state-option-true")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await element(by.id("session-filter-pinned_state-option-true")).tap();
+    await element(by.id("session-filters-close")).tap();
+    await waitFor(element(by.id("session-row-server-first")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await detoxExpect(element(by.id("session-row-server-second"))).not.toExist();
+
+    await element(by.id("session-filters-open")).tap();
+    await element(by.id("session-filters-show-all")).tap();
+    await waitFor(element(by.id("session-filter-session_status-option-0")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await element(by.id("session-filter-session_status-option-0")).tap();
+    await element(by.id("session-filters-close")).tap();
+    await waitFor(element(by.id("session-row-server-second")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await detoxExpect(element(by.id("session-row-server-first"))).not.toExist();
+
+    await element(by.id("session-filters-open")).tap();
+    await element(by.id("session-filters-show-all")).tap();
+    await element(by.id("session-filters-close")).tap();
+    await waitFor(element(by.id("session-row-server-first")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await waitFor(element(by.id("session-row-server-second")))
+      .toBeVisible()
+      .withTimeout(30000);
+
+    await element(by.id("session-filters-open")).tap();
+    await element(by.id("session-filters-reset")).tap();
+    await element(by.id("session-filters-close")).tap();
+    await detoxExpect(
+      element(by.id("session-filters-active-count")),
+    ).not.toExist();
   });
 });

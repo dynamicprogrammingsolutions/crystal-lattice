@@ -9,6 +9,8 @@ from agent_app.application_future import AgentApplication
 from agent_app.config import resolve_request_config
 from agent_core import Session
 
+from .session_query import parse_multi_select_csv
+
 
 class TerminalUserError(Exception):
     """Error caused by invalid user input (indices, arguments, etc.)."""
@@ -211,6 +213,113 @@ class TerminalApplication:
             apply_filter_defaults=apply_filter_defaults,
             limit=limit,
         )
+
+    def session_filter_schema(self) -> Dict[str, Any]:
+        """Return the normalized filter schema used by terminal queries."""
+
+        return self._app.get_session_list_filter_schema()
+
+    def is_saved_session_id(self, session_id: str) -> bool:
+        """Return whether an exact stored session exists, ignoring filters."""
+
+        if not isinstance(session_id, str) or not session_id:
+            return False
+        try:
+            self._app.get_session_summary(session_id)
+        except KeyError:
+            return False
+        return True
+
+    def query_sessions_metadata(
+        self,
+        *,
+        search_text: str = "",
+        filter_inputs: Optional[Dict[str, str]] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Apply plugin defaults plus command-local terminal filter inputs."""
+
+        schema = self.session_filter_schema()
+        declarations = {
+            declaration["id"]: declaration
+            for declaration in schema.get("filters", [])
+            if isinstance(declaration, dict)
+            and isinstance(declaration.get("id"), str)
+        }
+        main_search_id = schema.get("main_search_id")
+        if search_text:
+            if schema.get("main_search_conflict"):
+                raise TerminalUserError(
+                    "session main-search schema is ambiguous; "
+                    "disable one of the competing plugins"
+                )
+            if not isinstance(main_search_id, str) or not main_search_id:
+                raise TerminalUserError(
+                    "free-text session search requires a main-search plugin"
+                )
+
+        values: Dict[str, object] = {}
+        for filter_id, raw_value in (filter_inputs or {}).items():
+            declaration = declarations.get(filter_id)
+            if declaration is None:
+                raise TerminalUserError(f"unknown session filter: {filter_id!r}")
+            if declaration.get("main_search") is True:
+                raise TerminalUserError(
+                    f"main-search filter {filter_id!r} is set by trailing search text"
+                )
+            try:
+                if (
+                    declaration.get("type") == "select"
+                    and declaration.get("multiple") is True
+                ):
+                    input_value: str | List[str] = parse_multi_select_csv(
+                        raw_value
+                    )
+                else:
+                    input_value = raw_value
+                values[filter_id] = self._app.coerce_session_list_filter_input(
+                    filter_id, input_value
+                )
+            except (KeyError, ValueError) as exc:
+                raise TerminalUserError(str(exc)) from exc
+
+        if search_text and isinstance(main_search_id, str):
+            values[main_search_id] = search_text
+
+        return self.list_sessions_metadata(
+            limit=limit,
+            filter_values=values,
+            apply_filter_defaults=True,
+        )
+
+    def session_filter_completion_values(self, filter_id: str) -> List[str]:
+        """Return terminal spellings accepted for one non-text filter."""
+
+        schema = self.session_filter_schema()
+        declaration = next(
+            (
+                item
+                for item in schema.get("filters", [])
+                if isinstance(item, dict) and item.get("id") == filter_id
+            ),
+            None,
+        )
+        if not isinstance(declaration, dict):
+            return []
+        if declaration.get("type") == "boolean":
+            return ["any", "true", "false"]
+        if declaration.get("type") == "select":
+            values = ["any"]
+            for option in declaration.get("options", []):
+                if not isinstance(option, dict):
+                    continue
+                value = option.get("value")
+                if isinstance(value, bool):
+                    values.append("true" if value else "false")
+                elif isinstance(value, str):
+                    values.append(value)
+            return values
+        return []
 
     def switch_session(self, session_id: str) -> Session:
         """Load an existing session by id and make it active."""

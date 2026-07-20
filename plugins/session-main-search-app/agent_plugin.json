@@ -1,0 +1,10 @@
+{
+  "module": "session_main_search_app",
+  "subdirectory": ".",
+  "entries": [
+    "session_main_search_app.SessionMainSearchAppPlugin"
+  ],
+  "kinds": {
+    "session_main_search_app.SessionMainSearchAppPlugin": "application"
+  }
+}

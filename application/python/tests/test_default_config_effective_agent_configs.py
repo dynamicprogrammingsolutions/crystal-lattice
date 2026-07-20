@@ -59,6 +59,71 @@ def test_default_config_effective_agent_configs_stay_intact(
         str(config_path), str(session_root), event_store=InMemoryEventStore()
     )
     assert app.get_config_errors() == []
+    search_elements = [
+        element
+        for element in app.get_application_ui_schema()
+        if element.get("plugin") == "session_main_search"
+        and element.get("ui_type") == "session_list_filter"
+    ]
+    assert len(search_elements) == 1
+    assert search_elements[0]["id"] == "session_search"
+    assert search_elements[0]["main_search"] is True
+    list_filters = {
+        element["id"]: element
+        for element in app.get_application_ui_schema()
+        if element.get("ui_type") == "session_list_filter"
+    }
+    assert list_filters["pinned_state"] == {
+        "ui_type": "session_list_filter",
+        "id": "pinned_state",
+        "label": "Pinned",
+        "icon": "star",
+        "order": 10,
+        "type": "boolean",
+        "match": "equals",
+        "data": "metadata.pinned",
+        "missing_value": False,
+        "default": None,
+        "options": [
+            {
+                "value": False,
+                "label": "Not pinned",
+                "icon": "star",
+                "tone": "muted",
+            },
+            {
+                "value": True,
+                "label": "Pinned",
+                "icon": "star",
+                "tone": "warning",
+            },
+        ],
+        "plugin": "session_pinned",
+    }
+    assert list_filters["session_status"] == {
+        "ui_type": "session_list_filter",
+        "id": "session_status",
+        "label": "Status",
+        "icon": "circle",
+        "order": 20,
+        "type": "select",
+        "match": "one_of",
+        "multiple": True,
+        "data": "metadata.status",
+        "missing_value": "todo",
+        "default": [],
+        "options": [
+            {"value": "todo", "label": "To do", "tone": "muted"},
+            {
+                "value": "in_progress",
+                "label": "In progress",
+                "tone": "primary",
+            },
+            {"value": "blocked", "label": "Blocked", "tone": "danger"},
+            {"value": "done", "label": "Done", "tone": "success"},
+        ],
+        "plugin": "session_status",
+    }
 
     cases = {
         "cloud-script-author": {

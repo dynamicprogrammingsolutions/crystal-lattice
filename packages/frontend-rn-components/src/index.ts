@@ -73,3 +73,8 @@ export { SessionActionsBar } from './actions/SessionActionsBar';
 
 export { SessionPluginsList } from './SessionPluginsList';
 
+export type {
+  SessionListFiltersPanelProps,
+} from './SessionListFiltersPanel';
+export { SessionListFiltersPanel } from './SessionListFiltersPanel';
+

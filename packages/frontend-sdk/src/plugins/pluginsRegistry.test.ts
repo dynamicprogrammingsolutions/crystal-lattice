@@ -135,4 +135,57 @@ describe('PluginsRegistry', () => {
       registry.getSnapshot().sessionListDiagnostics.map((diagnostic) => diagnostic.code),
     ).toContain('invalid_session_list_rich_ui');
   });
+
+  it('publishes normalized filters and an explicit main-search conflict', async () => {
+    const backend = createBackend();
+    (backend.listApplicationActions as any).mockResolvedValueOnce([]);
+    (backend.listApplicationUiSchema as any).mockResolvedValueOnce([
+      {
+        ui_type: 'session_list_filter',
+        plugin: 'first',
+        id: 'first-search',
+        label: 'First',
+        data: 'session_id',
+        type: 'text',
+        match: 'contains',
+        main_search: true,
+      },
+      {
+        ui_type: 'session_list_filter',
+        plugin: 'filters',
+        id: 'archived',
+        label: 'Archived',
+        data: 'metadata.archived',
+        type: 'boolean',
+        match: 'equals',
+        default: false,
+      },
+      {
+        ui_type: 'session_list_filter',
+        plugin: 'second',
+        id: 'second-search',
+        label: 'Second',
+        data: 'preview',
+        type: 'text',
+        match: 'contains',
+        main_search: true,
+      },
+    ]);
+
+    const registry = new PluginsRegistry({
+      backend,
+      cacheKey: 'plugins-registry-filter-conflict',
+    });
+    await registry.load();
+
+    const snapshot = registry.getSnapshot();
+    expect(snapshot.sessionListFilterSchema.mainSearch).toBeNull();
+    expect(snapshot.sessionListFilterSchema.mainSearchConflict).toBe(true);
+    expect(snapshot.sessionListFilterSchema.filters.map((filter) => filter.id)).toEqual([
+      'archived',
+    ]);
+    expect(snapshot.sessionListDiagnostics.map((item) => item.code)).toContain(
+      'ambiguous_session_list_main_search',
+    );
+  });
 });

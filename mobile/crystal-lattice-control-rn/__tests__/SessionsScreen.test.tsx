@@ -4,6 +4,7 @@ import { fireEvent, screen } from '@testing-library/react-native';
 import {
   buildActionDialogInitialValues,
   normalizeSessionListActionElement,
+  normalizeSessionListFilterSchema,
   type SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
 import {
@@ -18,6 +19,7 @@ import {
 } from '../src/ApplicationPluginsContext';
 import SessionsScreen from '../src/SessionsScreen';
 import { renderWithMobileProviders } from '../src/testUtils/renderWithMobileProviders';
+import { ThemeProvider, lightTheme } from '../src/theme';
 
 jest.mock('@crystal-lattice/frontend-sdk-react', () => {
   const actual = jest.requireActual('@crystal-lattice/frontend-sdk-react');
@@ -149,6 +151,8 @@ const SESSION_SUMMARIES: SessionSummary[] = [
   },
 ];
 
+const EMPTY_FILTER_SCHEMA = normalizeSessionListFilterSchema([]);
+
 const normalizedAction = normalizeSessionListActionElement({
   ui_type: 'session_list_action',
   id: 'edit-status',
@@ -187,11 +191,41 @@ const agentsController = {
 };
 const refreshApplicationPlugins = jest.fn(async () => {});
 
-function renderScreen() {
+function applicationPluginsResult(
+  sessionListFilterSchema = EMPTY_FILTER_SCHEMA,
+) {
+  return {
+    actionsById: {
+      set_status: {
+        id: 'set_status',
+        plugin: 'fixture',
+        label: 'Set status',
+        inputs: {},
+      },
+    },
+    sessionActions: [],
+    messageActions: [],
+    sessionListActions: [normalizedAction.value!],
+    sessionListFields: [
+      {
+        ui_type: 'session_list_field',
+        plugin: 'fixture',
+        id: 'local-title',
+        role: 'title',
+        data: 'metadata.local_title',
+      },
+    ],
+    sessionListFilterSchema,
+    sessionListPinnedToggles: [],
+    sessionListDiagnostics: normalizedAction.diagnostics,
+  };
+}
+
+function renderScreen(connectionId = 'component-test') {
   return renderWithMobileProviders(
     <SessionsScreen
       backend={{ kind: 'test' } as any}
-      connectionId="component-test"
+      connectionId={connectionId}
       cachedSessions={SESSION_SUMMARIES}
       lastLoadedAt={1}
       isActive
@@ -226,36 +260,14 @@ beforeEach(() => {
     },
   });
   mockUseHydrateControllerFromCache.mockImplementation(() => {});
-  mockUseApplicationPlugins.mockReturnValue({
-    actionsById: {
-      set_status: {
-        id: 'set_status',
-        plugin: 'fixture',
-        label: 'Set status',
-        inputs: {},
-      },
-    },
-    sessionActions: [],
-    messageActions: [],
-    sessionListActions: [normalizedAction.value!],
-    sessionListFields: [
-      {
-        ui_type: 'session_list_field',
-        plugin: 'fixture',
-        id: 'local-title',
-        role: 'title',
-        data: 'metadata.local_title',
-      },
-    ],
-    sessionListPinnedToggles: [],
-    sessionListDiagnostics: normalizedAction.diagnostics,
-  });
+  mockUseApplicationPlugins.mockReturnValue(applicationPluginsResult());
   mockUseApplicationPluginsContext.mockReturnValue({
     actionsById: {},
     sessionActions: [],
     messageActions: [],
     sessionListActions: [],
     sessionListFields: [],
+    sessionListFilterSchema: EMPTY_FILTER_SCHEMA,
     sessionListPinnedToggles: [],
     sessionListDiagnostics: [],
     loading: false,
@@ -300,4 +312,465 @@ test('opens the ordinary form when malformed rich UI falls back', () => {
       { session: SESSION_SUMMARIES[0] },
     ),
   ).toEqual({ status: 'done' });
+});
+
+test('keeps a presentation-aware fallback search when no plugin declares one', () => {
+  renderScreen();
+
+  expect(screen.getByTestId('session-main-search')).toBeTruthy();
+  expect(screen.queryByTestId('session-filters-open')).toBeNull();
+
+  fireEvent.changeText(
+    screen.getByTestId('session-main-search'),
+    'Server first title',
+  );
+  expect(screen.getByTestId('session-row-server-first')).toBeTruthy();
+  expect(screen.queryByTestId('session-row-server-second')).toBeNull();
+});
+
+test('distinguishes an empty store from a filtered-empty result', () => {
+  mockUseSessionsController.mockReturnValue({
+    controller: sessionsController as any,
+    state: {
+      sessions: [],
+      loading: false,
+      error: null,
+      lastLoadedAt: 1,
+    },
+  });
+
+  renderScreen();
+  expect(
+    screen.getByText('No sessions found. Create one to get started.'),
+  ).toBeTruthy();
+  expect(
+    screen.queryByText('No sessions match the active search or filters.'),
+  ).toBeNull();
+});
+
+test('uses plugin search and all non-main filter controls with Reset and Show all', () => {
+  const sessions: SessionSummary[] = [
+    {
+      session_id: 'alpha-session',
+      modified: 3,
+      preview: 'preview one',
+      metadata: {
+        archived: false,
+        owner: 'alice',
+        status: 'todo',
+        note: 'one',
+      },
+      presentation: {
+        title: 'Presentation one',
+        subtitle: null,
+        meta: null,
+      },
+    },
+    {
+      session_id: 'beta-session',
+      modified: 2,
+      preview: 'preview two',
+      metadata: {
+        archived: true,
+        owner: 'alice',
+        status: 'done',
+        note: 'two',
+      },
+      presentation: {
+        title: 'Presentation two',
+        subtitle: null,
+        meta: null,
+      },
+    },
+    {
+      session_id: 'gamma-session',
+      modified: 1,
+      preview: 'preview three',
+      metadata: {
+        owner: 'bob',
+        status: 'blocked',
+        note: 'three',
+      },
+      presentation: {
+        title: 'Presentation three',
+        subtitle: null,
+        meta: null,
+      },
+    },
+  ];
+  mockUseSessionsController.mockReturnValue({
+    controller: sessionsController as any,
+    state: {
+      sessions,
+      loading: false,
+      error: null,
+      lastLoadedAt: 1,
+    },
+  });
+  const schema = normalizeSessionListFilterSchema([
+    {
+      ui_type: 'session_list_filter',
+      id: 'session_search',
+      label: 'Find session IDs',
+      data: 'session_id',
+      type: 'text',
+      match: 'contains',
+      main_search: true,
+    },
+    {
+      ui_type: 'session_list_filter',
+      id: 'archived',
+      label: 'Archived',
+      data: 'metadata.archived',
+      type: 'boolean',
+      match: 'equals',
+      missing_value: false,
+      default: false,
+      options: [
+        {
+          value: false,
+          label: 'Current only',
+          icon: 'inbox',
+          tone: 'success',
+        },
+        {
+          value: true,
+          label: 'Archived only',
+          icon: 'archive',
+          tone: 'warning',
+        },
+      ],
+    },
+    {
+      ui_type: 'session_list_filter',
+      id: 'owner',
+      label: 'Owner',
+      data: 'metadata.owner',
+      type: 'select',
+      match: 'equals',
+      options: [
+        { value: 'alice', label: 'Alice' },
+        { value: 'bob', label: 'Bob' },
+      ],
+    },
+    {
+      ui_type: 'session_list_filter',
+      id: 'status',
+      label: 'Status',
+      data: 'metadata.status',
+      type: 'select',
+      match: 'one_of',
+      multiple: true,
+      options: [
+        { value: 'todo', label: 'To do' },
+        { value: 'blocked', label: 'Blocked' },
+        { value: 'done', label: 'Done' },
+      ],
+    },
+    {
+      ui_type: 'session_list_filter',
+      id: 'note',
+      label: 'Note',
+      data: 'metadata.note',
+      type: 'text',
+      match: 'equals',
+    },
+  ]);
+  mockUseApplicationPlugins.mockReturnValue(applicationPluginsResult(schema));
+
+  renderScreen();
+
+  expect(screen.getByTestId('session-main-search').props.placeholder).toBe(
+    'Find session IDs',
+  );
+  expect(screen.getByTestId('session-row-alpha-session')).toBeTruthy();
+  expect(screen.getByTestId('session-row-gamma-session')).toBeTruthy();
+  expect(screen.queryByTestId('session-row-beta-session')).toBeNull();
+  expect(screen.getByTestId('session-filters-active-count').props.children).toBe(
+    1,
+  );
+
+  fireEvent.changeText(
+    screen.getByTestId('session-main-search'),
+    'Presentation one',
+  );
+  expect(screen.queryByTestId('session-row-alpha-session')).toBeNull();
+  expect(
+    screen.getByText('No sessions match the active search or filters.'),
+  ).toBeTruthy();
+  fireEvent.changeText(screen.getByTestId('session-main-search'), '');
+
+  fireEvent.press(screen.getByTestId('session-filters-open'));
+  expect(screen.getByText(/Current only/)).toBeTruthy();
+  expect(screen.getByText(/Archived only/)).toBeTruthy();
+  expect(
+    screen.getByTestId('session-filter-archived-option-false-icon'),
+  ).toBeTruthy();
+  fireEvent.press(screen.getByTestId('session-filter-archived-option-any'));
+  expect(screen.getByTestId('session-row-beta-session')).toBeTruthy();
+
+  fireEvent.press(screen.getByTestId('session-filter-owner-option-0'));
+  fireEvent.press(screen.getByTestId('session-filter-status-option-0'));
+  expect(screen.getByTestId('session-row-alpha-session')).toBeTruthy();
+  expect(screen.queryByTestId('session-row-beta-session')).toBeNull();
+  expect(screen.queryByTestId('session-row-gamma-session')).toBeNull();
+  fireEvent.press(screen.getByTestId('session-filter-status-option-2'));
+  expect(screen.getByTestId('session-row-alpha-session')).toBeTruthy();
+  expect(screen.getByTestId('session-row-beta-session')).toBeTruthy();
+
+  fireEvent.press(screen.getByTestId('session-filters-show-all'));
+  expect(screen.getByTestId('session-row-alpha-session')).toBeTruthy();
+  expect(screen.getByTestId('session-row-beta-session')).toBeTruthy();
+  expect(screen.getByTestId('session-row-gamma-session')).toBeTruthy();
+  expect(screen.queryByTestId('session-filters-active-count')).toBeNull();
+
+  fireEvent.changeText(
+    screen.getByTestId('session-filter-note-text'),
+    'three',
+  );
+  expect(screen.queryByTestId('session-row-alpha-session')).toBeNull();
+  expect(screen.queryByTestId('session-row-beta-session')).toBeNull();
+  expect(screen.getByTestId('session-row-gamma-session')).toBeTruthy();
+  fireEvent.press(screen.getByTestId('session-filters-show-all'));
+
+  fireEvent.press(screen.getByTestId('session-filters-reset'));
+  expect(screen.getByTestId('session-row-alpha-session')).toBeTruthy();
+  expect(screen.queryByTestId('session-row-beta-session')).toBeNull();
+  expect(screen.getByTestId('session-row-gamma-session')).toBeTruthy();
+});
+
+test('uses the built-in pin and status filter declarations', () => {
+  const sessions: SessionSummary[] = [
+    {
+      session_id: 'ordinary-todo',
+      modified: 2,
+      preview: 'ordinary',
+      metadata: {},
+      presentation: {
+        title: 'Ordinary todo',
+        subtitle: null,
+        meta: null,
+      },
+    },
+    {
+      session_id: 'pinned-done',
+      modified: 1,
+      preview: 'pinned',
+      metadata: {
+        pinned: true,
+        status: 'done',
+      },
+      presentation: {
+        title: 'Pinned done',
+        subtitle: null,
+        meta: null,
+      },
+    },
+  ];
+  mockUseSessionsController.mockReturnValue({
+    controller: sessionsController as any,
+    state: {
+      sessions,
+      loading: false,
+      error: null,
+      lastLoadedAt: 1,
+    },
+  });
+  mockUseApplicationPlugins.mockReturnValue(
+    applicationPluginsResult(
+      normalizeSessionListFilterSchema([
+        {
+          ui_type: 'session_list_filter',
+          id: 'session_search',
+          label: 'Search',
+          data: 'session_id',
+          type: 'text',
+          match: 'contains',
+          main_search: true,
+        },
+        {
+          ui_type: 'session_list_filter',
+          id: 'pinned_state',
+          label: 'Pinned',
+          icon: 'star',
+          data: 'metadata.pinned',
+          type: 'boolean',
+          match: 'equals',
+          missing_value: false,
+          default: null,
+          options: [
+            {
+              value: false,
+              label: 'Not pinned',
+              icon: 'star',
+              tone: 'muted',
+            },
+            {
+              value: true,
+              label: 'Pinned',
+              icon: 'star',
+              tone: 'warning',
+            },
+          ],
+        },
+        {
+          ui_type: 'session_list_filter',
+          id: 'session_status',
+          label: 'Status',
+          icon: 'circle',
+          data: 'metadata.status',
+          type: 'select',
+          match: 'one_of',
+          multiple: true,
+          missing_value: 'todo',
+          default: [],
+          options: [
+            { value: 'todo', label: 'To do', tone: 'muted' },
+            {
+              value: 'in_progress',
+              label: 'In progress',
+              tone: 'primary',
+            },
+            { value: 'blocked', label: 'Blocked', tone: 'danger' },
+            { value: 'done', label: 'Done', tone: 'success' },
+          ],
+        },
+      ]),
+    ),
+  );
+
+  renderScreen();
+  expect(screen.getByTestId('session-row-ordinary-todo')).toBeTruthy();
+  expect(screen.getByTestId('session-row-pinned-done')).toBeTruthy();
+  expect(screen.queryByTestId('session-filters-active-count')).toBeNull();
+
+  fireEvent.press(screen.getByTestId('session-filters-open'));
+  expect(screen.getByText('Not pinned')).toBeTruthy();
+  expect(screen.getAllByText('Pinned')).toHaveLength(2);
+  expect(
+    screen.getByTestId('session-filter-pinned_state-option-true-icon'),
+  ).toBeTruthy();
+  fireEvent.press(
+    screen.getByTestId('session-filter-pinned_state-option-true'),
+  );
+  expect(screen.queryByTestId('session-row-ordinary-todo')).toBeNull();
+  expect(screen.getByTestId('session-row-pinned-done')).toBeTruthy();
+
+  fireEvent.press(
+    screen.getByTestId('session-filter-session_status-option-3'),
+  );
+  expect(screen.getByTestId('session-filters-active-count').props.children).toBe(
+    2,
+  );
+
+  fireEvent.press(screen.getByTestId('session-filters-show-all'));
+  expect(screen.getByTestId('session-row-ordinary-todo')).toBeTruthy();
+  expect(screen.getByTestId('session-row-pinned-done')).toBeTruthy();
+  expect(screen.queryByTestId('session-filters-active-count')).toBeNull();
+
+  fireEvent.press(screen.getByTestId('session-filter-session_status-option-0'));
+  expect(screen.getByTestId('session-row-ordinary-todo')).toBeTruthy();
+  expect(screen.queryByTestId('session-row-pinned-done')).toBeNull();
+});
+
+test('reports competing main searches and keeps fallback search usable', () => {
+  const conflicted = normalizeSessionListFilterSchema([
+    {
+      ui_type: 'session_list_filter',
+      id: 'first-search',
+      label: 'First',
+      data: 'session_id',
+      type: 'text',
+      match: 'contains',
+      main_search: true,
+    },
+    {
+      ui_type: 'session_list_filter',
+      id: 'second-search',
+      label: 'Second',
+      data: 'preview',
+      type: 'text',
+      match: 'contains',
+      main_search: true,
+    },
+  ]);
+  mockUseApplicationPlugins.mockReturnValue(
+    applicationPluginsResult(conflicted),
+  );
+
+  renderScreen();
+  expect(screen.getByTestId('session-filter-schema-warning')).toBeTruthy();
+
+  fireEvent.changeText(
+    screen.getByTestId('session-main-search'),
+    'Server second title',
+  );
+  expect(screen.queryByTestId('session-row-server-first')).toBeNull();
+  expect(screen.getByTestId('session-row-server-second')).toBeTruthy();
+});
+
+test('resets search state when the active connection changes', () => {
+  const rendered = renderScreen('connection-a');
+  fireEvent.changeText(screen.getByTestId('session-main-search'), 'server-first');
+  expect(screen.queryByTestId('session-row-server-second')).toBeNull();
+
+  rendered.rerender(
+    <ThemeProvider theme={lightTheme}>
+      <SessionsScreen
+        backend={{ kind: 'test' } as any}
+        connectionId="connection-b"
+        cachedSessions={SESSION_SUMMARIES}
+        lastLoadedAt={1}
+        isActive
+        onUpdateCache={jest.fn()}
+        onSelectSession={jest.fn()}
+      />
+    </ThemeProvider>,
+  );
+
+  expect(rendered.getByTestId('session-main-search').props.value).toBe('');
+  expect(rendered.getByTestId('session-row-server-first')).toBeTruthy();
+  expect(rendered.getByTestId('session-row-server-second')).toBeTruthy();
+});
+
+test('resets stale values when the declaration identity changes', () => {
+  const rendered = renderScreen('connection-a');
+  fireEvent.changeText(screen.getByTestId('session-main-search'), 'server-first');
+  expect(screen.queryByTestId('session-row-server-second')).toBeNull();
+
+  mockUseApplicationPlugins.mockReturnValue(
+    applicationPluginsResult(
+      normalizeSessionListFilterSchema([
+        {
+          ui_type: 'session_list_filter',
+          id: 'replacement-search',
+          label: 'Replacement search',
+          data: 'session_id',
+          type: 'text',
+          match: 'contains',
+          main_search: true,
+        },
+      ]),
+    ),
+  );
+  rendered.rerender(
+    <ThemeProvider theme={lightTheme}>
+      <SessionsScreen
+        backend={{ kind: 'test' } as any}
+        connectionId="connection-a"
+        cachedSessions={SESSION_SUMMARIES}
+        lastLoadedAt={1}
+        isActive
+        onUpdateCache={jest.fn()}
+        onSelectSession={jest.fn()}
+      />
+    </ThemeProvider>,
+  );
+
+  expect(rendered.getByTestId('session-main-search').props.value).toBe('');
+  expect(rendered.getByTestId('session-main-search').props.placeholder).toBe(
+    'Replacement search',
+  );
+  expect(rendered.getByTestId('session-row-server-first')).toBeTruthy();
+  expect(rendered.getByTestId('session-row-server-second')).toBeTruthy();
 });

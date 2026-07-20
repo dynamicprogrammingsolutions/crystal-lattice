@@ -1,6 +1,25 @@
 # session-pinned-app
 
-Application-level plugin that toggles pinned state on sessions.
+Application-level plugin that toggles and filters pinned state on sessions.
+
+The plugin stores the state under `metadata.pinned` by default. Set
+`application.session_pinned_metadata_key` to use another metadata key. The
+same resolved key drives both the mutation and the declarative filter.
+
+It contributes:
+
+- `toggle_session_pinned`, the existing application action and legacy
+  session-row pin control;
+- `pinned_state`, a Boolean `session_list_filter` with `missing_value: false`;
+- Not pinned and Pinned choices with muted and warning semantic tones.
+
+The filter defaults to Any (`null`), so merely enabling this plugin does not
+change the visible session list. Sessions without pin metadata behave as not
+pinned.
+
+The legacy pin-specific row control remains until the rich ordinary-action
+presentation is introduced. Consumers should treat `pinned_state` as the
+stable filter ID.
 
 ## License
 

@@ -648,6 +648,27 @@ ignored without hiding valid filters.
 }
 ```
 
+The normalized declaration surface is:
+
+```typescript
+interface SessionListFilter {
+  ui_type: 'session_list_filter';
+  id: string;
+  label: string;
+  icon?: string;
+  order?: number;
+  data: string | string[];
+  type: 'text' | 'boolean' | 'select';
+  match: 'contains' | 'equals' | 'one_of';
+  multiple?: boolean;          // select only
+  case_sensitive?: boolean;    // text only
+  missing_value?: unknown;
+  default?: string | boolean | null | Array<string | boolean>;
+  options?: SessionListOption[];
+  main_search?: boolean;       // text only
+}
+```
+
 `data` is one dotted path or an ordered list of paths. A missing path resolves
 to `missing_value` when that field is declared. `missing_value` does not replace
 an explicit `null`, false, zero, or empty string.
@@ -685,17 +706,101 @@ interface SessionListOption {
 }
 ```
 
+The string option value `any` is reserved for the inactive terminal spelling
+and is not a valid declared select option.
+
 `default` initializes state and is restored by Reset. Show all uses the inactive
 value from the table instead of restoring plugin defaults.
 
 `main_search: true` is valid only on a text filter. Zero or one effective main
 search is valid. Competing declarations are a schema error; a runtime must not
-silently choose one.
+silently choose one. Duplicate filter IDs are also rejected as ambiguous rather
+than resolved by plugin order. Invalid declarations and conflicts produce
+structured diagnostics while unrelated valid filters remain usable.
+
+Mobile and desktop always keep a search input. When exactly one valid main
+search exists, its label, paths, operator, and case-sensitivity control that
+input. When none can be selected—including a reported conflict—the clients use
+a shared case-insensitive fallback over available ordinary summary text:
+`session_id`, `preview`, and derived presentation title/subtitle/meta. The
+fallback does not make a conflicting plugin declaration valid and the UI still
+reports the schema warning.
+
+Terminal free-text search remains plugin-driven. `/session <text>` requires one
+valid main search, while an exact session ID remains directly accessible
+regardless of filters. `--filter <id>=<value>` applies command-local non-main
+overrides on top of defaults. Boolean and single-select filters use `any` for
+their inactive value. Multiple selects use comma-separated option values with
+CSV quoting inside the shell-quoted assignment when an option itself contains
+a comma.
 
 HTTP session listing remains unfiltered in this iteration. Mobile and desktop
 apply declarations to the complete ordered collection locally. Terminal
 filtering uses the in-process `AgentApplication` query service. Exact session
-loading by ID is independent of filter state.
+loading by ID is independent of filter state. Frontend state is scoped by the
+active connection and normalized declaration identity; changing either restores
+the current declarations' defaults and removes stale values.
+
+Built-in pin and status plugins demonstrate inactive-by-default metadata
+filters:
+
+```python
+{
+    "ui_type": "session_list_filter",
+    "id": "pinned_state",
+    "label": "Pinned",
+    "icon": "star",
+    "type": "boolean",
+    "match": "equals",
+    "data": "metadata.pinned",
+    "missing_value": False,
+    "default": None,
+    "options": [
+        {
+            "value": False,
+            "label": "Not pinned",
+            "icon": "star",
+            "tone": "muted",
+        },
+        {
+            "value": True,
+            "label": "Pinned",
+            "icon": "star",
+            "tone": "warning",
+        },
+    ],
+}
+```
+
+```python
+{
+    "ui_type": "session_list_filter",
+    "id": "session_status",
+    "label": "Status",
+    "icon": "circle",
+    "type": "select",
+    "match": "one_of",
+    "multiple": True,
+    "data": "metadata.status",
+    "missing_value": "todo",
+    "default": [],
+    "options": [
+        {"value": "todo", "label": "To do", "tone": "muted"},
+        {
+            "value": "in_progress",
+            "label": "In progress",
+            "tone": "primary",
+        },
+        {"value": "blocked", "label": "Blocked", "tone": "danger"},
+        {"value": "done", "label": "Done", "tone": "success"},
+    ],
+}
+```
+
+Both plugins derive `data` from their configured metadata key. Their inactive
+defaults preserve the full list. Missing pin state resolves to false and
+missing status resolves to `todo`, allowing old sessions to participate
+without a migration write.
 
 ### Composer attachments (`ui_type == "composer_attachment"`)
 

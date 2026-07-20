@@ -149,23 +149,77 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       onChange,
       onReset,
       onShowAll,
-    }) =>
-      React.createElement(
+    }) => {
+      const renderOption = (filter, key, label, nextValue, option) =>
+        React.createElement(
+          Pressable,
+          {
+            key,
+            testID: `session-filter-${filter.id}-option-${key}`,
+            onPress: () => onChange(filter.id, nextValue),
+          },
+          option?.icon
+            ? React.createElement(View, {
+                testID: `session-filter-${filter.id}-option-${key}-icon`,
+              })
+            : null,
+          React.createElement(Text, null, label),
+        );
+      const renderFilter = (filter) => {
+        const value = values[filter.id];
+        const controls = [];
+        if (filter.type === 'boolean') {
+          controls.push(renderOption(filter, 'any', 'Any', null));
+          for (const nextValue of [true, false]) {
+            const option = filter.options.find(
+              (candidate) => candidate.value === nextValue,
+            );
+            controls.push(
+              renderOption(
+                filter,
+                String(nextValue),
+                option?.label || String(nextValue),
+                nextValue,
+                option,
+              ),
+            );
+          }
+        } else if (filter.type === 'select' && filter.multiple) {
+          controls.push(renderOption(filter, 'any', 'Any', []));
+          filter.options.forEach((option, index) => {
+            const selected =
+              Array.isArray(value) &&
+              value.some((item) => item === option.value);
+            const nextValue = selected
+              ? value.filter((item) => item !== option.value)
+              : [...(Array.isArray(value) ? value : []), option.value];
+            controls.push(
+              renderOption(
+                filter,
+                String(index),
+                option.label,
+                nextValue,
+                option,
+              ),
+            );
+          });
+        }
+        return React.createElement(
+          View,
+          {
+            key: filter.id,
+            testID: `session-filter-${filter.id}`,
+          },
+          React.createElement(Text, null, filter.label),
+          ...controls,
+        );
+      };
+      return React.createElement(
         View,
         { testID: 'session-filters-panel' },
         (schema?.filters || [])
           .filter((filter) => filter.id !== schema?.mainSearch?.id)
-          .map((filter) =>
-            React.createElement(
-              Pressable,
-              {
-                key: filter.id,
-                testID: `session-filter-${filter.id}`,
-                onPress: () => onChange(filter.id, values[filter.id]),
-              },
-              React.createElement(Text, null, filter.label),
-            ),
-          ),
+          .map(renderFilter),
         React.createElement(Pressable, {
           testID: 'session-filters-show-all',
           onPress: onShowAll,
@@ -174,7 +228,8 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
           testID: 'session-filters-reset',
           onPress: onReset,
         }),
-      ),
+      );
+    },
 
     ActionsMenuBar: () => null,
     ApplicationActionDialog: ({ visible }: { visible: boolean }) => (visible ? React.createElement(View, null) : null),
