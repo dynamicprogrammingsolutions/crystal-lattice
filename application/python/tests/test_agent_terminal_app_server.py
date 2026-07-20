@@ -1162,20 +1162,22 @@ def test_get_session_ui_schema_respects_session_overrides(tmp_path: Path) -> Non
 def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
     """GET /sessions/{id}/config/schema returns flattened config entries.
 
-    Uses the OpenRouter application-layer config so that plugin config
-    schema entries are present and can be queried by key.
+    Uses the default config so that plugin config schema entries are
+    present and can be queried by key.
     """
 
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_config_schema(session_id, app_instance=app)
@@ -1192,20 +1194,22 @@ def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
 def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
     """GET /sessions/{id}/config/schema exposes plugin config entries.
 
-    Uses the OpenRouter application-layer config so that real plugin
-    config schema entries are present.
+    Uses the default config so that real plugin config schema entries
+    are present.
     """
 
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_config_schema(session_id, app_instance=app)
@@ -1224,13 +1228,15 @@ def test_get_session_base_config_returns_mapping(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_base_config(session_id, app_instance=app)
@@ -1360,13 +1366,15 @@ def test_session_overrides_get_and_patch_round_trip(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # Initially there should be no overrides.
@@ -1404,13 +1412,15 @@ def test_session_overrides_patch_bulk_merges_with_existing(tmp_path: Path) -> No
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # Seed a single-key override.
@@ -1442,13 +1452,15 @@ def test_delete_session_override_removes_key_and_preserves_others(
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # Seed two overrides.
@@ -1474,13 +1486,15 @@ def test_delete_session_override_is_idempotent_for_missing_key(tmp_path: Path) -
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # No overrides set; deleting a key should be a no-op.
@@ -1497,13 +1511,15 @@ def test_get_session_base_config_returns_mapping(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_base_config(session_id, app_instance=app)
@@ -1520,13 +1536,15 @@ def test_delete_session_override_removes_key_and_preserves_others(
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     server_mod.patch_session_overrides(
@@ -1550,13 +1568,15 @@ def test_delete_session_override_is_idempotent_when_key_missing(tmp_path: Path) 
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # No overrides set; deleting a non-existent key should not fail.
@@ -3385,8 +3405,8 @@ def test_http_flow_with_tools_and_reasoning(
 ) -> None:
     """End-to-end HTTP flow exercising tools and reasoning.
 
-    The flow uses the real FastAPI app with config_openrouter_app_layer.json
-    via TestClient:
+    The flow uses the real FastAPI app with an Ollama tools config via
+    TestClient:
 
     1. Create a session with a system message.
     2. Add a user message.

@@ -33,7 +33,7 @@ from agent_terminal_app.runtime_layout import load_runtime_layout
 
 _DEFAULT_RUNTIME_LAYOUT = load_runtime_layout()
 _DEFAULT_CONFIG_PATH = (
-    _DEFAULT_RUNTIME_LAYOUT.config_examples / "config_openrouter_app_layer.json"
+    _DEFAULT_RUNTIME_LAYOUT.config_examples / "config_fallback.json"
 )
 _DEFAULT_SESSION_ROOT = _DEFAULT_RUNTIME_LAYOUT.user_path("default_sessions_dir")
 
