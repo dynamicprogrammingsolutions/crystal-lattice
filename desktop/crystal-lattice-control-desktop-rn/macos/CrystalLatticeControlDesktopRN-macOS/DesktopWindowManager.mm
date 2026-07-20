@@ -88,6 +88,11 @@ RCT_EXPORT_MODULE();
                                              object:nil];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
+                                           selector:@selector(handleOpenNotificationTesting:)
+                                               name:CLCOpenNotificationTestingNotification
+                                             object:nil];
+
+  [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(handleSystemColorsDidChange:)
                                                name:@"NSSystemColorsDidChangeNotification"
                                              object:nil];
@@ -116,6 +121,10 @@ RCT_EXPORT_MODULE();
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
                                                   name:CLCProgressiveScrollHarnessCommandNotification
+                                                object:nil];
+
+  [[NSNotificationCenter defaultCenter] removeObserver:self
+                                                  name:CLCOpenNotificationTestingNotification
                                                 object:nil];
 
   [[NSNotificationCenter defaultCenter] removeObserver:self
@@ -169,6 +178,18 @@ RCT_EXPORT_MODULE();
 - (void)handleClearStoredSessionCaches:(__unused NSNotification *)notification
 {
   [self sendEventWithName:@"clearStoredSessionCachesRequested" body:@{}];
+}
+
+- (void)handleOpenNotificationTesting:(__unused NSNotification *)notification
+{
+  [self openReactWindow:@{
+    @"windowKey" : @"notificationTesting",
+    @"moduleName" : @"NotificationTestingWindow",
+    @"title" : @"Notification Testing",
+    @"width" : @560,
+    @"height" : @640,
+    @"initialProps" : @{},
+  }];
 }
 
 - (void)handleProgressiveScrollHarnessCommand:(NSNotification *)notification

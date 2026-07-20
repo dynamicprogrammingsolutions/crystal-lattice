@@ -97,6 +97,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   [self installTabStripStyleMenuWithSelectedStyle:tabStripStyle];
   [self installSessionsFollowActiveTabMenuWithEnabled:followEnabled];
   [self installClearStoredSessionCachesMenu];
+  [self installDevelopMenu];
   if (enableScrollTestHarness) {
     [self installProgressiveScrollHarnessMenu];
   }
@@ -378,6 +379,44 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 - (void)clearStoredSessionCaches:(__unused id)sender
 {
   [[NSNotificationCenter defaultCenter] postNotificationName:CLCClearStoredSessionCachesNotification object:nil];
+}
+
+- (void)installDevelopMenu
+{
+  NSMenu *mainMenu = [NSApp mainMenu];
+  if (mainMenu == nil) {
+    return;
+  }
+
+  NSMenuItem *helpMenuItem = [mainMenu itemWithTitle:@"Help"];
+  if (helpMenuItem == nil || helpMenuItem.submenu == nil) {
+    return;
+  }
+
+  NSMenu *helpMenu = helpMenuItem.submenu;
+
+  NSMenuItem *developMenuItem = [[NSMenuItem alloc] initWithTitle:@"Develop" action:nil keyEquivalent:@""];
+  NSMenu *developMenu = [[NSMenu alloc] initWithTitle:@"Develop"];
+  developMenuItem.submenu = developMenu;
+
+  NSMenuItem *notificationTestingItem =
+      [[NSMenuItem alloc] initWithTitle:@"Notification Testing"
+                                 action:@selector(openNotificationTesting:)
+                          keyEquivalent:@""];
+  notificationTestingItem.target = self;
+  [developMenu addItem:notificationTestingItem];
+
+  if (![helpMenu.itemArray containsObject:developMenuItem]) {
+    if (helpMenu.numberOfItems > 0 && !helpMenu.itemArray.lastObject.isSeparatorItem) {
+      [helpMenu addItem:[NSMenuItem separatorItem]];
+    }
+    [helpMenu addItem:developMenuItem];
+  }
+}
+
+- (void)openNotificationTesting:(__unused id)sender
+{
+  [[NSNotificationCenter defaultCenter] postNotificationName:CLCOpenNotificationTestingNotification object:nil];
 }
 
 - (void)installProgressiveScrollHarnessMenu

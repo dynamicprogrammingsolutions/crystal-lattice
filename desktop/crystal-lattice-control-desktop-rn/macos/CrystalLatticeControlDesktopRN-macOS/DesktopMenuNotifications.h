@@ -13,3 +13,6 @@ static NSNotificationName const CLCClearStoredSessionCachesNotification =
 static NSNotificationName const CLCProgressiveScrollHarnessCommandNotification =
     @"CrystalLattice.ProgressiveScrollHarnessCommand";
 static NSString *const CLCProgressiveScrollHarnessCommandUserInfoKey = @"command";
+
+static NSNotificationName const CLCOpenNotificationTestingNotification =
+    @"CrystalLattice.OpenNotificationTesting";
