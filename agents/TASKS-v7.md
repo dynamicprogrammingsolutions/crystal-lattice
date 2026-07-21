@@ -7,6 +7,9 @@ Task files are a handoff mechanism between agents. A new agent executing a task 
 - A **requirement** is a verifiable outcome or constraint that the completed work must satisfy.
 - A **task** is a concrete unit of work performed while executing a plan.
 - An **execution plan** records the approach, important decisions and rationale, affected boundaries, ordered tasks, requirement verification, documentation work, risks, and dependencies. It preserves enough direction for another agent to continue without making new important decisions, while omitting redundant detail.
+- **Supporting details** are factual findings, rationale, definitions, examples, accepted decisions, and other information needed to interpret requirements without being separately tracked outcomes.
+- An **open question** is a **requirement question** when its answer changes a required outcome or constraint, and a **design decision** when the requirements stay the same but the implementation direction changes.
+- A **material design decision** affects user-visible behavior, interfaces or contracts, ownership or module boundaries, compatibility or persisted data, security or privacy, or a significant operational or maintenance tradeoff.
 
 ## Creating task files (handoff author)
 
@@ -15,7 +18,7 @@ Create or modify a task file only when the user requests task-file tracking or n
 When you are asked to create task files:
 1. Confirm which format the user wants: a single task file, or a main task with subtasks.
 2. Review the work/research you already did related to the task (what you inspected, what you learned, what you ruled out).
-3. Assemble a clear handoff package: what's known, what's been tried, what remains, and where to look next.
+3. For a full handoff, assemble what's known, what's been tried, what remains, and where to look next.
 4. Write the task file(s) so a new agent can continue without access to the current conversation.
 5. Add the required structure and status tracking described below.
 6. If the user explicitly asks to record task relations, add brief relation notes under the relevant items in the main file's `## Subtasks`, using clear keywords and full relative task paths.
@@ -24,10 +27,15 @@ When you are asked to create task files:
 At the start of each task file:
 - Include a title, a short human-readable description, and then a `## Requirements checklist`.
 - Put verifiable outcomes in the requirements checklist, not ordered work steps.
-- After the requirements, include any useful research, constraints, references, or design details in any appropriate format, before any execution plan.
-- Include enough prior findings that the completing agent does not need to rediscover them.
+- Keep requirements concise and put factual research and supporting details below them, before any execution plan. Supporting details may clarify a requirement, but must not silently add a completion condition.
+- For a full handoff, include enough prior findings that the completing agent does not need to rediscover them.
 
-Creating or updating a task file does not request or approve a plan or execution. For an ordinary task-creation request, include requirements and handoff details but stop before `## Execution plan`; prior discussion does not authorize storing its plan. Add a plan only when the current user request explicitly says to include, save, preserve, or track it. Record preserved preliminary planning as `Draft`; use `Approved` only when the user already approved execution and asks for a task file to track it.
+When a task file follows planning, follow the user's requested handoff:
+- If asked to retain the plan, preserve the common handoff content and put the plan in a separate `## Execution plan`; use `Draft` unless execution was already approved.
+- If asked to omit the plan, preserve the requirements, factual research, supporting details, decided directions, and classified open questions, but do not include or relabel execution-plan content.
+- If the user does not say whether to retain the plan, ask.
+
+Creating a task file does not itself authorize execution.
 
 ### Status tracking
 
@@ -35,6 +43,11 @@ Creating or updating a task file does not request or approve a plan or execution
 - Mark a requirement complete only when supported by evidence such as a test, build, inspection, or human confirmation.
 - Identify requirements needing human verification and leave them incomplete until that verification is confirmed.
 - Update execution tasks throughout completion, not only at the end.
+
+### Questions and decisions
+
+- Ask before resolving a requirement question or changing the requirements checklist. After the answer, update the affected requirements and reconsider any existing plan.
+- Present material design decisions with a recommendation and relevant tradeoffs. Local, reversible implementation choices may be made without separate approval.
 
 ### Single task (no subtasks): placement + naming
 

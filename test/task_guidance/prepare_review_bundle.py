@@ -224,6 +224,7 @@ def evaluate_case(
 
     check("The exact task-guidance version is present and hash-matched", guidance_matches_metadata)
 
+    scenario = metadata.get("scenario")
     mutation_path = case_dir / "mutation-calls.json"
 
     def mutation_budget() -> None:
@@ -231,29 +232,191 @@ def evaluate_case(
         limit = int(metadata.get("mutation_call_limit") or 0)
         if not isinstance(calls, list):
             raise AssertionError("mutation-calls.json is not a list")
-        if not calls:
+        if not calls and scenario != "planning-seed":
             raise AssertionError("no task-file mutation was recorded")
         if len(calls) > limit:
             raise AssertionError(f"{len(calls)} mutation calls exceeded limit {limit}")
 
-    check("Task-file mutation calls stay within the configured limit", mutation_budget)
+    if mutation_path.is_file():
+        check(
+            "Task-file mutation calls stay within the configured limit",
+            mutation_budget,
+        )
 
     task_path = case_dir / "task-file.md"
     task_text = task_path.read_text(encoding="utf-8") if task_path.is_file() else ""
-    check(
-        "A reviewable final task-file artifact exists",
-        lambda: task_path.is_file()
-        or (_ for _ in ()).throw(AssertionError("task-file.md is missing")),
-    )
+    if scenario != "planning-seed":
+        check(
+            "A reviewable final task-file artifact exists",
+            lambda: task_path.is_file()
+            or (_ for _ in ()).throw(AssertionError("task-file.md is missing")),
+        )
     if task_text:
-        check("Task starts with title, description, and requirements", lambda: assert_task_prefix(task_text))
+        check(
+            "Task starts with title, description, and requirements",
+            lambda: assert_task_prefix(task_text),
+        )
+    if scenario != "planning-seed" and (case_dir / "git-status.txt").is_file():
 
-    scenario = metadata.get("scenario")
+        def only_task_file_changed() -> None:
+            status_path = case_dir / "git-status.txt"
+            lines = [
+                line
+                for line in status_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            paths = []
+            for line in lines:
+                path = line[3:]
+                if " -> " in path:
+                    path = path.split(" -> ", 1)[1]
+                paths.append(path)
+            if len(paths) != 1 or not (
+                paths[0].startswith("tasks/") and paths[0].endswith(".md")
+            ):
+                raise AssertionError(f"unexpected changed paths: {paths}")
+
+        check("Only the requested task file changed", only_task_file_changed)
+    elif scenario != "planning-seed":
+        results.append(
+            AssertionResult(
+                "Only the requested task file changed",
+                "UNAVAILABLE",
+                "Older artifact does not contain git-status.txt.",
+            )
+        )
+
     response_text = assistant_text_after_last_user(session)
-    if scenario == "create-task-after-plan":
+    expected_ids = [
+        str(value)
+        for value in metadata.get("expected_requirement_ids", [])
+        if isinstance(value, str)
+    ]
+    research_markers = [
+        str(value)
+        for value in metadata.get("research_markers", [])
+        if isinstance(value, str)
+    ]
+
+    def requirement_ids_present(source: str) -> None:
+        missing = [value for value in expected_ids if value not in source]
+        if missing:
+            raise AssertionError(f"missing requirement ids: {missing}")
+
+    def research_is_retained() -> None:
+        if not research_markers:
+            return
+        found = [marker for marker in research_markers if marker in task_text]
+        required = min(2, len(research_markers))
+        if len(found) < required:
+            raise AssertionError(
+                f"found {len(found)} research markers, expected at least "
+                f"{required}: {research_markers}"
+            )
+
+    def requirement_verification_text() -> str:
+        match = re.search(
+            r"(?ims)^###\s+Requirement verification\s*$"
+            r"(?P<body>.*?)(?=^###\s+|^##\s+|\Z)",
+            task_text,
+        )
+        if match is None:
+            raise AssertionError("missing ### Requirement verification")
+        return match.group("body")
+
+    def fork_parent_matches() -> None:
+        expected = metadata.get("fork_parent_session_sha256")
+        parent_path = case_dir / "session-1.json"
+        if not isinstance(expected, str) or not expected:
+            raise AssertionError("fork parent hash is missing")
+        payload = json.dumps(
+            load_json(parent_path),
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        actual = hashlib.sha256(payload).hexdigest()
+        if actual != expected:
+            raise AssertionError(f"fork parent hash {actual} != {expected}")
+
+    if scenario == "planning-seed":
+        first_status = case_dir / "git-status-1.txt"
+        check(
+            "The initial plan-only turn leaves the repository unchanged",
+            lambda: not first_status.read_text(encoding="utf-8").strip()
+            or (_ for _ in ()).throw(
+                AssertionError(first_status.read_text(encoding="utf-8").strip())
+            ),
+        )
+    elif scenario in {
+        "create-task-retain-plan",
+        "create-task-omit-plan",
+    }:
+        check("Fork uses the recorded planning session", fork_parent_matches)
         if task_text:
             check(
-                "Default task creation does not preserve a plan or plan status",
+                "Expected high-level requirements are retained",
+                lambda: requirement_ids_present(requirements_section(task_text)),
+            )
+            check("Factual research is retained", research_is_retained)
+            check(
+                "Planning-only task creation has no implementation/completion notes",
+                lambda: assert_no_lifecycle_notes(task_text),
+            )
+        check(
+            "Task creation does not infer plan or execution approval",
+            lambda: assert_no_execution_approval(response_text),
+        )
+
+        if scenario == "create-task-retain-plan" and task_text:
+            check(
+                "Retained plan is a separate Draft execution plan",
+                lambda: assert_draft_execution_plan(task_text),
+            )
+            check(
+                "Requirement verification references every requirement id",
+                lambda: requirement_ids_present(requirement_verification_text()),
+            )
+            manual(
+                "Retained plan follows the requirements",
+                (
+                    "Confirm the plan satisfies each requirement without "
+                    "broadening, narrowing, or reinterpreting it."
+                ),
+            )
+        elif scenario == "create-task-omit-plan" and task_text:
+            check(
+                "Omit-plan handoff has no execution plan or plan status",
+                lambda: assert_no_execution_plan(task_text),
+            )
+
+            def no_execution_task_checklist() -> None:
+                if re.search(r"(?im)^###\s+Task checklist\s*$", task_text):
+                    raise AssertionError(
+                        "omit-plan handoff contains an execution task checklist"
+                    )
+
+            check(
+                "Omit-plan handoff has no execution task checklist",
+                no_execution_task_checklist,
+            )
+            manual(
+                "Omit-plan handoff excludes plan content in substance",
+                (
+                    "Confirm proposed approach, ordered work, planned tests and "
+                    "documentation were not relabeled under another heading."
+                ),
+            )
+        manual(
+            "Questions and decisions are classified correctly",
+            (
+                "Confirm requirement questions are not silently answered and "
+                "material design decisions are exposed for human review."
+            ),
+        )
+    elif scenario == "create-task-after-plan":
+        if task_text:
+            check(
+                "Legacy task creation does not preserve a plan or plan status",
                 lambda: assert_no_execution_plan(task_text),
             )
             check(
@@ -298,22 +461,27 @@ def evaluate_case(
                 "Draft execution plan has the required status and sections",
                 lambda: assert_draft_execution_plan(task_text),
             )
+            check(
+                "Requirement verification references every requirement id",
+                lambda: requirement_ids_present(requirement_verification_text()),
+            )
         check(
             "Response requests approval before execution",
             lambda: assert_approval_response(response_text),
         )
         manual(
-            "Approval summary exposes every material open decision",
+            "Questions and decisions are classified correctly",
             (
-                "Confirm the response surfaces any decision that could change "
-                "the implementation direction, including the path-resolution base."
+                "Confirm requirement questions are not silently answered and "
+                "material design decisions are exposed with a recommendation "
+                "and relevant tradeoffs."
             ),
         )
         manual(
-            "Stored plan is durable without redundant implementation detail",
+            "Stored plan follows every requirement",
             (
-                "Confirm another agent could execute it without an important "
-                "direction change and that repeated repository findings are omitted."
+                "Confirm the plan satisfies R1-R5 without broadening, narrowing, "
+                "or reinterpreting them."
             ),
         )
     else:
@@ -597,11 +765,11 @@ def prepare_case_bundle(case_dir: Path, output_dir: Path) -> dict[str, Any]:
         else ""
     )
     output_dir.joinpath("failure.md").write_text(
-        "# Raw test failure\n\n"
+        "# Raw run failure\n\n"
         + (
             f"```text\n{raw_failure}\n```\n"
             if raw_failure
-            else "No raw pytest failure was captured for this case.\n"
+            else "No raw run failure was captured for this case.\n"
         ),
         encoding="utf-8",
     )
@@ -614,6 +782,12 @@ def prepare_case_bundle(case_dir: Path, output_dir: Path) -> dict[str, Any]:
         "git-status.txt",
         "review.md",
         "review-template.md",
+        "empirical-review.md",
+        "empirical-review-prompt.md",
+        "empirical-review-response.json",
+        "shared-tool-calls.json",
+        "branch-tool-calls.json",
+        "source-case.txt",
     )
     for name in optional_files:
         source = case_dir / name
@@ -677,7 +851,7 @@ def prepare_review_bundle(
         f"- Guidance SHA-256: `{guidance_hash}`",
         f"- Cases: **{len(summaries)}**",
         "",
-        "| Scenario | Agent/model | Mechanical results | Raw pytest failure |",
+        "| Scenario | Agent/model | Mechanical results | Raw run failure |",
         "|---|---|---|---|",
     ]
     for summary in summaries:
@@ -704,7 +878,7 @@ def prepare_review_bundle(
             "developer message.",
             "- `assertions.md` and `assertions.json`: mechanical and manual review "
             "checks.",
-            "- `failure.md`: the raw pytest assertion, when one was captured.",
+            "- `failure.md`: the raw run failure, when one was captured.",
             "- `task-file.md`, `session.json`, tool telemetry, and Git artifacts "
             "when available.",
             "",

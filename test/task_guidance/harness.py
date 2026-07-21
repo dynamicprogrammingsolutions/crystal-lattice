@@ -54,14 +54,28 @@ Please inspect this repository and outline a plan to fix this behavior:
 On macOS, requirements delivered through the managed-preferences
 `requirements_toml_base64` path do not resolve home-relative entries such as
 `~/.ssh` in `permissions.filesystem.deny_read`, while equivalent
-filesystem-delivered requirements do. The two delivery paths should produce
-consistent resolved deny-read paths without regressing existing absolute-path,
-relative-path, glob, or malformed-input behavior.
+filesystem-delivered requirements do.
+
+Requirements:
+- R1: MDM `~/...` entries resolve to the current user's home.
+- R2: Equivalent home-relative inputs produce equivalent normalized results
+  through MDM and filesystem delivery.
+- R3: Existing absolute-path behavior remains unchanged.
+- R4: Existing ordinary relative-path behavior remains unchanged for each
+  delivery path: filesystem relative paths continue to resolve against the
+  requirements file's parent, while MDM ordinary relative paths remain rejected.
+- R5: Existing glob and malformed-input behavior remains unchanged.
 
 Plan only, do not implement.
 """
 
-CREATE_TASK_PROMPT = "OK, create a single task file."
+RETAIN_PLAN_PROMPT = (
+    "Create a single task file and include the execution plan as Draft."
+)
+OMIT_PLAN_PROMPT = (
+    "Create a single task file with the requirements and supporting context, "
+    "but omit the execution plan."
+)
 
 
 @dataclass(frozen=True)
