@@ -571,6 +571,14 @@ transcript Detox suite remains unchanged because its physical swipe,
 inverted-list virtualization, and variable-height scroll behavior require a
 native host.
 
+### Native smoke verification update
+
+Added during task completion on July 21, 2026.
+
+The consolidated iOS session-list Detox smoke was rerun after the cleanup and
+passed: 1 suite, 1 test. It verified the real native session-row ordering and
+the action-menu → rich-status modal → immediate action-submission flow.
+
 ### Approved follow-up plan
 
 Added during task completion after explicit user approval on July 21, 2026.
