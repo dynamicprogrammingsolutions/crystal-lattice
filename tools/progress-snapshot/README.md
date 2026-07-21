@@ -12,12 +12,18 @@ maintainer utility for tracking sprint progress deterministically.
 - Reads the YouTrack token from `./.env` (`YOUTRACK_TOKEN`).
 - Queries YouTrack for the configured ticket set (project prefix `CL`,
   watched sprints, relevant states, with type/grouping exclusions).
-- Replays timestamped YouTrack State changes through the snapshot date to
-  derive `State at Snapshot`, the first transition to a completed state, and
-  the last transition to `In Progress`.
-- Derives completion date from either a manually entered sheet field or the
-  first time the ticket was set to a completed state; it never uses the
-  ticket's latest-update timestamp or creation date as a completion fallback.
+- Replays timestamped YouTrack State changes to derive task audit fields at
+  the snapshot date and report fields at the reporting-period end.
+- Counts In Progress from `State at Period End`, and counts Started Tasks when
+  a ticket enters `In Progress` or directly enters `Staging`/`Done` from a
+  non-active state during the period. The Summary reports both Started Task
+  count and Started Story Points.
+- Uses half-open local-time periods: from the period start at 00:00 inclusive
+  to the following day after the period end at 00:00 exclusive. This gives
+  adjacent periods no gaps or overlaps.
+- Derives completion dates from a manual sheet field or State history; it
+  never uses the ticket's latest-update timestamp or creation date as a
+  completion fallback.
 - Computes a deterministic diff against existing sheet rows and applies it in
   `write` mode, preserving prior snapshot data and manual fields.
 - Warns when the snapshot date is outside the snapshot period (allowed because

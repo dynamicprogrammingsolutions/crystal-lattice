@@ -8,7 +8,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -42,9 +42,13 @@ TASK_COLUMNS = [
     "Commit Count",
     "Pairing Note",
     "Last In Progress Date",
+    "State at Period End",
+    "Started in Period Date",
+    "Started in Period Source",
+    "Completed in Period Date",
 ]
-TASK_RANGE = f"{TASKS_SHEET}!A:R"
-SUMMARY_RANGE = f"{SUMMARY_SHEET}!A:E"
+TASK_RANGE = f"{TASKS_SHEET}!A:V"
+SUMMARY_RANGE = f"{SUMMARY_SHEET}!A:G"
 REVIEW_FIELDS = [
     "Issue ID",
     "Sprint",
@@ -55,6 +59,10 @@ REVIEW_FIELDS = [
     "Manual Completion Date",
     "Derived Completion Date",
     "Effective Completion Date",
+    "State at Period End",
+    "Started in Period Date",
+    "Started in Period Source",
+    "Completed in Period Date",
     "Ticket Updated At",
 ]
 PRESERVED_FIELDS = [
@@ -120,6 +128,10 @@ class StateHistory:
     state_at_snapshot: str
     first_completion_date: str
     last_in_progress_date: str
+    state_at_period_end: str
+    started_in_period_date: str
+    started_in_period_source: str
+    completed_in_period_date: str
 
 
 def main() -> int:
@@ -292,19 +304,14 @@ def build_warnings(snapshot: Snapshot) -> list[str]:
         warnings.append(
             "snapshot date "
             f"{snapshot.snapshot_date} is outside period "
-            f"{snapshot.period_start}..{snapshot.period_end}; continuing because "
-            "late snapshot closing is allowed."
+            f"{snapshot.period_start}..{snapshot.period_end}; it remains an "
+            "audit/collection timestamp and does not alter period-end metrics."
         )
     system_date = date.today().isoformat()
     if snapshot.snapshot_date != system_date:
         warnings.append(
             f"configured snapshot date {snapshot.snapshot_date} differs from "
             f"system date {system_date}; using configured snapshot date."
-        )
-    if snapshot_date < period_end:
-        warnings.append(
-            "snapshot date is before the period end; completed-work totals only "
-            "cover activity known by the snapshot date."
         )
     return warnings
 
@@ -592,18 +599,23 @@ def build_expected_rows(
     existing_manuals = build_existing_manual_map(existing_rows, snapshot)
     rows: list[dict[str, str]] = []
     for issue in issues:
-        if issue.created_date > snapshot.snapshot_date:
+        if issue.created_date > snapshot.period_end:
             continue
         manual = existing_manuals.get(issue.issue_id, {}).get(
             "Manual Completion Date", ""
         )
         history = derive_state_history(
             youtrack.issue_activities(issue.issue_id),
-            snapshot.snapshot_date,
+            snapshot,
             config,
         )
         derived = history.first_completion_date
         effective = manual or derived
+        completed_in_period = (
+            manual
+            if is_date_in_period(manual, snapshot)
+            else history.completed_in_period_date
+        )
         preserved = existing_manuals.get(issue.issue_id, {})
         rows.append(
             {
@@ -625,6 +637,10 @@ def build_expected_rows(
                 "Commit Count": preserved.get("Commit Count", ""),
                 "Pairing Note": preserved.get("Pairing Note", ""),
                 "Last In Progress Date": history.last_in_progress_date,
+                "State at Period End": history.state_at_period_end,
+                "Started in Period Date": history.started_in_period_date,
+                "Started in Period Source": history.started_in_period_source,
+                "Completed in Period Date": completed_in_period,
             }
         )
         if not include_snapshot_row(rows[-1], config, snapshot):
@@ -635,13 +651,17 @@ def build_expected_rows(
 def include_snapshot_row(
     row: dict[str, str], config: Config, snapshot: Snapshot
 ) -> bool:
-    if row["State at Snapshot"] == "In Progress":
+    if row["State at Period End"] == "In Progress":
         return True
-    completion_date = row["Effective Completion Date"]
+    if row["Started in Period Date"]:
+        return True
+    return bool(row["Completed in Period Date"])
+
+
+def is_date_in_period(value: str, snapshot: Snapshot) -> bool:
     return (
-        bool(completion_date)
-        and snapshot.period_start <= completion_date <= snapshot.period_end
-        and completion_date <= snapshot.snapshot_date
+        bool(value)
+        and snapshot.period_start <= value <= snapshot.period_end
     )
 
 
@@ -683,12 +703,22 @@ def merge_preserved(
 
 
 def derive_state_history(
-    activities: list[dict[str, Any]], snapshot_date: str, config: Config
+    activities: list[dict[str, Any]], snapshot: Snapshot, config: Config
 ) -> StateHistory:
+    snapshot_end = exclusive_day_end(snapshot.snapshot_date, config.timezone)
+    period_start, period_end = period_bounds(snapshot, config.timezone)
+    active_states = {"In Progress", *config.completed_states}
     state_at_snapshot = ""
+    state_at_period_end = ""
     first_completion_timestamp: int | None = None
     last_in_progress_timestamp: int | None = None
-    for activity in sorted(activities, key=lambda item: int(item.get("timestamp") or 0)):
+    first_started_in_period: tuple[int, str] | None = None
+    first_completed_in_period: int | None = None
+    prior_state = ""
+    for activity in sorted(
+        activities,
+        key=lambda item: int(item.get("timestamp") or 0),
+    ):
         field = activity.get("field") or {}
         if field.get("name") != "State":
             continue
@@ -696,23 +726,48 @@ def derive_state_history(
         if timestamp is None:
             continue
         timestamp = int(timestamp)
-        if date_value(timestamp, config.timezone) > snapshot_date:
-            continue
         added_values = list_values(activity.get("added"))
         if not added_values:
             continue
-        state_at_snapshot = added_values[-1]
-        if set(added_values).intersection(config.completed_states):
+        added_state = added_values[-1]
+        occurred_at = datetime.fromtimestamp(timestamp / 1000, config.timezone)
+        if occurred_at < snapshot_end:
+            state_at_snapshot = added_state
+        if occurred_at < period_end:
+            state_at_period_end = added_state
+        if added_state in config.completed_states and occurred_at < snapshot_end:
             if (
                 first_completion_timestamp is None
                 or timestamp < first_completion_timestamp
             ):
                 first_completion_timestamp = timestamp
-        if "In Progress" in added_values and (
+        in_period = period_start <= occurred_at < period_end
+        if (
+            in_period
+            and added_state in config.completed_states
+            and prior_state not in config.completed_states
+            and (
+                first_completed_in_period is None
+                or timestamp < first_completed_in_period
+            )
+        ):
+            first_completed_in_period = timestamp
+        if in_period and prior_state not in active_states:
+            source = (
+                "In Progress"
+                if added_state == "In Progress"
+                else f"Direct to {added_state}"
+                if added_state in config.completed_states
+                else ""
+            )
+            if source and first_started_in_period is None:
+                first_started_in_period = (timestamp, source)
+        if added_state == "In Progress" and occurred_at < snapshot_end and (
             last_in_progress_timestamp is None
             or timestamp > last_in_progress_timestamp
         ):
             last_in_progress_timestamp = timestamp
+        prior_state = added_state
     return StateHistory(
         state_at_snapshot=state_at_snapshot,
         first_completion_date=(
@@ -725,6 +780,35 @@ def derive_state_history(
             if last_in_progress_timestamp
             else ""
         ),
+        state_at_period_end=state_at_period_end,
+        started_in_period_date=(
+            date_value(first_started_in_period[0], config.timezone)
+            if first_started_in_period
+            else ""
+        ),
+        started_in_period_source=(
+            first_started_in_period[1] if first_started_in_period else ""
+        ),
+        completed_in_period_date=(
+            date_value(first_completed_in_period, config.timezone)
+            if first_completed_in_period
+            else ""
+        ),
+    )
+
+
+def exclusive_day_end(value: str, timezone: ZoneInfo) -> datetime:
+    return datetime.combine(
+        date.fromisoformat(value) + timedelta(days=1),
+        time.min,
+        timezone,
+    )
+
+
+def period_bounds(snapshot: Snapshot, timezone: ZoneInfo) -> tuple[datetime, datetime]:
+    return (
+        datetime.combine(date.fromisoformat(snapshot.period_start), time.min, timezone),
+        exclusive_day_end(snapshot.period_end, timezone),
     )
 
 
@@ -793,7 +877,7 @@ def print_plan(
     if replace_same_period:
         print("Replace same period: enabled")
     print(
-        "Summary: already exists; leaving unchanged"
+        "Summary: already exists; refreshing its formula blocks"
         if summary_exists
         else "Summary: will append new snapshot blocks"
     )
@@ -871,13 +955,13 @@ def write_snapshot(
         for row in ordered_rows
     ]
     old_task_row_count = len(existing_rows) + 1
-    sheets.update_values(f"{TASKS_SHEET}!A1:R{len(task_values)}", task_values)
+    sheets.update_values(f"{TASKS_SHEET}!A1:V{len(task_values)}", task_values)
     clear_trailing_rows(sheets, TASKS_SHEET, len(task_values), old_task_row_count)
 
     summary_values = build_summary_values(existing_summary, config, snapshot)
     if summary_values != existing_summary:
         sheets.update_values(
-            f"{SUMMARY_SHEET}!A1:F{len(summary_values)}", summary_values
+            f"{SUMMARY_SHEET}!A1:G{len(summary_values)}", summary_values
         )
 
 
@@ -938,7 +1022,7 @@ def clear_trailing_rows(
     new_row_count: int,
     old_row_count: int,
     *,
-    end_col: str = "R",
+    end_col: str = "V",
 ) -> None:
     if old_row_count > new_row_count:
         sheets.clear_values(
@@ -951,8 +1035,15 @@ def build_summary_values(
     config: Config,
     snapshot: Snapshot,
 ) -> list[list[str]]:
-    if summary_contains_snapshot(existing_summary, snapshot.key):
-        return existing_summary
+    existing_start = summary_snapshot_start(existing_summary, snapshot.key)
+    if existing_start is not None:
+        refreshed = build_summary_blocks(
+            config,
+            snapshot,
+            first_row=existing_start + 1,
+        )
+        end = existing_start + len(refreshed)
+        return existing_summary[:existing_start] + refreshed + existing_summary[end:]
     preserved = [list(row) for row in existing_summary]
     while preserved and not any(str(cell).strip() for cell in preserved[-1]):
         preserved.pop()
@@ -969,7 +1060,14 @@ def build_summary_values(
 
 
 def summary_contains_snapshot(rows: list[list[str]], snapshot_key: str) -> bool:
-    return any(row and str(row[0]) == snapshot_key for row in rows)
+    return summary_snapshot_start(rows, snapshot_key) is not None
+
+
+def summary_snapshot_start(rows: list[list[str]], snapshot_key: str) -> int | None:
+    for index, row in enumerate(rows):
+        if row and str(row[0]) == snapshot_key:
+            return index
+    return None
 
 
 def build_summary_blocks(
@@ -987,6 +1085,7 @@ def build_summary_blocks(
                 snapshot.period_start,
                 snapshot.period_end,
                 "",
+                "",
             ]
         )
         blocks.append(
@@ -994,8 +1093,10 @@ def build_summary_blocks(
                 "Assignee",
                 "Completed Tasks",
                 "Completed Story Points",
-                "In Progress Tasks",
-                "In Progress Story Points",
+                "In Progress at Period End Tasks",
+                "In Progress at Period End Story Points",
+                "Started Tasks",
+                "Started Story Points",
             ]
         )
         current_row += 2
@@ -1008,6 +1109,8 @@ def build_summary_blocks(
                     completed_points_formula(metadata_row, row_number),
                     in_progress_count_formula(metadata_row, row_number),
                     in_progress_points_formula(metadata_row, row_number),
+                    started_count_formula(metadata_row, row_number),
+                    started_points_formula(metadata_row, row_number),
                 ]
             )
             current_row += 1
@@ -1019,36 +1122,49 @@ def build_summary_blocks(
 
 def completed_count_formula(metadata_row: int, row_number: int) -> str:
     return (
-        f'=COUNTIFS(Tasks!$B:$B,$C${metadata_row},Tasks!$C:$C,$D${metadata_row},'
-        f'Tasks!$D:$D,$E${metadata_row},Tasks!$F:$F,$B${metadata_row},'
-        f'Tasks!$I:$I,$A${row_number},Tasks!$M:$M,">="&$D${metadata_row},'
-        f'Tasks!$M:$M,"<="&$E${metadata_row})'
+        f'=COUNTIFS(Tasks!$A:$A,$A${metadata_row},Tasks!$F:$F,$B${metadata_row},'
+        f'Tasks!$I:$I,$A${row_number},Tasks!$V:$V,">="&$D${metadata_row},'
+        f'Tasks!$V:$V,"<"&($E${metadata_row}+1))'
     )
 
 
 def completed_points_formula(metadata_row: int, row_number: int) -> str:
     return (
-        f'=SUMIFS(Tasks!$J:$J,Tasks!$B:$B,$C${metadata_row},'
-        f'Tasks!$C:$C,$D${metadata_row},Tasks!$D:$D,$E${metadata_row},'
+        f'=SUMIFS(Tasks!$J:$J,Tasks!$A:$A,$A${metadata_row},'
         f'Tasks!$F:$F,$B${metadata_row},Tasks!$I:$I,$A${row_number},'
-        f'Tasks!$M:$M,">="&$D${metadata_row},Tasks!$M:$M,"<="&$E${metadata_row})'
+        f'Tasks!$V:$V,">="&$D${metadata_row},Tasks!$V:$V,"<"&($E${metadata_row}+1))'
     )
 
 
 def in_progress_count_formula(metadata_row: int, row_number: int) -> str:
     return (
-        f'=COUNTIFS(Tasks!$B:$B,$C${metadata_row},Tasks!$C:$C,$D${metadata_row},'
-        f'Tasks!$D:$D,$E${metadata_row},Tasks!$F:$F,$B${metadata_row},'
-        f'Tasks!$I:$I,$A${row_number},Tasks!$G:$G,"In Progress")'
+        f'=COUNTIFS(Tasks!$A:$A,$A${metadata_row},Tasks!$F:$F,$B${metadata_row},'
+        f'Tasks!$I:$I,$A${row_number},Tasks!$S:$S,"In Progress")'
     )
 
 
 def in_progress_points_formula(metadata_row: int, row_number: int) -> str:
     return (
-        f'=SUMIFS(Tasks!$J:$J,Tasks!$B:$B,$C${metadata_row},'
-        f'Tasks!$C:$C,$D${metadata_row},Tasks!$D:$D,$E${metadata_row},'
+        f'=SUMIFS(Tasks!$J:$J,Tasks!$A:$A,$A${metadata_row},'
         f'Tasks!$F:$F,$B${metadata_row},Tasks!$I:$I,$A${row_number},'
-        f'Tasks!$G:$G,"In Progress")'
+        f'Tasks!$S:$S,"In Progress")'
+    )
+
+
+def started_count_formula(metadata_row: int, row_number: int) -> str:
+    return (
+        f'=COUNTIFS(Tasks!$A:$A,$A${metadata_row},Tasks!$F:$F,$B${metadata_row},'
+        f'Tasks!$I:$I,$A${row_number},Tasks!$T:$T,">="&$D${metadata_row},'
+        f'Tasks!$T:$T,"<"&($E${metadata_row}+1))'
+    )
+
+
+def started_points_formula(metadata_row: int, row_number: int) -> str:
+    return (
+        f'=SUMIFS(Tasks!$J:$J,Tasks!$A:$A,$A${metadata_row},'
+        f'Tasks!$F:$F,$B${metadata_row},Tasks!$I:$I,$A${row_number},'
+        f'Tasks!$T:$T,">="&$D${metadata_row},'
+        f'Tasks!$T:$T,"<"&($E${metadata_row}+1))'
     )
 
 
@@ -1068,7 +1184,7 @@ def issue_sort_key(issue: Issue, config: Config) -> tuple[int, int, int, int]:
 def row_sort_key(row: dict[str, str], config: Config) -> tuple[int, int, int, int]:
     return (
         index_or_end(config.sprint_order, row.get("Sprint", "")),
-        index_or_end(config.state_order, row.get("State at Snapshot", "")),
+        index_or_end(config.state_order, row.get("State at Period End", "")),
         index_or_end(config.assignee_order, row.get("Assignee", "")),
         issue_number(row.get("Issue ID", "")),
     )
