@@ -359,6 +359,25 @@ def test_build_summary_values_appends_new_period_after_existing_report():
     assert "Tasks!$S:$S" in values[6][3]
     assert "Tasks!$T:$T" in values[6][5]
     assert "SUMIFS(Tasks!$J:$J" in values[6][6]
+    assert values[9][0] == "All Assignees"
+    assert values[9][1:] == [
+        "=SUM(B7:B9)",
+        "=SUM(C7:C9)",
+        "=SUM(D7:D9)",
+        "=SUM(E7:E9)",
+        "=SUM(F7:F9)",
+        "=SUM(G7:G9)",
+    ]
+    assert values[10] == []
+    assert values[11] == [
+        "All Sprints / All Assignees",
+        "=SUM(B10)",
+        "=SUM(C10)",
+        "=SUM(D10)",
+        "=SUM(E10)",
+        "=SUM(F10)",
+        "=SUM(G10)",
+    ]
 
 
 def test_build_summary_values_refreshes_existing_snapshot_formulas():
@@ -386,6 +405,29 @@ def test_build_summary_values_refreshes_existing_snapshot_formulas():
     assert values[1][-2:] == ["Started Tasks", "Started Story Points"]
     assert "Tasks!$T:$T" in values[2][-2]
     assert "SUMIFS(Tasks!$J:$J" in values[2][-1]
+
+
+def test_refreshing_one_multi_sprint_snapshot_does_not_replace_the_next_snapshot():
+    class Config:
+        watched_sprints = ["Sprint 3", "Release 1"]
+        summary_assignees = ["ferenci84", "Pujan", "Unassigned"]
+
+    first = Snapshot("2026-06-01", "2026-06-14", "2026-06-14")
+    second = Snapshot("2026-06-15", "2026-06-28", "2026-06-28")
+    existing = [
+        *build_summary_values([], Config(), first),
+        *build_summary_values([], Config(), second),
+    ]
+
+    values = build_summary_values(existing, Config(), first)
+
+    assert any(row and row[0] == first.key for row in values)
+    assert any(row and row[0] == second.key for row in values)
+    assert [
+        row[1]
+        for row in values
+        if row and row[0] == first.key
+    ] == ["Sprint 3", "Release 1"]
 
 
 def test_build_summary_values_preserves_existing_formula_cells():

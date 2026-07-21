@@ -49,6 +49,7 @@ TASK_COLUMNS = [
 ]
 TASK_RANGE = f"{TASKS_SHEET}!A:V"
 SUMMARY_RANGE = f"{SUMMARY_SHEET}!A:G"
+SUMMARY_METRIC_COLUMNS = ("B", "C", "D", "E", "F", "G")
 REVIEW_FIELDS = [
     "Issue ID",
     "Sprint",
@@ -960,6 +961,9 @@ def write_snapshot(
 
     summary_values = build_summary_values(existing_summary, config, snapshot)
     if summary_values != existing_summary:
+        sheets.clear_values(
+            f"{SUMMARY_SHEET}!A1:G{max(len(existing_summary), len(summary_values))}"
+        )
         sheets.update_values(
             f"{SUMMARY_SHEET}!A1:G{len(summary_values)}", summary_values
         )
@@ -1042,7 +1046,7 @@ def build_summary_values(
             snapshot,
             first_row=existing_start + 1,
         )
-        end = existing_start + len(refreshed)
+        end = summary_snapshot_end(existing_summary, existing_start, snapshot.key)
         return existing_summary[:existing_start] + refreshed + existing_summary[end:]
     preserved = [list(row) for row in existing_summary]
     while preserved and not any(str(cell).strip() for cell in preserved[-1]):
@@ -1070,11 +1074,30 @@ def summary_snapshot_start(rows: list[list[str]], snapshot_key: str) -> int | No
     return None
 
 
+def summary_snapshot_end(
+    rows: list[list[str]], start: int, snapshot_key: str
+) -> int:
+    for index in range(start + 1, len(rows)):
+        row = rows[index]
+        if (
+            row
+            and str(row[0]) != snapshot_key
+            and is_summary_snapshot_key(str(row[0]))
+        ):
+            return index
+    return len(rows)
+
+
+def is_summary_snapshot_key(value: str) -> bool:
+    return ".." in value and "@" in value
+
+
 def build_summary_blocks(
     config: Config, snapshot: Snapshot, *, first_row: int
 ) -> list[list[str]]:
     blocks: list[list[str]] = []
     current_row = first_row
+    sprint_total_rows: list[int] = []
     for sprint_index, sprint in enumerate(config.watched_sprints):
         metadata_row = current_row
         blocks.append(
@@ -1100,6 +1123,7 @@ def build_summary_blocks(
             ]
         )
         current_row += 2
+        first_assignee_row = current_row
         for assignee in config.summary_assignees:
             row_number = current_row
             blocks.append(
@@ -1114,9 +1138,33 @@ def build_summary_blocks(
                 ]
             )
             current_row += 1
+        last_assignee_row = current_row - 1
+        sprint_total_rows.append(current_row)
+        blocks.append(
+            [
+                "All Assignees",
+                *[
+                    sum_range_formula(column, first_assignee_row, last_assignee_row)
+                    for column in SUMMARY_METRIC_COLUMNS
+                ],
+            ]
+        )
+        current_row += 1
         if sprint_index < len(config.watched_sprints) - 1:
             blocks.append([])
             current_row += 1
+    blocks.append([])
+    current_row += 1
+    blocks.append(
+        [
+            "All Sprints / All Assignees",
+            *[
+                sum_cells_formula(column, sprint_total_rows)
+                for column in SUMMARY_METRIC_COLUMNS
+            ],
+        ]
+    )
+    blocks.append([])
     return blocks
 
 
@@ -1166,6 +1214,14 @@ def started_points_formula(metadata_row: int, row_number: int) -> str:
         f'Tasks!$T:$T,">="&$D${metadata_row},'
         f'Tasks!$T:$T,"<"&($E${metadata_row}+1))'
     )
+
+
+def sum_range_formula(column: str, first_row: int, last_row: int) -> str:
+    return f"=SUM({column}{first_row}:{column}{last_row})"
+
+
+def sum_cells_formula(column: str, rows: list[int]) -> str:
+    return f"=SUM({','.join(f'{column}{row}' for row in rows)})"
 
 
 def pad_row(row: list[str], width: int) -> list[str]:
