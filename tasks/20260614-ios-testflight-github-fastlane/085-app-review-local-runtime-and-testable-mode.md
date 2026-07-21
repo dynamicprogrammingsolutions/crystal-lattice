@@ -15,7 +15,9 @@ Provide an immediately testable Crystal Lattice experience that satisfies App Re
   - [ ] Representative tool call/result rendering.
   - [ ] Persistence across navigation/relaunch where applicable.
 - [ ] Include at least one no-API-key local agent path that uses an actual local model or platform model capability.
-- [ ] Add app-level settings where users can configure provider API keys for richer agents.
+- [ ] Provide a settings path for the built-in local runtime where users can set provider API keys and turn specific bundled agents on or off.
+- [ ] Apply those changes through the generic application configuration change and reload capability provided by the dependent configuration task, rather than solely through session settings.
+- [ ] The settings UI may be restructured as needed to make these controls understandable and user-friendly.
 - [ ] Bundle or provide a built-in iOS-safe configuration with a fixed, reviewed set of agents/plugins/tools.
 - [ ] Ensure all included plugins/tools are safe for iOS review and ordinary-user use.
 - [ ] Ensure file access is limited to app sandbox, bundled resources, or explicit user-selected files.
@@ -28,6 +30,7 @@ Provide an immediately testable Crystal Lattice experience that satisfies App Re
 Parent Task: tasks/20260614-ios-testflight-github-fastlane/000-main.md
 Depends On: tasks/20260614-ios-testflight-github-fastlane/050-privacy-landing-page-compliance.md
 Depends On: tasks/20260614-ios-testflight-github-fastlane/060-app-store-connect-registration-package.md
+Depends On: tasks/20260721-application-config-change-and-runtime-reload.md
 
 ## App Review Rationale
 
@@ -61,7 +64,7 @@ The final solution must satisfy these requirements, regardless of implementation
 - It is immediately testable by Apple App Review.
 - It exercises the meaningful app functionality, not just a static demo screen.
 - It includes at least one no-API-key local agent path based on an actual local/platform model capability.
-- It includes an app-level settings path for provider API keys.
+- It includes an app-level settings path for provider API keys and controls for enabling or disabling specific bundled agents.
 - It uses only a fixed, reviewed set of bundled agents/plugins/tools for the built-in local/review mode.
 - It does not require downloading executable code, unreviewed plugins, or new runtime behavior after App Review.
 - It respects iOS sandboxing and user consent for files, network, photos, camera, and documents.
@@ -84,7 +87,7 @@ Potential shape:
 - A fixed set of bundled agents.
 - A fixed set of bundled plugins/tools.
 - Local session persistence in the app sandbox.
-- App-level settings for API keys.
+- A settings path for provider API keys and enabling or disabling specific bundled agents.
 - A no-API-key local agent using Apple Foundation Models where available, or another reviewed local model option.
 - Optional provider-backed agents when the user enters API keys.
 
@@ -205,7 +208,7 @@ The final implementation should be honest about iOS constraints. If indefinite b
 - A fresh install exposes an obvious testable path without desktop setup.
 - Apple Review can exercise meaningful app functionality immediately.
 - At least one no-API-key model-backed local agent path works on supported devices, with a documented fallback plan for unsupported devices.
-- App-level API-key settings exist for optional richer provider-backed agents.
+- Users can set provider API keys and enable or disable specific bundled agents from the local-runtime settings path; the resulting runtime behavior reflects the updated application configuration.
 - Bundled/review-mode agents/plugins/tools are fixed, reviewed, and iOS-safe.
 - The app does not download executable code or unreviewed plugins to unlock reviewed functionality.
 - File/network/tool behavior respects iOS sandboxing and permissions.
