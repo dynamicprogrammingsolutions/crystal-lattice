@@ -12,8 +12,12 @@ maintainer utility for tracking sprint progress deterministically.
 - Reads the YouTrack token from `./.env` (`YOUTRACK_TOKEN`).
 - Queries YouTrack for the configured ticket set (project prefix `CL`,
   watched sprints, relevant states, with type/grouping exclusions).
+- Replays timestamped YouTrack State changes through the snapshot date to
+  derive `State at Snapshot`, the first transition to a completed state, and
+  the last transition to `In Progress`.
 - Derives completion date from either a manually entered sheet field or the
-  first time the ticket was set to a completed state.
+  first time the ticket was set to a completed state; it never uses the
+  ticket's latest-update timestamp or creation date as a completion fallback.
 - Computes a deterministic diff against existing sheet rows and applies it in
   `write` mode, preserving prior snapshot data and manual fields.
 - Warns when the snapshot date is outside the snapshot period (allowed because
@@ -35,6 +39,8 @@ Both modes accept:
   next to the script)
 - `--sheet-id <id>` — override the sheet ID from config
 - `--snapshot-date <YYYY-MM-DD>` — override the system-derived snapshot date
+- `--period-start <YYYY-MM-DD>` / `--period-end <YYYY-MM-DD>` — override the
+  configured reporting period without editing the config file
 
 ## Config
 

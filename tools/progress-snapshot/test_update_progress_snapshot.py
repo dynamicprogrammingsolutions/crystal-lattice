@@ -1,7 +1,10 @@
+from datetime import datetime, timezone
+
 from update_progress_snapshot import (
     Snapshot,
     TASK_COLUMNS,
     build_summary_values,
+    derive_state_history,
     diff_snapshot_rows,
     build_warnings,
     include_snapshot_row,
@@ -59,6 +62,52 @@ def test_normalizes_sheet_datetime_without_leading_zero_hour():
     normalized = normalize_existing_row(row)
 
     assert normalized["Ticket Updated At"] == "2026-06-02 07:30:37"
+
+
+def test_normalizes_legacy_state_to_state_at_snapshot():
+    normalized = normalize_existing_row({"State": "In Progress"})
+
+    assert normalized["State at Snapshot"] == "In Progress"
+
+
+def test_derives_historical_state_completion_and_last_in_progress_dates():
+    class Config:
+        completed_states = ["Staging", "Done"]
+        timezone = timezone.utc
+
+    config = Config()
+
+    def timestamp(year, month, day):
+        return int(datetime(year, month, day, tzinfo=timezone.utc).timestamp() * 1000)
+
+    activities = [
+        {
+            "timestamp": timestamp(2026, 6, 1),
+            "field": {"name": "State"},
+            "added": [{"name": "In Progress"}],
+        },
+        {
+            "timestamp": timestamp(2026, 6, 13),
+            "field": {"name": "State"},
+            "added": [{"name": "Staging"}],
+        },
+        {
+            "timestamp": timestamp(2026, 6, 25),
+            "field": {"name": "State"},
+            "added": [{"name": "In Progress"}],
+        },
+        {
+            "timestamp": timestamp(2026, 7, 2),
+            "field": {"name": "State"},
+            "added": [{"name": "Done"}],
+        },
+    ]
+
+    history = derive_state_history(activities, "2026-06-28", config)
+
+    assert history.state_at_snapshot == "In Progress"
+    assert history.first_completion_date == "2026-06-13"
+    assert history.last_in_progress_date == "2026-06-25"
 
 
 def test_diff_snapshot_rows_detects_add_update_and_remove():
@@ -210,6 +259,23 @@ def test_build_summary_values_does_not_modify_existing_snapshot_summary():
     assert build_summary_values(existing_summary, Config(), snapshot) == existing_summary
 
 
+def test_build_summary_values_preserves_existing_formula_cells():
+    class Config:
+        watched_sprints = ["Sprint 3"]
+        summary_assignees = ["ferenci84", "Pujan", "Unassigned"]
+
+    existing_summary = [
+        ["existing", "Sprint 3", "2026-06-01", "2026-05-20", "2026-05-31"],
+        ["Assignee", "Completed Tasks"],
+        ["ferenci84", "=COUNTIFS(Tasks!$A:$A,A1)"],
+    ]
+    snapshot = Snapshot("2026-06-01", "2026-06-14", "2026-06-14")
+
+    values = build_summary_values(existing_summary, Config(), snapshot)
+
+    assert values[: len(existing_summary)] == existing_summary
+
+
 def test_order_task_rows_preserves_snapshot_group_order_and_sorts_within_group():
     class Config:
         sprint_order = ["Sprint 3", "Release 1"]
@@ -224,21 +290,21 @@ def test_order_task_rows_preserves_snapshot_group_order_and_sorts_within_group()
         {
             "Snapshot Key": "current",
             "Sprint": "Sprint 3",
-            "State": "In Progress",
+            "State at Snapshot": "In Progress",
             "Assignee": "ferenci84",
             "Issue ID": "CL-3",
         },
         {
             "Snapshot Key": "old",
             "Sprint": "Release 1",
-            "State": "Done",
+            "State at Snapshot": "Done",
             "Assignee": "Pujan",
             "Issue ID": "CL-2",
         },
         {
             "Snapshot Key": "current",
             "Sprint": "Sprint 3",
-            "State": "Staging",
+            "State at Snapshot": "Staging",
             "Assignee": "Pujan",
             "Issue ID": "CL-1",
         },
@@ -305,23 +371,29 @@ def test_completed_rows_are_only_included_when_completion_date_is_in_period():
     )
 
     assert not include_snapshot_row(
-        {"State": "Done", "Effective Completion Date": "2026-03-02"},
+        {
+            "State at Snapshot": "Done",
+            "Effective Completion Date": "2026-03-02",
+        },
         Config(),
         snapshot,
     )
     assert include_snapshot_row(
-        {"State": "Done", "Effective Completion Date": "2026-05-27"},
+        {
+            "State at Snapshot": "Done",
+            "Effective Completion Date": "2026-05-27",
+        },
         Config(),
         snapshot,
     )
     assert include_snapshot_row(
-        {"State": "In Progress", "Effective Completion Date": ""},
+        {"State at Snapshot": "In Progress", "Effective Completion Date": ""},
         Config(),
         snapshot,
     )
 
 
-def test_completed_row_with_creation_date_fallback_is_included_when_in_period():
+def test_completed_row_with_derived_date_is_included_when_in_period():
     class Config:
         completed_states = ["Staging", "Done"]
 
@@ -332,7 +404,10 @@ def test_completed_row_with_creation_date_fallback_is_included_when_in_period():
     )
 
     assert include_snapshot_row(
-        {"State": "Staging", "Effective Completion Date": "2026-05-28"},
+        {
+            "State at Snapshot": "Staging",
+            "Effective Completion Date": "2026-05-28",
+        },
         Config(),
         snapshot,
     )

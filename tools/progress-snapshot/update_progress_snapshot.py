@@ -30,7 +30,7 @@ TASK_COLUMNS = [
     "Period End",
     "Issue ID",
     "Sprint",
-    "State",
+    "State at Snapshot",
     "Summary",
     "Assignee",
     "Story Points",
@@ -41,13 +41,14 @@ TASK_COLUMNS = [
     "Last Commit Datetime",
     "Commit Count",
     "Pairing Note",
+    "Last In Progress Date",
 ]
-TASK_RANGE = f"{TASKS_SHEET}!A:Q"
+TASK_RANGE = f"{TASKS_SHEET}!A:R"
 SUMMARY_RANGE = f"{SUMMARY_SHEET}!A:E"
 REVIEW_FIELDS = [
     "Issue ID",
     "Sprint",
-    "State",
+    "State at Snapshot",
     "Summary",
     "Assignee",
     "Story Points",
@@ -64,6 +65,7 @@ PRESERVED_FIELDS = [
 ]
 LEGACY_COLUMN_MAP = {
     "Completion Date": "Manual Completion Date",
+    "State": "State at Snapshot",
 }
 
 
@@ -113,6 +115,13 @@ class Issue:
     updated_at: str
 
 
+@dataclass(frozen=True)
+class StateHistory:
+    state_at_snapshot: str
+    first_completion_date: str
+    last_in_progress_date: str
+
+
 def main() -> int:
     args = parse_args()
     load_dotenv(ENV_FILE)
@@ -123,8 +132,8 @@ def main() -> int:
         or date.today().isoformat()
     )
     snapshot = Snapshot(
-        period_start=config.period_start,
-        period_end=config.period_end,
+        period_start=args.period_start or config.period_start,
+        period_end=args.period_end or config.period_end,
         snapshot_date=snapshot_date,
     )
 
@@ -133,7 +142,10 @@ def main() -> int:
     sheets = SheetsClient(config.sheet_id)
 
     existing_rows = read_task_rows(sheets)
-    existing_summary = sheets.get_values(SUMMARY_RANGE)
+    existing_summary = sheets.get_values(
+        SUMMARY_RANGE,
+        value_render_option="FORMULA",
+    )
     issues = fetch_filtered_issues(youtrack, config)
     expected_rows = build_expected_rows(
         youtrack=youtrack,
@@ -190,6 +202,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--snapshot-date",
         help="Override snapshot date from config. Defaults to config value or system date.",
+    )
+    parser.add_argument(
+        "--period-start",
+        help="Override the configured reporting period start date (YYYY-MM-DD).",
+    )
+    parser.add_argument(
+        "--period-end",
+        help="Override the configured reporting period end date (YYYY-MM-DD).",
     )
     parser.add_argument(
         "--sheet-id",
@@ -281,6 +301,11 @@ def build_warnings(snapshot: Snapshot) -> list[str]:
             f"configured snapshot date {snapshot.snapshot_date} differs from "
             f"system date {system_date}; using configured snapshot date."
         )
+    if snapshot_date < period_end:
+        warnings.append(
+            "snapshot date is before the period end; completed-work totals only "
+            "cover activity known by the snapshot date."
+        )
     return warnings
 
 
@@ -360,10 +385,15 @@ class SheetsClient:
             "GOOGLE_APPLICATION_CREDENTIALS is required for Sheets writes/reads."
         )
 
-    def get_values(self, range_name: str) -> list[list[str]]:
+    def get_values(
+        self,
+        range_name: str,
+        *,
+        value_render_option: str = "FORMATTED_VALUE",
+    ) -> list[list[Any]]:
         response = self.session.get(
             f"https://sheets.googleapis.com/v4/spreadsheets/{self.sheet_id}/values/{range_name}",
-            params={"valueRenderOption": "FORMATTED_VALUE"},
+            params={"valueRenderOption": value_render_option},
             timeout=30,
         )
         response.raise_for_status()
@@ -562,15 +592,17 @@ def build_expected_rows(
     existing_manuals = build_existing_manual_map(existing_rows, snapshot)
     rows: list[dict[str, str]] = []
     for issue in issues:
+        if issue.created_date > snapshot.snapshot_date:
+            continue
         manual = existing_manuals.get(issue.issue_id, {}).get(
             "Manual Completion Date", ""
         )
-        derived = ""
-        if issue.state in config.completed_states:
-            derived = (
-                derive_completion_date(youtrack, issue.issue_id, config)
-                or issue.created_date
-            )
+        history = derive_state_history(
+            youtrack.issue_activities(issue.issue_id),
+            snapshot.snapshot_date,
+            config,
+        )
+        derived = history.first_completion_date
         effective = manual or derived
         preserved = existing_manuals.get(issue.issue_id, {})
         rows.append(
@@ -581,7 +613,7 @@ def build_expected_rows(
                 "Period End": snapshot.period_end,
                 "Issue ID": issue.issue_id,
                 "Sprint": issue.sprint,
-                "State": issue.state,
+                "State at Snapshot": history.state_at_snapshot,
                 "Summary": issue.summary,
                 "Assignee": issue.assignee,
                 "Story Points": issue.story_points,
@@ -592,6 +624,7 @@ def build_expected_rows(
                 "Last Commit Datetime": preserved.get("Last Commit Datetime", ""),
                 "Commit Count": preserved.get("Commit Count", ""),
                 "Pairing Note": preserved.get("Pairing Note", ""),
+                "Last In Progress Date": history.last_in_progress_date,
             }
         )
         if not include_snapshot_row(rows[-1], config, snapshot):
@@ -602,14 +635,13 @@ def build_expected_rows(
 def include_snapshot_row(
     row: dict[str, str], config: Config, snapshot: Snapshot
 ) -> bool:
-    if row["State"] == "In Progress":
+    if row["State at Snapshot"] == "In Progress":
         return True
-    if row["State"] not in config.completed_states:
-        return False
     completion_date = row["Effective Completion Date"]
     return (
         bool(completion_date)
         and snapshot.period_start <= completion_date <= snapshot.period_end
+        and completion_date <= snapshot.snapshot_date
     )
 
 
@@ -650,24 +682,50 @@ def merge_preserved(
     return merged
 
 
-def derive_completion_date(
-    youtrack: YouTrackClient, issue_id: str, config: Config
-) -> str:
-    first_timestamp: int | None = None
-    for activity in youtrack.issue_activities(issue_id):
+def derive_state_history(
+    activities: list[dict[str, Any]], snapshot_date: str, config: Config
+) -> StateHistory:
+    state_at_snapshot = ""
+    first_completion_timestamp: int | None = None
+    last_in_progress_timestamp: int | None = None
+    for activity in sorted(activities, key=lambda item: int(item.get("timestamp") or 0)):
         field = activity.get("field") or {}
         if field.get("name") != "State":
-            continue
-        added_values = list_values(activity.get("added"))
-        if not set(added_values).intersection(config.completed_states):
             continue
         timestamp = activity.get("timestamp")
         if timestamp is None:
             continue
         timestamp = int(timestamp)
-        if first_timestamp is None or timestamp < first_timestamp:
-            first_timestamp = timestamp
-    return date_value(first_timestamp, config.timezone) if first_timestamp else ""
+        if date_value(timestamp, config.timezone) > snapshot_date:
+            continue
+        added_values = list_values(activity.get("added"))
+        if not added_values:
+            continue
+        state_at_snapshot = added_values[-1]
+        if set(added_values).intersection(config.completed_states):
+            if (
+                first_completion_timestamp is None
+                or timestamp < first_completion_timestamp
+            ):
+                first_completion_timestamp = timestamp
+        if "In Progress" in added_values and (
+            last_in_progress_timestamp is None
+            or timestamp > last_in_progress_timestamp
+        ):
+            last_in_progress_timestamp = timestamp
+    return StateHistory(
+        state_at_snapshot=state_at_snapshot,
+        first_completion_date=(
+            date_value(first_completion_timestamp, config.timezone)
+            if first_completion_timestamp
+            else ""
+        ),
+        last_in_progress_date=(
+            date_value(last_in_progress_timestamp, config.timezone)
+            if last_in_progress_timestamp
+            else ""
+        ),
+    )
 
 
 def diff_snapshot_rows(
@@ -813,7 +871,7 @@ def write_snapshot(
         for row in ordered_rows
     ]
     old_task_row_count = len(existing_rows) + 1
-    sheets.update_values(f"{TASKS_SHEET}!A1:Q{len(task_values)}", task_values)
+    sheets.update_values(f"{TASKS_SHEET}!A1:R{len(task_values)}", task_values)
     clear_trailing_rows(sheets, TASKS_SHEET, len(task_values), old_task_row_count)
 
     summary_values = build_summary_values(existing_summary, config, snapshot)
@@ -880,7 +938,7 @@ def clear_trailing_rows(
     new_row_count: int,
     old_row_count: int,
     *,
-    end_col: str = "Q",
+    end_col: str = "R",
 ) -> None:
     if old_row_count > new_row_count:
         sheets.clear_values(
@@ -1010,7 +1068,7 @@ def issue_sort_key(issue: Issue, config: Config) -> tuple[int, int, int, int]:
 def row_sort_key(row: dict[str, str], config: Config) -> tuple[int, int, int, int]:
     return (
         index_or_end(config.sprint_order, row.get("Sprint", "")),
-        index_or_end(config.state_order, row.get("State", "")),
+        index_or_end(config.state_order, row.get("State at Snapshot", "")),
         index_or_end(config.assignee_order, row.get("Assignee", "")),
         issue_number(row.get("Issue ID", "")),
     )
