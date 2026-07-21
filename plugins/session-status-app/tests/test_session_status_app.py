@@ -136,7 +136,15 @@ def test_status_plugin_exposes_consistent_ordinary_action_and_filter(
     assert status_input["prefill_from"] == "$session.metadata.status"
     assert status_input["default"] == "todo"
     assert status_input["options"] == EXPECTED_OPTIONS
-    assert "rich_ui" not in action
+    assert action["rich_ui"] == {
+        "kind": "list",
+        "value_path": "metadata.status",
+        "missing_value": "todo",
+        "input_name": "status",
+        "default_pinned": False,
+        "options": EXPECTED_OPTIONS,
+    }
+    assert action["rich_ui"]["options"] == status_input["options"]
 
     assert status_filter == {
         "ui_type": "session_list_filter",
@@ -311,6 +319,7 @@ def test_custom_status_metadata_key_drives_ui_mutation_event_and_filter(
             action["dialog"]["inputs"][0]["prefill_from"]
             == "$session.metadata.workflow_state"
         )
+        assert action["rich_ui"]["value_path"] == "metadata.workflow_state"
         assert status_filter["data"] == "metadata.workflow_state"
 
         initial_summary = app.get_session_summary("custom")

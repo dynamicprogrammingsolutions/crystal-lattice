@@ -98,6 +98,29 @@ describe('session-list filter shared contract cases', () => {
     );
   });
 
+  it('accepts the highlight tone used by the pin filter', () => {
+    const schema = normalizeSessionListFilterSchema([
+      {
+        ui_type: 'session_list_filter',
+        id: 'pinned_state',
+        label: 'Pinned',
+        data: 'metadata.pinned',
+        type: 'boolean',
+        match: 'equals',
+        options: [
+          { value: false, label: 'Not pinned', tone: 'muted' },
+          { value: true, label: 'Pinned', tone: 'highlight' },
+        ],
+      },
+    ]);
+
+    expect(schema.diagnostics).toEqual([]);
+    expect(schema.filters[0]?.options[1]).toMatchObject({
+      value: true,
+      tone: 'highlight',
+    });
+  });
+
   it('creates default and Show-all values and counts only active non-main filters', () => {
     const schema = withFrontendFallbackSessionSearch(
       normalizeSessionListFilterSchema([

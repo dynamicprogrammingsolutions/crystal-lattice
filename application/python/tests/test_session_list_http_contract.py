@@ -218,13 +218,19 @@ def test_session_list_http_contract_orders_configured_pinned_metadata(
 
         ui_response = client.get("/application/ui-schema")
         assert ui_response.status_code == 200
-        pin_toggle = next(
+        pin_action = next(
             element
             for element in ui_response.json()["elements"]
-            if element.get("ui_type") == "session_list_toggle_pinned"
+            if element.get("id") == "toggle_session_pinned"
         )
-        assert pin_toggle["data"] == "metadata.favorite"
-        assert pin_toggle["missing_value"] is False
+        assert pin_action["ui_type"] == "session_list_action"
+        assert pin_action["rich_ui"]["value_path"] == "metadata.favorite"
+        assert pin_action["rich_ui"]["missing_value"] is False
+        assert pin_action["rich_ui"]["placements"] == [
+            "header_trailing",
+            "actions_bar",
+        ]
+        assert pin_action["rich_ui"]["appearance"]["active"]["tone"] == "highlight"
     finally:
         server_mod.app.dependency_overrides.clear()
         application.close()

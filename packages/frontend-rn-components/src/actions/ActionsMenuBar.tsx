@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 
 import { useTheme } from '../theme';
-import { ActionsMenuPanel } from './ActionsMenuPanel';
+import { ActionsMenuPanel, type ActionsMenuPanelProps } from './ActionsMenuPanel';
 import type { MenuIconRenderer } from './ActionsMenuContent';
 import {
   DropdownMenuSurface,
@@ -22,6 +22,7 @@ import {
   type MenuSurfaceBaseProps,
 } from './MenuSurfaces';
 import type { ActionDefinition, ActionKey } from './types';
+import type { ActionsMenuPinnedRenderParams } from './types';
 import { useActionsMenuModel } from './useActionsMenuModel';
 import {
   clearActiveActionsPopoverMenu,
@@ -59,6 +60,10 @@ export interface ActionsMenuBarProps<TDef extends ActionDefinition = ActionDefin
   style?: StyleProp<ViewStyle>;
 
   getIconName?: (action: TDef) => string | null;
+  renderPinnedAction?: (
+    params: ActionsMenuPinnedRenderParams<TDef>,
+  ) => React.ReactNode | undefined;
+  renderItem?: ActionsMenuPanelProps<TDef>['renderItem'];
 }
 
 export function ActionsMenuBar<TDef extends ActionDefinition>(
@@ -113,22 +118,33 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
         const disabled = props.isActionDisabled ? props.isActionDisabled(action.key) : false;
         const iconColor = disabled ? theme.textMuted : theme.primary;
         const fallbackLabel = action.label.trim().slice(0, 1) || '•';
+        const onPress = () => {
+          if (Platform.OS === 'macos' && menuAnchorRef.current) {
+            try {
+              const anchorTag = findNodeHandle(menuAnchorRef.current) as any;
+              setLastActionsPopoverAnchorTag(typeof anchorTag === 'number' ? anchorTag : null);
+            } catch {
+              setLastActionsPopoverAnchorTag(null);
+            }
+          }
+          props.onAction(action.key);
+        };
+        const custom = props.renderPinnedAction?.({
+          action,
+          disabled,
+          iconName,
+          iconColor,
+          onPress,
+        });
+        if (custom !== undefined) {
+          return <React.Fragment key={action.key}>{custom}</React.Fragment>;
+        }
         return (
           <TouchableOpacity
             key={action.key}
             style={styles.iconButton}
             hitSlop={ICON_BUTTON_HIT_SLOP}
-            onPress={() => {
-              if (Platform.OS === 'macos' && menuAnchorRef.current) {
-                try {
-                  const anchorTag = findNodeHandle(menuAnchorRef.current) as any;
-                  setLastActionsPopoverAnchorTag(typeof anchorTag === 'number' ? anchorTag : null);
-                } catch {
-                  setLastActionsPopoverAnchorTag(null);
-                }
-              }
-              props.onAction(action.key);
-            }}
+            onPress={onPress}
             disabled={disabled}
           >
             {iconName && props.renderIcon ? (
@@ -153,6 +169,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
     getIconName,
     props.isActionDisabled,
     props.renderIcon,
+    props.renderPinnedAction,
     props.onAction,
     theme.primary,
     theme.textMuted,
@@ -180,8 +197,17 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
       disabledKeys: model.orderedActions
         .filter((action) => (props.isActionDisabled ? props.isActionDisabled(action.key) : false))
         .map((action) => action.key),
+      renderItem: props.renderItem as any,
     });
-  }, [getIconName, isMacOSPopoverMenu, model.orderedActions, props.isActionDisabled, props.pinned, props.title]);
+  }, [
+    getIconName,
+    isMacOSPopoverMenu,
+    model.orderedActions,
+    props.isActionDisabled,
+    props.pinned,
+    props.renderItem,
+    props.title,
+  ]);
 
   const panel = (
     <ActionsMenuPanel
@@ -197,6 +223,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
       renderCloseIcon={props.renderCloseIcon}
       iconSize={18}
       pinIconSize={16}
+      renderItem={props.renderItem}
       onRequestClose={() => setMenuVisible(false)}
     />
   );
@@ -246,6 +273,7 @@ export function ActionsMenuBar<TDef extends ActionDefinition>(
                     actions,
                     pinnedKeys: props.pinned,
                     disabledKeys,
+                    renderItem: props.renderItem as any,
                   },
                   handlers: {
                     onAction: (key) => {

@@ -136,6 +136,14 @@ class SessionStatusAppPlugin:
                         }
                     ],
                 },
+                "rich_ui": {
+                    "kind": "list",
+                    "value_path": f"metadata.{metadata_key}",
+                    "missing_value": "todo",
+                    "input_name": "status",
+                    "default_pinned": False,
+                    "options": STATUS_OPTIONS,
+                },
             },
             {
                 "ui_type": "session_list_filter",

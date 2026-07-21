@@ -68,6 +68,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     dangerMuted: 'rgba(255, 0, 0, 0.12)',
     success: '#0a0',
     successMuted: 'rgba(0, 170, 0, 0.12)',
+    highlight: '#FFCC00',
     warning: '#FF9500',
     warningMuted: 'rgba(255, 149, 0, 0.12)',
     notification: '#007AFF',
@@ -239,6 +240,42 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     },
 
     ActionsMenuBar: () => null,
+    SessionListActionsBar: ({ session, pluginActions, pinned, onExecuteAction }) =>
+      React.createElement(
+        View,
+        null,
+        (pluginActions || [])
+          .filter(
+            (action) =>
+              (pinned || []).includes(action.id) &&
+              action.rich_ui?.placements?.includes('actions_bar'),
+          )
+          .map((action) =>
+            React.createElement(Pressable, {
+              key: action.id,
+              testID: `session-rich-action-${session.session_id}-${action.id}`,
+              onPress: () => onExecuteAction(action),
+            }),
+          ),
+      ),
+    SessionListRichActionControl: ({
+      element,
+      session,
+      testID,
+      onExecuteAction,
+    }) => {
+      const richUi = element.rich_ui || {};
+      const valuePath =
+        typeof richUi.value_path === 'string' ? richUi.value_path.split('.') : [];
+      const value = valuePath.reduce((current, key) => current?.[key], session);
+      return React.createElement(Pressable, {
+        testID,
+        accessibilityState: {
+          selected: value === richUi.active_value,
+        },
+        onPress: () => onExecuteAction(element),
+      });
+    },
     ApplicationActionDialog: ({ visible }: { visible: boolean }) => (visible ? React.createElement(View, null) : null),
     ApplicationActionDialogLayout: () => React.createElement(React.Fragment, null),
     ApplicationActionForm,

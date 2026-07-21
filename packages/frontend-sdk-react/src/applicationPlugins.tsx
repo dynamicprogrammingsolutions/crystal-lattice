@@ -20,7 +20,6 @@ const defaultContext: ApplicationPluginsContextValue = {
   sessionListActions: [],
   sessionListFields: [],
   sessionListFilterSchema: normalizeSessionListFilterSchema([]),
-  sessionListPinnedToggles: [],
   sessionListDiagnostics: [],
   loading: false,
   error: null,
@@ -87,7 +86,6 @@ export function selectApplicationPlugins(
     sessionListActions,
     sessionListFields,
     sessionListFilterSchema,
-    sessionListPinnedToggles,
     sessionListDiagnostics,
   } = value;
   return {
@@ -97,7 +95,6 @@ export function selectApplicationPlugins(
     sessionListActions,
     sessionListFields,
     sessionListFilterSchema,
-    sessionListPinnedToggles,
     sessionListDiagnostics,
   };
 }

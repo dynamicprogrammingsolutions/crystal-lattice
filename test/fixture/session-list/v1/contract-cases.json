@@ -307,6 +307,96 @@
       }
     },
     {
+      "name": "valid rich toggle is normalized",
+      "raw": {
+        "ui_type": "session_list_action",
+        "plugin": "fixture",
+        "id": "toggle",
+        "label": "Toggle",
+        "action_id": "toggle_action",
+        "dialog": {
+          "kind": "none"
+        },
+        "rich_ui": {
+          "kind": "toggle",
+          "value_path": "metadata.enabled",
+          "missing_value": false,
+          "active_value": true,
+          "default_pinned": true,
+          "appearance": {
+            "active": {"tone": "warning"},
+            "inactive": {"tone": "muted"}
+          }
+        }
+      },
+      "expected": {
+        "valid": true,
+        "dialog_kind": "none",
+        "rich_state": "preserved",
+        "fallback_mode": "dialog"
+      }
+    },
+    {
+      "name": "valid rich list is normalized",
+      "raw": {
+        "ui_type": "session_list_action",
+        "plugin": "fixture",
+        "id": "status",
+        "label": "Status",
+        "action_id": "set_status",
+        "dialog": {
+          "kind": "form",
+          "inputs": [
+            {"name": "status", "type": "select"}
+          ]
+        },
+        "rich_ui": {
+          "kind": "list",
+          "value_path": "metadata.status",
+          "missing_value": "todo",
+          "input_name": "status",
+          "options": [
+            {"value": "todo", "label": "To do", "tone": "muted"},
+            {"value": "done", "label": "Done", "tone": "success"}
+          ]
+        }
+      },
+      "expected": {
+        "valid": true,
+        "dialog_kind": "form",
+        "rich_state": "preserved",
+        "fallback_mode": "dialog"
+      }
+    },
+    {
+      "name": "malformed known rich toggle falls back",
+      "raw": {
+        "ui_type": "session_list_action",
+        "plugin": "fixture",
+        "id": "bad-toggle",
+        "label": "Bad toggle",
+        "action_id": "bad_toggle",
+        "dialog": {
+          "kind": "confirm"
+        },
+        "rich_ui": {
+          "kind": "toggle",
+          "value_path": "metadata.enabled",
+          "active_value": true,
+          "appearance": {
+            "active": {"tone": "warning"}
+          }
+        }
+      },
+      "expected": {
+        "valid": true,
+        "dialog_kind": "confirm",
+        "rich_state": "dropped",
+        "fallback_mode": "dialog",
+        "diagnostic_code": "invalid_session_list_rich_ui"
+      }
+    },
+    {
       "name": "malformed rich ui is removed without losing ordinary action",
       "raw": {
         "ui_type": "session_list_action",

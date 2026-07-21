@@ -1,8 +1,9 @@
 """Application-level plugin for pinning and filtering sessions.
 
 This plugin toggles a boolean flag in session metadata (for example,
-``metadata["pinned"]``), exposes the existing lightweight pin control, and
-contributes a declarative Boolean filter over the same configured metadata key.
+``metadata["pinned"]``), exposes an ordinary session-list action with a rich
+toggle presentation, and contributes a declarative Boolean filter over the
+same configured metadata key.
 """
 
 from __future__ import annotations
@@ -47,31 +48,34 @@ class SessionPinnedAppPlugin:
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        """Expose the legacy pin control and a declarative pin filter.
-
-        Frontends can treat this as a star-style pin toggle attached to
-        each row in the sessions list. The element delegates to the
-        ``toggle_session_pinned`` action. The filter uses the same configured
-        metadata key and defaults to Any so enabling the plugin does not hide
-        sessions.
-        """
+        """Expose the rich ordinary pin action and a declarative pin filter."""
 
         pinned_key = state.get("pinned_metadata_key") or "pinned"
 
         return [
             {
-                "ui_type": "session_list_toggle_pinned",
-                "id": "toggle_session_pinned_star",
+                "ui_type": "session_list_action",
+                "id": "toggle_session_pinned",
                 "label": "Pin/unpin session",
                 "icon": "star",
-                "order": 0,
-                "data": f"metadata.{pinned_key}",
-                "missing_value": False,
+                "order": 10,
                 "action_id": "toggle_session_pinned",
                 "param_map": {
                     "session_id": "$session.session_id",
                 },
                 "dialog": {"kind": "none"},
+                "rich_ui": {
+                    "kind": "toggle",
+                    "value_path": f"metadata.{pinned_key}",
+                    "missing_value": False,
+                    "active_value": True,
+                    "default_pinned": True,
+                    "placements": ["header_trailing", "actions_bar"],
+                    "appearance": {
+                        "active": {"tone": "highlight"},
+                        "inactive": {"tone": "muted"},
+                    },
+                },
             },
             {
                 "ui_type": "session_list_filter",
@@ -95,7 +99,7 @@ class SessionPinnedAppPlugin:
                         "value": True,
                         "label": "Pinned",
                         "icon": "star",
-                        "tone": "warning",
+                        "tone": "highlight",
                     },
                 ],
             },

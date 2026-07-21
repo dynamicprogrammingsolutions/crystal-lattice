@@ -1,4 +1,9 @@
 import type { ActionUiElement, SessionListFieldElement } from '../types/plugins';
+import type {
+  SessionListOption,
+  SessionListOptionTone,
+  SessionListOptionValue,
+} from './sessionListFilters';
 
 export interface SessionListContractDiagnostic {
   code: string;
@@ -35,10 +40,61 @@ export interface ActionDialog {
   [key: string]: unknown;
 }
 
-export interface SessionListRichUi {
+export type SemanticTone = SessionListOptionTone;
+
+export const SESSION_LIST_RICH_ACTION_PLACEMENTS = [
+  'actions_bar',
+  'header_leading',
+  'header_trailing',
+] as const;
+
+export type SessionListRichActionPlacement =
+  (typeof SESSION_LIST_RICH_ACTION_PLACEMENTS)[number];
+
+export interface SessionListRichUiBase {
+  kind: string;
+  value_path: string;
+  missing_value?: unknown;
+  default_pinned?: boolean;
+  /**
+   * Ordered display locations. Unknown strings remain transportable so a
+   * future frontend can support them; current frontends ignore them.
+   */
+  placements?: readonly string[];
+}
+
+export interface SessionListRichAppearance {
+  tone: SemanticTone;
+}
+
+export interface SessionListToggleRichUi extends SessionListRichUiBase {
+  kind: 'toggle';
+  active_value: string | number | boolean;
+  appearance: {
+    active: SessionListRichAppearance;
+    inactive: SessionListRichAppearance;
+  };
+}
+
+export interface SessionListListRichUi extends SessionListRichUiBase {
+  kind: 'list';
+  input_name: string;
+  options: readonly SessionListOption[];
+}
+
+/**
+ * Unknown rich kinds are intentionally transportable. A frontend that does
+ * not explicitly support the kind uses the ordinary dialog presentation.
+ */
+export interface UnknownSessionListRichUi {
   kind: string;
   [key: string]: unknown;
 }
+
+export type SessionListRichUi =
+  | SessionListToggleRichUi
+  | SessionListListRichUi
+  | UnknownSessionListRichUi;
 
 export interface SessionListActionElement extends ActionUiElement {
   ui_type: 'session_list_action';
@@ -69,6 +125,284 @@ export type SessionListActionPresentation =
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+const SEMANTIC_TONES = new Set<SemanticTone>([
+  'primary',
+  'highlight',
+  'warning',
+  'success',
+  'danger',
+  'muted',
+]);
+
+function normalizeRichPlacements(
+  raw: unknown,
+  elementId: string,
+): { placements?: readonly string[]; diagnostics: SessionListContractDiagnostic[] } {
+  if (raw === undefined) {
+    return { diagnostics: [] };
+  }
+  if (!Array.isArray(raw)) {
+    return {
+      diagnostics: [{
+        code: 'invalid_session_list_rich_ui',
+        message: 'rich_ui.placements must be an array of non-empty strings.',
+        elementId,
+      }],
+    };
+  }
+
+  const placements: string[] = [];
+  const seen = new Set<string>();
+  const diagnostics: SessionListContractDiagnostic[] = [];
+  for (const placement of raw) {
+    if (typeof placement !== 'string' || !placement) {
+      diagnostics.push({
+        code: 'invalid_session_list_rich_ui',
+        message: 'Ignoring a rich_ui.placements entry that is not a non-empty string.',
+        elementId,
+      });
+      continue;
+    }
+    if (seen.has(placement)) {
+      diagnostics.push({
+        code: 'invalid_session_list_rich_ui',
+        message: `Ignoring duplicate rich_ui.placements entry ${JSON.stringify(placement)}.`,
+        elementId,
+      });
+      continue;
+    }
+    seen.add(placement);
+    placements.push(placement);
+  }
+  if (placements.length === 0) {
+    diagnostics.push({
+      code: 'invalid_session_list_rich_ui',
+      message: 'rich_ui.placements has no usable entries; using the default actions_bar.',
+      elementId,
+    });
+    return { diagnostics };
+  }
+  return { placements, diagnostics };
+}
+
+function isOptionValue(value: unknown): value is SessionListOptionValue {
+  return typeof value === 'string' || typeof value === 'boolean';
+}
+
+function typedValueKey(value: unknown): string {
+  return `${typeof value}:${String(value)}`;
+}
+
+function normalizeRichOptions(
+  raw: unknown,
+  elementId: string,
+): NormalizationResult<readonly SessionListOption[]> {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return {
+      value: null,
+      diagnostics: [{
+        code: 'invalid_session_list_rich_ui',
+        message: 'rich_ui.list.options must be a non-empty list.',
+        elementId,
+      }],
+    };
+  }
+
+  const options: SessionListOption[] = [];
+  const values = new Set<string>();
+  for (const option of raw) {
+    if (!isRecord(option) || !isOptionValue(option.value)) {
+      return {
+        value: null,
+        diagnostics: [{
+          code: 'invalid_session_list_rich_ui',
+          message: 'Every rich_ui.list option requires a string or boolean value.',
+          elementId,
+        }],
+      };
+    }
+    if (typeof option.label !== 'string' || !option.label) {
+      return {
+        value: null,
+        diagnostics: [{
+          code: 'invalid_session_list_rich_ui',
+          message: 'Every rich_ui.list option requires a non-empty label.',
+          elementId,
+        }],
+      };
+    }
+    if (option.icon !== undefined && typeof option.icon !== 'string') {
+      return {
+        value: null,
+        diagnostics: [{
+          code: 'invalid_session_list_rich_ui',
+          message: 'rich_ui.list option icons must be strings.',
+          elementId,
+        }],
+      };
+    }
+    if (
+      option.tone !== undefined &&
+      (!SEMANTIC_TONES.has(option.tone as SemanticTone))
+    ) {
+      return {
+        value: null,
+        diagnostics: [{
+          code: 'invalid_session_list_rich_ui',
+          message: 'rich_ui.list option tone is not supported.',
+          elementId,
+        }],
+      };
+    }
+    const key = typedValueKey(option.value);
+    if (values.has(key)) {
+      return {
+        value: null,
+        diagnostics: [{
+          code: 'invalid_session_list_rich_ui',
+          message: 'rich_ui.list option values must be unique by type and value.',
+          elementId,
+        }],
+      };
+    }
+    values.add(key);
+    options.push({
+      value: option.value,
+      label: option.label,
+      ...(typeof option.icon === 'string' ? { icon: option.icon } : {}),
+      ...(typeof option.tone === 'string'
+        ? { tone: option.tone as SemanticTone }
+        : {}),
+    });
+  }
+  return { value: options, diagnostics: [] };
+}
+
+function normalizeRichAppearance(
+  raw: unknown,
+  field: 'active' | 'inactive',
+  elementId: string,
+): NormalizationResult<SessionListRichAppearance> {
+  if (
+    !isRecord(raw) ||
+    !isRecord(raw[field]) ||
+    !SEMANTIC_TONES.has((raw[field] as Record<string, unknown>).tone as SemanticTone)
+  ) {
+    return {
+      value: null,
+      diagnostics: [{
+        code: 'invalid_session_list_rich_ui',
+        message: `rich_ui.toggle.appearance.${field}.tone must be a supported semantic tone.`,
+        elementId,
+      }],
+    };
+  }
+  return {
+    value: {
+      tone: (raw[field] as Record<string, unknown>).tone as SemanticTone,
+    },
+    diagnostics: [],
+  };
+}
+
+function normalizeRichUi(
+  raw: unknown,
+  elementId: string,
+): NormalizationResult<SessionListRichUi> {
+  const fail = (message: string): NormalizationResult<SessionListRichUi> => ({
+    value: null,
+    diagnostics: [{
+      code: 'invalid_session_list_rich_ui',
+      message,
+      elementId,
+    }],
+  });
+
+  if (!isRecord(raw) || typeof raw.kind !== 'string' || !raw.kind) {
+    return fail('Ignoring malformed rich_ui while preserving the ordinary action.');
+  }
+
+  if (raw.kind !== 'toggle' && raw.kind !== 'list') {
+    return { value: raw as UnknownSessionListRichUi, diagnostics: [] };
+  }
+
+  if (typeof raw.value_path !== 'string' || !raw.value_path) {
+    return fail('rich_ui.value_path must be a non-empty dotted path.');
+  }
+  if (
+    raw.default_pinned !== undefined &&
+    typeof raw.default_pinned !== 'boolean'
+  ) {
+    return fail('rich_ui.default_pinned must be a boolean.');
+  }
+  const placements = normalizeRichPlacements(raw.placements, elementId);
+  const withPlacements =
+    placements.placements !== undefined
+      ? { placements: placements.placements }
+      : {};
+
+  if (raw.kind === 'toggle') {
+    if (
+      typeof raw.active_value !== 'string' &&
+      typeof raw.active_value !== 'number' &&
+      typeof raw.active_value !== 'boolean'
+    ) {
+      return fail('rich_ui.toggle.active_value must be a string, number, or boolean.');
+    }
+    const active = normalizeRichAppearance(raw.appearance, 'active', elementId);
+    if (!active.value) {
+      return { value: null, diagnostics: active.diagnostics };
+    }
+    const inactive = normalizeRichAppearance(raw.appearance, 'inactive', elementId);
+    if (!inactive.value) {
+      return { value: null, diagnostics: inactive.diagnostics };
+    }
+    return {
+      value: {
+        kind: 'toggle',
+        value_path: raw.value_path,
+        ...(Object.prototype.hasOwnProperty.call(raw, 'missing_value')
+          ? { missing_value: raw.missing_value }
+          : {}),
+        ...(typeof raw.default_pinned === 'boolean'
+          ? { default_pinned: raw.default_pinned }
+          : {}),
+        ...withPlacements,
+        active_value: raw.active_value,
+        appearance: {
+          active: active.value,
+          inactive: inactive.value,
+        },
+      },
+      diagnostics: placements.diagnostics,
+    };
+  }
+
+  if (typeof raw.input_name !== 'string' || !raw.input_name) {
+    return fail('rich_ui.list.input_name must be a non-empty string.');
+  }
+  const options = normalizeRichOptions(raw.options, elementId);
+  if (!options.value) {
+    return { value: null, diagnostics: options.diagnostics };
+  }
+  return {
+    value: {
+      kind: 'list',
+      value_path: raw.value_path,
+      ...(Object.prototype.hasOwnProperty.call(raw, 'missing_value')
+        ? { missing_value: raw.missing_value }
+        : {}),
+      ...(typeof raw.default_pinned === 'boolean'
+        ? { default_pinned: raw.default_pinned }
+        : {}),
+      ...withPlacements,
+      input_name: raw.input_name,
+      options: options.value,
+    },
+    diagnostics: placements.diagnostics,
+  };
 }
 
 export function resolveSessionListPath(root: unknown, path: string): SessionListPathResult {
@@ -371,15 +705,9 @@ export function normalizeSessionListActionElement(
   const diagnostics = [...dialogResult.diagnostics];
   let richUi: SessionListRichUi | undefined;
   if (raw.rich_ui !== undefined) {
-    if (!isRecord(raw.rich_ui) || typeof raw.rich_ui.kind !== 'string' || !raw.rich_ui.kind) {
-      diagnostics.push({
-        code: 'invalid_session_list_rich_ui',
-        message: 'Ignoring malformed rich_ui while preserving the ordinary action.',
-        elementId: raw.id,
-      });
-    } else {
-      richUi = raw.rich_ui as SessionListRichUi;
-    }
+    const richResult = normalizeRichUi(raw.rich_ui, raw.id);
+    diagnostics.push(...richResult.diagnostics);
+    richUi = richResult.value ?? undefined;
   }
 
   const value: SessionListActionElement = {

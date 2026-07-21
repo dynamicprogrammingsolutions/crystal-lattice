@@ -54,6 +54,7 @@ def test_cloud_runtime_plugin_bundle_stages_preinstalled_metadata_and_sources(
     assert "cloud-agent-app" in manifest["preinstalled_plugins"]
     assert "codex-tools" in manifest["preinstalled_plugins"]
     assert "session-main-search-app" in manifest["preinstalled_plugins"]
+    assert "session-archive-app" in manifest["preinstalled_plugins"]
     assert "session-pinned-app" in manifest["preinstalled_plugins"]
     assert "session-status-app" in manifest["preinstalled_plugins"]
     assert "tool-compat-shared" in manifest["local_projects"]

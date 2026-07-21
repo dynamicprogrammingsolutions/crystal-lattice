@@ -12,6 +12,14 @@ import {
   type ActionDialogInput,
 } from './sessionListContracts';
 import {
+  buildSessionListRichListDialogValues,
+  getDefaultPinnedSessionListActionKeys,
+  getSessionListRichActionPlacements,
+  isSessionListRichActionPlacedAt,
+  resolveSessionListRichActionState,
+  selectSessionListRichActionForPlacement,
+} from './sessionListRichActions';
+import {
   deriveSessionListPresentation,
 } from './sessionListPresentation';
 import type { SessionListFieldElement } from '../types/plugins';
@@ -121,6 +129,240 @@ describe('session-list shared contract cases', () => {
         value_path: 'metadata.value',
       },
     });
+  });
+
+  it('normalizes typed toggle and list presentations without changing fallback dialogs', () => {
+    const toggle = normalizeSessionListActionElement({
+      ui_type: 'session_list_action',
+      plugin: 'fixture',
+      id: 'toggle',
+      label: 'Toggle',
+      action_id: 'toggle',
+      dialog: { kind: 'none' },
+      rich_ui: {
+        kind: 'toggle',
+        value_path: 'metadata.enabled',
+        missing_value: false,
+        active_value: true,
+        default_pinned: true,
+        appearance: {
+          active: { tone: 'warning' },
+          inactive: { tone: 'muted' },
+        },
+      },
+    });
+    const list = normalizeSessionListActionElement({
+      ui_type: 'session_list_action',
+      plugin: 'fixture',
+      id: 'status',
+      label: 'Status',
+      action_id: 'status',
+      dialog: { kind: 'form', inputs: [{ name: 'status', type: 'select' }] },
+      rich_ui: {
+        kind: 'list',
+        value_path: 'metadata.status',
+        missing_value: 'todo',
+        input_name: 'status',
+        options: [
+          { value: 'todo', label: 'To do', tone: 'muted' },
+          { value: 'done', label: 'Done', tone: 'success' },
+        ],
+      },
+    });
+
+    expect(toggle.value?.rich_ui).toMatchObject({ kind: 'toggle', default_pinned: true });
+    expect(list.value?.rich_ui).toMatchObject({ kind: 'list', input_name: 'status' });
+    expect(resolveSessionListActionPresentation(toggle.value!, []).mode).toBe('dialog');
+    expect(resolveSessionListActionPresentation(list.value!, ['list']).mode).toBe('rich');
+  });
+
+  it('drops malformed known rich UI while preserving the ordinary action', () => {
+    const result = normalizeSessionListActionElement({
+      ui_type: 'session_list_action',
+      plugin: 'fixture',
+      id: 'invalid-toggle',
+      label: 'Invalid toggle',
+      action_id: 'invalid-toggle',
+      dialog: { kind: 'confirm', message: 'Continue?' },
+      rich_ui: {
+        kind: 'toggle',
+        value_path: 'metadata.enabled',
+        active_value: true,
+        appearance: { active: { tone: 'warning' } },
+      },
+    });
+
+    expect(result.value?.dialog.kind).toBe('confirm');
+    expect(result.value?.rich_ui).toBeUndefined();
+    expect(result.diagnostics.map((item) => item.code)).toContain(
+      'invalid_session_list_rich_ui',
+    );
+  });
+
+  it('normalizes a de-duplicated placement list while preserving future slots', () => {
+    const result = normalizeSessionListActionElement({
+      ui_type: 'session_list_action',
+      plugin: 'fixture',
+      id: 'placed-toggle',
+      label: 'Placed toggle',
+      action_id: 'placed-toggle',
+      dialog: { kind: 'none' },
+      rich_ui: {
+        kind: 'toggle',
+        value_path: 'metadata.enabled',
+        active_value: true,
+        placements: [
+          'header_trailing',
+          'future_header_slot',
+          'header_trailing',
+          3,
+          'actions_bar',
+        ],
+        appearance: {
+          active: { tone: 'highlight' },
+          inactive: { tone: 'muted' },
+        },
+      },
+    });
+
+    expect(result.value?.rich_ui).toMatchObject({
+      kind: 'toggle',
+      placements: ['header_trailing', 'future_header_slot', 'actions_bar'],
+      appearance: { active: { tone: 'highlight' } },
+    });
+    expect(result.diagnostics.map((item) => item.code)).toContain(
+      'invalid_session_list_rich_ui',
+    );
+    expect(getSessionListRichActionPlacements(result.value!)).toEqual([
+      'header_trailing',
+      'future_header_slot',
+      'actions_bar',
+    ]);
+    expect(isSessionListRichActionPlacedAt(result.value!, 'actions_bar')).toBe(true);
+  });
+
+  it('uses declaration order to select one rich action for each header slot', () => {
+    const first = normalizeSessionListActionElement({
+      ui_type: 'session_list_action',
+      plugin: 'fixture',
+      id: 'first',
+      label: 'First',
+      action_id: 'first',
+      dialog: { kind: 'none' },
+      rich_ui: {
+        kind: 'toggle',
+        value_path: 'metadata.first',
+        active_value: true,
+        placements: ['header_trailing'],
+        appearance: {
+          active: { tone: 'highlight' },
+          inactive: { tone: 'muted' },
+        },
+      },
+    }).value!;
+    const second = normalizeSessionListActionElement({
+      ui_type: 'session_list_action',
+      plugin: 'fixture',
+      id: 'second',
+      label: 'Second',
+      action_id: 'second',
+      dialog: { kind: 'none' },
+      rich_ui: {
+        kind: 'toggle',
+        value_path: 'metadata.second',
+        active_value: true,
+        placements: ['header_trailing', 'actions_bar'],
+        appearance: {
+          active: { tone: 'primary' },
+          inactive: { tone: 'muted' },
+        },
+      },
+    }).value!;
+
+    expect(
+      selectSessionListRichActionForPlacement(
+        [first, second],
+        'header_trailing',
+      )?.id,
+    ).toBe('first');
+    expect(
+      selectSessionListRichActionForPlacement([first, second], 'header_leading'),
+    ).toBeNull();
+  });
+
+  it('evaluates rich state, default pins, and immediate list selection', () => {
+    const toggle = normalizeSessionListActionElement({
+      ui_type: 'session_list_action',
+      plugin: 'fixture',
+      id: 'toggle',
+      label: 'Toggle',
+      action_id: 'toggle',
+      dialog: { kind: 'none' },
+      rich_ui: {
+        kind: 'toggle',
+        value_path: 'metadata.enabled',
+        missing_value: false,
+        active_value: true,
+        default_pinned: true,
+        appearance: {
+          active: { tone: 'warning' },
+          inactive: { tone: 'muted' },
+        },
+      },
+    }).value!;
+    const status = normalizeSessionListActionElement({
+      ui_type: 'session_list_action',
+      plugin: 'fixture',
+      id: 'status',
+      label: 'Status',
+      action_id: 'status',
+      dialog: { kind: 'form', inputs: [{ name: 'status' }] },
+      rich_ui: {
+        kind: 'list',
+        value_path: 'metadata.status',
+        missing_value: 'todo',
+        input_name: 'status',
+        options: [
+          { value: 'todo', label: 'To do', tone: 'muted' },
+          { value: 'done', label: 'Done', tone: 'success' },
+        ],
+      },
+    }).value!;
+    const summary: SessionSummary = {
+      session_id: 'session',
+      modified: 1,
+      preview: '',
+      metadata: { enabled: true },
+    };
+
+    expect(resolveSessionListRichActionState(toggle, summary)).toMatchObject({
+      kind: 'toggle',
+      active: true,
+      tone: 'warning',
+    });
+    const listState = resolveSessionListRichActionState(status, summary);
+    expect(listState).toMatchObject({
+      kind: 'list',
+      value: 'todo',
+      currentOption: { value: 'todo', label: 'To do', tone: 'muted' },
+    });
+    expect(getDefaultPinnedSessionListActionKeys([toggle, status])).toEqual(['toggle']);
+    const richUi = status.rich_ui;
+    expect(richUi?.kind).toBe('list');
+    expect(
+      buildSessionListRichListDialogValues(
+        richUi as any,
+        listState && listState.kind === 'list' ? listState.value : undefined,
+        'todo',
+      ),
+    ).toBeNull();
+    expect(
+      buildSessionListRichListDialogValues(
+        richUi as any,
+        listState && listState.kind === 'list' ? listState.value : undefined,
+        'done',
+      ),
+    ).toEqual({ status: 'done' });
   });
 
   it('prefers application-derived presentation over local field evaluation', () => {

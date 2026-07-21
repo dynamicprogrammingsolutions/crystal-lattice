@@ -560,9 +560,87 @@ Fallback is part of the permanent contract:
 4. Malformed `rich_ui` is reported and discarded without discarding the valid
    ordinary action.
 
-Concrete rich kinds and their kind-specific fields are documented when they
-are implemented. Plugins must always provide a valid ordinary dialog even when
-they also provide rich configuration.
+The initial supported kinds are `toggle` and `list`. Both use:
+
+```typescript
+interface SessionListRichUiBase {
+  kind: 'toggle' | 'list';
+  value_path: string;
+  missing_value?: unknown;
+  default_pinned?: boolean;
+  placements?: string[];
+}
+```
+
+`value_path` resolves against the selected shared session summary. A missing
+path uses `missing_value`; explicit `null`, `false`, zero, and empty strings
+remain actual values. `default_pinned` is an initial frontend preference only:
+it applies when no preference is stored for that connection, never overrides a
+stored empty/custom choice, and does not change plugin action semantics.
+
+`placements` is an ordered, optional list of display locations. The supported
+locations are `actions_bar`, `header_leading`, and `header_trailing`.
+`actions_bar` is the default when `placements` is absent. A plugin can select
+only a header slot or list multiple locations without duplicating its ordinary
+action declaration; for example, `["header_trailing", "actions_bar"]` renders
+both where supported. Unknown future location strings are transportable and
+ignored by frontends that do not support them. Duplicate and malformed entries
+are discarded during normalization. A header slot displays at most one action:
+the first action in declaration order wins, while the ordinary action menu
+always retains every action and its fallback dialog.
+
+#### `rich_ui.kind: "toggle"`
+
+```python
+"rich_ui": {
+    "kind": "toggle",
+    "value_path": "metadata.pinned",
+    "missing_value": False,
+    "active_value": True,
+    "default_pinned": True,
+    "placements": ["header_trailing", "actions_bar"],
+    "appearance": {
+        "active": {"tone": "highlight"},
+        "inactive": {"tone": "muted"},
+    },
+}
+```
+
+`active_value` is a string, number, or Boolean and is compared with both type
+and value. Pinned toggle controls use the top-level action icon and the active
+or inactive semantic tone. Selecting a supported toggle immediately invokes
+its ordinary action; it does not introduce a second mutation route.
+
+#### `rich_ui.kind: "list"`
+
+```python
+"rich_ui": {
+    "kind": "list",
+    "value_path": "metadata.status",
+    "missing_value": "todo",
+    "input_name": "status",
+    "default_pinned": False,
+    "options": [
+        {"value": "todo", "label": "To do", "tone": "muted"},
+        {"value": "done", "label": "Done", "tone": "success"},
+    ],
+}
+```
+
+List option values are typed strings or Booleans, unique by type/value, and
+use the same optional icon/tone vocabulary as session-list filter options.
+Pinned lists show the current option compactly. Their selection view marks the
+current value and has no OK/Cancel confirmation. Selecting another option
+passes it as `$dialog.<input_name>` to the ordinary action; selecting the
+current value simply closes the list without a mutation. The top-level form
+dialog stays separate and is always the fallback.
+
+Semantic tones are frontend-owned and theme-aware: `primary`, `highlight`,
+`warning`, `success`, `danger`, and `muted`. `highlight` is the shared yellow
+saved/pinned emphasis, distinct from the orange warning signal. Plugins
+declare those names, not raw colors.
+Plugins must always provide a valid ordinary dialog even when they also
+provide rich configuration.
 
 ### Session list fields (`ui_type == "session_list_field"`)
 
@@ -730,7 +808,7 @@ interface SessionListOption {
   value: string | boolean;
   label: string;
   icon?: string;
-  tone?: 'primary' | 'warning' | 'success' | 'danger' | 'muted';
+  tone?: 'primary' | 'highlight' | 'warning' | 'success' | 'danger' | 'muted';
 }
 ```
 
@@ -774,14 +852,11 @@ loading by ID is independent of filter state. Frontend state is scoped by the
 active connection and normalized declaration identity; changing either restores
 the current declarations' defaults and removes stale values.
 
-Built-in pin and status plugins demonstrate inactive-by-default metadata
-filters:
-
-The current legacy pin row control carries the same configured `data` and
-`missing_value` as its `pinned_state` filter. Mobile and desktop resolve that
-path against `SessionSummary`; they do not depend on a feature-specific
-top-level `pinned` field. For the default configuration these values are
-`metadata.pinned` and `false`.
+Built-in pin, archive, and status plugins demonstrate metadata-backed filters
+and rich ordinary actions. Their `rich_ui.value_path` and filters use the same
+configured metadata key; mobile and desktop never depend on a feature-specific
+top-level summary field. Pin is Any by default, archive defaults to false
+(hiding archived sessions), and status defaults to Any.
 
 ```python
 {
@@ -805,7 +880,7 @@ top-level `pinned` field. For the default configuration these values are
             "value": True,
             "label": "Pinned",
             "icon": "star",
-            "tone": "warning",
+            "tone": "highlight",
         },
     ],
 }
@@ -836,8 +911,9 @@ top-level `pinned` field. For the default configuration these values are
 }
 ```
 
-Both plugins derive `data` from their configured metadata key. Their inactive
-defaults preserve the full list. Missing pin state resolves to false and
+All three plugins derive `data` from their configured metadata key. Pin and
+status inactive defaults preserve the full list; archive intentionally hides
+archived sessions by default. Missing pin/archive state resolves to false and
 missing status resolves to `todo`, allowing old sessions to participate
 without a migration write.
 
@@ -1037,6 +1113,26 @@ interface ActionUiElement {
     inputs?: ActionDialogInput[];
   };
   rich_ui?: {
+    kind: "toggle";
+    value_path: string;
+    missing_value?: unknown;
+    default_pinned?: boolean;
+    placements?: string[];
+    active_value: string | number | boolean;
+    appearance: {
+      active: { tone: "primary" | "highlight" | "warning" | "success" | "danger" | "muted" };
+      inactive: { tone: "primary" | "highlight" | "warning" | "success" | "danger" | "muted" };
+    };
+  } | {
+    kind: "list";
+    value_path: string;
+    missing_value?: unknown;
+    default_pinned?: boolean;
+    placements?: string[];
+    input_name: string;
+    options: SessionListOption[];
+  } | {
+    // Unknown future kinds remain transportable and fall back to dialog.
     kind: string;
     [key: string]: unknown;
   };

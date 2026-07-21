@@ -165,11 +165,19 @@ export type {
   SessionListActionElement,
   SessionListActionPresentation,
   SessionListContractDiagnostic,
+  SessionListListRichUi,
   SessionListOrderSpec,
   SessionListPathResult,
+  SessionListRichAppearance,
+  SessionListRichUiBase,
   SessionListRichUi,
+  SessionListRichActionPlacement,
+  SessionListToggleRichUi,
+  SemanticTone,
+  UnknownSessionListRichUi,
 } from './sessions/sessionListContracts';
 export {
+  SESSION_LIST_RICH_ACTION_PLACEMENTS,
   buildActionDialogInitialValues,
   formatSessionListFieldValue,
   normalizeSessionListActionElement,
@@ -179,6 +187,24 @@ export {
   resolveSessionListActionPresentation,
   resolveSessionListPath,
 } from './sessions/sessionListContracts';
+export type {
+  SessionListRichActionKind,
+  SessionListRichActionState,
+  SessionListRichListState,
+  SessionListRichToggleState,
+} from './sessions/sessionListRichActions';
+export {
+  DEFAULT_SESSION_LIST_RICH_ACTION_PLACEMENTS,
+  SESSION_LIST_RICH_ACTION_KINDS,
+  buildSessionListRichListDialogValues,
+  getDefaultPinnedSessionListActionKeys,
+  getSessionListRichActionPlacements,
+  isSessionListRichActionPlacedAt,
+  orderPinnedSessionListActionKeys,
+  resolveSessionListRichActionState,
+  resolveSessionListRichValue,
+  selectSessionListRichActionForPlacement,
+} from './sessions/sessionListRichActions';
 export type {
   SessionListFilterElement,
   SessionListFilterEvaluation,

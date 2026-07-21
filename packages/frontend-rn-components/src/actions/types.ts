@@ -13,3 +13,13 @@ export interface ActionsMenuModel<TDef extends ActionDefinition = ActionDefiniti
   visibleOverflow: TDef[];
   isActionDisabled: (key: ActionKey) => boolean;
 }
+
+export interface ActionsMenuPinnedRenderParams<
+  TDef extends ActionDefinition = ActionDefinition,
+> {
+  action: TDef;
+  disabled: boolean;
+  iconName: string | null;
+  iconColor: string;
+  onPress: () => void;
+}

@@ -15,7 +15,7 @@ from .session_listing import (
 )
 
 
-_OPTION_TONES = frozenset({"primary", "warning", "success", "danger", "muted"})
+_OPTION_TONES = frozenset({"primary", "highlight", "warning", "success", "danger", "muted"})
 
 
 def _is_record(value: Any) -> bool:

@@ -18,7 +18,7 @@ if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
 
 
-def test_default_config_enables_session_status_list_footer() -> None:
+def test_default_config_enables_session_list_status_footer_and_archive() -> None:
     config_path = (
         ROOT
         / "application"
@@ -30,6 +30,7 @@ def test_default_config_enables_session_status_list_footer() -> None:
     config = json.loads(config_path.read_text(encoding="utf-8"))
 
     assert config["application"]["session_status_show_in_session_list_footer"] is True
+    assert "path:${env:BUILTIN_PLUGINS}/session-archive-app" in config["plugins"]
 
 
 @pytest.mark.integration
@@ -100,14 +101,28 @@ def test_default_config_effective_agent_configs_stay_intact(
     )
     assert status_meta["role"] == "meta"
     assert status_meta["order"] == 100
-    pin_toggle = next(
+    pin_action = next(
         element
         for element in app.get_application_ui_schema()
         if element.get("plugin") == "session_pinned"
-        and element.get("ui_type") == "session_list_toggle_pinned"
+        and element.get("id") == "toggle_session_pinned"
     )
-    assert pin_toggle["data"] == "metadata.pinned"
-    assert pin_toggle["missing_value"] is False
+    assert pin_action["ui_type"] == "session_list_action"
+    assert pin_action["rich_ui"]["value_path"] == "metadata.pinned"
+    assert pin_action["rich_ui"]["default_pinned"] is True
+    assert pin_action["rich_ui"]["placements"] == [
+        "header_trailing",
+        "actions_bar",
+    ]
+    assert pin_action["rich_ui"]["appearance"]["active"]["tone"] == "highlight"
+    archive_action = next(
+        element
+        for element in app.get_application_ui_schema()
+        if element.get("plugin") == "session_archive"
+        and element.get("id") == "toggle_session_archived"
+    )
+    assert archive_action["rich_ui"]["value_path"] == "metadata.archived"
+    assert archive_action["rich_ui"]["default_pinned"] is True
     list_filters = {
         element["id"]: element
         for element in app.get_application_ui_schema()
@@ -135,7 +150,7 @@ def test_default_config_effective_agent_configs_stay_intact(
                 "value": True,
                 "label": "Pinned",
                 "icon": "star",
-                "tone": "warning",
+                "tone": "highlight",
             },
         ],
         "plugin": "session_pinned",
@@ -164,6 +179,8 @@ def test_default_config_effective_agent_configs_stay_intact(
         ],
         "plugin": "session_status",
     }
+    assert list_filters["archive_state"]["default"] is False
+    assert list_filters["archive_state"]["data"] == "metadata.archived"
 
     cases = {
         "cloud-script-author": {

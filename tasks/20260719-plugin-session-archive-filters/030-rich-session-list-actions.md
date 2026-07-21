@@ -4,24 +4,24 @@ Extend ordinary session-list actions with optional toggle and list presentations
 
 ## Requirements checklist
 
-- [ ] A `session_list_action` with no `rich_ui`, an unknown rich kind, or invalid rich configuration retains its ordinary dialog and execution behavior.
-- [ ] Every rich-presentation-specific field is nested under the single `rich_ui` key.
-- [ ] A rich `toggle` reads current state from session-summary data, displays configured active/inactive semantics when pinned, and invokes the ordinary action immediately.
-- [ ] A rich `list` reads and displays the current option when pinned, marks it in the selection list, and invokes the ordinary action immediately when another option is selected.
-- [ ] Rich-list selection has no OK/Cancel confirmation, while its ordinary fallback remains a separate form with the current value prefilled and explicit OK/Cancel submission.
-- [ ] Rich action pinning remains a user preference; `default_pinned` applies only when no stored preference exists.
-- [ ] Unsupported or malformed rich configuration never hides an otherwise valid ordinary action.
-- [ ] Pinning is an ordinary session-list action with a rich toggle, a configurable metadata path, warning/muted state tones, a pin filter defaulting to Any, and no pin-specific UI type or top-level summary field.
-- [ ] Archiving is an ordinary session-list action with a rich toggle, a configurable metadata path, primary/muted state tones, and an archive filter defaulting to False.
-- [ ] Status is an ordinary session-list action with a fallback select form, a rich immediate-selection list, a configurable metadata path, and a multi-select status filter defaulting to Any.
-- [ ] Status options are `todo`, `in_progress`, `blocked`, and `done`; missing status behaves as `todo`.
-- [ ] Pin and archive are initially pinned when no user preference exists; status is not initially pinned.
-- [ ] Pin, archive, and status actions update sessions immutably, publish metadata-update events, report updated-session mutations, and refresh current list state.
-- [ ] Pinned ordering reads the configured pin metadata value from the shared summary and remains recency bucket, pin rank, then last-updated order.
-- [ ] Mobile and desktop produce equivalent rich-action state, invocation, and fallback behavior for the same declarations.
-- [ ] Unpinned rich actions remain available in the ordinary session action menu and use rich interaction when the frontend supports their kind.
-- [ ] The rich action, pin, archive, status, and ordering contracts are documented under `plugins/docs` and in affected plugin READMEs.
-- [ ] All non-visual requirements above have automated unit, integration, and component coverage.
+- [x] A `session_list_action` with no `rich_ui`, an unknown rich kind, or invalid rich configuration retains its ordinary dialog and execution behavior.
+- [x] Every rich-presentation-specific field is nested under the single `rich_ui` key.
+- [x] A rich `toggle` reads current state from session-summary data, displays configured active/inactive semantics when pinned, and invokes the ordinary action immediately.
+- [x] A rich `list` reads and displays the current option when pinned, marks it in the selection list, and invokes the ordinary action immediately when another option is selected.
+- [x] Rich-list selection has no OK/Cancel confirmation, while its ordinary fallback remains a separate form with the current value prefilled and explicit OK/Cancel submission.
+- [x] Rich action pinning remains a user preference; `default_pinned` applies only when no stored preference exists.
+- [x] Unsupported or malformed rich configuration never hides an otherwise valid ordinary action.
+- [x] Pinning is an ordinary session-list action with a rich toggle, a configurable metadata path, warning/muted state tones, a pin filter defaulting to Any, and no pin-specific UI type or top-level summary field.
+- [x] Archiving is an ordinary session-list action with a rich toggle, a configurable metadata path, primary/muted state tones, and an archive filter defaulting to False.
+- [x] Status is an ordinary session-list action with a fallback select form, a rich immediate-selection list, a configurable metadata path, and a multi-select status filter defaulting to Any.
+- [x] Status options are `todo`, `in_progress`, `blocked`, and `done`; missing status behaves as `todo`.
+- [x] Pin and archive are initially pinned when no user preference exists; status is not initially pinned.
+- [x] Pin, archive, and status actions update sessions immutably, publish metadata-update events, report updated-session mutations, and refresh current list state.
+- [x] Pinned ordering reads the configured pin metadata value from the shared summary and remains recency bucket, pin rank, then last-updated order.
+- [x] Mobile and desktop produce equivalent rich-action state, invocation, and fallback behavior for the same declarations.
+- [x] Unpinned rich actions remain available in the ordinary session action menu and use rich interaction when the frontend supports their kind.
+- [x] The rich action, pin, archive, status, and ordering contracts are documented under `plugins/docs` and in affected plugin READMEs.
+- [x] All non-visual requirements above have automated unit, integration, and component coverage.
 - [ ] Filter placement, rich toggle colors/state, pinned status display, immediate list interaction, and fallback form are manually verified on mobile and desktop in light and dark themes.
   - This is the project-wide manual verification requirement declared in the parent task.
 
@@ -414,3 +414,178 @@ After automated tests pass, verify mobile and desktop in light and dark themes:
 - row layout with several pinned actions.
 
 Record the devices/simulators, themes, and concise results in completion notes.
+
+### Approved completion plan
+
+Added during task completion after explicit user approval on July 21, 2026.
+
+1. Extend the frontend SDK with discriminated `toggle` and `list` rich-action
+   contracts, strict kind-specific normalization, pure value/current-option
+   evaluation, semantic-tone selection, immediate dialog-value construction,
+   current-value no-op handling, and declaration-ordered default-pin
+   derivation. Preserve every valid ordinary action when `rich_ui` is absent,
+   malformed, or unsupported.
+2. Retire the temporary pin compatibility surface: remove
+   `session_list_toggle_pinned`, `sessionListPinnedToggles`, and the
+   deprecated top-level `SessionSummary.pinned`. Keep one ordered
+   `sessionListActions` collection.
+3. Make shared and mobile pin-preference persistence distinguish absent
+   storage from a stored empty/custom preference. Apply `default_pinned` only
+   while no persisted preference exists, including when application UI schema
+   declarations arrive or refresh after initial render.
+4. Add a session-list-specific rich-action host and shared toggle/list content
+   in the React Native component package. Extend the generic action menu only
+   with presentation render hooks; it must not contain pin/archive/status
+   conditionals. Use theme semantic tones and stable accessibility identifiers.
+5. Migrate the pin plugin to its ordinary rich-toggle action, create
+   `session-archive-app` with stable IDs `session_archive`,
+   `toggle_session_archived`, `archive_state`, and
+   `session_archived_metadata_key`, and add rich-list metadata to the existing
+   stable status action. Enable archive in the maintained default
+   configuration. Preserve status's existing `session_status_label`,
+   `session_status_meta`, and server-scoped footer visibility setting.
+6. Integrate the shared host into mobile and desktop session lists. Mobile
+   presents rich lists in its modal surface; desktop directly reuses the
+   completed generic native `NSPopover` coordinator. Unsupported rich
+   descriptors continue to use the existing ordinary action dialogs.
+7. Extend the existing mobile and desktop production session-list harnesses
+   and native desktop popover harness rather than creating parallel test-only
+   interfaces. Cover mutations, summary refresh, status-footer refresh and
+   visibility, default/persisted pins, fallback forms, filters, and configured
+   ordering.
+8. Update plugin and public contract documentation, run focused and
+   cross-layer automated verification, then perform the required mobile and
+   desktop light/dark manual visual pass. Record verified environments,
+   outcomes, known environment blockers if any, and completion details in this
+   task file and the parent checklist.
+
+## Completion Notes
+
+Added during task completion on July 21, 2026.
+
+Implemented the rich `session_list_action` contract end-to-end:
+
+- The frontend SDK now normalizes `rich_ui.kind` `toggle` and `list`
+  descriptors, preserves ordinary actions for absent, malformed, and future
+  descriptors, derives rich state from configured summary paths, builds typed
+  immediate-list inputs, and derives declaration-ordered default pins.
+- The compatibility-only pin UI type, pin-specific frontend registry, and
+  deprecated top-level pin summary field are removed. Pin is now an ordinary
+  rich-toggle action. A new `session-archive-app` provides the configured
+  archive action and default-false archive filter. The stable status action
+  retains its ordinary form and adds the rich immediate-selection list.
+- Shared React Native controls render rich pinned actions, preserve ordinary
+  dialog fallback, and keep generic menu infrastructure plugin-agnostic.
+  Mobile uses a modal rich list; desktop uses the existing native popover
+  coordinator. Mobile waits for its action-menu modal to dismiss before
+  presenting a rich list and gives that list a non-zero modal height; both
+  defects were exposed and corrected by the iOS native suite.
+- Pin preferences now distinguish absent storage from a stored empty/custom
+  preference, so defaults can arrive with late plugin schema while stored
+  choices remain authoritative. Pinned rendering follows declaration order.
+- Updated plugin and contract documentation, default configuration reference,
+  built-in-plugin docs navigation, configuration tests, fixtures, and
+  production mobile/desktop test harnesses.
+
+Automated verification completed:
+
+- SDK: `npm --workspace @crystal-lattice/frontend-sdk test -- --run src/sessions/sessionListContracts.test.ts src/plugins/pluginsRegistry.test.ts` — 36 passed.
+- React SDK and shared RN components: focused suites passed (5 and 7 tests).
+- Mobile unit/component suites: 13 passed; mobile real-backend component
+  integration passed.
+- Python plugin/configuration/HTTP/ordering suite: 31 passed.
+- Documentation preparation and `mkdocs build -f docs_site/mkdocs.yml` passed.
+- iOS native: rebuilt and ran
+  `npm run detox:test:session-list:ios` on iPhone 17 Pro / iOS 26.1 — 6 passed.
+- Android native: rebuilt and ran
+  `npm run detox:test:session-list:android` on Medium_Phone_API_36.1 — 6 passed.
+- Desktop Jest `SessionsPanel` suite passed (3 tests). The macOS XCUITest
+  target compiled, but its runner failed before test execution because macOS
+  timed out while enabling UI automation. This is an environment/permission
+  blocker, not an assertion or build failure.
+
+Manual visual verification remains pending. This environment cannot inspect
+the simulator or desktop UI visually, and the macOS XCUITest automation
+failure prevents a substitute native desktop pass. The remaining requirement
+is to inspect mobile and desktop in light and dark themes for the exact
+checklist in **Manual verification** above, especially rich toggle colors,
+compact status/current marker, immediate selection, fallback form, and
+multi-pinned row layout. Do not mark this task or its parent checklist complete
+until that review is recorded.
+
+### Placement and highlight follow-up completion notes
+
+Added during task completion on July 21, 2026.
+
+Implemented the approved generic placement and yellow-pin follow-up:
+
+- `rich_ui.placements` is an optional ordered array. Known placements are
+  `actions_bar`, `header_leading`, and `header_trailing`; absence defaults to
+  `actions_bar`. Unknown strings remain transportable, while invalid and
+  duplicate entries are discarded with diagnostics.
+- Frontends choose the first declared supported rich action for each header
+  slot and independently render an action-bar placement. This prevents
+  duplicate controls in a single slot while allowing one declaration to
+  request multiple locations. The ordinary action menu remains available for
+  all actions and retains dialog fallback.
+- Added the generic semantic `highlight` tone and a shared yellow theme token
+  (`#FFCC00` light, `#FFD60A` dark). The action-menu pin star now also uses
+  that token. Pin action/filter active state migrated from `warning` to
+  `highlight`.
+- The pin plugin now declares `["header_trailing", "actions_bar"]`, restoring
+  its trailing title-corner control while leaving actions-bar visibility under
+  the existing user preference.
+
+Verification for this placement-only follow-up:
+
+- SDK placement/filter/registry suites: 64 passed.
+- Shared RN component suite: 7 passed.
+- Mobile component suites: 15 passed; includes header-only exclusion and
+  dual-placement single-render assertions.
+- Desktop `SessionsPanel` suite: 4 passed; includes first-declared header-slot
+  conflict resolution plus separate actions-bar placement.
+- Python filter, pin plugin, default-config, and HTTP coverage: 13 passed.
+- Documentation preparation and MkDocs build passed.
+- The focused desktop TypeScript check has only the pre-existing missing
+  `react-native-vector-icons/Feather` declaration errors.
+
+At the user's direction, native Detox/XCUITest was not rerun for this
+placement-only change. A fresh iOS build succeeded; the subsequent Detox run
+was canceled during its final filter test, so it is not counted as a passing
+run. The original task's earlier full iOS and Android native results remain
+recorded above.
+
+### Approved follow-up plan
+
+Added during task completion after explicit user approval on July 21, 2026.
+
+1. Extend the rich-action contract with a strictly normalized ordered
+   `rich_ui.placements` array. Its supported values are `actions_bar`,
+   `header_leading`, and `header_trailing`; absent placement retains the
+   existing `actions_bar` behavior. Invalid entries are discarded without
+   losing the ordinary action, and frontend support is evaluated per
+   placement so an unsupported preferred slot can fall through to a later
+   declared one without duplicate UI declarations.
+2. Add the generic semantic `highlight` tone, mapped to the existing yellow
+   theme token. Migrate the active pin appearance from `warning` to
+   `highlight`; archive and status tones remain unchanged.
+3. Make the shared session-list host expose each rich action at every
+   supported declared placement. Header slots are independently
+   deterministic: the lowest declaration order wins each slot, while the
+   action bar keeps its existing pinned-preference semantics. The ordinary
+   action menu and dialog fallback always remain available.
+4. Update mobile and desktop session rows to render generic leading/trailing
+   header slots and keep the actions-bar path intact. Pin will declare
+   `header_trailing` plus `actions_bar`, restoring its prior title-corner
+   presence while retaining a user-configurable action-bar placement.
+5. Extend SDK, shared/mobile/desktop, plugin, native-harness, documentation,
+   and light/dark verification coverage for placements, conflict ordering,
+   unknown-slot fallback, yellow pin tone, and ordinary-menu preservation.
+
+Rerun attempt on July 21, 2026: the focused macOS suite entered UI automation
+and launched the production popover harness, but both XCTest cases were
+blocked by a host-level `Force Quit Applications` dialog from `loginwindow`.
+The rich status action existed in the native popover; its click failed only
+because that system dialog covered it. Dismiss the host dialog, then rerun
+`npm run test:macos-ui:session-filters` before recording desktop visual
+verification.

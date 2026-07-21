@@ -563,6 +563,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "path:${env:BUILTIN_PLUGINS}/generate-title-app",
     "path:${env:BUILTIN_PLUGINS}/session-message-count-meta-app",
     "path:${env:BUILTIN_PLUGINS}/session-pinned-app",
+    "path:${env:BUILTIN_PLUGINS}/session-archive-app",
     "path:${env:BUILTIN_PLUGINS}/session-status-app",
     "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
     "path:${env:BUILTIN_PLUGINS}/rebuild-native-app",

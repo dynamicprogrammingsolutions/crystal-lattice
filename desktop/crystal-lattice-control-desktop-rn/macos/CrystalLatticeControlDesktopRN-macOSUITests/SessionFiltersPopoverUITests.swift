@@ -142,4 +142,64 @@ final class SessionFiltersPopoverUITests: XCTestCase {
     waitForDisappearance(reopenedPopover)
     XCTAssertEqual(app.sheets.count, 0)
   }
+
+  func testRichSessionActionsUseNativePopoversAndImmediateStatusSelection() throws {
+    let app = launchHarness()
+    let harnessWindow = app.windows["SessionFiltersPopoverHarnessWindow"]
+    XCTAssertTrue(
+      harnessWindow.waitForExistence(timeout: 20),
+      app.debugDescription
+    )
+
+    XCTAssertTrue(
+      element(
+        app,
+        "session-rich-header-pinned-done-header_trailing-toggle_session_pinned"
+      ).waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    XCTAssertTrue(
+      element(
+        app,
+        "session-rich-action-pinned-done-toggle_session_pinned"
+      ).waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+    XCTAssertTrue(
+      element(
+        app,
+        "session-rich-action-pinned-done-toggle_session_archived"
+      ).waitForExistence(timeout: 10),
+      app.debugDescription
+    )
+
+    let actionMenu = element(app, "session-actions-menu-pinned-done")
+    XCTAssertTrue(actionMenu.waitForExistence(timeout: 10), app.debugDescription)
+    actionMenu.click()
+
+    let statusAction = element(app, "actions-menu-action-set_session_status")
+    XCTAssertTrue(statusAction.waitForExistence(timeout: 10), app.debugDescription)
+    statusAction.click()
+
+    let statusList = element(
+      app,
+      "session-rich-list-pinned-done-set_session_status"
+    )
+    XCTAssertTrue(statusList.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertEqual(app.sheets.count, 0)
+
+    let blocked = element(
+      app,
+      "session-rich-list-pinned-done-set_session_status-option-blocked"
+    )
+    XCTAssertTrue(blocked.waitForExistence(timeout: 5), app.debugDescription)
+    blocked.click()
+    waitForDisappearance(statusList)
+
+    XCTAssertTrue(
+      element(app, "session-meta-pinned-done").waitForExistence(timeout: 5)
+    )
+    waitForLabel(element(app, "session-meta-pinned-done"), "Status: blocked")
+    XCTAssertEqual(app.sheets.count, 0)
+  }
 }

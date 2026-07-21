@@ -2,7 +2,9 @@ import React from 'react';
 
 let mockSessions: any[] = [];
 let mockFilterSchema: any = null;
-let mockPinnedToggles: any[] = [];
+let mockSessionListActions: any[] = [];
+let mockActionsById: Record<string, any> = {};
+let mockPinnedSessionListActions: string[] = [];
 
 jest.mock('@crystal-lattice/frontend-sdk-react', () => {
   const ReactModule = require('react');
@@ -25,10 +27,10 @@ jest.mock('@crystal-lattice/frontend-sdk-react', () => {
       },
     }),
     useApplicationPlugins: () => ({
-      actionsById: {},
+      actionsById: mockActionsById,
       sessionActions: [],
       messageActions: [],
-      sessionListActions: [],
+      sessionListActions: mockSessionListActions,
       sessionListFields: [
         {
           ui_type: 'session_list_field',
@@ -40,13 +42,12 @@ jest.mock('@crystal-lattice/frontend-sdk-react', () => {
       ],
       sessionListFilterSchema:
         mockFilterSchema ?? normalizeSessionListFilterSchema([]),
-      sessionListPinnedToggles: mockPinnedToggles,
       sessionListDiagnostics: [],
     }),
     useHydrateControllerFromCache: () => {},
     usePersistentPinnedActions: () => ({
       loaded: true,
-      pinned: [],
+      pinned: mockPinnedSessionListActions,
       setPinned: jest.fn(),
     }),
     usePluginActionDialog: () => ({
@@ -97,7 +98,9 @@ describe('SessionsPanel', () => {
   beforeEach(() => {
     clearActiveDesktopPopover();
     mockFilterSchema = null;
-    mockPinnedToggles = [];
+    mockSessionListActions = [];
+    mockActionsById = {};
+    mockPinnedSessionListActions = [];
   });
 
   it('renders server presentation in server order and propagates it to tabs', () => {
@@ -173,6 +176,99 @@ describe('SessionsPanel', () => {
     });
   });
 
+  it('uses the first declared header action and separately renders an actions-bar placement', () => {
+    mockSessions = [
+      {
+        session_id: 'pinned',
+        modified: 1,
+        preview: 'pinned preview',
+        metadata: { pinned: true },
+        presentation: {
+          title: 'Pinned session',
+          subtitle: null,
+          meta: null,
+        },
+      },
+    ];
+    mockSessionListActions = [
+      {
+        ui_type: 'session_list_action',
+        plugin: 'fixture',
+        id: 'toggle_session_pinned',
+        label: 'Pin/unpin session',
+        icon: 'star',
+        order: 10,
+        action_id: 'toggle_session_pinned',
+        dialog: { kind: 'none' },
+        rich_ui: {
+          kind: 'toggle',
+          value_path: 'metadata.pinned',
+          missing_value: false,
+          active_value: true,
+          placements: ['header_trailing', 'actions_bar'],
+          appearance: {
+            active: { tone: 'highlight' },
+            inactive: { tone: 'muted' },
+          },
+        },
+      },
+      {
+        ui_type: 'session_list_action',
+        plugin: 'fixture',
+        id: 'second_header_action',
+        label: 'Second header action',
+        icon: 'star',
+        order: 20,
+        action_id: 'second_header_action',
+        dialog: { kind: 'none' },
+        rich_ui: {
+          kind: 'toggle',
+          value_path: 'metadata.pinned',
+          missing_value: false,
+          active_value: true,
+          placements: ['header_trailing', 'actions_bar'],
+          appearance: {
+            active: { tone: 'primary' },
+            inactive: { tone: 'muted' },
+          },
+        },
+      },
+    ];
+    mockPinnedSessionListActions = [
+      'toggle_session_pinned',
+      'second_header_action',
+    ];
+
+    const rendered = render(
+      <SessionsPanel
+        focusedConnectionId="connection-1"
+        focusedConnectionName="Local"
+        connectionId="connection-1"
+        backend={{ kind: 'test' } as any}
+        cachedSessions={mockSessions}
+        cachedLastLoadedAt={1}
+        isOnline
+        followActiveTabEnabled={false}
+        onUpdateCache={jest.fn()}
+        onOpenSessionTab={jest.fn()}
+      />,
+    );
+
+    expect(
+      rendered.getByTestId(
+        'session-rich-header-pinned-header_trailing-toggle_session_pinned',
+      ).props.accessibilityState.selected,
+    ).toBe(true);
+    expect(
+      rendered.queryByTestId(
+        'session-rich-header-pinned-header_trailing-second_header_action',
+      ),
+    ).toBeNull();
+    expect(
+      rendered.getByTestId('session-rich-action-pinned-second_header_action'),
+    ).toBeTruthy();
+  });
+
   it('keeps fallback search without a plugin and resets its visible window', () => {
     mockSessions = Array.from({ length: 120 }, (_, index) => ({
       session_id: `session-${String(index).padStart(3, '0')}`,
@@ -215,17 +311,6 @@ describe('SessionsPanel', () => {
   });
 
   it('renders built-in filters through the native desktop popover coordinator', () => {
-    mockPinnedToggles = [
-      {
-        ui_type: 'session_list_toggle_pinned',
-        plugin: 'session_pinned',
-        id: 'toggle_session_pinned_star',
-        label: 'Pin/unpin session',
-        action_id: 'toggle_session_pinned',
-        data: 'metadata.favorite',
-        missing_value: false,
-      },
-    ];
     mockFilterSchema = normalizeSessionListFilterSchema([
       {
         ui_type: 'session_list_filter',
@@ -273,7 +358,7 @@ describe('SessionsPanel', () => {
             value: true,
             label: 'Pinned',
             icon: 'star',
-            tone: 'warning',
+            tone: 'highlight',
           },
         ],
       },
@@ -343,21 +428,6 @@ describe('SessionsPanel', () => {
     );
     expect(rendered.getByTestId('session-row-visible')).toBeTruthy();
     expect(rendered.getByTestId('session-row-pinned-done')).toBeTruthy();
-    expect(
-      rendered.getByTestId('session-pin-toggle-visible').props
-        .accessibilityState.selected,
-    ).toBe(false);
-    expect(
-      rendered.getByTestId('session-pin-toggle-pinned-done').props
-        .accessibilityState.selected,
-    ).toBe(true);
-    expect(
-      rendered.getByTestId('session-pin-icon-pinned-done').props.style,
-    ).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ color: '#FFCC00' }),
-      ]),
-    );
     expect(rendered.queryByTestId('session-filters-active-count')).toBeNull();
     fireEvent.press(rendered.getByTestId('session-filters-open'));
     expect(rendered.getByTestId('desktop-popover-root')).toBeTruthy();

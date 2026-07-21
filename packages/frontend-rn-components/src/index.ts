@@ -1,4 +1,9 @@
-export type { ActionKey, ActionDefinition, ActionsMenuModel } from './actions/types';
+export type {
+  ActionKey,
+  ActionDefinition,
+  ActionsMenuModel,
+  ActionsMenuPinnedRenderParams,
+} from './actions/types';
 
 export type { Theme } from './theme';
 export { ThemeProvider, useTheme } from './theme';
@@ -70,6 +75,19 @@ export { ActionsMenuBar } from './actions/ActionsMenuBar';
 
 export type { SessionActionsBarProps } from './actions/SessionActionsBar';
 export { SessionActionsBar } from './actions/SessionActionsBar';
+
+export type {
+  SessionListActionsBarProps,
+  SessionListRichActionControlProps,
+  SessionListPluginActionDefinition,
+  SessionListRichActionListProps,
+} from './actions/SessionListActionsBar';
+export {
+  resolveSemanticToneColor,
+  SessionListActionsBar,
+  SessionListRichActionControl,
+  SessionListRichActionList,
+} from './actions/SessionListActionsBar';
 
 export { SessionPluginsList } from './SessionPluginsList';
 

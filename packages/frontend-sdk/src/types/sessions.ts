@@ -10,6 +10,4 @@ export interface SessionSummary {
   preview: string;
   metadata?: Record<string, any>;
   presentation?: SessionSummaryPresentation;
-  /** @deprecated Session features should read their configured metadata path. */
-  pinned?: boolean;
 }

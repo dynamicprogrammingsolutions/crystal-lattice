@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 
 import type { KeyValueStore } from '@crystal-lattice/frontend-sdk';
 
@@ -12,10 +20,11 @@ export interface UsePersistentStringArrayOptions {
 export interface UsePersistentStringArrayResult {
   loaded: boolean;
   value: string[];
+  hasStoredPreference: boolean;
   setValue: Dispatch<SetStateAction<string[]>>;
 }
 
-function parseStringArray(raw: string | null): string[] | null {
+export function parsePersistentStringArray(raw: string | null): string[] | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
@@ -28,23 +37,59 @@ function parseStringArray(raw: string | null): string[] | null {
   }
 }
 
+function arraysEqual(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((item, index) => item === right[index]);
+}
+
+export function resolveDefaultPersistentStringArray(options: {
+  current: readonly string[];
+  initial: readonly string[];
+  hasStoredPreference: boolean;
+}): string[] {
+  if (options.hasStoredPreference || arraysEqual(options.current, options.initial)) {
+    return options.current as string[];
+  }
+  return [...options.initial];
+}
+
 export function usePersistentStringArray(options: UsePersistentStringArrayOptions): UsePersistentStringArrayResult {
   const { store, key, initial, migrateFromKeys } = options;
 
-  const initialForKey = useMemo(() => initial, [key]);
+  const initialForKey = initial.filter((item) => typeof item === 'string');
 
   const [loaded, setLoaded] = useState(false);
   const [value, setValue] = useState<string[]>(initialForKey);
+  const [hasStoredPreference, setHasStoredPreference] = useState(false);
+  const valueRef = useRef(value);
+  const initialRef = useRef(initialForKey);
+  initialRef.current = initialForKey;
+
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
 
   const migrateKeys = useMemo(
     () => (Array.isArray(migrateFromKeys) ? migrateFromKeys.filter(Boolean) : []),
-    [migrateFromKeys],
+    [Array.isArray(migrateFromKeys) ? migrateFromKeys.filter(Boolean).join('\u0000') : ''],
   );
 
   useEffect(() => {
     setLoaded(false);
-    setValue(initialForKey);
-  }, [initialForKey, key]);
+    setValue(initialRef.current);
+    setHasStoredPreference(false);
+  }, [key]);
+
+  useEffect(() => {
+    if (!hasStoredPreference) {
+      setValue((current) =>
+        resolveDefaultPersistentStringArray({
+          current,
+          initial: initialForKey,
+          hasStoredPreference,
+        }),
+      );
+    }
+  }, [hasStoredPreference, initial]);
 
   useEffect(() => {
     let cancelled = false;
@@ -52,10 +97,11 @@ export function usePersistentStringArray(options: UsePersistentStringArrayOption
     const load = async () => {
       try {
         const raw = await store.get(key);
-        const parsed = parseStringArray(raw);
-        if (parsed) {
+        const parsed = parsePersistentStringArray(raw);
+        if (parsed !== null) {
           if (!cancelled) {
             setValue(parsed);
+            setHasStoredPreference(true);
           }
           return;
         }
@@ -63,19 +109,25 @@ export function usePersistentStringArray(options: UsePersistentStringArrayOption
         for (const migrateKey of migrateKeys) {
           if (!migrateKey || migrateKey === key) continue;
           const migrateRaw = await store.get(migrateKey);
-          const migrated = parseStringArray(migrateRaw);
-          if (!migrated) {
+          const migrated = parsePersistentStringArray(migrateRaw);
+          if (migrated === null) {
             continue;
           }
 
           if (!cancelled) {
             setValue(migrated);
+            setHasStoredPreference(true);
           }
           try {
             await store.set(key, JSON.stringify(migrated));
           } catch {
           }
           return;
+        }
+
+        if (!cancelled) {
+          setValue(initialRef.current);
+          setHasStoredPreference(false);
         }
       } finally {
         if (!cancelled) {
@@ -90,31 +142,20 @@ export function usePersistentStringArray(options: UsePersistentStringArrayOption
     };
   }, [key, migrateKeys, store]);
 
-  useEffect(() => {
-    if (!loaded) {
-      return;
-    }
-
-    const save = async () => {
-      try {
-        await store.set(key, JSON.stringify(value));
-      } catch {
-      }
-    };
-
-    save();
-  }, [key, loaded, store, value]);
-
   const setValueSafe = useCallback<Dispatch<SetStateAction<string[]>>>(
     (update) => {
-      setValue((prev) => {
-        const next = typeof update === 'function' ? (update as any)(prev) : update;
-        const list = Array.isArray(next) ? next.filter((item) => typeof item === 'string') : [];
-        return list;
+      const current = valueRef.current;
+      const next = typeof update === 'function' ? (update as any)(current) : update;
+      const list = Array.isArray(next) ? next.filter((item) => typeof item === 'string') : [];
+      valueRef.current = list;
+      setValue(list);
+      setHasStoredPreference(true);
+      store.set(key, JSON.stringify(list)).catch(() => {
+        // Ignore persistence failures and keep the current session's choice.
       });
     },
-    [],
+    [key, store],
   );
 
-  return { loaded, value, setValue: setValueSafe };
+  return { loaded, value, hasStoredPreference, setValue: setValueSafe };
 }

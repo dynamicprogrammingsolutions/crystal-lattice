@@ -12,17 +12,17 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
   return {
     __esModule: true,
     ...actual,
-    SessionActionsBar: ({ extraActions, onAction }: any) =>
+    SessionListActionsBar: ({ pluginActions, onFallbackAction }: any) =>
       ReactModule.createElement(
         View,
         null,
-        (extraActions || []).map((action: any) =>
+        (pluginActions || []).map((action: any) =>
           ReactModule.createElement(
             TouchableOpacity,
             {
-              key: action.key,
-              testID: `real-session-action-${action.key}`,
-              onPress: () => onAction(action.key),
+              key: action.id,
+              testID: `real-session-action-${action.id}`,
+              onPress: () => onFallbackAction(action),
             },
             ReactModule.createElement(Text, null, action.label),
           ),
@@ -90,6 +90,7 @@ const SERVER_CONFIG = {
     'path:${env:REPO_ROOT}/plugins/session-message-count-meta-app',
     'path:${env:REPO_ROOT}/plugins/session-main-search-app',
     'path:${env:REPO_ROOT}/plugins/session-pinned-app',
+    'path:${env:REPO_ROOT}/plugins/session-archive-app',
     'path:${env:REPO_ROOT}/plugins/session-status-app',
     'path:${env:REPO_ROOT}/plugins/session-ordering-buckets-app',
   ],
@@ -181,7 +182,7 @@ describe('SessionsScreen real-backend component integration', () => {
     expect(summary!.presentation).toEqual({
       title: 'Real backend title',
       subtitle: 'Real backend subtitle',
-      meta: '1 messages',
+      meta: '1 messages · Status: To do',
     });
     await expect(started.backend.getSessionSummary(sessionId)).resolves.toEqual(
       summary,
@@ -197,10 +198,17 @@ describe('SessionsScreen real-backend component integration', () => {
         }),
         expect.objectContaining({
           plugin: 'session_pinned',
-          ui_type: 'session_list_toggle_pinned',
-          id: 'toggle_session_pinned_star',
-          data: 'metadata.favorite',
-          missing_value: false,
+          ui_type: 'session_list_action',
+          id: 'toggle_session_pinned',
+          rich_ui: expect.objectContaining({
+            kind: 'toggle',
+            value_path: 'metadata.favorite',
+            default_pinned: true,
+            placements: ['header_trailing', 'actions_bar'],
+            appearance: expect.objectContaining({
+              active: { tone: 'highlight' },
+            }),
+          }),
         }),
         expect.objectContaining({
           plugin: 'session_pinned',
@@ -211,10 +219,25 @@ describe('SessionsScreen real-backend component integration', () => {
         }),
         expect.objectContaining({
           plugin: 'session_status',
+          ui_type: 'session_list_action',
+          id: 'set_session_status',
+          rich_ui: expect.objectContaining({
+            kind: 'list',
+            value_path: 'metadata.status',
+          }),
+        }),
+        expect.objectContaining({
+          plugin: 'session_status',
           ui_type: 'session_list_filter',
           id: 'session_status',
           multiple: true,
           missing_value: 'todo',
+        }),
+        expect.objectContaining({
+          plugin: 'session_archive',
+          ui_type: 'session_list_filter',
+          id: 'archive_state',
+          default: false,
         }),
       ]),
     );
@@ -245,19 +268,8 @@ describe('SessionsScreen real-backend component integration', () => {
       screen.getByTestId(`session-subtitle-${sessionId}`),
     ).toHaveTextContent('Real backend subtitle');
     expect(screen.getByTestId(`session-meta-${sessionId}`)).toHaveTextContent(
-      '1 messages',
+      '1 messages · Status: To do',
     );
-    expect(
-      (await screen.findByTestId(`session-pin-toggle-${sessionId}`)).props
-        .accessibilityState.selected,
-    ).toBe(true);
-    expect(screen.getByTestId(`session-pin-icon-${sessionId}`).props.color).toBe(
-      '#FFCC00',
-    );
-    expect(
-      screen.getByTestId(`session-pin-toggle-${otherSessionId}`).props
-        .accessibilityState.selected,
-    ).toBe(false);
     expect(screen.queryByText('real backend preview')).toBeNull();
 
     await waitFor(() => {
@@ -305,6 +317,9 @@ describe('SessionsScreen real-backend component integration', () => {
       const updated = await started!.backend.getSessionSummary(sessionId);
       expect(updated.metadata.status).toBe('blocked');
     });
+    expect(await screen.findByTestId(`session-meta-${sessionId}`)).toHaveTextContent(
+      '1 messages · Status: Blocked',
+    );
 
     fireEvent.press(await screen.findByTestId('session-filters-open'));
     fireEvent.press(
@@ -316,7 +331,7 @@ describe('SessionsScreen real-backend component integration', () => {
       screen.getByTestId('session-filter-session_status-option-2'),
     );
     expect(screen.getByTestId('session-filters-active-count')).toHaveTextContent(
-      '2',
+      '3',
     );
     fireEvent.press(screen.getByTestId('session-filters-show-all'));
     expect(screen.getByTestId(`session-row-${sessionId}`)).toBeTruthy();

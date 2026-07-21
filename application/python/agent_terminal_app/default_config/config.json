@@ -527,6 +527,7 @@
     "path:${env:BUILTIN_PLUGINS}/generate-title-app",
     "path:${env:BUILTIN_PLUGINS}/session-message-count-meta-app",
     "path:${env:BUILTIN_PLUGINS}/session-pinned-app",
+    "path:${env:BUILTIN_PLUGINS}/session-archive-app",
     "path:${env:BUILTIN_PLUGINS}/session-status-app",
     "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
     "path:${env:BUILTIN_PLUGINS}/rebuild-native-app",

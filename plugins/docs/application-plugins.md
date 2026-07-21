@@ -400,6 +400,13 @@ Application plugins can contribute three independent parts of a session list:
 2. presentation fields via `ui_type: "session_list_field"`;
 3. declarative filters via `ui_type: "session_list_filter"`.
 
+An ordinary `session_list_action` may additionally contain optional
+`rich_ui.kind: "toggle"` or `"list"` metadata. This is a frontend enhancement,
+not a new action type: retain `dialog`, `action_id`, and parameter mapping so
+unsupported/invalid rich presentation always falls back to the ordinary
+action. Pin/archive use immediate toggles; status uses an immediate list that
+passes the selected option through its existing `$dialog.status` map.
+
 They can also define an action with `trigger: "session_list"` to compute
 summary fields and ordering:
 
@@ -490,7 +497,8 @@ Show-all contract.
 
 The built-in `session-pinned-app` and `session-status-app` plugins are concrete
 examples of keeping actions and filters aligned around one configurable
-metadata key. Pinning retains its existing toggle action and contributes an
+metadata key. Pinning declares one rich toggle at both the trailing title
+header and the user-configurable action bar, then contributes an
 inactive-by-default Boolean filter. Status contributes an ordinary select-form
 row action and an inactive-by-default multi-select filter. Missing status
 behaves as `todo`; selecting `todo` for an old session is therefore a no-op

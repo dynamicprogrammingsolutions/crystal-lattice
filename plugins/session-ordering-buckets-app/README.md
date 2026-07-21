@@ -6,6 +6,10 @@ Pinned rank is derived from `session_summary.metadata.pinned` by default.
 Set `application.session_pinned_metadata_key` to the same custom key used by
 `session-pinned-app`; no top-level `pinned` summary field is required.
 
+The three ordering priorities are stable: recently updated sessions first,
+then pinned rank within each recency bucket, then last-updated descending.
+Pin/archive/status action presentation does not alter this ordering contract.
+
 ## License
 
 Copyright 2026 Dynamic Programming Solutions Kft.

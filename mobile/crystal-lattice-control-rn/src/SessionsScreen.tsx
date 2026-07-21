@@ -17,18 +17,21 @@ import Icon from 'react-native-vector-icons/Feather';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
   deriveSessionListPresentationFromGroups,
+  getDefaultPinnedSessionListActionKeys,
   groupSessionListFields,
   normalizeActionDisplayForSurface,
   pickDefaultAgentId,
-  resolveSessionListPath,
   runApplicationAction,
+  selectSessionListRichActionForPlacement,
   type RunActionContext,
+  type SessionListActionElement,
 } from '@crystal-lattice/frontend-sdk';
 import {
   ApplicationActionDialog,
+  SessionListActionsBar,
+  SessionListRichActionControl,
+  SessionListRichActionList,
   SessionListFiltersPanel,
-  SessionActionsBar,
-  type SessionActionDefinition,
   type SessionActionKey,
 } from '@crystal-lattice/frontend-rn-components';
 import {
@@ -56,8 +59,6 @@ import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
 import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
 
-const PIN_BUTTON_HIT_SLOP = { top: 4, bottom: 4, left: 4, right: 4 };
-
 interface SessionsScreenProps {
   backend: AgentBackend | null;
   connectionId: string | null;
@@ -73,21 +74,6 @@ const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
 const DEFAULT_PINNED_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
 
 const BUILTIN_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings', 'plugins'];
-
-function resolvePinnedState(
-  session: SessionSummary,
-  pinnedToggleElement: ActionUiElement | undefined,
-): boolean {
-  const dataPath =
-    typeof pinnedToggleElement?.data === 'string' && pinnedToggleElement.data
-      ? pinnedToggleElement.data
-      : 'metadata.pinned';
-  const resolved = resolveSessionListPath(session, dataPath);
-  const value = resolved.found
-    ? resolved.value
-    : pinnedToggleElement?.missing_value;
-  return value === true;
-}
 
 type ActionDisplayEntry = {
   key: string;
@@ -175,7 +161,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     actionsById,
     sessionListFields,
     sessionListFilterSchema,
-    sessionListPinnedToggles,
   } = useApplicationPlugins();
   const {
     schema: effectiveFilterSchema,
@@ -208,10 +193,17 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     [connectionId],
   );
 
+  const defaultPinnedSessionActions = useMemo(
+    () => [
+      ...DEFAULT_PINNED_SESSION_LIST_ACTIONS,
+      ...getDefaultPinnedSessionListActionKeys(sessionListActions),
+    ],
+    [sessionListActions],
+  );
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
-    usePersistentPinnedActions<SessionActionKey>(
+    usePersistentPinnedActions<string>(
       scopedSessionListActionsStorageKey,
-	      DEFAULT_PINNED_SESSION_LIST_ACTIONS,
+      defaultPinnedSessionActions,
       { migrateFromKeys: [STORAGE_KEY_SESSION_LIST_ACTIONS] },
     );
   const [agentSwitchVisible, setAgentSwitchVisible] = useState(false);
@@ -223,6 +215,20 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [pluginsSessionId, setPluginsSessionId] = useState<string | null>(null);
   const [filtersVisible, setFiltersVisible] = useState(false);
+  const [activeRichList, setActiveRichList] = useState<{
+    element: SessionListActionElement;
+    session: SessionSummary;
+  } | null>(null);
+  const presentRichList = useCallback(
+    (element: SessionListActionElement, session: SessionSummary) => {
+      // Let the action-menu modal dismiss before presenting the immediate list
+      // modal. iOS does not reliably transition directly between two roots.
+      setTimeout(() => {
+        setActiveRichList({ element, session });
+      }, 0);
+    },
+    [],
+  );
 
   const closeNonPluginOverlays = useCallback(() => {
     setAgentPickerVisible(false);
@@ -231,6 +237,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     setServerSettingsVisible(false);
     setPluginsVisible(false);
     setFiltersVisible(false);
+    setActiveRichList(null);
   }, []);
 
   const navigateToSession = useCallback(
@@ -557,17 +564,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
   };
 
-  const pluginSessionActionDefs: SessionActionDefinition[] = useMemo(
-    () =>
-      (sessionListActions ?? []).map((el) => ({
-        key: el.id,
-        label: el.label,
-        iconName: (el as any).icon || 'zap',
-        defaultPinned: false,
-      })),
-    [sessionListActions],
-  );
-
   const sessionListFieldGroups = useMemo(
     () => groupSessionListFields(sessionListFields || []),
     [sessionListFields],
@@ -589,21 +585,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	    const subtitle = presentation.subtitle;
 	    const metaText = presentation.meta;
 
-    const pinnedToggleElement = sessionListPinnedToggles[0];
-    const isPinned = resolvePinnedState(s, pinnedToggleElement);
-
     const actions = sessionListActions ?? [];
-
-    const handleRowAction = (key: SessionActionKey) => {
-      if (BUILTIN_SESSION_LIST_ACTIONS.includes(key)) {
-        handleBuiltinSessionAction(key, s);
-        return;
-      }
-      const element = actions.find((el) => el.id === key);
-      if (element) {
-        openPluginDialogForElement(element, s);
-      }
-    };
+    const headerLeadingAction = selectSessionListRichActionForPlacement(
+      actions,
+      'header_leading',
+    );
+    const headerTrailingAction = selectSessionListRichActionForPlacement(
+      actions,
+      'header_trailing',
+    );
 
     const hasAnyActions =
       BUILTIN_SESSION_LIST_ACTIONS.length > 0 || (actions && actions.length > 0);
@@ -616,6 +606,28 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	      onPress={() => navigateToSession(s.session_id)}
       >
         <View style={styles.sessionHeaderRow}>
+          {headerLeadingAction ? (
+            <View style={styles.sessionHeaderLeadingAction}>
+              <SessionListRichActionControl
+                element={headerLeadingAction}
+                session={s}
+                placement="header_leading"
+                disabled={!backend || actionLoading}
+                onExecuteAction={(element, dialogValues) =>
+                  executePluginAction(element, {
+                    sessionId: s.session_id,
+                    sessionSummary: s,
+                    dialogValues,
+                  })
+                }
+                onPresentRichList={(element) => presentRichList(element, s)}
+                renderIcon={({ name, size, color }) => (
+                  <Icon name={name} size={size} color={color} />
+                )}
+                testID={`session-rich-header-${s.session_id}-header_leading-${headerLeadingAction.id}`}
+              />
+            </View>
+          ) : null}
           <View style={styles.sessionHeaderTextColumn}>
             <Text
               style={styles.sessionTitle}
@@ -624,29 +636,27 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               {title}
             </Text>
           </View>
-          {pinnedToggleElement ? (
-            <TouchableOpacity
-              style={styles.pinIconButton}
-              hitSlop={PIN_BUTTON_HIT_SLOP}
-              testID={`session-pin-toggle-${s.session_id}`}
-              accessibilityRole="button"
-              accessibilityLabel={isPinned ? 'Unpin session' : 'Pin session'}
-              accessibilityState={{ selected: isPinned }}
-              onPress={() => {
-                if (!backend) {
-                  Alert.alert('Error', 'No active connection');
-                  return;
+          {headerTrailingAction ? (
+            <View style={styles.sessionHeaderTrailingAction}>
+              <SessionListRichActionControl
+                element={headerTrailingAction}
+                session={s}
+                placement="header_trailing"
+                disabled={!backend || actionLoading}
+                onExecuteAction={(element, dialogValues) =>
+                  executePluginAction(element, {
+                    sessionId: s.session_id,
+                    sessionSummary: s,
+                    dialogValues,
+                  })
                 }
-                openPluginDialogForElement(pinnedToggleElement, s);
-              }}
-            >
-              <Icon
-                name="star"
-                size={18}
-                color={isPinned ? '#FFCC00' : theme.textSecondary}
-                testID={`session-pin-icon-${s.session_id}`}
+                onPresentRichList={(element) => presentRichList(element, s)}
+                renderIcon={({ name, size, color }) => (
+                  <Icon name={name} size={size} color={color} />
+                )}
+                testID={`session-rich-header-${s.session_id}-header_trailing-${headerTrailingAction.id}`}
               />
-            </TouchableOpacity>
+            </View>
           ) : null}
         </View>
         <Text style={styles.sessionId}>{s.session_id}</Text>
@@ -668,7 +678,9 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         </Text>
         {hasAnyActions && (
           <View style={styles.sessionActionsRow}>
-            <SessionActionsBar
+            <SessionListActionsBar
+              session={s}
+              pluginActions={actions}
               renderIcon={({ name, size, color }) => (
                 <Icon name={name} size={size} color={color} />
               )}
@@ -680,12 +692,23 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               }
               pinned={pinnedSessionActions}
               onChangePinned={setPinnedSessionActions}
-              onAction={handleRowAction}
-              extraActions={pluginSessionActionDefs}
               availableActions={BUILTIN_SESSION_LIST_ACTIONS}
               isActive={isActive}
               menuButtonTestID={`session-actions-menu-${s.session_id}`}
               modalContentStyle={styles.sessionActionsModalContent}
+              isActionDisabled={() => !backend || actionLoading}
+              onBaseAction={(key) =>
+                handleBuiltinSessionAction(key as SessionActionKey, s)
+              }
+              onExecuteAction={(element, dialogValues) =>
+                executePluginAction(element, {
+                  sessionId: s.session_id,
+                  sessionSummary: s,
+                  dialogValues,
+                })
+              }
+              onFallbackAction={(element) => openPluginDialogForElement(element, s)}
+              onPresentRichList={(element) => presentRichList(element, s)}
             />
           </View>
         )}
@@ -815,6 +838,36 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
                 <Icon name={name} size={size} color={color} />
               )}
             />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={activeRichList !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveRichList(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.richListModalContent}>
+            {activeRichList ? (
+              <SessionListRichActionList
+                element={activeRichList.element}
+                session={activeRichList.session}
+                testIDPrefix={`session-rich-list-${activeRichList.session.session_id}-${activeRichList.element.id}`}
+                onRequestClose={() => setActiveRichList(null)}
+                onExecuteAction={(dialogValues) =>
+                  executePluginAction(activeRichList.element, {
+                    sessionId: activeRichList.session.session_id,
+                    sessionSummary: activeRichList.session,
+                    dialogValues,
+                  })
+                }
+                renderIcon={({ name, size, color }) => (
+                  <Icon name={name} size={size} color={color} />
+                )}
+              />
+            ) : null}
           </View>
         </View>
       </Modal>
@@ -1090,6 +1143,12 @@ const createStyles = (theme: Theme) =>
       flex: 1,
       paddingRight: 8,
     },
+    sessionHeaderLeadingAction: {
+      marginRight: 4,
+    },
+    sessionHeaderTrailingAction: {
+      marginLeft: 4,
+    },
     sessionTitle: {
       fontSize: 16,
       fontWeight: '600',
@@ -1151,6 +1210,14 @@ const createStyles = (theme: Theme) =>
       maxHeight: '80%',
       backgroundColor: theme.surface,
       borderRadius: 12,
+    },
+    richListModalContent: {
+      width: '82%',
+      height: '55%',
+      maxHeight: '70%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      overflow: 'hidden',
     },
     modalTitle: {
       fontSize: 18,

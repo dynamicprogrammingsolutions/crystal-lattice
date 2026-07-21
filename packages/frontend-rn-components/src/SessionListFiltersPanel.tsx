@@ -80,6 +80,8 @@ export function SessionListFiltersPanel({
               borderColor:
                 option.tone === 'primary'
                   ? theme.primary
+                  : option.tone === 'highlight'
+                    ? theme.highlight
                   : option.tone === 'warning'
                     ? theme.warning
                     : option.tone === 'success'

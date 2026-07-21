@@ -137,6 +137,27 @@ describe('PluginsRegistry', () => {
     ).toContain('invalid_session_list_rich_ui');
   });
 
+  it('keeps one session-list action collection ordered by declaration order', async () => {
+    const backend = createBackend();
+    (backend.listApplicationActions as any).mockResolvedValueOnce([]);
+    (backend.listApplicationUiSchema as any).mockResolvedValueOnce([
+      { ...sessionListAction('late'), order: 30 },
+      { ...sessionListAction('first'), order: 10 },
+      { ...sessionListAction('middle'), order: 20 },
+    ]);
+
+    const registry = new PluginsRegistry({
+      backend,
+      cacheKey: 'plugins-registry-session-list-action-order',
+    });
+    await registry.load();
+
+    expect(
+      registry.getSnapshot().sessionListActions.map((action) => action.id),
+    ).toEqual(['first', 'middle', 'late']);
+    expect('sessionListPinnedToggles' in registry.getSnapshot()).toBe(false);
+  });
+
   it('publishes normalized filters and an explicit main-search conflict', async () => {
     const backend = createBackend();
     (backend.listApplicationActions as any).mockResolvedValueOnce([]);

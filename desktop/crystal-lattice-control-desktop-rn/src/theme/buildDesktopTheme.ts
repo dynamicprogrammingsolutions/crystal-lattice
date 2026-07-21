@@ -36,6 +36,7 @@ const FALLBACK_LIGHT: Theme = {
   dangerMuted: 'rgba(255, 59, 48, 0.12)',
   success: '#34C759',
   successMuted: 'rgba(52, 199, 89, 0.12)',
+  highlight: '#FFCC00',
   warning: '#FF9500',
   warningMuted: 'rgba(255, 149, 0, 0.12)',
   notification: '#007AFF',
@@ -71,6 +72,7 @@ const FALLBACK_DARK: Theme = {
   dangerMuted: 'rgba(255, 69, 58, 0.22)',
   success: '#32D74B',
   successMuted: 'rgba(50, 215, 75, 0.22)',
+  highlight: '#FFD60A',
   warning: '#FF9F0A',
   warningMuted: 'rgba(255, 159, 10, 0.22)',
   notification: '#0A84FF',
@@ -111,6 +113,7 @@ export function buildDesktopTheme(payload: MacOSSystemThemePayload | null): Them
   const dangerMuted = withAlpha(danger, isDark ? 0.22 : 0.12);
   const success = payload.success;
   const successMuted = withAlpha(success, isDark ? 0.22 : 0.12);
+  const highlight = isDark ? '#FFD60A' : '#FFCC00';
   const message = notification;
 
   const border = scaleAlpha(payload.separator, isDark ? 1.55 : 1.85);
@@ -137,6 +140,7 @@ export function buildDesktopTheme(payload: MacOSSystemThemePayload | null): Them
     dangerMuted,
     success,
     successMuted,
+    highlight,
     warning,
     warningMuted,
     notification,

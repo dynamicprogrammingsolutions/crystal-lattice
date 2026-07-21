@@ -17,12 +17,13 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 
 import {
-  ActionsMenuBar,
   ApplicationActionDialog,
+  getLastActionsPopoverAnchorTag,
+  SessionListActionsBar,
+  SessionListRichActionControl,
+  SessionListRichActionList,
   SessionListFiltersPanel,
   useTheme,
-  type ActionDefinition,
-  type ActionKey,
 } from '@crystal-lattice/frontend-rn-components';
 
 import type {
@@ -32,13 +33,15 @@ import type {
   AgentBackend,
   SessionSummary,
   RunActionContext,
+  SessionListActionElement,
 } from '@crystal-lattice/frontend-sdk';
 import {
   deriveSessionListPresentationFromGroups,
+  getDefaultPinnedSessionListActionKeys,
   groupSessionListFields,
   normalizeActionDisplayForSurface,
-  resolveSessionListPath,
   runApplicationAction,
+  selectSessionListRichActionForPlacement,
 } from '@crystal-lattice/frontend-sdk';
 
 import {
@@ -71,23 +74,6 @@ import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const SESSION_DOUBLE_CLICK_MS = 300;
 const SESSIONS_STALE_MS = 30_000;
-const DEFAULT_PINNED_SESSION_LIST_ACTION_KEYS: ActionKey[] = [];
-
-function resolvePinnedState(
-  session: SessionSummary,
-  pinnedToggleElement: ActionUiElement | null,
-): boolean {
-  const dataPath =
-    typeof pinnedToggleElement?.data === 'string' && pinnedToggleElement.data
-      ? pinnedToggleElement.data
-      : 'metadata.pinned';
-  const resolved = resolveSessionListPath(session, dataPath);
-  const value = resolved.found
-    ? resolved.value
-    : pinnedToggleElement?.missing_value;
-  return value === true;
-}
-
 type ActionDisplayEntry = {
   key: string;
   display: ActionDisplayPayload;
@@ -277,7 +263,6 @@ function SessionsPanelInner({
     sessionListActions,
     sessionListFields,
     sessionListFilterSchema,
-    sessionListPinnedToggles,
   } = useApplicationPlugins();
   const {
     schema: effectiveFilterSchema,
@@ -374,29 +359,21 @@ function SessionsPanelInner({
     [sessionListFields],
   );
 
-  const pinnedToggleElement = sessionListPinnedToggles[0] ?? null;
-
-  const pluginActionDefs: ActionDefinition[] = useMemo(() => {
-    return (sessionListActions || [])
-      .map((el) => ({
-        key: el.id,
-        label: el.label,
-        iconName: (el as any).icon || 'zap',
-      }))
-      .filter((def) => typeof def.key === 'string' && def.key);
-  }, [sessionListActions]);
-
   const pinnedSessionListActionsStorageKey = useMemo(() => {
     return `${PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE}:${connectionId ?? 'default'}`;
   }, [connectionId]);
+  const defaultPinnedSessionListActionKeys = useMemo(
+    () => getDefaultPinnedSessionListActionKeys(sessionListActions),
+    [sessionListActions],
+  );
 
   const {
     pinned: pinnedSessionListActionKeys,
     setPinned: setPinnedSessionListActionKeys,
-  } = usePersistentPinnedActions<ActionKey>({
+  } = usePersistentPinnedActions<string>({
     store: asyncStorageKeyValueStore,
     key: pinnedSessionListActionsStorageKey,
-    initialPinned: DEFAULT_PINNED_SESSION_LIST_ACTION_KEYS,
+    initialPinned: defaultPinnedSessionListActionKeys,
   });
 
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
@@ -469,6 +446,48 @@ function SessionsPanelInner({
       }
     },
     [actionsById, backend, connectionId, onOpenSessionTab, presentActionDisplay],
+  );
+
+  const openRichListPopover = useCallback(
+    (element: SessionListActionElement, session: SessionSummary) => {
+      const popoverId = [
+        'session-rich-list',
+        connectionId ?? 'default',
+        session.session_id,
+        element.id,
+      ].join(':');
+      const close = () => {
+        closeDesktopPopover(popoverId);
+      };
+      const content = (
+        <SessionListRichActionList
+          element={element}
+          session={session}
+          testIDPrefix={`session-rich-list-${session.session_id}-${element.id}`}
+          onRequestClose={close}
+          onExecuteAction={(dialogValues) =>
+            executePluginAction(element, {
+              sessionId: session.session_id,
+              sessionSummary: session,
+              dialogValues,
+            })
+          }
+          renderIcon={({ name, size, color }) => (
+            <Icon name={name} size={size} color={color} />
+          )}
+        />
+      );
+      openDesktopPopover({
+        id: popoverId,
+        content,
+        onRequestClose: close,
+        accessibilityId: 'session-rich-list-native-popover',
+        anchorTag: getLastActionsPopoverAnchorTag() ?? undefined,
+        width: 300,
+        height: 280,
+      });
+    },
+    [connectionId, executePluginAction],
   );
 
   const handleDisplayFollowupAction = useCallback(
@@ -950,8 +969,14 @@ function SessionsPanelInner({
               80,
             );
             const meta = presentation.meta;
-            const isPinned = resolvePinnedState(session, pinnedToggleElement);
-
+            const headerLeadingAction = selectSessionListRichActionForPlacement(
+              sessionListActions,
+              'header_leading',
+            );
+            const headerTrailingAction = selectSessionListRichActionForPlacement(
+              sessionListActions,
+              'header_trailing',
+            );
             return (
               <Pressable
                 key={session.session_id}
@@ -974,47 +999,55 @@ function SessionsPanelInner({
               >
                 <View style={styles.rowMain}>
                   <View style={styles.rowTitleRow}>
+                    {headerLeadingAction ? (
+                      <SessionListRichActionControl
+                        element={headerLeadingAction}
+                        session={session}
+                        placement="header_leading"
+                        disabled={!isOnline || pluginActionRunning}
+                        onExecuteAction={(element, dialogValues) =>
+                          executePluginAction(element, {
+                            sessionId: session.session_id,
+                            sessionSummary: session,
+                            dialogValues,
+                          })
+                        }
+                        onPresentRichList={(element) =>
+                          openRichListPopover(element, session)
+                        }
+                        renderIcon={({ name, size, color }) => (
+                          <Icon name={name} size={size} color={color} />
+                        )}
+                        testID={`session-rich-header-${session.session_id}-header_leading-${headerLeadingAction.id}`}
+                      />
+                    ) : null}
                     <Text
                       style={styles.rowTitle}
                       testID={`session-title-${session.session_id}`}
                     >
                       {title}
                     </Text>
-                    {pinnedToggleElement ? (
-                      <Pressable
-                        testID={`session-pin-toggle-${session.session_id}`}
-                        accessibilityRole="button"
-                        accessibilityLabel={isPinned ? 'Unpin session' : 'Pin session'}
-                        accessibilityState={{
-                          disabled: !isOnline,
-                          selected: isPinned,
-                        }}
-                        style={(state) => {
-                          const pinnedHovered = (state as any).hovered as boolean | undefined;
-                          return [
-                            styles.pinButton,
-                            (pinnedHovered || state.pressed) && styles.pinButtonHovered,
-                          ];
-                        }}
-                        disabled={!isOnline}
-                        onPress={(event) => {
-                          (event as any)?.stopPropagation?.();
-                          if (!isOnline) {
-                            return;
-                          }
-                          openPluginDialogForElement(pinnedToggleElement, session);
-                        }}
-                      >
-                        <Text
-                          testID={`session-pin-icon-${session.session_id}`}
-                          style={[
-                            styles.pinButtonText,
-                            { color: isPinned ? '#FFCC00' : theme.textSecondary },
-                          ]}
-                        >
-                          ★
-                        </Text>
-                      </Pressable>
+                    {headerTrailingAction ? (
+                      <SessionListRichActionControl
+                        element={headerTrailingAction}
+                        session={session}
+                        placement="header_trailing"
+                        disabled={!isOnline || pluginActionRunning}
+                        onExecuteAction={(element, dialogValues) =>
+                          executePluginAction(element, {
+                            sessionId: session.session_id,
+                            sessionSummary: session,
+                            dialogValues,
+                          })
+                        }
+                        onPresentRichList={(element) =>
+                          openRichListPopover(element, session)
+                        }
+                        renderIcon={({ name, size, color }) => (
+                          <Icon name={name} size={size} color={color} />
+                        )}
+                        testID={`session-rich-header-${session.session_id}-header_trailing-${headerTrailingAction.id}`}
+                      />
                     ) : null}
                   </View>
                   <Text style={styles.rowId} numberOfLines={1}>
@@ -1063,23 +1096,33 @@ function SessionsPanelInner({
                         showRowControls || pinnedSessionListActionKeys.length > 0 ? 'auto' : 'none'
                       }
                     >
-                      <ActionsMenuBar<ActionDefinition>
+                      <SessionListActionsBar
+                        session={session}
+                        pluginActions={sessionListActions}
                         title="Session actions"
                         variant="dropdown"
+                        menuButtonTestID={`session-actions-menu-${session.session_id}`}
                         renderIcon={({ name, size, color }) => (
                           <Icon name={name} size={size} color={color} />
                         )}
                         baseActions={[]}
-                        extraActions={pluginActionDefs}
                         pinned={pinnedSessionListActionKeys}
                         onChangePinned={(next) => setPinnedSessionListActionKeys(next)}
-                        onAction={(key: ActionKey) => {
-                          const element = sessionListActions.find((el) => el.id === key);
-                          if (element) {
-                            openPluginDialogForElement(element, session);
-                          }
-                        }}
                         isActionDisabled={() => !isOnline || pluginActionRunning}
+                        onBaseAction={() => {}}
+                        onExecuteAction={(element, dialogValues) =>
+                          executePluginAction(element, {
+                            sessionId: session.session_id,
+                            sessionSummary: session,
+                            dialogValues,
+                          })
+                        }
+                        onFallbackAction={(element) =>
+                          openPluginDialogForElement(element, session)
+                        }
+                        onPresentRichList={(element) =>
+                          openRichListPopover(element, session)
+                        }
                       />
                     </View>
                   ) : null}

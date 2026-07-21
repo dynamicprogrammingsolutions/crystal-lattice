@@ -31,6 +31,8 @@ export interface Theme {
   dangerMuted: string;
   success: string;
   successMuted: string;
+  /** Yellow emphasis used for saved/pinned state, distinct from warning. */
+  highlight: string;
   warning: string;
   warningMuted: string;
   notification: string;
@@ -79,6 +81,7 @@ const defaultLightTheme: Theme = {
   dangerMuted: 'rgba(255, 59, 48, 0.12)',
   success: '#34C759',
   successMuted: 'rgba(52, 199, 89, 0.12)',
+  highlight: '#FFCC00',
   warning: '#FF9500',
   warningMuted: 'rgba(255, 149, 0, 0.12)',
   notification: '#007AFF',

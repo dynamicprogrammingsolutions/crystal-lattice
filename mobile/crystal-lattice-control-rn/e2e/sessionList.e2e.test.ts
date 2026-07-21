@@ -73,17 +73,17 @@ describe("mobile session-list contracts", () => {
     }
   });
 
-  it("falls back to the ordinary action and submits resolved prefill", async () => {
+  it("falls back to the ordinary form and submits resolved prefill", async () => {
     await launchHarness();
 
     await waitFor(element(by.id("session-actions-menu-server-first")))
       .toBeVisible()
       .withTimeout(30000);
     await element(by.id("session-actions-menu-server-first")).tap();
-    await waitFor(element(by.id("actions-menu-action-set_session_status")))
+    await waitFor(element(by.id("actions-menu-action-set_session_status_fallback")))
       .toBeVisible()
       .withTimeout(30000);
-    await element(by.id("actions-menu-action-set_session_status")).tap();
+    await element(by.id("actions-menu-action-set_session_status_fallback")).tap();
 
     await waitFor(element(by.id("action-dialog-select-status-done")))
       .toBeVisible()
@@ -91,7 +91,56 @@ describe("mobile session-list contracts", () => {
     await element(by.id("application-action-dialog-primary")).tap();
 
     await waitFor(element(by.id("session-list-harness-submission")))
-      .toHaveText("server-first:done")
+      .toHaveText("server-first:set_session_status:done")
+      .withTimeout(30000);
+  });
+
+  it("uses the rich status list without an OK or Cancel confirmation", async () => {
+    await launchHarness();
+
+    await element(by.id("session-actions-menu-server-first")).tap();
+    await waitFor(element(by.id("actions-menu-action-set_session_status")))
+      .toBeVisible()
+      .withTimeout(30000);
+    await element(by.id("actions-menu-action-set_session_status")).tap();
+
+    await waitFor(
+      element(by.id("session-rich-list-server-first-set_session_status")),
+    )
+      .toBeVisible()
+      .withTimeout(30000);
+    await detoxExpect(
+      element(by.id("application-action-dialog-primary")),
+    ).not.toExist();
+    await element(
+      by.id("session-rich-list-server-first-set_session_status-option-todo"),
+    ).tap();
+    await waitFor(element(by.id("session-list-harness-submission")))
+      .toHaveText("server-first:set_session_status:todo")
+      .withTimeout(30000);
+  });
+
+  it("shows default-pinned rich pin and archive controls", async () => {
+    await launchHarness();
+
+    await waitFor(
+      element(
+        by.id(
+          "session-rich-header-server-first-header_trailing-toggle_session_pinned",
+        ),
+      ),
+    )
+      .toBeVisible()
+      .withTimeout(30000);
+    await waitFor(
+      element(by.id("session-rich-action-server-first-toggle_session_pinned")),
+    )
+      .toBeVisible()
+      .withTimeout(30000);
+    await waitFor(
+      element(by.id("session-rich-action-server-first-toggle_session_archived")),
+    )
+      .toBeVisible()
       .withTimeout(30000);
   });
 
@@ -116,7 +165,7 @@ describe("mobile session-list contracts", () => {
       .withTimeout(30000);
     await detoxExpect(
       element(by.id("session-filters-active-count")),
-    ).not.toExist();
+    ).toHaveText("1");
     await element(by.id("session-filters-open")).tap();
     await waitFor(element(by.id("session-filter-pinned_state-option-true")))
       .toBeVisible()
@@ -155,6 +204,6 @@ describe("mobile session-list contracts", () => {
     await element(by.id("session-filters-close")).tap();
     await detoxExpect(
       element(by.id("session-filters-active-count")),
-    ).not.toExist();
+    ).toHaveText("1");
   });
 });

@@ -20,7 +20,6 @@ describe('selectApplicationPlugins', () => {
       sessionListActions: [],
       sessionListFields: [],
       sessionListFilterSchema: normalizeSessionListFilterSchema([]),
-      sessionListPinnedToggles: [],
       sessionListDiagnostics: [diagnostic],
       loading: false,
       error: null,
@@ -35,7 +34,6 @@ describe('selectApplicationPlugins', () => {
       sessionListActions: [],
       sessionListFields: [],
       sessionListFilterSchema: normalizeSessionListFilterSchema([]),
-      sessionListPinnedToggles: [],
       sessionListDiagnostics: [diagnostic],
     });
   });
@@ -59,7 +57,6 @@ describe('selectApplicationPlugins', () => {
       sessionListActions: [],
       sessionListFields: [],
       sessionListFilterSchema: schema,
-      sessionListPinnedToggles: [],
       sessionListDiagnostics: [],
       loading: false,
       error: null,

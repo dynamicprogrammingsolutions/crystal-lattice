@@ -27,7 +27,6 @@ export interface PluginsResult {
   sessionListActions: SessionListActionElement[];
   sessionListFields: SessionListFieldElement[];
   sessionListFilterSchema: SessionListFilterSchema;
-  sessionListPinnedToggles: ActionUiElement[];
   sessionListDiagnostics: SessionListContractDiagnostic[];
 }
 
@@ -50,7 +49,6 @@ const EMPTY_RESULT: PluginsResult = {
   sessionListActions: [],
   sessionListFields: [],
   sessionListFilterSchema: EMPTY_SESSION_LIST_FILTER_SCHEMA,
-  sessionListPinnedToggles: [],
   sessionListDiagnostics: [],
 };
 
@@ -100,9 +98,9 @@ function buildResultFromEntry(entry: CacheEntry | undefined): PluginsResult {
     rawSessionListFilters,
   );
   sessionListDiagnostics.push(...sessionListFilterSchema.diagnostics);
-  const sessionListPinnedToggles = elements.filter(
-    (el) => el && (el as any).ui_type === 'session_list_toggle_pinned',
-  ) as ActionUiElement[];
+  sessionListActions.sort(
+    (left, right) => (left.order ?? 0) - (right.order ?? 0),
+  );
 
   return {
     actionsById,
@@ -111,7 +109,6 @@ function buildResultFromEntry(entry: CacheEntry | undefined): PluginsResult {
     sessionListActions,
     sessionListFields,
     sessionListFilterSchema,
-    sessionListPinnedToggles,
     sessionListDiagnostics,
   };
 }
@@ -125,7 +122,6 @@ function buildResultFromState(state: PluginsRegistryState): PluginsResult {
     sessionListFields: state.sessionListFields || [],
     sessionListFilterSchema:
       state.sessionListFilterSchema || EMPTY_SESSION_LIST_FILTER_SCHEMA,
-    sessionListPinnedToggles: state.sessionListPinnedToggles || [],
     sessionListDiagnostics: state.sessionListDiagnostics || [],
   };
 }

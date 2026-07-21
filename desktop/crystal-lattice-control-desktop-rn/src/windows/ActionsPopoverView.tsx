@@ -90,6 +90,7 @@ function ActionsPopoverViewInner(): React.JSX.Element {
           renderIcon={({ name, size, color }) => <Icon name={name} size={size} color={color} />}
           iconSize={16}
           pinIconSize={14}
+          renderItem={state.data.renderItem}
         />
       </ScrollView>
     </View>

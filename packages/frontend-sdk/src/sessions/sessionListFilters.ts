@@ -9,6 +9,7 @@ export type SessionListFilterType = 'text' | 'boolean' | 'select';
 export type SessionListFilterMatch = 'contains' | 'equals' | 'one_of';
 export type SessionListOptionTone =
   | 'primary'
+  | 'highlight'
   | 'warning'
   | 'success'
   | 'danger'
@@ -63,6 +64,7 @@ export const FRONTEND_FALLBACK_SESSION_SEARCH_ID =
 
 const OPTION_TONES = new Set<SessionListOptionTone>([
   'primary',
+  'highlight',
   'warning',
   'success',
   'danger',

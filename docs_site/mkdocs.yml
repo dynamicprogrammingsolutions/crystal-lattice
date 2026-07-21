@@ -158,6 +158,7 @@ nav:
     - reference-openai-compatible-provider: built-in-plugins/reference-openai-compatible-provider/index.md
     - session-actions-app: built-in-plugins/session-actions-app/index.md
     - session-asset-attachments: built-in-plugins/session-asset-attachments/index.md
+    - session-archive-app: built-in-plugins/session-archive-app/index.md
     - session-main-search-app: built-in-plugins/session-main-search-app/index.md
     - session-message-count-meta-app: built-in-plugins/session-message-count-meta-app/index.md
     - session-ordering-buckets-app: built-in-plugins/session-ordering-buckets-app/index.md

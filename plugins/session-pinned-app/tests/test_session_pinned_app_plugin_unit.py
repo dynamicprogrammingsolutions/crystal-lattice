@@ -71,16 +71,17 @@ def _create_session(app: AgentApplication) -> str:
     return session.session_id
 
 
-def test_session_pinned_contributes_legacy_toggle_and_boolean_filter(
+def test_session_pinned_contributes_rich_toggle_and_boolean_filter(
     tmp_path: Path,
 ) -> None:
     app = _build_app(tmp_path, metadata_key="favorite")
 
     elements = app.get_application_ui_schema()
-    legacy_toggle = next(
+    pin_action = next(
         element
         for element in elements
-        if element.get("ui_type") == "session_list_toggle_pinned"
+        if element.get("ui_type") == "session_list_action"
+        and element.get("id") == "toggle_session_pinned"
     )
     pin_filter = next(
         element
@@ -88,9 +89,29 @@ def test_session_pinned_contributes_legacy_toggle_and_boolean_filter(
         if element.get("ui_type") == "session_list_filter"
     )
 
-    assert legacy_toggle["action_id"] == "toggle_session_pinned"
-    assert legacy_toggle["data"] == "metadata.favorite"
-    assert legacy_toggle["missing_value"] is False
+    assert pin_action == {
+        "ui_type": "session_list_action",
+        "id": "toggle_session_pinned",
+        "label": "Pin/unpin session",
+        "icon": "star",
+        "order": 10,
+        "action_id": "toggle_session_pinned",
+        "param_map": {"session_id": "$session.session_id"},
+        "dialog": {"kind": "none"},
+        "rich_ui": {
+            "kind": "toggle",
+            "value_path": "metadata.favorite",
+            "missing_value": False,
+            "active_value": True,
+            "default_pinned": True,
+            "placements": ["header_trailing", "actions_bar"],
+            "appearance": {
+                "active": {"tone": "highlight"},
+                "inactive": {"tone": "muted"},
+            },
+        },
+        "plugin": "session_pinned",
+    }
     assert pin_filter == {
         "ui_type": "session_list_filter",
         "id": "pinned_state",
@@ -113,7 +134,7 @@ def test_session_pinned_contributes_legacy_toggle_and_boolean_filter(
                 "value": True,
                 "label": "Pinned",
                 "icon": "star",
-                "tone": "warning",
+                "tone": "highlight",
             },
         ],
         "plugin": "session_pinned",

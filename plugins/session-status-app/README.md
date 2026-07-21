@@ -19,7 +19,8 @@ Built-in statuses are:
 It contributes:
 
 - `set_session_status`, an application action;
-- an ordinary `session_list_action` select form using that action;
+- an ordinary `session_list_action` with both a select-form fallback and a
+  rich immediate-selection list;
 - `session_status`, a multi-select `session_list_filter`;
 - a session-list trigger that derives a human-readable
   `session_status_label`;
@@ -46,9 +47,11 @@ The plugin exposes a server-scoped checkbox with the same key. A persisted
 server setting overrides the application default; deleting the server setting
 returns to that configured default.
 
-The ordinary form is the compatibility presentation. A later rich-action
-extension can enhance the same stable action with immediate list selection
-without changing the action or filter IDs.
+The rich list reads the same configured metadata key as the form and filter.
+It treats missing metadata as `todo`, marks the current option, and submits a
+different selection immediately without OK/Cancel confirmation. Selecting the
+current option performs no mutation. The ordinary select form remains the
+permanent fallback for frontends that do not support rich lists.
 
 ## License
 

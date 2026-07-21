@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
@@ -11,7 +11,7 @@ import type {
 import { SessionsPanel } from '../panels/SessionsPanel';
 import { useDesktopTheme } from '../theme/useDesktopTheme';
 
-const CONNECTION_ID = 'session-filters-popover-harness';
+const CONNECTION_ID = 'session-rich-actions-popover-harness';
 
 const SESSION_SUMMARIES: SessionSummary[] = [
   {
@@ -100,7 +100,7 @@ const FILTER_ELEMENTS: ApplicationUiElement[] = [
         value: true,
         label: 'Pinned',
         icon: 'star',
-        tone: 'warning',
+        tone: 'highlight',
       },
     ],
   },
@@ -130,7 +130,142 @@ const FILTER_ELEMENTS: ApplicationUiElement[] = [
   },
 ];
 
-function createHarnessBackend(): AgentBackend {
+const ACTION_ELEMENTS: ApplicationUiElement[] = [
+  {
+    ui_type: 'session_list_action',
+    plugin: 'session_pinned',
+    id: 'toggle_session_pinned',
+    label: 'Pin/unpin session',
+    icon: 'star',
+    order: 10,
+    action_id: 'toggle_session_pinned',
+    param_map: { session_id: '$session.session_id' },
+    dialog: { kind: 'none' },
+    rich_ui: {
+      kind: 'toggle',
+      value_path: 'metadata.pinned',
+      missing_value: false,
+      active_value: true,
+      default_pinned: true,
+      placements: ['header_trailing', 'actions_bar'],
+      appearance: {
+        active: { tone: 'highlight' },
+        inactive: { tone: 'muted' },
+      },
+    },
+  },
+  {
+    ui_type: 'session_list_action',
+    plugin: 'session_archive',
+    id: 'toggle_session_archived',
+    label: 'Archive/restore session',
+    icon: 'archive',
+    order: 20,
+    action_id: 'toggle_session_archived',
+    param_map: { session_id: '$session.session_id' },
+    dialog: { kind: 'none' },
+    rich_ui: {
+      kind: 'toggle',
+      value_path: 'metadata.archived',
+      missing_value: false,
+      active_value: true,
+      default_pinned: true,
+      appearance: {
+        active: { tone: 'primary' },
+        inactive: { tone: 'muted' },
+      },
+    },
+  },
+  {
+    ui_type: 'session_list_action',
+    plugin: 'session_status',
+    id: 'set_session_status',
+    label: 'Set status',
+    icon: 'circle',
+    order: 30,
+    action_id: 'set_session_status',
+    param_map: {
+      session_id: '$session.session_id',
+      status: '$dialog.status',
+    },
+    dialog: {
+      kind: 'form',
+      title: 'Set status',
+      inputs: [{ name: 'status', type: 'select', default: 'todo' }],
+    },
+    rich_ui: {
+      kind: 'list',
+      value_path: 'metadata.status',
+      missing_value: 'todo',
+      input_name: 'status',
+      default_pinned: false,
+      options: [
+        { value: 'todo', label: 'To do', tone: 'muted' },
+        { value: 'in_progress', label: 'In progress', tone: 'primary' },
+        { value: 'blocked', label: 'Blocked', tone: 'danger' },
+        { value: 'done', label: 'Done', tone: 'success' },
+      ],
+    },
+  },
+];
+
+function createHarnessBackend(
+  sessionsRef: React.MutableRefObject<SessionSummary[]>,
+): AgentBackend {
+  const execute = async (params: {
+    actionId?: string;
+    sessionId?: string;
+    inputs: Record<string, unknown>;
+  }) => {
+    const sessionId =
+      typeof params.inputs.session_id === 'string'
+        ? params.inputs.session_id
+        : params.sessionId;
+    if (!sessionId) {
+      return { status: 'error', message: 'missing session_id' };
+    }
+    const actionId = params.actionId ?? 'unknown';
+    sessionsRef.current = sessionsRef.current.map((session) => {
+      if (session.session_id !== sessionId) {
+        return session;
+      }
+      const metadata = { ...(session.metadata ?? {}) };
+      if (actionId === 'toggle_session_pinned') {
+        metadata.pinned = metadata.pinned !== true;
+      } else if (actionId === 'toggle_session_archived') {
+        metadata.archived = metadata.archived !== true;
+      } else if (
+        actionId === 'set_session_status' &&
+        typeof params.inputs.status === 'string'
+      ) {
+        metadata.status = params.inputs.status;
+      }
+      const status = typeof metadata.status === 'string' ? metadata.status : 'todo';
+      return {
+        ...session,
+        metadata,
+        presentation: {
+          title: session.presentation?.title ?? session.session_id,
+          subtitle: session.presentation?.subtitle ?? null,
+          meta: `Status: ${status.replace('_', ' ')}`,
+        },
+      };
+    });
+    return {
+      status: 'ok',
+      plugin: actionId === 'set_session_status' ? 'session_status' : 'session_pinned',
+      action_id: actionId,
+      result: {
+        mutations: {
+          created_session_ids: [],
+          updated_session_ids: [sessionId],
+          deleted_session_ids: [],
+        },
+        ui_effects: {},
+      },
+    };
+  };
+
   return {
     kind: 'inProcess',
     getCapabilities: () => ({
@@ -142,15 +277,46 @@ function createHarnessBackend(): AgentBackend {
       applicationConfig: false,
     }),
     listAgents: async () => ['default'],
-    listSessions: async () => SESSION_SUMMARIES,
-    listApplicationActions: async () => [],
-    listApplicationUiSchema: async () => FILTER_ELEMENTS,
+    listSessions: async () => sessionsRef.current,
+    listApplicationActions: async () => [
+      {
+        plugin: 'session_pinned',
+        id: 'toggle_session_pinned',
+        label: 'Toggle pin',
+        inputs: { session_id: { type: 'string', required: true } },
+      },
+      {
+        plugin: 'session_archive',
+        id: 'toggle_session_archived',
+        label: 'Toggle archive',
+        inputs: { session_id: { type: 'string', required: true } },
+      },
+      {
+        plugin: 'session_status',
+        id: 'set_session_status',
+        label: 'Set status',
+        inputs: {
+          session_id: { type: 'string', required: true },
+          status: { type: 'string', required: true },
+        },
+      },
+    ],
+    listApplicationUiSchema: async () => [...FILTER_ELEMENTS, ...ACTION_ELEMENTS],
+    executeAction: async (params: any) =>
+      execute({ actionId: params.actionId, inputs: params.inputs }),
+    executeSessionAction: async (params: any) =>
+      execute({
+        actionId: params.actionId,
+        sessionId: params.sessionId,
+        inputs: params.inputs,
+      }),
   } as unknown as AgentBackend;
 }
 
 export function SessionFiltersPopoverHarness(): React.JSX.Element {
   const theme = useDesktopTheme();
-  const backend = useMemo(() => createHarnessBackend(), []);
+  const sessionsRef = useRef(SESSION_SUMMARIES);
+  const backend = useMemo(() => createHarnessBackend(sessionsRef), []);
 
   return (
     <ThemeProvider theme={theme}>
@@ -162,7 +328,7 @@ export function SessionFiltersPopoverHarness(): React.JSX.Element {
           backend={backend}
           cachedSessions={SESSION_SUMMARIES}
           cachedLastLoadedAt={1}
-          isOnline={false}
+          isOnline
           followActiveTabEnabled={false}
           onUpdateCache={() => {}}
           onOpenSessionTab={() => {}}
