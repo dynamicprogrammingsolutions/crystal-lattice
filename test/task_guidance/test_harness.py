@@ -13,9 +13,12 @@ if str(HERE) not in sys.path:
 from harness import (  # noqa: E402
     MutationBudget,
     PREMADE_TASK_TEMPLATE,
+    assert_no_execution_approval,
     assert_draft_execution_plan,
     assert_no_execution_plan,
+    assert_no_lifecycle_notes,
     assert_task_prefix,
+    compiled_system_message,
     describe_tool_call,
     requirements_section,
 )
@@ -113,6 +116,14 @@ def test_default_creation_rejects_an_execution_plan() -> None:
             )
 
 
+def test_default_creation_rejects_plan_status_without_plan_heading() -> None:
+    with pytest.raises(AssertionError, match="plan status metadata"):
+        assert_no_execution_plan(
+            "# Demo\n\nDescription.\n\n## Requirements checklist\n\n"
+            "- [ ] Outcome.\n\nStatus: Draft\n"
+        )
+
+
 def test_task_prefix_rejects_status_before_requirements() -> None:
     with pytest.raises(AssertionError, match="status metadata"):
         assert_task_prefix(
@@ -149,6 +160,86 @@ No change.
 """
 
     assert_draft_execution_plan(text)
+
+
+def test_draft_plan_requires_status_immediately_below_heading() -> None:
+    text = """\
+# Demo
+
+Description.
+
+## Requirements checklist
+
+- [ ] Outcome.
+
+## Execution plan
+
+Approach.
+
+Status: Draft
+
+### Requirement verification
+
+Evidence.
+
+### Documentation
+
+No change.
+
+### Task checklist
+
+- [ ] Execute.
+"""
+
+    with pytest.raises(AssertionError, match="immediately below"):
+        assert_draft_execution_plan(text)
+
+
+def test_planning_rejects_lifecycle_notes() -> None:
+    for heading in ("## Implementation Notes", "## Completion notes"):
+        with pytest.raises(AssertionError, match="lifecycle|implementation"):
+            assert_no_lifecycle_notes(f"# Demo\n\n{heading}\n")
+
+
+def test_task_creation_rejects_inferred_execution_approval() -> None:
+    for text in (
+        "I will record the approved implementation plan.",
+        "The execution is approved, so I created the task.",
+        "Your approval allows implementation to start.",
+    ):
+        with pytest.raises(AssertionError, match="inferred"):
+            assert_no_execution_approval(text)
+
+    assert_no_execution_approval("Created the requested task file.")
+    assert_no_execution_approval(
+        "You asked for the task file only, not to track the plan as "
+        "Draft/Approved."
+    )
+
+
+def test_compiled_system_message_prefers_request_instructions() -> None:
+    captured = compiled_system_message(
+        [{"role": "system", "content": "fallback"}],
+        {"request": {"instructions": "compiled instructions"}},
+    )
+
+    assert captured == ("request.instructions", "compiled instructions")
+
+
+def test_compiled_system_message_reads_rendered_request_messages() -> None:
+    captured = compiled_system_message(
+        [],
+        {
+            "request": {
+                "messages": [
+                    {"role": "system", "content": "compiled system"},
+                    {"role": "user", "content": "hello"},
+                ]
+            }
+        },
+    )
+
+    assert captured == ("request.messages", "compiled system")
 
 
 def test_mutation_budget_applies_to_rebuilt_core_instances() -> None:

@@ -43,7 +43,16 @@ Artifacts are retained under:
 tmp/task-guidance-eval/runs/<run-id>/<scenario>/<model>/
 ```
 
-Each case records prompts, assistant responses, task files, Git state and diff, session snapshots, events, tool telemetry, run metadata, and `review-template.md`.
+Each run and case records the exact guidance as `TASKS.md`. Each case also records prompts, assistant responses, task files, Git state and diff, session snapshots, events, tool telemetry, run metadata, the actual request-time compiled system/developer message, and `review-template.md`.
+
+Prepare an easy-to-review bundle from any saved run:
+
+```bash
+python test/task_guidance/prepare_review_bundle.py \
+  tmp/task-guidance-eval/runs/<run-id>
+```
+
+The bundle is written to `tmp/task-guidance-eval/review-bundles/<run-id>/`. It includes a message transcript with commentary and intervening tool-call counts, the exact `TASKS.md`, the compiled system/developer message, the generated task file and full session, and mechanical assertions in Markdown and JSON. Older ChatGPT artifacts that predate request-time prompt capture are reconstructed from their preserved config and worktree, with that provenance recorded explicitly.
 
 The checkout cache lives under `tmp/task-guidance-eval/repo-cache/`. Each case receives a fresh detached worktree at the pinned commit.
 

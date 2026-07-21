@@ -10,6 +10,8 @@ Task files are a handoff mechanism between agents. A new agent executing a task 
 
 ## Creating task files (handoff author)
 
+Create or modify a task file only when the user requests task-file tracking or names a task file to work from.
+
 When you are asked to create task files:
 1. Confirm which format the user wants: a single task file, or a main task with subtasks.
 2. Review the work/research you already did related to the task (what you inspected, what you learned, what you ruled out).
@@ -25,7 +27,7 @@ At the start of each task file:
 - After the requirements, include any useful research, constraints, references, or design details in any appropriate format, before any execution plan.
 - Include enough prior findings that the completing agent does not need to rediscover them.
 
-Do not add an execution plan by default. If the user asks to preserve preliminary planning, add it as a draft. If the user asks to create a task to track work whose plan and execution are already approved, include the approved plan and task checklist.
+Creating or updating a task file does not request or approve a plan or execution. For an ordinary task-creation request, include requirements and handoff details but stop before `## Execution plan`; prior discussion does not authorize storing its plan. Add a plan only when the current user request explicitly says to include, save, preserve, or track it. Record preserved preliminary planning as `Draft`; use `Approved` only when the user already approved execution and asks for a task file to track it.
 
 ### Status tracking
 
@@ -83,7 +85,7 @@ Example:
 
 ## Execution plans
 
-An execution plan begins with `Status: Draft` or `Status: Approved` and keeps `### Requirement verification`, `### Documentation`, and `### Task checklist` as separate parts.
+Use `## Execution plan`, followed immediately by `Status: Draft` or `Status: Approved`, and keep `### Requirement verification`, `### Documentation`, and `### Task checklist` as separate parts. During planning, do not add implementation- or completion-notes sections at any heading level; add `## Implementation Notes` only after execution starts and `## Completion Notes` only after completion.
 
 - `Draft` records planning but does not authorize execution.
 - `Approved` means the user has approved execution of that plan.
@@ -96,9 +98,9 @@ Before requesting approval, write the complete plan into the task file as `Draft
 - Explain the outcome, scope by affected area, approach, and decisions about user-visible behavior, interfaces, contracts, ownership, or extraction boundaries.
 - **Requirement verification:** For each requirement or coherent requirement group, identify the planned evidence, including the test type and boundary where tests apply. Do not burden the summary with tests of internal implementation details unless they affect an important risk or decision.
 - **Documentation:** Explain the intended audience, what documentation will be added or changed, and what usage, behavior, or interface it will make understandable without reading source code or unrelated examples. State when no documentation change is planned.
-- Identify material risks, exclusions, and open questions.
+- Present every material decision requiring user confirmation and name the recommended choice explicitly rather than generalizing it; also include material risks, exclusions, and open questions.
 
-Describe conceptual changes rather than a file inventory unless a location is itself an important decision. Apply requested changes to the draft, and explicitly state that execution will begin after approval.
+Describe conceptual changes rather than a file inventory unless a location is itself an important decision. Apply requested changes to the draft. End the response by explicitly asking the user to approve the plan and stating that execution will begin only after approval.
 
 ## Completing task files (handoff executor)
 

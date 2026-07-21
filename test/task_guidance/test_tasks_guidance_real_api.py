@@ -17,9 +17,12 @@ from harness import (  # noqa: E402
     CREATE_TASK_PROMPT,
     TASK_PROMPT,
     ModelCase,
+    assistant_text_after_last_user,
     assert_approval_response,
     assert_draft_execution_plan,
+    assert_no_execution_approval,
     assert_no_execution_plan,
+    assert_no_lifecycle_notes,
     assert_only_changed_paths,
     assert_task_prefix,
     chatgpt_credentials_path,
@@ -161,7 +164,8 @@ def test_create_task_file_after_prior_plan_uses_default_no_plan_case(
         text = task_path.read_text(encoding="utf-8")
         assert_task_prefix(text)
         assert_no_execution_plan(text)
-        assert "## Completion Notes" not in text
+        assert_no_lifecycle_notes(text)
+        assert_no_execution_approval(assistant_text_after_last_user(second.session))
         assert running.mutation_budget.calls, "expected a task-file mutation call"
         assert len(running.mutation_budget.calls) <= mutation_call_limit()
         assert second.response.strip()
@@ -174,7 +178,9 @@ def test_create_task_file_after_prior_plan_uses_default_no_plan_case(
         raise
     finally:
         if running is not None:
+            running.prompt_capture.uninstall()
             running.mutation_budget.uninstall()
+            running.app.close()
 
 
 @pytest.mark.parametrize("model_case", _model_params())
@@ -227,4 +233,6 @@ def test_existing_task_gets_draft_plan_before_approval_response(
         raise
     finally:
         if running is not None:
+            running.prompt_capture.uninstall()
             running.mutation_budget.uninstall()
+            running.app.close()

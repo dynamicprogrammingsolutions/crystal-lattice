@@ -140,6 +140,71 @@ class MutationBudget:
         self._wrapper = None
 
 
+@dataclass
+class SystemPromptCapture:
+    case_dir: Path
+    snapshots: list[dict[str, Any]] = field(default_factory=list)
+    _core_class: type[Any] | None = field(default=None, init=False, repr=False)
+    _original: Any = field(default=None, init=False, repr=False)
+    _wrapper: Any = field(default=None, init=False, repr=False)
+
+    def install(self, core: Any) -> None:
+        core_class = type(core)
+        original = core_class._pre_request
+
+        def capture_pre_request(
+            core_instance: Any,
+            *args: Any,
+            **kwargs: Any,
+        ) -> Any:
+            result = original(core_instance, *args, **kwargs)
+            if isinstance(result, tuple) and len(result) >= 3:
+                native_messages = result[1]
+                state = result[2]
+                captured = compiled_system_message(native_messages, state)
+                if captured is not None:
+                    source, content = captured
+                    snapshot = {
+                        "source": source,
+                        "sha256": hashlib.sha256(
+                            content.encode("utf-8")
+                        ).hexdigest(),
+                        "content": content,
+                    }
+                    if not self.snapshots or self.snapshots[-1] != snapshot:
+                        self.snapshots.append(snapshot)
+                        self.write_artifacts()
+            return result
+
+        self._core_class = core_class
+        self._original = original
+        self._wrapper = capture_pre_request
+        core_class._pre_request = capture_pre_request
+
+    def write_artifacts(self) -> None:
+        if not self.snapshots:
+            return
+        self.case_dir.joinpath("compiled-system-message.md").write_text(
+            self.snapshots[0]["content"].rstrip() + "\n",
+            encoding="utf-8",
+        )
+        write_json(
+            self.case_dir / "compiled-system-messages.json",
+            self.snapshots,
+        )
+
+    def uninstall(self) -> None:
+        if (
+            self._core_class is not None
+            and self._original is not None
+            and self._core_class._pre_request is self._wrapper
+        ):
+            self._core_class._pre_request = self._original
+        self._core_class = None
+        self._original = None
+        self._wrapper = None
+
+
 @dataclass(frozen=True)
 class RunningAgent:
     app: AgentApplication
@@ -147,6 +212,7 @@ class RunningAgent:
     base_config: dict[str, Any]
     session: Session
     mutation_budget: MutationBudget
+    prompt_capture: SystemPromptCapture
 
 
 @dataclass(frozen=True)
@@ -263,6 +329,14 @@ def prepare_case(
         raise AssertionError(f"unexpected checkout: {checked_out}")
 
     selected_guidance = guidance_path()
+    _write_or_verify_guidance_snapshot(
+        EVAL_ROOT / "runs" / run_id / "TASKS.md",
+        selected_guidance,
+    )
+    _write_or_verify_guidance_snapshot(
+        case_dir / "TASKS.md",
+        selected_guidance,
+    )
     config_dir = case_dir / "config"
     shutil.copytree(
         DEFAULT_CONFIG_DIR,
@@ -337,6 +411,7 @@ def prepare_case(
             "case_base_commit": base_commit,
             "guidance_path": str(selected_guidance),
             "guidance_sha256": _sha256(selected_guidance),
+            "guidance_snapshot": "TASKS.md",
             "mutation_call_limit": mutation_call_limit(),
             "tool_loop_limit": tool_loop_limit(),
         },
@@ -400,12 +475,15 @@ def start_agent(prepared: PreparedCase) -> RunningAgent:
 
     budget = MutationBudget(limit=mutation_call_limit())
     budget.install(core)
+    prompt_capture = SystemPromptCapture(case_dir=prepared.case_dir)
+    prompt_capture.install(core)
     return RunningAgent(
         app=app,
         core=core,
         base_config=base_config,
         session=session,
         mutation_budget=budget,
+        prompt_capture=prompt_capture,
     )
 
 
@@ -646,6 +724,10 @@ def assert_no_execution_plan(text: str) -> None:
         raise AssertionError(
             "default task creation unexpectedly included an execution plan"
         )
+    if re.search(r"(?im)^Status:\s*(?:Draft|Approved)\s*$", text):
+        raise AssertionError(
+            "default task creation unexpectedly included plan status metadata"
+        )
 
 
 def assert_draft_execution_plan(text: str) -> None:
@@ -653,8 +735,15 @@ def assert_draft_execution_plan(text: str) -> None:
     if match is None:
         raise AssertionError("missing ## Execution plan")
     plan = text[match.start() :]
-    if not re.search(r"(?m)^Status:\s*Draft\s*$", plan):
-        raise AssertionError("execution plan is not marked Draft")
+    lines = plan.splitlines()
+    first_content = next(
+        (line.strip() for line in lines[1:] if line.strip()),
+        "",
+    )
+    if first_content != "Status: Draft":
+        raise AssertionError(
+            "Status: Draft must appear immediately below ## Execution plan"
+        )
     for heading in (
         "### Requirement verification",
         "### Documentation",
@@ -665,11 +754,50 @@ def assert_draft_execution_plan(text: str) -> None:
     task_checklist = plan[plan.index("### Task checklist") :]
     if "- [ ]" not in task_checklist:
         raise AssertionError("task checklist has no incomplete execution tasks")
+    assert_no_lifecycle_notes(text)
+
+
+def assert_no_lifecycle_notes(text: str) -> None:
     if re.search(
         r"(?im)^#{2,6}\s+(?:implementation|completion)\s+notes\b",
-        plan,
+        text,
     ):
-        raise AssertionError("planning-only response added implementation/completion notes")
+        raise AssertionError(
+            "planning-only work added implementation/completion notes"
+        )
+
+
+def assistant_text_after_last_user(session: Session) -> str:
+    last_user_index = -1
+    for index, message in enumerate(session.messages):
+        if message.role == "user":
+            last_user_index = index
+    parts = [
+        message.content
+        for message in session.messages[last_user_index + 1 :]
+        if message.role == "assistant"
+        and isinstance(message.content, str)
+        and message.content.strip()
+    ]
+    return "\n\n".join(parts)
+
+
+def assert_no_execution_approval(text: str) -> None:
+    normalized = re.sub(r"\s+", " ", text).strip().lower()
+    approval_patterns = (
+        r"\bapproved\s+(?:(?:the|this|that)\s+)?"
+        r"(?:plan|execution|implementation)\b",
+        r"\b(?:plan|execution|implementation)\s+"
+        r"(?:is|was|has been|had been|is already|was already)\s+approved\b",
+        r"\bapproval\b.{0,40}\b(?:allows?|authori[sz]es?|permits?|to)\b"
+        r".{0,20}\b(?:begin|start|execute|execution|implement|implementation)\b",
+        r"\b(?:treat|treated|take|took|consider|considered)\b.{0,40}"
+        r"\b(?:as\s+)?approval\b",
+    )
+    if any(re.search(pattern, normalized) for pattern in approval_patterns):
+        raise AssertionError(
+            "task-file creation response inferred plan or execution approval"
+        )
 
 
 def assert_approval_response(response: str) -> None:
@@ -700,6 +828,27 @@ def collect_tool_calls(session: Session) -> list[dict[str, Any]]:
                 }
             )
     return collected
+
+
+def compiled_system_message(
+    native_messages: Any,
+    state: Any,
+) -> tuple[str, str] | None:
+    request = state.get("request") if isinstance(state, Mapping) else None
+    if isinstance(request, Mapping):
+        instructions = request.get("instructions")
+        if isinstance(instructions, str) and instructions.strip():
+            return "request.instructions", instructions
+
+        request_messages = request.get("messages")
+        rendered = _system_message_text(request_messages)
+        if rendered:
+            return "request.messages", rendered
+
+    rendered = _system_message_text(native_messages, prefer_compiled_metadata=True)
+    if rendered:
+        return "native_messages", rendered
+    return None
 
 
 def describe_tool_call(call: Mapping[str, Any]) -> dict[str, Any]:
@@ -764,6 +913,69 @@ def write_json(path: Path, payload: Any) -> None:
         json.dumps(jsonable(payload), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def _system_message_text(
+    messages: Any,
+    *,
+    prefer_compiled_metadata: bool = False,
+) -> str:
+    if not isinstance(messages, list):
+        return ""
+    sections: list[tuple[str, str]] = []
+    for message in messages:
+        if not isinstance(message, Mapping):
+            continue
+        role = message.get("role")
+        if role not in {"system", "developer"}:
+            continue
+        content = ""
+        if prefer_compiled_metadata:
+            metadata = message.get("_metadata")
+            if isinstance(metadata, Mapping):
+                compiled = metadata.get("compiled_content")
+                if isinstance(compiled, str):
+                    content = compiled
+        if not content:
+            content = _message_content_text(message.get("content"))
+        if content.strip():
+            sections.append((str(role), content))
+    if len(sections) == 1:
+        return sections[0][1]
+    return "\n\n".join(
+        f"## {role}\n\n{content.rstrip()}" for role, content in sections
+    )
+
+
+def _message_content_text(content: Any) -> str:
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    parts: list[str] = []
+    for part in content:
+        if isinstance(part, str):
+            parts.append(part)
+            continue
+        if not isinstance(part, Mapping):
+            continue
+        text = part.get("text")
+        if isinstance(text, str):
+            parts.append(text)
+    return "\n".join(parts)
+
+
+def _write_or_verify_guidance_snapshot(target: Path, source: Path) -> None:
+    content = source.read_text(encoding="utf-8")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if target.exists():
+        existing = target.read_text(encoding="utf-8")
+        if existing != content:
+            raise AssertionError(
+                f"run id already uses a different task-guidance version: {target}"
+            )
+        return
+    target.write_text(content, encoding="utf-8")
 
 
 def _configure_case(
