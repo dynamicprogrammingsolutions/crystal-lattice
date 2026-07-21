@@ -593,30 +593,36 @@ def _review_prompt(
     )
     requirements = PREMADE_TASK_TEMPLATE.read_text(encoding="utf-8")
     return f"""\
-Review this task-guidance evaluation artifact. This is an empirical review for
-a human; do not modify files and do not treat your judgment as an automated
-test result.
+Review this task-guidance evaluation artifact for instruction clarity and
+compliance only. This is an empirical review for a human; do not modify files
+and do not treat your judgment as an automated test result.
 
 Scenario: {metadata.get("scenario")}
 Model under review: {metadata.get("model")}
 
-Evaluate:
-- whether requirements remain concise, complete, and unchanged without approval;
-- whether factual research and supporting details were retained;
-- whether open questions are correctly separated into requirement questions and
-  design decisions;
-- whether requirement questions were silently answered;
-- whether material design decisions are exposed with a recommendation and
-  tradeoffs;
-- for retain-plan, whether the execution plan is separate and follows every
-  requirement;
-- for omit-plan, whether supporting context remains but execution-plan content
-  is absent in substance;
-- for existing-task planning, whether the plan satisfies R1-R5 without
-  broadening, narrowing, or reinterpreting them.
+Evaluate only understanding of the task-file instructions:
+- whether requirements are outcomes or constraints rather than execution tasks;
+- whether supporting details explain requirements without becoming hidden
+  requirements or relabeled execution steps;
+- whether the requested retain-plan or omit-plan handoff is followed in
+  substance, not only by heading names;
+- whether requirement verification states the requirement or group, evidence
+  type, and test boundary without overwhelming the user with internal tests;
+- whether documentation is presented separately with its audience and intended
+  use, or explicitly declared unnecessary;
+- whether the user-facing response is self-contained and easier to review than
+  the full stored plan.
 
-Return Markdown with: Overall judgment, Requirement alignment, Handoff content,
-Questions and decisions, Plan boundary, and Human follow-up.
+Do not judge whether repository findings are correct, whether the implementation
+approach is good, whether tests are technically sufficient, whether the plan
+actually satisfies the requirements, or whether the model identified the best
+design decisions. Record such observations separately as outside this review
+and do not use them in the overall guidance-compliance judgment.
+
+Return Markdown with: Overall guidance compliance, Requirements versus tasks,
+Supporting details versus plan, Verification and documentation presentation,
+Guidance ambiguities, Model reasoning issues outside this review, and Human
+follow-up.
 
 Reference task fixture:
 

@@ -14,6 +14,7 @@ from prepare_review_bundle import evaluate_case  # noqa: E402
 from task_guidance_eval import (  # noqa: E402
     _csv_steps,
     _ollama_review,
+    _review_prompt,
     _session_sha256,
     build_parser,
 )
@@ -77,6 +78,12 @@ def _base_case(
     metadata["fork_parent_session_sha256"] = hashlib.sha256(
         json.dumps(parent, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
+    _write_json(case_dir / "metadata.json", metadata)
+    _write_json(case_dir / "session-2.json", session)
+    case_dir.joinpath("assertions.md").write_text(
+        "# Assertions\n",
+        encoding="utf-8",
+    )
     return case_dir, metadata, session
 
 
@@ -202,7 +209,7 @@ No user-facing documentation change.
 
     assert not [result for result in results if result.status == "FAIL"]
     assert any(
-        result.name == "Retained plan follows the requirements"
+        result.name == "Requirements and execution tasks are kept conceptually separate"
         and result.status == "MANUAL"
         for result in results
     )
@@ -244,3 +251,39 @@ Description.
         and result.status == "MANUAL"
         for result in results
     )
+
+
+def test_empirical_prompt_excludes_model_quality_judgments(
+    tmp_path: Path,
+) -> None:
+    task = """\
+# Demo
+
+Description.
+
+## Requirements checklist
+
+- [ ] R1: Resolve home paths.
+- [ ] R2: Preserve existing behavior.
+
+## Supporting details
+
+`AbsolutePathBufGuard` is absent from `parse_managed_requirements_base64`.
+"""
+    case_dir, metadata, _ = _base_case(
+        tmp_path,
+        scenario="create-task-omit-plan",
+        task_text=task,
+        response="Created the requested handoff.",
+    )
+
+    prompt = _review_prompt(case_dir=case_dir, metadata=metadata)
+    normalized = " ".join(prompt.split())
+
+    assert "instruction clarity and compliance only" in normalized
+    assert (
+        "requirements are outcomes or constraints rather than execution tasks"
+        in normalized
+    )
+    assert "Do not judge whether repository findings are correct" in normalized
+    assert "whether the plan satisfies R1-R5" not in prompt

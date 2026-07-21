@@ -377,10 +377,10 @@ def evaluate_case(
                 lambda: requirement_ids_present(requirement_verification_text()),
             )
             manual(
-                "Retained plan follows the requirements",
+                "Requirements and execution tasks are kept conceptually separate",
                 (
-                    "Confirm the plan satisfies each requirement without "
-                    "broadening, narrowing, or reinterpreting it."
+                    "Confirm requirements remain outcomes or constraints while "
+                    "the execution plan contains the ordered work."
                 ),
             )
         elif scenario == "create-task-omit-plan" and task_text:
@@ -407,10 +407,10 @@ def evaluate_case(
                 ),
             )
         manual(
-            "Questions and decisions are classified correctly",
+            "Supporting details do not hide requirements or execution tasks",
             (
-                "Confirm requirement questions are not silently answered and "
-                "material design decisions are exposed for human review."
+                "Confirm supporting details explain the handoff without adding "
+                "untracked completion conditions or relabeled plan steps."
             ),
         )
     elif scenario == "create-task-after-plan":
@@ -470,18 +470,18 @@ def evaluate_case(
             lambda: assert_approval_response(response_text),
         )
         manual(
-            "Questions and decisions are classified correctly",
+            "Requirements and execution tasks are kept conceptually separate",
             (
-                "Confirm requirement questions are not silently answered and "
-                "material design decisions are exposed with a recommendation "
-                "and relevant tradeoffs."
+                "Confirm requirements remain outcomes or constraints while "
+                "the execution plan contains the ordered work."
             ),
         )
         manual(
-            "Stored plan follows every requirement",
+            "Plan presentation follows the required review format",
             (
-                "Confirm the plan satisfies R1-R5 without broadening, narrowing, "
-                "or reinterpreting them."
+                "Confirm requirement verification, documentation, and the "
+                "user-facing summary are presented at the requested level of "
+                "detail without judging their technical quality."
             ),
         )
     else:

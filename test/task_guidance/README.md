@@ -90,8 +90,9 @@ visible through the command's nonzero exit status.
 Mechanical checks intentionally stay small: expected task structure, fork
 provenance, requirement identifiers, retained factual research markers,
 requirement-verification traceability, allowed mutations, and absence/presence
-of the requested execution plan. Semantic requirement alignment remains an
-empirical human-reviewed judgment.
+of the requested execution plan. The empirical review checks only whether the
+task-guidance concepts and requested presentation were understood; it does not
+judge technical correctness or model quality.
 
 ## Separate GLM empirical review
 
@@ -101,9 +102,12 @@ python test/task_guidance/task_guidance_eval.py review \
 ```
 
 The reviewer receives the saved task, response, fixture requirements, and
-mechanical assertions. It writes `empirical-review.md` and the raw request and
-response artifacts, but its judgment does not control the command exit status.
-Humans decide whether the behavior is acceptable. Add `--bundle` to prepare the
+mechanical assertions. It checks distinctions such as requirements versus
+execution tasks and supporting details versus an execution plan. It explicitly
+does not judge repository understanding, implementation quality, technical test
+adequacy, or whether the plan is a good solution. It writes
+`empirical-review.md` and the raw request and response artifacts, but its
+judgment does not control the command exit status. Add `--bundle` to prepare the
 review bundle immediately afterward.
 
 ## Review bundle
