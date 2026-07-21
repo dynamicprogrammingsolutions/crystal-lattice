@@ -68,14 +68,16 @@ def test_session_ordering_buckets_action_computes_fields(
     )
 
     fields = result.get("session_list_fields") or {}
+    assert fields.get("recent_archived_rank") == 0
     assert fields.get("updated_24h_rank") == 0
     assert fields.get("pinned_rank") == 0
     assert isinstance(fields.get("last_updated_sort_key"), (int, float))
 
     specs = result.get("session_list_order") or []
-    assert isinstance(specs, list) and len(specs) == 3
+    assert isinstance(specs, list) and len(specs) == 4
     keys = [s.get("key") for s in specs]
     assert keys == [
+        "recent_archived_rank",
         "updated_24h_rank",
         "pinned_rank",
         "last_updated_sort_key",
@@ -99,7 +101,7 @@ def test_session_ordering_buckets_falls_back_to_modified(
     # No session_updated_at; must use modified.
     summary = {
         "modified": fake_now - 7200,
-        "metadata": {"pinned": False},
+        "metadata": {"pinned": False, "archived": True},
     }
 
     result = app.execute_application_action(
@@ -109,6 +111,7 @@ def test_session_ordering_buckets_falls_back_to_modified(
     )
 
     fields = result.get("session_list_fields") or {}
+    assert fields.get("recent_archived_rank") == 1
     assert fields.get("updated_24h_rank") == 0  # within 24h via modified
     assert fields.get("pinned_rank") == 1
     assert fields.get("last_updated_sort_key") == -(fake_now - 7200)
@@ -127,6 +130,7 @@ def test_session_ordering_buckets_uses_configured_metadata_key(
         {
             "application": {
                 "session_pinned_metadata_key": "favorite",
+                "session_archived_metadata_key": "hidden",
             }
         }
     )
@@ -137,7 +141,7 @@ def test_session_ordering_buckets_uses_configured_metadata_key(
             "session_id": "custom",
             "session_summary": {
                 "modified": fake_now - 7200,
-                "metadata": {"favorite": True},
+                "metadata": {"favorite": True, "hidden": True},
             },
         },
         state,
@@ -145,3 +149,4 @@ def test_session_ordering_buckets_uses_configured_metadata_key(
 
     fields = result.get("session_list_fields") or {}
     assert fields.get("pinned_rank") == 0
+    assert fields.get("recent_archived_rank") == 1

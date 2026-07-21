@@ -613,3 +613,172 @@ The rich status action existed in the native popover; its click failed only
 because that system dialog covered it. Dismiss the host dialog, then rerun
 `npm run test:macos-ui:session-filters` before recording desktop visual
 verification.
+
+## Archive ordering follow-up
+
+### Requirements checklist
+
+- [x] Sessions archived within the approved age window sort below
+  non-archived sessions in the shared application session-list order.
+- [x] Archive-derived ordering does not affect sessions older than the
+  approved two-month boundary; those sessions retain the existing recency,
+  pin-rank, and last-updated ordering behavior.
+- [x] Archive ordering reads the same configurable
+  `application.session_archived_metadata_key` as `session-archive-app`, with
+  missing or non-`true` metadata treated as not archived.
+- [x] HTTP, terminal, mobile, and desktop receive the same order through the
+  existing application listing pipeline; client-side filtering preserves it.
+- [x] The ordering contract and plugin documentation describe archive rank,
+  its age exemption, and its configured metadata key.
+- [x] Automated coverage proves rank calculation, exact age-boundary
+  behavior, configured-key handling, composed ordering, and the public
+  application/HTTP result.
+
+### Supporting details and recommended decisions
+
+`session-ordering-buckets-app` is the sole ordering contributor. It currently
+computes `updated_24h_rank`, `pinned_rank`, and
+`last_updated_sort_key`; the shared application listing service applies those
+specifications before filters, and frontends preserve the returned sequence.
+`session-archive-app` already owns `application.session_archived_metadata_key`
+and defaults its archive filter to false, so the new rank is observable when
+the archive filter is set to Any or Archived.
+
+Recommended semantics, requiring approval with this draft:
+
+- Treat “two months” as a rolling fixed 60-day (`60 * 24 * 60 * 60`) window,
+  not calendar-month arithmetic. This is deterministic for epoch timestamps
+  and matches the ordering plugin's existing seconds-based 24-hour window.
+- Reuse the plugin's existing effective last-updated timestamp:
+  `session_updated_at` when `session_order_use_updated_at` is enabled and
+  valid, otherwise `modified`; an unusable timestamp remains the existing
+  neutral `0` and is therefore age-exempt.
+- A summary whose age is exactly 60 days remains in the archive-ordering
+  window. Only an age greater than 60 days is exempt.
+- Add `recent_archived_rank`: `1` only for archived summaries in that window,
+  otherwise `0`. Emit it at priority 5, before the existing recency (10),
+  pin (20), and last-updated (30) ranks. This is the recommended reading of
+  “sorted lower than other sessions”: a recent archived session is below every
+  non-archived session, not merely below one inside its current recency
+  bucket. An older archived session receives `0` and is ordered solely by the
+  existing ranks.
+- Do not add a new user setting or frontend-specific ordering. The two-month
+  policy is fixed for this feature; the existing shared archive metadata-key
+  setting remains the only configuration surface.
+
+## Execution plan
+
+Status: Approved
+
+### Component and module boundaries
+
+Extend only `plugins/session-ordering-buckets-app`:
+
+1. Declare and resolve `session_archived_metadata_key` with the same
+   normalization/default as `session-archive-app`, alongside the existing
+   configured pin key.
+2. Compute `recent_archived_rank` from the resolved archive metadata and
+   effective last-updated timestamp, then emit it as the first contributed
+   order specification.
+3. Leave `core/python/agent_app/session_listing.py`, the HTTP route, terminal,
+   frontend SDK, and graphical frontends unchanged. They already compose and
+   preserve contributed ordering before filtering.
+
+This avoids duplicating archive-state interpretation in clients and preserves
+the archive plugin as the owner of mutation/filter declarations while the
+ordering plugin remains the owner of rank calculation.
+
+### Implementation approach
+
+1. Update the ordering plugin's module documentation, schema, initialized
+   state, and action description to describe archive-aware ranking.
+2. Reuse the current effective-update computation and strict `is True`
+   metadata interpretation to derive the new rank. Preserve all existing
+   order fields and priorities after inserting the archive rank at priority 5.
+3. Extend the ordering plugin unit tests with frozen time for recent active,
+   recent archived, exactly-60-day archived, older archived, missing archive
+   metadata, custom archive metadata key, and the
+   `session_updated_at`/`modified` fallback path. Put rank/priority assertions
+   in `plugins/session-ordering-buckets-app/tests/test_session_ordering_buckets_app_bucket_logic.py`
+   and configuration/initialized-state assertions in
+   `plugins/session-ordering-buckets-app/tests/test_session_ordering_buckets_app_plugin_unit.py`,
+   alongside the existing ordering tests.
+4. Extend application/HTTP session-list coverage with both archive and
+   ordering plugins installed. Verify the complete unfiltered/Any archive
+   sequence, confirm the default archive filter remains unchanged, and use a
+   custom archive metadata key so the archive action/filter/order consumers
+   cannot drift. Add this to
+   `application/python/tests/test_session_list_http_contract.py` next to
+   `test_session_list_http_contract_orders_configured_pinned_metadata`.
+5. Update the ordering and archive plugin READMEs and the relevant
+   contributed-ordering documentation to state the rank priority and
+   two-month exemption. No bundled default configuration change is planned
+   because the existing archive metadata-key default is sufficient.
+
+### Requirement verification
+
+- Rank and boundary semantics:
+  `plugins/session-ordering-buckets-app/tests/test_session_ordering_buckets_app_bucket_logic.py`
+  with `time.time` fixed at a deterministic epoch.
+- Plugin configuration and configured-key state:
+  `plugins/session-ordering-buckets-app/tests/test_session_ordering_buckets_app_plugin_unit.py`.
+- Shared ordering behavior: application/HTTP integration coverage exercising
+  the public `/sessions` response and direct application query with archive
+  filtering disabled in
+  `application/python/tests/test_session_list_http_contract.py`.
+- Configured metadata key: integration fixture sets
+  `session_archived_metadata_key` to a non-default key and verifies the
+  archive action/filter/order use it consistently.
+- Consumer parity: existing shared listing architecture is retained; the
+  integration test proves the HTTP boundary and existing terminal/frontend
+  tests establish that consumers delegate to and preserve application order.
+  No UI-specific test is needed because no UI code or local sort is changed.
+
+### Documentation
+
+Update the ordering plugin README for users configuring archive and pin
+metadata keys, the archive plugin README to explain its ordering interaction,
+and the plugin action/order documentation for plugin authors. The docs will
+make clear that archive ordering applies only to recently updated summaries
+and does not alter the default archive filter.
+
+### Task checklist
+
+- [x] Confirm the recommended 60-day, effective-update, global-priority, and
+  exact-boundary semantics through plan approval.
+- [x] Implement archive rank and shared archive metadata-key resolution in the
+  ordering plugin.
+- [x] Add unit and application/HTTP regression tests.
+- [x] Update documentation and run the focused plugin, application/HTTP, and
+  documentation-build verification.
+- [x] Record evidence and any relevant manual observation in completion notes.
+
+### Archive ordering follow-up completion notes
+
+Completed on July 21, 2026.
+
+- `session-ordering-buckets-app` now emits `recent_archived_rank` at priority
+  5. It is `1` only for a literal `True` archive value whose effective
+  last-updated timestamp is at most 60 days old; it is `0` for active,
+  missing/non-boolean, and older archived summaries. The existing 24-hour,
+  pin, and last-updated ranks follow unchanged.
+- The ordering plugin now resolves
+  `application.session_archived_metadata_key` using the same default and
+  normalization as `session-archive-app`. No client, terminal, HTTP route, or
+  default configuration change was needed because all list consumers already
+  delegate to the shared application ordering pipeline.
+- Added direct ordering-plugin coverage for the new field/order priority,
+  exact 60-day boundary, one-second age exemption, `modified` fallback,
+  custom key, and non-boolean archive data. Added an HTTP/application
+  integration fixture that toggles archive through the configured custom key,
+  checks the complete public `/sessions` order, and proves the default archive
+  filter still hides both archived sessions.
+- Updated the ordering and archive plugin READMEs plus the contributed-order
+  documentation.
+
+Verification:
+
+- `pytest plugins/session-ordering-buckets-app/tests plugins/session-archive-app/tests application/python/tests/test_session_list_http_contract.py core/python/tests/test_application_session_listing.py -q` — 21 passed.
+- Focused Black and Ruff checks passed.
+- `python docs_site/scripts/prepare_mkdocs_site.py && mkdocs build -f docs_site/mkdocs.yml` passed, with the repository's existing Material, Pydantic, nav, and Griffe warnings.
+- `git diff --check` passed.

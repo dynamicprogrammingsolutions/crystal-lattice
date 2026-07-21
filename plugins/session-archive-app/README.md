@@ -19,6 +19,11 @@ enabled. Choose **Any** in the filter to show every session, or **Archived** to
 show only archived sessions. Sessions with no stored archive metadata behave as
 not archived.
 
+When `session-ordering-buckets-app` is also enabled, archived sessions updated
+within the last 60 days sort below non-archived sessions. It reads this
+plugin's same `application.session_archived_metadata_key`; archived sessions
+older than 60 days retain ordinary recency/pin ordering.
+
 Like all rich session-list actions, frontends that do not implement the rich
 toggle still execute the ordinary action (`dialog.kind: "none"`).
 

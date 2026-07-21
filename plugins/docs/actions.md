@@ -393,6 +393,13 @@ non-sortable/incompatible values invalidate only that specification.
 Ordering always occurs before filtering. Filtering preserves that order, and a
 query `limit` is applied after both.
 
+The built-in `session-ordering-buckets-app` uses this contract to place its
+`recent_archived_rank` at priority 5. With `session-archive-app` enabled, that
+rank moves archived summaries updated within the last 60 days below
+non-archived summaries. It reads
+`application.session_archived_metadata_key`; older archived summaries are
+exempt and keep the subsequent recency, pin, and last-updated ordering.
+
 ### Failure isolation and diagnostics
 
 A failed list-trigger action affects only that action for that session. Other

@@ -236,6 +236,127 @@ def test_session_list_http_contract_orders_configured_pinned_metadata(
         application.close()
 
 
+def test_session_list_http_contract_sorts_recent_archives_below_other_sessions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import session_ordering_buckets_app as ordering_module
+
+    fake_now = 1_700_000_000.0
+    monkeypatch.setattr(ordering_module.time, "time", lambda: fake_now)
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "providers": {
+                    "echo": {
+                        "provider": "echo_openai_like",
+                        "model": "test-model",
+                    }
+                },
+                "plugins": [
+                    "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+                    f"path:{ROOT / 'plugins' / 'session-archive-app'}",
+                    f"path:{ROOT / 'plugins' / 'session-ordering-buckets-app'}",
+                ],
+                "agents": {"default": {"provider": "echo"}},
+                "application": {
+                    "session_archived_metadata_key": "hidden",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    session_root = tmp_path / "sessions"
+    application = AgentApplication(str(config_path), str(session_root))
+    server_mod.app.dependency_overrides[server_mod.get_agent_app] = lambda: application
+    client = TestClient(server_mod.app)
+
+    try:
+        _save_session(
+            application,
+            session_id="recent-active",
+            preview="recent active preview",
+            metadata={"hidden": False},
+        )
+        _save_session(
+            application,
+            session_id="recent-archived",
+            preview="recent archived preview",
+            metadata={"hidden": False},
+        )
+        _save_session(
+            application,
+            session_id="old-active",
+            preview="old active preview",
+            metadata={"hidden": False},
+        )
+        _save_session(
+            application,
+            session_id="old-archived",
+            preview="old archived preview",
+            metadata={"hidden": True},
+        )
+
+        archive_result = application.execute_application_action(
+            plugin_id="session_archive",
+            action_id="toggle_session_archived",
+            params={"session_id": "recent-archived"},
+        )
+        assert archive_result["mutations"]["updated_session_ids"] == ["recent-archived"]
+
+        archive_window_seconds = 60 * 24 * 60 * 60
+        timestamps = {
+            "recent-active": fake_now - 3600,
+            "recent-archived": fake_now - 60,
+            "old-active": fake_now - archive_window_seconds,
+            "old-archived": fake_now - archive_window_seconds - 1,
+        }
+        for session_id, timestamp in timestamps.items():
+            path = session_root / f"{session_id}.json"
+            timestamp_ns = int(timestamp * 1_000_000_000)
+            os.utime(path, ns=(timestamp_ns, timestamp_ns))
+
+        response = client.get("/sessions")
+        assert response.status_code == 200
+        summaries = response.json()["sessions"]
+        assert [summary["session_id"] for summary in summaries] == [
+            "recent-active",
+            "old-active",
+            "old-archived",
+            "recent-archived",
+        ]
+        assert [summary["recent_archived_rank"] for summary in summaries] == [
+            0,
+            0,
+            0,
+            1,
+        ]
+        assert summaries[-1]["metadata"]["hidden"] is True
+        assert "archived" not in summaries[-1]["metadata"]
+
+        default_visible = application.list_session_summaries(apply_filter_defaults=True)
+        assert [summary["session_id"] for summary in default_visible] == [
+            "recent-active",
+            "old-active",
+        ]
+
+        all_sessions = application.list_session_summaries(
+            filter_values={"archive_state": None},
+            apply_filter_defaults=True,
+        )
+        assert [summary["session_id"] for summary in all_sessions] == [
+            "recent-active",
+            "old-active",
+            "old-archived",
+            "recent-archived",
+        ]
+    finally:
+        server_mod.app.dependency_overrides.clear()
+        application.close()
+
+
 def test_session_list_http_contract_isolates_a_malformed_record(
     session_list_http_client: Tuple[TestClient, AgentApplication, Path],
 ) -> None:

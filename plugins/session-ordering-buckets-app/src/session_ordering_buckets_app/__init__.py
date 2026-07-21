@@ -6,12 +6,16 @@ ordering when serving ``/sessions``.
 
 The default strategy is:
 
-1. Sessions updated within the last 24 hours.
-2. Then, among the rest, pinned sessions before unpinned.
-3. Within each bucket, order by last updated time (most recent first).
+1. Recently archived sessions below every other session.
+2. Sessions updated within the last 24 hours.
+3. Then, among the rest, pinned sessions before unpinned.
+4. Within each bucket, order by last updated time (most recent first).
 
 Ordering is expressed via numeric fields:
 
+* ``recent_archived_rank`` – 1 for archived sessions updated within the last
+  60 days, 0 otherwise. Older archived sessions are exempt from archive
+  ordering.
 * ``updated_24h_rank`` – 0 for sessions updated in the last 24h, 1 otherwise.
 * ``pinned_rank`` – 0 when the configured session metadata value is pinned,
   1 for unpinned or missing.
@@ -30,11 +34,14 @@ if TYPE_CHECKING:  # pragma: no cover - import cycle guard
     from agent_app.application_future import AgentApplication
 
 
+RECENT_ARCHIVE_WINDOW_SECONDS = 60 * 24 * 60 * 60
+
+
 class SessionOrderingBucketsAppPlugin:
     """Application plugin that defines a bucketed ordering strategy."""
 
     name = "session_ordering_buckets"
-    version = "1.0.0"
+    version = "1.1.0"
 
     def __init__(self) -> None:  # pragma: no cover - trivial initializer
         self._state: Dict[str, Any] = {}
@@ -63,6 +70,15 @@ class SessionOrderingBucketsAppPlugin:
                     "This should match session-pinned-app and defaults to 'pinned'."
                 ),
                 "default": "pinned",
+            },
+            "session_archived_metadata_key": {
+                "type": "string",
+                "description": (
+                    "Session metadata key used to determine archive ordering. "
+                    "This should match session-archive-app and defaults to "
+                    "'archived'."
+                ),
+                "default": "archived",
             },
         }
 
@@ -105,10 +121,17 @@ class SessionOrderingBucketsAppPlugin:
         else:
             pinned_metadata_key = "pinned"
 
+        raw_archived_key = application_cfg.get("session_archived_metadata_key")
+        if isinstance(raw_archived_key, str) and raw_archived_key.strip():
+            archived_metadata_key = raw_archived_key.strip()
+        else:
+            archived_metadata_key = "archived"
+
         self._state = {
             "window_seconds": window_seconds,
             "use_updated_at": use_updated_at,
             "pinned_metadata_key": pinned_metadata_key,
+            "archived_metadata_key": archived_metadata_key,
         }
         return dict(self._state)
 
@@ -118,8 +141,8 @@ class SessionOrderingBucketsAppPlugin:
                 "id": "compute_session_order_buckets",
                 "label": "Compute session order buckets",
                 "description": (
-                    "Assign 24h and pinned ranks and a recency-based "
-                    "sort key for session list ordering."
+                    "Assign recent-archive, 24h, and pinned ranks and a "
+                    "recency-based sort key for session list ordering."
                 ),
                 "inputs": {
                     "session_id": {"type": "string", "required": True},
@@ -185,25 +208,48 @@ class SessionOrderingBucketsAppPlugin:
         else:
             updated_24h_rank = 1
 
+        metadata = summary.get("metadata")
+
         pinned_metadata_key = state.get("pinned_metadata_key", "pinned")
         if not isinstance(pinned_metadata_key, str) or not pinned_metadata_key:
             pinned_metadata_key = "pinned"
-        metadata = summary.get("metadata")
         pinned_value = (
             metadata.get(pinned_metadata_key) if isinstance(metadata, dict) else None
         )
         pinned_flag = pinned_value is True
         pinned_rank = 0 if pinned_flag else 1
 
+        archived_metadata_key = state.get("archived_metadata_key", "archived")
+        if not isinstance(archived_metadata_key, str) or not archived_metadata_key:
+            archived_metadata_key = "archived"
+        archived_value = (
+            metadata.get(archived_metadata_key) if isinstance(metadata, dict) else None
+        )
+        is_recent_or_exactly_at_archive_boundary = (
+            effective_updated >= now_ts - RECENT_ARCHIVE_WINDOW_SECONDS
+        )
+        recent_archived_rank = (
+            1
+            if archived_value is True and is_recent_or_exactly_at_archive_boundary
+            else 0
+        )
+
         last_updated_sort_key = -effective_updated
 
         fields = {
+            "recent_archived_rank": recent_archived_rank,
             "updated_24h_rank": updated_24h_rank,
             "pinned_rank": pinned_rank,
             "last_updated_sort_key": last_updated_sort_key,
         }
 
         order_specs = [
+            {
+                "key": "recent_archived_rank",
+                "direction": "asc",
+                "fallback": 0,
+                "priority": 5,
+            },
             {
                 "key": "updated_24h_rank",
                 "direction": "asc",
