@@ -2377,6 +2377,7 @@ class AgentApplication:
             config=safe_config,
             tags=safe_tags,
             models=safe_models,
+            server_settings=self.get_server_settings(),
             extra=context,
         )
 

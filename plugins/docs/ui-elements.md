@@ -37,9 +37,10 @@ def get_ui_elements(
 Application plugins receive `state` first (their internal state), followed by
 optional `config` and `context` parameters. When called via session-scoped
 endpoints, `config` contains the session's effective configuration, enabling
-config-aware UI filtering. When called for server settings, `config` remains
-configuration and current server settings are supplied in
-`context["server_settings"]`.
+config-aware UI filtering. Current application-owned server settings are
+supplied in `context["server_settings"]` on every application UI-schema
+surface. When called for server settings, `config` remains configuration rather
+than being replaced by those live values.
 
 For backward compatibility, plugin adapters also accept legacy application
 plugin signatures such as `get_ui_elements()`, `get_ui_elements(state)`,
@@ -183,6 +184,10 @@ controls that should be visible for that state. Do not use the session/agent
 Server-scoped settings are application-owned state. Plugins can react to
 `server_settings_changed`, but should not store a second authoritative copy of
 the same user-editable values.
+
+The same context mapping is available while generating ordinary application
+UI declarations. This allows a live server setting to include or omit a
+session-list field without copying that setting into plugin state.
 
 <!-- Keep a minimal static example for readers who do not need dynamic UI. -->
 
@@ -600,6 +605,28 @@ for ties.
   characters of `session_id`.
 - Missing subtitle and meta values are returned as `null`.
 
+For example, a status plugin can place a human-readable value after earlier
+timestamp and message-count fields:
+
+```python
+{
+    "ui_type": "session_list_field",
+    "id": "session_status_meta",
+    "label": "Status",
+    "role": "meta",
+    "data": "session_status_label",
+    "template": "Status: {{data}}",
+    "order": 100,
+}
+```
+
+If earlier usable meta fields render Updated, Created, and message count, the
+result is joined as:
+
+```text
+Updated: … · Created: … · 12 messages · Status: In progress
+```
+
 `{{data}}` and `{{ data }}` are supported placeholders. A field may set
 `metadata.format: "datetime"` to format an epoch-second or ISO datetime value
 as a UTC ISO timestamp before templating. Invalid datetime values are rendered
@@ -636,6 +663,7 @@ ignored without hiding valid filters.
     "data": [
         "session_id",
         "preview",
+        "first_user_message",
         "presentation.title",
         "presentation.subtitle",
         "presentation.meta",
@@ -733,6 +761,11 @@ overrides on top of defaults. Boolean and single-select filters use `any` for
 their inactive value. Multiple selects use comma-separated option values with
 CSV quoting inside the shell-quoted assignment when an option itself contains
 a comma.
+
+Plugins may pair a broad main search with focused non-main text filters. The
+built-in search plugin also declares `session_title_search` over displayed
+title/subtitle paths and `session_first_message_search` over a complete
+`first_user_message` field contributed by a `session_list` trigger.
 
 HTTP session listing remains unfiltered in this iteration. Mobile and desktop
 apply declarations to the complete ordered collection locally. Terminal

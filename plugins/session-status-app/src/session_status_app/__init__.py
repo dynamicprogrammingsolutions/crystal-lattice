@@ -21,6 +21,11 @@ STATUS_OPTIONS: List[Dict[str, Any]] = [
     {"value": "done", "label": "Done", "tone": "success"},
 ]
 STATUS_VALUES = frozenset(option["value"] for option in STATUS_OPTIONS)
+STATUS_LABELS = {
+    str(option["value"]): str(option["label"]) for option in STATUS_OPTIONS
+}
+STATUS_LABEL_FIELD = "session_status_label"
+SHOW_IN_SESSION_LIST_FOOTER_SETTING = "session_status_show_in_session_list_footer"
 
 
 class SessionStatusAppPlugin:
@@ -39,6 +44,11 @@ class SessionStatusAppPlugin:
                 ),
                 "default": "status",
             },
+            SHOW_IN_SESSION_LIST_FOOTER_SETTING: {
+                "type": "boolean",
+                "description": "Show the current workflow status in session-list row metadata.",
+                "default": True,
+            },
         }
 
     def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -52,7 +62,15 @@ class SessionStatusAppPlugin:
         else:
             metadata_key = "status"
 
-        return {"status_metadata_key": metadata_key}
+        raw_footer_default = application_cfg.get(SHOW_IN_SESSION_LIST_FOOTER_SETTING)
+        footer_default = (
+            raw_footer_default if isinstance(raw_footer_default, bool) else True
+        )
+
+        return {
+            "status_metadata_key": metadata_key,
+            "show_in_session_list_footer_default": footer_default,
+        }
 
     def get_actions(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         _ = state
@@ -66,7 +84,19 @@ class SessionStatusAppPlugin:
                     "status": {"type": "string", "required": True},
                     "source": {"type": "string", "required": False},
                 },
-            }
+            },
+            {
+                "id": "compute_session_status_label",
+                "label": "Compute session status label",
+                "description": (
+                    "Expose the effective human-readable status for "
+                    "session-list presentation."
+                ),
+                "inputs": {
+                    "session_summary": {"required": False},
+                },
+                "trigger": "session_list",
+            },
         ]
 
     def get_ui_elements(
@@ -75,10 +105,10 @@ class SessionStatusAppPlugin:
         config: Optional[Dict[str, Any]] = None,
         context: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
-        _ = config, context
+        _ = config
         metadata_key = state.get("status_metadata_key") or "status"
 
-        return [
+        elements: List[Dict[str, Any]] = [
             {
                 "ui_type": "session_list_action",
                 "id": "set_session_status",
@@ -123,6 +153,47 @@ class SessionStatusAppPlugin:
             },
         ]
 
+        ui_context = (context or {}).get("ui_context")
+        if ui_context == "server_settings":
+            elements.append(
+                {
+                    "ui_type": "config",
+                    "scope": "server",
+                    "key": SHOW_IN_SESSION_LIST_FOOTER_SETTING,
+                    "type": "checkbox",
+                    "label": "Show status in session list footer",
+                    "description": "Display the current workflow status in each session row.",
+                    "default": bool(
+                        state.get("show_in_session_list_footer_default", True)
+                    ),
+                }
+            )
+            return elements
+
+        server_settings = (context or {}).get("server_settings")
+        if not isinstance(server_settings, dict):
+            server_settings = {}
+        raw_show_footer = server_settings.get(SHOW_IN_SESSION_LIST_FOOTER_SETTING)
+        if isinstance(raw_show_footer, bool):
+            show_footer = raw_show_footer
+        else:
+            show_footer = bool(state.get("show_in_session_list_footer_default", True))
+
+        if show_footer:
+            elements.append(
+                {
+                    "ui_type": "session_list_field",
+                    "id": "session_status_meta",
+                    "label": "Status",
+                    "role": "meta",
+                    "data": STATUS_LABEL_FIELD,
+                    "template": "Status: {{data}}",
+                    "order": 100,
+                }
+            )
+
+        return elements
+
     def execute_action(
         self,
         app: "AgentApplication",
@@ -132,6 +203,27 @@ class SessionStatusAppPlugin:
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
         _ = context
+        if action_id == "compute_session_status_label":
+            summary = params.get("session_summary")
+            metadata = (
+                summary.get("metadata")
+                if isinstance(summary, dict)
+                and isinstance(summary.get("metadata"), dict)
+                else {}
+            )
+            metadata_key = state.get("status_metadata_key") or "status"
+            raw_status = metadata.get(metadata_key)
+            effective_status = (
+                raw_status
+                if isinstance(raw_status, str) and raw_status in STATUS_VALUES
+                else "todo"
+            )
+            return {
+                "session_list_fields": {
+                    STATUS_LABEL_FIELD: STATUS_LABELS[effective_status],
+                }
+            }
+
         if action_id != "set_session_status":
             raise ValueError(
                 f"Unknown action_id {action_id!r} for SessionStatusAppPlugin"
@@ -208,4 +300,9 @@ class SessionStatusAppPlugin:
         }
 
 
-__all__ = ["STATUS_OPTIONS", "SessionStatusAppPlugin"]
+__all__ = [
+    "SHOW_IN_SESSION_LIST_FOOTER_SETTING",
+    "STATUS_LABEL_FIELD",
+    "STATUS_OPTIONS",
+    "SessionStatusAppPlugin",
+]

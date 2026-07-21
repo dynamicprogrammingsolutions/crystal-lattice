@@ -120,6 +120,7 @@ class ApplicationContext:
         config: Mapping[str, Any],
         tags: Optional[list[Any]] = None,
         models: Optional[list[Mapping[str, Any]]] = None,
+        server_settings: Optional[Mapping[str, Any]] = None,
         session: Any | None = None,
         base_config: Optional[Mapping[str, Any]] = None,
         extra: Optional[Mapping[str, Any]] = None,
@@ -130,6 +131,7 @@ class ApplicationContext:
             "config": dict(config),
             "tags": list(tags or []),
             "models": [dict(model) for model in (models or [])],
+            "server_settings": dict(server_settings or {}),
         }
         if base_config is not None:
             specific_layer["base_config"] = dict(base_config)

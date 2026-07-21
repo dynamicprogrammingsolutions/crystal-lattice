@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PluginsRegistry } from './pluginsRegistry';
 import type { AgentBackend } from '../backend/backend';
+import { emitServerSettingsInvalidated } from '../serverSettings/serverSettingsInvalidation';
 
 function createBackend(): AgentBackend {
   return {
@@ -187,5 +188,47 @@ describe('PluginsRegistry', () => {
     expect(snapshot.sessionListDiagnostics.map((item) => item.code)).toContain(
       'ambiguous_session_list_main_search',
     );
+  });
+
+  it('refreshes application session-list declarations after server settings change', async () => {
+    const backend = createBackend();
+    (backend.listApplicationActions as any).mockResolvedValue([]);
+    (backend.listApplicationUiSchema as any)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          ui_type: 'session_list_field',
+          plugin: 'session_status',
+          id: 'session_status_meta',
+          role: 'meta',
+          data: 'session_status_label',
+          order: 100,
+        },
+      ]);
+
+    const registry = new PluginsRegistry({
+      backend,
+      cacheKey: 'plugins-registry-server-settings',
+    });
+    await registry.load();
+    expect(registry.getSnapshot().sessionListFields).toEqual([]);
+
+    emitServerSettingsInvalidated(backend, {
+      reason: 'server_settings_updated',
+    });
+
+    await vi.waitFor(() => {
+      expect(registry.getSnapshot().sessionListFields).toEqual([
+        expect.objectContaining({ id: 'session_status_meta', order: 100 }),
+      ]);
+    });
+    expect(backend.listApplicationUiSchema).toHaveBeenCalledTimes(2);
+
+    registry.close();
+    emitServerSettingsInvalidated(backend, {
+      reason: 'server_settings_updated',
+    });
+    await Promise.resolve();
+    expect(backend.listApplicationUiSchema).toHaveBeenCalledTimes(2);
   });
 });

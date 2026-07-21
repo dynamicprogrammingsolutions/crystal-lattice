@@ -23,9 +23,12 @@ Make session-list summaries, ordering, search, filters, and rich actions plugin-
 - [x] `tasks/20260719-plugin-session-archive-filters/010-session-list-foundation.md`
 - [x] `tasks/20260719-plugin-session-archive-filters/020-plugin-driven-filters-and-search.md`
   - DEPENDS ON `tasks/20260719-plugin-session-archive-filters/010-session-list-foundation.md`
+- [x] `tasks/20260719-plugin-session-archive-filters/021-search-fields-and-status-list-footer.md`
+  - DEPENDS ON `tasks/20260719-plugin-session-archive-filters/020-plugin-driven-filters-and-search.md`
 - [ ] `tasks/20260719-plugin-session-archive-filters/030-rich-session-list-actions.md`
   - DEPENDS ON `tasks/20260719-plugin-session-archive-filters/010-session-list-foundation.md`
   - DEPENDS ON `tasks/20260719-plugin-session-archive-filters/020-plugin-driven-filters-and-search.md`
+  - DEPENDS ON `tasks/20260719-plugin-session-archive-filters/021-search-fields-and-status-list-footer.md`
 
 ## Shared contract
 
@@ -144,12 +147,19 @@ Matching and state rules:
 
 ### Default built-in behavior
 
-- Main search checks `session_id`, `preview`, and `presentation.title`, `presentation.subtitle`, and `presentation.meta` using case-insensitive `contains`.
+- Main search checks `session_id`, `preview`, the complete first non-empty user
+  message, and `presentation.title`, `presentation.subtitle`, and
+  `presentation.meta` using case-insensitive `contains`.
+- The main-search plugin also contributes focused title/subtitle and
+  first-message filters.
 - Pin filtering defaults to Any.
 - Archive filtering defaults to False, so archived sessions are hidden from ordinary lists.
 - Status filtering defaults to Any and supports selecting multiple statuses.
 - Missing pin/archive metadata means False.
 - Missing status metadata means `todo`.
+- Status is rendered last in session-list row metadata by default and can be
+  hidden through a server setting whose fallback comes from application
+  configuration.
 - Built-in statuses are `todo`, `in_progress`, `blocked`, and `done`.
 - Pin and archive rich actions are initially pinned when no user preference exists.
 - Status is not initially pinned.

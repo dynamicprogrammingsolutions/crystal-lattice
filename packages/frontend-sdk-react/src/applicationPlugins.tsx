@@ -54,6 +54,7 @@ export const ApplicationPluginsProvider: React.FC<ApplicationPluginsProviderProp
     registry.load().catch(() => {
       // Errors are stored in state.
     });
+    return () => registry.close();
   }, [registry]);
 
   const value = useMemo(

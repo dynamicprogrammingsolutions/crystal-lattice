@@ -31,6 +31,8 @@ Depends On: `tasks/20260719-plugin-session-archive-filters/010-session-list-foun
 
 Depends On: `tasks/20260719-plugin-session-archive-filters/020-plugin-driven-filters-and-search.md`
 
+Depends On: `tasks/20260719-plugin-session-archive-filters/021-search-fields-and-status-list-footer.md`
+
 ## Baseline status handoff
 
 The follow-up implementation owned by
@@ -52,6 +54,13 @@ repair in task 020 also updated `session-ordering-buckets-app` to read the
 configured pin key from `session_summary.metadata`. Task 030 must preserve and
 verify that ordering behavior while replacing the temporary legacy row
 control. Archive work remains wholly owned here.
+
+The follow-up in
+`tasks/20260719-plugin-session-archive-filters/021-search-fields-and-status-list-footer.md`
+also adds `session_status_label`, the ordered `session_status_meta` row field,
+and its application-default/server-override visibility setting. Task 030 must
+preserve that list-trigger and presentation behavior while adding the rich
+status action.
 
 ## Rich action contract
 

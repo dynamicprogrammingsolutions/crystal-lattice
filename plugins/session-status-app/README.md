@@ -4,7 +4,8 @@ Application-level plugin for assigning and filtering session workflow status.
 
 The plugin stores status under `metadata.status` by default. Set
 `application.session_status_metadata_key` to use a different metadata key.
-The same resolved key drives the action form, mutation, event, and filter.
+The same resolved key drives the action form, mutation, event, filter, and
+session-list footer label.
 
 Built-in statuses are:
 
@@ -19,10 +20,31 @@ It contributes:
 
 - `set_session_status`, an application action;
 - an ordinary `session_list_action` select form using that action;
-- `session_status`, a multi-select `session_list_filter`.
+- `session_status`, a multi-select `session_list_filter`;
+- a session-list trigger that derives a human-readable
+  `session_status_label`;
+- `session_status_meta`, a `session_list_field` rendered at the end of
+  `presentation.meta`.
 
 Missing status behaves as `todo` without writing metadata. The filter defaults
-to Any (`[]`), so enabling the plugin does not hide existing sessions.
+to Any (`[]`), so enabling the plugin does not hide existing sessions. The
+footer therefore renders `Status: To do` for an older session without stored
+status. Its order is `100`, after the built-in Updated, Created, and message
+count fields.
+
+The footer is enabled by default. Set the application-level default at startup:
+
+```json
+{
+  "application": {
+    "session_status_show_in_session_list_footer": false
+  }
+}
+```
+
+The plugin exposes a server-scoped checkbox with the same key. A persisted
+server setting overrides the application default; deleting the server setting
+returns to that configured default.
 
 The ordinary form is the compatibility presentation. A later rich-action
 extension can enhance the same stable action with immediate list selection

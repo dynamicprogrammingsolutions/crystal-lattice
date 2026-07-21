@@ -318,6 +318,27 @@ specifications, and filters. The application reserves:
 Invalid keys, reserved-key writes, and non-JSON-serializable values are
 reported and ignored individually.
 
+A list trigger can also translate a stored machine value into presentation or
+search text without changing session metadata:
+
+```python
+status = summary.get("metadata", {}).get("status", "todo")
+labels = {
+    "todo": "To do",
+    "in_progress": "In progress",
+    "blocked": "Blocked",
+    "done": "Done",
+}
+return {
+    "session_list_fields": {
+        "session_status_label": labels.get(status, "To do"),
+    }
+}
+```
+
+The resulting field can feed a `role: "meta"` session-list field while the
+original `metadata.status` remains authoritative for actions and filters.
+
 ### Contributed ordering
 
 An action can contribute one order object or an ordered list:

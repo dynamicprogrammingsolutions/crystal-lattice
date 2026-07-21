@@ -105,11 +105,13 @@ def test_session_list_http_contract_serializes_shared_summaries(
     assert by_id["newer"]["presentation"] == {
         "title": "newer preview",
         "subtitle": None,
-        "meta": None,
+        "meta": "Status: To do",
     }
+    assert by_id["newer"]["session_status_label"] == "To do"
     assert by_id["newer"]["metadata"]["background_state"] == "ready"
     assert "native_messages" not in by_id["newer"]["metadata"]
     assert by_id["older"]["metadata"]["pinned"] is True
+    assert by_id["older"]["presentation"]["meta"] == "Status: Done"
     assert "pinned" not in by_id["older"]
 
     pinned = application.list_session_summaries(
@@ -250,9 +252,10 @@ def test_session_list_http_contract_isolates_a_malformed_record(
         "modified": (session_root / "malformed.json").stat().st_mtime,
         "preview": "",
         "metadata": {},
+        "session_status_label": "To do",
         "presentation": {
             "title": "Session malforme",
             "subtitle": None,
-            "meta": None,
+            "meta": "Status: To do",
         },
     }

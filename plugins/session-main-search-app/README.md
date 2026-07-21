@@ -1,10 +1,12 @@
 # session-main-search-app
 
-Application plugin that contributes the ordinary declarative main search for
-session lists.
+Application plugin that contributes the ordinary declarative main search and
+focused text filters for session lists.
 
-The plugin has no actions and does not implement matching itself. It contributes
-one `session_list_filter` declaration:
+The plugin does not implement matching itself. Python and TypeScript consumers
+interpret the shared `session_list_filter` contract.
+
+It contributes one main search:
 
 ```python
 {
@@ -18,6 +20,7 @@ one `session_list_filter` declaration:
     "data": [
         "session_id",
         "preview",
+        "first_user_message",
         "presentation.title",
         "presentation.subtitle",
         "presentation.meta",
@@ -27,6 +30,19 @@ one `session_list_filter` declaration:
     "main_search": True,
 }
 ```
+
+It also contributes two ordinary filters:
+
+- `session_title_search`, over displayed `presentation.title` and
+  `presentation.subtitle`;
+- `session_first_message_search`, over the complete first non-empty user
+  message.
+
+The complete first message is exposed as a `first_user_message` summary field
+by the plugin's deterministic `trigger: "session_list"` action. This avoids the
+80-character list-preview limit while keeping the existing preview path in the
+broad main search for compatibility. System messages are skipped, whitespace
+is normalized, and sessions without a user message contribute an empty value.
 
 Python terminal queries and TypeScript clients interpret the shared filter
 contract. Terminal free-text search requires one valid plugin-declared main

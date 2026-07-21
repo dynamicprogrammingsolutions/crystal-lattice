@@ -17,6 +17,7 @@ import {
 import {
   normalizeSessionListFilterSchema,
 } from '../sessions/sessionListFilters';
+import { subscribeServerSettingsInvalidated } from '../serverSettings/serverSettingsInvalidation';
 import { SimpleSubscribable } from '../util/subscribable';
 
 export interface PluginsResult {
@@ -132,6 +133,7 @@ function buildResultFromState(state: PluginsRegistryState): PluginsResult {
 export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
   private backend: AgentBackend | null;
   private cacheKey: string;
+  private unsubscribeServerSettings: (() => void) | null = null;
 
   constructor(options: { backend: AgentBackend | null; cacheKey: string }) {
     super({ ...EMPTY_RESULT, loading: false, error: null });
@@ -142,6 +144,18 @@ export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
     if (cachedEntry !== undefined) {
       const next = buildResultFromEntry(cachedEntry);
       this.setSnapshot({ ...next, loading: false, error: null });
+    }
+
+    if (this.backend) {
+      this.unsubscribeServerSettings = subscribeServerSettingsInvalidated(
+        this.backend,
+        () => {
+          this.invalidate();
+          this.refresh().catch(() => {
+            // Errors are stored in registry state.
+          });
+        },
+      );
     }
   }
 
@@ -172,6 +186,11 @@ export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
 
   invalidate(): void {
     CACHE.delete(this.cacheKey);
+  }
+
+  close(): void {
+    this.unsubscribeServerSettings?.();
+    this.unsubscribeServerSettings = null;
   }
 
   private async fetch(options: { preserveExisting: boolean }): Promise<void> {

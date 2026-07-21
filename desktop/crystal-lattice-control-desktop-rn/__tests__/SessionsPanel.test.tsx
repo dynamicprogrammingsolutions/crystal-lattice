@@ -112,7 +112,7 @@ describe('SessionsPanel', () => {
         presentation: {
           title: 'Server first title',
           subtitle: 'Server first subtitle',
-          meta: 'Server first meta',
+          meta: 'Server first meta · Status: Done',
         },
       },
       {
@@ -155,7 +155,7 @@ describe('SessionsPanel', () => {
       rendered.getByTestId('session-subtitle-server-first').props.children,
     ).toBe('Server first subtitle');
     expect(rendered.getByTestId('session-meta-server-first').props.children).toBe(
-      'Server first meta',
+      'Server first meta · Status: Done',
     );
     expect(rendered.queryByText('Local first title')).toBeNull();
     expect(onUpdateOpenTabsPresentation).toHaveBeenCalledWith({
@@ -235,6 +235,22 @@ describe('SessionsPanel', () => {
         type: 'text',
         match: 'contains',
         main_search: true,
+      },
+      {
+        ui_type: 'session_list_filter',
+        id: 'session_title_search',
+        label: 'Title / subtitle',
+        data: ['presentation.title', 'presentation.subtitle'],
+        type: 'text',
+        match: 'contains',
+      },
+      {
+        ui_type: 'session_list_filter',
+        id: 'session_first_message_search',
+        label: 'First message',
+        data: 'first_user_message',
+        type: 'text',
+        match: 'contains',
       },
       {
         ui_type: 'session_list_filter',
@@ -346,6 +362,12 @@ describe('SessionsPanel', () => {
     fireEvent.press(rendered.getByTestId('session-filters-open'));
     expect(rendered.getByTestId('desktop-popover-root')).toBeTruthy();
     expect(rendered.getByTestId('session-filters-panel')).toBeTruthy();
+    expect(
+      rendered.getByTestId('session-filter-session_title_search'),
+    ).toBeTruthy();
+    expect(
+      rendered.getByTestId('session-filter-session_first_message_search'),
+    ).toBeTruthy();
     expect(rendered.getByTestId('session-filter-pinned_state')).toBeTruthy();
     expect(rendered.getByTestId('session-filter-session_status')).toBeTruthy();
     expect(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -15,6 +16,20 @@ if str(APP_PY) not in sys.path:
 CORE_PY = ROOT / "core/python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
+
+
+def test_default_config_enables_session_status_list_footer() -> None:
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert config["application"]["session_status_show_in_session_list_footer"] is True
 
 
 @pytest.mark.integration
@@ -65,9 +80,26 @@ def test_default_config_effective_agent_configs_stay_intact(
         if element.get("plugin") == "session_main_search"
         and element.get("ui_type") == "session_list_filter"
     ]
-    assert len(search_elements) == 1
-    assert search_elements[0]["id"] == "session_search"
+    assert [element["id"] for element in search_elements] == [
+        "session_search",
+        "session_title_search",
+        "session_first_message_search",
+    ]
     assert search_elements[0]["main_search"] is True
+    assert search_elements[1]["main_search"] is False
+    assert search_elements[2]["main_search"] is False
+    assert (
+        app.get_application_config()["session_status_show_in_session_list_footer"]
+        is True
+    )
+    status_meta = next(
+        element
+        for element in app.get_application_ui_schema()
+        if element.get("plugin") == "session_status"
+        and element.get("id") == "session_status_meta"
+    )
+    assert status_meta["role"] == "meta"
+    assert status_meta["order"] == 100
     pin_toggle = next(
         element
         for element in app.get_application_ui_schema()

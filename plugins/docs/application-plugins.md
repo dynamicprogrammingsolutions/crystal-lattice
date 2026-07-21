@@ -150,12 +150,30 @@ Common UI context keys:
 | `models` | `list[dict]` | Model descriptors computed for this config, when available |
 | `session` | `dict` | Serialized session for session-contextual UI schema |
 | `session_id` | `str` | Session id for session-contextual UI schema |
-| `server_settings` | `dict` | Current application-owned server settings for server settings UI schema |
+| `server_settings` | `dict` | Current application-owned server settings for all application UI-schema surfaces |
 | `settings` | `dict` | Generic alias for the active settings scope |
 | `settings_scope` | `str` | Settings scope, such as `"server"` |
 
 Server settings are supplied through `context["server_settings"]`; they are not
 configuration and should not be read from `config`.
+
+Because the current values are available on ordinary application and session
+UI-schema surfaces too, a plugin can use a server setting to include or omit a
+declarative list field, filter, or action. Keep the application configuration
+as the startup default and treat a persisted server setting as the live
+override:
+
+```python
+settings = (context or {}).get("server_settings") or {}
+enabled = settings.get(
+    "session_status_show_in_session_list_footer",
+    state["configured_default"],
+)
+```
+
+The persisted settings mapping remains authoritative. Do not mirror
+user-editable settings into a second plugin-owned state store merely to
+generate UI schema.
 
 ---
 

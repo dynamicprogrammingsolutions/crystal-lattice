@@ -133,7 +133,7 @@ const SESSION_SUMMARIES: SessionSummary[] = [
     presentation: {
       title: 'Server first title',
       subtitle: 'Server first subtitle',
-      meta: 'Server first meta',
+      meta: 'Server first meta · Status: Done',
     },
   },
   {
@@ -291,7 +291,7 @@ test('renders application-derived presentation in server order', () => {
     'Server first subtitle',
   );
   expect(screen.getByTestId('session-meta-server-first').props.children).toBe(
-    'Server first meta',
+    'Server first meta · Status: Done',
   );
   expect(screen.queryByText('Local first title')).toBeNull();
 });
@@ -592,6 +592,22 @@ test('uses the built-in pin and status filter declarations', () => {
         },
         {
           ui_type: 'session_list_filter',
+          id: 'session_title_search',
+          label: 'Title / subtitle',
+          data: ['presentation.title', 'presentation.subtitle'],
+          type: 'text',
+          match: 'contains',
+        },
+        {
+          ui_type: 'session_list_filter',
+          id: 'session_first_message_search',
+          label: 'First message',
+          data: 'first_user_message',
+          type: 'text',
+          match: 'contains',
+        },
+        {
+          ui_type: 'session_list_filter',
           id: 'pinned_state',
           label: 'Pinned',
           icon: 'star',
@@ -669,6 +685,10 @@ test('uses the built-in pin and status filter declarations', () => {
   expect(screen.queryByTestId('session-filters-active-count')).toBeNull();
 
   fireEvent.press(screen.getByTestId('session-filters-open'));
+  expect(screen.getByTestId('session-filter-session_title_search-text')).toBeTruthy();
+  expect(
+    screen.getByTestId('session-filter-session_first_message_search-text'),
+  ).toBeTruthy();
   expect(screen.getByText('Not pinned')).toBeTruthy();
   expect(screen.getAllByText('Pinned')).toHaveLength(2);
   expect(

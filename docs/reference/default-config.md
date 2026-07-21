@@ -577,6 +577,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "tool_output_line_limit": 20,
     "tool_output_char_limit": 2000,
     "tool_output_short_one_line": true,
+    "session_status_show_in_session_list_footer": true,
     "session_actions": {
       "allow_delete": true
     },
