@@ -270,7 +270,8 @@ dist
 .pnp.*
 
 # IDEs
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 .idea/
 *.swp
 *.swo
