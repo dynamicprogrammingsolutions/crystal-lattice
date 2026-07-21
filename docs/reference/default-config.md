@@ -181,7 +181,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -214,7 +214,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -253,7 +253,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             }
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -303,7 +303,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -339,7 +339,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             ]
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -387,7 +387,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_kimi_project_information_section.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -441,7 +441,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             ]
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"

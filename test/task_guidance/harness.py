@@ -357,7 +357,7 @@ def prepare_case(
         config_dir,
         ignore=shutil.ignore_patterns(".plugin_cache", "auth", "__pycache__"),
     )
-    shutil.copy2(selected_guidance, config_dir / "TASKS_v6.md")
+    shutil.copy2(selected_guidance, config_dir / "TASKS_v7.md")
 
     session_root = case_dir / "sessions"
     session_root.mkdir()

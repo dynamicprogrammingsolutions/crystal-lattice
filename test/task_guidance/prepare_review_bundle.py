@@ -214,6 +214,8 @@ def evaluate_case(
 
     guidance_path = case_dir / "TASKS.md"
     if not guidance_path.is_file():
+        guidance_path = case_dir / "config" / "TASKS_v7.md"
+    if not guidance_path.is_file():
         guidance_path = case_dir / "config" / "TASKS_v6.md"
 
     def guidance_matches_metadata() -> None:
@@ -687,9 +689,10 @@ def guidance_for_case(case_dir: Path) -> Path:
     direct = case_dir / "TASKS.md"
     if direct.is_file():
         return direct
-    fallback = case_dir / "config" / "TASKS_v6.md"
-    if fallback.is_file():
-        return fallback
+    for name in ("TASKS_v7.md", "TASKS_v6.md"):
+        fallback = case_dir / "config" / name
+        if fallback.is_file():
+            return fallback
     raise FileNotFoundError(f"no task-guidance snapshot in {case_dir}")
 
 
