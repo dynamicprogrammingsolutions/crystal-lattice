@@ -115,6 +115,32 @@ If everything is set up correctly, you should see your new app running in the An
 
 This is one way to run your app — you can also build it directly from Android Studio or Xcode.
 
+### Desktop transient UI
+
+On macOS, anchored transient controls such as action menus and session filters
+must use the native `NSPopover` bridge. Do not present these controls through
+React Native `Modal` or the shared modal-backed dropdown surface. Keep reusable
+content in shared React components and mount that content in the desktop
+popover root.
+
+### macOS UI tests
+
+The desktop app uses the existing XCUITest target on the host Mac rather than
+Detox. Run all macOS UI tests with:
+
+```sh
+npm run test:macos-ui
+```
+
+Run the focused native session-filter popover test with:
+
+```sh
+npm run test:macos-ui:session-filters
+```
+
+The focused command launches a deterministic harness that renders the
+production sessions panel and shared filter controls.
+
 ## Step 3: Modify your app
 
 Now that you have successfully run the app, let's make changes!

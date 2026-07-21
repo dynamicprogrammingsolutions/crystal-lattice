@@ -71,7 +71,7 @@ export function SessionListFiltersPanel({
       testID={`session-filter-${filter.id}-option-${key}`}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      accessibilityLabel={`${filter.label}: ${label}`}
+      accessibilityLabel={`${filter.label}: ${label}${selected ? ', selected' : ''}`}
       style={[
         styles.choice,
         selected ? styles.choiceSelected : null,

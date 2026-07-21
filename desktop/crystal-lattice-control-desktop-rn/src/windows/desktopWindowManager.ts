@@ -27,6 +27,7 @@ export interface ToggleActionsPopoverParams {
 }
 
 export interface OpenMessageLimitPopoverParams {
+  popoverId?: string;
   anchorTag?: number;
   width?: number;
   height?: number;

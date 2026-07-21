@@ -59,6 +59,9 @@ const { ProgressiveScrollHarness } = require('./src/testing/ProgressiveScrollHar
 const {
   TranscriptScrollPersistenceHarness,
 } = require('./src/testing/TranscriptScrollPersistenceHarness');
+const {
+  SessionFiltersPopoverHarness,
+} = require('./src/testing/SessionFiltersPopoverHarness');
 const { ConnectionEditorWindow } = require('./src/windows/ConnectionEditorWindow');
 const { AgentPickerWindow } = require('./src/windows/AgentPickerWindow');
 const { ActionsPopoverView } = require('./src/windows/ActionsPopoverView');
@@ -76,6 +79,7 @@ const { name: appName } = require('./app.json');
 AppRegistry.registerComponent(appName, () => App);
 AppRegistry.registerComponent('ProgressiveScrollHarness', () => ProgressiveScrollHarness);
 AppRegistry.registerComponent('TranscriptScrollPersistenceHarness', () => TranscriptScrollPersistenceHarness);
+AppRegistry.registerComponent('SessionFiltersPopoverHarness', () => SessionFiltersPopoverHarness);
 AppRegistry.registerComponent('ConnectionEditorWindow', () => ConnectionEditorWindow);
 AppRegistry.registerComponent('AgentPickerWindow', () => AgentPickerWindow);
 AppRegistry.registerComponent('ActionsPopoverView', () => ActionsPopoverView);

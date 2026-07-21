@@ -27,6 +27,7 @@ Deliver the expanded declarative filter contract, replace hardcoded session sear
 - [x] Follow up: enable both filter providers in the maintained default configuration and verify terminal, HTTP, mobile, and desktop behavior.
 - [x] Follow up: update plugin documentation, automated coverage, manual-testing guidance, and completion notes.
 - [x] Manual-test regression repair: restore configured pin ordering and active-star state without restoring the removed top-level summary field.
+- [x] Desktop correction: replace the React Native modal-backed filter dropdown with a native macOS popover and verify it through XCUITest.
 
 Parent Task: `tasks/20260719-plugin-session-archive-filters/000-main.md`
 
@@ -849,3 +850,140 @@ Regression verification:
   import failures in MCP Runtime and Codex tools.
 - Broad desktop `tsc --noEmit` still reports only the previously recorded
   Feather declarations, ChatPane optional-string, and theme `shadow` errors.
+
+## Follow-up execution plan: native desktop filter popover
+
+Added during completion after explicit user approval on July 21, 2026. This
+plan supersedes only the earlier desktop presentation decision that selected
+the React-tree `DropdownMenuSurface`; the shared filter contract, evaluation,
+state semantics, and mobile modal remain unchanged.
+
+1. Replace the desktop session-filter `DropdownMenuSurface` with the existing
+   native `NSPopover` path exposed through `desktopPopoverCoordinator`.
+   Resolve the filter button's native anchor tag, keep filtering immediate,
+   and retain Reset, Show all, active-count, and existing shared
+   `SessionListFiltersPanel` behavior.
+2. Extend the generic desktop-popover coordinator so an already-open popover
+   can receive updated React content. This keeps selected options and other
+   filter state synchronized across the main and popover React roots after
+   each change. Close the owned popover when the panel, connection, or
+   declaration identity is replaced.
+3. Add stable production accessibility identifiers to the generic popover
+   root and close control. Keep the current native bridge naming in this
+   focused correction; a broader rename of the legacy
+   `MessageLimitPopoverView` implementation is not required for behavior.
+4. Update the desktop component tests to prove the filter button opens the
+   native-popover coordinator, passes the shared production filter content,
+   refreshes open content when values change, and no longer renders the
+   modal-backed dropdown in the sessions panel.
+5. Add a deterministic macOS test harness that renders the production
+   `SessionsPanel` with representative main-search, pin, and status
+   declarations and ordered session summaries. Register it through a
+   dedicated launch argument without creating a harness-only copy of the
+   production UI.
+6. Add a focused macOS XCUITest and npm command. The native test must open the
+   anchored popover, exercise pin and status filtering, verify active count,
+   Reset/Show all, close and reopen behavior, and confirm the filter controls
+   are presented in the native popover rather than a modal sheet.
+7. Document the desktop convention that transient anchored controls use the
+   native popover bridge instead of React Native `Modal`. Run focused desktop
+   Jest tests, the targeted host-macOS XCUITest using
+   `platform=macOS,arch=arm64`, relevant type/lint checks where available, and
+   `git diff --check`.
+
+Approved human-review decisions:
+
+- use the existing generic native-popover coordinator rather than creating a
+  second filter-specific native bridge;
+- keep the popover open while filter values change and dismiss it through its
+  close control, Escape, or transient outside-click behavior;
+- keep Detox for iOS and Android only; native macOS coverage uses the existing
+  XCUITest target because built-in Detox drivers do not support macOS;
+- do not broaden this correction into a repository-wide migration of
+  pre-existing desktop modal usages.
+
+### Native-popover correction progress
+
+Added during completion before the user-requested macOS permission gate.
+
+- Replaced the sessions panel's modal-backed `DropdownMenuSurface` with the
+  existing native `NSPopover` coordinator and anchored it to the production
+  filter button.
+- Added live coordinator updates so selected Boolean and multi-select values
+  remain synchronized while the popover's separate React root is open.
+- Added production accessibility identifiers, a deterministic production-panel
+  harness, a focused macOS XCUITest, Xcode target membership, and the
+  `test:macos-ui:session-filters` command.
+- Documented the native-popover convention in the desktop README.
+- Focused desktop `SessionsPanel` Jest coverage passes: 3 tests.
+- Changed-file ESLint and Swift parse checks pass.
+- The focused Xcode app/UI-test target passes `build-for-testing`.
+- The broad desktop TypeScript command still reports only its previously
+  recorded Feather declarations, two `ChatPane` optional-string errors, and
+  missing theme `shadow`; it reports no new errors in the harness, coordinator,
+  popover view, or filter implementation.
+- The focused native XCUITest passes on the host Mac. It opens the native
+  popover, applies cumulative pin/status filters, verifies active indication
+  and filtered rows, closes/reopens with retained state, exercises Show all
+  and Reset, and dismisses the popover with Escape.
+- An existing progressive-scroll macOS XCUITest also passes after the
+  AppDelegate harness-routing change.
+
+## Native desktop filter popover completion notes
+
+Added during completion of the desktop presentation correction.
+
+### Implementation
+
+- Replaced the sessions panel's modal-backed `DropdownMenuSurface` with the
+  existing generic desktop coordinator backed by native transient
+  `NSPopover`.
+- Anchored the popover to the production filter button and retained the shared
+  `SessionListFiltersPanel`; mobile presentation remains unchanged.
+- Added live coordinator content updates so React state changes in the main
+  sessions-panel root refresh the separate popover root. Sequential status
+  choices therefore remain cumulative without closing the popover.
+- Scoped ownership by connection plus normalized filter-schema identity and
+  close only the matching owned popover during cleanup.
+- Added stable popover/filter accessibility identifiers and an active-filter
+  count in the filter button's label/value.
+- Added an explicit `selected` suffix to shared filter-choice accessibility
+  labels because React Native macOS does not expose button-role
+  `accessibilityState.selected` through `XCUIElement.isSelected`.
+- Added `SessionFiltersPopoverHarness`, its AppDelegate launch mode and bundle
+  routing, component registration, Xcode UI-test target membership, and the
+  focused `test:macos-ui:session-filters` command.
+- Documented the desktop rule that anchored transient controls use the native
+  popover bridge rather than React Native `Modal`.
+
+### Native-test findings
+
+- macOS exposes the `NSPopover` as a `Popover` child of the main application
+  window. Tests must scope popover controls through that accessibility
+  element rather than expect the React root view's native identifier to appear
+  as a separate window.
+- The first native attempt was interrupted by an existing-instance conflict
+  while waiting for a React-root readiness identifier. Readiness now follows
+  the repository convention and waits for
+  `SessionFiltersPopoverHarnessWindow`.
+- Later focused attempts reached the popover and exposed the two query issues
+  above. The final test uses the native window/popover hierarchy and
+  platform-visible accessibility labels.
+- Per user direction, no later test run manually terminated other Crystal
+  Lattice instances; Xcode managed the launched test application.
+
+### Verification
+
+- Desktop production `SessionsPanel` Jest: 3 passed.
+- Shared React Native component package: 7 passed.
+- Changed-file ESLint: passed.
+- New Swift UI test parse: passed.
+- Xcode focused app/UI-test `build-for-testing`: passed.
+- Native `SessionFiltersPopoverUITests`: 1 passed on the host Mac.
+- Existing
+  `ProgressiveScrollListUITests/testProgressiveScrollHarnessEdgesAndAnchors`:
+  1 passed after the AppDelegate routing change.
+- Xcode project/package JSON validation and `git diff --check`: passed.
+- Broad desktop TypeScript remains blocked only by the previously recorded
+  Feather declarations, two `ChatPane` optional-string errors, and missing
+  theme `shadow`; no new errors were reported in this correction's files.

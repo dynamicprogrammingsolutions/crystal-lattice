@@ -55,13 +55,23 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   BOOL enableTranscriptScrollPersistenceHarness =
       EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_SCROLL_PERSISTENCE_HARNESS") ||
       LaunchArgumentPresent(@"--transcript-scroll-persistence-harness");
-  BOOL enableAnyScrollHarness = enableScrollTestHarness || enableTranscriptScrollPersistenceHarness;
-  if (enableAnyScrollHarness) {
+  BOOL enableSessionFiltersPopoverHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_SESSION_FILTERS_POPOVER_HARNESS") ||
+      LaunchArgumentPresent(@"--session-filters-popover-harness");
+  BOOL enableAnyTestHarness =
+      enableScrollTestHarness ||
+      enableTranscriptScrollPersistenceHarness ||
+      enableSessionFiltersPopoverHarness;
+  if (enableAnyTestHarness) {
     RCTDevLoadingViewSetEnabled(NO);
   }
-  self.moduleName = enableTranscriptScrollPersistenceHarness
-      ? @"TranscriptScrollPersistenceHarness"
-      : (enableScrollTestHarness ? @"ProgressiveScrollHarness" : @"CrystalLatticeControlDesktopRN");
+  self.moduleName = enableSessionFiltersPopoverHarness
+      ? @"SessionFiltersPopoverHarness"
+      : (enableTranscriptScrollPersistenceHarness
+             ? @"TranscriptScrollPersistenceHarness"
+             : (enableScrollTestHarness
+                    ? @"ProgressiveScrollHarness"
+                    : @"CrystalLatticeControlDesktopRN"));
   NSString *tabStripStyle = [self loadTabStripStylePreference];
   BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
   self.initialProps = @{
@@ -85,7 +95,7 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   // - support opening additional main windows
   [self ensureMainWindowsTrackingInitialized];
   [self trackMainWindowIfNeeded:(NSWindow *)self.window];
-  if (enableAnyScrollHarness) {
+  if (enableAnyTestHarness) {
     NSWindow *window = (NSWindow *)self.window;
     window.title = self.moduleName;
     window.accessibilityLabel = self.moduleName;
@@ -294,8 +304,10 @@ static BOOL LaunchArgumentPresent(NSString *argument)
 {
   if (EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_SCROLL_PERSISTENCE_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_SESSION_FILTERS_POPOVER_HARNESS") ||
       LaunchArgumentPresent(@"--scroll-test-harness") ||
-      LaunchArgumentPresent(@"--transcript-scroll-persistence-harness")) {
+      LaunchArgumentPresent(@"--transcript-scroll-persistence-harness") ||
+      LaunchArgumentPresent(@"--session-filters-popover-harness")) {
     return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
   }
 

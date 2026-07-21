@@ -914,6 +914,11 @@ RCT_EXPORT_METHOD(openMessageLimitPopover : (NSDictionary *)params)
 
     rootView.frame = NSMakeRect(0, 0, width, height);
     rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+    NSString *popoverId = [params[@"popoverId"] isKindOfClass:[NSString class]]
+        ? params[@"popoverId"]
+        : @"desktop-popover";
+    rootView.accessibilityIdentifier = popoverId;
+    rootView.accessibilityLabel = popoverId;
 
     NSViewController *controller = [[NSViewController alloc] init];
     controller.view = rootView;

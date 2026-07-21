@@ -90,9 +90,12 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { normalizeSessionListFilterSchema } from '@crystal-lattice/frontend-sdk';
 
 import { SessionsPanel } from '../src/panels/SessionsPanel';
+import { MessageLimitPopoverView } from '../src/windows/MessageLimitPopoverView';
+import { clearActiveDesktopPopover } from '../src/windows/desktopPopoverCoordinator';
 
 describe('SessionsPanel', () => {
   beforeEach(() => {
+    clearActiveDesktopPopover();
     mockFilterSchema = null;
     mockPinnedToggles = [];
   });
@@ -211,7 +214,7 @@ describe('SessionsPanel', () => {
     expect(rendered.queryByText(/items hidden below/)).toBeNull();
   });
 
-  it('renders the built-in pin and status filter declarations', () => {
+  it('renders built-in filters through the native desktop popover coordinator', () => {
     mockPinnedToggles = [
       {
         ui_type: 'session_list_toggle_pinned',
@@ -302,18 +305,21 @@ describe('SessionsPanel', () => {
       },
     ];
     const rendered = render(
-      <SessionsPanel
-        focusedConnectionId="connection-1"
-        focusedConnectionName="Local"
-        connectionId="connection-1"
-        backend={{ kind: 'test' } as any}
-        cachedSessions={mockSessions}
-        cachedLastLoadedAt={1}
-        isOnline={false}
-        followActiveTabEnabled={false}
-        onUpdateCache={jest.fn()}
-        onOpenSessionTab={jest.fn()}
-      />,
+      <>
+        <SessionsPanel
+          focusedConnectionId="connection-1"
+          focusedConnectionName="Local"
+          connectionId="connection-1"
+          backend={{ kind: 'test' } as any}
+          cachedSessions={mockSessions}
+          cachedLastLoadedAt={1}
+          isOnline={false}
+          followActiveTabEnabled={false}
+          onUpdateCache={jest.fn()}
+          onOpenSessionTab={jest.fn()}
+        />
+        <MessageLimitPopoverView />
+      </>,
     );
 
     expect(rendered.getByTestId('session-main-search').props.placeholder).toBe(
@@ -338,6 +344,7 @@ describe('SessionsPanel', () => {
     );
     expect(rendered.queryByTestId('session-filters-active-count')).toBeNull();
     fireEvent.press(rendered.getByTestId('session-filters-open'));
+    expect(rendered.getByTestId('desktop-popover-root')).toBeTruthy();
     expect(rendered.getByTestId('session-filters-panel')).toBeTruthy();
     expect(rendered.getByTestId('session-filter-pinned_state')).toBeTruthy();
     expect(rendered.getByTestId('session-filter-session_status')).toBeTruthy();
@@ -356,10 +363,17 @@ describe('SessionsPanel', () => {
     expect(
       rendered.getByTestId('session-filters-active-count').props.children,
     ).toBe(2);
+    fireEvent.press(
+      rendered.getByTestId('session-filter-session_status-option-2'),
+    );
+    expect(rendered.getByTestId('session-row-pinned-done')).toBeTruthy();
 
     fireEvent.press(rendered.getByTestId('session-filters-show-all'));
     expect(rendered.getByTestId('session-row-visible')).toBeTruthy();
     expect(rendered.getByTestId('session-row-pinned-done')).toBeTruthy();
     expect(rendered.queryByTestId('session-filters-active-count')).toBeNull();
+    fireEvent.press(rendered.getByTestId('session-filters-close'));
+    expect(rendered.queryByTestId('desktop-popover-root')).toBeNull();
+    expect(rendered.queryByTestId('session-filters-panel')).toBeNull();
   });
 });

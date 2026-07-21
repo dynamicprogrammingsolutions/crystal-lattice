@@ -13,6 +13,7 @@
     "start-no-cache": "react-native start --reset-cache",
     "test": "jest",
     "test:macos-ui": "FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests",
+    "test:macos-ui:session-filters": "FORCE_BUNDLING=1 xcodebuild -workspace macos/CrystalLatticeControlDesktopRN.xcworkspace -scheme CrystalLatticeControlDesktopRN-macOS -configuration Debug -destination 'platform=macOS,arch=arm64' test -only-testing:CrystalLatticeControlDesktopRN-macOSUITests/SessionFiltersPopoverUITests",
     "pod-install": "cd macos && pod install && cd .."
   },
   "dependencies": {

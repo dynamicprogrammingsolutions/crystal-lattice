@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
+  findNodeHandle,
   Linking,
   Platform,
   Pressable,
@@ -18,7 +19,6 @@ import Icon from 'react-native-vector-icons/Feather';
 import {
   ActionsMenuBar,
   ApplicationActionDialog,
-  DropdownMenuSurface,
   SessionListFiltersPanel,
   useTheme,
   type ActionDefinition,
@@ -58,6 +58,11 @@ import { PanelHeader } from '../ui/PanelHeader';
 import { ActionResultModal } from '../ui/ActionResultModal';
 import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
+import {
+  closeDesktopPopover,
+  openDesktopPopover,
+  updateActiveDesktopPopover,
+} from '../windows/desktopPopoverCoordinator';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { truncateByChars } from '../utils/text';
 import { useSessionsPanelTabAutoSelect } from './useSessionsPanelTabAutoSelect';
@@ -203,7 +208,6 @@ function SessionsPanelInner({
     : cachedSessions;
 
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
-  const [filtersVisible, setFiltersVisible] = useState(false);
   const filterAnchorRef = useRef<any>(null);
 
   // Sliding window pagination for session list
@@ -291,6 +295,79 @@ function SessionsPanelInner({
     connectionId,
     schema: sessionListFilterSchema,
   });
+  const filterPopoverId = useMemo(
+    () =>
+      `session-filters:${connectionId ?? 'default'}:${effectiveFilterSchema.identity}`,
+    [connectionId, effectiveFilterSchema.identity],
+  );
+  const closeSessionFiltersPopover = useCallback(() => {
+    closeDesktopPopover(filterPopoverId);
+  }, [filterPopoverId]);
+  const filterPopoverContent = useMemo(
+    () => (
+      <SessionListFiltersPanel
+        schema={effectiveFilterSchema}
+        values={sessionFilterValues}
+        onChange={setFilterValue}
+        onReset={resetSessionFilters}
+        onShowAll={showAllSessions}
+        onRequestClose={closeSessionFiltersPopover}
+        renderIcon={({ name, size, color }) => (
+          <Icon name={name} size={size} color={color} />
+        )}
+      />
+    ),
+    [
+      closeSessionFiltersPopover,
+      effectiveFilterSchema,
+      resetSessionFilters,
+      sessionFilterValues,
+      setFilterValue,
+      showAllSessions,
+    ],
+  );
+
+  useEffect(() => {
+    updateActiveDesktopPopover(filterPopoverId, {
+      content: filterPopoverContent,
+      onRequestClose: closeSessionFiltersPopover,
+    });
+  }, [
+    closeSessionFiltersPopover,
+    filterPopoverContent,
+    filterPopoverId,
+  ]);
+
+  useEffect(
+    () => () => {
+      closeDesktopPopover(filterPopoverId);
+    },
+    [filterPopoverId],
+  );
+
+  const openSessionFiltersPopover = useCallback(() => {
+    const anchorTag = filterAnchorRef.current
+      ? (findNodeHandle(filterAnchorRef.current) as any)
+      : null;
+    const estimatedHeight = Math.max(
+      260,
+      Math.min(560, 150 + nonMainFilters.length * 120),
+    );
+    openDesktopPopover({
+      id: filterPopoverId,
+      content: filterPopoverContent,
+      onRequestClose: closeSessionFiltersPopover,
+      accessibilityId: 'session-filters-native-popover',
+      anchorTag: typeof anchorTag === 'number' ? anchorTag : undefined,
+      width: 380,
+      height: estimatedHeight,
+    });
+  }, [
+    closeSessionFiltersPopover,
+    filterPopoverContent,
+    filterPopoverId,
+    nonMainFilters.length,
+  ]);
 
   const fieldGroups = useMemo(
     () => groupSessionListFields(sessionListFields || []),
@@ -732,7 +809,16 @@ function SessionsPanelInner({
             <View ref={filterAnchorRef} collapsable={false}>
               <Pressable
                 testID="session-filters-open"
-                accessibilityLabel="Open session filters"
+                accessibilityLabel={
+                  activeNonMainFilterCount > 0
+                    ? `Open session filters, ${activeNonMainFilterCount} active`
+                    : 'Open session filters'
+                }
+                accessibilityValue={
+                  activeNonMainFilterCount > 0
+                    ? { text: String(activeNonMainFilterCount) }
+                    : undefined
+                }
                 style={(state) => {
                   const hovered = (state as any).hovered as boolean | undefined;
                   return [
@@ -741,7 +827,7 @@ function SessionsPanelInner({
                     (hovered || state.pressed) && styles.filterButtonHovered,
                   ];
                 }}
-                onPress={() => setFiltersVisible((current) => !current)}
+                onPress={openSessionFiltersPopover}
               >
                 <Icon
                   name="filter"
@@ -762,24 +848,6 @@ function SessionsPanelInner({
                 ) : null}
               </Pressable>
             </View>
-            <DropdownMenuSurface
-              visible={filtersVisible}
-              onRequestClose={() => setFiltersVisible(false)}
-              anchorRef={filterAnchorRef}
-              menuStyle={styles.filtersMenu}
-            >
-              <SessionListFiltersPanel
-                schema={effectiveFilterSchema}
-                values={sessionFilterValues}
-                onChange={setFilterValue}
-                onReset={resetSessionFilters}
-                onShowAll={showAllSessions}
-                onRequestClose={() => setFiltersVisible(false)}
-                renderIcon={({ name, size, color }) => (
-                  <Icon name={name} size={size} color={color} />
-                )}
-              />
-            </DropdownMenuSurface>
           </>
         ) : null}
 
@@ -1111,11 +1179,6 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       color: theme.primary,
       fontSize: 9,
       fontWeight: '900',
-    },
-    filtersMenu: {
-      width: 360,
-      maxHeight: 560,
-      paddingVertical: 0,
     },
     filterWarning: {
       paddingHorizontal: 12,

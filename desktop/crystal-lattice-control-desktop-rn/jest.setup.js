@@ -149,6 +149,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       onChange,
       onReset,
       onShowAll,
+      onRequestClose,
     }) => {
       const renderOption = (filter, key, label, nextValue, option) =>
         React.createElement(
@@ -228,6 +229,12 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
           testID: 'session-filters-reset',
           onPress: onReset,
         }),
+        onRequestClose
+          ? React.createElement(Pressable, {
+              testID: 'session-filters-close',
+              onPress: onRequestClose,
+            })
+          : null,
       );
     },
 
