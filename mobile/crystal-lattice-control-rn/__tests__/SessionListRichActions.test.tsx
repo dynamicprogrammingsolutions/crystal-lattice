@@ -71,6 +71,27 @@ const statusAction = normalizeSessionListActionElement({
   },
 }).value!;
 
+const archiveAction = normalizeSessionListActionElement({
+  ui_type: 'session_list_action',
+  plugin: 'session_archive',
+  id: 'toggle_session_archived',
+  label: 'Archive/restore session',
+  icon: 'archive',
+  action_id: 'toggle_session_archived',
+  dialog: { kind: 'none' },
+  rich_ui: {
+    kind: 'toggle',
+    value_path: 'metadata.archived',
+    missing_value: false,
+    active_value: true,
+    default_pinned: true,
+    appearance: {
+      active: { tone: 'primary' },
+      inactive: { tone: 'muted' },
+    },
+  },
+}).value!;
+
 function wrap(children: React.ReactNode) {
   return <ThemeProvider theme={lightTheme}>{children}</ThemeProvider>;
 }
@@ -215,4 +236,30 @@ test('keeps a header-only action out of the action bar and renders a dual-placem
       'session-rich-action-rich-session-toggle_session_pinned',
     ),
   ).toHaveLength(1);
+});
+
+test('renders the default-pinned archive action in the shared actions bar', () => {
+  const onExecuteAction = jest.fn();
+  const rendered = render(
+    wrap(
+      <SessionListActionsBar
+        session={session}
+        pluginActions={[archiveAction]}
+        baseActions={[]}
+        pinned={['toggle_session_archived']}
+        onChangePinned={jest.fn()}
+        onBaseAction={jest.fn()}
+        onExecuteAction={onExecuteAction}
+        onFallbackAction={jest.fn()}
+        onPresentRichList={jest.fn()}
+      />,
+    ),
+  );
+
+  fireEvent.press(
+    rendered.getByTestId(
+      'session-rich-action-rich-session-toggle_session_archived',
+    ),
+  );
+  expect(onExecuteAction).toHaveBeenCalledWith(archiveAction);
 });

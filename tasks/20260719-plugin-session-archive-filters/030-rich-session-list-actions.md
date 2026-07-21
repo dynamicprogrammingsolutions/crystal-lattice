@@ -555,6 +555,22 @@ was canceled during its final filter test, so it is not counted as a passing
 run. The original task's earlier full iOS and Android native results remain
 recorded above.
 
+### Detox cleanup follow-up notes
+
+Added during task completion on July 21, 2026.
+
+At the user's direction, reduced the session-list Detox suite from six
+assertion-focused scenarios to one native component smoke scenario. It retains
+the native session-row ordering check and the action-menu → rich-list modal →
+immediate action-submission path. The removed fallback-form, detailed
+presentation, pin/archive visibility, main-search, and filter/Reset assertions
+are covered by the existing component, SDK, and real-backend component
+integration tiers. Added a shared-component archive action assertion so the
+removed native archive-visibility check retains direct coverage. The separate
+transcript Detox suite remains unchanged because its physical swipe,
+inverted-list virtualization, and variable-height scroll behavior require a
+native host.
+
 ### Approved follow-up plan
 
 Added during task completion after explicit user approval on July 21, 2026.
