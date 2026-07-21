@@ -1,6 +1,6 @@
 # Stage 1 Notification Design
 
-Design the non-blocking generic session notification model. This stage should support useful, persistent, actionable notifications without pausing a running request.
+Design the non-blocking generic session notification model. This stage supports useful, persistent, actionable notifications without pausing a running request.
 
 ## Requirements checklist
 
@@ -13,92 +13,127 @@ Design the non-blocking generic session notification model. This stage should su
 
 Parent Task: `tasks/20260619-generic-session-notifications/000-main.md`
 
-## Proposed Data Model
+## Data Model
 
-Store notifications under session metadata:
+Notifications are stored under `Session.metadata["notifications"]["items"]` as a list. Each notification is a plain dict:
 
 ```json
 {
-  "notifications": {
-    "items": [
+  "id": "notif_<uuid>",
+  "key": "stable-dedupe-key",
+  "kind": "notification",
+  "status": "pending",
+  "severity": "info",
+  "title": "Figma MCP needs sign-in",
+  "body": "This request is continuing without Figma tools.",
+  "created_at": "2026-06-19T12:00:00Z",
+  "updated_at": "2026-06-19T12:00:00Z",
+  "request_id": "req_...",
+  "source": {
+    "plugin": "mcp_runtime_app",
+    "subsystem": "mcp",
+    "server_name": "figma"
+  },
+  "display": {
+    "format": "markdown",
+    "body": "This request is continuing without Figma tools.",
+    "title": "Figma MCP needs sign-in",
+    "variant": "warning",
+    "presentation": "inline",
+    "dismissible": true,
+    "actions": [
       {
-        "id": "notif_...",
-        "key": "stable-dedupe-key",
-        "kind": "notification",
-        "status": "pending",
-        "severity": "warning",
-        "title": "Figma MCP needs sign-in",
-        "body": "This request is continuing without Figma tools.",
-        "created_at": "2026-06-19T...",
-        "updated_at": "2026-06-19T...",
-        "request_id": "req_...",
-        "source": {
-          "plugin": "mcp_runtime_app",
-          "subsystem": "mcp",
-          "server_name": "figma"
-        },
-        "display": {
-          "format": "markdown",
-          "title": "Figma MCP needs sign-in",
-          "body": "This request is continuing without Figma tools.",
-          "variant": "warning",
-          "presentation": "inline",
-          "actions": []
-        },
-        "resolution": null,
-        "model_visibility": "hidden"
+        "kind": "run_action",
+        "id": "start-login",
+        "label": "Sign in",
+        "plugin": "mcp_runtime_app",
+        "action_id": "mcp_start_login",
+        "fixed_params": { "server_name": "figma" }
       }
     ]
-  }
+  },
+  "resolution": null,
+  "model_visibility": "hidden"
 }
 ```
 
+### Field semantics
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string (uuid) | Assigned by the backend. Used for updates/resolution. |
+| `key` | string | Plugin-provided stable dedupe key. If a pending notification with the same key exists, `create` updates it in place instead of appending. |
+| `kind` | `"notification"` | Stage 1 only supports `notification`. Stage 2 adds `interaction`. |
+| `status` | `"pending"` \| `"resolved"` | Stage 1 only. Stage 2 adds `pending_response`, `responded`, `cancelled`, `expired`. |
+| `severity` | `"info"` \| `"warning"` \| `"error"` | Machine-readable level for SDK filtering/sorting. Defaults to `info`. |
+| `title`, `body` | string | Plain-text summary. Rich rendering lives in `display`. |
+| `created_at`, `updated_at` | ISO 8601 string | Set by the backend. |
+| `request_id` | string \| null | The request that emitted the notification, if applicable. |
+| `source` | dict | Plugin-provided provenance. Free-form beyond `plugin` (required). |
+| `display` | `ActionDisplayPayload` | Existing type from `packages/frontend-sdk/src/types/plugins.ts`. Renders via `ActionDisplayCard` / `ActionResultInlineCard`. |
+| `resolution` | null \| dict | Set when the notification is resolved. Shape: `{ "action_id": "...", "values": {...}, "resolved_at": "ISO8601" }`. |
+| `model_visibility` | `"hidden"` | Stage 1 only supports `hidden`. Reserved for future `summary` / `message`. |
+
+### Severity vs. display.variant
+
+`severity` is the stable machine-readable field used by SDK selectors and future filtering. `display.variant` is the presentation hint. When `display.variant` is omitted, the RN host defaults it to match `severity`. Plugins may override `display.variant` for a softer/stronger presentation without changing `severity`.
+
 ## Lifecycle Events
 
-Add SDK event types for:
+SDK event types (added to `packages/frontend-sdk/src/types/events.ts`):
 
 - `session_notification_created`
 - `session_notification_updated`
 - `session_notification_resolved`
 
-Each event should include:
+Each event payload:
 
-- `session_id`
-- optional `request_id`
-- `notification`
+```json
+{
+  "type": "session_notification_created",
+  "session_id": "...",
+  "request_id": "..." | null,
+  "notification": { "...": "..." }
+}
+```
 
-Clients should be able to update UI from events immediately, and reload persisted notifications from session metadata later.
+Clients update UI from events immediately and reload persisted notifications from session metadata on reconnect. These events pass through the existing `compact_events` pass unchanged (only `partial`/`tool_partial`/`final`/`tool_results` are compacted).
 
 ## De-Duplication
 
-Notifications should support a stable `key`. Creating a notification with an existing pending key should update the existing item rather than append a duplicate.
+Notifications support a stable `key`. Creating a notification with an existing pending `key` updates the existing item in place (merging `display`, `severity`, `body`, `updated_at`) rather than appending a duplicate. The returned `id` is the existing notification's `id`.
 
-For MCP auth this can be:
+Suggested MCP keys (MCP follow-up, not Stage 1 tests):
 
 ```text
 mcp:<server-name>:auth_required
+mcp:<server-name>:failed
 ```
+
+Stage 1 tests use generic keys such as `dummy:tool:warning`.
 
 ## Display Reuse
 
-The `display` field should be an existing `ActionDisplayPayload`. Buttons and follow-up actions should use existing action display shapes:
+The `display` field is an existing `ActionDisplayPayload`. Buttons and follow-up actions use existing action display shapes:
 
-- `run_action`
-- `open_url`
-- `copy_text`
-- `download_attachment_asset` when relevant
+- `run_action` — execute an application action (e.g., start login, resolve notification)
+- `open_url` — open an external URL
+- `copy_text` — copy text to clipboard
+- `download_attachment_asset` — download a session asset
+- `dismiss` — frontend-only hide (no backend roundtrip)
 
-Do not invent a separate prompt/button schema for Stage 1.
+No new prompt/button schema is invented for Stage 1.
 
 ## Visibility
 
-Notifications should not become model-visible messages by default. If future features need model-visible notifications, add an explicit `model_visibility` option such as:
+Notifications are not model-visible by default. `model_visibility: "hidden"` means the notification never enters `Session.messages` or native provider history. Reserved future values: `summary` (a summary message is appended), `message` (the full notification body is appended). Stage 1 implements `hidden` only.
 
-- `hidden`
-- `summary`
-- `message`
+## Failure Behavior
 
-Stage 1 should implement `hidden` only unless a strong local reason appears.
+Notification emission must not fail the user request. Two layers:
+
+1. **`notification_sink` (tool context)**: wraps `AgentApplication` methods in `try/except`, logs failures via `agent_core.utils.get_logger`. Tools call `context["notification_sink"].create({...})` and never see exceptions.
+2. **`AgentApplication.create_session_notification(...)`**: raises on programmer errors (invalid notification dict, missing session). Application plugins call this directly and are responsible for their own error handling.
 
 ## CL-150 Notes
 

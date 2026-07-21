@@ -4,11 +4,15 @@ Add SDK types/selectors and React Native rendering for generic session notificat
 
 ## Requirements checklist
 
-- [ ] Add SDK notification/event types.
-- [ ] Add selector utilities for pending/resolved notifications from session metadata and events.
-- [ ] Add React Native notification rendering using existing `ActionDisplayPayload` UI.
-- [ ] Support notification follow-up actions through the existing action runner.
-- [ ] Add focused SDK/RN component tests.
+- [ ] Add SDK notification/event types in `packages/frontend-sdk/src/types/notifications.ts`.
+- [ ] Add selector utilities in `packages/frontend-sdk/src/notifications/sessionNotifications.ts`.
+- [ ] Export new types and selectors from `packages/frontend-sdk/src/index.ts`.
+- [ ] Add `SessionNotificationsHost` RN component.
+- [ ] Mount the host in `SessionChatScreen`.
+- [ ] Support notification follow-up actions through the existing `runApplicationAction` runner.
+- [ ] Support local dismiss (frontend-only) without corrupting persisted state.
+- [ ] Add focused SDK unit tests.
+- [ ] Add RN component tests.
 
 Parent Task: `tasks/20260619-generic-session-notifications/000-main.md`
 
@@ -16,60 +20,149 @@ Depends On: `tasks/20260619-generic-session-notifications/010-stage-1-notificati
 
 ## SDK Work
 
-Add types in `packages/frontend-sdk/src/types/events.ts` for:
+### Types
 
-- `SessionNotificationCreatedEvent`
-- `SessionNotificationUpdatedEvent`
-- `SessionNotificationResolvedEvent`
+New file `packages/frontend-sdk/src/types/notifications.ts`:
 
-Add notification types, likely near session or plugin types:
+```typescript
+import type { ActionDisplayPayload } from './plugins';
+import type { BaseEvent } from './events';
 
-- `SessionNotification`
-- `SessionNotificationStatus`
-- `SessionNotificationSource`
+export type SessionNotificationStatus = 'pending' | 'resolved';
+export type SessionNotificationSeverity = 'info' | 'warning' | 'error';
+export type SessionNotificationModelVisibility = 'hidden';
 
-Add selector utilities, for example:
+export interface SessionNotificationSource {
+  plugin: string;
+  [k: string]: any;
+}
 
-```ts
-selectSessionNotifications(sessionSummaryOrMetadata)
-mergeNotificationEvent(currentNotifications, event)
-selectPendingSessionNotifications(...)
+export interface SessionNotificationResolution {
+  action_id: string;
+  values?: Record<string, any>;
+  resolved_at: string;
+}
+
+export interface SessionNotification {
+  id: string;
+  key: string;
+  kind: 'notification';
+  status: SessionNotificationStatus;
+  severity: SessionNotificationSeverity;
+  title: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
+  request_id?: string | null;
+  source: SessionNotificationSource;
+  display: ActionDisplayPayload;
+  resolution?: SessionNotificationResolution | null;
+  model_visibility: SessionNotificationModelVisibility;
+}
+
+export interface SessionNotificationCreatedEvent extends BaseEvent {
+  type: 'session_notification_created';
+  notification: SessionNotification;
+}
+export interface SessionNotificationUpdatedEvent extends BaseEvent {
+  type: 'session_notification_updated';
+  notification: SessionNotification;
+}
+export interface SessionNotificationResolvedEvent extends BaseEvent {
+  type: 'session_notification_resolved';
+  notification: SessionNotification;
+}
 ```
 
-These should not depend on MCP.
+Add these to the `Event` union in `types/events.ts`.
+
+### Selectors
+
+New file `packages/frontend-sdk/src/notifications/sessionNotifications.ts`:
+
+```typescript
+export function selectSessionNotifications(
+  sessionSummaryOrMetadata: SessionSummary | Record<string, any> | null | undefined,
+): SessionNotification[];
+
+export function selectPendingSessionNotifications(
+  sessionSummaryOrMetadata: SessionSummary | Record<string, any> | null | undefined,
+): SessionNotification[];
+
+export function mergeNotificationEvent(
+  current: SessionNotification[],
+  event: SessionNotificationCreatedEvent | SessionNotificationUpdatedEvent | SessionNotificationResolvedEvent,
+): SessionNotification[];
+
+export function resolveNotificationLocally(
+  current: SessionNotification[],
+  notificationId: string,
+  resolution: SessionNotificationResolution,
+): SessionNotification[];
+```
+
+Behavior:
+- `selectSessionNotifications` reads `metadata.notifications.items`, validates each item (skips malformed), returns a stable-order list.
+- `selectPendingSessionNotifications` filters to `status === 'pending'`.
+- `mergeNotificationEvent` applies a lifecycle event to the current list: `created`/`updated` upserts by `id`; `resolved` marks `status: 'resolved'` and stores `resolution`.
+- `resolveNotificationLocally` is a frontend-only helper for local dismiss: marks the notification resolved in the local view without a backend roundtrip.
+
+These do not depend on MCP.
 
 ## React Native Work
 
-React Native already has:
+### New component
 
-- `ActionDisplayCard`
-- `ActionResultInlineCard`
-- `ActionResultModal`
-- `runApplicationAction`
-- generic follow-up action handling in `SessionChatScreen`
+New file `mobile/crystal-lattice-control-rn/src/components/SessionNotificationsHost.tsx`:
 
-Add a small notification host that:
+```typescript
+interface SessionNotificationsHostProps {
+  sessionSummary: SessionSummary | null;
+  events: SessionNotificationCreatedEvent | SessionNotificationUpdatedEvent | SessionNotificationResolvedEvent[];
+  onFollowupAction: (action: ActionDisplayFollowupAction, notification: SessionNotification) => void;
+  onDismiss: (notification: SessionNotification) => void;
+  activeActionId?: string | null;
+}
+```
 
-- reads pending notifications from current session summary metadata
-- updates from notification events if the chat screen is streaming events
-- renders each notification's `display` using `ActionResultInlineCard` or a thin wrapper around `ActionDisplayCard`
-- executes follow-up actions with existing `runApplicationAction`
+Behavior:
+- Reads pending notifications via `selectPendingSessionNotifications(sessionSummary)`.
+- Merges live updates from `events` via `mergeNotificationEvent`.
+- Renders each notification's `display` using `ActionResultInlineCard` (reuses existing card; no new visual code).
+- Follow-up actions route through `onFollowupAction` → existing `runApplicationAction` path (same as `SessionChatScreen`'s `presentActionDisplay`).
+- Local dismiss calls `onDismiss`, which uses `resolveNotificationLocally` to hide the notification from the local view. No backend roundtrip.
 
-The notification host should avoid duplicating visual/action logic from action result displays.
+### Mount point
+
+Mount `SessionNotificationsHost` in `SessionChatScreen` above the transcript (or in a banner area), passing:
+- `sessionSummary` from the current session.
+- `events` from the event subscription (filtered to notification event types).
+- `onFollowupAction` wired to the existing `runApplicationAction` + `presentActionDisplay` flow.
+- `onDismiss` wired to a local state update that removes the notification from the view.
+
+The host avoids duplicating visual/action logic from action result displays.
 
 ## Tests
 
-Add SDK unit tests:
+### SDK unit tests
 
-- selector returns pending notifications from metadata
-- selector ignores malformed notifications
-- event reducer updates/merges notification state
+Add `packages/frontend-sdk/src/notifications/__tests__/sessionNotifications.test.ts`:
 
-Add RN component tests:
+- `selectSessionNotifications` returns pending notifications from metadata.
+- `selectSessionNotifications` ignores malformed notifications (missing `id`, missing `status`, wrong `kind`).
+- `selectPendingSessionNotifications` filters to `status === 'pending'`.
+- `mergeNotificationEvent` upserts on `created`/`updated`.
+- `mergeNotificationEvent` marks resolved on `resolved`.
+- `resolveNotificationLocally` hides the notification from the local view.
 
-- render a notification title/body
-- render action buttons
-- pressing a `run_action` button calls the existing action runner path
-- dismissing a notification hides it locally if dismissible, without corrupting persisted state
+### RN component tests
 
-Keep these tests generic with dummy notification data. Do not use MCP/Figma names in platform tests.
+Add `mobile/crystal-lattice-control-rn/src/components/__tests__/SessionNotificationsHost.test.tsx`:
+
+- Renders a notification title/body.
+- Renders action buttons.
+- Pressing a `run_action` button calls `onFollowupAction` with the action and notification.
+- Pressing `dismiss` calls `onDismiss` and the notification disappears from the view.
+- Pressing `copy_text` calls the existing copy path.
+
+Keep tests generic with dummy notification data. Do not use MCP/Figma names in platform tests.
