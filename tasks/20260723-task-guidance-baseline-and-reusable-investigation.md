@@ -4,13 +4,13 @@ Evaluate the revised task-file guidance against the previous guidance and the co
 
 ## Requirements checklist
 
-- [ ] **R1. Three attributable comparison states:** Review artifacts exist for (a) the original `TASKS-v7.md` with the pre-correction evaluator, (b) the revised `TASKS-v7.md` with the same pre-correction evaluator, and (c) the revised guidance with the corrected evaluator. The artifacts identify the exact guidance, evaluator, model, prompt, and source investigation used.
-- [ ] **R2. Guidance-neutral investigation:** The initial repository investigation and planning request runs as if task guidance were disabled and does not receive `TASKS-v7.md` in its compiled request.
-- [ ] **R3. Reusable investigation:** A compatible saved investigation session can seed later retain-plan and omit-plan task-creation cases across guidance revisions without rerunning the investigation.
-- [ ] **R4. Guided task creation:** Each task-creation fork receives the selected task guidance even when its imported investigation session was created without guidance.
-- [ ] **R5. Corrected evaluation coverage:** The final evaluator distinguishes user-observable requirement acceptance evidence from implementation-specific verification and reviews whether material open questions are prominent and the handoff is concise.
-- [ ] **R6. Comparable provenance:** The evaluation prevents or clearly reports incompatible source-session reuse and makes it possible to confirm that comparison cases share the same investigation-session content.
-- [ ] **R7. Documented and tested workflow:** Deterministic tests cover the new seed/fork behavior and evaluator contracts, and the task-guidance evaluation README explains the generic guidance-neutral investigation and source-case reuse capabilities.
+- [x] **R1. Three attributable comparison states:** Review artifacts exist for (a) the original `TASKS-v7.md` with the pre-correction evaluator, (b) the revised `TASKS-v7.md` with the same pre-correction evaluator, and (c) the revised guidance with the corrected evaluator. The artifacts identify the exact guidance, evaluator, model, prompt, and source investigation used.
+- [x] **R2. Guidance-neutral investigation:** The initial repository investigation and planning request runs as if task guidance were disabled and does not receive `TASKS-v7.md` in its compiled request.
+- [x] **R3. Reusable investigation:** A compatible saved investigation session can seed later retain-plan and omit-plan task-creation cases across guidance revisions without rerunning the investigation.
+- [x] **R4. Guided task creation:** Each task-creation fork receives the selected task guidance even when its imported investigation session was created without guidance.
+- [x] **R5. Corrected evaluation coverage:** The final evaluator distinguishes user-observable requirement acceptance evidence from implementation-specific verification and reviews whether material open questions are prominent and the handoff is concise.
+- [x] **R6. Comparable provenance:** The evaluation prevents or clearly reports incompatible source-session reuse and makes it possible to confirm that comparison cases share the same investigation-session content.
+- [x] **R7. Documented and tested workflow:** Deterministic tests cover the new seed/fork behavior and evaluator contracts, and the task-guidance evaluation README explains the generic guidance-neutral investigation and source-case reuse capabilities.
 
 ## Scope
 
@@ -167,7 +167,7 @@ Keep experiment-specific branch names, commit refs, run IDs, and the three-state
 - [x] Evaluate the revised-guidance artifact with the corrected evaluator; retain any fresh model generation as supplementary evidence.
 - [x] Update the evaluation README and command examples.
 - [x] Run deterministic tests and generate the three review bundles.
-- [ ] Record the comparison outcome and human confirmation against R1–R7 before marking requirements complete.
+- [x] Record the comparison outcome and human confirmation against R1–R7 before marking requirements complete.
 
 ## Implementation Notes
 
@@ -188,3 +188,11 @@ Keep experiment-specific branch names, commit refs, run IDs, and the three-state
   - Revised guidance / corrected evaluator: `tmp/task-guidance-eval/review-bundles/20260723-task-guidance-revised-corrected-evaluator`
   - Supplementary ChatGPT/Codex: `tmp/task-guidance-eval/review-bundles/20260723-task-guidance-chatgpt-revised-corrected`
 - The README documents only generic guidance-neutral investigation, compatibility, reuse, and scenario-aware review behavior. Experiment-specific refs and the three-state procedure remain confined to this task and generated artifacts.
+
+## Completion Notes
+
+- Completed the guidance-neutral investigation and source-reuse harness, the original/revised/corrected three-state comparison, corrected scenario-aware assertions, review bundles, and supplementary ChatGPT/Codex confirmation.
+- Requirement evidence is recorded in `## Implementation Notes`; deterministic verification finished with 28 passing task-guidance tests and a clean Ruff run.
+- The comparison found that the revised guidance improved top-level human-review placement and reduced GLM retain-plan length, but made checkbox syntax too implicit, did not ensure the Execution plan itself contained implementation direction, and left omit-plan boundaries around implementation and verification planning ambiguous.
+- The corrected evaluator detects these issues without imposing a word-count limit and treats retain-plan and omit-plan verification/documentation expectations differently.
+- Human confirmation was received on 2026-07-23 with authorization to proceed to a separate follow-up revision. That revision is intentionally deferred from this completed evaluation task.
