@@ -333,12 +333,23 @@ def _rebase_parent_session_workspace(
             return {key: replace(item) for key, item in value.items()}
         return value
 
-    payload = replace(session.to_dict())
+    payload = session.to_dict()
     metadata = payload.get("metadata")
-    if isinstance(metadata, dict) and replacements:
-        metadata.pop("native_messages", None)
-        metadata.pop("native_messages_integrity", None)
-    return Session.from_dict(payload), replacements
+    native_messages = None
+    native_messages_integrity = None
+    if isinstance(metadata, dict):
+        native_messages = metadata.pop("native_messages", None)
+        native_messages_integrity = metadata.pop(
+            "native_messages_integrity",
+            None,
+        )
+    rebased = replace(payload)
+    if isinstance(metadata, dict) and not replacements:
+        if native_messages is not None:
+            metadata["native_messages"] = native_messages
+        if native_messages_integrity is not None:
+            metadata["native_messages_integrity"] = native_messages_integrity
+    return Session.from_dict(rebased), replacements
 
 
 def _copy_parent_artifacts(
