@@ -1,10 +1,10 @@
 # Task Files and Subtasks (`tasks/`)
 
-Task files let another agent continue without the current conversation, so each file must be a standalone handoff.
+Task files are standalone handoffs for agents without the current conversation.
 
 ## Terms
 
-- A **requirement** is a verifiable outcome or constraint that the completed work must satisfy.
+- A **requirement** is an in-scope completed-state outcome or constraint that can be verified, not an action to perform.
 - A **task** is a concrete unit of work performed while executing a plan.
 - An **execution plan** records the decided approach, boundaries, tasks, verification, documentation, risks, and dependencies needed for another agent to continue without repeating decisions.
 - **Supporting details** are facts and rationale needed to interpret requirements without being separate completion outcomes.
@@ -17,13 +17,13 @@ Create or modify a task file only when the user requests task-file tracking or n
 
 When you are asked to create task files:
 1. Confirm which format the user wants: a single task file, or a main task with subtasks.
-2. Review relevant work already done and write a standalone handoff containing what is known, decided, unresolved, and left to do.
+2. Review prior work and record what is known, decided, unresolved, and left.
 3. Follow the structure and status rules below plus any user instructions.
 4. Record task relations only when explicitly requested.
 
-Start each task with a title, short description, and `## Requirements checklist`. Requirements are concise, verifiable outcomes or constraints, not work steps, and use Markdown checkbox items for status tracking.
+Start each task with a title, short description, and `## Requirements checklist`. Requirements use Markdown checkbox items and state what must be true when work is complete. Do not promote implementation, testing, documentation, refactoring, or verification work from the plan into requirements unless its resulting artifact or coverage is independently required; then state that outcome, not the action.
 
-Keep the human-review section near the top: after requirements and any brief scope/workstream summary, list unresolved requirement questions and decisions that change scope or required outcomes. Put detailed research and supporting facts after that and before any execution plan.
+Near the top, after requirements and optional scope/workstreams, list unresolved requirement questions and decisions changing scope or outcomes. Put research and supporting facts before any execution plan.
 
 Optimize for continuation, not length. Keep human-review sections concise. Supporting details preserve durable facts, constraints, references, and failed approaches needed to avoid rediscovery; omit chronology, raw output, duplication, replaceable inventories, and unselected speculation. Label uncertain content as fact, assumption, decision, recommendation, or question. Supporting details must not add hidden requirements.
 
@@ -100,7 +100,7 @@ Do not add implementation or completion notes during planning. Add `## Implement
 
 ### Presenting an execution plan
 
-Before requesting approval, store the complete `Draft` plan, then summarize its outcome, scope, approach, material decisions or questions, acceptance evidence, documentation audience, risks, and exclusions. Describe conceptual boundaries rather than file inventories unless location is material. Apply requested changes, ask for approval, and state that execution waits for it.
+Before approval, store the complete `Draft` plan, then summarize outcome, scope, approach, material decisions or questions, acceptance evidence, documentation audience, risks, and exclusions. Prefer conceptual boundaries over file inventories unless location is material. Apply changes, request approval, and state that execution waits.
 
 ## Completing task files (handoff executor)
 

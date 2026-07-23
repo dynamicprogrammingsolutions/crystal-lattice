@@ -99,6 +99,7 @@ Update the generic evaluation README only if commands, reusable source behavior,
 - The first GLM retain-plan attempt exceeded the unchanged three-mutation safety budget and produced no task. A preserved rerun produced a complete task with strong continuation context but used `### Implementation tasks`, put tasks and verification before the decision collection, and placed risks after it. The aligned mechanical and empirical checks reported these deviations; no assertion was weakened.
 - The ChatGPT retain-plan empirical review found one execution-task item added to the requirements checklist, showing that outcome-versus-task judgment remains semantic even when checkbox structure is correct.
 - Generic README changes cover only reusable evaluator behavior. Run refs and comparison provenance remain in generated bundles.
+- Post-completion adjustment requested on 2026-07-23: strengthened the requirement definition and checklist rule so plan work is not promoted into requirements unless its resulting artifact or coverage is independently required, and then must be stated as an outcome rather than an action. The approved wording was added verbatim while unrelated redundancy was removed, reducing `TASKS-v7.md` from 1,275 to 1,273 words. GLM, ChatGPT, and Ollama `kimi-k2.7-code:cloud` evaluations are being rerun from guidance-neutral investigations.
 
 ## Completion Notes
 
