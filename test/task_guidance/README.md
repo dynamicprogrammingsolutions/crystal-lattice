@@ -41,6 +41,9 @@ with a compatible repository revision, model, investigation prompt, and
 non-guidance request profile. The guidance hash is deliberately not part of
 that compatibility check, so one investigation can be reused to compare
 guidance revisions.
+Each fork rebases source-workspace references in its runtime session to the
+isolated fork workspace while preserving the original session artifact and hash
+for provenance.
 
 ## Quick start with an existing GLM planning session
 

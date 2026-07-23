@@ -19,6 +19,7 @@ from task_guidance_eval import (  # noqa: E402
     _load_source_session,
     _ollama_review,
     _profile_sha256,
+    _rebase_parent_session_workspace,
     _review_prompt,
     _session_sha256,
     build_parser,
@@ -180,6 +181,48 @@ def test_guidance_neutral_source_profile_can_be_reused(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="incompatible"):
         _load_source_session(source, model_case=incompatible_model)
+
+
+def test_reused_session_workspace_is_rebased_without_changing_source(
+    tmp_path: Path,
+) -> None:
+    from agent_core import Session
+
+    source_workspace = tmp_path / "source-case" / "workspace"
+    target_workspace = tmp_path / "fork-case" / "workspace"
+    session = Session.from_dict(
+        {
+            "session_id": "source",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        f"Primary working directory: {source_workspace}. "
+                        f"Write only under {source_workspace}."
+                    ),
+                    "metadata": {
+                        "working_directory": str(source_workspace),
+                    },
+                },
+                {
+                    "role": "assistant",
+                    "content": "Investigation findings.",
+                },
+            ],
+            "metadata": {},
+        }
+    )
+
+    rebased, replacement_count = _rebase_parent_session_workspace(
+        session,
+        source_workspace=source_workspace,
+        target_workspace=target_workspace,
+    )
+
+    assert replacement_count == 3
+    assert str(source_workspace) in json.dumps(session.to_dict())
+    assert str(source_workspace) not in json.dumps(rebased.to_dict())
+    assert json.dumps(rebased.to_dict()).count(str(target_workspace)) == 3
 
 
 def test_guided_or_incompatible_source_is_rejected(tmp_path: Path) -> None:

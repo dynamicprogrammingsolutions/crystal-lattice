@@ -100,6 +100,7 @@ Update the generic evaluation README only if commands, reusable source behavior,
 - The ChatGPT retain-plan empirical review found one execution-task item added to the requirements checklist, showing that outcome-versus-task judgment remains semantic even when checkbox structure is correct.
 - Generic README changes cover only reusable evaluator behavior. Run refs and comparison provenance remain in generated bundles.
 - Post-completion adjustment requested on 2026-07-23: strengthened the requirement definition and checklist rule so plan work is not promoted into requirements unless its resulting artifact or coverage is independently required, and then must be stated as an outcome rather than an action. The approved wording was added verbatim while unrelated redundancy was removed, reducing `TASKS-v7.md` from 1,275 to 1,273 words. GLM, ChatGPT, and Ollama `kimi-k2.7-code:cloud` evaluations are being rerun from guidance-neutral investigations.
+- The first Kimi task-creation run exposed a source-reuse harness defect rather than a guidance result: the imported session still advertised the neutral seed's absolute workspace, so Kimi followed the system's absolute-path instruction and its writes were denied outside the isolated fork. Runtime parent sessions now rebase only source-workspace references to the fork workspace while preserving the original session artifact/hash for provenance. A regression test raises deterministic coverage to 32 passing tests; the generic README documents the rebasing behavior.
 
 ## Completion Notes
 

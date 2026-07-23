@@ -309,6 +309,33 @@ def _last_visible_message(session: Session, role: str) -> str:
     return ""
 
 
+def _rebase_parent_session_workspace(
+    session: Session,
+    *,
+    source_workspace: Path,
+    target_workspace: Path,
+) -> tuple[Session, int]:
+    source = str(source_workspace.resolve())
+    target = str(target_workspace.resolve())
+    replacements = 0
+
+    def replace(value: Any) -> Any:
+        nonlocal replacements
+        if isinstance(value, str):
+            count = value.count(source)
+            if count:
+                replacements += count
+                return value.replace(source, target)
+            return value
+        if isinstance(value, list):
+            return [replace(item) for item in value]
+        if isinstance(value, dict):
+            return {key: replace(item) for key, item in value.items()}
+        return value
+
+    return Session.from_dict(replace(session.to_dict())), replacements
+
+
 def _copy_parent_artifacts(
     *,
     target: PreparedCase,
@@ -434,6 +461,16 @@ def _run_fork(
         with_premade_task=False,
     )
     parent_hash = _session_sha256(parent_session)
+    runtime_parent_session = parent_session
+    workspace_rebase_count = 0
+    if source_case is not None:
+        runtime_parent_session, workspace_rebase_count = (
+            _rebase_parent_session_workspace(
+                parent_session,
+                source_workspace=source_case / "workspace",
+                target_workspace=prepared.workspace,
+            )
+        )
     _copy_parent_artifacts(
         target=prepared,
         parent_session=parent_session,
@@ -453,6 +490,10 @@ def _run_fork(
         investigation_fingerprint=_profile_sha256(profile),
         investigation_session_sha256=parent_hash,
         fork_parent_session_sha256=parent_hash,
+        fork_runtime_parent_session_sha256=_session_sha256(
+            runtime_parent_session
+        ),
+        fork_workspace_rebase_count=workspace_rebase_count,
         source_case=str(source_case.resolve()) if source_case else None,
         expected_requirement_ids=list(REQUIREMENT_IDS) if source_has_ids else [],
         research_markers=list(RESEARCH_MARKERS),
@@ -466,7 +507,7 @@ def _run_fork(
                 running,
                 prepared,
                 prompt=prompt,
-                session=parent_session,
+                session=runtime_parent_session,
                 include_task_guidance=True,
             )
         write_turn_artifacts(
