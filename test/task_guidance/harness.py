@@ -507,6 +507,7 @@ def send_turn(
     *,
     prompt: str,
     session: Session | None = None,
+    include_task_guidance: bool = True,
 ) -> TurnResult:
     current = session or running.session
     current = running.core.add_message(
@@ -522,7 +523,7 @@ def send_turn(
         "model": resolved_model(prepared),
         "working_directory": str(prepared.workspace),
         "allowed_paths": [str(prepared.workspace)],
-        "include_tasks": True,
+        "include_tasks": include_task_guidance,
         "skills_enabled": False,
         "mcp_enabled": False,
         "web_search_enabled": False,

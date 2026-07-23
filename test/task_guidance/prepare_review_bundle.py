@@ -227,6 +227,30 @@ def evaluate_case(
     check("The exact task-guidance version is present and hash-matched", guidance_matches_metadata)
 
     scenario = metadata.get("scenario")
+
+    def task_guidance_inclusion_matches() -> None:
+        if scenario == "planning-seed":
+            expected = metadata.get("investigation_task_guidance_enabled")
+        else:
+            expected = metadata.get("task_creation_task_guidance_enabled")
+        if not isinstance(expected, bool):
+            return
+        compiled_path = case_dir / "compiled-system-message.md"
+        if not compiled_path.is_file():
+            raise AssertionError("compiled-system-message.md is missing")
+        guidance = guidance_path.read_text(encoding="utf-8").strip()
+        compiled = compiled_path.read_text(encoding="utf-8")
+        included = bool(guidance) and guidance in compiled
+        if included != expected:
+            raise AssertionError(
+                f"compiled request guidance inclusion {included} != {expected}"
+            )
+
+    check(
+        "Task guidance is included only for the intended model turn",
+        task_guidance_inclusion_matches,
+    )
+
     mutation_path = case_dir / "mutation-calls.json"
 
     def mutation_budget() -> None:

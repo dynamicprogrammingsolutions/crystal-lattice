@@ -5,6 +5,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
@@ -13,11 +15,15 @@ if str(HERE) not in sys.path:
 from prepare_review_bundle import evaluate_case  # noqa: E402
 from task_guidance_eval import (  # noqa: E402
     _csv_steps,
+    _investigation_profile,
+    _load_source_session,
     _ollama_review,
+    _profile_sha256,
     _review_prompt,
     _session_sha256,
     build_parser,
 )
+from harness import ModelCase  # noqa: E402
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -126,6 +132,156 @@ def test_session_hash_is_stable_for_serialized_round_trip() -> None:
     restored = Session.from_dict(json.loads(json.dumps(session.to_dict())))
 
     assert _session_sha256(session) == _session_sha256(restored)
+
+
+def test_guidance_neutral_source_profile_can_be_reused(tmp_path: Path) -> None:
+    from agent_core import Session
+
+    model_case = ModelCase(
+        case_id="ollama-glm",
+        agent_id="glm-ollama",
+        model="glm-test",
+        auth_mode="ollama",
+    )
+    profile = _investigation_profile(model_case)
+    session = Session.from_dict(
+        {
+            "session_id": "source",
+            "messages": [
+                {"role": "user", "content": "Investigate."},
+                {"role": "assistant", "content": "Findings."},
+            ],
+            "metadata": {},
+        }
+    )
+    source = tmp_path / "source"
+    source.mkdir()
+    _write_json(source / "session-1.json", session.to_dict())
+    _write_json(
+        source / "metadata.json",
+        {
+            "investigation_task_guidance_enabled": False,
+            "investigation_profile": profile,
+            "investigation_fingerprint": _profile_sha256(profile),
+            "investigation_session_sha256": _session_sha256(session),
+        },
+    )
+
+    loaded, metadata = _load_source_session(source, model_case=model_case)
+
+    assert loaded.to_dict() == session.to_dict()
+    assert metadata["investigation_profile"] == profile
+
+    incompatible_model = ModelCase(
+        case_id="ollama-other",
+        agent_id="glm-ollama",
+        model="other-model",
+        auth_mode="ollama",
+    )
+    with pytest.raises(ValueError, match="incompatible"):
+        _load_source_session(source, model_case=incompatible_model)
+
+
+def test_guided_or_incompatible_source_is_rejected(tmp_path: Path) -> None:
+    model_case = ModelCase(
+        case_id="ollama-glm",
+        agent_id="glm-ollama",
+        model="glm-test",
+        auth_mode="ollama",
+    )
+    source = tmp_path / "source"
+    source.mkdir()
+    _write_json(
+        source / "session-1.json",
+        {
+            "session_id": "source",
+            "messages": [{"role": "assistant", "content": "Findings."}],
+            "metadata": {},
+        },
+    )
+    _write_json(
+        source / "metadata.json",
+        {"investigation_task_guidance_enabled": True},
+    )
+
+    with pytest.raises(ValueError, match="not guidance-neutral"):
+        _load_source_session(source, model_case=model_case)
+
+
+@pytest.mark.parametrize(
+    ("scenario", "metadata_key", "enabled"),
+    [
+        ("planning-seed", "investigation_task_guidance_enabled", False),
+        (
+            "create-task-retain-plan",
+            "task_creation_task_guidance_enabled",
+            True,
+        ),
+    ],
+)
+def test_compiled_request_records_expected_guidance_inclusion(
+    tmp_path: Path,
+    scenario: str,
+    metadata_key: str,
+    enabled: bool,
+) -> None:
+    task = """\
+# Demo
+
+Description.
+
+## Requirements checklist
+
+- [ ] R1: Resolve home paths.
+- [ ] R2: Preserve existing behavior.
+
+## Research
+
+`AbsolutePathBufGuard` is absent from `parse_managed_requirements_base64`.
+
+## Execution plan
+
+Status: Draft
+
+### Requirement verification
+
+- R1: Acceptance evidence.
+- R2: Acceptance evidence.
+
+### Documentation
+
+No change.
+
+### Task checklist
+
+- [ ] Implement.
+"""
+    case_dir, metadata, session = _base_case(
+        tmp_path,
+        scenario=scenario,
+        task_text=task,
+        response="Created the requested task.",
+    )
+    metadata[metadata_key] = enabled
+    compiled = "Base system prompt.\n"
+    if enabled:
+        compiled += case_dir.joinpath("TASKS.md").read_text(encoding="utf-8")
+    case_dir.joinpath("compiled-system-message.md").write_text(
+        compiled,
+        encoding="utf-8",
+    )
+    if scenario == "planning-seed":
+        case_dir.joinpath("git-status-1.txt").write_text("", encoding="utf-8")
+
+    results = evaluate_case(case_dir, metadata, session)
+
+    inclusion = next(
+        result
+        for result in results
+        if result.name
+        == "Task guidance is included only for the intended model turn"
+    )
+    assert inclusion.status == "PASS"
 
 
 def test_ollama_review_returns_text_without_judging_exit_status(

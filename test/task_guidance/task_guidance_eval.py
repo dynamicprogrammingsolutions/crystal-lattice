@@ -18,6 +18,8 @@ if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
 from harness import (  # noqa: E402
+    CODEX_COMMIT,
+    CODEX_REPOSITORY,
     DEFAULT_CHATGPT_MODEL,
     DEFAULT_GUIDANCE_PATH,
     DEFAULT_OLLAMA_AGENT,
@@ -36,9 +38,11 @@ from harness import (  # noqa: E402
     collect_tool_calls,
     current_run_id,
     environment_for_case,
+    mutation_call_limit,
     prepare_case,
     send_turn,
     start_agent,
+    tool_loop_limit,
     write_final_task_artifact,
     write_git_artifacts,
     write_json,
@@ -204,11 +208,97 @@ def _session_sha256(session: Session) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
-def _load_source_session(source_case: Path) -> Session:
+def _investigation_profile(model_case: ModelCase) -> dict[str, Any]:
+    model = model_case.model or _default_ollama_model()
+    request_profile: dict[str, Any] = {
+        "model": model,
+        "working_directory": "case-workspace",
+        "allowed_paths": ["case-workspace"],
+        "include_tasks": False,
+        "skills_enabled": False,
+        "mcp_enabled": False,
+        "web_search_enabled": False,
+        "timeout": 600,
+        "max_output_chars": 20_000,
+    }
+    if model_case.auth_mode == "chatgpt":
+        request_profile.update(
+            {
+                "auth_mode": "chatgpt",
+                "reasoning_effort": "medium",
+                "reasoning_summary": "detailed",
+            }
+        )
+    else:
+        request_profile["request_options"] = {"reasoning_effort": "max"}
+    return {
+        "version": 1,
+        "repository": CODEX_REPOSITORY,
+        "repository_commit": CODEX_COMMIT,
+        "agent_id": model_case.agent_id,
+        "model": model,
+        "auth_mode": model_case.auth_mode,
+        "prompt_sha256": hashlib.sha256(TASK_PROMPT.encode("utf-8")).hexdigest(),
+        "request": request_profile,
+        "tool_loop_limit": tool_loop_limit(),
+        "mutation_call_limit": mutation_call_limit(),
+    }
+
+
+def _profile_sha256(profile: Mapping[str, Any]) -> str:
+    payload = json.dumps(
+        profile,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _load_source_session(
+    source_case: Path,
+    *,
+    model_case: ModelCase,
+) -> tuple[Session, Mapping[str, Any]]:
     path = source_case.expanduser().resolve() / "session-1.json"
     if not path.is_file():
         raise FileNotFoundError(f"source planning session does not exist: {path}")
-    return Session.from_dict(load_json(path))
+    metadata_path = source_case.expanduser().resolve() / "metadata.json"
+    if not metadata_path.is_file():
+        raise FileNotFoundError(
+            f"source planning metadata does not exist: {metadata_path}"
+        )
+    metadata = load_json(metadata_path)
+    if not isinstance(metadata, Mapping):
+        raise ValueError(f"source planning metadata is not an object: {metadata_path}")
+    if metadata.get("investigation_task_guidance_enabled") is not False:
+        raise ValueError(
+            "source planning session is not guidance-neutral; create a new "
+            "planning seed with the current harness"
+        )
+    expected_profile = _investigation_profile(model_case)
+    expected_fingerprint = _profile_sha256(expected_profile)
+    actual_fingerprint = metadata.get("investigation_fingerprint")
+    if actual_fingerprint != expected_fingerprint:
+        raise ValueError(
+            "source planning session is incompatible with the requested "
+            f"investigation profile: {actual_fingerprint!r} != "
+            f"{expected_fingerprint!r}"
+        )
+    recorded_profile = metadata.get("investigation_profile")
+    if recorded_profile != expected_profile:
+        raise ValueError(
+            "source planning metadata does not match its expected "
+            "investigation profile"
+        )
+    session = Session.from_dict(load_json(path))
+    recorded_session_hash = metadata.get("investigation_session_sha256")
+    actual_session_hash = _session_sha256(session)
+    if recorded_session_hash != actual_session_hash:
+        raise ValueError(
+            "source planning session hash does not match its metadata: "
+            f"{actual_session_hash} != {recorded_session_hash}"
+        )
+    return session, metadata
 
 
 def _last_visible_message(session: Session, role: str) -> str:
@@ -287,9 +377,24 @@ def _run_seed(
     )
     running = None
     try:
+        profile = _investigation_profile(model_case)
+        _update_metadata(
+            prepared.case_dir,
+            role="planning-seed",
+            investigation_task_guidance_enabled=False,
+            investigation_profile=profile,
+            investigation_fingerprint=_profile_sha256(profile),
+            expected_requirement_ids=list(REQUIREMENT_IDS),
+            research_markers=list(RESEARCH_MARKERS),
+        )
         with _case_environment(prepared):
             running = start_agent(prepared)
-            result = send_turn(running, prepared, prompt=TASK_PROMPT)
+            result = send_turn(
+                running,
+                prepared,
+                prompt=TASK_PROMPT,
+                include_task_guidance=False,
+            )
         write_turn_artifacts(
             prepared,
             turn_number=1,
@@ -299,9 +404,7 @@ def _run_seed(
         )
         _update_metadata(
             prepared.case_dir,
-            role="planning-seed",
-            expected_requirement_ids=list(REQUIREMENT_IDS),
-            research_markers=list(RESEARCH_MARKERS),
+            investigation_session_sha256=_session_sha256(result.session),
         )
         return result.session, prepared.case_dir
     except BaseException as exc:
@@ -340,9 +443,15 @@ def _run_fork(
         requirement_id in json.dumps(parent_session.to_dict())
         for requirement_id in REQUIREMENT_IDS
     )
+    profile = _investigation_profile(model_case)
     _update_metadata(
         prepared.case_dir,
         role="fork",
+        investigation_task_guidance_enabled=False,
+        task_creation_task_guidance_enabled=True,
+        investigation_profile=profile,
+        investigation_fingerprint=_profile_sha256(profile),
+        investigation_session_sha256=parent_hash,
         fork_parent_session_sha256=parent_hash,
         source_case=str(source_case.resolve()) if source_case else None,
         expected_requirement_ids=list(REQUIREMENT_IDS) if source_has_ids else [],
@@ -358,6 +467,7 @@ def _run_fork(
                 prepared,
                 prompt=prompt,
                 session=parent_session,
+                include_task_guidance=True,
             )
         write_turn_artifacts(
             prepared,
@@ -454,7 +564,10 @@ def run_command(args: argparse.Namespace) -> int:
             )
         elif args.source_case is not None:
             source_case = args.source_case.expanduser().resolve()
-            parent_session = _load_source_session(source_case)
+            parent_session, _ = _load_source_session(
+                source_case,
+                model_case=model_case,
+            )
 
         errors: list[str] = []
         if "retain-plan" in steps and parent_session is not None:

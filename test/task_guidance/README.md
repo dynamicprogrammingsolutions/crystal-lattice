@@ -24,16 +24,23 @@ review bundle afterward.
 ## Scenarios
 
 - `plan`: inspect the pinned repository and produce a plan without changing it.
+  This investigation turn runs with task guidance disabled.
 - `retain-plan`: fork a planning session and create a task that retains the
-  execution plan as `Draft`.
+  execution plan as `Draft`; task guidance is enabled for this turn.
 - `omit-plan`: fork the same planning session and create a task that retains
-  requirements and supporting context but omits the execution plan.
+  requirements and supporting context but omits the execution plan; task
+  guidance is enabled for this turn.
 - `existing-task-plan`: add the premade requirements task and ask for a draft
   execution plan.
 
 The retain/omit forks may follow a fresh `plan` step in the same command or
 reuse `session-1.json` from an older case through `--source-case`. Imported
 sessions record both their source provenance and the current guidance hash.
+Source reuse requires a guidance-neutral investigation created by this harness
+with a compatible repository revision, model, investigation prompt, and
+non-guidance request profile. The guidance hash is deliberately not part of
+that compatibility check, so one investigation can be reused to compare
+guidance revisions.
 
 ## Quick start with an existing GLM planning session
 
