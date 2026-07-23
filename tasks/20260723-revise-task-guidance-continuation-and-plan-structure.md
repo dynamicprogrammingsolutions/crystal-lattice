@@ -116,3 +116,26 @@ Update the generic evaluation README only if commands, reusable source behavior,
   - `tmp/task-guidance-eval/review-bundles/20260723-task-guidance-continuation-chatgpt-aligned-evaluator`
   - Guidance-only baseline bundles remain under `tmp/task-guidance-continuation-guidance-only/tmp/task-guidance-eval/review-bundles/`.
 - No further scope is required for this revision. Future changes may add a dedicated information-selection fixture if broader cross-task evidence is desired.
+
+## Post-completion follow-up
+
+### Final quality assessment
+
+- The task succeeded from task-file quality and handoff-usability perspectives. No material regression was observed against the pre-task guidance in the evaluated scenario.
+- Final GLM, ChatGPT, and Kimi retain-plan and omit-plan runs all passed mechanical assertions. Their requirements remained completed-state outcomes/constraints, retained plans were continuation-capable, omit-plan files excluded plan content, and human-facing sections stayed scannable.
+- The guidance retained the useful context of the pre-task state while improving requirement/task separation, plan ownership, decision placement, verification separation, and omit-plan behavior. Its final size is 1,273 words versus 1,275 before the last adjustment.
+- This evidence establishes guidance usability, not the technical correctness of each generated implementation plan. Model generation is stochastic and the empirical comparison currently uses one repository scenario.
+
+### Non-blocking follow-up areas
+
+1. **Top-level versus implementation decisions:** Kimi mildly duplicated its selected approach near the top and in the required near-bottom implementation-decision collection. If this recurs, clarify that the top contains only requirement questions and decisions changing required scope/outcomes; implementation choices belong only in the retained plan.
+2. **Semantic requirement classification:** Outcome-versus-task classification remains an empirical judgment. Do not add a verb-based mechanical rule; valid outcome requirements commonly contain verbs.
+3. **Scenario diversity:** Add focused cases where tests or documentation are genuinely required deliverables, where no user-visible behavior changes, where human verification is required, and where requirement questions remain unresolved.
+4. **Reuse-path smoke coverage:** Kimi exercised workspace rebasing and native-history rebuilding end to end. A future GLM and ChatGPT reuse run under the corrected harness would provide additional provider coverage.
+5. **Omit-plan tradeoff:** Omit-plan intentionally removes implementation decisions/questions unless the user explicitly requests preservation. Monitor whether this causes avoidable rediscovery in real handoffs.
+
+### Where to continue
+
+- Start with the final review bundles listed in `## Implementation Notes` and the reusable harness under `test/task_guidance/`.
+- Prefer adding a targeted evaluation fixture before changing guidance again. Strengthen wording only for a repeated cross-model failure, not a one-off formatting preference.
+- If decision duplication recurs, the smallest candidate guidance addition is: “The top section contains only requirement questions and decisions changing required scope or outcomes. Collect implementation choices only in the retained execution plan.”
