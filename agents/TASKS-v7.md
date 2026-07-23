@@ -6,8 +6,8 @@ Task files are a handoff mechanism between agents. A new agent executing a task 
 
 - A **requirement** is a verifiable outcome or constraint that the completed work must satisfy.
 - A **task** is a concrete unit of work performed while executing a plan.
-- An **execution plan** records the approach, important decisions and rationale, affected boundaries, ordered tasks, requirement verification, documentation work, risks, and dependencies. It preserves enough direction for another agent to continue without making new important decisions, while omitting redundant detail.
-- **Supporting details** are factual findings, rationale, definitions, examples, accepted decisions, and other information needed to interpret requirements without being separately tracked outcomes.
+- An **execution plan** records the decided approach, boundaries, tasks, verification, documentation, risks, and dependencies needed for another agent to continue without repeating decisions.
+- **Supporting details** are facts and rationale needed to interpret requirements without being separate completion outcomes.
 - An **open question** is a **requirement question** when its answer changes a required outcome or constraint, and a **design decision** when the requirements stay the same but the implementation direction changes.
 - A **material design decision** affects user-visible behavior, interfaces or contracts, ownership or module boundaries, compatibility or persisted data, security or privacy, or a significant operational or maintenance tradeoff.
 
@@ -17,18 +17,15 @@ Create or modify a task file only when the user requests task-file tracking or n
 
 When you are asked to create task files:
 1. Confirm which format the user wants: a single task file, or a main task with subtasks.
-2. Review the work/research you already did related to the task (what you inspected, what you learned, what you ruled out).
-3. For a full handoff, assemble what's known, what's been tried, what remains, and where to look next.
-4. Write the task file(s) so a new agent can continue without access to the current conversation.
-5. Add the required structure and status tracking described below.
-6. If the user explicitly asks to record task relations, add brief relation notes under the relevant items in the main file's `## Subtasks`, using clear keywords and full relative task paths.
-7. If the user provides additional instructions for task file structure/content, follow those instructions.
+2. Review relevant work already done and write a concise, standalone handoff containing what is known, decided, unresolved, and left to do.
+3. Follow the structure and status rules below plus any user instructions.
+4. Record task relations only when explicitly requested.
 
-At the start of each task file:
-- Include a title, a short human-readable description, and then a `## Requirements checklist`.
-- Put verifiable outcomes in the requirements checklist, not ordered work steps.
-- Keep requirements concise and put factual research and supporting details below them, before any execution plan. Supporting details may clarify a requirement, but must not silently add a completion condition.
-- For a full handoff, include enough prior findings that the completing agent does not need to rediscover them.
+Start each task with a title, short description, and `## Requirements checklist`. Requirements are concise, verifiable outcomes or constraints, not work steps.
+
+Keep the human-review section near the top: after requirements and any brief scope/workstream summary, list unresolved requirement questions and material design decisions. Put detailed research and supporting facts after that and before any execution plan.
+
+Keep task files short without losing handoff-critical information. Omit investigation chronology, repeated requirement restatements, exhaustive file inventories, and speculative implementation detail. Prefer concise findings and references. Supporting details may clarify requirements but must not add hidden completion conditions.
 
 When a task file follows planning, follow the user's requested handoff:
 - If asked to retain the plan, preserve the common handoff content and put the plan in a separate `## Execution plan`; use `Draft` unless execution was already approved.
@@ -76,15 +73,6 @@ Creating a task file does not itself authorize execution.
 - If the user explicitly asks to record task relations, add the relation under the relevant item using a clear keyword such as `SUPERSEDED BY`, `SPLIT INTO`, `COMPLETED VIA`, or `OVERLAP`.
 - You do not need to inspect other task files just to use these labels.
 
-Example:
-```md
-## Subtasks
-
-- [x] `tasks/example-task/010-first-step.md`
-  - COMPLETED VIA `tasks/example-task/050-combined-implementation.md`
-- [ ] `tasks/example-task/020-follow-up.md`
-```
-
 ### Required links / references (subtasks)
 - In each subtask file, include `Parent Task: tasks/<task-dir>/000-main.md`.
 - When referencing another task file (parent/child/dependency), use the full relative path.
@@ -98,7 +86,11 @@ Example:
 
 ## Execution plans
 
-Use `## Execution plan`, followed immediately by `Status: Draft` or `Status: Approved`, and keep `### Requirement verification`, `### Documentation`, and `### Task checklist` as separate parts. During planning, do not add implementation- or completion-notes sections at any heading level; add `## Implementation Notes` only after execution starts and `## Completion Notes` only after completion.
+Use `## Execution plan`, followed immediately by `Status: Draft` or `Status: Approved`. Keep `### Requirement verification`, `### Documentation`, and `### Task checklist` separate.
+
+Requirement verification maps each requirement, or coherent requirement group, to concise acceptance evidence at a user-relevant or public boundary. Put implementation-specific robustness checks in an optional `### Additional implementation verification` section or the task checklist.
+
+Do not add implementation or completion notes during planning. Add `## Implementation Notes` only after execution starts and immutable `## Completion Notes` only after completion.
 
 - `Draft` records planning but does not authorize execution.
 - `Approved` means the user has approved execution of that plan.
@@ -106,14 +98,14 @@ Use `## Execution plan`, followed immediately by `Status: Draft` or `Status: App
 
 ### Presenting an execution plan
 
-Before requesting approval, write the complete plan into the task file as `Draft`. Then present a concise, self-contained summary that the user can review without reading the repository or full plan:
+Before requesting approval, write the complete plan into the task file as `Draft`, then give the user a concise, self-contained summary covering:
 
-- Explain the outcome, scope by affected area, approach, and decisions about user-visible behavior, interfaces, contracts, ownership, or extraction boundaries.
-- **Requirement verification:** For each requirement or coherent requirement group, identify the planned evidence, including the test type and boundary where tests apply. Do not burden the summary with tests of internal implementation details unless they affect an important risk or decision.
-- **Documentation:** Explain the intended audience, what documentation will be added or changed, and what usage, behavior, or interface it will make understandable without reading source code or unrelated examples. State when no documentation change is planned.
-- Present every material decision requiring user confirmation and name the recommended choice explicitly rather than generalizing it; also include material risks, exclusions, and open questions.
+- outcome, scope, approach, and material decisions;
+- acceptance evidence by requirement or requirement group;
+- documentation audience and what the documentation will make understandable;
+- material risks, exclusions, open questions, and recommended choices.
 
-Describe conceptual changes rather than a file inventory unless a location is itself an important decision. Apply requested changes to the draft. End the response by explicitly asking the user to approve the plan and stating that execution will begin only after approval.
+Describe conceptual boundaries rather than file inventories unless a location is itself a material decision. Apply requested changes to the draft, then ask for approval and state that execution begins only after approval.
 
 ## Completing task files (handoff executor)
 
