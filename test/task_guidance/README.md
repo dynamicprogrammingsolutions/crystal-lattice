@@ -110,12 +110,19 @@ python test/task_guidance/task_guidance_eval.py review \
 
 The reviewer receives the saved task, response, fixture requirements, and
 mechanical assertions. It checks distinctions such as requirements versus
-execution tasks and supporting details versus an execution plan. It explicitly
-does not judge repository understanding, implementation quality, technical test
-adequacy, or whether the plan is a good solution. It writes
+execution tasks, supporting details versus an execution plan, acceptance
+evidence versus implementation-specific checks, prominent unresolved questions,
+and concise handoff content. It explicitly does not judge repository
+understanding, implementation quality, technical test adequacy, or whether the
+plan is a good solution. It writes
 `empirical-review.md` and the raw request and response artifacts, but its
 judgment does not control the command exit status. Add `--bundle` to prepare the
 review bundle immediately afterward.
+
+The empirical prompt is scenario-aware: retain-plan and existing-task-plan
+reviews assess requirement verification and documentation presentation, while
+omit-plan reviews treat planned verification and documentation as plan content
+that should be absent rather than required.
 
 ## Review bundle
 

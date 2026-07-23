@@ -369,6 +369,90 @@ No user-facing documentation change.
         and result.status == "MANUAL"
         for result in results
     )
+    assert any(
+        result.name == "Execution plan contains a distinct implementation direction"
+        and result.status == "MANUAL"
+        for result in results
+    )
+    assert any(
+        result.name == "Requirement verification is acceptance-focused"
+        and result.status == "MANUAL"
+        for result in results
+    )
+
+
+def test_requirement_traceability_stops_before_additional_verification(
+    tmp_path: Path,
+) -> None:
+    task = """\
+# Demo
+
+Description.
+
+## Requirements checklist
+
+- [ ] R1: Resolve home paths.
+- [ ] R2: Preserve existing behavior.
+
+## Research
+
+`AbsolutePathBufGuard` is absent from `parse_managed_requirements_base64`.
+
+## Execution plan
+
+Status: Draft
+
+Apply the selected boundary.
+
+### Requirement verification
+
+#### Delivery behavior
+
+- R1: Public-boundary acceptance scenario.
+- R2: Public-boundary regression scenario.
+
+### Additional implementation verification
+
+- R1 and R2: Internal parser and cleanup tests.
+
+### Documentation
+
+No user-facing documentation change.
+
+### Task checklist
+
+- [ ] Implement the approved direction.
+"""
+    case_dir, metadata, session = _base_case(
+        tmp_path,
+        scenario="create-task-retain-plan",
+        task_text=task,
+        response="Created the task with the requested draft plan.",
+    )
+
+    passing = evaluate_case(case_dir, metadata, session)
+
+    assert not [result for result in passing if result.status == "FAIL"]
+
+    task_without_acceptance_ids = task.replace(
+        "- R1: Public-boundary acceptance scenario.\n"
+        "- R2: Public-boundary regression scenario.",
+        "- Home paths: Public-boundary acceptance scenario.\n"
+        "- Existing behavior: Public-boundary regression scenario.",
+    )
+    case_dir.joinpath("task-file.md").write_text(
+        task_without_acceptance_ids,
+        encoding="utf-8",
+    )
+
+    failing = evaluate_case(case_dir, metadata, session)
+
+    traceability = next(
+        result
+        for result in failing
+        if result.name == "Requirement verification references every requirement id"
+    )
+    assert traceability.status == "FAIL"
 
 
 def test_omit_plan_case_retains_context_without_plan(
@@ -428,7 +512,7 @@ Description.
 """
     case_dir, metadata, _ = _base_case(
         tmp_path,
-        scenario="create-task-omit-plan",
+        scenario="create-task-retain-plan",
         task_text=task,
         response="Created the requested handoff.",
     )
@@ -441,5 +525,53 @@ Description.
         "requirements are outcomes or constraints rather than execution tasks"
         in normalized
     )
+    assert (
+        "observable acceptance evidence at a user-relevant or public boundary"
+        in normalized
+    )
+    assert (
+        "implementation-specific robustness checks, when present, are kept "
+        "separate"
+        in normalized
+    )
+    assert "material unresolved questions are easy to find" in normalized
+    assert "whether the handoff is concise" in normalized
+    assert "itself explains its implementation direction between" in normalized
+    assert "plan status and requirement verification" in normalized
+    assert "do not count supporting details, pre-plan design decisions" in normalized
     assert "Do not judge whether repository findings are correct" in normalized
     assert "whether the plan satisfies R1-R5" not in prompt
+
+
+def test_empirical_prompt_treats_omit_plan_verification_as_plan_content(
+    tmp_path: Path,
+) -> None:
+    task = """\
+# Demo
+
+Description.
+
+## Requirements checklist
+
+- [ ] R1: Resolve home paths.
+- [ ] R2: Preserve existing behavior.
+
+## Supporting details
+
+Existing tests document the current behavior.
+"""
+    case_dir, metadata, _ = _base_case(
+        tmp_path,
+        scenario="create-task-omit-plan",
+        task_text=task,
+        response="Created the requested handoff.",
+    )
+
+    normalized = " ".join(
+        _review_prompt(case_dir=case_dir, metadata=metadata).split()
+    )
+
+    assert "because this is an omit-plan handoff" in normalized
+    assert "do not require requirement verification, planned tests" in normalized
+    assert "do not penalize the handoff merely because separate verification" in normalized
+    assert "whether requirement verification maps each requirement" not in normalized

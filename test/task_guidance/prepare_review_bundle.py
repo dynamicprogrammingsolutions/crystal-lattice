@@ -409,6 +409,24 @@ def evaluate_case(
                     "the execution plan contains the ordered work."
                 ),
             )
+            manual(
+                "Execution plan contains a distinct implementation direction",
+                (
+                    "Confirm the Execution plan itself explains the chosen "
+                    "approach and boundaries between its status and requirement "
+                    "verification. Do not count supporting details, pre-plan "
+                    "design decisions, or the checklist as a substitute."
+                ),
+            )
+            manual(
+                "Requirement verification is acceptance-focused",
+                (
+                    "Confirm every requirement or coherent group maps to "
+                    "observable acceptance evidence at a user-relevant or "
+                    "public boundary, with implementation-specific robustness "
+                    "checks kept separate."
+                ),
+            )
         elif scenario == "create-task-omit-plan" and task_text:
             check(
                 "Omit-plan handoff has no execution plan or plan status",
@@ -437,6 +455,15 @@ def evaluate_case(
             (
                 "Confirm supporting details explain the handoff without adding "
                 "untracked completion conditions or relabeled plan steps."
+            ),
+        )
+        manual(
+            "Human-review information is prioritized and concise",
+            (
+                "Confirm material unresolved questions are easy to find near "
+                "requirements and scope, and the handoff avoids repetition, "
+                "investigation chronology, exhaustive inventories, and "
+                "speculative implementation detail."
             ),
         )
     elif scenario == "create-task-after-plan":
@@ -508,6 +535,23 @@ def evaluate_case(
                 "Confirm requirement verification, documentation, and the "
                 "user-facing summary are presented at the requested level of "
                 "detail without judging their technical quality."
+            ),
+        )
+        manual(
+            "Execution plan contains a distinct implementation direction",
+            (
+                "Confirm the Execution plan itself explains the chosen approach "
+                "and boundaries between its status and requirement verification. "
+                "Do not count supporting details, pre-plan design decisions, or "
+                "the checklist as a substitute."
+            ),
+        )
+        manual(
+            "Requirement verification is acceptance-focused",
+            (
+                "Confirm every requirement or coherent group maps to observable "
+                "acceptance evidence at a user-relevant or public boundary, "
+                "with implementation-specific robustness checks kept separate."
             ),
         )
     else:
