@@ -155,16 +155,36 @@ Keep experiment-specific branch names, commit refs, run IDs, and the three-state
 
 ### Task checklist
 
-- [ ] Create a dedicated original-guidance comparison branch from `cd1ed06b`.
-- [ ] Add a per-turn task-guidance control and run planning seeds with guidance disabled while retaining guidance for task-creation forks.
-- [ ] Record guidance-neutral seed compatibility and provenance independently from the task-creation guidance hash.
-- [ ] Add deterministic coverage for neutral seeds, guided forks, compatible reuse, and incompatible reuse reporting.
-- [ ] Commit the seed/reuse optimization separately so the same change can be applied to the original- and revised-guidance refs.
-- [ ] Create one neutral investigation session and preserve its content hash and request provenance.
-- [ ] Run the original-guidance comparison with the pre-correction evaluator.
-- [ ] Run the revised-guidance comparison with the same pre-correction evaluator and source investigation.
-- [ ] Correct the empirical rubric, manual checks, review template, and deterministic compatibility coverage for the revised guidance.
-- [ ] Evaluate the revised-guidance artifact with the corrected evaluator; retain any fresh model generation as supplementary evidence.
-- [ ] Update the evaluation README and command examples.
-- [ ] Run deterministic tests and generate the three review bundles.
+- [x] Create a dedicated original-guidance comparison branch from `cd1ed06b`.
+- [x] Add a per-turn task-guidance control and run planning seeds with guidance disabled while retaining guidance for task-creation forks.
+- [x] Record guidance-neutral seed compatibility and provenance independently from the task-creation guidance hash.
+- [x] Add deterministic coverage for neutral seeds, guided forks, compatible reuse, and incompatible reuse reporting.
+- [x] Commit the seed/reuse optimization separately so the same change can be applied to the original- and revised-guidance refs.
+- [x] Create one neutral investigation session and preserve its content hash and request provenance.
+- [x] Run the original-guidance comparison with the pre-correction evaluator.
+- [x] Run the revised-guidance comparison with the same pre-correction evaluator and source investigation.
+- [x] Correct the empirical rubric, manual checks, review template, and deterministic compatibility coverage for the revised guidance.
+- [x] Evaluate the revised-guidance artifact with the corrected evaluator; retain any fresh model generation as supplementary evidence.
+- [x] Update the evaluation README and command examples.
+- [x] Run deterministic tests and generate the three review bundles.
 - [ ] Record the comparison outcome and human confirmation against R1–R7 before marking requirements complete.
+
+## Implementation Notes
+
+- Execution approved on 2026-07-23 with the recommended third-state replay and canonical Ollama/GLM comparison decisions.
+- Created branch `task-guidance-original-baseline` at `cd1ed06b` before changing the evaluation harness.
+- Implemented guidance-neutral source reuse in `4d4fa184` and cherry-picked the identical change to the original-guidance branch as `406d3c55`. Planning seeds pass `include_tasks: false`; guided task-creation turns pass `include_tasks: true`.
+- Source reuse now requires matching repository, model/provider, prompt, non-guidance request profile, and session hash. It rejects guided or incompatible source sessions.
+- Deterministic verification after the final evaluator correction: `pytest test/task_guidance -q` passed 28 tests; `ruff check test/task_guidance` passed.
+- Corrected the evaluator rubric in `557347e3`. It now distinguishes requirement acceptance from implementation robustness, requires the Execution plan itself to own implementation direction, reviews top-level human priorities and concision, and treats planned verification/documentation as prohibited rather than required in omit-plan handoffs.
+- Canonical neutral GLM investigation: fingerprint `228934361b81538cff610ab5399bf370a1126b934baf4aafa493f57dc3411e4d`, session SHA-256 `ceed4937645681d1e256c7e646ed4eca1f840c7a91ffdfad0d3bf64b409999cb`. Its compiled request did not contain `TASKS-v7.md`.
+- Original-guidance/pre-correction state (`cd1ed06b`, evaluator `406d3c55`) passed all mechanical checks for retain-plan and omit-plan.
+- Revised-guidance/pre-correction state (`182ea572`, evaluator `4d4fa184`) reused the same GLM investigation. Both generated tasks omitted requirement checkboxes; the retained plan also used a numbered task list, causing the existing mechanical checks to fail. These failures were preserved rather than rerun.
+- Revised-guidance/corrected-evaluator state replayed the exact revised tasks without another model call. The corrected review identified that the retained Execution plan jumps from `Status: Draft` directly to requirement verification, relies on pre-plan decisions and its checklist for implementation direction, and contains repeated or inventory-like detail. The omit-plan review also identified relabeled implementation and verification planning.
+- Supplementary ChatGPT/Codex run used its own guidance-neutral investigation and passed all mechanical checks. Its corrected empirical review independently identified the same missing implementation direction inside the retained Execution plan and relabeled verification planning in the omit-plan handoff.
+- Review bundles:
+  - Original guidance / old evaluator: `tmp/task-guidance-original-baseline-worktree/tmp/task-guidance-eval/review-bundles/20260723-task-guidance-original-old-evaluator`
+  - Revised guidance / old evaluator: `tmp/task-guidance-eval/review-bundles/20260723-task-guidance-revised-old-evaluator`
+  - Revised guidance / corrected evaluator: `tmp/task-guidance-eval/review-bundles/20260723-task-guidance-revised-corrected-evaluator`
+  - Supplementary ChatGPT/Codex: `tmp/task-guidance-eval/review-bundles/20260723-task-guidance-chatgpt-revised-corrected`
+- The README documents only generic guidance-neutral investigation, compatibility, reuse, and scenario-aware review behavior. Experiment-specific refs and the three-state procedure remain confined to this task and generated artifacts.
