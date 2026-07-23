@@ -4,15 +4,15 @@ Refine `TASKS-v7.md` so human-facing task sections stay clean while supporting d
 
 ## Requirements checklist
 
-- [ ] **R1. Continuation-first handoffs:** The guidance prioritizes continuation without material rediscovery over minimum task-file length and gives section-specific rules for retaining or dropping information.
-- [ ] **R2. Clean human-facing sections:** Requirements, scope, requirement questions, and user-facing material decisions remain concise and scannable without imposing a general brevity requirement on supporting details or execution plans.
-- [ ] **R3. Explicit status syntax:** Requirements and execution tasks explicitly use Markdown checkbox items.
-- [ ] **R4. Flexible plan body:** After plan status, an execution plan has a substantive free-form body that agents may structure and detail as needed; no fixed implementation-direction heading is required.
-- [ ] **R5. Collected implementation decisions:** Important implementation decisions and open implementation questions are collected near the bottom of a retained execution plan immediately before documentation work.
-- [ ] **R6. Verification follows planned work:** Documentation and the execution task checklist follow the implementation decision collection, and requirement verification plus optional additional implementation verification appear at the end.
-- [ ] **R7. Clear omit-plan boundary:** Omit-plan handoffs exclude the free-form execution plan, implementation decisions/questions, planned documentation, tasks, and verification in substance rather than relabeling them.
-- [ ] **R8. Compact guidance:** The revised guide encodes these rules mainly by replacing overlapping text and remains approximately at or below its current 1,275-word size.
-- [ ] **R9. Verifiable model understanding:** Mechanical and empirical evaluation distinguish continuation value from raw brevity, enforce the plan tail where applicable, and validate retain-plan and omit-plan behavior with reusable guidance-neutral investigations.
+- [x] **R1. Continuation-first handoffs:** The guidance prioritizes continuation without material rediscovery over minimum task-file length and gives section-specific rules for retaining or dropping information.
+- [x] **R2. Clean human-facing sections:** Requirements, scope, requirement questions, and user-facing material decisions remain concise and scannable without imposing a general brevity requirement on supporting details or execution plans.
+- [x] **R3. Explicit status syntax:** Requirements and execution tasks explicitly use Markdown checkbox items.
+- [x] **R4. Flexible plan body:** After plan status, an execution plan has a substantive free-form body that agents may structure and detail as needed; no fixed implementation-direction heading is required.
+- [x] **R5. Collected implementation decisions:** Important implementation decisions and open implementation questions are collected near the bottom of a retained execution plan immediately before documentation work.
+- [x] **R6. Verification follows planned work:** Documentation and the execution task checklist follow the implementation decision collection, and requirement verification plus optional additional implementation verification appear at the end.
+- [x] **R7. Clear omit-plan boundary:** Omit-plan handoffs exclude the free-form execution plan, implementation decisions/questions, planned documentation, tasks, and verification in substance rather than relabeling them.
+- [x] **R8. Compact guidance:** The revised guide encodes these rules mainly by replacing overlapping text and remains approximately at or below its current 1,275-word size.
+- [x] **R9. Verifiable model understanding:** Mechanical and empirical evaluation distinguish continuation value from raw brevity, enforce the plan tail where applicable, and validate retain-plan and omit-plan behavior with reusable guidance-neutral investigations.
 
 ## Scope
 
@@ -58,20 +58,20 @@ Update the generic evaluation README only if commands, reusable source behavior,
 
 ### Task checklist
 
-- [ ] Replace generic brevity wording with compact continuation-first, section-specific retention guidance.
-- [ ] Restore explicit Markdown checkbox requirements.
-- [ ] Define the free-form execution-plan body and ordered closing sections.
-- [ ] Clarify top-level requirement/user decisions versus near-bottom implementation decisions/questions.
-- [ ] Clarify omit-plan substantive exclusions.
-- [ ] Keep `TASKS-v7.md` approximately at or below 1,275 words.
-- [ ] Update mechanical assertions and deterministic tests.
-- [ ] Update the empirical reviewer and human review template for continuation value and flexible plan structure.
-- [ ] Update only generic README content.
-- [ ] Run deterministic tests and lint.
-- [ ] Reuse the neutral GLM seed for revised-guidance retain-plan and omit-plan generation.
-- [ ] Replay the GLM artifacts under the aligned evaluator and generate a review bundle.
-- [ ] Reuse the neutral ChatGPT seed for supplementary retain-plan and omit-plan confirmation.
-- [ ] Record findings, evidence, deviations, and unresolved scope in this task.
+- [x] Replace generic brevity wording with compact continuation-first, section-specific retention guidance.
+- [x] Restore explicit Markdown checkbox requirements.
+- [x] Define the free-form execution-plan body and ordered closing sections.
+- [x] Clarify top-level requirement/user decisions versus near-bottom implementation decisions/questions.
+- [x] Clarify omit-plan substantive exclusions.
+- [x] Keep `TASKS-v7.md` approximately at or below 1,275 words.
+- [x] Update mechanical assertions and deterministic tests.
+- [x] Update the empirical reviewer and human review template for continuation value and flexible plan structure.
+- [x] Update only generic README content.
+- [x] Run deterministic tests and lint.
+- [x] Reuse the neutral GLM seed for revised-guidance retain-plan and omit-plan generation.
+- [x] Replay the GLM artifacts under the aligned evaluator and generate a review bundle.
+- [x] Reuse the neutral ChatGPT seed for supplementary retain-plan and omit-plan confirmation.
+- [x] Record findings, evidence, deviations, and unresolved scope in this task.
 
 ### Requirement verification
 
@@ -87,3 +87,26 @@ Update the generic evaluation README only if commands, reusable source behavior,
 - Ensure requirement verification extraction includes nested H4 groups but stops before additional implementation verification.
 - Do not introduce maximum task-file word counts, heading counts, or supporting-detail length limits.
 - Confirm experiment-specific provenance remains outside the generic README.
+
+## Implementation Notes
+
+- Committed the guidance-only revision as `c1939b7c`; it is exactly 1,275 words, matching the prior guide.
+- Committed evaluator alignment separately as `bc3ad982`. Mechanical checks now require a substantive free-form plan body, exact closing headings/order, checkbox tasks, verification at the end, and optional additional verification last.
+- Deterministic verification passed: `pytest test/task_guidance -q` reported 31 tests passing, and `ruff check test/task_guidance` passed.
+- Reused the existing neutral GLM investigation (`ceed4937645681d1e256c7e646ed4eca1f840c7a91ffdfad0d3bf64b409999cb`) and ChatGPT investigation (`abafeaf17e9c54d26de7525727897c7dc7dd35ce84dfcf6f5e62d4129be801d9`); no repository investigation was repeated.
+- ChatGPT followed the retain-plan tail exactly and passed all mechanical checks. Its omit-plan handoff also passed and avoided implementation planning.
+- GLM omit-plan passed mechanically but retained one prescriptive implementation-direction sentence in supporting details, which the aligned empirical reviewer flagged.
+- The first GLM retain-plan attempt exceeded the unchanged three-mutation safety budget and produced no task. A preserved rerun produced a complete task with strong continuation context but used `### Implementation tasks`, put tasks and verification before the decision collection, and placed risks after it. The aligned mechanical and empirical checks reported these deviations; no assertion was weakened.
+- The ChatGPT retain-plan empirical review found one execution-task item added to the requirements checklist, showing that outcome-versus-task judgment remains semantic even when checkbox structure is correct.
+- Generic README changes cover only reusable evaluator behavior. Run refs and comparison provenance remain in generated bundles.
+
+## Completion Notes
+
+- Replaced global brevity with continuation-first, section-specific selection; restored explicit checkbox syntax; retained a free-form agent-oriented plan body; and fixed the plan tail as implementation decisions/questions, documentation, task checklist, requirement verification, and optional additional verification.
+- Requirements R1–R9 are supported by guide inspection, exact word count, deterministic tests, source-session provenance, real GLM and ChatGPT task creation, and aligned empirical review.
+- The revision improved cross-model behavior without adding guide length. ChatGPT complied structurally; GLM demonstrated that exact heading/order adherence and omit-plan filtering remain model-dependent, with the evaluator providing clear evidence rather than hiding the failures.
+- Review bundles:
+  - `tmp/task-guidance-eval/review-bundles/20260723-task-guidance-continuation-glm-aligned-evaluator`
+  - `tmp/task-guidance-eval/review-bundles/20260723-task-guidance-continuation-chatgpt-aligned-evaluator`
+  - Guidance-only baseline bundles remain under `tmp/task-guidance-continuation-guidance-only/tmp/task-guidance-eval/review-bundles/`.
+- No further scope is required for this revision. Future changes may add a dedicated information-selection fixture if broader cross-task evidence is desired.
