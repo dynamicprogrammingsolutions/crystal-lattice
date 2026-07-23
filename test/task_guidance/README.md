@@ -96,10 +96,11 @@ visible through the command's nonzero exit status.
 
 Mechanical checks intentionally stay small: expected task structure, fork
 provenance, requirement identifiers, retained factual research markers,
-requirement-verification traceability, allowed mutations, and absence/presence
-of the requested execution plan. The empirical review checks only whether the
-task-guidance concepts and requested presentation were understood; it does not
-judge technical correctness or model quality.
+requirement-verification traceability, plan-tail order and checkbox tasks,
+allowed mutations, and absence/presence of the requested execution plan. The
+empirical review checks only whether the task-guidance concepts and requested
+presentation were understood; it does not judge technical correctness or model
+quality.
 
 ## Separate GLM empirical review
 
@@ -111,18 +112,19 @@ python test/task_guidance/task_guidance_eval.py review \
 The reviewer receives the saved task, response, fixture requirements, and
 mechanical assertions. It checks distinctions such as requirements versus
 execution tasks, supporting details versus an execution plan, acceptance
-evidence versus implementation-specific checks, prominent unresolved questions,
-and concise handoff content. It explicitly does not judge repository
-understanding, implementation quality, technical test adequacy, or whether the
-plan is a good solution. It writes
+evidence versus implementation-specific checks, free-form plan continuity,
+implementation-decision placement, and sufficient supporting context with clean
+human-facing sections. It explicitly does not judge repository understanding,
+implementation quality, technical test adequacy, or whether the plan is a good
+solution. It writes
 `empirical-review.md` and the raw request and response artifacts, but its
 judgment does not control the command exit status. Add `--bundle` to prepare the
 review bundle immediately afterward.
 
 The empirical prompt is scenario-aware: retain-plan and existing-task-plan
 reviews assess requirement verification and documentation presentation, while
-omit-plan reviews treat planned verification and documentation as plan content
-that should be absent rather than required.
+omit-plan reviews treat implementation decisions, planned work, verification,
+and documentation as plan content that should be absent rather than required.
 
 ## Review bundle
 

@@ -708,18 +708,20 @@ def _review_prompt(
     if metadata.get("scenario") == "create-task-omit-plan":
         scenario_criteria = """\
 - because this is an omit-plan handoff, do not require requirement
-  verification, planned tests, a documentation plan, an implementation
-  direction, or an execution checklist; instead confirm that this plan content
-  is absent in substance and was not relabeled under supporting details;
+  verification, planned tests, documentation, implementation details,
+  implementation decisions or questions, risks, or an execution checklist;
+  instead confirm this content is absent in substance and was not relabeled;
 - factual context may mention existing tests or documentation without becoming
   a plan; do not penalize the handoff merely because separate verification and
   documentation sections are absent;"""
     else:
         scenario_criteria = """\
-- whether the retained `## Execution plan` itself explains its implementation
-  direction between the plan status and requirement verification; do not count
-  supporting details, pre-plan design decisions, or the task checklist as a
-  substitute;
+- whether the retained plan has a substantive free-form body after status that
+  preserves the approach and execution details another agent needs, without
+  requiring a particular internal heading;
+- whether important implementation decisions and open implementation questions
+  are collected immediately before documentation, followed by checkbox tasks
+  and then verification;
 - whether requirement verification maps each requirement or coherent group to
   concise, observable acceptance evidence at a user-relevant or public
   boundary;
@@ -739,14 +741,14 @@ Evaluate only understanding of the task-file instructions:
 - whether requirements are outcomes or constraints rather than execution tasks;
 - whether supporting details explain requirements without becoming hidden
   requirements or relabeled execution steps;
-- whether material unresolved questions are easy to find near requirements and
-  scope rather than buried in research or the execution plan;
+- whether requirement questions and decisions changing scope or outcomes are
+  easy to find near the top;
 - whether the requested retain-plan or omit-plan handoff is followed in
   substance, not only by heading names;
 {scenario_criteria}
-- whether the handoff is concise and avoids repeated requirements,
-  investigation chronology, exhaustive file inventories, and speculative
-  implementation detail;
+- whether human-facing sections are concise while supporting details preserve
+  enough durable context for continuation; penalize chronology, duplication,
+  replaceable inventories, and unselected speculation rather than length;
 - whether the user-facing response is self-contained and easier to review than
   the full stored plan.
 
@@ -757,9 +759,10 @@ design decisions. Record such observations separately as outside this review
 and do not use them in the overall guidance-compliance judgment.
 
 Return Markdown with: Overall guidance compliance, Requirements versus tasks,
-Human-review priorities and concision, Supporting details versus plan,
-Implementation direction, Verification and documentation presentation, Guidance
-ambiguities, Model reasoning issues outside this review, and Human follow-up.
+Human-review priorities and continuation context, Supporting details versus
+plan, Free-form plan and implementation decisions, Verification and
+documentation presentation, Guidance ambiguities, Model reasoning issues
+outside this review, and Human follow-up.
 
 Reference task fixture:
 

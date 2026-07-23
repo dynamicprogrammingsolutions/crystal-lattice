@@ -90,9 +90,9 @@ Status: Draft
 
 Approach.
 
-### Requirement verification
+### Implementation decisions and open questions
 
-- Requirement: component test.
+No open implementation questions.
 
 ### Documentation
 
@@ -101,6 +101,10 @@ No change, because this is internal.
 ### Task checklist
 
 - [ ] Implement.
+
+### Requirement verification
+
+- Requirement: component test.
 """
 
     assert_task_prefix(text)
@@ -146,9 +150,11 @@ Description.
 
 Status: Draft
 
-### Requirement verification
+Approach.
 
-Evidence.
+### Implementation decisions and open questions
+
+No open implementation questions.
 
 ### Documentation
 
@@ -157,9 +163,126 @@ No change.
 ### Task checklist
 
 - [ ] Execute.
+
+### Requirement verification
+
+Evidence.
 """
 
     assert_draft_execution_plan(text)
+
+
+def test_draft_plan_requires_free_form_body_before_closing_sections() -> None:
+    text = """\
+# Demo
+
+Description.
+
+## Requirements checklist
+
+- [ ] Outcome.
+
+## Execution plan
+
+Status: Draft
+
+### Implementation decisions and open questions
+
+None.
+
+### Documentation
+
+No change.
+
+### Task checklist
+
+- [ ] Execute.
+
+### Requirement verification
+
+Evidence.
+"""
+
+    with pytest.raises(AssertionError, match="free-form body"):
+        assert_draft_execution_plan(text)
+
+
+def test_draft_plan_requires_ordered_closing_sections() -> None:
+    text = """\
+# Demo
+
+Description.
+
+## Requirements checklist
+
+- [ ] Outcome.
+
+## Execution plan
+
+Status: Draft
+
+Approach.
+
+### Documentation
+
+No change.
+
+### Implementation decisions and open questions
+
+None.
+
+### Task checklist
+
+- [ ] Execute.
+
+### Requirement verification
+
+Evidence.
+"""
+
+    with pytest.raises(AssertionError, match="required order"):
+        assert_draft_execution_plan(text)
+
+
+def test_draft_plan_requires_verification_at_the_end() -> None:
+    text = """\
+# Demo
+
+Description.
+
+## Requirements checklist
+
+- [ ] Outcome.
+
+## Execution plan
+
+Status: Draft
+
+Approach.
+
+### Implementation decisions and open questions
+
+None.
+
+### Documentation
+
+No change.
+
+### Task checklist
+
+- [ ] Execute.
+
+### Requirement verification
+
+Evidence.
+
+### Risks
+
+Risk.
+"""
+
+    with pytest.raises(AssertionError, match="must end the plan"):
+        assert_draft_execution_plan(text)
 
 
 def test_draft_plan_requires_status_immediately_below_heading() -> None:
@@ -178,9 +301,9 @@ Approach.
 
 Status: Draft
 
-### Requirement verification
+### Implementation decisions and open questions
 
-Evidence.
+No open implementation questions.
 
 ### Documentation
 
@@ -189,6 +312,10 @@ No change.
 ### Task checklist
 
 - [ ] Execute.
+
+### Requirement verification
+
+Evidence.
 """
 
     with pytest.raises(AssertionError, match="immediately below"):

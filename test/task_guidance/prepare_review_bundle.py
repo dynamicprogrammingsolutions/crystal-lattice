@@ -410,12 +410,11 @@ def evaluate_case(
                 ),
             )
             manual(
-                "Execution plan contains a distinct implementation direction",
+                "Execution plan free-form body supports continuation",
                 (
-                    "Confirm the Execution plan itself explains the chosen "
-                    "approach and boundaries between its status and requirement "
-                    "verification. Do not count supporting details, pre-plan "
-                    "design decisions, or the checklist as a substitute."
+                    "Confirm the free-form plan body preserves the approach and "
+                    "execution details another agent needs, without requiring a "
+                    "particular internal heading."
                 ),
             )
             manual(
@@ -458,12 +457,12 @@ def evaluate_case(
             ),
         )
         manual(
-            "Human-review information is prioritized and concise",
+            "Human-review information is clean and supporting context is sufficient",
             (
-                "Confirm material unresolved questions are easy to find near "
-                "requirements and scope, and the handoff avoids repetition, "
-                "investigation chronology, exhaustive inventories, and "
-                "speculative implementation detail."
+                "Confirm requirement questions and scope decisions are easy to "
+                "find, while supporting details preserve continuation-critical "
+                "facts and avoid chronology, duplication, replaceable "
+                "inventories, and unselected speculation."
             ),
         )
     elif scenario == "create-task-after-plan":
@@ -538,12 +537,11 @@ def evaluate_case(
             ),
         )
         manual(
-            "Execution plan contains a distinct implementation direction",
+            "Execution plan free-form body supports continuation",
             (
-                "Confirm the Execution plan itself explains the chosen approach "
-                "and boundaries between its status and requirement verification. "
-                "Do not count supporting details, pre-plan design decisions, or "
-                "the checklist as a substitute."
+                "Confirm the free-form plan body preserves the approach and "
+                "execution details another agent needs, without requiring a "
+                "particular internal heading."
             ),
         )
         manual(

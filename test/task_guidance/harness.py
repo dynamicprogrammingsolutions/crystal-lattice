@@ -759,14 +759,63 @@ def assert_draft_execution_plan(text: str) -> None:
         raise AssertionError(
             "Status: Draft must appear immediately below ## Execution plan"
         )
-    for heading in (
-        "### Requirement verification",
+    headings = (
+        "### Implementation decisions and open questions",
         "### Documentation",
         "### Task checklist",
-    ):
+        "### Requirement verification",
+    )
+    positions: list[int] = []
+    for heading in headings:
         if heading not in plan:
             raise AssertionError(f"execution plan is missing {heading}")
-    task_checklist = plan[plan.index("### Task checklist") :]
+        positions.append(plan.index(heading))
+    if positions != sorted(positions):
+        raise AssertionError(
+            "execution plan closing sections are not in the required order"
+        )
+
+    status_match = re.search(r"(?m)^Status: Draft\s*$", plan)
+    assert status_match is not None
+    free_form_body = plan[status_match.end() : positions[0]].strip()
+    if not free_form_body:
+        raise AssertionError("execution plan has no substantive free-form body")
+
+    additional_heading = "### Additional implementation verification"
+    additional_position = plan.find(additional_heading)
+    if additional_position >= 0 and additional_position < positions[-1]:
+        raise AssertionError(
+            "additional implementation verification must follow "
+            "requirement verification"
+        )
+    section_ends = (
+        positions[1],
+        positions[2],
+        positions[3],
+        additional_position if additional_position >= 0 else len(plan),
+    )
+    for index in (0, 1, 3):
+        body = plan[
+            positions[index] + len(headings[index]) : section_ends[index]
+        ].strip()
+        if not body:
+            raise AssertionError(
+                f"execution plan section is empty: {headings[index]}"
+            )
+    trailing_h3 = re.findall(
+        r"(?m)^###\s+.+$",
+        plan[positions[-1] + len(headings[-1]) :],
+    )
+    allowed_trailing = (
+        [additional_heading] if additional_position >= 0 else []
+    )
+    if trailing_h3 != allowed_trailing:
+        raise AssertionError(
+            "requirement verification must end the plan except for optional "
+            "additional implementation verification"
+        )
+
+    task_checklist = plan[positions[2] : positions[3]]
     if "- [ ]" not in task_checklist:
         raise AssertionError("task checklist has no incomplete execution tasks")
     assert_no_lifecycle_notes(text)

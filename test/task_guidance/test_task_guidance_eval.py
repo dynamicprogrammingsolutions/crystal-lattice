@@ -243,10 +243,11 @@ Description.
 
 Status: Draft
 
-### Requirement verification
+Apply the selected boundary.
 
-- R1: Acceptance evidence.
-- R2: Acceptance evidence.
+### Implementation decisions and open questions
+
+No open implementation questions.
 
 ### Documentation
 
@@ -255,6 +256,11 @@ No change.
 ### Task checklist
 
 - [ ] Implement.
+
+### Requirement verification
+
+- R1: Acceptance evidence.
+- R2: Acceptance evidence.
 """
     case_dir, metadata, session = _base_case(
         tmp_path,
@@ -341,10 +347,9 @@ Status: Draft
 
 Apply the selected boundary.
 
-### Requirement verification
+### Implementation decisions and open questions
 
-- R1: macOS integration test.
-- R2: regression coverage.
+No open implementation questions.
 
 ### Documentation
 
@@ -353,6 +358,11 @@ No user-facing documentation change.
 ### Task checklist
 
 - [ ] Implement the approved direction.
+
+### Requirement verification
+
+- R1: macOS integration test.
+- R2: regression coverage.
 """
     case_dir, metadata, session = _base_case(
         tmp_path,
@@ -370,7 +380,7 @@ No user-facing documentation change.
         for result in results
     )
     assert any(
-        result.name == "Execution plan contains a distinct implementation direction"
+        result.name == "Execution plan free-form body supports continuation"
         and result.status == "MANUAL"
         for result in results
     )
@@ -404,6 +414,18 @@ Status: Draft
 
 Apply the selected boundary.
 
+### Implementation decisions and open questions
+
+No open implementation questions.
+
+### Documentation
+
+No user-facing documentation change.
+
+### Task checklist
+
+- [ ] Implement the approved direction.
+
 ### Requirement verification
 
 #### Delivery behavior
@@ -414,14 +436,6 @@ Apply the selected boundary.
 ### Additional implementation verification
 
 - R1 and R2: Internal parser and cleanup tests.
-
-### Documentation
-
-No user-facing documentation change.
-
-### Task checklist
-
-- [ ] Implement the approved direction.
 """
     case_dir, metadata, session = _base_case(
         tmp_path,
@@ -534,11 +548,14 @@ Description.
         "separate"
         in normalized
     )
-    assert "material unresolved questions are easy to find" in normalized
-    assert "whether the handoff is concise" in normalized
-    assert "itself explains its implementation direction between" in normalized
-    assert "plan status and requirement verification" in normalized
-    assert "do not count supporting details, pre-plan design decisions" in normalized
+    assert "substantive free-form body after status" in normalized
+    assert (
+        "important implementation decisions and open implementation questions "
+        "are collected immediately before documentation"
+        in normalized
+    )
+    assert "requirement questions and decisions changing scope" in normalized
+    assert "human-facing sections are concise while supporting details preserve" in normalized
     assert "Do not judge whether repository findings are correct" in normalized
     assert "whether the plan satisfies R1-R5" not in prompt
 
@@ -572,6 +589,10 @@ Existing tests document the current behavior.
     )
 
     assert "because this is an omit-plan handoff" in normalized
-    assert "do not require requirement verification, planned tests" in normalized
+    assert (
+        "do not require requirement verification, planned tests, documentation, "
+        "implementation details"
+        in normalized
+    )
     assert "do not penalize the handoff merely because separate verification" in normalized
     assert "whether requirement verification maps each requirement" not in normalized
