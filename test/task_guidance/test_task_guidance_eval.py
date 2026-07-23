@@ -209,7 +209,10 @@ def test_reused_session_workspace_is_rebased_without_changing_source(
                     "content": "Investigation findings.",
                 },
             ],
-            "metadata": {},
+            "metadata": {
+                "native_messages": [{"role": "system", "content": "cached"}],
+                "native_messages_integrity": "cached",
+            },
         }
     )
 
@@ -223,6 +226,9 @@ def test_reused_session_workspace_is_rebased_without_changing_source(
     assert str(source_workspace) in json.dumps(session.to_dict())
     assert str(source_workspace) not in json.dumps(rebased.to_dict())
     assert json.dumps(rebased.to_dict()).count(str(target_workspace)) == 3
+    assert "native_messages" in session.metadata
+    assert "native_messages" not in rebased.metadata
+    assert "native_messages_integrity" not in rebased.metadata
 
 
 def test_guided_or_incompatible_source_is_rejected(tmp_path: Path) -> None:

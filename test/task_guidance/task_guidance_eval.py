@@ -333,7 +333,12 @@ def _rebase_parent_session_workspace(
             return {key: replace(item) for key, item in value.items()}
         return value
 
-    return Session.from_dict(replace(session.to_dict())), replacements
+    payload = replace(session.to_dict())
+    metadata = payload.get("metadata")
+    if isinstance(metadata, dict) and replacements:
+        metadata.pop("native_messages", None)
+        metadata.pop("native_messages_integrity", None)
+    return Session.from_dict(payload), replacements
 
 
 def _copy_parent_artifacts(
@@ -494,6 +499,7 @@ def _run_fork(
             runtime_parent_session
         ),
         fork_workspace_rebase_count=workspace_rebase_count,
+        fork_runtime_native_history_rebuilt=workspace_rebase_count > 0,
         source_case=str(source_case.resolve()) if source_case else None,
         expected_requirement_ids=list(REQUIREMENT_IDS) if source_has_ids else [],
         research_markers=list(RESEARCH_MARKERS),
