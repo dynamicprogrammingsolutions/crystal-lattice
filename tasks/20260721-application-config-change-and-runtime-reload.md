@@ -61,6 +61,21 @@ Direct HTTP can currently be unauthenticated and unencrypted. If secure transmis
 
 The answer changes a required security constraint and the server/mobile scope.
 
+Recommendation:
+
+- permit credential actions over an in-process or loopback-only local-runtime connection;
+- permit authenticated cloud connections over HTTPS;
+- permit paired bridge connections only over WSS;
+- reject or hide credential actions over plain non-loopback HTTP and plain WS;
+- enforce the rule at a server-verifiable boundary rather than relying only on frontend hiding.
+
+The current server cannot reliably distinguish a direct request from a
+bridge-proxied request, and pairing does not provide transport confidentiality
+when the bridge uses `ws://`. Choosing the recommendation therefore requires a
+small authenticated connection-provenance contract for the bridge/cloud/local
+runtime paths. Adding general-purpose authentication and TLS provisioning for
+arbitrary direct LAN servers remains outside the recommended scope.
+
 ### Requirement question: credential persistence and precedence
 
 Should a UI-managed API key:
@@ -70,6 +85,66 @@ Should a UI-managed API key:
 - be stored in an OS credential store or a protected user-owned secret file?
 
 The recommended behavior is persistent protected storage with explicit precedence and no readable-key endpoint. The exact persistence and precedence contract must be decided before credential implementation.
+
+Recommendation:
+
+- persist UI-managed secrets in an application-owned, atomic, owner-readable
+  secret store, with an optional platform credential-store adapter rather than
+  making OS keychain support mandatory for every runtime;
+- persist only an opaque secret reference in application configuration;
+- make a UI-managed provider key the effective key for that provider after
+  activation, even when the prior configuration referenced a process
+  environment value;
+- preserve explicit deployment control by allowing a deployment policy to mark
+  a credential externally managed and therefore read-only in the UI;
+- never expose a secret-read operation through the application API.
+
+This keeps the portable CLI and an eventual in-app iOS runtime on one contract
+while allowing stronger platform storage where it is available.
+
+### Design decision: configuration mutation and persistence contract
+
+How should a trusted plugin turn an action into a durable configuration change?
+
+Recommendation:
+
+- the plugin calls an application-owned configuration transaction API rather
+  than editing `config.json`, `.env`, or secret files directly;
+- the transaction begins from the active generation's unresolved raw config
+  and source revision;
+- the plugin declares or supplies only the supported mutation it owns;
+- the application builds and validates the candidate, stages secret writes,
+  atomically replaces the config source, and publishes the already-built
+  generation under one serialized activation lock;
+- an optimistic source-revision check rejects activation if an external writer
+  changed the config while the candidate was being built;
+- a crash-safe journal or equivalent ordering prevents a partially committed
+  config/secret pair from becoming an unreadable active state.
+
+The plugin remains responsible for deciding which settings it supports. The
+platform owns filesystem safety, generation construction, publication, and
+rollback behavior.
+
+### Design decision: candidate validation boundary
+
+How much validation must complete before a candidate can become active?
+
+Recommendation:
+
+- require deterministic local construction of the complete generation,
+  including placeholder/mixin processing, plugin resolution, all configured
+  agent runtimes, application-plugin initialization, action/UI declaration
+  validation, and generation-owned resource startup;
+- allow application plugins to contribute explicit pre-activation validators
+  for configuration they own;
+- do not make paid or availability-sensitive provider network calls part of
+  generic activation;
+- report that activation validation proves local constructability, not that an
+  external provider credential is valid or that the provider is reachable.
+
+Credential actions may perform an operation-specific provider check when the
+plugin explicitly chooses to do so, but a transient network failure must not
+silently corrupt or half-activate configuration.
 
 ### Design decision: frontend presentation of application-level actions
 
@@ -85,12 +160,47 @@ Viable initial presentations include:
 Recommendation:
 
 - implement a reusable application-actions model and shared menu/presentation component;
-- use the Sessions screen as the first production host;
+- place one global application-actions menu in the Sessions-screen header as
+  the first production host;
 - let the host frontend control placement and grouping;
 - let plugin UI declarations provide action identity, label, icon, input/dialog metadata, ordering hints, and conditions without requiring a particular screen layout;
 - limit the initial implementation to the currently active connection.
 
 Supporting actions against inactive saved connections would require separate connection lifecycle and authentication behavior. The answer affects shared UI component boundaries, placement metadata, accessibility behavior, and frontend verification, but not the underlying application-action HTTP protocol.
+
+### Design decision: supported hot plugin changes
+
+Which plugin catalog changes are guaranteed to activate without a process
+restart?
+
+Recommendation for the initial supported envelope:
+
+- configuration-only changes to already loaded plugins;
+- enabling or disabling implementations already available to the candidate
+  generation;
+- additive plugins imported through unique, coexistence-safe module namespaces;
+- removal of plugins after the retired generation's leases drain;
+- replacement revisions only when the loader and plugin explicitly satisfy the
+  documented coexistence contract.
+
+Reject activation before publication when a known process-global conflict is
+detected. Do not promise arbitrary same-module Python reload, incompatible
+native-library replacement, port rebinding, singleton isolation, or background
+service handover.
+
+### Design decision: combined server and console ownership
+
+Recommendation:
+
+- use one stable `AgentApplication` for both HTTP and terminal entry points in
+  `--server --console` mode;
+- make terminal session/runtime caches generation-aware or resolve them again
+  at operation start;
+- keep one activation coordinator and request registry for the process.
+
+Coordinating two separately constructed applications would duplicate
+generation publication, plugin lifecycle, runtime resources, and cancellation
+state, and would still leave a window in which the two entry points disagree.
 
 ## Supporting details and ground truths
 
@@ -181,6 +291,18 @@ Relevant code:
 
 The reusable capability may extend the existing registry or extract a dedicated application-actions controller. The hard requirement is the public behavior and ownership boundary, not a specific class name.
 
+The generic action runner can already execute an element without session
+context, but action definitions are indexed only by `action_id`. That allows two
+application plugins with the same action id to collide even though server-side
+identity is `(plugin_id, action_id)`. The reusable capability must use the
+compound identity while preserving a compatibility path for existing SDK
+consumers.
+
+The existing registry refreshes after server-setting invalidation, but there is
+no application-generation invalidation event or standard action UI effect.
+Successful generation activation therefore needs an explicit
+connection-scoped action/schema invalidation signal.
+
 ### Existing Sessions-screen action surface
 
 The Sessions screen already renders plugin-contributed `session_list_action` elements, but those actions are attached to individual session rows and naturally receive session context. There is no application-wide plugin action rendered once for the connected application.
@@ -213,6 +335,11 @@ Relevant code:
 ### Combined server and console mode
 
 `--server --console` currently constructs separate server and terminal `AgentApplication` instances that share the event store. Configuration activation must not leave the two request entry points on different active configurations.
+
+`TerminalApplication` also caches the current session's `AgentCore` and base
+configuration, and closes an injected application when it closes. Sharing one
+stable application therefore also requires generation-aware cache refresh and
+clear close ownership/idempotency.
 
 Relevant code:
 
@@ -249,6 +376,30 @@ Hot activation is not guaranteed for plugins that depend on incompatible process
 
 Additive plugins with unique, import-safe package namespaces are the safest initial plugin-change case.
 
+### Current candidate validation behavior
+
+Construction currently raises for plugin- and mixin-classified errors, while
+some placeholder resolution errors remain available as nonfatal diagnostics.
+There is no reusable "build a complete candidate without publishing it"
+boundary and no plugin-owned pre-activation validator contract.
+
+The generation builder must classify activation-blocking diagnostics
+explicitly. Otherwise a reload action could report success even though the
+candidate contains unresolved values that make one or more configured agents
+unusable.
+
+### Current configuration write and idempotency behavior
+
+There is no application-owned raw-config transaction API. Application plugins
+can read a deep copy of raw configuration and discover its path, but safely
+coordinating external edits, secret writes, candidate construction, and atomic
+publication is not currently possible through public application methods.
+
+The HTTP idempotency cache hashes action payloads and retains only the hash and
+response, not the original secret-bearing payload. Credential implementation
+must preserve that property and ensure logs, exceptions, and diagnostics do not
+capture raw action inputs.
+
 ## Intended generation behavior
 
 ```text
@@ -268,6 +419,12 @@ V1 closes after its last lease is released
 
 A request must not mix configuration generations across LLM phases, tool calls, lifecycle actions, contexts, or checkpoints.
 
+For this contract, a request starts when the stable application reserves its
+request id and generation lease. HTTP send endpoints must do this before
+acknowledging and before handing work to a background thread. The atomic
+`send_message` endpoint must use that same leased generation for both the
+message append and the ensuing request.
+
 ## Related work
 
 The iOS App Review local-runtime task depends on the configuration reload capability:
@@ -277,11 +434,21 @@ The iOS App Review local-runtime task depends on the configuration reload capabi
 ## Execution plan
 Status: Draft
 
-Direction A keeps `AgentApplication` as the stable process-level object, introduces immutable application configuration generations, and expands `ToolLoopRunner` into the complete owner of one request's runtime dependencies and lifecycle.
+Direction A keeps `AgentApplication` as the stable process-level object,
+introduces immutable application configuration generations, expands
+`ToolLoopRunner` into the complete owner of one request's runtime dependencies
+and lifecycle, and moves durable config/secret mutation behind an
+application-owned transaction.
 
 Workstream B adds a reusable, connection-scoped application-action capability to the frontend SDK and shared frontend layers. Workstream A consumes this generic capability for configuration reload and credential actions.
 
-This plan does not authorize execution. The open requirement questions and material UI design decision must be resolved and the plan approved before implementation begins.
+Combined server/console mode will share the stable application rather than
+coordinate two generation managers. The initial plugin hot-change guarantee is
+limited to the coexistence-safe envelope described above.
+
+This plan does not authorize execution. The open requirement questions and
+material design decisions must be resolved and the plan approved before
+implementation begins.
 
 ### Requirement verification
 
@@ -292,7 +459,7 @@ This section records concise, user-observable acceptance evidence for each hard 
 - **A1 — Configuration can be changed without restarting:** Execute a supporting plugin action that changes an observable application configuration value. Verify that a subsequent request uses the changed value while the same CLI/server process and an existing session remain available.
 - **A2 — Activation is atomic for active requests:** Start a multi-phase request using configuration V1 and pause it during provider or tool work. Activate V2 and start another request. Verify that the original request completes entirely with V1 while the later request uses V2.
 - **A3 — Failed activation preserves the working application:** Attempt to activate invalid configuration. Verify that the action reports failure, the previously active configuration remains in effect, and subsequent requests continue to succeed without a process restart.
-- **A4 — Supported plugin changes respect request generations:** Start a request using the existing plugin generation, activate a supported plugin catalog change, and then start another request. Verify that the original request finishes with its original plugins and the later request uses the activated plugin generation.
+- **A4 — Supported plugin changes respect request generations:** Start a request using the existing plugin generation, activate each guaranteed class of supported plugin catalog change, and then start another request. Verify that the original request finishes with its original plugins and the later request uses the activated plugin generation. Verify that a fixture with a declared process-global conflict is rejected before publication.
 - **A5 — Provider credentials can be changed safely:** Set a synthetic provider API key through the supporting plugin action. Verify that a subsequent provider operation uses the new key and that the key is not displayed or returned through the user-visible action, settings, or configuration flow. Extend this evidence with the final storage and transport behavior after the credential open questions are resolved.
 - **A6 — Reload and credential operations use generic application actions:** From the production application-action surface, execute the reload and credential flows against the selected application. Verify that the frontend uses Workstream B's reusable capability and does not require a configuration-specific frontend API or generic configuration endpoint.
 
@@ -315,6 +482,8 @@ The selected implementation must add focused verification for its technical risk
 - Between-phase refresh using the captured generation plus allowed session/request overrides.
 - Rejection or deferral of structural session changes that would switch agents or plugins mid-request.
 - Request creation and generation leasing before HTTP background handoff.
+- Generation leasing for application-action execution and generation-bound
+  action/UI discovery so retired plugin wrappers cannot close while in use.
 - Cancellation routing to requests owned by retired generations.
 - Concurrent reload serialization.
 - Failed candidate resource cleanup.
@@ -324,7 +493,12 @@ The selected implementation must add focused verification for its technical risk
 - Supported additive/import-safe plugin activation.
 - Clear failure for unsupported process-global plugin conflicts where practical.
 - Shutdown while active and retired generations are draining.
-- Coordinated activation across server and terminal request entry points in `--server --console` mode.
+- One shared generation manager across server and terminal request entry points
+  in `--server --console` mode.
+- Terminal cache refresh after generation changes and idempotent close ownership.
+- Optimistic config-source revision checks and serialized config/secret commits.
+- Crash recovery for an interrupted config/secret transaction.
+- Explicit blocking/nonblocking classification of candidate diagnostics.
 
 #### Workstream B implementation risks
 
@@ -349,29 +523,52 @@ The selected implementation must add focused verification for its technical risk
 - A request started before activation retaining its original key through all LLM/tool phases.
 - Restart persistence and protected storage after the persistence question is resolved.
 - Permitted and rejected connection modes after the transport-security question is resolved.
+- Server-verifiable transport/provenance enforcement if encrypted authenticated
+  transport is selected.
+- Secret-bearing payloads excluded from logs, diagnostics, exception text, and
+  retained idempotency data.
 
 ### Workstream A plan: configuration generations and ToolLoopRunner isolation
 
 1. Separate stable application services from generation-specific configuration and runtime state.
-2. Introduce immutable `ApplicationGeneration` construction, validation, activation, retirement, and cleanup.
-3. Expand `ToolLoopRunner` to own the complete request lifecycle and all generation-sensitive request dependencies while keeping the existing name.
-4. Replace callbacks into live `AgentApplication` state with request-owned configuration, lifecycle, context, checkpoint, and persistence collaborators.
-5. Provide a generation-bound application facade for tools and plugins so active requests cannot accidentally consult the newly active generation.
-6. Make request creation, generation leasing, cancellation registration, and background handoff atomic.
-7. Add application-wide request registration and generation-aware cancellation.
-8. Make session serialization and shared persistence generation-independent.
-9. Implement staged plugin-driven configuration changes and serialized atomic generation activation.
-10. Support and document constrained plugin catalog changes across generations.
-11. Coordinate generation activation in combined server and console mode.
-12. Implement provider credential changes after the credential questions are resolved.
-13. Expose reload and credential operations through Workstream B rather than feature-specific frontend APIs.
+2. Introduce a configuration source revision, protected secret store/resolver,
+   and application-owned config transaction with optimistic conflict detection
+   and crash recovery.
+3. Introduce immutable `ApplicationGeneration` construction, deterministic
+   validation, activation, retirement, and cleanup.
+4. Classify candidate diagnostics and add plugin-owned pre-activation
+   validators without requiring generic provider network calls.
+5. Expand `ToolLoopRunner` to own the complete request lifecycle and all
+   generation-sensitive request dependencies while keeping the existing name.
+6. Replace callbacks into live `AgentApplication` state with request-owned
+   configuration, lifecycle, context, checkpoint, and persistence
+   collaborators.
+7. Provide a generation-bound application facade for tools and plugins so
+   active requests cannot accidentally consult the newly active generation.
+8. Make request creation, generation leasing, cancellation registration, and
+   background handoff atomic; lease generation-bound action/UI operations too.
+9. Add application-wide request registration and generation-aware
+   cancellation.
+10. Make session serialization and shared persistence generation-independent.
+11. Implement plugin-driven config transactions and serialized atomic
+   generation activation.
+12. Support and document the constrained plugin catalog change envelope.
+13. Use one stable application in combined server/console mode and refresh
+   terminal runtime caches at operation boundaries.
+14. Implement provider credential changes after the credential questions are
+   resolved.
+15. Expose reload and credential operations through Workstream B rather than
+   feature-specific frontend APIs.
 
 ### Workstream B plan: reusable application-level actions
 
-1. Define a screen-independent application-level action UI declaration distinct from session, message, and session-list actions.
+1. Define and validate `application_action` as the screen-independent
+   application-level action UI declaration distinct from session, message, and
+   session-list actions.
 2. Build reusable connection-scoped application-action state on the existing `AgentBackend` discovery and execution methods.
 3. Normalize and expose action definitions, UI declarations, loading/error state, refresh, invalidation, and standard result handling without coupling the SDK to configuration reload.
-4. Ensure action identity and caches remain scoped to the plugin and selected backend connection.
+4. Key action identity by backend connection, plugin id, and action id; retain
+   a documented compatibility path for the existing action-id-only SDK map.
 5. Add React bindings for application-action discovery and execution.
 6. Resolve the frontend presentation design decision.
 7. Add the selected shared React Native application-action presentation.
@@ -383,8 +580,12 @@ The selected implementation must add focused verification for its technical risk
 ### Shared plan concerns
 
 - Reuse `GET /application/actions`, `GET /application/ui-schema`, and `POST /actions` unless a concrete verified gap requires extending the protocol.
-- Define a reserved internal application effect for generation activation that is consumed after the contributing plugin action returns.
-- Refresh connection-scoped application actions and UI declarations after activation where the active generation changes them.
+- Define a reserved internal application effect for generation activation that
+  is consumed after the contributing plugin action returns and while its old
+  generation lease remains held.
+- Add a standard connection-scoped UI invalidation effect/event so successful
+  activation refreshes application actions and UI declarations without
+  configuration-specific frontend code.
 - Keep configuration-specific semantics in Workstream A plugins rather than the generic Workstream B SDK and UI layers.
 
 ### Documentation
@@ -394,13 +595,17 @@ The selected implementation must add focused verification for its technical risk
 Update plugin-author documentation to explain:
 
 - how a plugin stages a supported configuration change;
+- how the application-owned transaction, source revision, and conflict result
+  work;
 - how it requests generation activation;
 - activation success and failure behavior;
+- what deterministic candidate validation does and does not prove;
 - request generation pinning;
 - per-generation application-plugin initialization and cleanup;
 - additive plugin and hot-upgrade constraints;
 - process-global environment, import, native-resource, and background-service restrictions;
-- secret input, storage, redaction, and result rules.
+- secret input, storage, redaction, and result rules;
+- opaque secret references and externally managed/read-only credential policy.
 
 Update application/server documentation to explain:
 
@@ -408,7 +613,8 @@ Update application/server documentation to explain:
 - when changes affect requests;
 - how active requests drain;
 - how failures are surfaced;
-- the final API-key storage, precedence, and transport-security contract after the open questions are resolved.
+- the final API-key storage, precedence, and transport-security contract after the open questions are resolved;
+- crash recovery and the behavior of externally edited configuration.
 
 #### Workstream B audiences
 
@@ -416,6 +622,8 @@ Document application-level actions for:
 
 - plugin authors defining actions and screen-independent UI declarations;
 - SDK consumers discovering, caching, invalidating, and executing actions for an explicit backend connection;
+- SDK consumers using compound plugin/action identity and responding to
+  application-generation invalidation;
 - frontend authors hosting application actions, rendering standard dialogs/results, and distinguishing application-level actions from session, message, and session-list actions.
 
 Documentation must clarify:
@@ -436,7 +644,13 @@ Documentation verification includes a successful docs build, validated links and
 
 - [ ] Resolve the credential security-boundary requirement question and update A5 and its verification.
 - [ ] Resolve the credential persistence/precedence requirement question and update A5 and its verification.
+- [ ] Approve the application-owned config transaction and source-revision contract.
+- [ ] Approve the deterministic local candidate-validation boundary.
+- [ ] Approve the initial coexistence-safe plugin hot-change envelope.
+- [ ] Approve one shared `AgentApplication` in combined server/console mode.
 - [ ] Extract stable application services from configuration-generation state.
+- [ ] Add configuration source revisions, protected secret resolution, atomic
+  config/secret transactions, and crash recovery.
 - [ ] Introduce immutable `ApplicationGeneration` construction, validation, activation, retirement, and cleanup.
 - [ ] Expand `ToolLoopRunner` to own the complete request lifecycle and all generation-sensitive request dependencies.
 - [ ] Replace callbacks into live `AgentApplication` state with request-owned collaborators and a generation-bound application facade.
@@ -445,7 +659,8 @@ Documentation verification includes a successful docs build, validated links and
 - [ ] Make session serialization/persistence generation-independent.
 - [ ] Implement staged plugin-driven configuration changes and serialized atomic generation activation.
 - [ ] Support and document constrained plugin catalog changes across generations.
-- [ ] Coordinate generation activation in combined server and console mode.
+- [ ] Share one generation manager in combined server/console mode and refresh
+  terminal caches across activation.
 - [ ] Implement provider credential changes, protected storage, redaction, and masked input after the credential questions are resolved.
 - [ ] Expose reload and credential operations through Workstream B.
 
@@ -453,6 +668,7 @@ Documentation verification includes a successful docs build, validated links and
 
 - [ ] Define the screen-independent application-level action UI declaration.
 - [ ] Add reusable connection-scoped application-action state to the frontend SDK.
+- [ ] Fix action declaration identity to include both plugin id and action id.
 - [ ] Add React bindings for application-action discovery and execution.
 - [ ] Resolve the application-action UI presentation design decision.
 - [ ] Add the selected shared React Native application-action presentation.
