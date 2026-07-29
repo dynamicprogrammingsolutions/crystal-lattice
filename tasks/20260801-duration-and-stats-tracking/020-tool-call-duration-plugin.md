@@ -38,28 +38,57 @@ A plugin that captures wall-clock duration for every tool call using the framewo
 
 Status: Draft
 
-### Plugin structure
+This plan intentionally defers the plugin-kind decision until subtask 010 has
+verified both established lifecycle paths. The implementation may be an
+application plugin or a feature plugin; it must not require a framework
+contract change after that choice.
 
-1. Create `plugins/tool-duration-app/` (application plugin) with:
-   - `agent_plugin.json` registering the plugin class.
-   - `src/tool_duration_app/__init__.py` implementing `ToolDurationAppPlugin`.
-   - `tests/` with unit and integration tests.
-2. The plugin declares two actions:
+### Plugin-kind selection
+
+1. Compare the two supported implementations against the completed 010
+   infrastructure:
+   - Application plugin: persistent application state is natural for matching
+     start/end; the post action loads the completed session, rewrites the tool
+     message and aggregate metadata with normal core helpers, rebuilds native
+     history, and saves.
+   - Feature plugin: the post action transforms complete `native_messages` and
+     returns `session_metadata`; transient timing state uses the application
+     `runtime_store` from lifecycle context.
+2. Select the kind based on implementation simplicity, state cleanup,
+   config/UI contribution, and cross-provider native-history behavior. Record
+   the choice and evidence in this task before implementation.
+3. Create the corresponding first-party package under `plugins/` with
+   `agent_plugin.json`, source package, package-local tests, and README.
+4. The selected plugin declares two actions:
    - `capture_tool_call_start` with `trigger: "tool_call_prepare"`.
    - `capture_tool_call_end` with `trigger: "tool_call_complete"`.
 
 ### Timing capture
 
-1. In `capture_tool_call_start`, record `time.monotonic()` and `datetime.now(timezone.utc).isoformat()` keyed by `tool_call_id` in the plugin state dict.
+1. In `capture_tool_call_start`, record `time.monotonic()` and
+   `datetime.now(timezone.utc).isoformat()` keyed by
+   `(session_id, request_id, tool_call_id)` in the selected plugin's supported
+   transient state store.
 2. In `capture_tool_call_end`, retrieve the start time by `tool_call_id`, compute `duration_ms = int((time.monotonic() - start) * 1000)`, and format it using the same `_format_duration_ms` helper as `DurationExtension`.
-3. Return a `session_metadata` patch that stamps `duration_ms`, `duration_started_at`, `duration_finished_at`, `duration_formatted` onto the tool-result message's metadata. The framework applies this patch to the in-flight session.
+3. Transform the complete session through the selected established contract:
+   - application path: load, immutably rewrite the matching tool message and
+     session metadata, rebuild native history, and save;
+   - feature path: return complete transformed `native_messages` plus
+     `session_metadata`.
+4. Stamp `duration_ms`, `duration_started_at`, `duration_finished_at`, and
+   `duration_formatted` on the matching tool-result message.
 
 ### Turn and total accumulation
 
 1. On `tool_call_complete`, scan the session's tool messages since the last turn separator (last user/system message or last assistant message without tool calls) to compute `turn_tool_duration_ms`.
-2. Read the existing total from `session.metadata["stats"]["tool_duration_ms"]` (or 0 if missing), add the current call's duration, and write back the updated total.
-3. Write `turn_tool_duration_ms` and `tool_duration_ms` (total) into `session.metadata["stats"]` via the `session_metadata` return.
-4. Use `session_save_prepare` trigger to ensure stats are persisted on every save.
+2. Compute `tool_duration_ms` from duration-bearing tool messages across the
+   complete session so the aggregate follows arbitrary history
+   transformations and does not double-count lifecycle retries.
+3. Write `turn_tool_duration_ms` and `tool_duration_ms` under the configurable
+   session stats metadata key while preserving fields owned by other stats
+   plugins.
+4. Rely on the selected full-session lifecycle contract and 010's
+   request-owned checkpoint/adoption behavior for persistence.
 
 ### UI elements
 
@@ -74,22 +103,34 @@ Status: Draft
 
 ### Implementation decisions and open questions
 
-- **State keying**: plugin state is per-request (short-lived). The `tool_call_id` is the natural key for matching start/end. If `tool_call_id` is missing (edge case), fall back to tool name + call index.
-- **Metadata patch mechanism**: the `session_metadata` return from lifecycle actions merges into `session.metadata`. To stamp a specific tool-result *message*, the plugin needs to return a `final_messages` replacement or a message-targeted patch. *Open question*: does the existing lifecycle action contract support patching a specific message's metadata, or only session-level metadata? If only session-level, the plugin may need to return the modified tool-result message via `final_messages` and let the tool loop apply it. *Recommendation*: check the `response_finalize` contract in `core.py` for message-level patching; if unavailable, propose a minimal extension to the lifecycle return contract.
+- **Open material decision — plugin kind**: choose application or feature only
+  after 010's equivalent-path tests pass. Application is likely simpler for
+  transient state and UI; feature is likely simpler for native-history
+  transformation. Neither is a framework requirement.
+- **State keying**: use `(session_id, request_id, tool_call_id)`; if
+  `tool_call_id` is missing, include tool name and call index.
+- **No new mutation shape**: use only the established application full-session
+  save contract or feature full-native-history return contract.
 - **Turn boundary detection**: reuse the same turn-separator logic as `DurationExtension` (last user/system message or last assistant without tool calls).
 
 ### Documentation
 
-- `plugins/tool-duration-app/README.md` describing the plugin, config toggle, and stats fields.
+- Package README describing the selected plugin kind, config toggle, state
+  cleanup, and stats fields.
 - Update `plugins/timestamp-extension/README.md` to cross-reference tool duration.
 
 ### Task checklist
 
-- [ ] Create `plugins/tool-duration-app/` package structure
+- [ ] Evaluate application and feature implementations against completed 010
+  fixtures and record the selected plugin kind
+- [ ] Create the selected plugin package structure
 - [ ] Implement `capture_tool_call_start` / `capture_tool_call_end` actions
+- [ ] Transform the matching tool message through the selected established
+  full-session contract
 - [ ] Implement per-turn and total accumulation in session stats metadata
 - [ ] Add `message_footer` UI element with config toggle
-- [ ] Write unit tests (timing, turn accumulation, total accumulation)
+- [ ] Write unit tests (timing, state cleanup, turn accumulation, total
+  accumulation)
 - [ ] Write integration test with `EchoOpenAILikeProvider`
 - [ ] Write cross-provider round-trip tests (OpenRouter, OpenAI Responses fixtures)
 - [ ] Write `README.md`
@@ -104,5 +145,5 @@ Status: Draft
 | Total tool duration in session stats | Unit test: across two turns, `session.metadata["stats"]["tool_duration_ms"]` accumulates correctly |
 | Separate from LLM duration | Test that `turn_duration_ms` (LLM-only) is unchanged and `turn_tool_duration_ms` is a distinct field |
 | UI footer on tool messages | UI-schema test confirming `message_footer` element with `metadata.duration_formatted` is present when toggle is on, absent when off |
-| No `tool_loop.py` modification | Grep/diff verification that `tool_loop.py` source is unchanged (only the lifecycle dispatch from 010 touches it) |
+| Framework-only hooks | Diff verification that this plugin changes neither `tool_loop.py` nor `AgentCore` and uses only 010's established lifecycle dispatch |
 | Cross-provider round-trip | Test with OpenRouter and OpenAI Responses fixtures that tool-result `duration_ms` survives `to_native_messages`/`from_native_messages` |

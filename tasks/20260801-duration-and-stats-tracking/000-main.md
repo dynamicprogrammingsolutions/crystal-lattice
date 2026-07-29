@@ -17,12 +17,16 @@ Enhance duration tracking to cover tool calls and human time, add frontend-repor
 - [ ] The framework exposes the three storage scopes (session, project, user) to plugins; plugins own the concrete subdirectory and file names within each scope.
 - [ ] Per-turn, per-message, and total stats are tracked where relevant for LLM duration, tool call duration, and human time.
 - [ ] No backward compatibility is required for existing sessions; stats appear on the first opportunity to update them.
-- [ ] The framework provides lifecycle action hooks sufficient for a plugin to capture per-tool-call duration without modifying `tool_loop.py` or `AgentCore` tool execution code.
+- [ ] The framework provides lifecycle action hooks sufficient for a plugin to capture per-tool-call duration without framework timing logic in `tool_loop.py` or `AgentCore` tool execution code.
+- [ ] Application plugins handling tool-call lifecycle triggers retain their normal ability to load, transform, rebuild, and save the complete active session without their synchronous saves being treated as a competing tool loop.
+- [ ] Feature plugins can handle the same tool-call lifecycle triggers through the existing full-session core action contract.
+- [ ] Tool-call duration may be implemented as either an application plugin or a feature plugin without changing the framework hooks.
 
 ## Resolved requirement decisions
 
 - **Telemetry transport**: Frontend-owned, sent via existing `executeAction`. No SDK method added. A server setting defines the telemetry plugin id.
 - **Tool duration ownership**: Plugin-owned. The framework only adds lifecycle hooks; it does not capture timing in `tool_loop.py` or `AgentCore`.
+- **Tool lifecycle plugin kinds**: The application-owned tool loop dispatches both normal application actions and the existing core session lifecycle. Application plugins retain full load/rebuild/save capability; feature plugins retain full native-history transformation capability. The duration implementation may choose either plugin kind.
 - **Backward compatibility**: Not required. Stats appear on first update; old sessions are not backfilled.
 - **Storage scopes**: Three configurable directories (session, project, user). Plugins own subdirs/files within them. Session summary stats also use a configurable metadata key.
 - **Stat breakdown**: Keep existing LLM `turn_duration_ms`; add tool call duration, human review time, human composition time — each tracked per-message, per-turn, and total where relevant.
@@ -99,4 +103,4 @@ The work is organized into seven subtasks with a foundation-first dependency cha
 | Three storage scopes (session, project, user) | Unit tests verifying plugins can resolve each scope's directory; config schema test confirming all path keys are discoverable |
 | Project/user aggregate stats | Unit tests with tmp dirs verifying files land under configured directories; atomic write verification |
 | No backward compatibility | Test that a fresh session (no prior stats) gets stats on first save without error |
-| Framework lifecycle hooks for tool calls | Test that a plugin with the new trigger receives tool-call context without modifying `tool_loop.py` source |
+| Framework lifecycle hooks for tool calls | Application- and feature-plugin fixtures both receive per-call prepare/complete context and rewrite the complete session through their established contracts while `tool_loop.py` contains lifecycle orchestration only and no timing or stats implementation |
