@@ -486,6 +486,7 @@ Common slash commands:
 - `/send` - send a request with current history.
 - `/append` - add a message without sending.
 - `/delete`, `/modify`, `/list` - manage message history.
+- `/compact` - toggle one-line rendering of live tool calls (`on`/`off`).
 - `/plugins` - list, enable, disable, or reset per-session plugins.
 
 ### Full application reload
@@ -567,6 +568,19 @@ subsequent requests and reloads use the updated plugin set.
 
 The `/list` command shows compact message history, including role, content,
 reasoning/thinking metadata, tool calls, and tool call ids when present.
+
+### Compact Tool Calls
+
+When a request triggers many tool calls, the live view can crowd out earlier
+messages. `/compact` toggles a one-line rendering for live tool calls:
+
+```text
+[7] Tool: read_file README.md
+```
+
+The leading `[7]` is the message index; use `/list 7` to re-print that tool
+message in full (content plus footer metadata). The startup default comes from
+the application config key `tool_output_live_compact` (default `false`).
 
 ## Logging
 

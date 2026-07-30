@@ -1194,6 +1194,11 @@ class TerminalApplication:
                 "default": 20,
                 "description": "Maximum number of lines for short tool output when one-line mode is disabled.",
             },
+            "tool_output_live_compact": {
+                "type": "bool",
+                "default": False,
+                "description": "If true, live tool calls render as one line at startup (toggle at runtime with /compact).",
+            },
         }
 
     def update_override(self, key: str, value: Any) -> Session:

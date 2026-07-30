@@ -543,7 +543,11 @@ class AssistantRenderer(BaseMessageRenderer):
 class ToolRenderer(BaseMessageRenderer):
     """Render tool call output for events and list view."""
 
-    def __init__(self, app: TerminalApplication) -> None:
+    def __init__(
+        self,
+        app: TerminalApplication,
+        compact_supplier: Optional[Callable[[], bool]] = None,
+    ) -> None:
         super().__init__(app)
         self._open_calls: set[str] = set()
         # Per-call line buffers so that streamed tool output is
@@ -554,6 +558,12 @@ class ToolRenderer(BaseMessageRenderer):
         self._printed_lines: Dict[str, int] = {}
         self._printed_chars: Dict[str, int] = {}
         self._truncated_calls: set[str] = set()
+        # Live compact ("one-line") mode. The supplier is read once per
+        # tool call (at the first event seen for that call) so that
+        # toggling mid-call never mixes full and compact rendering for
+        # the same call.
+        self._compact_supplier = compact_supplier
+        self._call_modes: Dict[str, bool] = {}
         cfg = app.agent_app.get_application_config()
         self._line_limit: int = int(cfg.get("tool_output_line_limit", 100))
         self._char_limit: int = int(cfg.get("tool_output_char_limit", 8000))
@@ -605,6 +615,65 @@ class ToolRenderer(BaseMessageRenderer):
             return content
         return None
 
+    def _is_compact(self) -> bool:
+        supplier = self._compact_supplier
+        if supplier is None:
+            return False
+        try:
+            return bool(supplier())
+        except Exception:
+            return False
+
+    def _condense_short(self, content: str, *, one_line: bool) -> tuple[str, bool]:
+        """Condense tool content using the short-view limits.
+
+        Shared by the ``/list short`` view and the live compact
+        rendering so both stay consistent. Returns ``(text, truncated)``.
+        """
+
+        if one_line:
+            single = " ".join((content or "").split())
+            limit = self._short_char_limit
+            if limit > 0 and len(single) > limit:
+                return single[: limit - 3] + "...", True
+            return single, False
+        return _apply_tool_limits(
+            content, self._short_line_limit, self._short_char_limit
+        )
+
+    def _render_compact_line(self, event: Dict[str, Any], write: WriteFn) -> None:
+        """Render a finished tool call as a single compact line.
+
+        Combines the message index (when present), tool name, and the
+        short/single_line content into one line, e.g.:
+
+            [7] Tool: read_file README.md
+        """
+
+        payload = event.get("payload") or {}
+        result = payload.get("result") if isinstance(payload, dict) else None
+        if not isinstance(result, dict):
+            result = {}
+        md = result.get("metadata") or {}
+        if not isinstance(md, dict):
+            md = {}
+
+        index = event.get("message_index")
+        prefix = f"[{index}] " if isinstance(index, int) and index >= 0 else ""
+
+        tool_name = md.get("tool_name")
+        name_part = (
+            f" {YELLOW}{tool_name}{RESET}"
+            if isinstance(tool_name, str) and tool_name
+            else ""
+        )
+
+        content = self._select_content_from_message(result, short=True)
+        text, _truncated = self._condense_short(content or "", one_line=True)
+        body = f" {GRAY}{text}{RESET}" if text else ""
+
+        write(f"{prefix}{BLUE}Tool:{RESET}{name_part}{body}")
+
     def render_event(self, event: Dict[str, Any], write: WriteFn) -> None:
         if event.get("type") != "tool_partial":
             return
@@ -613,6 +682,14 @@ class ToolRenderer(BaseMessageRenderer):
         phase = event.get("phase")
         payload = event.get("payload") or {}
 
+        # Fix the rendering mode for this call at the first event seen
+        # for it, so a mid-call toggle never mixes modes.
+        mode_key = call_id if isinstance(call_id, str) else ""
+        compact = self._call_modes.get(mode_key)
+        if compact is None:
+            compact = self._is_compact()
+            self._call_modes[mode_key] = compact
+
         # Backwards compatibility: payloads from earlier versions without phase.
         if isinstance(payload, dict):
             part = payload.get("part") or payload.get("partial") or {}
@@ -620,6 +697,21 @@ class ToolRenderer(BaseMessageRenderer):
             part = {}
 
         if phase == "end":
+            if compact:
+                # Compact mode: the whole call renders as one line. Any
+                # buffered per-call state is dropped (nothing was
+                # streamed for compact calls).
+                result = payload.get("result") if isinstance(payload, dict) else None
+                if isinstance(result, dict):
+                    self._render_compact_line(event, write)
+                self._open_calls.discard(mode_key)
+                self._line_buffers.pop(mode_key, None)
+                self._printed_lines.pop(mode_key, None)
+                self._printed_chars.pop(mode_key, None)
+                self._truncated_calls.discard(mode_key)
+                self._call_modes.pop(mode_key, None)
+                return
+
             # End-of-call event with the final tool result. When no
             # streaming chunks were seen for this call, render a
             # one-shot header + content + footer; otherwise render
@@ -681,6 +773,13 @@ class ToolRenderer(BaseMessageRenderer):
             self._printed_lines.pop(key, None)
             self._printed_chars.pop(key, None)
             self._truncated_calls.discard(key)
+            self._call_modes.pop(key, None)
+            return
+
+        # In compact mode, streamed start/stream output (including
+        # summary parts) is suppressed entirely; the call renders as a
+        # single line on the end event instead.
+        if compact:
             return
 
         # For start/stream (or legacy payloads without phase), stream text.
@@ -802,18 +901,9 @@ class ToolRenderer(BaseMessageRenderer):
         if isinstance(content, str) and content:
             truncated = False
             if short:
-                if self._short_one_line:
-                    single = " ".join((content or "").split())
-                    limit = self._short_char_limit
-                    if limit > 0 and len(single) > limit:
-                        text = single[: limit - 3] + "..."
-                        truncated = True
-                    else:
-                        text = single
-                else:
-                    text, truncated = _apply_tool_limits(
-                        content, self._short_line_limit, self._short_char_limit
-                    )
+                text, truncated = self._condense_short(
+                    content, one_line=self._short_one_line
+                )
             else:
                 text, truncated = _apply_tool_limits(
                     content, self._line_limit, self._char_limit
@@ -831,13 +921,14 @@ class TerminalRenderContext:
         self,
         app: TerminalApplication,
         footer_elements_supplier: Callable[[], List[Dict[str, Any]]],
+        compact_supplier: Optional[Callable[[], bool]] = None,
     ) -> None:
         self._log = _require_event_logger()
         self._renderers: List[BaseMessageRenderer] = [
             LifecycleRenderer(app),
             UserRenderer(app, footer_elements_supplier),
             AssistantRenderer(app, footer_elements_supplier),
-            ToolRenderer(app),
+            ToolRenderer(app, compact_supplier=compact_supplier),
         ]
 
     def render_event(self, event: Dict[str, Any], write: WriteFn) -> None:

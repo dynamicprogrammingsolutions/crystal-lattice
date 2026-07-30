@@ -1709,11 +1709,79 @@ async def _cmd_list(
         renderer = TerminalRenderContext(
             app=app,
             footer_elements_supplier=lambda: app.message_footer_elements(),
+            compact_supplier=lambda: bool(ui_state.get("compact_tool_calls")),
         )
         ui_state["renderer"] = renderer
 
     for idx, message in items:
         renderer.render_message(idx, message, write, short=use_short)
+
+
+def _compact_completion(app: TerminalApplication, text: str) -> List[Completion]:
+    rest = text.lstrip()
+    # Only complete a single token after /compact
+    if " " in rest:
+        return []
+
+    completions: List[Completion] = []
+    for sub in ["on", "off"]:
+        if not rest or sub.startswith(rest):
+            completions.append(
+                Completion(
+                    sub,
+                    start_position=-len(rest),
+                    display=sub,
+                    display_meta="mode",
+                )
+            )
+    return completions
+
+
+def _initial_compact_state(app: TerminalApplication) -> bool:
+    """Resolve the startup default for live compact tool rendering.
+
+    Reads the application-level ``tool_output_live_compact`` config key;
+    the ``/compact`` command toggles the runtime state from there.
+    """
+
+    try:
+        cfg = app.agent_app.get_application_config()
+    except Exception:
+        return False
+    return bool(cfg.get("tool_output_live_compact", False))
+
+
+@slash_command(
+    "compact",
+    "Toggle one-line rendering of live tool calls",
+    completer=_compact_completion,
+)
+async def _cmd_compact(
+    app: TerminalApplication,
+    arg: str,
+    write: Callable[[str], None],
+    ui_state: Dict[str, Any],
+) -> None:
+    text = (arg or "").strip().lower()
+    current = bool(ui_state.get("compact_tool_calls"))
+
+    if not text:
+        new_value = not current
+    elif text == "on":
+        new_value = True
+    elif text == "off":
+        new_value = False
+    else:
+        raise TerminalUserError("usage: /compact [on|off]")
+
+    ui_state["compact_tool_calls"] = new_value
+    if new_value:
+        write(
+            "[compact] on - tool calls render as one line; "
+            "use /list <index> to expand one in full"
+        )
+    else:
+        write("[compact] off - tool calls render in full")
 
 
 @slash_command("fork", "Fork the current session (optionally up to an index)")
@@ -2036,6 +2104,9 @@ async def _run_terminal(
         "pending_modify_index": None,
         "input_prefill": "",
         "renderer": None,
+        # Live compact ("one-line") tool call rendering; toggled at
+        # runtime via /compact, seeded from application config.
+        "compact_tool_calls": _initial_compact_state(app),
     }
 
     # Shared renderer context used for both streaming events and history
@@ -2043,6 +2114,7 @@ async def _run_terminal(
     renderer_ctx = TerminalRenderContext(
         app=app,
         footer_elements_supplier=lambda: app.message_footer_elements(),
+        compact_supplier=lambda: bool(ui_state.get("compact_tool_calls")),
     )
     ui_state["renderer"] = renderer_ctx
 

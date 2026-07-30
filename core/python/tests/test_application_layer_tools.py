@@ -111,6 +111,72 @@ def test_execute_tool_calls_streaming(tmp_path: Path) -> None:
     assert any(ev.get("type") == "tool_results" for ev in events)
 
 
+def test_streaming_tool_partial_end_events_carry_message_index(
+    tmp_path: Path,
+) -> None:
+    """``tool_partial`` end events include the tool message's session index.
+
+    The index labels compact one-line tool renderings in the terminal so
+    users can expand a specific call later via ``/list <index>``.
+    """
+
+    config_path = _make_tool_config(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, session = app.create_session("default")
+
+    tool_calls: List[Dict[str, object]] = [
+        {
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": "add", "arguments": json.dumps({"a": 1, "b": 2})},
+        },
+        {
+            "id": "call_2",
+            "type": "function",
+            "function": {"name": "add", "arguments": json.dumps({"a": 3, "b": 4})},
+        },
+    ]
+    session = core.add_message(
+        session,
+        "assistant",
+        "",
+        {"tool_calls": tool_calls},
+    )
+    app.save_session(session)
+    start_count = len(session.messages)
+
+    events = list(
+        app.send_request(core, session, base_config, overrides=None, stream=True)
+    )
+
+    end_events = [
+        ev
+        for ev in events
+        if ev.get("type") == "tool_partial" and ev.get("phase") == "end"
+    ]
+    assert len(end_events) >= 2
+
+    # Every end event carries an integer message_index.
+    assert all(isinstance(ev.get("message_index"), int) for ev in end_events)
+
+    # The initial batch of two calls appends one tool message each, in
+    # order, directly after the pending assistant message.
+    assert [ev["message_index"] for ev in end_events[:2]] == [
+        start_count,
+        start_count + 1,
+    ]
+
+    # Non-end tool_partial events do not carry the field.
+    assert all(
+        "message_index" not in ev
+        for ev in events
+        if ev.get("type") == "tool_partial" and ev.get("phase") != "end"
+    )
+
+
 def test_pending_tool_calls_ignored_after_follow_up_user_message() -> None:
     core = AgentCore()
     runner = ToolLoopRunner(
