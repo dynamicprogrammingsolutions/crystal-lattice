@@ -527,6 +527,7 @@
     "tool_output_line_limit": 20,
     "tool_output_char_limit": 2000,
     "tool_output_short_one_line": true,
+    "tool_output_live_compact": false,
     "session_actions": {
       "allow_delete": true
     },
