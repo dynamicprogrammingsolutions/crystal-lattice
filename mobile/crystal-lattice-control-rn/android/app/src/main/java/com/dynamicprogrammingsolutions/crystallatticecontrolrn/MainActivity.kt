@@ -23,11 +23,18 @@ class MainActivity : ReactActivity() {
    * which allows you to enable New Architecture with a single boolean flags [fabricEnabled]
    */
   override fun createReactActivityDelegate(): ReactActivityDelegate =
-      DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
+      object : DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled) {
+        override fun getLaunchOptions(): Bundle? =
+            this@MainActivity.intent?.getBundleExtra("launchArgs")
+      }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     
+    if (BuildConfig.IS_DETOX_E2E) {
+      return
+    }
+
     // Enable edge-to-edge display
     WindowCompat.setDecorFitsSystemWindows(window, false)
     

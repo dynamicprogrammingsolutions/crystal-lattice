@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react';
 import type { AgentBackend, PluginsRegistryState } from '@crystal-lattice/frontend-sdk';
-import { PluginsRegistry } from '@crystal-lattice/frontend-sdk';
+import {
+  PluginsRegistry,
+  normalizeSessionListFilterSchema,
+} from '@crystal-lattice/frontend-sdk';
 import { useSubscribableSnapshot } from './useSubscribable';
 
 export type UseApplicationPluginsResult = Omit<PluginsRegistryState, 'loading' | 'error'>;
@@ -16,7 +19,8 @@ const defaultContext: ApplicationPluginsContextValue = {
   messageActions: [],
   sessionListActions: [],
   sessionListFields: [],
-  sessionListPinnedToggles: [],
+  sessionListFilterSchema: normalizeSessionListFilterSchema([]),
+  sessionListDiagnostics: [],
   loading: false,
   error: null,
   refresh: async () => {},
@@ -49,6 +53,7 @@ export const ApplicationPluginsProvider: React.FC<ApplicationPluginsProviderProp
     registry.load().catch(() => {
       // Errors are stored in state.
     });
+    return () => registry.close();
   }, [registry]);
 
   const value = useMemo(
@@ -71,21 +76,29 @@ export function useApplicationPluginsContext(): ApplicationPluginsContextValue {
   return useContext(ApplicationPluginsContext);
 }
 
-export function useApplicationPlugins(): UseApplicationPluginsResult {
+export function selectApplicationPlugins(
+  value: ApplicationPluginsContextValue,
+): UseApplicationPluginsResult {
   const {
     actionsById,
     sessionActions,
     messageActions,
     sessionListActions,
     sessionListFields,
-    sessionListPinnedToggles,
-  } = useApplicationPluginsContext();
+    sessionListFilterSchema,
+    sessionListDiagnostics,
+  } = value;
   return {
     actionsById,
     sessionActions,
     messageActions,
     sessionListActions,
     sessionListFields,
-    sessionListPinnedToggles,
+    sessionListFilterSchema,
+    sessionListDiagnostics,
   };
+}
+
+export function useApplicationPlugins(): UseApplicationPluginsResult {
+  return selectApplicationPlugins(useApplicationPluginsContext());
 }

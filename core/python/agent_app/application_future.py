@@ -43,6 +43,11 @@ from .config import (
 )
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
+from .session_listing import SessionListFilterEvaluator, SessionListService
+from .session_filters import (
+    SessionListFilterEngine,
+    coerce_session_list_filter_input,
+)
 from .sessions import (
     FilesystemSessionStore,
     NullSnapshotSelectionStore,
@@ -326,9 +331,11 @@ class AgentApplication:
         snapshot_selection_store: SnapshotSelectionStore | None = None,
         env_overrides: Mapping[str, str] | None = None,
         config_env: Mapping[str, str] | None = None,
+        replay_server_settings_on_startup: bool = True,
     ) -> None:
         logger = get_logger("AgentApplication")
         self._logger = logger
+        self._closed = False
         # Core factory is stored so that per-session cores can be created
         # without sharing wrapper/runtime state across requests. Model
         # discovery cache is intentionally shared at the application scope.
@@ -537,6 +544,42 @@ class AgentApplication:
             runtime_store=self._runtime_store,
             tool_runtime=self._runtime_store,
         )
+        application_ref = weakref.ref(self)
+
+        def _require_application() -> "AgentApplication":
+            application = application_ref()
+            if application is None:
+                raise RuntimeError("AgentApplication is no longer available")
+            return application
+
+        def _list_session_actions() -> List[Dict[str, Any]]:
+            return _require_application().get_application_actions()
+
+        def _list_session_ui_elements() -> List[Dict[str, Any]]:
+            return _require_application().get_application_ui_schema()
+
+        def _execute_session_list_action(
+            plugin_id: str,
+            action_id: str,
+            params: Dict[str, Any],
+            context: Optional[Dict[str, Any]],
+        ) -> Dict[str, Any]:
+            return _require_application().execute_application_action(
+                plugin_id,
+                action_id,
+                params,
+                context=context,
+            )
+
+        self._session_list_filter_engine = SessionListFilterEngine()
+        self._session_list_service = SessionListService(
+            store=self._session_store,
+            list_actions=_list_session_actions,
+            list_ui_elements=_list_session_ui_elements,
+            execute_action=_execute_session_list_action,
+            logger=self._logger,
+            filter_evaluator=self._session_list_filter_engine,
+        )
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
@@ -641,7 +684,8 @@ class AgentApplication:
             self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
 
         self._raise_for_fatal_config_errors()
-        self._replay_server_settings_on_startup()
+        if replay_server_settings_on_startup:
+            self._replay_server_settings_on_startup()
 
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
@@ -2158,6 +2202,10 @@ class AgentApplication:
     def close(self) -> None:
         """Release plugin and process-global runtime resources owned by this app."""
 
+        if self._closed:
+            return
+        self._closed = True
+
         for wrapper in list(self._app_plugins.values()):
             try:
                 wrapper.close()
@@ -2329,6 +2377,7 @@ class AgentApplication:
             config=safe_config,
             tags=safe_tags,
             models=safe_models,
+            server_settings=self.get_server_settings(),
             extra=context,
         )
 
@@ -2402,7 +2451,9 @@ class AgentApplication:
                 },
             )
         except Exception as exc:  # pragma: no cover - defensive
-            self._logger.exception("error getting application_ui_schema", error=str(exc))
+            self._logger.exception(
+                "error getting application_ui_schema", error=str(exc)
+            )
             elements = []
 
         if plugin:
@@ -2873,6 +2924,7 @@ class AgentApplication:
                 action_params,
                 context=self._context.build_core_handoff_context(
                     base_config=base_config,
+                    config=effective_config,
                     extra=context,
                 ),
             )
@@ -2947,6 +2999,7 @@ class AgentApplication:
         )
 
         if candidate.action_owner == "application":
+            context = self._session_scoped_application_action_context(context)
             result = self.execute_application_action(
                 candidate.plugin_id,
                 candidate.action_id,
@@ -2987,6 +3040,41 @@ class AgentApplication:
             context=context,
         ).result
 
+    def _session_scoped_application_action_context(
+        self,
+        context: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(context, dict):
+            return context
+        session_id = context.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            if isinstance(context.get("config"), dict):
+                return context
+            if isinstance(context.get("base_config"), dict):
+                return {**context, "config": dict(context["base_config"])}
+            return context
+        loaded = self.load_session(session_id)
+        if loaded is None:
+            if isinstance(context.get("config"), dict):
+                return context
+            if isinstance(context.get("base_config"), dict):
+                return {**context, "config": dict(context["base_config"])}
+            return context
+        _core, base_config, session = loaded
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = self.resolve_effective_config(
+            base_config, session, overrides
+        )
+        return self._context.build_session_action_context(
+            session=session,
+            base_config=base_config,
+            config=effective_config,
+            extra=context,
+        )
+
     def load_session(
         self,
         session_id: str,
@@ -3010,6 +3098,68 @@ class AgentApplication:
             session, overrides
         )
         return core, base_cfg, session
+
+    def list_session_summaries(
+        self,
+        *,
+        filter_values: Optional[Dict[str, object]] = None,
+        apply_filter_defaults: bool = False,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return shared ordered summaries for all live stored sessions."""
+
+        return self._session_list_service.list_session_summaries(
+            filter_values=filter_values,
+            apply_filter_defaults=apply_filter_defaults,
+            limit=limit,
+        )
+
+    def get_session_summary(self, session_id: str) -> Dict[str, Any]:
+        """Return the shared unfiltered summary for one exact session id."""
+
+        return self._session_list_service.get_session_summary(session_id)
+
+    def get_session_list_diagnostics(self) -> List[Dict[str, Any]]:
+        """Return structured nonfatal diagnostics from the latest list query."""
+
+        return self._session_list_service.get_last_diagnostics()
+
+    def get_session_list_filter_schema(self) -> Dict[str, Any]:
+        """Return the normalized declarative session-list filter schema."""
+
+        return self._session_list_filter_engine.schema(
+            self.get_application_ui_schema()
+        ).to_dict()
+
+    def coerce_session_list_filter_input(
+        self,
+        filter_id: str,
+        raw_value: str | Sequence[str],
+    ) -> object:
+        """Coerce terminal-style input using the current filter declaration."""
+
+        schema = self._session_list_filter_engine.schema(
+            self.get_application_ui_schema()
+        )
+        declaration = next(
+            (
+                item
+                for item in schema.filters
+                if item.element_id == filter_id
+            ),
+            None,
+        )
+        if declaration is None:
+            raise KeyError(f"Unknown session-list filter {filter_id!r}")
+        return coerce_session_list_filter_input(declaration, raw_value)
+
+    def set_session_list_filter_evaluator(
+        self,
+        evaluator: SessionListFilterEvaluator,
+    ) -> None:
+        """Install the in-process filter evaluator used by terminal queries."""
+
+        self._session_list_service.set_filter_evaluator(evaluator)
 
     def load_session_record(self, session_id: str) -> Optional[Session]:
         """Load a session from the underlying store.
@@ -3126,6 +3276,7 @@ class AgentApplication:
 
     def _save_session_low_level(self, session: Session) -> Session:
         self._session_store.save(session)
+        self._session_list_service.invalidate(session.session_id)
         return self.load_session_record(session.session_id) or session
 
     def save_session(
@@ -3181,6 +3332,7 @@ class AgentApplication:
                 context={"session_id": session_id},
             )
         self._session_store.delete(session_id)
+        self._session_list_service.invalidate(session_id)
 
     def create_session(
         self, agent_id: str
@@ -3401,6 +3553,7 @@ class AgentApplication:
                 session=session,
                 request_id=rid,
                 base_config=base_config,
+                config=config,
             ),
         )
         return core, base_config, session, config, rid
@@ -3437,6 +3590,7 @@ class AgentApplication:
                 session=session,
                 request_id=rid,
                 base_config=base_config,
+                config=config,
             ),
         )
         return core, base_config, session, config, rid
@@ -3539,8 +3693,29 @@ class AgentApplication:
             session=session,
             request_id=rid,
             base_config=base_config,
+            config=config,
         )
-        core.prepare_tools(config, context=tool_context)
+        try:
+            core.prepare_tools(config, context=tool_context)
+        except (
+            Exception,
+            asyncio.CancelledError,
+            concurrent.futures.CancelledError,
+        ) as exc:
+            detail = str(exc) or type(exc).__name__
+            yield {
+                "type": "error",
+                "session_id": session.session_id,
+                "request_id": rid,
+                "detail": f"Tool preparation failed: {detail}",
+            }
+            yield {
+                "type": "request_completed",
+                "session_id": session.session_id,
+                "request_id": rid,
+            }
+            self.record_checkpoint(session.session_id, None)
+            return
 
         cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
         self._request_cancellations[rid] = cancellation
@@ -3559,6 +3734,7 @@ class AgentApplication:
                         session=current_session,
                         request_id=rid,
                         base_config=base_config,
+                        config=refreshed,
                     ),
                     "cancellation": cancellation,
                 },

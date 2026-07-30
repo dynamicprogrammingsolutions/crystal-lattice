@@ -18,6 +18,7 @@ interface PinnedEntry {
   pinned: string[];
   initialPinned: string[];
   migrateFromKeys: string[];
+  preferenceSource: 'loading' | 'default' | 'stored';
 }
 
 interface PinnedActionsContextValue {
@@ -48,6 +49,10 @@ function sanitizeStringArray(value: unknown): string[] {
   return value.filter((item) => typeof item === 'string');
 }
 
+function arraysEqual(left: readonly string[], right: readonly string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [entries, setEntries] = useState<Record<string, PinnedEntry>>({});
   const entriesRef = useRef(entries);
@@ -59,6 +64,29 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
     (storageKey: string, initialPinned: string[], migrateFromKeys: string[]) => {
       const existing = entriesRef.current[storageKey];
       if (existing) {
+        const nextInitialPinned = sanitizeStringArray(initialPinned);
+        if (
+          arraysEqual(existing.initialPinned, nextInitialPinned) &&
+          arraysEqual(existing.migrateFromKeys, migrateFromKeys)
+        ) {
+          return;
+        }
+        setEntries((prev) => {
+          const current = prev[storageKey];
+          if (!current) {
+            return prev;
+          }
+          return {
+            ...prev,
+            [storageKey]: {
+              ...current,
+              initialPinned: nextInitialPinned,
+              ...(current.preferenceSource === 'default'
+                ? { pinned: nextInitialPinned }
+                : {}),
+            },
+          };
+        });
         return;
       }
 
@@ -78,6 +106,7 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
             pinned: [],
             initialPinned: sanitizeStringArray(initialPinned),
             migrateFromKeys: migrateKeys,
+            preferenceSource: 'loading',
           },
         };
       });
@@ -94,6 +123,7 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
           pinned: [],
           initialPinned: [],
           migrateFromKeys: [],
+          preferenceSource: 'stored',
         } as PinnedEntry);
 
       const prevPinned = existing.pinned;
@@ -102,12 +132,13 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
           ? sanitizeStringArray((update as (value: string[]) => string[])(prevPinned))
           : sanitizeStringArray(update);
 
-      const nextEntries = {
+      const nextEntries: Record<string, PinnedEntry> = {
         ...prev,
         [storageKey]: {
           ...existing,
           loaded: true,
           pinned: nextPinned,
+          preferenceSource: 'stored',
         },
       };
 
@@ -140,6 +171,7 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
                   ...current,
                   loaded: true,
                   pinned: parsed,
+                  preferenceSource: 'stored',
                 },
               };
             });
@@ -162,6 +194,7 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
                   ...current,
                   loaded: true,
                   pinned: migrated,
+                  preferenceSource: 'stored',
                 },
               };
             });
@@ -182,6 +215,21 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
                 ...current,
                 loaded: true,
                 pinned: current.initialPinned,
+                preferenceSource: 'default',
+              },
+            };
+          });
+        } catch {
+          setEntries((prev) => {
+            const current = prev[storageKey];
+            if (!current) return prev;
+            return {
+              ...prev,
+              [storageKey]: {
+                ...current,
+                loaded: true,
+                pinned: current.initialPinned,
+                preferenceSource: 'default',
               },
             };
           });
@@ -190,9 +238,7 @@ export const PinnedActionsProvider: React.FC<{ children: ReactNode }> = ({ child
         }
       };
 
-      load().catch(() => {
-        // Errors are handled via fallback updates.
-      });
+      load();
     });
   }, [entries]);
 

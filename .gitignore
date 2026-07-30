@@ -44,6 +44,7 @@ pip-delete-this-directory.txt
 htmlcov/
 .tox/
 .nox/
+.manual-state/
 .coverage
 .coverage.*
 .cache
@@ -269,7 +270,8 @@ dist
 .pnp.*
 
 # IDEs
-.vscode/
+.vscode/*
+!.vscode/tasks.json
 .idea/
 *.swp
 *.swo

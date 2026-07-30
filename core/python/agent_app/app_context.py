@@ -31,6 +31,7 @@ class ApplicationContext:
         self,
         *,
         base_config: Mapping[str, Any],
+        config: Optional[Mapping[str, Any]] = None,
         extra: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         blocked = {
@@ -59,6 +60,7 @@ class ApplicationContext:
             else {}
         )
         filtered_extra["base_config"] = dict(base_config)
+        filtered_extra["config"] = dict(config if config is not None else base_config)
         return merge_context_layers(
             builder="application",
             call_path="core_handoff",
@@ -118,6 +120,7 @@ class ApplicationContext:
         config: Mapping[str, Any],
         tags: Optional[list[Any]] = None,
         models: Optional[list[Mapping[str, Any]]] = None,
+        server_settings: Optional[Mapping[str, Any]] = None,
         session: Any | None = None,
         base_config: Optional[Mapping[str, Any]] = None,
         extra: Optional[Mapping[str, Any]] = None,
@@ -128,6 +131,7 @@ class ApplicationContext:
             "config": dict(config),
             "tags": list(tags or []),
             "models": [dict(model) for model in (models or [])],
+            "server_settings": dict(server_settings or {}),
         }
         if base_config is not None:
             specific_layer["base_config"] = dict(base_config)
@@ -148,6 +152,7 @@ class ApplicationContext:
         *,
         session: Any,
         base_config: Mapping[str, Any],
+        config: Optional[Mapping[str, Any]] = None,
         extra: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         return merge_context_layers(
@@ -159,6 +164,7 @@ class ApplicationContext:
                 "session": session.to_dict(),
                 "session_id": session.session_id,
                 "base_config": dict(base_config),
+                "config": dict(config if config is not None else base_config),
             },
             extra=extra,
         )
@@ -169,6 +175,7 @@ class ApplicationContext:
         session: Any,
         request_id: str,
         base_config: Mapping[str, Any],
+        config: Optional[Mapping[str, Any]] = None,
         extra: Optional[Mapping[str, Any]] = None,
     ) -> Dict[str, Any]:
         return merge_context_layers(
@@ -181,6 +188,7 @@ class ApplicationContext:
                 "session_id": session.session_id,
                 "request_id": request_id,
                 "base_config": dict(base_config),
+                "config": dict(config if config is not None else base_config),
             },
             extra=extra,
         )

@@ -209,6 +209,22 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
                     and out[-1].get("type") == "function_call_output"
                 ):
                     out[-1] = {**out[-1], "call_id": tool_call_id}
+                # Re-add display/tool_plugin/tool_name into _metadata for tool
+                # messages. The provider pops display from the generic
+                # _metadata carry, so the extension must re-add it here to
+                # preserve it across native-history rebuilds (matching the
+                # OpenRouter tools extension pattern).
+                extra: Dict[str, Any] = {}
+                for key in ("tool_plugin", "tool_name", "display"):
+                    value = metadata.get(key)
+                    if value is not None:
+                        extra[key] = value
+                if extra and out:
+                    base_meta = out[-1].get("_metadata")
+                    merged = (
+                        {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    )
+                    out[-1] = {**out[-1], "_metadata": merged}
 
         return out
 
@@ -238,9 +254,7 @@ class OpenAIResponsesToolsExtension(ProviderExtensionPlugin):
         tool_call = converted[0]
         return tool_call if isinstance(tool_call, dict) else None
 
-    def _sanitize_native_tool_call(
-        self, item: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _sanitize_native_tool_call(self, item: Dict[str, Any]) -> Dict[str, Any]:
         """Sanitize a native tool call item before storing in history.
 
         For function_call items, ensures the arguments field contains valid JSON.

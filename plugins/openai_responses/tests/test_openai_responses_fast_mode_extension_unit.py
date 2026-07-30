@@ -26,11 +26,9 @@ def test_extension_name_tags_schema_and_required_tags() -> None:
     assert ext.required_tags() == ["openai_responses"]
 
     schema = ext.get_config_schema()
-    assert set(schema) == {"enable_fast_mode", "enable_fast_mode_for_api_requests"}
+    assert set(schema) == {"enable_fast_mode"}
     assert schema["enable_fast_mode"]["default"] is False
-    assert "ChatGPT-authenticated requests only" in schema["enable_fast_mode"]["description"]
-    assert schema["enable_fast_mode_for_api_requests"]["default"] is False
-    assert "config-only" in schema["enable_fast_mode_for_api_requests"]["description"]
+    assert "API-key and ChatGPT auth modes" in schema["enable_fast_mode"]["description"]
 
 
 def test_get_ui_elements_exposes_fast_mode_toggle() -> None:
@@ -47,28 +45,9 @@ def test_get_ui_elements_exposes_fast_mode_toggle() -> None:
             "type": "checkbox",
             "key": "enable_fast_mode",
             "label": "Enable Fast mode",
-            "description": "Applies to ChatGPT-authenticated requests only.",
-        }
-    ]
-
-
-def test_get_ui_elements_mentions_api_when_api_fast_mode_is_enabled_in_config() -> None:
-    ext = OpenAIResponsesFastModeExtension()
-
-    elements = ext.get_ui_elements(
-        config={"enable_fast_mode_for_api_requests": True},
-        tags=["openai_responses", "ext:openai_responses_fast_mode"],
-        models=[{"id": "gpt-5.4-mini"}],
-    )
-
-    assert elements == [
-        {
-            "type": "checkbox",
-            "key": "enable_fast_mode",
-            "label": "Enable Fast mode",
             "description": (
-                "Applies to ChatGPT-authenticated requests, and also to API-authenticated "
-                "requests when explicitly enabled in config."
+                'Applies ``service_tier: "priority"`` to Responses calls '
+                "for both API-key and ChatGPT auth modes."
             ),
         }
     ]
@@ -109,7 +88,7 @@ def test_initialize_request_injects_priority_service_tier_for_chatgpt() -> None:
     assert new_state["request"]["payload"]["service_tier"] == "priority"
 
 
-def test_initialize_request_is_noop_for_api_auth() -> None:
+def test_initialize_request_injects_priority_for_api_auth() -> None:
     ext = OpenAIResponsesFastModeExtension()
     config = _config(
         auth_mode="api_key",
@@ -130,23 +109,45 @@ def test_initialize_request_is_noop_for_api_auth() -> None:
     )
 
     assert returned_native == [{"type": "message", "role": "user"}]
-    assert new_state is state
-    assert "service_tier" not in new_state["request"]["payload"]
+    assert new_state["request"]["payload"]["service_tier"] == "priority"
 
 
-def test_initialize_request_injects_priority_for_api_auth_when_explicitly_enabled() -> None:
+def test_initialize_request_injects_priority_for_auto_resolving_to_api() -> None:
     ext = OpenAIResponsesFastModeExtension()
     config = _config(
-        auth_mode="api_key",
+        auth_mode="auto",
         _openai_responses_effective_auth_mode="api",
         enable_fast_mode=True,
-        enable_fast_mode_for_api_requests=True,
     )
     state = ext.init(
         config,
         {
             "config": config,
-            "request": {"payload": {"model": "gpt-5.4-mini"}, "headers": {}},
+            "request": {"payload": {"model": "gpt-5.5"}, "headers": {}},
+        },
+    )
+
+    returned_native, new_state = ext.initialize_request(
+        [{"type": "message", "role": "user"}],
+        state,
+    )
+
+    assert returned_native == [{"type": "message", "role": "user"}]
+    assert new_state["request"]["payload"]["service_tier"] == "priority"
+
+
+def test_initialize_request_injects_priority_for_auto_resolving_to_chatgpt() -> None:
+    ext = OpenAIResponsesFastModeExtension()
+    config = _config(
+        auth_mode="auto",
+        _openai_responses_effective_auth_mode="chatgpt",
+        enable_fast_mode=True,
+    )
+    state = ext.init(
+        config,
+        {
+            "config": config,
+            "request": {"payload": {"model": "gpt-5.5"}, "headers": {}},
         },
     )
 

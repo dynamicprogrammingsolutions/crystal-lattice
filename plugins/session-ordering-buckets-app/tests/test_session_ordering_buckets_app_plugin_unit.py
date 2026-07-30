@@ -42,7 +42,9 @@ def _build_app(tmp_path: Path) -> AgentApplication:
     return AgentApplication(str(cfg_path), str(session_root), event_store=events)
 
 
-def test_session_ordering_buckets_action_computes_fields(monkeypatch, tmp_path: Path) -> None:
+def test_session_ordering_buckets_action_computes_fields(
+    monkeypatch, tmp_path: Path
+) -> None:
     app = _build_app(tmp_path)
 
     # Fix "now" so 24h window decisions are deterministic.
@@ -56,7 +58,7 @@ def test_session_ordering_buckets_action_computes_fields(monkeypatch, tmp_path: 
     summary_recent_pinned = {
         "session_updated_at": fake_now - 3600,
         "modified": fake_now - 3600,
-        "pinned": True,
+        "metadata": {"pinned": True},
     }
 
     result = app.execute_application_action(
@@ -66,14 +68,16 @@ def test_session_ordering_buckets_action_computes_fields(monkeypatch, tmp_path: 
     )
 
     fields = result.get("session_list_fields") or {}
+    assert fields.get("recent_archived_rank") == 0
     assert fields.get("updated_24h_rank") == 0
     assert fields.get("pinned_rank") == 0
     assert isinstance(fields.get("last_updated_sort_key"), (int, float))
 
     specs = result.get("session_list_order") or []
-    assert isinstance(specs, list) and len(specs) == 3
+    assert isinstance(specs, list) and len(specs) == 4
     keys = [s.get("key") for s in specs]
     assert keys == [
+        "recent_archived_rank",
         "updated_24h_rank",
         "pinned_rank",
         "last_updated_sort_key",
@@ -84,7 +88,9 @@ def test_session_ordering_buckets_action_computes_fields(monkeypatch, tmp_path: 
         assert isinstance(s.get("priority"), int)
 
 
-def test_session_ordering_buckets_falls_back_to_modified(monkeypatch, tmp_path: Path) -> None:
+def test_session_ordering_buckets_falls_back_to_modified(
+    monkeypatch, tmp_path: Path
+) -> None:
     app = _build_app(tmp_path)
 
     fake_now = 1_700_000_000.0
@@ -95,7 +101,7 @@ def test_session_ordering_buckets_falls_back_to_modified(monkeypatch, tmp_path: 
     # No session_updated_at; must use modified.
     summary = {
         "modified": fake_now - 7200,
-        "pinned": False,
+        "metadata": {"pinned": False, "archived": True},
     }
 
     result = app.execute_application_action(
@@ -105,6 +111,42 @@ def test_session_ordering_buckets_falls_back_to_modified(monkeypatch, tmp_path: 
     )
 
     fields = result.get("session_list_fields") or {}
+    assert fields.get("recent_archived_rank") == 1
     assert fields.get("updated_24h_rank") == 0  # within 24h via modified
     assert fields.get("pinned_rank") == 1
     assert fields.get("last_updated_sort_key") == -(fake_now - 7200)
+
+
+def test_session_ordering_buckets_uses_configured_metadata_key(
+    monkeypatch,
+) -> None:
+    fake_now = 1_700_000_000.0
+    import session_ordering_buckets_app as mod
+
+    monkeypatch.setattr(mod.time, "time", lambda: fake_now)
+
+    plugin = SessionOrderingBucketsAppPlugin()
+    state = plugin.init(
+        {
+            "application": {
+                "session_pinned_metadata_key": "favorite",
+                "session_archived_metadata_key": "hidden",
+            }
+        }
+    )
+    result = plugin.execute_action(
+        object(),
+        "compute_session_order_buckets",
+        {
+            "session_id": "custom",
+            "session_summary": {
+                "modified": fake_now - 7200,
+                "metadata": {"favorite": True, "hidden": True},
+            },
+        },
+        state,
+    )
+
+    fields = result.get("session_list_fields") or {}
+    assert fields.get("pinned_rank") == 0
+    assert fields.get("recent_archived_rank") == 1

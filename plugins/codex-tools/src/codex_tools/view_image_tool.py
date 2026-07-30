@@ -93,25 +93,8 @@ def _parameters_schema(*, include_detail: bool) -> Dict[str, Any]:
     }
 
 
-def _output_schema() -> Dict[str, Any]:
-    return {
-        "type": "object",
-        "properties": {
-            "image_url": {
-                "type": "string",
-                "description": "Data URL for the loaded image.",
-            },
-            "detail": {
-                "type": ["string", "null"],
-                "description": (
-                    "Image detail hint returned by view_image. Returns `original` "
-                    "when original resolution is preserved, otherwise `null`."
-                ),
-            },
-        },
-        "required": ["image_url", "detail"],
-        "additionalProperties": False,
-    }
+def _detail_original_enabled(config: Dict[str, Any]) -> bool:
+    return bool(config.get("enable_view_image_detail_original", True))
 
 
 def _session_id_from_context(context: Any) -> Optional[str]:
@@ -195,7 +178,7 @@ class ViewImageTool(ToolPlugin):
             },
             "enable_view_image_detail_original": {
                 "type": "boolean",
-                "default": False,
+                "default": True,
                 "description": "Expose and honor view_image.detail='original'",
             },
             "view_image_max_bytes": {
@@ -210,7 +193,7 @@ class ViewImageTool(ToolPlugin):
 
     def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
         config = state.get("config") or {}
-        include_detail = bool(config.get("enable_view_image_detail_original"))
+        include_detail = _detail_original_enabled(config)
         return [
             {
                 "type": "function",
@@ -218,7 +201,6 @@ class ViewImageTool(ToolPlugin):
                 "description": VIEW_IMAGE_DESCRIPTION,
                 "strict": False,
                 "parameters": _parameters_schema(include_detail=include_detail),
-                "output_schema": _output_schema(),
             }
         ]
 
@@ -261,9 +243,7 @@ class ViewImageTool(ToolPlugin):
             }
 
         config = state.get("config") or {}
-        if raw_detail == "original" and not config.get(
-            "enable_view_image_detail_original"
-        ):
+        if raw_detail == "original" and not _detail_original_enabled(config):
             return {
                 "success": False,
                 "error": "view_image.detail='original' is unavailable in this configuration",
@@ -371,7 +351,6 @@ class ViewImageTool(ToolPlugin):
         return make_provider_native_tool_result(
             format=FORMAT_OPENAI_RESPONSES,
             output=[
-                {"type": "input_text", "text": message},
                 {
                     "type": "input_image",
                     "image_url": image_payload,

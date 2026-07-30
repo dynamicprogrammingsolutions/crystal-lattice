@@ -98,6 +98,20 @@ CASES = {
             "After that one Bash call, answer with exactly DONE."
         ),
     ),
+    "success-no-output": CaseSpec(
+        name="success-no-output",
+        prompt=(
+            "Use the Bash tool exactly once to run the command true. "
+            "After that one Bash call, answer with exactly DONE."
+        ),
+    ),
+    "error-no-output": CaseSpec(
+        name="error-no-output",
+        prompt=(
+            'Use the Bash tool exactly once to run the command sh -c "exit 7". '
+            "After that one Bash call, answer with exactly DONE."
+        ),
+    ),
 }
 
 
@@ -112,7 +126,9 @@ def _require_executable(name: str) -> None:
         raise SystemExit(f"required executable not found: {name}")
 
 
-def _run(command: list[str], *, cwd: Path, timeout: int = 30) -> subprocess.CompletedProcess[str]:
+def _run(
+    command: list[str], *, cwd: Path, timeout: int = 30
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command,
         cwd=str(cwd),
@@ -127,7 +143,9 @@ def _run(command: list[str], *, cwd: Path, timeout: int = 30) -> subprocess.Comp
 def _wait_for_proxy(port: int, timeout_seconds: float = 10.0) -> None:
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
-        proc = _run(["curl", "-sS", f"http://localhost:{port}/health"], cwd=REPO_ROOT, timeout=5)
+        proc = _run(
+            ["curl", "-sS", f"http://localhost:{port}/health"], cwd=REPO_ROOT, timeout=5
+        )
         if proc.returncode == 0:
             return
         time.sleep(0.2)
@@ -164,7 +182,9 @@ def _read_stdout_events(stdout_jsonl: Path) -> list[dict[str, Any]]:
     return events
 
 
-def _normalize_background_message(message: dict[str, Any] | None) -> dict[str, Any] | None:
+def _normalize_background_message(
+    message: dict[str, Any] | None,
+) -> dict[str, Any] | None:
     if not isinstance(message, dict):
         return message
     content = message.get("content")
@@ -217,6 +237,38 @@ def _find_last_tool_result_block(
     return {"role": "user", "content": [found]}
 
 
+def _find_all_tool_result_blocks(
+    requests: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Find every tool-result block in request history, in order."""
+    results: list[dict[str, Any]] = []
+    for request in requests:
+        for message in request.get("body", {}).get("messages", []) or []:
+            for item in message.get("content", []) or []:
+                if isinstance(item, dict) and item.get("type") == "tool_result":
+                    results.append(item)
+    return results
+
+
+def _find_all_assistant_tool_uses(
+    requests: list[dict[str, Any]],
+    *,
+    tool_name: str,
+) -> list[dict[str, Any]]:
+    """Find every assistant tool_use block for the given tool, in order."""
+    uses: list[dict[str, Any]] = []
+    for request in requests:
+        for message in request.get("body", {}).get("messages", []) or []:
+            for block in message.get("content", []) or []:
+                if (
+                    isinstance(block, dict)
+                    and block.get("type") == "tool_use"
+                    and block.get("name") == tool_name
+                ):
+                    uses.append(block)
+    return uses
+
+
 def build_fixture(
     *,
     case_name: str,
@@ -249,6 +301,15 @@ def build_fixture(
         "tool_result_message": normalize_value(raw_tool_result_message, replacements),
         "final_result": None,
     }
+
+    # For the cwd-reset case, capture every Bash tool_use and tool_result so
+    # the fixture documents whether the working directory persists across
+    # commands in the real upstream Claude Code.
+    if case_name == "success-cwd-reset":
+        all_uses = _find_all_assistant_tool_uses(raw_requests, tool_name="Bash")
+        all_results = _find_all_tool_result_blocks(raw_requests)
+        fixture["all_assistant_tool_uses"] = normalize_value(all_uses, replacements)
+        fixture["all_tool_result_blocks"] = normalize_value(all_results, replacements)
 
     for event in _read_stdout_events(stdout_jsonl):
         if event.get("type") == "result":
@@ -321,9 +382,9 @@ def _run_case(case: CaseSpec, *, model: str, keep_raw: bool) -> dict[str, object
                 prompt,
             ]
             env = {**os.environ, **env_settings}
-            with stdout_jsonl.open("w", encoding="utf-8") as stdout_out, stderr_log.open(
+            with stdout_jsonl.open(
                 "w", encoding="utf-8"
-            ) as stderr_out:
+            ) as stdout_out, stderr_log.open("w", encoding="utf-8") as stderr_out:
                 completed = subprocess.run(
                     command,
                     cwd=str(paths["working_directory"]),
@@ -403,7 +464,9 @@ def main() -> int:
     _require_executable("curl")
     if not PROXY_JS.exists():
         raise SystemExit(f"proxy not found: {PROXY_JS}")
-    ollama = _run(["curl", "-sS", "http://localhost:11434/api/tags"], cwd=REPO_ROOT, timeout=10)
+    ollama = _run(
+        ["curl", "-sS", "http://localhost:11434/api/tags"], cwd=REPO_ROOT, timeout=10
+    )
     if ollama.returncode != 0:
         raise SystemExit("Ollama is not reachable at http://localhost:11434")
 

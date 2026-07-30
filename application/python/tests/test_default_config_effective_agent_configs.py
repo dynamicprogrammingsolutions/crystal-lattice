@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -15,6 +16,21 @@ if str(APP_PY) not in sys.path:
 CORE_PY = ROOT / "core/python"
 if str(CORE_PY) not in sys.path:
     sys.path.insert(0, str(CORE_PY))
+
+
+def test_default_config_enables_session_list_status_footer_and_archive() -> None:
+    config_path = (
+        ROOT
+        / "application"
+        / "python"
+        / "agent_terminal_app"
+        / "default_config"
+        / "config.json"
+    )
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+
+    assert config["application"]["session_status_show_in_session_list_footer"] is True
+    assert "path:${env:BUILTIN_PLUGINS}/session-archive-app" in config["plugins"]
 
 
 @pytest.mark.integration
@@ -59,6 +75,112 @@ def test_default_config_effective_agent_configs_stay_intact(
         str(config_path), str(session_root), event_store=InMemoryEventStore()
     )
     assert app.get_config_errors() == []
+    search_elements = [
+        element
+        for element in app.get_application_ui_schema()
+        if element.get("plugin") == "session_main_search"
+        and element.get("ui_type") == "session_list_filter"
+    ]
+    assert [element["id"] for element in search_elements] == [
+        "session_search",
+        "session_title_search",
+        "session_first_message_search",
+    ]
+    assert search_elements[0]["main_search"] is True
+    assert search_elements[1]["main_search"] is False
+    assert search_elements[2]["main_search"] is False
+    assert (
+        app.get_application_config()["session_status_show_in_session_list_footer"]
+        is True
+    )
+    status_meta = next(
+        element
+        for element in app.get_application_ui_schema()
+        if element.get("plugin") == "session_status"
+        and element.get("id") == "session_status_meta"
+    )
+    assert status_meta["role"] == "meta"
+    assert status_meta["order"] == 100
+    pin_action = next(
+        element
+        for element in app.get_application_ui_schema()
+        if element.get("plugin") == "session_pinned"
+        and element.get("id") == "toggle_session_pinned"
+    )
+    assert pin_action["ui_type"] == "session_list_action"
+    assert pin_action["rich_ui"]["value_path"] == "metadata.pinned"
+    assert pin_action["rich_ui"]["default_pinned"] is True
+    assert pin_action["rich_ui"]["placements"] == [
+        "header_trailing",
+        "actions_bar",
+    ]
+    assert pin_action["rich_ui"]["appearance"]["active"]["tone"] == "highlight"
+    archive_action = next(
+        element
+        for element in app.get_application_ui_schema()
+        if element.get("plugin") == "session_archive"
+        and element.get("id") == "toggle_session_archived"
+    )
+    assert archive_action["rich_ui"]["value_path"] == "metadata.archived"
+    assert archive_action["rich_ui"]["default_pinned"] is True
+    list_filters = {
+        element["id"]: element
+        for element in app.get_application_ui_schema()
+        if element.get("ui_type") == "session_list_filter"
+    }
+    assert list_filters["pinned_state"] == {
+        "ui_type": "session_list_filter",
+        "id": "pinned_state",
+        "label": "Pinned",
+        "icon": "star",
+        "order": 10,
+        "type": "boolean",
+        "match": "equals",
+        "data": "metadata.pinned",
+        "missing_value": False,
+        "default": None,
+        "options": [
+            {
+                "value": False,
+                "label": "Not pinned",
+                "icon": "star",
+                "tone": "muted",
+            },
+            {
+                "value": True,
+                "label": "Pinned",
+                "icon": "star",
+                "tone": "highlight",
+            },
+        ],
+        "plugin": "session_pinned",
+    }
+    assert list_filters["session_status"] == {
+        "ui_type": "session_list_filter",
+        "id": "session_status",
+        "label": "Status",
+        "icon": "circle",
+        "order": 20,
+        "type": "select",
+        "match": "one_of",
+        "multiple": True,
+        "data": "metadata.status",
+        "missing_value": "todo",
+        "default": [],
+        "options": [
+            {"value": "todo", "label": "To do", "tone": "muted"},
+            {
+                "value": "in_progress",
+                "label": "In progress",
+                "tone": "primary",
+            },
+            {"value": "blocked", "label": "Blocked", "tone": "danger"},
+            {"value": "done", "label": "Done", "tone": "success"},
+        ],
+        "plugin": "session_status",
+    }
+    assert list_filters["archive_state"]["default"] is False
+    assert list_filters["archive_state"]["data"] == "metadata.archived"
 
     cases = {
         "cloud-script-author": {
@@ -92,7 +214,8 @@ def test_default_config_effective_agent_configs_stay_intact(
         },
         "glm": {
             "provider": "openrouter",
-            "model": "z-ai/glm-5",
+            "model": "z-ai/glm-5.2",
+            "reasoning_effort": "max",
             "request_options": {
                 "provider": {"order": ["z-ai"], "allow_fallbacks": False}
             },
@@ -119,6 +242,27 @@ def test_default_config_effective_agent_configs_stay_intact(
             "provider": "reference_openai_compatible",
             "base_url": "http://localhost:11434/v1",
             "reasoning_field": "reasoning",
+        },
+        "glm-ollama": {
+            "provider": "reference_openai_compatible",
+            "base_url": "http://localhost:11434/v1",
+            "model": "glm-5.2:cloud",
+            "request_options": {"reasoning_effort": "max"},
+            "request_options_ui": {"reasoning_effort": ["high", "max"]},
+        },
+        "deepseek-ollama": {
+            "provider": "reference_openai_compatible",
+            "base_url": "http://localhost:11434/v1",
+            "model": "deepseek-v4-pro:cloud",
+            "request_options": {"reasoning_effort": "max"},
+            "request_options_ui": {"reasoning_effort": ["high", "max"]},
+        },
+        "kimi-ollama": {
+            "provider": "reference_openai_compatible",
+            "base_url": "http://localhost:11434/v1",
+            "model": "kimi-k2.6:cloud",
+            "request_options": {"reasoning_effort": "max"},
+            "request_options_ui": {"reasoning_effort": ["high", "max"]},
         },
         "fireworks": {
             "provider": "reference_openai_compatible",

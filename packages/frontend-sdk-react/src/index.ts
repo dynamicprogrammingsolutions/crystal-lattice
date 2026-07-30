@@ -30,6 +30,12 @@ export type {
 export { useSessionsController } from './useSessionsController';
 
 export type {
+  UseSessionListFiltersOptions,
+  UseSessionListFiltersResult,
+} from './useSessionListFilters';
+export { useSessionListFilters } from './useSessionListFilters';
+
+export type {
   UseSessionContextControllerOptions,
   UseSessionContextControllerResult,
 } from './useSessionContextController';

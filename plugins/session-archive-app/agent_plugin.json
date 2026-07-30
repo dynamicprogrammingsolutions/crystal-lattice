@@ -1,0 +1,10 @@
+{
+  "module": "session_archive_app",
+  "subdirectory": ".",
+  "entries": [
+    "session_archive_app.SessionArchiveAppPlugin"
+  ],
+  "kinds": {
+    "session_archive_app.SessionArchiveAppPlugin": "application"
+  }
+}

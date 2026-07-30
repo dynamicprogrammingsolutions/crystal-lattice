@@ -1,15 +1,22 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import timedelta
 from typing import Any, Dict, Literal
 
+import httpx
+
 
 TransportName = Literal["stdio", "sse", "http"]
-ServerStateName = Literal["disabled", "connected", "failed"]
+ServerStateName = Literal["disabled", "connected", "failed", "auth_required"]
+
+DEFAULT_STARTUP_TIMEOUT_SECONDS = 30.0
+DEFAULT_CLEANUP_TIMEOUT_SECONDS = 5.0
+_TIMEOUT_CANCEL_ATTR = "_mcp_runtime_timeout_cancelled"
 
 
 @dataclass(frozen=True)
@@ -23,7 +30,7 @@ class MCPServerRuntimeSpec:
     cwd: str | None = None
     url: str | None = None
     headers: dict[str, str] = field(default_factory=dict)
-    startup_timeout_seconds: int | None = None
+    startup_timeout_seconds: int | float | None = None
     tool_timeout_seconds: int | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
@@ -124,13 +131,29 @@ class MCPRuntimeManager:
                 continue
             try:
                 entry = await self._connect_server(spec)
-            except Exception as exc:
+            except asyncio.CancelledError as exc:
+                state = await _classify_cancelled_startup_state(spec)
                 self._snapshots[server_name] = MCPServerSnapshot(
                     name=server_name,
                     enabled=True,
                     transport=spec.transport,
-                    state="failed",
-                    error=str(exc),
+                    state=state,
+                    error=_format_startup_error(exc, state),
+                )
+                if config.fail_on_startup_error:
+                    await self.close()
+                    raise RuntimeError(
+                        f"MCP server '{server_name}' startup was cancelled"
+                    ) from exc
+                continue
+            except Exception as exc:
+                state = _classify_startup_state(exc)
+                self._snapshots[server_name] = MCPServerSnapshot(
+                    name=server_name,
+                    enabled=True,
+                    transport=spec.transport,
+                    state=state,
+                    error=_format_startup_error(exc, state),
                 )
                 if config.fail_on_startup_error:
                     await self.close()
@@ -202,21 +225,39 @@ class MCPRuntimeManager:
         entries = list(self._entries.values())
         self._entries = {}
         for entry in entries:
-            await entry.stack.aclose()
+            await _close_stack_bounded(entry.stack, entry.spec.name)
         self._started = False
 
     async def _connect_server(self, spec: MCPServerRuntimeSpec) -> _RuntimeEntry:
+        timeout = _startup_timeout_seconds(spec)
+        try:
+            async with _fail_after(timeout):
+                return await self._connect_server_once(spec)
+        except TimeoutError as exc:
+            raise TimeoutError(
+                f"Timed out while starting MCP server '{spec.name}' "
+                f"after {timeout:g}s"
+            ) from exc
+
+    async def _connect_server_once(self, spec: MCPServerRuntimeSpec) -> _RuntimeEntry:
         stack = AsyncExitStack()
         try:
             session = await self._open_session(spec, stack)
             raw_tools = await session.list_tools()
             tools = _extract_discovered_tools(spec.name, raw_tools)
             return _RuntimeEntry(spec=spec, stack=stack, session=session, tools=tools)
-        except Exception:
-            await stack.aclose()
+        except asyncio.CancelledError:
+            task = asyncio.current_task()
+            if task is None or not bool(getattr(task, _TIMEOUT_CANCEL_ATTR, False)):
+                await _close_stack_bounded(stack, spec.name)
+            raise
+        except BaseException:
+            await _close_stack_bounded(stack, spec.name)
             raise
 
-    async def _open_session(self, spec: MCPServerRuntimeSpec, stack: AsyncExitStack) -> Any:
+    async def _open_session(
+        self, spec: MCPServerRuntimeSpec, stack: AsyncExitStack
+    ) -> Any:
         client_session_cls, transport_factory = _resolve_sdk_primitives(spec.transport)
 
         if spec.transport == "stdio":
@@ -256,7 +297,9 @@ def _resolve_sdk_primitives(transport: TransportName) -> tuple[Any, Any]:
     client_module = import_module("mcp")
     client_session_cls = getattr(client_module, "ClientSession", None)
     if client_session_cls is None:
-        client_session_cls = getattr(import_module("mcp.client.session"), "ClientSession")
+        client_session_cls = getattr(
+            import_module("mcp.client.session"), "ClientSession"
+        )
 
     if transport == "stdio":
         transport_module = import_module("mcp.client.stdio")
@@ -290,7 +333,295 @@ def _resolve_stdio_server_parameters() -> Any:
     return params_cls
 
 
-def _extract_discovered_tools(server_name: str, raw_tools: Any) -> list[MCPDiscoveredTool]:
+def _startup_timeout_seconds(spec: MCPServerRuntimeSpec) -> float:
+    value = spec.startup_timeout_seconds
+    if isinstance(value, (int, float)) and value > 0:
+        return float(value)
+    return DEFAULT_STARTUP_TIMEOUT_SECONDS
+
+
+async def _close_stack_bounded(stack: AsyncExitStack, _server_name: str) -> None:
+    try:
+        async with _fail_after_repeating(DEFAULT_CLEANUP_TIMEOUT_SECONDS):
+            await stack.aclose()
+    except TimeoutError:
+        return
+    except Exception:
+        return
+
+
+@asynccontextmanager
+async def _fail_after(seconds: float):
+    task = asyncio.current_task()
+    if task is None:
+        yield
+        return
+
+    did_timeout = False
+    loop = asyncio.get_running_loop()
+
+    def cancel_task() -> None:
+        nonlocal did_timeout
+        did_timeout = True
+        setattr(task, _TIMEOUT_CANCEL_ATTR, True)
+        task.cancel()
+
+    handle = loop.call_later(seconds, cancel_task)
+    try:
+        yield
+    except asyncio.CancelledError as exc:
+        if did_timeout:
+            raise TimeoutError() from exc
+        raise
+    finally:
+        handle.cancel()
+        if bool(getattr(task, _TIMEOUT_CANCEL_ATTR, False)):
+            try:
+                delattr(task, _TIMEOUT_CANCEL_ATTR)
+            except AttributeError:
+                pass
+
+
+@asynccontextmanager
+async def _fail_after_repeating(seconds: float, interval: float = 0.05):
+    task = asyncio.current_task()
+    if task is None:
+        yield
+        return
+
+    did_timeout = False
+    loop = asyncio.get_running_loop()
+    handle: asyncio.TimerHandle | None = None
+
+    def cancel_task() -> None:
+        nonlocal did_timeout
+        nonlocal handle
+        did_timeout = True
+        setattr(task, _TIMEOUT_CANCEL_ATTR, True)
+        task.cancel()
+        handle = loop.call_later(interval, cancel_task)
+
+    handle = loop.call_later(seconds, cancel_task)
+    try:
+        yield
+    except asyncio.CancelledError as exc:
+        if did_timeout:
+            raise TimeoutError() from exc
+        raise
+    finally:
+        if handle is not None:
+            handle.cancel()
+        if bool(getattr(task, _TIMEOUT_CANCEL_ATTR, False)):
+            try:
+                delattr(task, _TIMEOUT_CANCEL_ATTR)
+            except AttributeError:
+                pass
+    if did_timeout:
+        raise TimeoutError()
+
+
+def _classify_startup_state(exc: BaseException) -> ServerStateName:
+    return "auth_required" if _is_auth_required_error(exc) else "failed"
+
+
+async def _classify_cancelled_startup_state(
+    spec: MCPServerRuntimeSpec,
+) -> ServerStateName:
+    if spec.transport == "http" and await _http_server_requires_auth(spec):
+        return "auth_required"
+    return "failed"
+
+
+async def _http_server_requires_auth(spec: MCPServerRuntimeSpec) -> bool:
+    if not isinstance(spec.url, str) or not spec.url:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post(
+                spec.url,
+                headers={
+                    "Accept": "application/json, text/event-stream",
+                    "Content-Type": "application/json",
+                    **dict(spec.headers),
+                },
+                json={
+                    "jsonrpc": "2.0",
+                    "id": "mcp-auth-probe",
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-06-18",
+                        "capabilities": {},
+                        "clientInfo": {
+                            "name": "crystal-lattice-control",
+                            "version": "0.1.0",
+                        },
+                    },
+                },
+            )
+    except Exception:
+        return False
+    if response.status_code != 401:
+        return False
+    authenticate = response.headers.get("www-authenticate", "")
+    return "bearer" in authenticate.lower() or "oauth" in authenticate.lower()
+
+
+def _format_startup_error(exc: BaseException, state: ServerStateName) -> str:
+    detail = _clean_startup_error_detail(str(exc))
+    if state == "auth_required":
+        if isinstance(exc, asyncio.CancelledError):
+            detail = ""
+        if detail:
+            return (
+                "Authentication required for this MCP server. "
+                f"Open MCP status to sign in. {detail}"
+            )
+        return (
+            "Authentication required for this MCP server. Open MCP status to sign in."
+        )
+    if isinstance(exc, asyncio.CancelledError):
+        return "MCP server startup was cancelled."
+    return detail
+
+
+def _clean_startup_error_detail(detail: str) -> str:
+    normalized = detail.strip()
+    if normalized.lower().startswith("unhandled errors in a taskgroup"):
+        return ""
+    return normalized
+
+
+def _is_auth_required_error(exc: BaseException) -> bool:
+    seen: set[int] = set()
+
+    def visit(current: BaseException | None) -> bool:
+        if current is None:
+            return False
+        if id(current) in seen:
+            return False
+        seen.add(id(current))
+
+        response = getattr(current, "response", None)
+        status_code = getattr(response, "status_code", None)
+        if status_code == 401:
+            return True
+
+        current_name = type(current).__name__.lower()
+        current_text = str(current).lower()
+        if "oauth" in current_name:
+            return True
+        if "unauthorized" in current_name or "authrequired" in current_name:
+            return True
+        if "401" in current_text and (
+            "unauthorized" in current_text or "www-authenticate" in current_text
+        ):
+            return True
+        if "authentication required" in current_text:
+            return True
+        if "authorization required" in current_text:
+            return True
+
+        grouped = getattr(current, "exceptions", None)
+        if isinstance(grouped, tuple):
+            for child in grouped:
+                if isinstance(child, BaseException) and visit(child):
+                    return True
+
+        return visit(current.__cause__) or visit(current.__context__)
+
+    return visit(exc)
+
+
+def build_runtime_config_from_config(config: Dict[str, Any]) -> MCPRuntimeConfig:
+    raw_servers = config.get("mcp_servers")
+    server_specs: Dict[str, MCPServerRuntimeSpec] = {}
+    if isinstance(raw_servers, dict):
+        for server_name, raw_spec in raw_servers.items():
+            if not isinstance(server_name, str) or not server_name:
+                continue
+            if not isinstance(raw_spec, dict):
+                continue
+            spec = _build_server_spec_from_config(server_name, raw_spec, config=config)
+            if spec is not None:
+                server_specs[server_name] = spec
+
+    return MCPRuntimeConfig(
+        servers=server_specs,
+        fail_on_startup_error=bool(config.get("mcp_fail_on_startup_error", False)),
+        reuse_runtime=bool(config.get("mcp_reuse_runtime", True)),
+    )
+
+
+def _build_server_spec_from_config(
+    server_name: str,
+    raw_spec: Dict[str, Any],
+    *,
+    config: Dict[str, Any],
+) -> MCPServerRuntimeSpec | None:
+    transport = raw_spec.get("transport", raw_spec.get("type", "stdio"))
+    if transport not in {"stdio", "sse", "http"}:
+        return None
+    enabled_override = config.get(_server_enabled_override_key(server_name))
+    enabled = (
+        enabled_override
+        if isinstance(enabled_override, bool)
+        else bool(raw_spec.get("enabled", False))
+    )
+    args = raw_spec.get("args")
+    env = raw_spec.get("env")
+    headers = raw_spec.get("headers")
+    command = raw_spec.get("command")
+    cwd = raw_spec.get("cwd")
+    url = raw_spec.get("url")
+    return MCPServerRuntimeSpec(
+        name=server_name,
+        enabled=enabled,
+        transport=transport,
+        command=command if isinstance(command, str) else None,
+        args=(
+            [str(item) for item in args if isinstance(item, (str, int, float))]
+            if isinstance(args, list)
+            else []
+        ),
+        env=(
+            {str(key): str(value) for key, value in env.items() if isinstance(key, str)}
+            if isinstance(env, dict)
+            else {}
+        ),
+        cwd=cwd if isinstance(cwd, str) else None,
+        url=url if isinstance(url, str) else None,
+        headers=(
+            {
+                str(key): str(value)
+                for key, value in headers.items()
+                if isinstance(key, str)
+            }
+            if isinstance(headers, dict)
+            else {}
+        ),
+        startup_timeout_seconds=_coerce_positive_int(
+            raw_spec.get("startup_timeout_seconds")
+        ),
+        tool_timeout_seconds=_coerce_positive_int(raw_spec.get("tool_timeout_seconds")),
+        metadata={},
+    )
+
+
+def _server_enabled_override_key(server_name: str) -> str:
+    return f"mcp_server__{server_name}__enabled"
+
+
+def _coerce_positive_int(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int) and value > 0:
+        return value
+    return None
+
+
+def _extract_discovered_tools(
+    server_name: str, raw_tools: Any
+) -> list[MCPDiscoveredTool]:
     tools = getattr(raw_tools, "tools", raw_tools)
     discovered: list[MCPDiscoveredTool] = []
     for tool in list(tools or []):
@@ -365,7 +696,11 @@ def _resource_to_dict(resource: Any) -> dict[str, Any]:
         "text": getattr(resource, "text", None),
         "blob": getattr(resource, "blob", None),
         "mimeType": getattr(resource, "mimeType", None),
-        "uri": str(getattr(resource, "uri", "")) if getattr(resource, "uri", None) else None,
+        "uri": (
+            str(getattr(resource, "uri", ""))
+            if getattr(resource, "uri", None)
+            else None
+        ),
     }
 
 

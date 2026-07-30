@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 
 from codex_tools.mcp_tool import CodexMCPTool
-from mcp_shared import MCPDiscoveredTool, MCPToolCallResult
+from mcp_shared import MCPDiscoveredTool, MCPToolCallResult, save_persisted_oauth_tokens
 
 
 class _DummyStore:
@@ -18,26 +18,37 @@ class _DummyStore:
 
 
 class _FakeRuntimeManager:
+    last_config = None
+
     def __init__(self) -> None:
         self.started = 0
 
     async def start(self, config) -> None:
         self.started += 1
         self.config = config
+        type(self).last_config = config
 
     async def list_tools(self):
+        if not self.config.servers["filesystem"].enabled:
+            return []
         return [
             MCPDiscoveredTool(
                 server_name="filesystem",
                 raw_name="read-file",
                 description="Read a file",
-                input_schema={"type": "object", "properties": {"path": {"type": "string"}}},
+                input_schema={
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                },
             ),
             MCPDiscoveredTool(
                 server_name="filesystem",
                 raw_name="read_file",
                 description="Read a file via alias",
-                input_schema={"type": "object", "properties": {"path": {"type": "string"}}},
+                input_schema={
+                    "type": "object",
+                    "properties": {"path": {"type": "string"}},
+                },
             ),
         ]
 
@@ -56,7 +67,9 @@ class _FakeRuntimeManager:
     async def close(self):
         return None
 
-    async def call_tool(self, *, server_name: str, tool_name: str, arguments: dict, timeout_seconds=None):
+    async def call_tool(
+        self, *, server_name: str, tool_name: str, arguments: dict, timeout_seconds=None
+    ):
         assert server_name == "filesystem"
         assert tool_name in {"read-file", "read_file"}
         assert arguments == {"path": "/tmp/notes.txt"}
@@ -65,6 +78,22 @@ class _FakeRuntimeManager:
             content=[{"type": "text", "text": "notes"}],
             structured_content={"bytes": 5},
         )
+
+
+class _RuntimeStore:
+    def __init__(self) -> None:
+        self.items = {}
+
+    def get(self, key, default=None):
+        return self.items.get(key, default)
+
+    def set(self, key, value):
+        self.items[key] = value
+
+    def get_or_create(self, key, factory):
+        if key not in self.items:
+            self.items[key] = factory()
+        return self.items[key]
 
 
 def _config():
@@ -104,6 +133,63 @@ def test_codex_mcp_prepare_builds_unique_tool_names_and_schemas() -> None:
     assert names[0].startswith("mcp__filesystem__")
     assert names[1].startswith("mcp__filesystem__")
     assert len(set(names)) == 2
+
+
+def test_codex_mcp_prepare_loads_persisted_oauth_tokens(tmp_path) -> None:
+    save_persisted_oauth_tokens(
+        tmp_path,
+        {"filesystem": {"access_token": "persisted-access"}},
+    )
+    _FakeRuntimeManager.last_config = None
+    tool = CodexMCPTool()
+    tool._runtime_manager_factory = _FakeRuntimeManager
+
+    asyncio.run(
+        tool.prepare_async(
+            _config(),
+            {"config": _config()},
+            context={"runtime_store": _RuntimeStore(), "runtime_state_root": tmp_path},
+        )
+    )
+
+    assert _FakeRuntimeManager.last_config.servers["filesystem"].headers[
+        "Authorization"
+    ] == "Bearer persisted-access"
+
+
+def test_codex_mcp_prepare_treats_missing_server_enabled_as_disabled() -> None:
+    tool = CodexMCPTool()
+    tool._runtime_manager_factory = _FakeRuntimeManager
+    config = _config()
+    config["mcp_servers"]["filesystem"].pop("enabled")
+
+    prepared = asyncio.run(
+        tool.prepare_async(
+            config,
+            {"config": config},
+            context={"tool_runtime": _DummyStore()},
+        )
+    )
+
+    assert prepared["tools"] == []
+
+
+def test_codex_mcp_prepare_server_enabled_override_can_enable_missing_enabled() -> None:
+    tool = CodexMCPTool()
+    tool._runtime_manager_factory = _FakeRuntimeManager
+    config = _config()
+    config["mcp_servers"]["filesystem"].pop("enabled")
+    config["mcp_server__filesystem__enabled"] = True
+
+    prepared = asyncio.run(
+        tool.prepare_async(
+            config,
+            {"config": config},
+            context={"tool_runtime": _DummyStore()},
+        )
+    )
+
+    assert prepared["tools"]
 
 
 def test_codex_mcp_execute_and_format_returns_provider_native_tool_result() -> None:
@@ -162,4 +248,25 @@ def test_codex_mcp_execute_and_format_returns_provider_native_tool_result() -> N
     formatted = tool.format_tool_result(result, {"config": _config()})
     assert formatted["type"] == "provider_native_tool_result"
     assert formatted["format"] == "openai.responses"
-    assert formatted["output"][0]["text"] == "notes"
+    assert formatted["output"][0]["text"] == 'notes\nStructured content:\n{\n  "bytes": 5\n}'
+
+
+def test_codex_mcp_format_truncates_large_text_output() -> None:
+    tool = CodexMCPTool()
+    long_text = "".join(f"line {idx}\n" for idx in range(25_000))
+    result = {
+        "success": True,
+        "content": [{"type": "text", "text": long_text}],
+        "structured_content": None,
+        "meta": None,
+        "summary_text": long_text,
+    }
+
+    formatted = tool.format_tool_result(result, {"config": _config()})
+
+    assert formatted["type"] == "provider_native_tool_result"
+    assert formatted["format"] == "openai.responses"
+    assert "Total output lines:" in formatted["output"][0]["text"]
+    assert "tokens truncated" in formatted["output"][0]["text"]
+    assert "line 0" in formatted["output"][0]["text"]
+    assert f"line {25_000 - 1}" in formatted["output"][0]["text"]

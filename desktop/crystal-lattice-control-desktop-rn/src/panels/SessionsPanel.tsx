@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Alert,
   Clipboard,
+  findNodeHandle,
   Linking,
   Platform,
   Pressable,
@@ -16,11 +17,13 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 
 import {
-  ActionsMenuBar,
   ApplicationActionDialog,
+  getLastActionsPopoverAnchorTag,
+  SessionListActionsBar,
+  SessionListRichActionControl,
+  SessionListRichActionList,
+  SessionListFiltersPanel,
   useTheme,
-  type ActionDefinition,
-  type ActionKey,
 } from '@crystal-lattice/frontend-rn-components';
 
 import type {
@@ -30,12 +33,15 @@ import type {
   AgentBackend,
   SessionSummary,
   RunActionContext,
+  SessionListActionElement,
 } from '@crystal-lattice/frontend-sdk';
 import {
   deriveSessionListPresentationFromGroups,
+  getDefaultPinnedSessionListActionKeys,
   groupSessionListFields,
   normalizeActionDisplayForSurface,
   runApplicationAction,
+  selectSessionListRichActionForPlacement,
 } from '@crystal-lattice/frontend-sdk';
 
 import {
@@ -45,6 +51,7 @@ import {
   useHydrateControllerFromCache,
   usePersistentPinnedActions,
   usePluginActionDialog,
+  useSessionListFilters,
   useSessionsController,
 } from '@crystal-lattice/frontend-sdk-react';
 
@@ -54,6 +61,11 @@ import { PanelHeader } from '../ui/PanelHeader';
 import { ActionResultModal } from '../ui/ActionResultModal';
 import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
+import {
+  closeDesktopPopover,
+  openDesktopPopover,
+  updateActiveDesktopPopover,
+} from '../windows/desktopPopoverCoordinator';
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { truncateByChars } from '../utils/text';
 import { useSessionsPanelTabAutoSelect } from './useSessionsPanelTabAutoSelect';
@@ -62,8 +74,6 @@ import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
 const SESSION_DOUBLE_CLICK_MS = 300;
 const SESSIONS_STALE_MS = 30_000;
-const DEFAULT_PINNED_SESSION_LIST_ACTION_KEYS: ActionKey[] = [];
-
 type ActionDisplayEntry = {
   key: string;
   display: ActionDisplayPayload;
@@ -183,8 +193,8 @@ function SessionsPanelInner({
     ? sessionsSnapshot?.sessions ?? []
     : cachedSessions;
 
-  const [filterText, setFilterText] = useState('');
   const [hoveredSessionId, setHoveredSessionId] = useState<string | null>(null);
+  const filterAnchorRef = useRef<any>(null);
 
   // Sliding window pagination for session list
   const INITIAL_WINDOW_SIZE = 50;
@@ -192,12 +202,6 @@ function SessionsPanelInner({
   const MAX_WINDOW_SIZE = 100;
   const [windowStart, setWindowStart] = useState(0);
   const [windowEnd, setWindowEnd] = useState(INITIAL_WINDOW_SIZE);
-
-  // Reset window when filter changes or sessions reload
-  useEffect(() => {
-    setWindowStart(0);
-    setWindowEnd(Math.min(INITIAL_WINDOW_SIZE, filteredSessions.length));
-  }, [filterText, sessions.length]);
 
   const subtitle = useMemo(() => {
     if (!focusedConnectionName) {
@@ -258,37 +262,118 @@ function SessionsPanelInner({
     actionsById,
     sessionListActions,
     sessionListFields,
-    sessionListPinnedToggles,
+    sessionListFilterSchema,
   } = useApplicationPlugins();
+  const {
+    schema: effectiveFilterSchema,
+    values: sessionFilterValues,
+    mainSearch,
+    searchText,
+    nonMainFilters,
+    activeNonMainFilterCount,
+    setFilterValue,
+    setSearchText,
+    reset: resetSessionFilters,
+    showAll: showAllSessions,
+    filterSessions,
+  } = useSessionListFilters({
+    connectionId,
+    schema: sessionListFilterSchema,
+  });
+  const filterPopoverId = useMemo(
+    () =>
+      `session-filters:${connectionId ?? 'default'}:${effectiveFilterSchema.identity}`,
+    [connectionId, effectiveFilterSchema.identity],
+  );
+  const closeSessionFiltersPopover = useCallback(() => {
+    closeDesktopPopover(filterPopoverId);
+  }, [filterPopoverId]);
+  const filterPopoverContent = useMemo(
+    () => (
+      <SessionListFiltersPanel
+        schema={effectiveFilterSchema}
+        values={sessionFilterValues}
+        onChange={setFilterValue}
+        onReset={resetSessionFilters}
+        onShowAll={showAllSessions}
+        onRequestClose={closeSessionFiltersPopover}
+        renderIcon={({ name, size, color }) => (
+          <Icon name={name} size={size} color={color} />
+        )}
+      />
+    ),
+    [
+      closeSessionFiltersPopover,
+      effectiveFilterSchema,
+      resetSessionFilters,
+      sessionFilterValues,
+      setFilterValue,
+      showAllSessions,
+    ],
+  );
+
+  useEffect(() => {
+    updateActiveDesktopPopover(filterPopoverId, {
+      content: filterPopoverContent,
+      onRequestClose: closeSessionFiltersPopover,
+    });
+  }, [
+    closeSessionFiltersPopover,
+    filterPopoverContent,
+    filterPopoverId,
+  ]);
+
+  useEffect(
+    () => () => {
+      closeDesktopPopover(filterPopoverId);
+    },
+    [filterPopoverId],
+  );
+
+  const openSessionFiltersPopover = useCallback(() => {
+    const anchorTag = filterAnchorRef.current
+      ? (findNodeHandle(filterAnchorRef.current) as any)
+      : null;
+    const estimatedHeight = Math.max(
+      260,
+      Math.min(560, 150 + nonMainFilters.length * 120),
+    );
+    openDesktopPopover({
+      id: filterPopoverId,
+      content: filterPopoverContent,
+      onRequestClose: closeSessionFiltersPopover,
+      accessibilityId: 'session-filters-native-popover',
+      anchorTag: typeof anchorTag === 'number' ? anchorTag : undefined,
+      width: 380,
+      height: estimatedHeight,
+    });
+  }, [
+    closeSessionFiltersPopover,
+    filterPopoverContent,
+    filterPopoverId,
+    nonMainFilters.length,
+  ]);
 
   const fieldGroups = useMemo(
     () => groupSessionListFields(sessionListFields || []),
     [sessionListFields],
   );
 
-  const pinnedToggleElement = sessionListPinnedToggles[0] ?? null;
-
-  const pluginActionDefs: ActionDefinition[] = useMemo(() => {
-    return (sessionListActions || [])
-      .map((el) => ({
-        key: el.id,
-        label: el.label,
-        iconName: (el as any).icon || 'zap',
-      }))
-      .filter((def) => typeof def.key === 'string' && def.key);
-  }, [sessionListActions]);
-
   const pinnedSessionListActionsStorageKey = useMemo(() => {
     return `${PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE}:${connectionId ?? 'default'}`;
   }, [connectionId]);
+  const defaultPinnedSessionListActionKeys = useMemo(
+    () => getDefaultPinnedSessionListActionKeys(sessionListActions),
+    [sessionListActions],
+  );
 
   const {
     pinned: pinnedSessionListActionKeys,
     setPinned: setPinnedSessionListActionKeys,
-  } = usePersistentPinnedActions<ActionKey>({
+  } = usePersistentPinnedActions<string>({
     store: asyncStorageKeyValueStore,
     key: pinnedSessionListActionsStorageKey,
-    initialPinned: DEFAULT_PINNED_SESSION_LIST_ACTION_KEYS,
+    initialPinned: defaultPinnedSessionListActionKeys,
   });
 
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
@@ -363,8 +448,54 @@ function SessionsPanelInner({
     [actionsById, backend, connectionId, onOpenSessionTab, presentActionDisplay],
   );
 
+  const openRichListPopover = useCallback(
+    (element: SessionListActionElement, session: SessionSummary) => {
+      const popoverId = [
+        'session-rich-list',
+        connectionId ?? 'default',
+        session.session_id,
+        element.id,
+      ].join(':');
+      const close = () => {
+        closeDesktopPopover(popoverId);
+      };
+      const content = (
+        <SessionListRichActionList
+          element={element}
+          session={session}
+          testIDPrefix={`session-rich-list-${session.session_id}-${element.id}`}
+          onRequestClose={close}
+          onExecuteAction={(dialogValues) =>
+            executePluginAction(element, {
+              sessionId: session.session_id,
+              sessionSummary: session,
+              dialogValues,
+            })
+          }
+          renderIcon={({ name, size, color }) => (
+            <Icon name={name} size={size} color={color} />
+          )}
+        />
+      );
+      openDesktopPopover({
+        id: popoverId,
+        content,
+        onRequestClose: close,
+        accessibilityId: 'session-rich-list-native-popover',
+        anchorTag: getLastActionsPopoverAnchorTag() ?? undefined,
+        width: 300,
+        height: 280,
+      });
+    },
+    [connectionId, executePluginAction],
+  );
+
   const handleDisplayFollowupAction = useCallback(
-    async (entry: ActionDisplayEntry, action: ActionDisplayFollowupAction) => {
+    async (
+      entry: ActionDisplayEntry,
+      action: ActionDisplayFollowupAction,
+      formValues?: Record<string, any>,
+    ) => {
       if (action.kind === 'open_url') {
         try {
           await Linking.openURL(action.url);
@@ -393,8 +524,13 @@ function SessionsPanelInner({
               action_id: action.action_id,
               action_owner: action.action_owner,
               fixed_params: action.fixed_params as Record<string, any> | undefined,
+              param_map: action.param_map,
+              form: entry.display.form,
             },
-            entry.context,
+            {
+              ...entry.context,
+              formValues,
+            },
           );
         } finally {
           setActiveDisplayActionId(null);
@@ -472,21 +608,22 @@ function SessionsPanelInner({
     }
   }, [agentsController, backend, connectionId, focusedConnectionName]);
 
-  const filteredSessions = useMemo(() => {
-    const query = filterText.trim().toLowerCase();
-    if (!query) {
-      return sessions;
-    }
-    return sessions.filter((sessionSummary) => {
-      if (sessionSummary.session_id.toLowerCase().includes(query)) return true;
-      if ((sessionSummary.preview || '').toLowerCase().includes(query)) return true;
-      const presentation = deriveSessionListPresentationFromGroups(sessionSummary, fieldGroups);
-      if (presentation.title.toLowerCase().includes(query)) return true;
-      if ((presentation.subtitle || '').toLowerCase().includes(query)) return true;
-      if ((presentation.meta || '').toLowerCase().includes(query)) return true;
-      return false;
-    });
-  }, [fieldGroups, filterText, sessions]);
+  const filteredSessions = useMemo(
+    () => filterSessions(sessions),
+    [filterSessions, sessions],
+  );
+  const hasActiveFilters =
+    searchText !== '' || activeNonMainFilterCount > 0;
+
+  useEffect(() => {
+    setWindowStart(0);
+    setWindowEnd(Math.min(INITIAL_WINDOW_SIZE, filteredSessions.length));
+  }, [
+    effectiveFilterSchema.identity,
+    filteredSessions.length,
+    sessionFilterValues,
+    sessions.length,
+  ]);
 
   // Show only visible window of filtered sessions
   const visibleSessions = filteredSessions.slice(windowStart, windowEnd);
@@ -651,7 +788,9 @@ function SessionsPanelInner({
           onDismiss={() =>
             setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
           }
-          onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
+          onFollowupAction={(action, formValues) =>
+            handleDisplayFollowupAction(entry, action, formValues)
+          }
         />
       ))}
       <ActionResultModal
@@ -659,9 +798,9 @@ function SessionsPanelInner({
         display={actionResultDisplay?.display ?? null}
         activeActionId={activeDisplayActionId}
         onRequestClose={() => setActionResultDisplay(null)}
-        onFollowupAction={(action) => {
+        onFollowupAction={(action, formValues) => {
           if (!actionResultDisplay) return;
-          handleDisplayFollowupAction(actionResultDisplay, action);
+          handleDisplayFollowupAction(actionResultDisplay, action, formValues);
         }}
       />
       <PanelHeader
@@ -673,14 +812,63 @@ function SessionsPanelInner({
 
       <View style={styles.controlsRow}>
         <TextInput
+          testID="session-main-search"
+          accessibilityLabel={mainSearch.label}
           style={styles.searchInput}
-          placeholder="Search"
+          placeholder={mainSearch.label}
           placeholderTextColor={theme.textMuted}
-          value={filterText}
-          onChangeText={setFilterText}
+          value={searchText}
+          onChangeText={setSearchText}
           autoCapitalize="none"
           autoCorrect={false}
         />
+
+        {nonMainFilters.length > 0 ? (
+          <>
+            <View ref={filterAnchorRef} collapsable={false}>
+              <Pressable
+                testID="session-filters-open"
+                accessibilityLabel={
+                  activeNonMainFilterCount > 0
+                    ? `Open session filters, ${activeNonMainFilterCount} active`
+                    : 'Open session filters'
+                }
+                accessibilityValue={
+                  activeNonMainFilterCount > 0
+                    ? { text: String(activeNonMainFilterCount) }
+                    : undefined
+                }
+                style={(state) => {
+                  const hovered = (state as any).hovered as boolean | undefined;
+                  return [
+                    styles.filterButton,
+                    activeNonMainFilterCount > 0 && styles.filterButtonActive,
+                    (hovered || state.pressed) && styles.filterButtonHovered,
+                  ];
+                }}
+                onPress={openSessionFiltersPopover}
+              >
+                <Icon
+                  name="filter"
+                  size={15}
+                  color={
+                    activeNonMainFilterCount > 0
+                      ? theme.primary
+                      : theme.textSecondary
+                  }
+                />
+                {activeNonMainFilterCount > 0 ? (
+                  <Text
+                    testID="session-filters-active-count"
+                    style={styles.filterCount}
+                  >
+                    {activeNonMainFilterCount}
+                  </Text>
+                ) : null}
+              </Pressable>
+            </View>
+          </>
+        ) : null}
 
         <Pressable
           style={(state) => {
@@ -698,6 +886,15 @@ function SessionsPanelInner({
           <Text style={styles.newButtonText}>{openingAgentPicker ? '…' : 'New'}</Text>
         </Pressable>
       </View>
+
+      {sessionListFilterSchema.mainSearchConflict ? (
+        <Text
+          testID="session-filter-schema-warning"
+          style={styles.filterWarning}
+        >
+          Multiple plugins declare the main session search. Using fallback search.
+        </Text>
+      ) : null}
 
       {(sessionsLoading || pluginActionRunning) && (
         <View style={styles.loadingRow}>
@@ -745,7 +942,11 @@ function SessionsPanelInner({
           {visibleSessions.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyText}>
-                {filterText.trim() ? 'No sessions match your search.' : 'No sessions.'}
+                {sessions.length === 0
+                  ? 'No sessions.'
+                  : hasActiveFilters
+                    ? 'No sessions match the active search or filters.'
+                    : 'No sessions match the current filter defaults.'}
               </Text>
               {!isOnline ? (
                 <Text style={styles.emptyMeta}>Open the connection to refresh.</Text>
@@ -768,10 +969,18 @@ function SessionsPanelInner({
               80,
             );
             const meta = presentation.meta;
-
+            const headerLeadingAction = selectSessionListRichActionForPlacement(
+              sessionListActions,
+              'header_leading',
+            );
+            const headerTrailingAction = selectSessionListRichActionForPlacement(
+              sessionListActions,
+              'header_trailing',
+            );
             return (
               <Pressable
                 key={session.session_id}
+                testID={`session-row-${session.session_id}`}
                 style={(state) => {
                   const pressedOrHovered =
                     ((state as any).hovered as boolean | undefined) || state.pressed;
@@ -790,42 +999,71 @@ function SessionsPanelInner({
               >
                 <View style={styles.rowMain}>
                   <View style={styles.rowTitleRow}>
-                    <Text style={styles.rowTitle}>{title}</Text>
-                    {pinnedToggleElement ? (
-                      <Pressable
-                        style={(state) => {
-                          const pinnedHovered = (state as any).hovered as boolean | undefined;
-                          return [
-                            styles.pinButton,
-                            (pinnedHovered || state.pressed) && styles.pinButtonHovered,
-                          ];
-                        }}
-                        disabled={!isOnline}
-                        onPress={(event) => {
-                          (event as any)?.stopPropagation?.();
-                          if (!isOnline) {
-                            return;
-                          }
-                          openPluginDialogForElement(pinnedToggleElement, session);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.pinButtonText,
-                            { color: session.pinned ? '#FFCC00' : theme.textSecondary },
-                          ]}
-                        >
-                          ★
-                        </Text>
-                      </Pressable>
+                    {headerLeadingAction ? (
+                      <SessionListRichActionControl
+                        element={headerLeadingAction}
+                        session={session}
+                        placement="header_leading"
+                        disabled={!isOnline || pluginActionRunning}
+                        onExecuteAction={(element, dialogValues) =>
+                          executePluginAction(element, {
+                            sessionId: session.session_id,
+                            sessionSummary: session,
+                            dialogValues,
+                          })
+                        }
+                        onPresentRichList={(element) =>
+                          openRichListPopover(element, session)
+                        }
+                        renderIcon={({ name, size, color }) => (
+                          <Icon name={name} size={size} color={color} />
+                        )}
+                        testID={`session-rich-header-${session.session_id}-header_leading-${headerLeadingAction.id}`}
+                      />
+                    ) : null}
+                    <Text
+                      style={styles.rowTitle}
+                      testID={`session-title-${session.session_id}`}
+                    >
+                      {title}
+                    </Text>
+                    {headerTrailingAction ? (
+                      <SessionListRichActionControl
+                        element={headerTrailingAction}
+                        session={session}
+                        placement="header_trailing"
+                        disabled={!isOnline || pluginActionRunning}
+                        onExecuteAction={(element, dialogValues) =>
+                          executePluginAction(element, {
+                            sessionId: session.session_id,
+                            sessionSummary: session,
+                            dialogValues,
+                          })
+                        }
+                        onPresentRichList={(element) =>
+                          openRichListPopover(element, session)
+                        }
+                        renderIcon={({ name, size, color }) => (
+                          <Icon name={name} size={size} color={color} />
+                        )}
+                        testID={`session-rich-header-${session.session_id}-header_trailing-${headerTrailingAction.id}`}
+                      />
                     ) : null}
                   </View>
                   <Text style={styles.rowId} numberOfLines={1}>
                     {session.session_id}
                   </Text>
-                  <Text style={styles.rowSubtitle}>{subtitle}</Text>
+                  <Text
+                    style={styles.rowSubtitle}
+                    testID={`session-subtitle-${session.session_id}`}
+                  >
+                    {subtitle}
+                  </Text>
                   {meta ? (
-                    <Text style={styles.rowMeta}>
+                    <Text
+                      style={styles.rowMeta}
+                      testID={`session-meta-${session.session_id}`}
+                    >
                       {meta}
                     </Text>
                   ) : null}
@@ -858,23 +1096,33 @@ function SessionsPanelInner({
                         showRowControls || pinnedSessionListActionKeys.length > 0 ? 'auto' : 'none'
                       }
                     >
-                      <ActionsMenuBar<ActionDefinition>
+                      <SessionListActionsBar
+                        session={session}
+                        pluginActions={sessionListActions}
                         title="Session actions"
                         variant="dropdown"
+                        menuButtonTestID={`session-actions-menu-${session.session_id}`}
                         renderIcon={({ name, size, color }) => (
                           <Icon name={name} size={size} color={color} />
                         )}
                         baseActions={[]}
-                        extraActions={pluginActionDefs}
                         pinned={pinnedSessionListActionKeys}
                         onChangePinned={(next) => setPinnedSessionListActionKeys(next)}
-                        onAction={(key: ActionKey) => {
-                          const element = sessionListActions.find((el) => el.id === key);
-                          if (element) {
-                            openPluginDialogForElement(element, session);
-                          }
-                        }}
                         isActionDisabled={() => !isOnline || pluginActionRunning}
+                        onBaseAction={() => {}}
+                        onExecuteAction={(element, dialogValues) =>
+                          executePluginAction(element, {
+                            sessionId: session.session_id,
+                            sessionSummary: session,
+                            dialogValues,
+                          })
+                        }
+                        onFallbackAction={(element) =>
+                          openPluginDialogForElement(element, session)
+                        }
+                        onPresentRichList={(element) =>
+                          openRichListPopover(element, session)
+                        }
                       />
                     </View>
                   ) : null}
@@ -949,6 +1197,39 @@ function createStyles(theme: ReturnType<typeof useTheme>) {
       fontSize: 12,
       color: theme.text,
       backgroundColor: theme.backgroundAlt,
+    },
+    filterButton: {
+      width: 32,
+      height: 32,
+      borderWidth: separatorWidth,
+      borderColor: theme.border,
+      borderRadius: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.backgroundAlt,
+    },
+    filterButtonActive: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primaryMuted,
+    },
+    filterButtonHovered: {
+      opacity: 0.9,
+    },
+    filterCount: {
+      position: 'absolute',
+      right: 2,
+      top: 0,
+      color: theme.primary,
+      fontSize: 9,
+      fontWeight: '900',
+    },
+    filterWarning: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderBottomWidth: separatorWidth,
+      borderBottomColor: theme.border,
+      color: theme.danger,
+      fontSize: 11,
     },
     newButton: {
       borderWidth: separatorWidth,

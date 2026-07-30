@@ -6,3 +6,13 @@ static NSString *const CLCTabStripStyleUserInfoKey = @"style";
 static NSNotificationName const CLCSessionsFollowActiveTabDidChangeNotification =
     @"CrystalLattice.SessionsFollowActiveTabDidChange";
 static NSString *const CLCSessionsFollowActiveTabEnabledUserInfoKey = @"enabled";
+
+static NSNotificationName const CLCClearStoredSessionCachesNotification =
+    @"CrystalLattice.ClearStoredSessionCaches";
+
+static NSNotificationName const CLCProgressiveScrollHarnessCommandNotification =
+    @"CrystalLattice.ProgressiveScrollHarnessCommand";
+static NSString *const CLCProgressiveScrollHarnessCommandUserInfoKey = @"command";
+
+static NSNotificationName const CLCOpenNotificationTestingNotification =
+    @"CrystalLattice.OpenNotificationTesting";

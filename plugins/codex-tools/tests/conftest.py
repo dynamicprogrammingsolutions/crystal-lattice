@@ -10,6 +10,7 @@ def pytest_configure() -> None:
         "plugins/codex-tools/src",
         "plugins/skill-shared/src",
         "plugins/mcp-shared/src",
+        "plugins/tool-compat-shared/src",
         "plugins/openai_responses/src",
         "plugins/openrouter/src",
         "core/python",

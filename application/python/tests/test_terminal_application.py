@@ -1210,8 +1210,8 @@ def test_at_file_completion_uses_core(tmp_path: Path) -> None:
     from agent_terminal_app import terminal as term_mod
 
     base_dir = Path(term_mod.__file__).resolve().parent
-    # Use the OpenRouter app-layer config which enables FileContextFeature.
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    # Use the default config which enables FileContextFeature.
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     # Create a small file tree for completions and expansion.
@@ -1232,7 +1232,7 @@ def test_at_file_completion_uses_core(tmp_path: Path) -> None:
     )
 
     # Override working_directory via overrides so the feature searches our temp tree.
-    session = term_app.start_new_session(agent_id="default")
+    session = term_app.start_new_session(agent_id="codex-openrouter")
     md = session.metadata or {}
     overrides = md.get("overrides") or {}
     overrides["working_directory"] = str(working_dir)

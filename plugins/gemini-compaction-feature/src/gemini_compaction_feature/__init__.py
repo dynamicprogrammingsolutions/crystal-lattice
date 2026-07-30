@@ -25,7 +25,7 @@ Dependencies:
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from agent_core import Message
+from agent_core import Message, Session
 
 # Import shared prompts and helpers from the app plugin
 from gemini_compaction_app import (
@@ -41,6 +41,122 @@ COMPRESSION_PROMPT = _GEMINI_COMPRESSION_PROMPT
 VERIFICATION_PROMPT = _VERIFICATION_PROMPT
 ACKNOWLEDGMENT_MESSAGE = _ACKNOWLEDGMENT_MESSAGE
 
+# Metadata key for compaction markers
+_COMPACTION_METADATA_KEY = "gemini_compaction"
+
+
+# ---------------------------------------------------------------------------
+# Helper functions (module-level, testable independently)
+# ---------------------------------------------------------------------------
+
+
+def _strip_native_history(metadata: Any) -> Dict[str, Any]:
+    """Strip native history keys from session metadata.
+
+    Returns a new dict without ``native_messages`` or
+    ``native_messages_integrity`` so that downstream operations (e.g. building
+    a compaction request session) start from a clean slate.
+    """
+    if not isinstance(metadata, dict):
+        return {}
+    cleaned = dict(metadata)
+    cleaned.pop("native_messages", None)
+    cleaned.pop("native_messages_integrity", None)
+    return cleaned
+
+
+def _rebuild_context(context: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Strip core-internal keys from context before passing to rebuild_native_history.
+
+    ``rebuild_native_history`` accepts an optional ``context`` kwarg, but
+    ``core`` and ``config`` are framework-internal keys that should not be
+    forwarded.  This helper removes them so that only provider-relevant context
+    (e.g. ``session_asset_store``) is passed through.
+    """
+    if not isinstance(context, dict):
+        return context
+    return {key: value for key, value in context.items() if key not in {"core", "config"}}
+
+
+def _native_messages_from_session(session: Any) -> List[Dict[str, Any]]:
+    """Extract and validate native_messages from a session's metadata.
+
+    Raises ``RuntimeError`` if native_messages is missing or malformed,
+    because a compacted session must have rebuilt native history.
+    """
+    metadata = session.metadata if isinstance(session.metadata, dict) else {}
+    native = metadata.get("native_messages")
+    if not isinstance(native, list) or not all(
+        isinstance(item, dict) for item in native
+    ):
+        raise RuntimeError(
+            "[gemini_compaction] compacted session is missing rebuilt native history"
+        )
+    return [item for item in native if isinstance(item, dict)]
+
+
+def _merge_request_config(config: Dict[str, Any], compaction_cfg: Dict[str, Any]) -> Dict[str, Any]:
+    """Merge compaction settings overrides and tool-disabling into a request config.
+
+    Combines the base ``config`` with:
+    - ``settings_overrides`` from compaction config
+    - ``disable_all_tools: True`` so the compaction model doesn't invoke tools
+
+    Returns a new dict; does not mutate ``config``.
+    """
+    settings_overrides = compaction_cfg.get("settings_overrides") or {}
+    merged = {**config, "disable_all_tools": True, **settings_overrides}
+    return merged
+
+
+def _normalize_slice_bounds(
+    message_count: int,
+    start: int | None,
+    end: int | None,
+    *,
+    end_inclusive: bool = False,
+) -> tuple[int, int]:
+    """Normalize slice bounds to concrete ``(start_idx, end_idx)``.
+
+    Supports Python-style slice rules with optional inclusive end semantics.
+    Indices are clamped to ``[0, message_count]``.
+    ``ValueError`` is raised when the range selects no messages.
+    """
+    def _bound(value: int | None, default: int) -> int:
+        if value is None:
+            return default
+        idx = value
+        if idx < 0:
+            idx = message_count + idx
+        if idx < 0:
+            return 0
+        if idx > message_count:
+            return message_count
+        return idx
+
+    start_idx = _bound(start, 0)
+    end_idx = _bound(end, message_count)
+    if end_inclusive and end is not None:
+        end_idx = min(end_idx + 1, message_count)
+    if start_idx >= end_idx:
+        raise ValueError("range selects no messages")
+    return start_idx, end_idx
+
+
+def _message_text(content: Any) -> str:
+    """Extract plain text from message content (str or multipart list)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: List[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "".join(parts)
+    return str(content)
+
 
 def _collect_final_messages_from_stream(
     core: Any,
@@ -48,25 +164,205 @@ def _collect_final_messages_from_stream(
     config: Dict[str, Any],
     *,
     request_id: str | None = None,
+    context: Dict[str, Any] | None = None,
 ) -> List[Dict[str, Any]]:
-    """Run an internal request via the streaming path and return final messages."""
+    """Run an internal request via the streaming path and return final messages.
 
+    Iterates over ``core.send_request_stream`` events, collecting messages from
+    ``type == "final"`` events.  Returns the list of message dicts from the
+    last final event (or an empty list if no final event was produced).
+    """
     final_messages: List[Dict[str, Any]] = []
-    for event in core.send_request_stream(session, config, request_id=request_id):
+    for event in core.send_request_stream(session, config, request_id=request_id, context=context):
         if event.get("type") != "final":
             continue
         raw_messages = event.get("messages")
         if isinstance(raw_messages, list):
-            final_messages = raw_messages
+            final_messages = [item for item in raw_messages if isinstance(item, dict)]
     return final_messages
+
+
+# ---------------------------------------------------------------------------
+# Compaction session builders (module-level, testable independently)
+# ---------------------------------------------------------------------------
+
+
+def build_compaction_request_session(
+    session: Any,
+    *,
+    prompt_text: str,
+    start: int | None = None,
+    end: int | None = None,
+    end_inclusive: bool = False,
+) -> tuple[Any, List[int], List[int]]:
+    """Build a session suitable for sending to the LLM for compaction.
+
+    Selects the message range ``[start:end]``, preserves leading system
+    messages, and appends the compaction prompt to the last user message
+    (or adds a new user message if the last message is not user).
+
+    Returns ``(request_session, target_indices, request_indices)`` where
+    ``target_indices`` are the indices to be removed from the original session
+    and ``request_indices`` are the indices included in the request session
+    (including any leading system message).
+    """
+    start_idx, end_idx = _normalize_slice_bounds(
+        len(session.messages),
+        start,
+        end,
+        end_inclusive=end_inclusive,
+    )
+    has_leading_system = bool(session.messages) and session.messages[0].role == "system"
+    selected_indices = list(range(start_idx, end_idx))
+    target_indices = [
+        idx for idx in selected_indices if not (has_leading_system and idx == 0)
+    ]
+    if not target_indices:
+        raise ValueError("range selects no compactable messages")
+    request_indices = list(target_indices)
+    if has_leading_system and 0 not in request_indices:
+        request_indices = [0, *request_indices]
+
+    request_messages = [session.messages[idx] for idx in request_indices]
+
+    # Append prompt to last user message or add a new user message
+    if (
+        request_messages
+        and request_messages[-1].role == "user"
+        and isinstance(request_messages[-1].content, str)
+    ):
+        previous = request_messages[-1]
+        separator = "" if previous.content.endswith("\n") else "\n"
+        request_messages[-1] = Message(
+            role=previous.role,
+            content=f"{previous.content}{separator}{prompt_text}",
+            metadata=previous.metadata,
+            multipart_content=previous.multipart_content,
+            tool_result=previous.tool_result,
+        )
+    else:
+        request_messages.append(Message(role="user", content=prompt_text, metadata={}))
+
+    request_session = Session(
+        session_id=session.session_id,
+        messages=request_messages,
+        metadata=_strip_native_history(session.metadata),
+    )
+    return request_session, target_indices, request_indices
+
+
+def build_compacted_session(
+    core: Any,
+    session: Any,
+    config: Dict[str, Any],
+    snapshot_text: str,
+    *,
+    start: int | None = None,
+    end: int | None = None,
+    end_inclusive: bool = False,
+    context: Optional[Dict[str, Any]] = None,
+    verification_pass: bool = True,
+) -> Any:
+    """Build a compacted session by replacing the selected message range with a snapshot.
+
+    Uses core APIs (``rebuild_native_history``, ``slice_session``, ``add_message``)
+    to produce a session with correct native history for any provider, not just
+    OpenAI chat-completions format.
+
+    The compacted session has the following structure:
+    - Leading messages before the compaction range (including system messages)
+    - Snapshot user message (containing ``<state_snapshot>...</state_snapshot>``)
+    - Acknowledgment assistant message
+    - Trailing messages after the compaction range
+
+    Args:
+        core: AgentCore instance for session operations.
+        session: The session to compact (should already have rebuilt native history).
+        config: Request config for core operations.
+        snapshot_text: The ``<state_snapshot>`` text from the LLM response.
+        start: Start index of the range to compact (None for 0).
+        end: End index of the range to compact (None for len(messages)).
+        end_inclusive: Whether ``end`` is inclusive.
+        context: Layered context for core operations (stripped of core/config keys).
+        verification_pass: Whether a verification pass was performed.
+
+    Returns:
+        A new Session with the compacted messages and rebuilt native history.
+    """
+    rebuilt = core.rebuild_native_history(
+        session,
+        config,
+        context=_rebuild_context(context),
+    )
+    start_idx, end_idx = _normalize_slice_bounds(
+        len(rebuilt.messages),
+        start,
+        end,
+        end_inclusive=end_inclusive,
+    )
+    # Preserve leading system messages: never compact them
+    system_prefix_end = 0
+    for msg in rebuilt.messages:
+        if msg.role == "system":
+            system_prefix_end += 1
+        else:
+            break
+    if start_idx < system_prefix_end:
+        start_idx = system_prefix_end
+
+    remove_indices = list(range(start_idx, end_idx))
+    if not remove_indices:
+        raise ValueError("range selects no messages to compact")
+
+    session_after_delete = core.slice_session(
+        rebuilt,
+        config,
+        remove_indices=remove_indices,
+    )
+
+    insert_after = start_idx - 1
+
+    snapshot_metadata: Dict[str, Any] = {
+        _COMPACTION_METADATA_KEY: {
+            "kind": "snapshot",
+            "is_compact_summary": True,
+            "is_visible_in_transcript_only": True,
+            "verification_pass": verification_pass,
+        }
+    }
+
+    compacted = core.add_message(
+        session_after_delete,
+        "user",
+        snapshot_text,
+        metadata=snapshot_metadata,
+        config=config,
+        after_index=insert_after,
+        context=context,
+    )
+    compacted = core.add_message(
+        compacted,
+        "assistant",
+        _ACKNOWLEDGMENT_MESSAGE,
+        metadata=None,
+        config=config,
+        after_index=insert_after + 1,
+        context=context,
+    )
+    return compacted
+
+
+# ---------------------------------------------------------------------------
+# Plugin implementation
+# ---------------------------------------------------------------------------
 
 
 class GeminiCompactionFeaturePlugin:
     """Feature-level plugin implementing Gemini-style context compaction.
 
     This plugin operates at the core level, using the layered context approach:
-    - Layer 1 (core): Uses `context["core"]` for session/message operations
-    - Layer 2 (app): Optionally uses `context.get("app")` for enhanced features
+    - Layer 1 (core): Uses ``context["core"]`` for session/message operations
+    - Layer 2 (app): Optionally uses ``context.get("app")`` for enhanced features
 
     Configuration is read from the agent config under the ``compaction`` key:
 
@@ -85,7 +381,7 @@ class GeminiCompactionFeaturePlugin:
     """
 
     name = "gemini_compaction_feature"
-    version = "1.0.0"
+    version = "1.1.0"
     priority = 100
 
     # Constants for type checking
@@ -392,6 +688,7 @@ class GeminiCompactionFeaturePlugin:
             end_raw=end_raw,
             instructions=instructions_str,
             app=app,
+            context=context,
         )
 
     # ------------------------------------------------------------------
@@ -560,18 +857,6 @@ class GeminiCompactionFeaturePlugin:
                 return content.strip()
         return None
 
-    def _clone_message_without_native_indices(self, message: Message) -> Message:
-        data = message.to_dict()
-        md = data.get("metadata") or {}
-        if not isinstance(md, dict):
-            md = {}
-        md.pop("native_indices", None)
-        role = data.get("role", "user")
-        content = data.get("content", "")
-        if md:
-            return Message(role=role, content=content, metadata=md)
-        return Message(role=role, content=content, metadata=None)
-
     def _do_compact_range(
         self,
         core: Any,
@@ -586,15 +871,18 @@ class GeminiCompactionFeaturePlugin:
         end_raw: Any,
         instructions: Optional[str],
         app: Optional[Any],
+        context: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Execute the compaction range action.
 
         This method:
         1. Calculates the range to compact
-        2. Creates a temporary session for the compaction request
-        3. Calls the LLM to generate a state snapshot
-        4. Optionally verifies the snapshot
-        5. Returns the modified native_messages
+        2. Rebuilds native history and resolves compaction indices
+        3. Creates a temporary session for the compaction request
+        4. Calls the LLM to generate a state snapshot
+        5. Optionally verifies the snapshot
+        6. Builds the compacted session using core APIs
+        7. Returns the modified native_messages and session_metadata
         """
         message_count = len(session.messages)
 
@@ -661,23 +949,20 @@ class GeminiCompactionFeaturePlugin:
             base_config_compact = base_config
             session_for_compact = session
 
-        # Build config for operations
-        settings_overrides = compaction_cfg.get("settings_overrides") or {}
-        combined_overrides = {**settings_overrides}
-        request_overrides = {
-            "disable_all_tools": True,
-            **combined_overrides,
-        }
+        # Build config for operations (disable tools + merge overrides)
+        request_config = _merge_request_config(base_config_compact, compaction_cfg)
 
-        # Use core's slice_session to get messages for compaction
-        # IMPORTANT: Use start/end to KEEP messages in the range, not remove_indices
-        # which would REMOVE them. We need the messages TO BE COMPACTED in the session.
-        from agent_app.config import resolve_request_config
-        slice_config = resolve_request_config(base_config_compact, request_overrides)
-
-        sliced_session = core_compact.slice_session(
+        # Rebuild native history to ensure consistency
+        prepared_session = core_compact.rebuild_native_history(
             session_for_compact,
-            slice_config,
+            request_config,
+            context=_rebuild_context(context),
+        )
+
+        # Slice the session to get the messages for compaction
+        sliced_session = core_compact.slice_session(
+            prepared_session,
+            request_config,
             start=start_idx,
             end=end_idx,
         )
@@ -695,7 +980,8 @@ class GeminiCompactionFeaturePlugin:
             "system",
             compression_prompt,
             metadata={"source": "compaction"},
-            config=slice_config,
+            config=request_config,
+            context=context,
         )
 
         # Build compaction instruction
@@ -708,15 +994,17 @@ class GeminiCompactionFeaturePlugin:
             "user",
             compaction_instruction,
             metadata=None,
-            config=slice_config,
+            config=request_config,
+            context=context,
         )
 
-        # Run compaction request using core.send_request
+        # Run compaction request using core.send_request_stream
         try:
             final_messages = _collect_final_messages_from_stream(
                 core_compact,
                 session_with_prompt,
-                slice_config,
+                request_config,
+                context=context,
             )
         except Exception as exc:
             return {
@@ -752,21 +1040,24 @@ class GeminiCompactionFeaturePlugin:
                 "assistant",
                 initial_snapshot,
                 metadata=None,
-                config=slice_config,
+                config=request_config,
+                context=context,
             )
             session_for_verify = core_compact.add_message(
                 session_for_verify,
                 "user",
                 _VERIFICATION_PROMPT,
                 metadata=None,
-                config=slice_config,
+                config=request_config,
+                context=context,
             )
 
             try:
                 verify_final_messages = _collect_final_messages_from_stream(
                     core_compact,
                     session_for_verify,
-                    slice_config,
+                    request_config,
+                    context=context,
                 )
             except Exception:
                 verify_final_messages = None
@@ -778,46 +1069,30 @@ class GeminiCompactionFeaturePlugin:
                 if verified_snapshot:
                     final_snapshot = verified_snapshot
 
-        # Rebuild the native_messages with the snapshot injected
-        # The result should have:
-        # - System messages [0:system_prefix_end)
-        # - Snapshot user message
-        # - Acknowledgment assistant message
-        # - Tail messages [end_idx:message_count)
-
-        # Build the new native_messages:
-        new_native_messages: List[Dict[str, Any]] = []
-
-        # Add messages before compaction range (including system prefix)
-        for i in range(0, start_idx):
-            if i < len(native_messages):
-                new_native_messages.append(native_messages[i])
-
-        # Add snapshot user message
-        snapshot_metadata: Dict[str, Any] = {
-            "compacted_range": {
-                "start_index": start_idx,
-                "end_index": end_idx,
-                "verification_pass": verification_pass,
+        # Build compacted session using core APIs
+        try:
+            compacted_session = build_compacted_session(
+                core_compact,
+                prepared_session,
+                request_config,
+                final_snapshot,
+                start=start_idx,
+                end=end_idx,
+                end_inclusive=False,  # already normalized
+                context=context,
+                verification_pass=verification_pass,
+            )
+        except Exception as exc:
+            # Fall back to error if build_compacted_session fails
+            return {
+                "native_messages": native_messages,
+                "error": {
+                    "type": "compaction_failed",
+                    "message": f"Failed to build compacted session: {exc}",
+                },
             }
-        }
-        new_native_messages.append({
-            "role": "user",
-            "content": final_snapshot,
-            "metadata": snapshot_metadata,
-        })
 
-        # Add acknowledgment assistant message
-        new_native_messages.append({
-            "role": "assistant",
-            "content": _ACKNOWLEDGMENT_MESSAGE,
-            "metadata": None,
-        })
-
-        # Add tail messages
-        for i in range(end_idx, message_count):
-            if i < len(native_messages):
-                new_native_messages.append(native_messages[i])
+        compacted_native = _native_messages_from_session(compacted_session)
 
         # Build debug info
         compacted_messages_debug = [
@@ -847,8 +1122,9 @@ class GeminiCompactionFeaturePlugin:
         ]
 
         return {
-            "native_messages": new_native_messages,
+            "native_messages": compacted_native,
             "session_metadata": {
+                **compacted_session.metadata,
                 "last_compaction": datetime.now().isoformat(),
             },
             "compaction_result": {
@@ -870,4 +1146,13 @@ __all__ = [
     "COMPRESSION_PROMPT",
     "VERIFICATION_PROMPT",
     "ACKNOWLEDGMENT_MESSAGE",
+    "_collect_final_messages_from_stream",
+    "_normalize_slice_bounds",
+    "_strip_native_history",
+    "_rebuild_context",
+    "_native_messages_from_session",
+    "_merge_request_config",
+    "_message_text",
+    "build_compaction_request_session",
+    "build_compacted_session",
 ]

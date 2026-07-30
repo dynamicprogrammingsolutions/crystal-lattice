@@ -48,11 +48,12 @@ def _collect_final_messages_from_stream(
     config: Dict[str, Any],
     *,
     request_id: str | None = None,
+    context: Dict[str, Any] | None = None,
 ) -> List[Dict[str, Any]]:
     """Run an internal request via the streaming path and return final messages."""
 
     final_messages: List[Dict[str, Any]] = []
-    for event in core.send_request_stream(session, config, request_id=request_id):
+    for event in core.send_request_stream(session, config, request_id=request_id, context=context):
         if event.get("type") != "final":
             continue
         raw_messages = event.get("messages")
@@ -823,6 +824,7 @@ def run_prompted_summary_request(
             request_core,
             request_session,
             runtime_config,
+            context=context,
         )
         result_text = _collect_assistant_text(final_messages)
         return True, result_text or fallback_content

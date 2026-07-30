@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import platform
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Any
+
+import pytest
 
 from agent_app.application_future import AgentApplication
 from agent_app.events import InMemoryEventStore
@@ -211,6 +215,36 @@ def test_caffeinate_controller_starts_configured_command_and_releases() -> None:
     ]
     assert process.terminated is True
     assert controller.status()["active"] is False
+
+
+@pytest.mark.integration
+def test_caffeinate_controller_releases_real_process_on_macos() -> None:
+    if platform.system() != "Darwin":
+        pytest.skip("real caffeinate integration is macOS-only")
+
+    command = shutil.which("caffeinate")
+    if command is None:
+        pytest.skip("caffeinate is not available")
+
+    controller = CaffeinateSleepPreventionController(
+        flags=["-i"],
+        command=command,
+    )
+    process: Any | None = None
+    try:
+        controller.activate()
+        process = getattr(controller, "_process", None)
+        assert process is not None
+        assert process.poll() is None
+
+        controller.release()
+
+        assert process.poll() is not None
+        assert controller.status()["active"] is False
+    finally:
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
 
 
 def test_wakepy_controller_uses_keep_running_context() -> None:

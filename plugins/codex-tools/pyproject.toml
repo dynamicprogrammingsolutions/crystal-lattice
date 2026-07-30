@@ -41,6 +41,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 markers = [
   "integration: tests that call real provider APIs",
+  "api: hosted API integration tests requiring credentials and potentially incurring cost",
   "openai: tests that call OpenAI APIs",
   "openrouter: tests that call OpenRouter APIs",
 ]

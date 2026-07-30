@@ -1,8 +1,9 @@
-"""Application-level plugin for pinning/unpinning sessions.
+"""Application-level plugin for pinning and filtering sessions.
 
 This plugin toggles a boolean flag in session metadata (for example,
-``metadata["pinned"]``) and exposes a lightweight UI element that can be
-used by frontends to render a star-style pinned toggle per session row.
+``metadata["pinned"]``), exposes an ordinary session-list action with a rich
+toggle presentation, and contributes a declarative Boolean filter over the
+same configured metadata key.
 """
 
 from __future__ import annotations
@@ -36,6 +37,7 @@ class SessionPinnedAppPlugin:
                     "Metadata key used for storing pinned state on "
                     "sessions. When not set, defaults to 'pinned'."
                 ),
+                "default": "pinned",
             },
         }
 
@@ -46,29 +48,66 @@ class SessionPinnedAppPlugin:
         tags: Optional[List[str]] = None,
         models: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        """Expose a dedicated session-list toggle element.
+        """Expose the rich ordinary pin action and a declarative pin filter."""
 
-        Frontends can treat this as a star-style pin toggle attached to
-        each row in the sessions list. The element delegates to the
-        ``toggle_session_pinned`` action.
-        """
+        pinned_key = state.get("pinned_metadata_key") or "pinned"
 
         return [
             {
-                "ui_type": "session_list_toggle_pinned",
-                "id": "toggle_session_pinned_star",
+                "ui_type": "session_list_action",
+                "id": "toggle_session_pinned",
                 "label": "Pin/unpin session",
                 "icon": "star",
-                "order": 0,
+                "order": 10,
                 "action_id": "toggle_session_pinned",
                 "param_map": {
                     "session_id": "$session.session_id",
                 },
                 "dialog": {"kind": "none"},
-            }
+                "rich_ui": {
+                    "kind": "toggle",
+                    "value_path": f"metadata.{pinned_key}",
+                    "missing_value": False,
+                    "active_value": True,
+                    "default_pinned": True,
+                    "placements": ["header_trailing", "actions_bar"],
+                    "appearance": {
+                        "active": {"tone": "highlight"},
+                        "inactive": {"tone": "muted"},
+                    },
+                },
+            },
+            {
+                "ui_type": "session_list_filter",
+                "id": "pinned_state",
+                "label": "Pinned",
+                "icon": "star",
+                "order": 10,
+                "type": "boolean",
+                "match": "equals",
+                "data": f"metadata.{pinned_key}",
+                "missing_value": False,
+                "default": None,
+                "options": [
+                    {
+                        "value": False,
+                        "label": "Not pinned",
+                        "icon": "star",
+                        "tone": "muted",
+                    },
+                    {
+                        "value": True,
+                        "label": "Pinned",
+                        "icon": "star",
+                        "tone": "highlight",
+                    },
+                ],
+            },
         ]
 
-    def init(self, app_config: Dict[str, Any]) -> Dict[str, Any]:  # pragma: no cover - trivial
+    def init(
+        self, app_config: Dict[str, Any]
+    ) -> Dict[str, Any]:  # pragma: no cover - trivial
         application_cfg = app_config.get("application")
         if not isinstance(application_cfg, dict):
             application_cfg = {}

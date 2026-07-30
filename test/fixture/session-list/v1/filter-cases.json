@@ -1,0 +1,539 @@
+{
+  "normalization_cases": [
+    {
+      "name": "text contains with ordered paths",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "search",
+        "label": "Search",
+        "data": ["session_id", "preview"],
+        "type": "text",
+        "match": "contains",
+        "case_sensitive": false,
+        "default": "",
+        "main_search": true
+      },
+      "expected": {
+        "valid": true,
+        "type": "text",
+        "main_search": true
+      }
+    },
+    {
+      "name": "boolean equals with labels",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "archived",
+        "label": "Archived",
+        "data": "metadata.archived",
+        "type": "boolean",
+        "match": "equals",
+        "missing_value": false,
+        "default": false,
+        "options": [
+          {"value": false, "label": "Not archived"},
+          {"value": true, "label": "Archived"}
+        ]
+      },
+      "expected": {
+        "valid": true,
+        "type": "boolean",
+        "main_search": false
+      }
+    },
+    {
+      "name": "single select equals",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "owner",
+        "label": "Owner",
+        "data": "metadata.owner",
+        "type": "select",
+        "match": "equals",
+        "multiple": false,
+        "default": null,
+        "options": [
+          {"value": "alice", "label": "Alice"},
+          {"value": "bob", "label": "Bob"}
+        ]
+      },
+      "expected": {
+        "valid": true,
+        "type": "select",
+        "main_search": false
+      }
+    },
+    {
+      "name": "multiple select one of",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "status",
+        "label": "Status",
+        "data": "metadata.status",
+        "type": "select",
+        "match": "one_of",
+        "multiple": true,
+        "default": [],
+        "options": [
+          {"value": "todo", "label": "To do"},
+          {"value": "blocked", "label": "Blocked"},
+          {"value": "done", "label": "Done"}
+        ]
+      },
+      "expected": {
+        "valid": true,
+        "type": "select",
+        "main_search": false
+      }
+    },
+    {
+      "name": "text rejects one of",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "bad-text",
+        "label": "Bad text",
+        "data": "preview",
+        "type": "text",
+        "match": "one_of"
+      },
+      "expected": {
+        "valid": false,
+        "diagnostic_code": "invalid_session_list_filter"
+      }
+    },
+    {
+      "name": "boolean rejects main search",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "bad-main",
+        "label": "Bad main",
+        "data": "metadata.value",
+        "type": "boolean",
+        "match": "equals",
+        "main_search": true
+      },
+      "expected": {
+        "valid": false,
+        "diagnostic_code": "invalid_session_list_filter"
+      }
+    },
+    {
+      "name": "single select rejects one of",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "bad-single",
+        "label": "Bad single",
+        "data": "metadata.status",
+        "type": "select",
+        "match": "one_of",
+        "multiple": false,
+        "options": [{"value": "todo", "label": "To do"}]
+      },
+      "expected": {
+        "valid": false,
+        "diagnostic_code": "invalid_session_list_filter"
+      }
+    },
+    {
+      "name": "multiple select rejects undeclared default",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "bad-default",
+        "label": "Bad default",
+        "data": "metadata.status",
+        "type": "select",
+        "match": "one_of",
+        "multiple": true,
+        "default": ["missing"],
+        "options": [{"value": "todo", "label": "To do"}]
+      },
+      "expected": {
+        "valid": false,
+        "diagnostic_code": "invalid_session_list_filter"
+      }
+    },
+    {
+      "name": "select reserves any for the inactive terminal value",
+      "raw": {
+        "ui_type": "session_list_filter",
+        "id": "reserved-option",
+        "label": "Reserved option",
+        "data": "metadata.value",
+        "type": "select",
+        "match": "equals",
+        "options": [{"value": "any", "label": "Literal any"}]
+      },
+      "expected": {
+        "valid": false,
+        "diagnostic_code": "invalid_session_list_filter"
+      }
+    }
+  ],
+  "schema_cases": [
+    {
+      "name": "zero main search is valid",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "archived",
+          "label": "Archived",
+          "data": "metadata.archived",
+          "type": "boolean",
+          "match": "equals"
+        }
+      ],
+      "expected": {
+        "filter_ids": ["archived"],
+        "main_search_id": null,
+        "main_search_conflict": false
+      }
+    },
+    {
+      "name": "one main search is selected",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "search",
+          "label": "Search",
+          "data": "session_id",
+          "type": "text",
+          "match": "contains",
+          "main_search": true
+        }
+      ],
+      "expected": {
+        "filter_ids": ["search"],
+        "main_search_id": "search",
+        "main_search_conflict": false
+      }
+    },
+    {
+      "name": "competing main searches are both excluded",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "search-a",
+          "label": "Search A",
+          "data": "session_id",
+          "type": "text",
+          "match": "contains",
+          "main_search": true
+        },
+        {
+          "ui_type": "session_list_filter",
+          "id": "archived",
+          "label": "Archived",
+          "data": "metadata.archived",
+          "type": "boolean",
+          "match": "equals"
+        },
+        {
+          "ui_type": "session_list_filter",
+          "id": "search-b",
+          "label": "Search B",
+          "data": "preview",
+          "type": "text",
+          "match": "contains",
+          "main_search": true
+        }
+      ],
+      "expected": {
+        "filter_ids": ["archived"],
+        "main_search_id": null,
+        "main_search_conflict": true,
+        "diagnostic_code": "ambiguous_session_list_main_search"
+      }
+    },
+    {
+      "name": "duplicate IDs are all excluded",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "same",
+          "label": "First",
+          "data": "session_id",
+          "type": "text",
+          "match": "contains"
+        },
+        {
+          "ui_type": "session_list_filter",
+          "id": "same",
+          "label": "Second",
+          "data": "preview",
+          "type": "text",
+          "match": "equals"
+        }
+      ],
+      "expected": {
+        "filter_ids": [],
+        "main_search_id": null,
+        "main_search_conflict": false,
+        "diagnostic_code": "duplicate_session_list_filter_id"
+      }
+    },
+    {
+      "name": "duplicate main-search IDs remain an explicit search conflict",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "same-search",
+          "label": "First",
+          "data": "session_id",
+          "type": "text",
+          "match": "contains",
+          "main_search": true
+        },
+        {
+          "ui_type": "session_list_filter",
+          "id": "same-search",
+          "label": "Second",
+          "data": "preview",
+          "type": "text",
+          "match": "equals",
+          "main_search": true
+        }
+      ],
+      "expected": {
+        "filter_ids": [],
+        "main_search_id": null,
+        "main_search_conflict": true,
+        "diagnostic_code": "ambiguous_session_list_main_search"
+      }
+    }
+  ],
+  "evaluation_cases": [
+    {
+      "name": "text paths use OR and case insensitive contains",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "search",
+          "label": "Search",
+          "data": ["session_id", "presentation.title"],
+          "type": "text",
+          "match": "contains",
+          "case_sensitive": false
+        }
+      ],
+      "values": {"search": "ALPHA"},
+      "apply_defaults": false,
+      "sessions": [
+        {"session_id": "alpha-id", "preview": "", "presentation": {"title": "Other"}},
+        {"session_id": "second", "preview": "", "presentation": {"title": "Alpha title"}},
+        {"session_id": "third", "preview": 123, "presentation": {"title": "Other"}}
+      ],
+      "expected_ids": ["alpha-id", "second"]
+    },
+    {
+      "name": "case sensitive equals",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "title",
+          "label": "Title",
+          "data": "presentation.title",
+          "type": "text",
+          "match": "equals",
+          "case_sensitive": true
+        }
+      ],
+      "values": {"title": "Exact"},
+      "apply_defaults": false,
+      "sessions": [
+        {"session_id": "first", "presentation": {"title": "Exact"}},
+        {"session_id": "second", "presentation": {"title": "exact"}}
+      ],
+      "expected_ids": ["first"]
+    },
+    {
+      "name": "missing boolean differs from explicit null zero and empty",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "archived",
+          "label": "Archived",
+          "data": "metadata.archived",
+          "type": "boolean",
+          "match": "equals",
+          "missing_value": false
+        }
+      ],
+      "values": {"archived": false},
+      "apply_defaults": false,
+      "sessions": [
+        {"session_id": "missing", "metadata": {}},
+        {"session_id": "false", "metadata": {"archived": false}},
+        {"session_id": "null", "metadata": {"archived": null}},
+        {"session_id": "zero", "metadata": {"archived": 0}},
+        {"session_id": "empty", "metadata": {"archived": ""}},
+        {"session_id": "true", "metadata": {"archived": true}}
+      ],
+      "expected_ids": ["missing", "false"]
+    },
+    {
+      "name": "active filters use AND and multi select uses one of",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "archived",
+          "label": "Archived",
+          "data": "metadata.archived",
+          "type": "boolean",
+          "match": "equals",
+          "missing_value": false
+        },
+        {
+          "ui_type": "session_list_filter",
+          "id": "status",
+          "label": "Status",
+          "data": "metadata.status",
+          "type": "select",
+          "match": "one_of",
+          "multiple": true,
+          "options": [
+            {"value": "todo", "label": "To do"},
+            {"value": "blocked", "label": "Blocked"},
+            {"value": "done", "label": "Done"}
+          ]
+        }
+      ],
+      "values": {"archived": false, "status": ["todo", "blocked"]},
+      "apply_defaults": false,
+      "sessions": [
+        {"session_id": "todo", "metadata": {"archived": false, "status": "todo"}},
+        {"session_id": "done", "metadata": {"archived": false, "status": "done"}},
+        {"session_id": "blocked-archived", "metadata": {"archived": true, "status": "blocked"}},
+        {"session_id": "blocked", "metadata": {"status": "blocked"}}
+      ],
+      "expected_ids": ["todo", "blocked"]
+    },
+    {
+      "name": "inactive values preserve every input in order",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "search",
+          "label": "Search",
+          "data": "session_id",
+          "type": "text",
+          "match": "contains"
+        },
+        {
+          "ui_type": "session_list_filter",
+          "id": "archived",
+          "label": "Archived",
+          "data": "metadata.archived",
+          "type": "boolean",
+          "match": "equals"
+        },
+        {
+          "ui_type": "session_list_filter",
+          "id": "status",
+          "label": "Status",
+          "data": "metadata.status",
+          "type": "select",
+          "match": "one_of",
+          "multiple": true,
+          "options": [{"value": "todo", "label": "To do"}]
+        }
+      ],
+      "values": {"search": "", "archived": null, "status": []},
+      "apply_defaults": false,
+      "sessions": [
+        {"session_id": "third", "metadata": {}},
+        {"session_id": "first", "metadata": {}},
+        {"session_id": "second", "metadata": {}}
+      ],
+      "expected_ids": ["third", "first", "second"]
+    },
+    {
+      "name": "defaults are applied before explicit overrides",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "archived",
+          "label": "Archived",
+          "data": "metadata.archived",
+          "type": "boolean",
+          "match": "equals",
+          "missing_value": false,
+          "default": false
+        }
+      ],
+      "values": {},
+      "apply_defaults": true,
+      "sessions": [
+        {"session_id": "ordinary", "metadata": {}},
+        {"session_id": "archived", "metadata": {"archived": true}}
+      ],
+      "expected_ids": ["ordinary"]
+    },
+    {
+      "name": "explicit inactive value implements show all over a default",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "archived",
+          "label": "Archived",
+          "data": "metadata.archived",
+          "type": "boolean",
+          "match": "equals",
+          "missing_value": false,
+          "default": false
+        }
+      ],
+      "values": {"archived": null},
+      "apply_defaults": true,
+      "sessions": [
+        {"session_id": "ordinary", "metadata": {}},
+        {"session_id": "archived", "metadata": {"archived": true}}
+      ],
+      "expected_ids": ["ordinary", "archived"]
+    },
+    {
+      "name": "string and boolean select values remain distinct",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "typed",
+          "label": "Typed",
+          "data": "metadata.value",
+          "type": "select",
+          "match": "equals",
+          "options": [
+            {"value": "true", "label": "String true"},
+            {"value": true, "label": "Boolean true"}
+          ]
+        }
+      ],
+      "values": {"typed": "true"},
+      "apply_defaults": false,
+      "sessions": [
+        {"session_id": "string", "metadata": {"value": "true"}},
+        {"session_id": "boolean", "metadata": {"value": true}}
+      ],
+      "expected_ids": ["string"]
+    },
+    {
+      "name": "invalid runtime override is diagnosed and made inactive",
+      "elements": [
+        {
+          "ui_type": "session_list_filter",
+          "id": "archived",
+          "label": "Archived",
+          "data": "metadata.archived",
+          "type": "boolean",
+          "match": "equals",
+          "default": false
+        }
+      ],
+      "values": {"archived": "invalid"},
+      "apply_defaults": true,
+      "sessions": [
+        {"session_id": "ordinary", "metadata": {"archived": false}},
+        {"session_id": "archived", "metadata": {"archived": true}}
+      ],
+      "expected_ids": ["ordinary", "archived"]
+    }
+  ]
+}

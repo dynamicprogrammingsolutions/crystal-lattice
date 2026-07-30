@@ -1,4 +1,9 @@
-export type { ActionKey, ActionDefinition, ActionsMenuModel } from './actions/types';
+export type {
+  ActionKey,
+  ActionDefinition,
+  ActionsMenuModel,
+  ActionsMenuPinnedRenderParams,
+} from './actions/types';
 
 export type { Theme } from './theme';
 export { ThemeProvider, useTheme } from './theme';
@@ -18,10 +23,13 @@ export type {
   ApplicationActionDialogFieldRenderParams,
   ApplicationActionDialogPrefillContext,
   ApplicationActionDialogProps,
+  ApplicationActionFormHandle,
+  ApplicationActionFormProps,
   DialogInputField,
 } from './ApplicationActionDialog';
 export { ApplicationActionDialog } from './ApplicationActionDialog';
 export { ApplicationActionDialogLayout } from './ApplicationActionDialog';
+export { ApplicationActionForm } from './ApplicationActionDialog';
 
 export {
   buildActionsMenuModel,
@@ -68,5 +76,23 @@ export { ActionsMenuBar } from './actions/ActionsMenuBar';
 export type { SessionActionsBarProps } from './actions/SessionActionsBar';
 export { SessionActionsBar } from './actions/SessionActionsBar';
 
+export type {
+  SessionListActionsBarProps,
+  SessionListRichActionControlProps,
+  SessionListPluginActionDefinition,
+  SessionListRichActionListProps,
+} from './actions/SessionListActionsBar';
+export {
+  resolveSemanticToneColor,
+  SessionListActionsBar,
+  SessionListRichActionControl,
+  SessionListRichActionList,
+} from './actions/SessionListActionsBar';
+
 export { SessionPluginsList } from './SessionPluginsList';
+
+export type {
+  SessionListFiltersPanelProps,
+} from './SessionListFiltersPanel';
+export { SessionListFiltersPanel } from './SessionListFiltersPanel';
 

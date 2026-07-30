@@ -39,7 +39,7 @@ This package is being built from behavior-driven investigations of Claude Code's
 
 `WebSearch` currently supports the Claude `WebSearch` schema and Claude-shaped text results while letting the app choose either `gemini_api` or `tavily` as the backend provider through config.
 
-`ClaudeMCPTool` currently supports stdio/SSE/HTTP MCP servers through the shared `mcp-shared` runtime package. It keeps runtime lifecycle, discovery, and raw tool calls in `mcp-shared`, while this package owns the Claude-facing schema and result shape observed in `investigation/fixtures/mcp/`. Successful text MCP results are returned as Claude-style Anthropic `tool_result` blocks containing a JSON string such as `{"content":"..."}`; MCP errors are returned with `is_error: true`.
+`ClaudeMCPTool` currently supports stdio/SSE/HTTP MCP servers through the shared `mcp-shared` runtime package. It keeps runtime lifecycle, discovery, and raw tool calls in `mcp-shared`, while this package owns the Claude-facing schema and result shape observed in `investigation/fixtures/mcp/`. Successful text MCP results are returned as Claude-style Anthropic `tool_result` blocks containing a JSON string such as `{"content":"..."}`; MCP errors are returned with `is_error: true`. Large successful MCP outputs follow Claude Code's observed `<persisted-output>` shape with a first-2KB preview and the full JSON output saved under `.crystal/mcp-tool-results/` by default; large MCP errors are truncated with a Claude-style middle marker.
 
 Claude MCP configuration keys:
 

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -12,18 +12,27 @@ import type {
   ActionDisplayFollowupAction,
   ActionDisplayPayload,
 } from '@crystal-lattice/frontend-sdk';
-import { useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  ApplicationActionForm,
+  type ApplicationActionDialogFieldRenderers,
+  type ApplicationActionFormHandle,
+  useTheme,
+} from '@crystal-lattice/frontend-rn-components';
 
 import MarkdownMessageContent from '../chat/MarkdownMessageContent';
 
 export interface ActionDisplayCardProps {
   display: ActionDisplayPayload;
   onDismiss?: () => void;
-  onFollowupAction?: (action: ActionDisplayFollowupAction) => void;
+  onFollowupAction?: (
+    action: ActionDisplayFollowupAction,
+    formValues?: Record<string, any>,
+  ) => void;
   activeActionId?: string | null;
   variantLabel?: string;
   footerDismissLabel?: string | null;
   compact?: boolean;
+  fieldRenderers?: ApplicationActionDialogFieldRenderers;
 }
 
 export function ActionDisplayCard({
@@ -34,14 +43,35 @@ export function ActionDisplayCard({
   variantLabel,
   footerDismissLabel,
   compact = false,
+  fieldRenderers,
 }: ActionDisplayCardProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, compact), [theme, compact]);
+  const formRef = useRef<ApplicationActionFormHandle | null>(null);
 
   const body = display.body ?? '';
   const title = display.title ?? 'Action Result';
   const actions = Array.isArray(display.actions) ? display.actions : [];
   const dismissible = display.dismissible !== false;
+  const form = display.form && typeof display.form === 'object' ? display.form : null;
+
+  const handleActionPress = (action: ActionDisplayFollowupAction) => {
+    if (action.kind === 'dismiss') {
+      onDismiss?.();
+      return;
+    }
+
+    if (action.kind === 'run_action' && form) {
+      const formValues = formRef.current?.submit();
+      if (formValues === null) {
+        return;
+      }
+      onFollowupAction?.(action, formValues ?? {});
+      return;
+    }
+
+    onFollowupAction?.(action);
+  };
 
   return (
     <View style={styles.card}>
@@ -65,6 +95,15 @@ export function ActionDisplayCard({
         )}
       </ScrollView>
 
+      {form ? (
+        <ApplicationActionForm
+          ref={formRef}
+          form={form}
+          fieldRenderers={fieldRenderers}
+          style={styles.formContainer}
+        />
+      ) : null}
+
       {actions.length > 0 ? (
         <View style={styles.actionsRow}>
           {actions.map((action) => {
@@ -73,7 +112,7 @@ export function ActionDisplayCard({
               <Pressable
                 key={action.id}
                 style={[styles.actionButton, loading && styles.actionButtonDisabled]}
-                onPress={() => onFollowupAction?.(action)}
+                onPress={() => handleActionPress(action)}
                 disabled={loading}
               >
                 {loading ? (
@@ -160,6 +199,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>, compact: boolean) =>
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 10,
+    },
+    formContainer: {
+      marginTop: 8,
     },
     actionButton: {
       minWidth: 120,

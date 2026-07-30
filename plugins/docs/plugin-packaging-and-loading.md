@@ -191,4 +191,4 @@ Applications support multiple ways to reference plugins:
 See application examples:
 
 - `application/python/agent_terminal_app/config_echo_app.json`
-- `application/python/agent_terminal_app/config_openrouter_app_layer.json`
+- `application/python/agent_terminal_app/default_config/config.json`

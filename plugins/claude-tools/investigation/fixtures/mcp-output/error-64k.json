@@ -1,0 +1,166 @@
+{
+  "assistant_tool_uses": [
+    {
+      "id": "<TOOL_CALL_ID>",
+      "input": {
+        "line_length": 80,
+        "size_chars": 65536
+      },
+      "name": "mcp__dummy_output__large_error_output",
+      "type": "tool_use"
+    }
+  ],
+  "case": "error-64k",
+  "debug_mcp_lines": [
+    "2026-06-20T17:41:27.014Z [DEBUG] [STARTUP] Loading MCP configs...",
+    "2026-06-20T17:41:27.037Z [DEBUG] [STARTUP] MCP configs resolved in 1ms (awaited at +23ms)",
+    "2026-06-20T17:41:27.040Z [DEBUG] [MCP] --mcp-config servers running fully async (nonblocking)",
+    "2026-06-20T17:41:27.040Z [DEBUG] [MCP] claude.ai connectors running fully async (nonblocking)",
+    "2026-06-20T17:41:27.042Z [DEBUG] MCP server \"dummy_output\": Starting connection with timeout of 30000ms",
+    "2026-06-20T17:41:27.420Z [DEBUG] MCP server \"dummy_output\": Successfully connected (transport: stdio) in 380ms",
+    "2026-06-20T17:41:27.420Z [DEBUG] MCP server \"dummy_output\": Connection established with capabilities: {\"hasTools\":true,\"hasPrompts\":true,\"hasResources\":true,\"hasResourceSubscribe\":false,\"serverVersion\":{\"name\":\"dummy-mcp-output-server\",\"version\":\"1.27.1\"}}",
+    "2026-06-20T17:41:27.420Z [DEBUG] [MCP] Server \"dummy_output\" connected with subscribe=false",
+    "2026-06-20T17:41:27.420Z [WARN] [3P telemetry] Event dropped (no event logger initialized): mcp_server_connection",
+    "2026-06-20T17:41:28.663Z [INFO] [Stall] tool_dispatch_start tool=mcp__dummy_output__large_error_output toolUseId=<TOOL_CALL_ID> permissionDecisionMs=1",
+    "2026-06-20T17:41:28.664Z [DEBUG] MCP server \"dummy_output\": Calling MCP tool: large_error_output",
+    "2026-06-20T17:41:28.671Z [ERROR] \"MCP server \\\"dummy_output\\\" Error executing tool large_error_output: DUMMY_ERROR_START\\nBEGIN_SENTINEL size_chars=65536\\nhead-000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\nhead-000001 b... [65899 chars omitted] ...llllllllllllllllllllllllllllllllllllllllllllllllll\\ntail-000402 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\\ntail-000403 nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\\n\\nEND_SENTINEL size_chars=65536\\n\"",
+    "2026-06-20T17:41:28.674Z [DEBUG] \"MCP server \\\"dummy_output\\\": Tool 'large_error_output' failed after 0s: Error executing tool large_error_output: DUMMY_ERROR_START\\nBEGIN_SENTINEL size_chars=65536\\nhead-000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa... [65943 chars omitted] ...llllllllllllllllllllllllllllllllllllllllllllllllll\\ntail-000402 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\\ntail-000403 nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\\n\\nEND_SENTINEL size_chars=65536\\n\"",
+    "2026-06-20T17:41:28.678Z [WARN] [Stall] tool_dispatch_end tool=mcp__dummy_output__large_error_output toolUseId=<TOOL_CALL_ID> outcome=error durationMs=15",
+    "2026-06-20T17:41:28.678Z [DEBUG] \"mcp__dummy_output__large_error_output tool error (15ms): Error executing tool large_error_output: DUMMY_ERROR_START\\nBEGIN_SENTINEL size_chars=65536\\nhead-000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\nhead-000001 bbbbbbbbbbbbbbbb\"",
+    "2026-06-20T17:41:29.597Z [DEBUG] MCP server \"dummy_output\": Sending SIGINT to MCP server process",
+    "2026-06-20T17:41:29.698Z [DEBUG] MCP server \"dummy_output\": SIGINT failed, sending SIGTERM to MCP server process",
+    "2026-06-20T17:41:29.700Z [DEBUG] MCP server \"dummy_output\": STDIO connection closed after 2s (cleanly)",
+    "2026-06-20T17:41:29.701Z [DEBUG] MCP server \"dummy_output\": Cleared connection cache for reconnection",
+    "2026-06-20T17:41:29.752Z [DEBUG] MCP server \"dummy_output\": MCP server process exited cleanly"
+  ],
+  "mcp_tools": [
+    {
+      "description": "Raise a deterministic large error payload.",
+      "input_schema": {
+        "properties": {
+          "line_length": {
+            "default": 80,
+            "title": "Line Length",
+            "type": "integer"
+          },
+          "size_chars": {
+            "default": 65536,
+            "title": "Size Chars",
+            "type": "integer"
+          }
+        },
+        "title": "large_error_outputArguments",
+        "type": "object"
+      },
+      "name": "mcp__dummy_output__large_error_output"
+    },
+    {
+      "description": "Return deterministic large text with begin/middle/end sentinels.",
+      "input_schema": {
+        "properties": {
+          "line_length": {
+            "default": 80,
+            "title": "Line Length",
+            "type": "integer"
+          },
+          "size_chars": {
+            "default": 65536,
+            "title": "Size Chars",
+            "type": "integer"
+          }
+        },
+        "title": "large_text_outputArguments",
+        "type": "object"
+      },
+      "name": "mcp__dummy_output__large_text_output"
+    },
+    {
+      "description": "Return deterministic text representing multiple logical blocks.",
+      "input_schema": {
+        "properties": {
+          "block_count": {
+            "default": 4,
+            "title": "Block Count",
+            "type": "integer"
+          },
+          "block_size": {
+            "default": 4096,
+            "title": "Block Size",
+            "type": "integer"
+          }
+        },
+        "title": "multi_block_outputArguments",
+        "type": "object"
+      },
+      "name": "mcp__dummy_output__multi_block_output"
+    }
+  ],
+  "request_count": 3,
+  "request_urls": [
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true"
+  ],
+  "requested_arguments": {
+    "line_length": 80,
+    "size_chars": 65536
+  },
+  "requested_tool": "large_error_output",
+  "stderr_excerpt": "",
+  "stdout_summary": {
+    "event_types": [
+      "system",
+      "assistant",
+      "user",
+      "assistant",
+      "result"
+    ],
+    "final_result": "OK",
+    "tool_results": [
+      {
+        "content_chars": 10040,
+        "has_begin_sentinel": true,
+        "has_end_sentinel": true,
+        "has_middle_sentinel": false,
+        "has_truncated_marker": true,
+        "is_error": true,
+        "prefix": "Error executing tool large_error_output: DUMMY_ERROR_START\nBEGIN_SENTINEL size_chars=65536\nhead-000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhead-000001 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nhead-000002 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\nhead-000003 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nhead-000004 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\nhead",
+        "suffix": "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii\ntail-000399 jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj\ntail-000400 kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\ntail-000401 llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll\ntail-000402 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\ntail-000403 nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\n\nEND_SENTINEL size_chars=65536"
+      }
+    ],
+    "tool_uses": [
+      {
+        "id": "<TOOL_CALL_ID>",
+        "input": {
+          "line_length": 80,
+          "size_chars": 65536
+        },
+        "name": "mcp__dummy_output__large_error_output",
+        "type": "tool_use"
+      }
+    ]
+  },
+  "tool_result_summaries": [
+    {
+      "content_chars": 10040,
+      "has_begin_sentinel": true,
+      "has_end_sentinel": true,
+      "has_middle_sentinel": false,
+      "has_truncated_marker": true,
+      "is_error": true,
+      "prefix": "Error executing tool large_error_output: DUMMY_ERROR_START\nBEGIN_SENTINEL size_chars=65536\nhead-000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhead-000001 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nhead-000002 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\nhead-000003 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nhead-000004 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\nhead",
+      "suffix": "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii\ntail-000399 jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj\ntail-000400 kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\ntail-000401 llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll\ntail-000402 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\ntail-000403 nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\n\nEND_SENTINEL size_chars=65536"
+    }
+  ],
+  "tool_results": [
+    {
+      "cache_control": {
+        "type": "ephemeral"
+      },
+      "content": "Error executing tool large_error_output: DUMMY_ERROR_START\nBEGIN_SENTINEL size_chars=65536\nhead-000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhead-000001 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nhead-000002 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\nhead-000003 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nhead-000004 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\nhead-000005 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\nhead-000006 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg\nhead-000007 hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\nhead-000008 iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii\nhead-000009 jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj\nhead-000010 kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\nhead-000011 llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll\nhead-000012 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\nhead-000013 nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\nhead-000014 oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo\nhead-000015 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp\nhead-000016 qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq\nhead-000017 rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr\nhead-000018 ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\nhead-000019 tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\nhead-000020 uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\nhead-000021 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\nhead-000022 wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\nhead-000023 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nhead-000024 yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\nhead-000025 zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nhead-000026 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhead-000027 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nhead-000028 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\nhead-000029 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nhead-000030 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\nhead-000031 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\nhead-000032 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg\nhead-000033 hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\nhead-000034 iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii\nhead-000035 jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj\nhead-000036 kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\nhead-000037 llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll\nhead-000038 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\nhead-000039 nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\nhead-000040 oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo\nhead-000041 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp\nhead-000042 qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq\nhead-000043 rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr\nhead-000044 ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\nhead-000045 tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\nhead-000046 uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\nhead-000047 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\nhead-000048 wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\nhead-000049 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\nhead-000050 yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\nhead-000051 zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\nhead-000052 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhead-000053 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nhead-000054 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\nhead-000055 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\nhead-000056 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\nhead-000057 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\nhead-000058 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg\nhead-000059 hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\nhead-000060 iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii\n\n... [55522 characters truncated] ...\n\neeeeeeeeeeeeeeeeeeeeeeeeeeee\ntail-000343 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\ntail-000344 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg\ntail-000345 hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\ntail-000346 iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii\ntail-000347 jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj\ntail-000348 kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\ntail-000349 llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll\ntail-000350 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\ntail-000351 nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\ntail-000352 oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo\ntail-000353 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp\ntail-000354 qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq\ntail-000355 rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr\ntail-000356 ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\ntail-000357 tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\ntail-000358 uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\ntail-000359 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\ntail-000360 wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\ntail-000361 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\ntail-000362 yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ntail-000363 zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\ntail-000364 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ntail-000365 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\ntail-000366 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\ntail-000367 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\ntail-000368 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\ntail-000369 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\ntail-000370 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg\ntail-000371 hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\ntail-000372 iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii\ntail-000373 jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj\ntail-000374 kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\ntail-000375 llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll\ntail-000376 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\ntail-000377 nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\ntail-000378 oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo\ntail-000379 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp\ntail-000380 qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq\ntail-000381 rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr\ntail-000382 ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\ntail-000383 tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\ntail-000384 uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\ntail-000385 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\ntail-000386 wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\ntail-000387 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\ntail-000388 yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\ntail-000389 zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz\ntail-000390 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\ntail-000391 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\ntail-000392 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\ntail-000393 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\ntail-000394 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\ntail-000395 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\ntail-000396 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg\ntail-000397 hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\ntail-000398 iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii\ntail-000399 jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj\ntail-000400 kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\ntail-000401 llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll\ntail-000402 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\ntail-000403 nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\n\nEND_SENTINEL size_chars=65536",
+      "is_error": true,
+      "tool_use_id": "<TOOL_CALL_ID>",
+      "type": "tool_result"
+    }
+  ]
+}

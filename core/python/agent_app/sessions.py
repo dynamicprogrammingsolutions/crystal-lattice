@@ -12,6 +12,15 @@ from agent_core import AgentCore, Session
 class SessionStore(Protocol):
     """Abstract session persistence interface for the application layer."""
 
+    def list_records(self) -> List["SessionStoreRecord"]:  # pragma: no cover - interface
+        ...
+
+    def get_record(
+        self,
+        session_id: str,
+    ) -> Optional["SessionStoreRecord"]:  # pragma: no cover - interface
+        ...
+
     def load(
         self,
         session_id: str,
@@ -25,6 +34,21 @@ class SessionStore(Protocol):
 
     def delete(self, session_id: str) -> None:  # pragma: no cover - interface
         ...
+
+
+@dataclass(frozen=True)
+class SessionStoreRecord:
+    """Implementation-neutral information about one live stored session.
+
+    ``revision`` is opaque to application consumers. It is compared only for
+    equality so a store can choose the change token appropriate to its backing
+    implementation without exposing paths, etags, database versions, or other
+    storage details.
+    """
+
+    session_id: str
+    modified: float
+    revision: object
 
 
 @dataclass(frozen=True, eq=False)
@@ -170,6 +194,42 @@ class FilesystemSessionStore(SessionStore):
     @property
     def snapshot_root(self) -> Path:
         return self._snapshot_root
+
+    @staticmethod
+    def _store_record_for_path(path: Path, session_id: str) -> SessionStoreRecord:
+        stat = path.stat()
+        revision = (
+            getattr(stat, "st_mtime_ns", None),
+            getattr(stat, "st_ctime_ns", None),
+            getattr(stat, "st_size", None),
+            getattr(stat, "st_ino", None),
+        )
+        return SessionStoreRecord(
+            session_id=session_id,
+            modified=float(stat.st_mtime),
+            revision=revision,
+        )
+
+    def list_records(self) -> List[SessionStoreRecord]:
+        records: List[SessionStoreRecord] = []
+        for path in self._root_dir.glob("*.json"):
+            try:
+                if not path.is_file():
+                    continue
+                records.append(self._store_record_for_path(path, path.stem))
+            except OSError:
+                continue
+        records.sort(key=lambda record: record.session_id)
+        return records
+
+    def get_record(self, session_id: str) -> Optional[SessionStoreRecord]:
+        path = self._path_for(session_id)
+        try:
+            if not path.is_file():
+                return None
+            return self._store_record_for_path(path, session_id)
+        except OSError:
+            return None
 
     def load(
         self,

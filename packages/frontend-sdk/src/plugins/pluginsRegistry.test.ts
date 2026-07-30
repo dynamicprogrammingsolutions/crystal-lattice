@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PluginsRegistry } from './pluginsRegistry';
 import type { AgentBackend } from '../backend/backend';
+import { emitServerSettingsInvalidated } from '../serverSettings/serverSettingsInvalidation';
 
 function createBackend(): AgentBackend {
   return {
@@ -28,6 +29,17 @@ function createBackend(): AgentBackend {
   } as unknown as AgentBackend;
 }
 
+function sessionListAction(id: string, label = 'List') {
+  return {
+    id,
+    ui_type: 'session_list_action',
+    plugin: 'fixture',
+    label,
+    action_id: `${id}-action`,
+    dialog: { kind: 'none' },
+  };
+}
+
 describe('PluginsRegistry', () => {
   it('does not poison the cache after a failed load and retries on the next load', async () => {
     const backend = createBackend();
@@ -35,7 +47,7 @@ describe('PluginsRegistry', () => {
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValueOnce([{ id: 'action-1', label: 'Action 1' }]);
     (backend.listApplicationUiSchema as any)
-      .mockResolvedValueOnce([{ id: 'session-list-action', ui_type: 'session_list_action', label: 'List' }]);
+      .mockResolvedValueOnce([sessionListAction('session-list-action')]);
 
     const first = new PluginsRegistry({ backend, cacheKey: 'plugins-registry-retry' });
     await first.load();
@@ -43,7 +55,7 @@ describe('PluginsRegistry', () => {
     expect(first.getSnapshot().sessionListActions).toEqual([]);
 
     (backend.listApplicationUiSchema as any).mockResolvedValueOnce([
-      { id: 'session-list-action', ui_type: 'session_list_action', label: 'List' },
+      sessionListAction('session-list-action'),
     ]);
     const second = new PluginsRegistry({ backend, cacheKey: 'plugins-registry-retry' });
     await second.load();
@@ -61,8 +73,8 @@ describe('PluginsRegistry', () => {
       .mockResolvedValueOnce([{ id: 'action-1', label: 'Action 1' }])
       .mockRejectedValueOnce(new Error('refresh failed'));
     (backend.listApplicationUiSchema as any)
-      .mockResolvedValueOnce([{ id: 'session-list-action', ui_type: 'session_list_action', label: 'List' }])
-      .mockResolvedValueOnce([{ id: 'session-list-action', ui_type: 'session_list_action', label: 'List' }]);
+      .mockResolvedValueOnce([sessionListAction('session-list-action')])
+      .mockResolvedValueOnce([sessionListAction('session-list-action')]);
 
     const registry = new PluginsRegistry({ backend, cacheKey: 'plugins-registry-refresh' });
     await registry.load();
@@ -82,8 +94,8 @@ describe('PluginsRegistry', () => {
       .mockResolvedValueOnce([{ id: 'action-1', label: 'Action 1' }])
       .mockResolvedValueOnce([{ id: 'action-2', label: 'Action 2' }]);
     (backend.listApplicationUiSchema as any)
-      .mockResolvedValueOnce([{ id: 'session-list-action-1', ui_type: 'session_list_action', label: 'List 1' }])
-      .mockResolvedValueOnce([{ id: 'session-list-action-2', ui_type: 'session_list_action', label: 'List 2' }]);
+      .mockResolvedValueOnce([sessionListAction('session-list-action-1', 'List 1')])
+      .mockResolvedValueOnce([sessionListAction('session-list-action-2', 'List 2')]);
 
     const first = new PluginsRegistry({ backend, cacheKey: 'plugins-registry-invalidate' });
     await first.load();
@@ -98,5 +110,146 @@ describe('PluginsRegistry', () => {
     expect(backend.listApplicationActions).toHaveBeenCalledTimes(2);
     expect(second.getSnapshot().actionsById['action-2']).toMatchObject({ id: 'action-2' });
     expect(second.getSnapshot().sessionListActions[0]).toMatchObject({ id: 'session-list-action-2' });
+  });
+
+  it('keeps an ordinary list action when rich_ui is malformed', async () => {
+    const backend = createBackend();
+    (backend.listApplicationActions as any).mockResolvedValueOnce([]);
+    (backend.listApplicationUiSchema as any).mockResolvedValueOnce([
+      {
+        ...sessionListAction('ordinary-fallback'),
+        dialog: { kind: 'confirm', message: 'Continue?' },
+        rich_ui: { value_path: 'metadata.value' },
+      },
+    ]);
+
+    const registry = new PluginsRegistry({
+      backend,
+      cacheKey: 'plugins-registry-rich-fallback',
+    });
+    await registry.load();
+
+    expect(registry.getSnapshot().sessionListActions).toHaveLength(1);
+    expect(registry.getSnapshot().sessionListActions[0].dialog.kind).toBe('confirm');
+    expect(registry.getSnapshot().sessionListActions[0].rich_ui).toBeUndefined();
+    expect(
+      registry.getSnapshot().sessionListDiagnostics.map((diagnostic) => diagnostic.code),
+    ).toContain('invalid_session_list_rich_ui');
+  });
+
+  it('keeps one session-list action collection ordered by declaration order', async () => {
+    const backend = createBackend();
+    (backend.listApplicationActions as any).mockResolvedValueOnce([]);
+    (backend.listApplicationUiSchema as any).mockResolvedValueOnce([
+      { ...sessionListAction('late'), order: 30 },
+      { ...sessionListAction('first'), order: 10 },
+      { ...sessionListAction('middle'), order: 20 },
+    ]);
+
+    const registry = new PluginsRegistry({
+      backend,
+      cacheKey: 'plugins-registry-session-list-action-order',
+    });
+    await registry.load();
+
+    expect(
+      registry.getSnapshot().sessionListActions.map((action) => action.id),
+    ).toEqual(['first', 'middle', 'late']);
+    expect('sessionListPinnedToggles' in registry.getSnapshot()).toBe(false);
+  });
+
+  it('publishes normalized filters and an explicit main-search conflict', async () => {
+    const backend = createBackend();
+    (backend.listApplicationActions as any).mockResolvedValueOnce([]);
+    (backend.listApplicationUiSchema as any).mockResolvedValueOnce([
+      {
+        ui_type: 'session_list_filter',
+        plugin: 'first',
+        id: 'first-search',
+        label: 'First',
+        data: 'session_id',
+        type: 'text',
+        match: 'contains',
+        main_search: true,
+      },
+      {
+        ui_type: 'session_list_filter',
+        plugin: 'filters',
+        id: 'archived',
+        label: 'Archived',
+        data: 'metadata.archived',
+        type: 'boolean',
+        match: 'equals',
+        default: false,
+      },
+      {
+        ui_type: 'session_list_filter',
+        plugin: 'second',
+        id: 'second-search',
+        label: 'Second',
+        data: 'preview',
+        type: 'text',
+        match: 'contains',
+        main_search: true,
+      },
+    ]);
+
+    const registry = new PluginsRegistry({
+      backend,
+      cacheKey: 'plugins-registry-filter-conflict',
+    });
+    await registry.load();
+
+    const snapshot = registry.getSnapshot();
+    expect(snapshot.sessionListFilterSchema.mainSearch).toBeNull();
+    expect(snapshot.sessionListFilterSchema.mainSearchConflict).toBe(true);
+    expect(snapshot.sessionListFilterSchema.filters.map((filter) => filter.id)).toEqual([
+      'archived',
+    ]);
+    expect(snapshot.sessionListDiagnostics.map((item) => item.code)).toContain(
+      'ambiguous_session_list_main_search',
+    );
+  });
+
+  it('refreshes application session-list declarations after server settings change', async () => {
+    const backend = createBackend();
+    (backend.listApplicationActions as any).mockResolvedValue([]);
+    (backend.listApplicationUiSchema as any)
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          ui_type: 'session_list_field',
+          plugin: 'session_status',
+          id: 'session_status_meta',
+          role: 'meta',
+          data: 'session_status_label',
+          order: 100,
+        },
+      ]);
+
+    const registry = new PluginsRegistry({
+      backend,
+      cacheKey: 'plugins-registry-server-settings',
+    });
+    await registry.load();
+    expect(registry.getSnapshot().sessionListFields).toEqual([]);
+
+    emitServerSettingsInvalidated(backend, {
+      reason: 'server_settings_updated',
+    });
+
+    await vi.waitFor(() => {
+      expect(registry.getSnapshot().sessionListFields).toEqual([
+        expect.objectContaining({ id: 'session_status_meta', order: 100 }),
+      ]);
+    });
+    expect(backend.listApplicationUiSchema).toHaveBeenCalledTimes(2);
+
+    registry.close();
+    emitServerSettingsInvalidated(backend, {
+      reason: 'server_settings_updated',
+    });
+    await Promise.resolve();
+    expect(backend.listApplicationUiSchema).toHaveBeenCalledTimes(2);
   });
 });

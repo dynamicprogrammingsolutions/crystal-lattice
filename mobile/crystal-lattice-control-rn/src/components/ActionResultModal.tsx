@@ -10,6 +10,7 @@ import type {
   ActionDisplayFollowupAction,
   ActionDisplayPayload,
 } from '@crystal-lattice/frontend-sdk';
+import type { ApplicationActionDialogFieldRenderers } from '@crystal-lattice/frontend-rn-components';
 
 import { useTheme, type Theme } from '../theme';
 import ActionDisplayCard from './ActionDisplayCard';
@@ -18,8 +19,12 @@ export interface ActionResultModalProps {
   visible: boolean;
   display: ActionDisplayPayload | null;
   onRequestClose: () => void;
-  onFollowupAction?: (action: ActionDisplayFollowupAction) => void;
+  onFollowupAction?: (
+    action: ActionDisplayFollowupAction,
+    formValues?: Record<string, any>,
+  ) => void;
   activeActionId?: string | null;
+  fieldRenderers?: ApplicationActionDialogFieldRenderers;
 }
 
 const VARIANT_LABELS: Record<NonNullable<ActionDisplayPayload['variant']>, string> = {
@@ -35,6 +40,7 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
   onRequestClose,
   onFollowupAction,
   activeActionId,
+  fieldRenderers,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -61,6 +67,7 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
                   activeActionId={activeActionId}
                   variantLabel={VARIANT_LABELS[variant]}
                   footerDismissLabel={null}
+                  fieldRenderers={fieldRenderers}
                 />
               ) : null}
             </View>

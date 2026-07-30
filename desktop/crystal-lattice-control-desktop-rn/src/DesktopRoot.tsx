@@ -18,6 +18,7 @@ import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWind
 import { clearActiveSessionSettingsWindow } from './windows/sessionSettingsCoordinator';
 import { cancelAttachmentMetadataWindowFromSystem } from './windows/attachmentMetadataCoordinator';
 import { clearActiveSessionPluginsWindow } from './windows/sessionPluginsCoordinator';
+import { clearActiveSessionSnapshotsWindow } from './windows/sessionSnapshotsCoordinator';
 import { useMessagesCache } from './cache/useMessagesCache';
 import { useSessionsCache } from './cache/useSessionsCache';
 import { desktopEventBus } from './events/desktopEventBus';
@@ -580,6 +581,16 @@ export function DesktopRoot({
       },
     );
 
+    const clearStoredSessionCachesSub = desktopWindowEvents.addListener(
+      'clearStoredSessionCachesRequested',
+      () => {
+        clearSessionsCache();
+        clearMessagesCache();
+        setTabs([]);
+        setActiveTabId(null);
+      },
+    );
+
     const agentPickerSub = desktopWindowEvents.addListener(
       'agentPickerSelected',
       (payload: any) => {
@@ -653,6 +664,9 @@ export function DesktopRoot({
         if (windowKey === 'sessionPlugins') {
           clearActiveSessionPluginsWindow();
         }
+        if (windowKey === 'sessionSnapshots') {
+          clearActiveSessionSnapshotsWindow();
+        }
         if (windowKey === 'attachmentMetadata') {
           cancelAttachmentMetadataWindowFromSystem();
         }
@@ -663,10 +677,19 @@ export function DesktopRoot({
       savedSub.remove();
       styleSub.remove();
       followSub.remove();
+      clearStoredSessionCachesSub.remove();
       agentPickerSub.remove();
       sessionSettingsCancelledSub.remove();
     };
-  }, [getBackend, openConnectionAndTouch, openTab, updateSessionsCache, upsertConnection]);
+  }, [
+    clearMessagesCache,
+    clearSessionsCache,
+    getBackend,
+    openConnectionAndTouch,
+    openTab,
+    updateSessionsCache,
+    upsertConnection,
+  ]);
 
   const connectionNameById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -812,6 +835,7 @@ export function DesktopRoot({
 	                  getBackend={getBackend}
 	                  sessionsCache={sessionsCache}
 	                  messagesCache={messagesCache}
+                    messagesCacheHydrated={messagesCacheHydrated}
 	                  onUpdateCache={updateMessagesCache}
 	                  onOpenSessionTab={openTab}
 	                />

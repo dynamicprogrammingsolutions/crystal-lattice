@@ -1,0 +1,165 @@
+{
+  "assistant_tool_uses": [
+    {
+      "id": "<TOOL_CALL_ID>",
+      "input": {
+        "line_length": 80,
+        "size_chars": 262144
+      },
+      "name": "mcp__dummy_output__large_text_output",
+      "type": "tool_use"
+    }
+  ],
+  "case": "success-256k",
+  "debug_mcp_lines": [
+    "2026-06-20T17:41:22.855Z [DEBUG] [STARTUP] Loading MCP configs...",
+    "2026-06-20T17:41:22.875Z [DEBUG] [STARTUP] MCP configs resolved in 1ms (awaited at +20ms)",
+    "2026-06-20T17:41:22.878Z [DEBUG] [MCP] --mcp-config servers running fully async (nonblocking)",
+    "2026-06-20T17:41:22.878Z [DEBUG] [MCP] claude.ai connectors running fully async (nonblocking)",
+    "2026-06-20T17:41:22.880Z [DEBUG] MCP server \"dummy_output\": Starting connection with timeout of 30000ms",
+    "2026-06-20T17:41:23.225Z [DEBUG] MCP server \"dummy_output\": Successfully connected (transport: stdio) in 347ms",
+    "2026-06-20T17:41:23.225Z [DEBUG] MCP server \"dummy_output\": Connection established with capabilities: {\"hasTools\":true,\"hasPrompts\":true,\"hasResources\":true,\"hasResourceSubscribe\":false,\"serverVersion\":{\"name\":\"dummy-mcp-output-server\",\"version\":\"1.27.1\"}}",
+    "2026-06-20T17:41:23.225Z [DEBUG] [MCP] Server \"dummy_output\" connected with subscribe=false",
+    "2026-06-20T17:41:23.225Z [WARN] [3P telemetry] Event dropped (no event logger initialized): mcp_server_connection",
+    "2026-06-20T17:41:24.332Z [INFO] [Stall] tool_dispatch_start tool=mcp__dummy_output__large_text_output toolUseId=<TOOL_CALL_ID> permissionDecisionMs=0",
+    "2026-06-20T17:41:24.333Z [DEBUG] MCP server \"dummy_output\": Calling MCP tool: large_text_output",
+    "2026-06-20T17:41:24.348Z [DEBUG] MCP server \"dummy_output\": Tool 'large_text_output' completed successfully in 15ms",
+    "2026-06-20T17:41:24.363Z [INFO] [Stall] tool_dispatch_end tool=mcp__dummy_output__large_text_output toolUseId=<TOOL_CALL_ID> outcome=ok durationMs=32",
+    "2026-06-20T17:41:24.366Z [DEBUG] Persisted tool result to /Users/ferenci84/.claude/projects/-Users-ferenci84-Dev-Mine-ai-agent-platform-plugins-claude-tools-investigation-raw-mcp-output-20260620-194122-success-256k-workspace/<UUID>/tool-results/<TOOL_CALL_ID>.txt (259.2KB)",
+    "2026-06-20T17:41:25.054Z [DEBUG] MCP server \"dummy_output\": Sending SIGINT to MCP server process",
+    "2026-06-20T17:41:25.160Z [DEBUG] MCP server \"dummy_output\": SIGINT failed, sending SIGTERM to MCP server process",
+    "2026-06-20T17:41:25.169Z [DEBUG] MCP server \"dummy_output\": STDIO connection closed after 1s (cleanly)",
+    "2026-06-20T17:41:25.170Z [DEBUG] MCP server \"dummy_output\": Cleared connection cache for reconnection",
+    "2026-06-20T17:41:25.212Z [DEBUG] MCP server \"dummy_output\": MCP server process exited cleanly"
+  ],
+  "mcp_tools": [
+    {
+      "description": "Raise a deterministic large error payload.",
+      "input_schema": {
+        "properties": {
+          "line_length": {
+            "default": 80,
+            "title": "Line Length",
+            "type": "integer"
+          },
+          "size_chars": {
+            "default": 65536,
+            "title": "Size Chars",
+            "type": "integer"
+          }
+        },
+        "title": "large_error_outputArguments",
+        "type": "object"
+      },
+      "name": "mcp__dummy_output__large_error_output"
+    },
+    {
+      "description": "Return deterministic large text with begin/middle/end sentinels.",
+      "input_schema": {
+        "properties": {
+          "line_length": {
+            "default": 80,
+            "title": "Line Length",
+            "type": "integer"
+          },
+          "size_chars": {
+            "default": 65536,
+            "title": "Size Chars",
+            "type": "integer"
+          }
+        },
+        "title": "large_text_outputArguments",
+        "type": "object"
+      },
+      "name": "mcp__dummy_output__large_text_output"
+    },
+    {
+      "description": "Return deterministic text representing multiple logical blocks.",
+      "input_schema": {
+        "properties": {
+          "block_count": {
+            "default": 4,
+            "title": "Block Count",
+            "type": "integer"
+          },
+          "block_size": {
+            "default": 4096,
+            "title": "Block Size",
+            "type": "integer"
+          }
+        },
+        "title": "multi_block_outputArguments",
+        "type": "object"
+      },
+      "name": "mcp__dummy_output__multi_block_output"
+    }
+  ],
+  "request_count": 4,
+  "request_urls": [
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages?beta=true",
+    "/api/v1/messages/count_tokens?beta=true",
+    "/api/v1/messages?beta=true"
+  ],
+  "requested_arguments": {
+    "line_length": 80,
+    "size_chars": 262144
+  },
+  "requested_tool": "large_text_output",
+  "stderr_excerpt": "",
+  "stdout_summary": {
+    "event_types": [
+      "system",
+      "assistant",
+      "user",
+      "assistant",
+      "result"
+    ],
+    "final_result": "OK",
+    "tool_results": [
+      {
+        "content_chars": 2321,
+        "has_begin_sentinel": true,
+        "has_end_sentinel": false,
+        "has_middle_sentinel": false,
+        "has_truncated_marker": false,
+        "is_error": false,
+        "prefix": "<persisted-output>\nOutput too large (259.2KB). Full output saved to: /Users/ferenci84/.claude/projects/-Users-ferenci84-Dev-Mine-ai-agent-platform-plugins-claude-tools-investigation-raw-mcp-output-20260620-194122-success-256k-workspace/<UUID>/tool-results/<TOOL_CALL_ID>.txt\n\nPreview (first 2KB):\n{\"result\":\"BEGIN_SENTINEL size_chars=262144\\nhead-000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\nhead-000001 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "suffix": "d-000018 ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\\nhead-000019 tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\\nhead-000020 uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\\nhead-000021 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\\nhead-000022 wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\\nhead-000023 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n...\n</persisted-output>"
+      }
+    ],
+    "tool_uses": [
+      {
+        "id": "<TOOL_CALL_ID>",
+        "input": {
+          "line_length": 80,
+          "size_chars": 262144
+        },
+        "name": "mcp__dummy_output__large_text_output",
+        "type": "tool_use"
+      }
+    ]
+  },
+  "tool_result_summaries": [
+    {
+      "content_chars": 2321,
+      "has_begin_sentinel": true,
+      "has_end_sentinel": false,
+      "has_middle_sentinel": false,
+      "has_truncated_marker": false,
+      "is_error": false,
+      "prefix": "<persisted-output>\nOutput too large (259.2KB). Full output saved to: /Users/ferenci84/.claude/projects/-Users-ferenci84-Dev-Mine-ai-agent-platform-plugins-claude-tools-investigation-raw-mcp-output-20260620-194122-success-256k-workspace/<UUID>/tool-results/<TOOL_CALL_ID>.txt\n\nPreview (first 2KB):\n{\"result\":\"BEGIN_SENTINEL size_chars=262144\\nhead-000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\nhead-000001 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "suffix": "d-000018 ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\\nhead-000019 tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\\nhead-000020 uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\\nhead-000021 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\\nhead-000022 wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\\nhead-000023 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n...\n</persisted-output>"
+    }
+  ],
+  "tool_results": [
+    {
+      "cache_control": {
+        "type": "ephemeral"
+      },
+      "content": "<persisted-output>\nOutput too large (259.2KB). Full output saved to: /Users/ferenci84/.claude/projects/-Users-ferenci84-Dev-Mine-ai-agent-platform-plugins-claude-tools-investigation-raw-mcp-output-20260620-194122-success-256k-workspace/<UUID>/tool-results/<TOOL_CALL_ID>.txt\n\nPreview (first 2KB):\n{\"result\":\"BEGIN_SENTINEL size_chars=262144\\nhead-000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\nhead-000001 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\\nhead-000002 cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc\\nhead-000003 dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd\\nhead-000004 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee\\nhead-000005 ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff\\nhead-000006 gggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggggg\\nhead-000007 hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh\\nhead-000008 iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii\\nhead-000009 jjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjjj\\nhead-000010 kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk\\nhead-000011 llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll\\nhead-000012 mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm\\nhead-000013 nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\\nhead-000014 oooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo\\nhead-000015 pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp\\nhead-000016 qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq\\nhead-000017 rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr\\nhead-000018 ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss\\nhead-000019 tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt\\nhead-000020 uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu\\nhead-000021 vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv\\nhead-000022 wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww\\nhead-000023 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n...\n</persisted-output>",
+      "tool_use_id": "<TOOL_CALL_ID>",
+      "type": "tool_result"
+    }
+  ]
+}

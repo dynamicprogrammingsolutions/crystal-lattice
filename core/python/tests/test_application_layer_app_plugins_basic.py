@@ -23,9 +23,7 @@ from .dummy_app_plugin import DummyAppPlugin  # noqa: F401
 
 def _make_config_with_app_plugin(tmp_path: Path) -> Path:
     cfg: Dict[str, Any] = {
-        "providers": {
-            "dummy": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"dummy": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": [
             "tests.dummy_provider.DummyProvider",
             "tests.dummy_app_plugin.DummyAppPlugin",
@@ -91,6 +89,46 @@ def test_get_application_actions_and_ui_schema_attach_plugin_id(tmp_path: Path) 
     assert command["args"][0]["name"] == "value"
 
 
+def test_application_ui_schema_context_includes_authoritative_server_settings(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config_path = _make_config_with_app_plugin(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+    app.patch_server_settings({"footer_visible": False}, source="test")
+
+    wrapper = getattr(app, "_app_plugins")["dummy_app_plugin"]
+    seen_contexts: List[Dict[str, Any]] = []
+
+    def _ui_elements(
+        state: Dict[str, Any],
+        config: Dict[str, Any] | None = None,
+        context: Dict[str, Any] | None = None,
+    ) -> List[Dict[str, Any]]:
+        _ = state, config
+        seen_contexts.append(dict(context or {}))
+        return [
+            {
+                "ui_type": "session_list_field",
+                "id": "server-aware-field",
+                "role": "meta",
+                "data": "metadata.value",
+            }
+        ]
+
+    monkeypatch.setattr(wrapper.plugin, "get_ui_elements", _ui_elements)
+
+    elements = app.get_application_ui_schema(
+        context={"server_settings": {"footer_visible": True}},
+    )
+
+    assert elements[0]["id"] == "server-aware-field"
+    assert seen_contexts[-1]["ui_context"] == "application"
+    assert seen_contexts[-1]["server_settings"] == {"footer_visible": False}
+
+
 def test_get_session_application_ui_schema_delegates_session_context_and_filters_plugin(
     tmp_path: Path,
 ) -> None:
@@ -108,10 +146,13 @@ def test_get_session_application_ui_schema_delegates_session_context_and_filters
     assert len(elements) == 1
     assert elements[0]["plugin"] == "dummy_app_plugin"
     assert elements[0]["id"] == "dummy_ui"
-    assert app.get_session_application_ui_schema(
-        session.session_id,
-        plugin="missing",
-    ) == []
+    assert (
+        app.get_session_application_ui_schema(
+            session.session_id,
+            plugin="missing",
+        )
+        == []
+    )
 
 
 def test_application_plugin_ui_wrapper_passes_context_to_new_signature() -> None:
@@ -311,6 +352,26 @@ def test_agent_application_close_closes_application_plugins(tmp_path: Path) -> N
     assert closed == ["dummy_app_plugin"]
 
 
+def test_agent_application_close_is_idempotent(tmp_path: Path) -> None:
+    config_path = _make_config_with_app_plugin(tmp_path)
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    wrappers = getattr(app, "_app_plugins")
+    wrapper = wrappers["dummy_app_plugin"]
+    closed: List[str] = []
+
+    def close_wrapper() -> None:
+        closed.append(wrapper.plugin_id)
+
+    wrapper.close = close_wrapper  # type: ignore[method-assign]
+
+    app.close()
+    app.close()
+
+    assert closed == ["dummy_app_plugin"]
+
+
 def test_execute_application_action_invokes_plugin(tmp_path: Path) -> None:
     config_path = _make_config_with_app_plugin(tmp_path)
     session_root = tmp_path / "sessions"
@@ -336,7 +397,9 @@ def test_execute_application_action_invokes_plugin(tmp_path: Path) -> None:
     assert last["params"] == {"value": "hello"}
 
 
-def test_execute_application_action_rejects_unknown_plugin_or_action(tmp_path: Path) -> None:
+def test_execute_application_action_rejects_unknown_plugin_or_action(
+    tmp_path: Path,
+) -> None:
     config_path = _make_config_with_app_plugin(tmp_path)
     session_root = tmp_path / "sessions"
 
@@ -361,5 +424,6 @@ def test_execute_application_action_validation_errors(tmp_path: Path) -> None:
 
     # Wrong type for value.
     with pytest.raises(AgentApplication._ApplicationActionValidationError):  # type: ignore[attr-defined]
-        _ = app.execute_application_action("dummy_app_plugin", "do_dummy", {"value": 123})
-
+        _ = app.execute_application_action(
+            "dummy_app_plugin", "do_dummy", {"value": 123}
+        )

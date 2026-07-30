@@ -4,7 +4,7 @@ export type {
   IndexedMessage,
 } from './types/messages';
 
-export type { SessionSummary } from './types/sessions';
+export type { SessionSummary, SessionSummaryPresentation } from './types/sessions';
 
 export type { SessionPluginEntry } from './types/sessionPlugins';
 
@@ -39,8 +39,10 @@ export type {
   ActionDisplayOpenUrlAction,
   ActionDisplayCopyTextAction,
   ActionDisplayRunActionAction,
+  ActionDisplayDismissAction,
   ActionDisplayDownloadAttachmentAssetAction,
   ActionDisplayFollowupAction,
+  ActionDisplayFormPayload,
   ActionDisplayPayload,
   StandardActionResult,
   SessionListFieldElement,
@@ -154,11 +156,94 @@ export {
   deriveSessionListPresentation,
   deriveSessionListPresentationFromGroups,
 } from './sessions/sessionListPresentation';
+export type {
+  ActionDialog,
+  ActionDialogInput,
+  ActionDialogKind,
+  ActionDialogPrefillContext,
+  NormalizationResult,
+  SessionListActionElement,
+  SessionListActionPresentation,
+  SessionListContractDiagnostic,
+  SessionListListRichUi,
+  SessionListOrderSpec,
+  SessionListPathResult,
+  SessionListRichAppearance,
+  SessionListRichUiBase,
+  SessionListRichUi,
+  SessionListRichActionPlacement,
+  SessionListToggleRichUi,
+  SemanticTone,
+  UnknownSessionListRichUi,
+} from './sessions/sessionListContracts';
+export {
+  SESSION_LIST_RICH_ACTION_PLACEMENTS,
+  buildActionDialogInitialValues,
+  formatSessionListFieldValue,
+  normalizeSessionListActionElement,
+  normalizeSessionListFieldElement,
+  normalizeSessionListOrderSpec,
+  resolveActionDialogInitialValue,
+  resolveSessionListActionPresentation,
+  resolveSessionListPath,
+} from './sessions/sessionListContracts';
+export type {
+  SessionListRichActionKind,
+  SessionListRichActionState,
+  SessionListRichListState,
+  SessionListRichToggleState,
+} from './sessions/sessionListRichActions';
+export {
+  DEFAULT_SESSION_LIST_RICH_ACTION_PLACEMENTS,
+  SESSION_LIST_RICH_ACTION_KINDS,
+  buildSessionListRichListDialogValues,
+  getDefaultPinnedSessionListActionKeys,
+  getSessionListRichActionPlacements,
+  isSessionListRichActionPlacedAt,
+  orderPinnedSessionListActionKeys,
+  resolveSessionListRichActionState,
+  resolveSessionListRichValue,
+  selectSessionListRichActionForPlacement,
+} from './sessions/sessionListRichActions';
+export type {
+  SessionListFilterElement,
+  SessionListFilterEvaluation,
+  SessionListFilterMatch,
+  SessionListFilterSchema,
+  SessionListFilterType,
+  SessionListFilterValues,
+  SessionListOption,
+  SessionListOptionTone,
+  SessionListOptionValue,
+} from './sessions/sessionListFilters';
+export {
+  FRONTEND_FALLBACK_SESSION_SEARCH_ID,
+  countActiveSessionListFilters,
+  createSessionListFilterValues,
+  evaluateSessionListFilters,
+  inactiveSessionListFilterValue,
+  isSessionListFilterActive,
+  normalizeSessionListFilterSchema,
+  reconcileSessionListFilterValues,
+  validateSessionListFilterValue,
+  withFrontendFallbackSessionSearch,
+} from './sessions/sessionListFilters';
 
 export type { ChatControllerState, StreamingRow, RequestErrorState } from './chat/chatController';
 export { ChatController } from './chat/chatController';
 
 export { selectLastAssistantMessage, deriveChatStatusBarParts } from './chat/presentation';
+export type {
+  TranscriptRangeControlAction,
+  TranscriptRangeControlInput,
+  TranscriptRangePlan,
+  TranscriptRangeControlButton,
+  TranscriptRangeControlPresentation,
+} from './chat/messageRangeControls';
+export {
+  getTranscriptRangeControlPresentation,
+  planTranscriptRangeControlAction,
+} from './chat/messageRangeControls';
 
 export type { SessionUiSchemaControllerState } from './uiSchema/sessionUiSchemaController';
 export { SessionUiSchemaController } from './uiSchema/sessionUiSchemaController';

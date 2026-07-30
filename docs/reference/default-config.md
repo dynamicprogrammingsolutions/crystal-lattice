@@ -70,6 +70,18 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
       "system_message_enabled": true,
       "codex_developer_messages": [
         {
+          "model_regex": "^(openai/)?gpt-5\\.6-sol$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-sol/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.6-terra$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-terra/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.6-luna$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-luna/instructions_default.md}"
+        },
+        {
           "model_regex": "^(openai/)?gpt-5\\.5$",
           "personality": "default",
           "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.5/instructions_default.md}"
@@ -169,7 +181,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -202,7 +214,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -241,7 +253,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             }
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -291,7 +303,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -327,7 +339,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             ]
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -375,7 +387,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_kimi_project_information_section.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -429,7 +441,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
             ]
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -547,9 +559,12 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "path:${env:BUILTIN_PLUGINS}/session-actions-app",
     "path:${env:BUILTIN_PLUGINS}/summarize-range-app",
     "path:${env:BUILTIN_PLUGINS}/session-title-app",
+    "path:${env:BUILTIN_PLUGINS}/session-main-search-app",
     "path:${env:BUILTIN_PLUGINS}/generate-title-app",
     "path:${env:BUILTIN_PLUGINS}/session-message-count-meta-app",
     "path:${env:BUILTIN_PLUGINS}/session-pinned-app",
+    "path:${env:BUILTIN_PLUGINS}/session-archive-app",
+    "path:${env:BUILTIN_PLUGINS}/session-status-app",
     "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
     "path:${env:BUILTIN_PLUGINS}/rebuild-native-app",
     "path:${env:BUILTIN_PLUGINS}/mcp-runtime-app",
@@ -564,6 +579,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "tool_output_char_limit": 2000,
     "tool_output_short_one_line": true,
     "tool_output_live_compact": false,
+    "session_status_show_in_session_list_footer": true,
     "session_actions": {
       "allow_delete": true
     },
@@ -895,7 +911,8 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
         "gemini_system_message"
       ],
       "provider": "openrouter",
-      "model": "z-ai/glm-5",
+      "model": "z-ai/glm-5.2",
+      "reasoning_effort": "max",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/gemini-tools"
       ],
@@ -918,6 +935,65 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "ollama": {
       "provider": "ollama",
       "model": "qwen3:0.6b"
+    },
+    "glm-ollama": {
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_mcp_defaults"
+      ],
+      "provider": "ollama",
+      "model": "glm-5.2:cloud",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
+      "request_options": {
+        "reasoning_effort": "max"
+      },
+      "request_options_ui": {
+        "reasoning_effort": [
+          "high",
+          "max"
+        ]
+      }
+    },
+    "deepseek-ollama": {
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_mcp_defaults"
+      ],
+      "provider": "ollama",
+      "model": "deepseek-v4-pro:cloud",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
+      "request_options": {
+        "reasoning_effort": "max"
+      },
+      "request_options_ui": {
+        "reasoning_effort": [
+          "high",
+          "max"
+        ]
+      }
+    },
+    "kimi-ollama": {
+      "mixin_refs": [
+        "kimi_system_message"
+      ],
+      "provider": "ollama",
+      "model": "kimi-k2.6:cloud",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/kimi-tools"
+      ],
+      "request_options": {
+        "reasoning_effort": "max"
+      },
+      "request_options_ui": {
+        "reasoning_effort": [
+          "high",
+          "max"
+        ]
+      }
     },
     "fireworks": {
       "provider": "fireworks",

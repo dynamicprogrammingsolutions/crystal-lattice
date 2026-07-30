@@ -104,15 +104,17 @@ class OpenRouterReasoningExtension(ProviderExtensionPlugin):
         reasoning_config = {"reasoning": {}}
 
         selected_model = config.get("model")
-        _options, default = get_reasoning_effort_options_and_default(selected_model)
+        _options, _default = get_reasoning_effort_options_and_default(selected_model)
         has_reasoning_max_tokens = "reasoning_max_tokens" in config
 
         if "enable_reasoning" in config:
             reasoning_config["reasoning"]["enabled"] = config["enable_reasoning"]
-        if not has_reasoning_max_tokens and ("reasoning_effort" in config or default):
-            reasoning_config["reasoning"]["effort"] = config.get(
-                "reasoning_effort", default
-            )
+        # Only inject reasoning_effort when it is explicitly set in config.
+        # The per-model default from get_reasoning_effort_options_and_default is
+        # informational only (shown in the UI) and is NOT injected — the model
+        # uses its own default when reasoning_effort is absent.
+        if not has_reasoning_max_tokens and "reasoning_effort" in config:
+            reasoning_config["reasoning"]["effort"] = config["reasoning_effort"]
         if has_reasoning_max_tokens:
             reasoning_config["reasoning"]["max_tokens"] = config["reasoning_max_tokens"]
 

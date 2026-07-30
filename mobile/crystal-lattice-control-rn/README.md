@@ -1,6 +1,6 @@
-# Bonjour Service Discovery - React Native
+# Crystal Lattice Mobile - React Native
 
-This is a React Native implementation of the Bonjour service discovery example. It provides the same functionality as the native iOS app but works on both iOS and Android.
+This is the React Native mobile client for Crystal Lattice. It connects to the Crystal Lattice terminal/HTTP app directly, through local network discovery, through a bridge service, or through supported cloud connection links.
 
 ## Features
 
@@ -36,6 +36,23 @@ This is a React Native implementation of the Bonjour service discovery example. 
 - Follow the [React Native Environment Setup](https://reactnative.dev/docs/set-up-your-environment) guide (select "React Native CLI" → "Android")
 - This includes: Node.js, JDK, Android Studio, Android SDK, and emulator setup
 - **Physical device strongly recommended** for network testing (emulators are unreliable for mDNS/Bonjour discovery)
+
+### Detox E2E tests
+
+- Install AppleSimUtils for iOS Simulator control:
+  ```bash
+  brew tap wix/brew
+  brew trust wix/brew
+  brew install applesimutils
+  ```
+- Create an iOS Simulator and Android AVD, or use the local defaults:
+  - iOS: `iPhone 17 Pro`
+  - Android: `Medium_Phone_API_36.1`
+- Override those names when needed:
+  ```bash
+  export DETOX_IOS_DEVICE="iPhone 16 Pro"
+  export DETOX_ANDROID_AVD="Pixel_8_API_35"
+  ```
 
 ## Installation
 
@@ -84,13 +101,13 @@ Then click the Run button in Xcode.
 
 2. **Open the workspace in Xcode:**
    ```bash
-   cd react-native-app
+   cd mobile/crystal-lattice-control-rn
    open ios/CrystalLatticeControlRN.xcworkspace
    ```
 
 3. **Configure Code Signing:**
-   - In Xcode, select the **BonjourExampleRN** project in the left sidebar
-   - Select the **BonjourExampleRN** target (under "Targets")
+   - In Xcode, select the **CrystalLatticeControlRN** project in the left sidebar
+   - Select the **CrystalLatticeControlRN** target (under "Targets")
    - Click the **Signing & Capabilities** tab
    - Check **"Automatically manage signing"**
    - Select your **Team** from the dropdown (use your Apple ID)
@@ -133,6 +150,44 @@ npx react-native run-android
 3. Click the Run button
 
 **Note:** Make sure you have an emulator running or a device connected via USB with USB debugging enabled.
+
+## Running Detox tests
+
+The transcript scroll suite launches a deterministic 300-message harness that
+uses the same production inverted FlatList viewport and chevron controls as the
+normal chat screen. The E2E builds bundle JavaScript and do not require Metro.
+
+Build and run on iOS:
+
+```bash
+npm run detox:build:ios
+npm run detox:test:transcript:ios
+```
+
+Build and run on Android:
+
+```bash
+npm run detox:build:android
+npm run detox:test:transcript:android
+```
+
+The deterministic session-list harness exercises application-derived row
+presentation, server ordering, ordinary action fallback, and dialog prefill:
+
+```bash
+npm run detox:test:session-list:ios
+npm run detox:test:session-list:android
+```
+
+The Android test command prepares and stops the selected AVD before Detox starts
+it in read-only mode. This acknowledges Android's one-time immersive-mode
+confirmation so it cannot steal window focus during automation. The build script
+also creates the standard ignored Android debug keystore when it is missing.
+
+Failure artifacts are written below `artifacts/detox/`. Logs and screenshots are
+retained for failures; iOS also retains failure videos. The Android E2E build
+uses the dedicated `e2e` build type so Detox can use localhost WebSocket traffic
+without changing the production release manifest.
 
 ## Usage
 
@@ -213,7 +268,7 @@ npx react-native run-android
 
 ### iOS Permissions
 
-The app is already configured with required iOS permissions in `ios/BonjourExampleRN/Info.plist`:
+The app is already configured with required iOS permissions in `ios/CrystalLatticeControlRN/Info.plist`:
 
 ```xml
 <key>NSBonjourServices</key>
@@ -444,13 +499,13 @@ npx react-native log-android
 ## Project Structure
 
 ```
-react-native-app/
+mobile/crystal-lattice-control-rn/
 ├── App.tsx                 # Main app component with adapters
 ├── src/
 │   └── types/
 │       └── react-native-zeroconf.d.ts  # Type declarations
 ├── ios/
-│   └── BonjourExampleRN/
+│   └── CrystalLatticeControlRN/
 │       └── Info.plist      # iOS permissions
 ├── android/
 │   └── app/src/main/

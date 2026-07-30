@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  server:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - ../../../../:/app
+    command: >
+      bash -c "
+        pip install --quiet fastapi uvicorn zeroconf python-dotenv websockets httpx structlog &&
+        PYTHONPATH=/app/core/python:/app/application/python
+        PYTHONUNBUFFERED=1
+        python -m agent_terminal_app --server --enable-bonjour --host 0.0.0.0 --no-tty
+      "
+    environment:
+      - OPENROUTER_API_KEY=test-key
+      - OPENAI_API_KEY=test-key
+      - GEMINI_API_KEY=test-key
+      - PYTHONUNBUFFERED=1
+    networks:
+      - bonjour-test
+
+  discoverer:
+    image: python:3.11-slim
+    working_dir: /app
+    volumes:
+      - ../../../../:/app
+    command: >
+      bash -c "
+        pip install --quiet zeroconf &&
+        python /app/application/python/tests/fixtures/bonjour-docker/discover.py
+      "
+    networks:
+      - bonjour-test
+    depends_on:
+      - server
+
+networks:
+  bonjour-test:
+    driver: bridge

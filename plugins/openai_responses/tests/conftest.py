@@ -17,6 +17,14 @@ def pytest_configure() -> None:
     if src_str not in sys.path:
         sys.path.insert(0, src_str)
 
+    # Ensure this plugin's benchmark/ directory is importable so tests can
+    # import the refresh scripts (refresh_openai_responses_models,
+    # refresh_openai_responses_pricing) as top-level modules.
+    benchmark = Path(__file__).resolve().parents[1] / "benchmark"
+    benchmark_str = str(benchmark)
+    if benchmark_str not in sys.path:
+        sys.path.insert(0, benchmark_str)
+
     from repo_test_env import load_repo_root_env
 
     load_repo_root_env()

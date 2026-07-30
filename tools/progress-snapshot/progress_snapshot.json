@@ -1,0 +1,55 @@
+{
+  "sheet_id": "1VxFdWZG0byHvokmaaELwBSsGawYIy8116wPi4rf6uYQ",
+  "youtrack_base_url": "https://dynamicprogrammingsolutions.myjetbrains.com/youtrack",
+  "project": "CL",
+  "snapshot": {
+    "period_start": "2026-07-15",
+    "period_end": "2026-07-21",
+    "snapshot_date": "2026-07-21"
+  },
+  "watched_sprints": [
+    "Sprint 3",
+    "Release 1",
+    "Release 2"
+  ],
+  "states": [
+    "In Progress",
+    "Staging",
+    "Done"
+  ],
+  "completed_states": [
+    "Staging",
+    "Done"
+  ],
+  "exclude": {
+    "type": [
+      "Group"
+    ],
+    "grouping": [
+      "Level 2"
+    ]
+  },
+  "ordering": {
+    "sprint": [
+      "Sprint 3",
+      "Release 1",
+      "Release 2"
+    ],
+    "state": [
+      "Staging",
+      "Done",
+      "In Progress"
+    ],
+    "assignee": [
+      "ferenci84",
+      "Pujan",
+      "Unassigned"
+    ]
+  },
+  "summary_assignees": [
+    "ferenci84",
+    "Pujan",
+    "Unassigned"
+  ],
+  "timezone": "Europe/Stockholm"
+}

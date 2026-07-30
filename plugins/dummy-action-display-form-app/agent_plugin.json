@@ -1,0 +1,10 @@
+{
+  "module": "dummy_action_display_form_app",
+  "subdirectory": ".",
+  "entries": [
+    "dummy_action_display_form_app.DummyActionDisplayFormAppPlugin"
+  ],
+  "kinds": {
+    "dummy_action_display_form_app.DummyActionDisplayFormAppPlugin": "application"
+  }
+}

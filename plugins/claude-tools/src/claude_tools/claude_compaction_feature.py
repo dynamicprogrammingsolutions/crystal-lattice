@@ -29,9 +29,13 @@
 
 from __future__ import annotations
 
+import json
 import re
+import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from agent_core import Message, Session
 
@@ -169,6 +173,7 @@ _COMPACTION_MODEL_KEY = "compaction_model"
 _PROMPT_KEY = "claude_compaction_prompt"
 _SETTINGS_OVERRIDES_KEY = "claude_compaction_settings_overrides"
 _TRANSCRIPT_FALLBACK = "<PROJECT_TRANSCRIPT>"
+_TRANSCRIPT_SNAPSHOT_DIR = "claude-compaction-transcripts"
 _MIN_COMPACTABLE_MESSAGE_COUNT = 3
 _REQUIRED_SUMMARY_SECTIONS = [
     "1. Primary Request and Intent:",
@@ -230,6 +235,180 @@ def _message_text(content: Any) -> str:
                     parts.append(text)
         return "".join(parts)
     return str(content)
+
+
+def _zero_usage() -> Dict[str, Any]:
+    return {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "server_tool_use": {
+            "web_search_requests": 0,
+            "web_fetch_requests": 0,
+        },
+        "service_tier": None,
+        "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0,
+        },
+        "inference_geo": None,
+        "iterations": None,
+        "speed": None,
+    }
+
+
+def _utc_timestamp() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def _path_safe_session_id(session_id: str) -> str:
+    safe = re.sub(r"[^A-Za-z0-9_.-]+", "-", session_id).strip("-")
+    return safe or "session"
+
+
+def _transcript_snapshot_root(context: Optional[Dict[str, Any]]) -> Optional[Path]:
+    if not isinstance(context, dict):
+        return None
+    app = context.get("app")
+    store = getattr(app, "_session_store", None)
+    root_dir = getattr(store, "_root_dir", None)
+    if root_dir is None:
+        return None
+    try:
+        return Path(root_dir) / _TRANSCRIPT_SNAPSHOT_DIR
+    except Exception:
+        return None
+
+
+def _session_transcript_path(
+    context: Optional[Dict[str, Any]],
+    session: Session,
+) -> str:
+    root = _transcript_snapshot_root(context)
+    if root is None:
+        return _TRANSCRIPT_FALLBACK
+    stamp = time.time_ns()
+    filename = (
+        f"{_path_safe_session_id(session.session_id)}_pre_compaction_{stamp}.jsonl"
+    )
+    return str(root / filename)
+
+
+def _message_snapshot_content(message: Message) -> str:
+    if isinstance(message.content, str):
+        return message.content
+    return _message_text(message.content)
+
+
+def _assistant_snapshot_message(
+    message: Message,
+    *,
+    message_id: str,
+) -> Dict[str, Any]:
+    return {
+        "id": message_id,
+        "type": "message",
+        "role": "assistant",
+        "model": "<snapshot>",
+        "content": [
+            {
+                "type": "text",
+                "text": _message_snapshot_content(message),
+            }
+        ],
+        "stop_details": None,
+        "stop_reason": "end_turn",
+        "usage": _zero_usage(),
+    }
+
+
+def _user_snapshot_message(message: Message) -> Dict[str, Any]:
+    return {
+        "role": message.role,
+        "content": _message_snapshot_content(message),
+    }
+
+
+def write_pre_compaction_transcript(
+    session: Session,
+    transcript_path: Path,
+    *,
+    cwd: str,
+    timestamp_factory: Callable[[], str] = _utc_timestamp,
+    uuid_factory: Callable[[], str] = lambda: str(uuid.uuid4()),
+    prompt_id_factory: Callable[[], str] = lambda: str(uuid.uuid4()),
+    message_id_factory: Callable[[], str] = lambda: f"msg_{uuid.uuid4().hex}",
+    entrypoint: str = "agent-core",
+    user_type: str = "external",
+    version: str = "ai-agent-platform",
+    git_branch: str = "HEAD",
+) -> Path:
+    transcript_path.parent.mkdir(parents=True, exist_ok=True)
+    parent_uuid: str | None = None
+    lines: List[str] = []
+    for message in session.messages:
+        if message.role not in {"user", "assistant"}:
+            continue
+        event_uuid = uuid_factory()
+        event: Dict[str, Any] = {
+            "parentUuid": parent_uuid,
+            "isSidechain": False,
+            "type": message.role,
+            "message": (
+                _assistant_snapshot_message(
+                    message,
+                    message_id=message_id_factory(),
+                )
+                if message.role == "assistant"
+                else _user_snapshot_message(message)
+            ),
+            "uuid": event_uuid,
+            "timestamp": timestamp_factory(),
+            "sessionId": session.session_id,
+            "userType": user_type,
+            "entrypoint": entrypoint,
+            "cwd": cwd,
+            "version": version,
+            "gitBranch": git_branch,
+        }
+        if message.role == "user":
+            event["promptId"] = prompt_id_factory()
+            event["permissionMode"] = "default"
+        lines.append(json.dumps(event, ensure_ascii=False, sort_keys=True))
+        parent_uuid = event_uuid
+
+    transcript_path.write_text(
+        "\n".join(lines) + ("\n" if lines else ""), encoding="utf-8"
+    )
+    return transcript_path
+
+
+def _write_pre_compaction_transcript_from_context(
+    context: Optional[Dict[str, Any]],
+    session: Session,
+) -> str:
+    transcript_path_text = _session_transcript_path(context, session)
+    if transcript_path_text == _TRANSCRIPT_FALLBACK:
+        return transcript_path_text
+    cwd = str(Path.cwd())
+    if isinstance(context, dict):
+        cwd_value = context.get("cwd") or context.get("working_directory")
+        if isinstance(cwd_value, str) and cwd_value:
+            cwd = cwd_value
+    try:
+        write_pre_compaction_transcript(
+            session,
+            Path(transcript_path_text),
+            cwd=cwd,
+        )
+    except Exception:
+        return _TRANSCRIPT_FALLBACK
+    return transcript_path_text
 
 
 def build_compaction_session(
@@ -350,9 +529,10 @@ def _collect_final_messages_from_stream(
     core: Any,
     session: Session,
     config: Dict[str, Any],
+    context: Dict[str, Any] | None = None,
 ) -> List[Dict[str, Any]]:
     final_messages: List[Dict[str, Any]] = []
-    for event in core.send_request_stream(session, config):
+    for event in core.send_request_stream(session, config, context=context):
         if event.get("type") != "final":
             continue
         raw_messages = event.get("messages")
@@ -365,8 +545,11 @@ def _run_compaction_request(
     core: Any,
     session: Session,
     config: Dict[str, Any],
+    context: Dict[str, Any] | None = None,
 ) -> str:
-    final_messages = _collect_final_messages_from_stream(core, session, config)
+    final_messages = _collect_final_messages_from_stream(
+        core, session, config, context=context
+    )
     for message in reversed(final_messages):
         if message.get("role") != "assistant":
             continue
@@ -542,29 +725,6 @@ def build_compacted_session(
         context=context,
     )
     return compacted
-
-
-def _session_transcript_path(
-    context: Optional[Dict[str, Any]],
-    session: Session,
-) -> str:
-    if not isinstance(context, dict):
-        return _TRANSCRIPT_FALLBACK
-    app = context.get("app")
-    store = getattr(app, "_session_store", None)
-    path_for = getattr(store, "_path_for", None)
-    if callable(path_for):
-        try:
-            return str(path_for(session.session_id))
-        except Exception:
-            return _TRANSCRIPT_FALLBACK
-    root_dir = getattr(store, "_root_dir", None)
-    if root_dir is not None:
-        try:
-            return str(Path(root_dir) / f"{session.session_id}.json")
-        except Exception:
-            return _TRANSCRIPT_FALLBACK
-    return _TRANSCRIPT_FALLBACK
 
 
 class ClaudeCompactionFeature:
@@ -875,9 +1035,13 @@ class ClaudeCompactionFeature:
             context["core"],
             compaction_session,
             _merge_request_config(request_config),
+            context=context,
         )
         summary_body = extract_summary_text(compaction_response)
-        transcript_path = _session_transcript_path(context, session)
+        transcript_path = _write_pre_compaction_transcript_from_context(
+            context,
+            session,
+        )
         summary_text = build_compact_summary_text(
             summary_body,
             transcript_path=transcript_path,
@@ -919,4 +1083,5 @@ __all__ = [
     "extract_summary_sections",
     "extract_summary_text",
     "validate_summary_text",
+    "write_pre_compaction_transcript",
 ]

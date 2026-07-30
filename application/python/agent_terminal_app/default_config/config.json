@@ -3,7 +3,10 @@
   "mixins": {
     "provider_defaults": {
       "timeout": 300,
-      "allowed_paths": [".", ".."],
+      "allowed_paths": [
+        ".",
+        ".."
+      ],
       "max_file_size": 5242880,
       "max_output_chars": 10000,
       "working_directory": ".",
@@ -61,6 +64,18 @@
       "skills_max_dirs_per_root": 2000,
       "system_message_enabled": true,
       "codex_developer_messages": [
+        {
+          "model_regex": "^(openai/)?gpt-5\\.6-sol$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-sol/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.6-terra$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-terra/instructions_default.md}"
+        },
+        {
+          "model_regex": "^(openai/)?gpt-5\\.6-luna$",
+          "text": "${file:${env:CONFIG_DIR}/codex/gpt-5.6-luna/instructions_default.md}"
+        },
         {
           "model_regex": "^(openai/)?gpt-5\\.5$",
           "personality": "default",
@@ -153,15 +168,15 @@
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_project_instructions.py",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
-            "CODEX_SKILLS_SECTION": {
-              "text": ""
-            },
+          "CODEX_SKILLS_SECTION": {
+            "text": ""
+          },
           "CODEX_ENVIRONMENT_CONTEXT": {
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_codex_environment_context.py",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -194,7 +209,7 @@
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/codex_runtime.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -233,7 +248,7 @@
             }
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -283,7 +298,7 @@
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_agents_context_section.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -319,7 +334,7 @@
             ]
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -367,7 +382,7 @@
             "code": "${env:CONFIG_DIR}/system_messages/helpers/render_kimi_project_information_section.py"
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -421,7 +436,7 @@
             ]
           },
           "TASKS": {
-            "text": "${file:${env:CONFIG_DIR}/TASKS_v6.md}",
+            "text": "${file:${env:CONFIG_DIR}/TASKS_v7.md}",
             "runtime_code": "${env:CONFIG_DIR}/system_messages/helpers/tasks_ui.py",
             "condition": {
               "inline_code": "include_tasks()"
@@ -436,13 +451,17 @@
   },
   "providers": {
     "openrouter": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "openrouter",
       "api_key": "${env:OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1"
     },
     "openrouter_image_generation": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "openrouter_image_generation",
       "api_key": "${env:OPENROUTER_API_KEY}",
       "base_url": "https://openrouter.ai/api/v1",
@@ -451,12 +470,18 @@
       "aspect_ratio": "1:1"
     },
     "openai": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "openai_responses",
       "api_key": "${env:OPENAI_API_KEY}",
       "base_url": "https://api.openai.com/v1",
       "auth_mode": "auto",
-      "allowed_paths": [".", "..", "${env:CONFIG_DIR}"],
+      "allowed_paths": [
+        ".",
+        "..",
+        "${env:CONFIG_DIR}"
+      ],
       "enable_flex_processing": true,
       "enable_fast_mode": false,
       "reasoning_summary": "detailed",
@@ -467,24 +492,34 @@
       "show_openai_auth_mode": true
     },
     "ollama": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "reference_openai_compatible",
       "base_url": "http://localhost:11434/v1",
       "model": "qwen3:0.6b",
       "reasoning_field": "reasoning"
     },
     "fireworks": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "reference_openai_compatible",
       "base_url": "https://api.fireworks.ai/inference/v1",
       "api_key": "${env:FIREWORKS_API_KEY}",
       "model": "fireworks/gpt-oss-20b",
       "min_request_interval_seconds": 1,
-      "rate_limit_retry_delays_seconds": [1, 2, 4],
+      "rate_limit_retry_delays_seconds": [
+        1,
+        2,
+        4
+      ],
       "reasoning_field": "reasoning_content"
     },
     "zai": {
-      "mixin_refs": ["provider_defaults"],
+      "mixin_refs": [
+        "provider_defaults"
+      ],
       "provider": "reference_openai_compatible",
       "base_url": "https://api.z.ai/api/paas/v4",
       "endpoint_options": {
@@ -493,9 +528,17 @@
       },
       "api_key": "${env:ZAI_API_KEY}",
       "model": "glm-4.5-air",
-      "retry_on_timeout": [0, 5, 30],
+      "retry_on_timeout": [
+        0,
+        5,
+        30
+      ],
       "retry_on_status": {
-        "500": [0, 5, 30]
+        "500": [
+          0,
+          5,
+          30
+        ]
       }
     }
   },
@@ -511,9 +554,12 @@
     "path:${env:BUILTIN_PLUGINS}/session-actions-app",
     "path:${env:BUILTIN_PLUGINS}/summarize-range-app",
     "path:${env:BUILTIN_PLUGINS}/session-title-app",
+    "path:${env:BUILTIN_PLUGINS}/session-main-search-app",
     "path:${env:BUILTIN_PLUGINS}/generate-title-app",
     "path:${env:BUILTIN_PLUGINS}/session-message-count-meta-app",
     "path:${env:BUILTIN_PLUGINS}/session-pinned-app",
+    "path:${env:BUILTIN_PLUGINS}/session-archive-app",
+    "path:${env:BUILTIN_PLUGINS}/session-status-app",
     "path:${env:BUILTIN_PLUGINS}/session-timestamp-meta-app",
     "path:${env:BUILTIN_PLUGINS}/rebuild-native-app",
     "path:${env:BUILTIN_PLUGINS}/mcp-runtime-app",
@@ -528,6 +574,7 @@
     "tool_output_char_limit": 2000,
     "tool_output_short_one_line": true,
     "tool_output_live_compact": false,
+    "session_status_show_in_session_list_footer": true,
     "session_actions": {
       "allow_delete": true
     },
@@ -589,7 +636,9 @@
           "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state/cloud_setup_script",
           "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
           "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
-          "compatible_sync_down_profiles": ["working-tree-patch"]
+          "compatible_sync_down_profiles": [
+            "working-tree-patch"
+          ]
         },
         "working-tree-current-state-branch": {
           "label": "Working tree current state with branch export",
@@ -598,7 +647,9 @@
           "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/working-tree-current-state-branch/cloud_setup_script",
           "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
           "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
-          "compatible_sync_down_profiles": ["branch-import"]
+          "compatible_sync_down_profiles": [
+            "branch-import"
+          ]
         },
         "clean-head": {
           "label": "Clean committed HEAD",
@@ -607,7 +658,9 @@
           "cloud_setup_script": "${env:CONFIG_DIR}/cloud-agent/profiles/transfer_up/clean-head/cloud_setup_script",
           "install_script": "${env:WORKING_DIR}/.cloud-agent/install-cloud",
           "validation_script": "${env:WORKING_DIR}/.cloud-agent/validate-cloud",
-          "compatible_sync_down_profiles": ["branch-import"]
+          "compatible_sync_down_profiles": [
+            "branch-import"
+          ]
         }
       },
       "sync_down_profiles": {
@@ -616,14 +669,19 @@
           "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_export_script",
           "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/cloud_mark_synced_script",
           "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/working-tree-patch/local_apply_script",
-          "compatible_transfer_up_profiles": ["working-tree-current-state"]
+          "compatible_transfer_up_profiles": [
+            "working-tree-current-state"
+          ]
         },
         "branch-import": {
           "label": "Import committed cloud branch with optional safety snapshots",
           "cloud_export_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_export_script",
           "cloud_mark_synced_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/cloud_mark_synced_script",
           "local_apply_script": "${env:CONFIG_DIR}/cloud-agent/profiles/sync_down/branch-import/local_apply_script",
-          "compatible_transfer_up_profiles": ["working-tree-current-state-branch", "clean-head"]
+          "compatible_transfer_up_profiles": [
+            "working-tree-current-state-branch",
+            "clean-head"
+          ]
         }
       },
       "managed_ssh": {
@@ -667,17 +725,29 @@
   },
   "agents": {
     "cloud-script-author": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults", "cloud_script_author_codex_message"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults",
+        "cloud_script_author_codex_message"
+      ],
       "provider": "openai",
       "model": "gpt-5.4-mini",
-      "allowed_paths": [".", "..", "${env:BUILTIN_PLUGINS}/cloud-agent-app", "${env:CONFIG_DIR}/cloud-agent/profiles"],
+      "allowed_paths": [
+        ".",
+        "..",
+        "${env:BUILTIN_PLUGINS}/cloud-agent-app",
+        "${env:CONFIG_DIR}/cloud-agent/profiles"
+      ],
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/codex-tools"
       ],
       "shell_tool_mode": "auto"
     },
     "codex-openrouter": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults"
+      ],
       "provider": "openrouter",
       "model": "openai/gpt-5.4-mini",
       "plugins": [
@@ -686,7 +756,10 @@
       "shell_tool_mode": "auto"
     },
     "codex-openai": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults"
+      ],
       "provider": "openai",
       "model": "gpt-5.4-mini",
       "plugins": [
@@ -695,7 +768,10 @@
       "shell_tool_mode": "auto"
     },
     "codex-openai-api": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults"
+      ],
       "provider": "openai",
       "model": "gpt-5.4",
       "plugins": [
@@ -707,7 +783,10 @@
       "strip_leading_system_or_developer_message": false
     },
     "gpt-5-openrouter": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults"
+      ],
       "provider": "openrouter",
       "model": "openai/gpt-5",
       "plugins": [
@@ -715,10 +794,15 @@
       ],
       "shell_tool_mode": "shell",
       "intercept_apply_patch": true,
-      "disabled_plugins": ["apply_patch"]
+      "disabled_plugins": [
+        "apply_patch"
+      ]
     },
     "gpt-5-openai": {
-      "mixin_refs": ["codex_developer_message", "codex_mcp_defaults"],
+      "mixin_refs": [
+        "codex_developer_message",
+        "codex_mcp_defaults"
+      ],
       "provider": "openai",
       "model": "gpt-5",
       "plugins": [
@@ -726,32 +810,44 @@
       ],
       "shell_tool_mode": "shell",
       "intercept_apply_patch": true,
-      "disabled_plugins": ["apply_patch"]
+      "disabled_plugins": [
+        "apply_patch"
+      ]
     },
     "qwen": {
-      "mixin_refs": ["qwen_system_message"],
+      "mixin_refs": [
+        "qwen_system_message"
+      ],
       "provider": "openrouter",
       "model": "qwen/qwen3.5-flash-02-23",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/qwen-tools"
       ],
-      "disabled_plugins": ["apply_patch"]
+      "disabled_plugins": [
+        "apply_patch"
+      ]
     },
     "gemini": {
-      "mixin_refs": ["gemini_system_message"],
+      "mixin_refs": [
+        "gemini_system_message"
+      ],
       "provider": "openrouter",
       "model": "google/gemini-2.5-flash-lite",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/gemini-tools"
       ],
-      "disabled_plugins": ["apply_patch"],
+      "disabled_plugins": [
+        "apply_patch"
+      ],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
       "web_search_provider": "gemini_api"
     },
     "grok": {
-      "mixin_refs": ["grok_system_message"],
+      "mixin_refs": [
+        "grok_system_message"
+      ],
       "provider": "openrouter",
       "model": "x-ai/grok-4.1-fast",
       "plugins": [
@@ -765,20 +861,27 @@
       ]
     },
     "kimi": {
-      "mixin_refs": ["kimi_system_message"],
+      "mixin_refs": [
+        "kimi_system_message"
+      ],
       "provider": "openrouter",
       "model": "moonshotai/kimi-k2.5",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/kimi-tools"
       ],
-      "disabled_plugins": ["apply_patch"],
+      "disabled_plugins": [
+        "apply_patch"
+      ],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
       "web_search_provider": "gemini_api"
     },
     "claude": {
-      "mixin_refs": ["claude_system_message", "claude_mcp_defaults"],
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_mcp_defaults"
+      ],
       "provider": "openrouter",
       "model": "anthropic/claude-haiku-4.5",
       "plugins": [
@@ -787,7 +890,9 @@
       "reasoning_max_tokens": 16000,
       "request_options": {
         "provider": {
-          "order": ["anthropic"],
+          "order": [
+            "anthropic"
+          ],
           "allow_fallbacks": false
         }
       },
@@ -797,20 +902,27 @@
       "web_search_provider": "gemini_api"
     },
     "glm": {
-      "mixin_refs": ["gemini_system_message"],
+      "mixin_refs": [
+        "gemini_system_message"
+      ],
       "provider": "openrouter",
-      "model": "z-ai/glm-5",
+      "model": "z-ai/glm-5.2",
+      "reasoning_effort": "max",
       "plugins": [
         "path:${env:BUILTIN_PLUGINS}/gemini-tools"
       ],
-      "disabled_plugins": ["apply_patch"],
+      "disabled_plugins": [
+        "apply_patch"
+      ],
       "gemini_api_key": "${env:GEMINI_API_KEY}",
       "tavily_api_key": "${env:TAVILY_API_KEY}",
       "web_search_enabled": true,
       "web_search_provider": "gemini_api",
       "request_options": {
         "provider": {
-          "order": ["z-ai"],
+          "order": [
+            "z-ai"
+          ],
           "allow_fallbacks": false
         }
       }
@@ -819,6 +931,65 @@
       "provider": "ollama",
       "model": "qwen3:0.6b"
     },
+    "glm-ollama": {
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_mcp_defaults"
+      ],
+      "provider": "ollama",
+      "model": "glm-5.2:cloud",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
+      "request_options": {
+        "reasoning_effort": "max"
+      },
+      "request_options_ui": {
+        "reasoning_effort": [
+          "high",
+          "max"
+        ]
+      }
+    },
+    "deepseek-ollama": {
+      "mixin_refs": [
+        "claude_system_message",
+        "claude_mcp_defaults"
+      ],
+      "provider": "ollama",
+      "model": "deepseek-v4-pro:cloud",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/claude-tools"
+      ],
+      "request_options": {
+        "reasoning_effort": "max"
+      },
+      "request_options_ui": {
+        "reasoning_effort": [
+          "high",
+          "max"
+        ]
+      }
+    },
+    "kimi-ollama": {
+      "mixin_refs": [
+        "kimi_system_message"
+      ],
+      "provider": "ollama",
+      "model": "kimi-k2.6:cloud",
+      "plugins": [
+        "path:${env:BUILTIN_PLUGINS}/kimi-tools"
+      ],
+      "request_options": {
+        "reasoning_effort": "max"
+      },
+      "request_options_ui": {
+        "reasoning_effort": [
+          "high",
+          "max"
+        ]
+      }
+    },
     "fireworks": {
       "provider": "fireworks",
       "model": "fireworks/gpt-oss-20b",
@@ -826,7 +997,11 @@
         "reasoning_history": "preserved"
       },
       "request_options_ui": {
-        "reasoning_history": ["disabled", "interleaved", "preserved"]
+        "reasoning_history": [
+          "disabled",
+          "interleaved",
+          "preserved"
+        ]
       }
     },
     "zai": {

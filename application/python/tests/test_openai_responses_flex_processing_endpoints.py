@@ -27,9 +27,9 @@ from openai_responses_plugins.openai_responses_flex_processing_extension import 
 from openai_responses_plugins.openai_responses_fast_mode_extension import (  # noqa: E402
     OpenAIResponsesFastModeExtension,
 )
-from openai_responses_plugins.openai_responses_provider import (
+from openai_responses_plugins.openai_responses_provider import (  # noqa: E402
     OpenAIResponsesProvider,
-)  # noqa: E402
+)
 
 pytestmark = [pytest.mark.integration, pytest.mark.openai]
 
@@ -114,7 +114,7 @@ def test_openai_flex_processing_defaults_stream_recovery_to_early_only() -> None
     assert request["stream_recovery_retries"] == 3
 
 
-def test_openai_fast_mode_injects_priority_for_chatgpt_only() -> None:
+def test_openai_fast_mode_injects_priority_for_both_auth_modes() -> None:
     ext = OpenAIResponsesFastModeExtension()
 
     chatgpt_config = {
@@ -134,7 +134,7 @@ def test_openai_fast_mode_injects_priority_for_chatgpt_only() -> None:
 
     api_config = {
         "enable_fast_mode": True,
-        "auth_mode": "auto",
+        "auth_mode": "api",
         "_openai_responses_effective_auth_mode": "api",
     }
     api_state = ext.init(
@@ -145,20 +145,4 @@ def test_openai_fast_mode_injects_priority_for_chatgpt_only() -> None:
         },
     )
     _native, api_updated = ext.initialize_request([], api_state)
-    assert "service_tier" not in api_updated["request"]["payload"]
-
-    api_enabled_config = {
-        "enable_fast_mode": True,
-        "enable_fast_mode_for_api_requests": True,
-        "auth_mode": "api",
-        "_openai_responses_effective_auth_mode": "api",
-    }
-    api_enabled_state = ext.init(
-        api_enabled_config,
-        {
-            "config": api_enabled_config,
-            "request": {"payload": {"model": "gpt-5.5"}, "timeout": 60},
-        },
-    )
-    _native, api_enabled_updated = ext.initialize_request([], api_enabled_state)
-    assert api_enabled_updated["request"]["payload"]["service_tier"] == "priority"
+    assert api_updated["request"]["payload"]["service_tier"] == "priority"

@@ -45,22 +45,22 @@ def test_view_image_schema_is_responses_native_by_default(tmp_path: Path) -> Non
     assert schema["type"] == "function"
     assert schema["name"] == "view_image"
     assert schema["strict"] is False
-    assert schema["output_schema"]["required"] == ["image_url", "detail"]
+    assert "output_schema" not in schema
     params = schema["parameters"]
     assert params["required"] == ["path"]
     assert params["additionalProperties"] is False
-    assert list(params["properties"].keys()) == ["path"]
+    assert list(params["properties"].keys()) == ["path", "detail"]
 
 
-def test_view_image_schema_detail_is_opt_in(tmp_path: Path) -> None:
+def test_view_image_schema_detail_can_be_disabled(tmp_path: Path) -> None:
     wrapper, state = _wrapper(
         tmp_path,
-        {"enable_view_image_detail_original": True},
+        {"enable_view_image_detail_original": False},
     )
 
     params = wrapper.get_tool_schemas(state)[0]["parameters"]
 
-    assert list(params["properties"].keys()) == ["path", "detail"]
+    assert list(params["properties"].keys()) == ["path"]
 
 
 def test_view_image_responses_schema_converts_to_chat_schema(tmp_path: Path) -> None:
@@ -104,10 +104,14 @@ def test_view_image_loads_png_and_returns_structured_result_and_display(tmp_path
     formatted = wrapper.format_tool_result(result, state)
     assert formatted["type"] == "provider_native_tool_result"
     assert formatted["format"] == "openai.responses"
-    assert formatted["output"][0]["type"] == "input_text"
-    assert formatted["output"][1]["type"] == "input_image"
-    assert formatted["output"][1]["image_url"] == result["image_url"]
-    assert formatted["output"][1]["detail"] == "high"
+    assert formatted["text"] == result["message"]
+    assert formatted["output"] == [
+        {
+            "type": "input_image",
+            "image_url": result["image_url"],
+            "detail": "high",
+        }
+    ]
 
     display = wrapper.to_display_format("", result, state)
     assert display["type"] == "image"
@@ -138,11 +142,17 @@ def test_view_image_stores_asset_backed_display_content_with_context(tmp_path: P
     assert content["preview_data_base64"] == result["image_url"].split(",", 1)[1]
     assert content["preview_mime_type"] == "image/png"
     formatted = wrapper.format_tool_result(result, state)
-    assert formatted["output"][1]["image_url"] == {
-        "asset_ref": content["asset_ref"],
-        "filename": "tiny.png",
-        "mime_type": "image/png",
-    }
+    assert formatted["output"] == [
+        {
+            "type": "input_image",
+            "image_url": {
+                "asset_ref": content["asset_ref"],
+                "filename": "tiny.png",
+                "mime_type": "image/png",
+            },
+            "detail": "high",
+        }
+    ]
     stored = asset_store.load_bytes("sess_1", content["asset_ref"]["asset_id"])
     assert stored == _png_bytes()
 
@@ -150,10 +160,7 @@ def test_view_image_stores_asset_backed_display_content_with_context(tmp_path: P
 def test_view_image_rejects_invalid_detail(tmp_path: Path) -> None:
     image = tmp_path / "tiny.png"
     image.write_bytes(_png_bytes())
-    wrapper, state = _wrapper(
-        tmp_path,
-        {"enable_view_image_detail_original": True},
-    )
+    wrapper, state = _wrapper(tmp_path)
 
     result = wrapper.execute_tool(
         "view_image", {"path": "tiny.png", "detail": "low"}, state
@@ -163,10 +170,26 @@ def test_view_image_rejects_invalid_detail(tmp_path: Path) -> None:
     assert "only supports `original`" in result["error"]
 
 
-def test_view_image_rejects_original_when_not_enabled(tmp_path: Path) -> None:
+def test_view_image_accepts_original_by_default(tmp_path: Path) -> None:
     image = tmp_path / "tiny.png"
     image.write_bytes(_png_bytes())
     wrapper, state = _wrapper(tmp_path)
+
+    result = wrapper.execute_tool(
+        "view_image", {"path": "tiny.png", "detail": "original"}, state
+    )
+
+    assert result["success"] is True
+    assert result["detail"] == "original"
+
+
+def test_view_image_rejects_original_when_disabled(tmp_path: Path) -> None:
+    image = tmp_path / "tiny.png"
+    image.write_bytes(_png_bytes())
+    wrapper, state = _wrapper(
+        tmp_path,
+        {"enable_view_image_detail_original": False},
+    )
 
     result = wrapper.execute_tool(
         "view_image", {"path": "tiny.png", "detail": "original"}, state
@@ -207,3 +230,14 @@ def test_view_image_rejects_missing_directory_non_image_and_outside_paths(
     assert "unsupported image format" in non_image["error"]
     assert denied["success"] is False
     assert "Access denied" in denied["error"]
+
+
+def test_view_image_missing_file_formats_plain_text_error(tmp_path: Path) -> None:
+    wrapper, state = _wrapper(tmp_path)
+
+    result = wrapper.execute_tool("view_image", {"path": "missing.png"}, state)
+    formatted = wrapper.format_tool_result(result, state)
+
+    assert result["success"] is False
+    assert isinstance(formatted, str)
+    assert formatted.startswith("Error: unable to locate image at")

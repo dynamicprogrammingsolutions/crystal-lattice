@@ -278,6 +278,50 @@ def test_to_native_and_from_native_roundtrip_preserves_tool_metadata_without_ext
     assert rebuilt[1]["metadata"]["native_indices"] == [1]
 
 
+def test_to_native_and_from_native_roundtrip_preserves_bash_end_cwd_metadata():
+    """Provider conversion should preserve ``metadata.bash.end_cwd`` on
+    tool-result messages across native-history rebuilds. The provider's
+    ``_native_internal_from_core_metadata`` copies everything except a small
+    pop-list into ``_metadata``, so namespaced tool metadata like
+    ``bash.end_cwd`` rides through automatically."""
+    provider = OpenRouterProvider()
+
+    core_messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "metadata": {
+                "tool_calls": [
+                    {
+                        "id": "call_bash_1",
+                        "type": "function",
+                        "function": {
+                            "name": "Bash",
+                            "arguments": '{"command":"cd subdir && pwd"}',
+                        },
+                    }
+                ],
+            },
+        },
+        {
+            "role": "tool",
+            "content": "/workspace/subdir",
+            "metadata": {
+                "tool_call_id": "call_bash_1",
+                "tool_name": "Bash",
+                "tool_plugin": "claude_bash_tool",
+                "bash": {"end_cwd": "subdir"},
+            },
+        },
+    ]
+
+    native = provider.to_native_messages(core_messages, {})
+    assert native[1]["_metadata"]["bash"] == {"end_cwd": "subdir"}
+
+    rebuilt = provider.from_native_messages(native, {})
+    assert rebuilt[1]["metadata"]["bash"] == {"end_cwd": "subdir"}
+
+
 def test_from_native_messages():
     """Convert provider-native messages to core format."""
     provider = OpenRouterProvider()

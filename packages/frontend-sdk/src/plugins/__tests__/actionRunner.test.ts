@@ -473,7 +473,11 @@ describe('runApplicationAction input building', () => {
         applicationActions: true,
         applicationConfig: false,
       }),
-      executeAction: async ({ inputs }) => {
+      executeAction: async ({
+        inputs,
+      }: {
+        inputs: Record<string, any>;
+      }) => {
         capturedInputs = inputs;
         return {
           status: 'ok',
@@ -731,6 +735,161 @@ describe('runApplicationAction input building', () => {
       session_id: 's1',
       title: '',
       subtitle: 'hello',
+    });
+  });
+
+  it('maps embedded display form values into follow-up action inputs', async () => {
+    let capturedInputs: Record<string, any> | null = null;
+
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction: async ({ inputs }) => {
+        capturedInputs = inputs;
+        return {
+          status: 'ok',
+          plugin: 'dummy_display_form_app',
+          action_id: 'submit_display_form',
+          result: { mutations: {}, ui_effects: {} },
+        } as any;
+      },
+    } as any;
+
+    await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'action_result_followup',
+        plugin: 'dummy_display_form_app',
+        id: 'submit-display-form',
+        label: 'Submit',
+        action_id: 'submit_display_form',
+        fixed_params: { source: 'display' } as any,
+        param_map: {
+          callback_url: '$form.callback_url',
+          note: '$form.note',
+        },
+        form: {
+          kind: 'form',
+          inputs: [
+            { name: 'callback_url', type: 'multiline', required: true },
+            { name: 'note', type: 'string', required: false, submit_empty: true },
+          ],
+        },
+      } as any,
+      actionsById: {
+        submit_display_form: {
+          plugin: 'dummy_display_form_app',
+          id: 'submit_display_form',
+          label: 'Submit display form',
+          inputs: {
+            source: { type: 'string', required: true },
+            callback_url: { type: 'string', required: true },
+            note: { type: 'string', required: false },
+          },
+        } as any,
+      },
+      context: {
+        formValues: {
+          callback_url: 'http://127.0.0.1:41793/callback?code=abc&state=xyz',
+        },
+      },
+    });
+
+    expect(capturedInputs).toEqual({
+      source: 'display',
+      callback_url: 'http://127.0.0.1:41793/callback?code=abc&state=xyz',
+      note: '',
+    });
+  });
+
+  it('distinguishes missing paths from arrays, null, and falsey values', async () => {
+    let capturedInputs: Record<string, any> | null = null;
+    const backend: AgentBackend = {
+      kind: 'test',
+      getCapabilities: () => ({
+        featureCompletions: false,
+        sessionUiSchema: false,
+        sessionConfigOverrides: false,
+        sessionPlugins: false,
+        applicationActions: true,
+        applicationConfig: false,
+      }),
+      executeAction: async ({
+        inputs,
+      }: {
+        inputs: Record<string, any>;
+      }) => {
+        capturedInputs = inputs;
+        return {
+          status: 'ok',
+          plugin: 'fixture',
+          action_id: 'inspect_paths',
+          result: { mutations: {}, ui_effects: {} },
+        } as any;
+      },
+    } as any;
+
+    await runApplicationAction({
+      backend,
+      element: {
+        ui_type: 'application_action',
+        plugin: 'fixture',
+        id: 'inspect-paths',
+        label: 'Inspect paths',
+        action_id: 'inspect_paths',
+        param_map: {
+          array_value: '$session.metadata.items.1.value',
+          explicit_null: '$session.metadata.explicit_null',
+          false_value: '$session.metadata.false_value',
+          zero_value: '$dialog.zero_value',
+          empty_value: '$form.empty_value',
+          message_value: '$message.metadata.parts.0',
+          context_value: '$context.connectionId',
+          missing_value: '$session.metadata.missing',
+          invalid_index: '$session.metadata.items.9.value',
+        },
+      } as any,
+      actionsById: {},
+      context: {
+        connectionId: 'connection-1',
+        sessionSummary: {
+          session_id: 's1',
+          modified: 1,
+          preview: '',
+          metadata: {
+            items: [{ value: 'first' }, { value: 'second' }],
+            explicit_null: null,
+            false_value: false,
+          },
+        },
+        messageContext: {
+          index: 4,
+          message: {
+            role: 'user',
+            content: 'message',
+            metadata: { parts: ['message-part'] },
+          },
+        },
+        dialogValues: { zero_value: 0 },
+        formValues: { empty_value: '' },
+      },
+    });
+
+    expect(capturedInputs).toEqual({
+      array_value: 'second',
+      explicit_null: null,
+      false_value: false,
+      zero_value: 0,
+      empty_value: '',
+      message_value: 'message-part',
+      context_value: 'connection-1',
     });
   });
 });

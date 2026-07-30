@@ -162,6 +162,9 @@ If you change these conventions, coordinate updates with the mobile app and
     `test_agent_terminal_app_server.py`.
   - When changing terminal behavior, look at `test_terminal_application.py`
     and related tests.
+  - Use FastAPI `TestClient` for HTTP contract behavior such as routing, query
+    parsing, response envelopes, serialization, and status codes. Direct route
+    calls are useful adapter tests but do not count as HTTP integration.
 
 ---
 

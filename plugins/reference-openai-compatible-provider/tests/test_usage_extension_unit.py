@@ -7,6 +7,8 @@ import pytest
 from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
 from reference_openai_compatible_provider.usage_extension import (
     OpenAICompatibleUsageExtension,
+    _current_turn_id,
+    _estimated_cached_tokens_for_current,
 )
 
 
@@ -25,6 +27,35 @@ class _Resp:
 
     def close(self) -> None:
         return None
+
+
+def _assistant_usage_message(
+    prompt_tokens: int,
+    *,
+    completion_tokens: int = 1,
+    usage_extra: dict[str, Any] | None = None,
+    tool_call: bool = False,
+) -> dict[str, Any]:
+    usage = {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+        **(usage_extra or {}),
+    }
+    message: dict[str, Any] = {
+        "role": "assistant",
+        "content": "",
+        "_metadata": {"usage": usage},
+    }
+    if tool_call:
+        message["tool_calls"] = [
+            {
+                "id": "call_1",
+                "type": "function",
+                "function": {"name": "lookup", "arguments": "{}"},
+            }
+        ]
+    return message
 
 
 def test_usage_extension_normalizes_common_usage_fields():
@@ -135,6 +166,26 @@ def test_usage_extension_exposes_openrouter_style_ui_elements():
     assert ext.get_ui_elements({"show_usage": False}, [], []) == []
 
 
+def test_usage_extension_can_show_estimated_cached_tokens_footer():
+    ext = OpenAICompatibleUsageExtension()
+
+    schema = ext.get_config_schema()
+    assert schema["estimate_cached_tokens"]["default"] is False
+    assert schema["show_estimated_cached_tokens"]["default"] is False
+
+    elements = ext.get_ui_elements({"show_estimated_cached_tokens": True}, [], [])
+    estimated = next(
+        element
+        for element in elements
+        if element.get("data") == "metadata.usage_estimated_cached_tokens_formatted"
+    )
+    assert estimated["template"] == "estimated cached: {{data}}"
+    assert estimated["condition"] == {
+        "path": "metadata.usage_estimated_cached_tokens_formatted",
+        "exists": True,
+    }
+
+
 def test_usage_extension_normalizes_cached_and_cost_fields_with_turn_totals():
     ext = OpenAICompatibleUsageExtension()
     native_messages = [
@@ -208,6 +259,113 @@ def test_usage_extension_normalizes_cached_and_cost_fields_with_turn_totals():
     assert (
         final_metadata["usage_turn_reasoning_tokens_cumulative_formatted"] == "10"
     )  # 3 + 7
+
+
+def test_current_turn_id_is_monotonic_with_existing_higher_turn_ids() -> None:
+    """If history contains old messages with high turn IDs, new turns must not reuse them."""
+    native_messages = [
+        {"role": "user", "content": "hi"},
+        {
+            "role": "assistant",
+            "content": "old",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "test", "arguments": "{}"},
+                }
+            ],
+            "_metadata": {
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+                "turn": {"id": 10, "has_tool_calls": True, "is_terminal": False},
+            },
+        },
+        {"role": "tool", "content": "result"},
+        # New assistant after a user separator
+        {"role": "user", "content": "next"},
+        {
+            "role": "assistant",
+            "content": "new",
+            "_metadata": {"usage": {"prompt_tokens": 5, "completion_tokens": 3}},
+        },
+    ]
+    # history_before_current is everything except the last assistant
+    history = native_messages[:-1]
+    tid = _current_turn_id(history)
+    assert tid == 11, f"Expected turn id 11, got {tid}"
+
+
+def test_current_turn_id_reuses_open_turn_when_last_assistant_has_tool_calls() -> None:
+    """An open turn (last assistant has tool_calls, no user/system after) should continue."""
+    native_messages = [
+        {"role": "user", "content": "hi"},
+        {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {"name": "test", "arguments": "{}"},
+                }
+            ],
+            "_metadata": {
+                "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+                "turn": {"id": 7, "has_tool_calls": True, "is_terminal": False},
+            },
+        },
+        {"role": "tool", "content": "result"},
+    ]
+    tid = _current_turn_id(native_messages)
+    assert tid == 7, f"Expected turn id 7 (same open turn), got {tid}"
+
+
+def test_finalize_does_not_reuse_turn_id_after_truncated_history() -> None:
+    """Simulate a session where old turns carry high IDs but history_before_current
+    only sees a subset; the new turn must still get a unique ID."""
+    ext = OpenAICompatibleUsageExtension()
+
+    # Full native history: old turn 10 exists, then a user message, then a new assistant
+    native_messages = [
+        {"role": "user", "content": "first"},
+        {
+            "role": "assistant",
+            "content": "old",
+            "_metadata": {
+                "usage": {"prompt_tokens": 100, "completion_tokens": 50},
+                "turn": {"id": 10, "has_tool_calls": False, "is_terminal": True},
+            },
+        },
+        {"role": "user", "content": "second"},
+        {
+            "role": "assistant",
+            "content": "new",
+            "_metadata": {
+                "usage": {"prompt_tokens": 20, "completion_tokens": 10},
+            },
+        },
+    ]
+    final_messages = [native_messages[-1]]
+
+    new_finals, _new_native, _state = ext.finalize(
+        final_messages, native_messages, {"config": {}}
+    )
+    metadata = new_finals[0].get("_metadata") or {}
+    assert metadata.get("turn") == {
+        "id": 11,
+        "has_tool_calls": False,
+        "is_terminal": True,
+    }
+
+
+def test_current_turn_id_with_empty_history_is_one() -> None:
+    """Empty history should still start at 1."""
+    assert _current_turn_id([]) == 1
+
+
+def test_current_turn_id_with_only_user_messages_is_one() -> None:
+    """History with only user/system messages should start at 1."""
+    assert _current_turn_id([{"role": "user", "content": "hi"}]) == 1
 
 
 def test_usage_extension_finalize_stamps_turn_metadata() -> None:
@@ -344,6 +502,172 @@ def test_usage_extension_uses_last_native_message_as_length_mismatch_fallback():
 
     rebuilt = ext.from_native_messages(native_messages, messages)
     assert rebuilt[-1]["metadata"]["usage_total_tokens"] == 9
+
+
+def test_estimated_cached_tokens_follow_turn_aware_history():
+    history = [
+        {"role": "user", "content": "u1"},
+        _assistant_usage_message(20, tool_call=True),
+        _assistant_usage_message(30),
+        {"role": "user", "content": "u2"},
+        _assistant_usage_message(50, tool_call=True),
+        _assistant_usage_message(60),
+        {"role": "user", "content": "u3"},
+    ]
+
+    assert _estimated_cached_tokens_for_current(history[:1], {"prompt_tokens": 20}) == 0
+    assert (
+        _estimated_cached_tokens_for_current(history[:2], {"prompt_tokens": 30}) == 20
+    )
+    assert (
+        _estimated_cached_tokens_for_current(history[:4], {"prompt_tokens": 50}) == 20
+    )
+    assert (
+        _estimated_cached_tokens_for_current(history[:5], {"prompt_tokens": 60}) == 50
+    )
+    assert _estimated_cached_tokens_for_current(history, {"prompt_tokens": 80}) == 50
+
+
+def test_estimated_cached_tokens_ignore_tool_results_and_clamp_to_current_input():
+    history = [
+        {"role": "user", "content": "u1"},
+        _assistant_usage_message(200, tool_call=True),
+        {"role": "tool", "content": "large result", "tool_call_id": "call_1"},
+    ]
+
+    assert _estimated_cached_tokens_for_current(history, {"prompt_tokens": 50}) == 50
+
+
+def test_usage_extension_estimation_is_opt_in():
+    ext = OpenAICompatibleUsageExtension()
+    history = [
+        {"role": "user", "content": "u1"},
+        _assistant_usage_message(20),
+        {"role": "user", "content": "u2"},
+    ]
+    current = _assistant_usage_message(50, completion_tokens=10)
+
+    finals, _native, _state = ext.finalize(
+        [current], [*history, current], {"config": {}}
+    )
+
+    metadata = finals[0]["_metadata"]
+    assert "usage_estimated_cached_tokens" not in metadata
+
+
+def test_usage_extension_uses_estimated_cached_tokens_for_cost_and_totals():
+    ext = OpenAICompatibleUsageExtension()
+    history = [
+        {"role": "user", "content": "u1"},
+        _assistant_usage_message(
+            20,
+            usage_extra={"cost": 0.00001},
+        ),
+        {"role": "user", "content": "u2"},
+    ]
+    current = _assistant_usage_message(50, completion_tokens=10)
+    state = {
+        "config": {
+            "estimate_cached_tokens": True,
+            "token_rates": {
+                "input": 1.0,
+                "cached": 0.2,
+                "completion": 3.0,
+            },
+        }
+    }
+
+    finals, native, _state = ext.finalize([current], [*history, current], state)
+
+    metadata = finals[0]["_metadata"]
+    usage = metadata["usage"]
+    expected_current_cost = ((30 * 1.0) + (20 * 0.2) + (10 * 3.0)) / 1_000_000
+
+    assert metadata["usage_estimated_cached_tokens"] == 20
+    assert metadata["usage_estimated_cached_tokens_formatted"] == "20"
+    assert "prompt_tokens_details" not in usage
+    assert usage["cost"] == pytest.approx(expected_current_cost)
+    assert metadata["usage_total_cost"] == pytest.approx(expected_current_cost)
+    assert metadata["usage_turn_cost_cumulative"] == pytest.approx(
+        expected_current_cost
+    )
+    assert metadata["usage_total_cost_cumulative"] == pytest.approx(
+        0.00001 + expected_current_cost
+    )
+    assert metadata["usage_turn_cached_tokens_cumulative"] == 20
+
+    rebuilt = ext.from_native_messages(
+        native[-1:],
+        [{"role": "assistant", "content": "", "metadata": {}}],
+    )
+    rebuilt_metadata = rebuilt[0]["metadata"]
+    assert rebuilt_metadata["usage_estimated_cached_tokens"] == 20
+    assert rebuilt_metadata["usage_turn_cached_tokens_cumulative"] == 20
+
+
+def test_usage_extension_reported_cached_tokens_win_over_estimation():
+    ext = OpenAICompatibleUsageExtension()
+    history = [
+        {"role": "user", "content": "u1"},
+        _assistant_usage_message(20),
+        {"role": "user", "content": "u2"},
+    ]
+    current = _assistant_usage_message(
+        50,
+        completion_tokens=10,
+        usage_extra={"prompt_tokens_details": {"cached_tokens": 7}},
+    )
+    state = {
+        "config": {
+            "estimate_cached_tokens": True,
+            "token_rates": {
+                "input": 1.0,
+                "cached": 0.2,
+                "completion": 3.0,
+            },
+        }
+    }
+
+    finals, _native, _state = ext.finalize([current], [*history, current], state)
+
+    metadata = finals[0]["_metadata"]
+    expected_cost = ((43 * 1.0) + (7 * 0.2) + (10 * 3.0)) / 1_000_000
+    assert "usage_estimated_cached_tokens" not in metadata
+    assert metadata["usage_cached_tokens"] == 7
+    assert metadata["usage"]["cost"] == pytest.approx(expected_cost)
+    assert metadata["usage_turn_cached_tokens_cumulative"] == 7
+
+
+def test_usage_extension_provider_cost_wins_when_estimation_is_enabled():
+    ext = OpenAICompatibleUsageExtension()
+    history = [
+        {"role": "user", "content": "u1"},
+        _assistant_usage_message(20),
+        {"role": "user", "content": "u2"},
+    ]
+    current = _assistant_usage_message(
+        50,
+        completion_tokens=10,
+        usage_extra={"cost": 0.123},
+    )
+    state = {
+        "config": {
+            "estimate_cached_tokens": True,
+            "token_rates": {
+                "input": 1.0,
+                "cached": 0.2,
+                "completion": 3.0,
+            },
+        }
+    }
+
+    finals, _native, _state = ext.finalize([current], [*history, current], state)
+
+    metadata = finals[0]["_metadata"]
+    assert metadata["usage_estimated_cached_tokens"] == 20
+    assert metadata["usage"]["cost"] == 0.123
+    assert metadata["usage_total_cost"] == 0.123
+    assert metadata["usage_turn_cost_cumulative"] == 0.123
 
 
 def test_usage_extension_calculates_cost_from_token_rates():

@@ -67,3 +67,13 @@ Added during completion.
 - Non-macOS uses a lazy `wakepy.keep.running()` controller so macOS does not need wakepy installed.
 - Added optional app-plugin cleanup support through `ApplicationPluginWrapper.close()` and `AgentApplication.close()`, and FastAPI shutdown now closes the global application.
 - Added mocked tests for plugin UI schema, lifecycle toggling, startup replay context, `caffeinate`, `wakepy`, path loading, and cleanup.
+
+## Follow-up Completion Notes
+
+Added during follow-up for unreliable `caffeinate` stopping.
+
+- Fixed combined `--console --server` ownership so only the server-side `AgentApplication` replays persisted server settings on startup; the terminal companion app no longer starts a duplicate sleep-prevention hold.
+- Added deterministic close paths for contributed commands, console-only mode, and combined console/server mode, plus idempotent `AgentApplication.close()`.
+- Added a subprocess CLI integration fixture using a dummy application plugin to verify generic startup lifecycle replay and close behavior.
+- Added a macOS CLI integration test that starts with persisted `sleep_prevention_enabled`, toggles it off through the HTTP server settings route, and verifies all child `caffeinate` processes are released.
+- Added a real macOS `CaffeinateSleepPreventionController` integration test gated by platform and `caffeinate` availability.

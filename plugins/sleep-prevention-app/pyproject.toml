@@ -37,3 +37,6 @@ include = ["sleep_prevention_app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
+markers = [
+  "integration: tests that exercise real OS subprocess behavior",
+]

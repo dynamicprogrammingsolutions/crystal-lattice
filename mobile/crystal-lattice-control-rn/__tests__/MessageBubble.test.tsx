@@ -324,7 +324,7 @@ test('assistant markdown mode renders selectable enriched markdown prose', () =>
 });
 
 
-test('assistant markdown mode preserves syntax-highlighted fenced code blocks', () => {
+test('assistant markdown mode can render fenced code blocks through selectable native code blocks', () => {
   const renderer = renderMessageBubble({
     role: 'assistant',
     content: [
@@ -343,8 +343,11 @@ test('assistant markdown mode preserves syntax-highlighted fenced code blocks', 
   const selectableCodeBlocks = renderer.root.findAll((node) => (
     String(node.type) === 'View' && node.props.testID === 'selectable-markdown-code-block'
   ));
+  const selectableCodeBlockViews = renderer.root.findAll((node) => String(node.type) === 'SelectableCodeBlockView');
   const selectableTextViews = renderer.root.findAll((node) => String(node.type) === 'SelectableTextView');
   const syntaxHighlighters = renderer.root.findAll((node) => String(node.type) === 'SyntaxHighlighter');
+
+  const horizontalCodeScrolls = renderer.root.findAll((node) => node.props.horizontal === true);
 
   expect(enrichedMarkdown).toHaveLength(2);
   expect(enrichedMarkdown.map((node) => node.props.markdown.trim())).toEqual([
@@ -352,7 +355,14 @@ test('assistant markdown mode preserves syntax-highlighted fenced code blocks', 
     'Outro paragraph.',
   ]);
   expect(selectableCodeBlocks).toHaveLength(1);
-  expect(selectableTextViews).toHaveLength(1);
-  expect(selectableTextViews[0].props.menuOptions).toEqual(['Copy']);
+  expect(selectableCodeBlockViews).toHaveLength(1);
+  expect(
+    selectableCodeBlockViews[0].props.tokens
+      .map((token: { text: string }) => token.text)
+      .join(''),
+  ).toBe('const value = 1;\n');
+  expect(selectableCodeBlockViews[0].props.fontFamily).toBe('Courier');
+  expect(selectableTextViews).toHaveLength(0);
   expect(syntaxHighlighters).toHaveLength(0);
+  expect(horizontalCodeScrolls.length).toBeGreaterThan(0);
 });

@@ -8,6 +8,7 @@ Runtime references (source of truth):
 
 - Protocol: `core/python/agent_app/app_plugins.py`
 - Application context: `core/python/agent_app/application_future.py`
+- Shared session listing: `core/python/agent_app/session_listing.py`
 
 Reference implementations:
 
@@ -36,6 +37,9 @@ Application plugins are ideal for features that need:
 | Capability | Method/Access | Description |
 |------------|---------------|-------------|
 | Load sessions | `app.load_session(session_id)` | Load a session from the session store |
+| List session summaries | `app.list_session_summaries(...)` | Build shared fields, presentation, ordering, optional in-process filtering, and limits |
+| Load one session summary | `app.get_session_summary(session_id)` | Build the same summary contract for one exact ID without list filtering |
+| List diagnostics | `app.get_session_list_diagnostics()` | Inspect nonfatal field/action/order diagnostics from the latest list query |
 | Save sessions | `app.save_session(session)` | Persist a session to the session store |
 | Server settings | `app.get_server_settings()` | Read application-owned server-scoped settings |
 | Update server settings | `app.patch_server_settings(values, source=...)` | Persist server-scoped setting updates and run lifecycle triggers |
@@ -146,12 +150,30 @@ Common UI context keys:
 | `models` | `list[dict]` | Model descriptors computed for this config, when available |
 | `session` | `dict` | Serialized session for session-contextual UI schema |
 | `session_id` | `str` | Session id for session-contextual UI schema |
-| `server_settings` | `dict` | Current application-owned server settings for server settings UI schema |
+| `server_settings` | `dict` | Current application-owned server settings for all application UI-schema surfaces |
 | `settings` | `dict` | Generic alias for the active settings scope |
 | `settings_scope` | `str` | Settings scope, such as `"server"` |
 
 Server settings are supplied through `context["server_settings"]`; they are not
 configuration and should not be read from `config`.
+
+Because the current values are available on ordinary application and session
+UI-schema surfaces too, a plugin can use a server setting to include or omit a
+declarative list field, filter, or action. Keep the application configuration
+as the startup default and treat a persisted server setting as the live
+override:
+
+```python
+settings = (context or {}).get("server_settings") or {}
+enabled = settings.get(
+    "session_status_show_in_session_list_footer",
+    state["configured_default"],
+)
+```
+
+The persisted settings mapping remains authoritative. Do not mirror
+user-editable settings into a second plugin-owned state store merely to
+generate UI schema.
 
 ---
 
@@ -268,6 +290,7 @@ Actions can include a `trigger` field to be automatically invoked during applica
 
 | Trigger | When it runs |
 |---------|--------------|
+| `session_list` | While the application builds each shared session summary |
 | `session_create` | After a new session is created |
 | `session_save_prepare` | Before a session is saved |
 | `request_prepare` | Before an LLM request |
@@ -327,8 +350,7 @@ def get_ui_elements(
     self,
     state: Dict[str, Any],
     config: Optional[Dict[str, Any]] = None,
-    tags: Optional[List[str]] = None,
-    models: Optional[List[Dict[str, Any]]] = None,
+    context: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     return [
         # Session action button
@@ -367,6 +389,135 @@ def get_ui_elements(
         },
     ]
 ```
+
+---
+
+### Session-list contributions
+
+Application plugins can contribute three independent parts of a session list:
+
+1. ordinary row actions via `ui_type: "session_list_action"`;
+2. presentation fields via `ui_type: "session_list_field"`;
+3. declarative filters via `ui_type: "session_list_filter"`.
+
+An ordinary `session_list_action` may additionally contain optional
+`rich_ui.kind: "toggle"` or `"list"` metadata. This is a frontend enhancement,
+not a new action type: retain `dialog`, `action_id`, and parameter mapping so
+unsupported/invalid rich presentation always falls back to the ordinary
+action. Pin/archive use immediate toggles; status uses an immediate list that
+passes the selected option through its existing `$dialog.status` map.
+
+They can also define an action with `trigger: "session_list"` to compute
+summary fields and ordering:
+
+```python
+def get_actions(self, state):
+    return [
+        {
+            "id": "compute_list_values",
+            "label": "Compute list values",
+            "trigger": "session_list",
+            "inputs": {
+                "session_id": {"type": "string", "required": True},
+                "session_summary": {"required": True},
+                "session": {"required": False},
+            },
+        }
+    ]
+
+
+def execute_action(self, app, action_id, params, context, state):
+    summary = params["session_summary"]
+    rank = 0 if summary.get("metadata", {}).get("important") else 1
+    return {
+        "session_list_fields": {
+            "importance_rank": rank,
+        },
+        "session_list_order": [
+            {
+                "key": "importance_rank",
+                "direction": "asc",
+                "fallback": 1,
+                "priority": 10,
+            }
+        ],
+    }
+```
+
+`AgentApplication` is the application-facing authority for enumeration,
+summary construction, trigger execution, presentation, and ordering. HTTP and
+terminal adapters call the application methods rather than inspect a
+filesystem session root.
+
+The returned summary shape is:
+
+```typescript
+interface SessionSummary {
+  session_id: string;
+  modified: number;
+  preview: string;
+  metadata: Record<string, unknown>;
+  presentation: {
+    title: string;
+    subtitle: string | null;
+    meta: string | null;
+  };
+  [contributedField: string]: unknown;
+}
+```
+
+`metadata.native_messages` is excluded because it may contain a heavyweight
+provider-native copy of the transcript. Feature values such as pin, archive,
+or status remain under their configured `metadata.*` paths rather than being
+projected into feature-specific top-level fields.
+
+The query API is:
+
+```python
+app.list_session_summaries(
+    filter_values=None,
+    apply_filter_defaults=False,
+    limit=None,
+)
+```
+
+Ordering happens first, optional in-process filtering second, and `limit`
+last. HTTP requests the unfiltered collection. Terminal integrations can
+supply filter state in-process. `app.get_session_summary(session_id)` is exact
+and independent of list filters.
+
+`session_list_filter` is metadata, not an action: it has no `action_id` and is
+never passed to `execute_action`. One valid text filter may set
+`main_search: true`. Terminal free-text search requires that declaration.
+Mobile and desktop use it when available and retain a shared local summary-text
+fallback search when it is absent or ambiguous; ambiguity is still exposed as
+a schema diagnostic. See [UI elements](ui-elements.md), under
+“Session-list filters,” for the full type, default, matching, Reset, and
+Show-all contract.
+
+The built-in `session-pinned-app` and `session-status-app` plugins are concrete
+examples of keeping actions and filters aligned around one configurable
+metadata key. Pinning declares one rich toggle at both the trailing title
+header and the user-configurable action bar, then contributes an
+inactive-by-default Boolean filter. Status contributes an ordinary select-form
+row action and an inactive-by-default multi-select filter. Missing status
+behaves as `todo`; selecting `todo` for an old session is therefore a no-op
+unless a different explicit value was stored. Both mutation actions save a new
+immutable `Session`, publish `session_metadata_updated`, record a checkpoint,
+and report updated-session mutations.
+
+Public HTTP adapters expose:
+
+```text
+GET /sessions
+GET /sessions/{session_id}/summary
+GET /application/ui-schema
+```
+
+The first two return application-derived summaries. The global UI-schema
+endpoint carries list action, field, and filter declarations. See
+[UI elements](ui-elements.md) and [Plugin actions](actions.md) for complete
+normalization, fallback, dialog, filter, and ordering rules.
 
 ---
 
