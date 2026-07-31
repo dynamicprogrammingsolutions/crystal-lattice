@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import type { Transport } from '@crystal-lattice/frontend-sdk';
 import { useTheme, type Theme } from './theme';
-import { GlobalNotificationBannerSlot } from './components/GlobalDisplayLayer';
 
 interface ConnectionScreenProps {
   transport: Transport;
@@ -45,8 +44,6 @@ const ConnectionScreen: React.FC<ConnectionScreenProps> = ({
       {additionalInfo ? (
         <Text style={styles.serverSubLabel}>{additionalInfo}</Text>
       ) : null}
-
-      <GlobalNotificationBannerSlot testID="connection-notification-banner-rail" />
 
       <TouchableOpacity
         style={[styles.button, styles.primaryButton]}

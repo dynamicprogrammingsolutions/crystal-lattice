@@ -6,11 +6,12 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { Alert, Linking, StyleSheet, View } from 'react-native';
+import { Alert, Linking, View } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 
 import {
   ApplicationNotificationsController,
+  classifyDisplayEnvelope,
   displayEnvelopeLifecycleKey,
   displayEnvelopeRevisionKey,
   emitDisplayPresentation,
@@ -28,7 +29,6 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 
 import { useApplicationPlugins } from '../ApplicationPluginsContext';
-import { useTheme } from '../theme';
 import ActionResultInlineCard from './ActionResultInlineCard';
 import ActionResultModal from './ActionResultModal';
 import { handleGeneratedFileFollowupAction } from '../utils/generatedFileActions';
@@ -36,47 +36,95 @@ import { handleGeneratedFileFollowupAction } from '../utils/generatedFileActions
 interface GlobalDisplayLayerProps {
   backend: AgentBackend | null;
   connectionId: string | null;
-  connectionName: string | null;
   children: React.ReactNode;
 }
 
-interface GlobalBannerContextValue {
-  items: NotificationBannerHostItem[];
-  onDismiss: (item: NotificationBannerHostItem) => void;
-  onFollowupAction: (
+interface GlobalDisplayContextValue {
+  items: DisplayEnvelope[];
+  dismiss: (envelope: DisplayEnvelope) => void;
+  followup: (
     action: ActionDisplayFollowupAction,
-    item: NotificationBannerHostItem,
-  ) => void;
+    envelope: DisplayEnvelope,
+  ) => Promise<void>;
 }
 
-const GlobalBannerContext = createContext<GlobalBannerContextValue | null>(null);
+const GlobalDisplayContext = createContext<GlobalDisplayContextValue | null>(null);
 
-export function GlobalNotificationBannerSlot({
+export function MobileDisplayHost({
+  scope,
+  sessionId,
   testID = 'global-notification-banner-rail',
 }: {
+  scope: 'connection' | 'session';
+  sessionId?: string;
   testID?: string;
 }): React.JSX.Element | null {
-  const context = useContext(GlobalBannerContext);
-  if (!context || context.items.length === 0) return null;
+  const context = useContext(GlobalDisplayContext);
+  const items = useMemo(() => {
+    if (!context) return [];
+    return context.items.filter((envelope) => {
+      const ownership = classifyDisplayEnvelope(envelope);
+      if (scope === 'connection') {
+        return ownership.scope === 'connection';
+      }
+      return ownership.scope === 'session' && ownership.sessionId === sessionId;
+    });
+  }, [context, scope, sessionId]);
+  if (!context || items.length === 0) return null;
+  const banners: NotificationBannerHostItem[] = items
+    .filter((item) => item.display.presentation === 'banner')
+    .map((envelope) => ({ envelope }));
+  const inline = items.filter((item) => item.display.presentation === 'inline');
+  const modal =
+    items.slice().reverse().find((item) => item.display.presentation === 'modal') ?? null;
   return (
-    <NotificationBannerHost
-      items={context.items}
-      layout="flow"
-      testID={testID}
-      onDismiss={context.onDismiss}
-      onFollowupAction={context.onFollowupAction}
-    />
+    <>
+      {banners.length > 0 ? (
+        <NotificationBannerHost
+          items={banners}
+          layout="flow"
+          testID={testID}
+          onDismiss={(item) => context.dismiss(item.envelope)}
+          onFollowupAction={(action, item) => {
+            void context.followup(action, item.envelope);
+          }}
+        />
+      ) : null}
+      {inline.length > 0 ? (
+        <View pointerEvents="box-none">
+          {inline.map((envelope) => (
+            <ActionResultInlineCard
+              key={envelope.id}
+              display={envelope.display}
+              onDismiss={() => context.dismiss(envelope)}
+              onFollowupAction={(action) => {
+                void context.followup(action, envelope);
+              }}
+            />
+          ))}
+        </View>
+      ) : null}
+      <ActionResultModal
+        visible={modal !== null}
+        display={modal?.display ?? null}
+        presentationMode="overlay"
+        testID="global-notification-modal"
+        onRequestClose={() => {
+          if (modal) context.dismiss(modal);
+        }}
+        onFollowupAction={(action) => {
+          if (modal) void context.followup(action, modal);
+        }}
+      />
+    </>
   );
 }
 
 export default function GlobalDisplayLayer({
   backend,
   connectionId,
-  connectionName,
   children,
 }: GlobalDisplayLayerProps): React.JSX.Element | null {
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
   const { actionsById, actionsByKey = {} } = useApplicationPlugins();
   const [transientItems, setTransientItems] = useState<DisplayEnvelope[]>([]);
   const [applicationNotifications, setApplicationNotifications] = useState<
@@ -185,6 +233,7 @@ export default function GlobalDisplayLayer({
           backend,
           normalizeDisplayEnvelope({
             source: 'action_response',
+            ownershipScope: classifyDisplayEnvelope(envelope).scope,
             connectionId,
             sessionId: envelope.sessionId,
             display: result.display,
@@ -212,67 +261,9 @@ export default function GlobalDisplayLayer({
   const items = [...applicationItems, ...transientItems].filter(
     (item) => !dismissedRevisions.includes(displayEnvelopeRevisionKey(item)),
   );
-  const banners: NotificationBannerHostItem[] = items
-    .filter((item) => item.display.presentation === 'banner')
-    .map((envelope) => ({
-      envelope,
-      connectionLabel: connectionName,
-      sessionLabel: envelope.sessionId ?? null,
-    }));
-  const inline = items.filter((item) => item.display.presentation === 'inline');
-  const modal =
-    items.slice().reverse().find((item) => item.display.presentation === 'modal') ?? null;
-
-  const bannerContext = {
-    items: banners,
-    onDismiss: (item: NotificationBannerHostItem) => dismiss(item.envelope),
-    onFollowupAction: (
-      action: ActionDisplayFollowupAction,
-      item: NotificationBannerHostItem,
-    ) => {
-      void followup(action, item.envelope);
-    },
-  };
-
   return (
-    <GlobalBannerContext.Provider value={bannerContext}>
+    <GlobalDisplayContext.Provider value={{ items, dismiss, followup }}>
       {children}
-      {inline.length > 0 ? (
-        <View pointerEvents="box-none" style={styles.inlineHost}>
-          {inline.map((envelope) => (
-            <ActionResultInlineCard
-              key={envelope.id}
-              display={envelope.display}
-              onDismiss={() => dismiss(envelope)}
-              onFollowupAction={(action) => {
-                void followup(action, envelope);
-              }}
-            />
-          ))}
-        </View>
-      ) : null}
-      <ActionResultModal
-        visible={modal !== null}
-        display={modal?.display ?? null}
-        presentationMode="overlay"
-        testID="global-notification-modal"
-        onRequestClose={() => {
-          if (modal) dismiss(modal);
-        }}
-        onFollowupAction={(action) => {
-          if (modal) void followup(action, modal);
-        }}
-      />
-    </GlobalBannerContext.Provider>
+    </GlobalDisplayContext.Provider>
   );
-}
-
-function createStyles(theme: ReturnType<typeof useTheme>) {
-  return StyleSheet.create({
-    inlineHost: {
-      marginHorizontal: 12,
-      paddingBottom: 8,
-      backgroundColor: theme.background,
-    },
-  });
 }

@@ -758,7 +758,7 @@ export function DesktopRoot({
       <DesktopGlobalDisplayLayer
         openConnectionsById={openConnectionsById}
         connectionNameById={connectionNameById}
-      />
+      >
       <DesktopShell
         left={(
           <View style={styles.leftColumn}>
@@ -858,6 +858,7 @@ export function DesktopRoot({
           </View>
         )}
       />
+      </DesktopGlobalDisplayLayer>
     </View>
   );
 }

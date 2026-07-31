@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import type {
   ActionDisplayFollowupAction,
@@ -21,6 +21,7 @@ export interface ActionResultInlineCardProps {
   ) => void;
   activeActionId?: string | null;
   fieldRenderers?: ApplicationActionDialogFieldRenderers;
+  contextLabel?: string;
 }
 
 const VARIANT_LABELS: Record<NonNullable<ActionDisplayPayload['variant']>, string> = {
@@ -36,6 +37,7 @@ export function ActionResultInlineCard({
   onFollowupAction,
   activeActionId,
   fieldRenderers,
+  contextLabel,
 }: ActionResultInlineCardProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -43,6 +45,11 @@ export function ActionResultInlineCard({
 
   return (
     <View style={styles.wrapper}>
+      {contextLabel ? (
+        <Text style={styles.contextLabel} numberOfLines={1}>
+          {contextLabel}
+        </Text>
+      ) : null}
       <ActionDisplayCard
         display={display}
         onDismiss={onDismiss}
@@ -66,5 +73,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       shadowRadius: 8,
       shadowOffset: { width: 0, height: 3 },
       elevation: 2,
+    },
+    contextLabel: {
+      color: theme.textSecondary,
+      fontSize: 11,
+      fontWeight: '600',
+      marginBottom: 4,
+      marginHorizontal: 4,
     },
   });

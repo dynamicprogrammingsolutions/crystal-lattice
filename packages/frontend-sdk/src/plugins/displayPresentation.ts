@@ -8,10 +8,14 @@ export type DisplaySourceKind =
   | 'action_response';
 export type DisplayPresentation = 'banner' | 'inline' | 'modal';
 export type DisplayPresentationHost = 'mobile' | 'desktop';
+export type DisplayOwnership =
+  | { scope: 'connection'; connectionId?: string | null }
+  | { scope: 'session'; connectionId?: string | null; sessionId: string };
 
 export interface DisplayEnvelope {
   id: string;
   source: DisplaySourceKind;
+  ownershipScope?: 'connection' | 'session';
   connectionId?: string | null;
   sessionId?: string | null;
   display: ActionDisplayPayload;
@@ -26,6 +30,7 @@ const DISPLAY_LISTENERS = new WeakMap<object, Set<DisplayListener>>();
 export function normalizeDisplayEnvelope(options: {
   display: ActionDisplayPayload;
   source: DisplaySourceKind;
+  ownershipScope?: 'connection' | 'session';
   connectionId?: string | null;
   sessionId?: string | null;
   id?: string;
@@ -53,6 +58,7 @@ export function normalizeDisplayEnvelope(options: {
   return {
     id,
     source: options.source,
+    ownershipScope: options.ownershipScope,
     connectionId: options.connectionId,
     sessionId: options.sessionId,
     sourceKey: options.sourceKey,
@@ -68,6 +74,42 @@ export function displayEnvelopeLifecycleKey(envelope: DisplayEnvelope): string {
 
 export function displayEnvelopeRevisionKey(envelope: DisplayEnvelope): string {
   return `${displayEnvelopeLifecycleKey(envelope)}:${envelope.updatedAt ?? envelope.display.display_id ?? envelope.id}`;
+}
+
+export function classifyDisplayEnvelope(envelope: DisplayEnvelope): DisplayOwnership {
+  if (envelope.ownershipScope === 'connection') {
+    return {
+      scope: 'connection',
+      connectionId: envelope.connectionId,
+    };
+  }
+  if (envelope.source === 'session_notification') {
+    if (!envelope.sessionId) {
+      throw new Error('Session notification display requires sessionId');
+    }
+    return {
+      scope: 'session',
+      connectionId: envelope.connectionId,
+      sessionId: envelope.sessionId,
+    };
+  }
+  if (
+    envelope.ownershipScope === 'session' ||
+    (envelope.source === 'action_response' && envelope.sessionId)
+  ) {
+    if (!envelope.sessionId) {
+      throw new Error('Session-owned display requires sessionId');
+    }
+    return {
+      scope: 'session',
+      connectionId: envelope.connectionId,
+      sessionId: envelope.sessionId,
+    };
+  }
+  return {
+    scope: 'connection',
+    connectionId: envelope.connectionId,
+  };
 }
 
 export function normalizeDisplayEnvelopeForHost(

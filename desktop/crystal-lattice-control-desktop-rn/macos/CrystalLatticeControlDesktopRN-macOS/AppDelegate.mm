@@ -58,20 +58,26 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   BOOL enableSessionFiltersPopoverHarness =
       EnvironmentFlagEnabled(@"CLC_ENABLE_SESSION_FILTERS_POPOVER_HARNESS") ||
       LaunchArgumentPresent(@"--session-filters-popover-harness");
+  BOOL enableNotificationRailHarness =
+      EnvironmentFlagEnabled(@"CLC_ENABLE_NOTIFICATION_RAIL_HARNESS") ||
+      LaunchArgumentPresent(@"--notification-rail-harness");
   BOOL enableAnyTestHarness =
       enableScrollTestHarness ||
       enableTranscriptScrollPersistenceHarness ||
-      enableSessionFiltersPopoverHarness;
+      enableSessionFiltersPopoverHarness ||
+      enableNotificationRailHarness;
   if (enableAnyTestHarness) {
     RCTDevLoadingViewSetEnabled(NO);
   }
-  self.moduleName = enableSessionFiltersPopoverHarness
+  self.moduleName = enableNotificationRailHarness
+      ? @"DesktopNotificationRailHarness"
+      : (enableSessionFiltersPopoverHarness
       ? @"SessionFiltersPopoverHarness"
       : (enableTranscriptScrollPersistenceHarness
              ? @"TranscriptScrollPersistenceHarness"
              : (enableScrollTestHarness
                     ? @"ProgressiveScrollHarness"
-                    : @"CrystalLatticeControlDesktopRN"));
+                    : @"CrystalLatticeControlDesktopRN")));
   NSString *tabStripStyle = [self loadTabStripStylePreference];
   BOOL followEnabled = [self loadSessionsFollowActiveTabEnabledPreference];
   self.initialProps = @{
@@ -305,9 +311,11 @@ static BOOL LaunchArgumentPresent(NSString *argument)
   if (EnvironmentFlagEnabled(@"CLC_ENABLE_SCROLL_TEST_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_TRANSCRIPT_SCROLL_PERSISTENCE_HARNESS") ||
       EnvironmentFlagEnabled(@"CLC_ENABLE_SESSION_FILTERS_POPOVER_HARNESS") ||
+      EnvironmentFlagEnabled(@"CLC_ENABLE_NOTIFICATION_RAIL_HARNESS") ||
       LaunchArgumentPresent(@"--scroll-test-harness") ||
       LaunchArgumentPresent(@"--transcript-scroll-persistence-harness") ||
-      LaunchArgumentPresent(@"--session-filters-popover-harness")) {
+      LaunchArgumentPresent(@"--session-filters-popover-harness") ||
+      LaunchArgumentPresent(@"--notification-rail-harness")) {
     return [[NSBundle mainBundle] URLForResource:@"main" withExtension:@"jsbundle"];
   }
 

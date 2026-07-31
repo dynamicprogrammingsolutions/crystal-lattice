@@ -87,7 +87,7 @@ import SessionSnapshotsModal from './components/SessionSnapshotsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
-import { GlobalNotificationBannerSlot } from './components/GlobalDisplayLayer';
+import { MobileDisplayHost } from './components/GlobalDisplayLayer';
 import AttachmentViewerHost from './components/AttachmentViewerHost';
 import type { DebugTimelineEntry } from './debugTimeline';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
@@ -3441,13 +3441,22 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               }),
             );
           }}
-          onModal={(notification) =>
-            presentActionDisplay(notification.display, {
-              connectionId: connectionId ?? undefined,
-              sessionId,
-              sessionSummary: currentSessionSummary ?? undefined,
-            })
-          }
+          onModal={(notification) => {
+            if (!backend) return;
+            emitDisplayPresentation(
+              backend,
+              normalizeDisplayEnvelope({
+                id: notification.id,
+                source: 'session_notification',
+                connectionId,
+                sessionId,
+                sourceKey: notification.key,
+                display: notification.display,
+                createdAt: notification.created_at,
+                updatedAt: notification.updated_at,
+              }),
+            );
+          }}
           onFollowupAction={(action, notification) =>
             handleDisplayFollowupAction(
               createDisplayEntry(notification.display, {
@@ -3759,7 +3768,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	          )}
 	        </View>
 
-        <GlobalNotificationBannerSlot testID="messages-notification-banner-rail" />
+        <MobileDisplayHost
+          scope="session"
+          sessionId={sessionId}
+          testID="messages-notification-banner-rail"
+        />
 
 	      {sessionDirty && (
 	        <View style={styles.dirtyBanner}>

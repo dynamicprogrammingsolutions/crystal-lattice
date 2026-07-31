@@ -4,6 +4,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '@crystal-lattice/frontend-rn-components';
 
 import type { TabStripStyle } from '../tabs/tabStripStyle';
+import { DesktopConnectionDisplayRail } from '../ui/DesktopGlobalDisplayLayer';
 
 export interface ChatPanePlaceholderProps {
   visible: boolean;
@@ -33,6 +34,8 @@ export function ChatPanePlaceholder({
           </Text>
         ) : null}
       </View>
+
+      <DesktopConnectionDisplayRail />
 
       <View style={styles.body}>
         <Text style={styles.hint}>

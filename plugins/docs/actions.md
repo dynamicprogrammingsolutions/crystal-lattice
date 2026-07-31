@@ -126,8 +126,17 @@ Guidance:
   owner
 - session notifications support all three values on mobile; desktop normalizes
   notification `modal` to the same inline region used by session responses
-- mobile banner rails are in normal layout below the active screen header
-  (below search/filter on Sessions), so they push content down
+- mobile application notifications appear only on Sessions below
+  search/filter; session notifications appear only on the matching Chat below
+  its header; hidden displays remain pending until their owning screen opens
+- mobile notification cards omit connection/session labels because their
+  owning screen supplies that context
+- desktop connection-level notifications and application/session-list action
+  responses from all open connections share one message/detail-area rail and
+  retain a connection label
+- the active desktop ChatPane contributes session notifications and
+  session/message responses to the same visual location without a redundant
+  session label; desktop modal requests use inline cards there
 - local dismissal is revision-scoped: updating the same stable notification id
   with a later `updated_at` makes the new revision eligible for presentation
 

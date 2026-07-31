@@ -80,10 +80,12 @@ and receive validation errors for malformed payloads.
 
 Application notifications may use `display.presentation: "banner"` or
 `"modal"`. `"inline"` is rejected because there is no application-global
-inline owner. Mobile renders banners below the active screen header (below the
-Sessions search/filter row) and uses a root-level modal overlay. Desktop
-normalizes notification modal requests to inline because React Native modal
-presentation is not supported by the desktop runtime.
+inline owner. Mobile renders application notifications only on Sessions below
+the search/filter row and uses a Sessions-owned modal overlay. Desktop
+aggregates application notifications from every open connection in one
+normal-flow message/detail-area rail, labels each with its connection, and
+normalizes modal requests to inline because React Native modal presentation is
+not supported by the desktop runtime.
 
 Creating another pending notification with the same `key` updates the existing
 lifecycle id. Frontends scope local dismissal to the notification revision

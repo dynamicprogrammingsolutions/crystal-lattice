@@ -55,13 +55,11 @@ conditional follow-up work.
   including event scope, payload fields, lifecycle, de-duplication, event
   polling, persistence/reconnect limits, presentation semantics, and failure
   behavior.
-- [ ] Application notifications with banner presentation render in a
-  connection-global banner rail within every mobile screen and desktop pane,
-  with
-  distinct opaque info, success, warning, and error colors and accessible
-  dismissal. On mobile the rail participates in normal layout immediately
-  below the screen header; on Sessions it is below the search/filter row, and
-  it pushes the remaining active-screen content down instead of overlaying it.
+- [ ] Application notifications with banner presentation render only on the
+  mobile Sessions screen, below search/filter, and in one aggregated desktop
+  message/detail-area rail for all open connections. Both placements use
+  distinct opaque info, success, warning, and error colors, accessible
+  dismissal, and normal layout that pushes subsequent content down.
 - [x] Desktop snapshot-selection/read-only feedback composes the same shared
   banner primitive while remaining scoped to its Messages pane.
 - [ ] The top of the mobile and desktop Sessions surfaces uses the reusable
@@ -97,6 +95,14 @@ conditional follow-up work.
   notifications are removed without redisplay, and an active session shows a
   newly persisted session notification without requiring navigation away and
   back.
+- [x] Mobile session notifications render only on the matching Chat screen,
+  mobile application notifications render only on Sessions, and neither uses
+  redundant connection/session context labels.
+- [ ] Desktop connection-level notifications from every open connection share
+  one normal-flow rail in the message/detail area with connection labels;
+  active-session notifications share that visual location without redundant
+  session labels, and notification popup/modal requests use inline cards in
+  the same rail.
 
 Supports:
 `tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md`
@@ -696,6 +702,42 @@ the Sessions or Messages content top. Capture named screenshots for Sessions
 application banner/modal and Messages session banner/inline/modal states for
 the manual visual checkpoint.
 
+#### 8. Approved surface-ownership and desktop aggregation correction
+
+Keep lifecycle state long-lived while making presentation surface-specific.
+Classify application notifications and action responses without `sessionId` as
+connection-level; classify session notifications and action responses with
+`sessionId` as session-level.
+
+On mobile, remove notification presentation from Connection. Sessions renders
+connection-level application notifications and connection-level action
+responses below search/filter. Chat renders only session-level notifications
+and action responses matching its exact session below the header. Displays
+received while another screen/session is active remain pending until their
+owning surface is opened. Mobile cards omit connection and session labels.
+
+On desktop, retain one controller for every open backend but expose its state
+to the message/detail region instead of rendering an absolute root overlay.
+One normal-flow rail there aggregates connection-level notifications from all
+open connections, labels each with friendly connection name or connection id,
+and remains visible above placeholder/detail content even when no ChatPane is
+active. The active ChatPane contributes its matching session notifications and
+session action displays to that same visual location without a redundant
+session label. Banner cards and desktop inline/modal fallbacks in the rail push
+the transcript/detail content down. Desktop notification `modal` continues to
+mean inline fallback; no React Native modal or display window is introduced.
+
+Direct action responses retain their originating ownership: application and
+session-list responses are connection-level, while session/message responses
+are session-level. Existing revision dismissal, resolution, reconnect, and
+connection isolation behavior remains unchanged.
+
+Add pure routing tests, mobile wrong-surface/matching-session tests, desktop
+multi-connection aggregation and active-session tests, and updated native
+visual assertions/screenshots. Preserve the prior notification contract and
+remediation documentation as implementation history, then document this
+surface-ownership refinement as the current product behavior.
+
 ### Implementation decisions and open questions
 
 Decided for this draft:
@@ -848,6 +890,17 @@ Approved checkpoint-follow-up decisions:
 - [x] Add production-screen Detox geometry assertions and screenshots for
   notification presentation on Sessions and Messages.
 - [x] Run focused remediation verification and record evidence.
+- [x] Approve the surface-ownership and desktop aggregation correction.
+- [x] Add shared connection/session display ownership classification.
+- [x] Restrict mobile application notifications to Sessions and session
+  notifications to the matching Chat, without context labels.
+- [x] Move desktop connection-level notification rendering into one
+  message/detail-area normal-flow rail and merge the active session's displays
+  into the same visual location.
+- [x] Add focused mobile/desktop ownership, aggregation, and visual coverage.
+- [x] Update current notification documentation while retaining prior plan and
+  implementation history.
+- [x] Run focused ownership/aggregation verification and record evidence.
 - [ ] Stop for the revised mobile and desktop manual checkpoint.
 
 ### Requirement verification
@@ -884,8 +937,8 @@ Approved checkpoint-follow-up decisions:
   and failure recovery in the real local runtime.
 - **Application notification contract:** Poll globally through the production
   backend, observe one created-to-updated lifecycle without `session_id`, and
-  verify the same stable notification renders as a four-variant-capable
-  connection-global banner in each mobile screen slot and the desktop rail.
+  verify the same stable notification renders as a four-variant-capable banner
+  only on mobile Sessions and in the aggregated desktop message/detail rail.
 - **Persistent session notifications:** Trigger a notification through a
   public session action, observe session lifecycle events, reconnect/reload the
   session from metadata, execute its follow-up action, and resolve it without
@@ -902,6 +955,15 @@ Approved checkpoint-follow-up decisions:
   the Messages header while pushing subsequent content down, application modal
   presentation survives action-dialog dismissal, and named screenshots record
   the rendered banner/inline/modal states.
+- **Surface ownership:** Prove mobile application notifications are absent from
+  Connection/Chat and appear on Sessions, while session notifications are
+  absent from Sessions and other sessions and appear only in the matching
+  Chat. Prove deferred displays appear when their owning surface opens.
+- **Desktop aggregation:** With two open connections, prove both
+  connection-labelled application notifications share one message/detail-area
+  rail, the active session contributes its notifications to the same rail,
+  switching sessions replaces only the session-scoped portion, and desktop
+  modal requests render inline there.
 - **Demonstration plugins:** Discover and execute each non-default demo plugin
   through the public backend while proving none is enabled by production
   default configuration.
@@ -953,10 +1015,11 @@ request refactoring, and live active-request migration remain conditional.
   then dismiss one revision, emit an updated revision without reopening, run
   **Run follow-up**, and resolve it. On desktop, notification modal requests
   should render inline rather than opening a React Native modal/window. With
-  two connections open, verify one connection's notification/action display
-  does not appear in the other connection's rail or session surface. These
-  packages are demonstration-only and must remain absent from production
-  default configuration.
+  two connections open, verify both connection-level notifications appear
+  together in the message/detail-area rail with connection labels, while only
+  the active session contributes session notifications there. These packages
+  are demonstration-only and must remain absent from production default
+  configuration.
 - **Notification remediation evidence (July 30, 2026):** Application
   notification creation rejects inline at the owner boundary and frontend
   normalization rejects it defensively. Mobile and desktop dismissal are keyed
@@ -981,6 +1044,34 @@ request refactoring, and live active-request migration remain conditional.
   pre-existing documentation warnings. Desktop TypeScript still reports the
   three pre-existing errors in `ChatPane.tsx` and
   `ActionResultInlineCard.tsx` recorded before this remediation.
+- **Surface-ownership implementation (July 31, 2026):** Added one shared
+  display ownership classifier with an explicit connection-scope override for
+  session-list action responses. Mobile keeps lifecycle state at
+  `ConnectedRoot` but renders application/connection displays only on Sessions
+  and exact-session displays only on the matching Chat; Connection has no
+  notification host and mobile cards omit context labels. Desktop keeps one
+  controller per open backend and renders all connection-level displays in one
+  normal-flow message/detail rail with connection labels. The active ChatPane
+  renders all session-notification presentations as live inline cards directly
+  below the same header/rail area, so resolution removes them without copied
+  transient state.
+- **Surface-ownership evidence (July 31, 2026):** frontend SDK `271 passed`;
+  shared RN components `7 passed`; focused mobile unit/component tests
+  `22 passed`; mobile TypeScript passed; focused desktop unit tests `7 passed`;
+  desktop real-backend notification integration `1 passed`; expanded iOS
+  Detox notification suite `7 passed`, including wrong-surface absence on
+  Sessions and Messages; documentation build and `git diff --check` passed.
+  Desktop TypeScript remains blocked only by the same three pre-existing errors
+  in `ChatPane.tsx` and `ActionResultInlineCard.tsx`.
+- **Desktop native visual validation (July 31, 2026):** Added a deterministic
+  macOS harness using the production desktop display provider, aggregated
+  connection rail, session notification host, and inline card. The app and
+  UI-test targets build and bundle successfully. Two focused execution
+  attempts failed before app launch because XCTest timed out while enabling
+  macOS automation mode. No harness assertion ran. The test retains a native
+  geometry assertion that the combined rail ends above message content and a
+  kept screenshot attachment; execution remains part of the manual desktop
+  checkpoint.
 - Stage 1 execution started after explicit plan approval.
 - Added a small `AgentApplicationOwner`; `AgentApplication` remains the real
   application and only gains a reload-request delegation hook.
@@ -1018,8 +1109,10 @@ request refactoring, and live active-request migration remain conditional.
 - Checkpoint follow-up implemented persistent session notifications, generic
   owner-memory application notifications, and one standard display envelope
   for application/session notifications and action responses.
-- Mobile owns application-global display state at `ConnectedRoot`; desktop
-  polls every open backend and routes all banner sources to one top rail.
+- Mobile owns application-global display state at `ConnectedRoot`; the
+  July 31 surface-ownership correction limits rendering to Sessions or the
+  matching Chat. Desktop polls every open backend and aggregates
+  connection-level displays in the message/detail rail.
 - Mobile and desktop Sessions now use one pinnable action bar. Desktop Server
   settings use a separate React window; modal notification/action displays use
   the established inline fallback.

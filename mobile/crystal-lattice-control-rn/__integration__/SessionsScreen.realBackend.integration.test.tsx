@@ -277,7 +277,6 @@ describe('SessionsScreen real-backend component integration', () => {
           <GlobalDisplayLayer
             backend={started.backend}
             connectionId="real-backend"
-            connectionName="Real backend"
           >
             <SessionsScreen
               backend={started.backend}

@@ -160,11 +160,13 @@ export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDi
 export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
 export type {
   DisplayEnvelope,
+  DisplayOwnership,
   DisplayPresentation,
   DisplayPresentationHost,
   DisplaySourceKind,
 } from './plugins/displayPresentation';
 export {
+  classifyDisplayEnvelope,
   displayEnvelopeLifecycleKey,
   displayEnvelopeRevisionKey,
   emitDisplayPresentation,

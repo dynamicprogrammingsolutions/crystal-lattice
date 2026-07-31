@@ -40,13 +40,11 @@ import {
   selectPendingSessionNotifications,
   deleteSessionAttachment,
   deriveSessionListPresentationFromGroups,
-  emitDisplayPresentation,
   filterFooterElements,
   groupSessionListFields,
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
   normalizeActionDisplayForSurface,
-  normalizeDisplayEnvelope,
   runApplicationAction,
   selectSessionAssetId,
   selectDisplayContent,
@@ -75,8 +73,8 @@ import { DependencyFlatList } from '../ui/DependencyFlatList';
 import { DependencyVirtualizedScroll } from '../ui/DependencyVirtualizedScroll';
 import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
 import { ProgressiveScrollList } from '../ui/ProgressiveScrollList';
-import { ActionResultModal } from '../ui/ActionResultModal';
 import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
+import { DesktopConnectionDisplayRail } from '../ui/DesktopGlobalDisplayLayer';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { closeDesktopPopover, openDesktopPopover } from '../windows/desktopPopoverCoordinator';
 import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverContent';
@@ -444,7 +442,6 @@ export const ChatPane = React.memo(function ChatPane({
   const [reloadInFlight, setReloadInFlight] = useState(false);
   const [cancelInFlight, setCancelInFlight] = useState(false);
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
-  const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
   const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
   const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
   const [notificationEvents, setNotificationEvents] = useState<any[]>([]);
@@ -2047,28 +2044,12 @@ export const ChatPane = React.memo(function ChatPane({
   }, [canRunHeaderActions, chatController, rangeEndText, rangeStartText, reloadInFlight]);
 
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
-    const nextEntry = createDisplayEntry(display, context);
-    const presentation = display.presentation ?? 'modal';
-    if ((presentation === 'banner' || presentation === 'modal') && backend) {
-      emitDisplayPresentation(
-        backend,
-        normalizeDisplayEnvelope({
-          id: nextEntry.key,
-          source: 'action_response',
-          connectionId,
-          sessionId,
-          display,
-        }),
-      );
-      return;
-    }
-    if (presentation === 'inline') {
-      setActionResultDisplay(null);
-      setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
-      return;
-    }
-    setActionResultDisplay(nextEntry);
-  }, [backend, connectionId, sessionId]);
+    const nextEntry = createDisplayEntry(
+      { ...display, presentation: 'inline' },
+      context,
+    );
+    setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
+  }, []);
 
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {
@@ -2158,9 +2139,6 @@ export const ChatPane = React.memo(function ChatPane({
         return;
       }
       if (action.kind === 'run_action') {
-        if ((entry.display.presentation ?? 'modal') !== 'inline' && action.preserve_display !== true) {
-          setActionResultDisplay((current) => (current?.key === entry.key ? null : current));
-        }
         setActiveDisplayActionId(action.id);
         try {
           await executePluginAction(
@@ -2633,48 +2611,21 @@ export const ChatPane = React.memo(function ChatPane({
     [handleStartEditMessage, openPluginDialogForElement, sessionSummary, visibleMessageActions],
   );
 
-  const streamingFooter = useMemo(() => {
-    const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
+  const sessionDisplayRail = useMemo(() => {
     const hasInlineDisplays =
       inlineActionDisplays.length > 0 ||
       notificationEvents.length > 0 ||
       selectPendingSessionNotifications(sessionSummary).length > 0;
-    if (!hasStreaming && !hasInlineDisplays) {
+    if (!hasInlineDisplays) {
       return null;
     }
 
     return (
-      <View>
+      <View testID="desktop-session-display-rail">
         <SessionNotificationsHost
           sessionSummary={sessionSummary ?? null}
           events={notificationEvents}
-          onBanner={(notification) => {
-            if (!backend) return;
-            emitDisplayPresentation(
-              backend,
-              normalizeDisplayEnvelope({
-                id: notification.id,
-                source: 'session_notification',
-                connectionId,
-                sessionId,
-                sourceKey: notification.key,
-                display: notification.display,
-              }),
-            );
-          }}
-          onModal={(notification) => {
-            presentActionDisplay(
-              {
-                ...notification.display,
-                presentation: 'inline',
-              },
-              {
-                connectionId,
-                sessionId,
-                sessionSummary: sessionSummary ?? undefined,
-              },
-            );
-          }}
+          inlinePresentations={['inline', 'banner', 'modal']}
           onFollowupAction={(action, notification) =>
             handleDisplayFollowupAction(
               createDisplayEntry(notification.display, {
@@ -2694,21 +2645,6 @@ export const ChatPane = React.memo(function ChatPane({
             />
           )}
         />
-        {hasStreaming ? (
-          <DesktopMessageBubble
-            index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
-            message={{
-              role: 'assistant',
-              content: streamingRow?.content,
-              metadata: {
-                ...(streamingRow?.metadata || {}),
-                reasoning: streamingRow?.reasoning,
-              },
-            }}
-            renderMode="markdown"
-            footerElements={footerElements}
-          />
-        ) : null}
         {inlineActionDisplays.map((entry) => (
           <ActionResultInlineCard
             key={entry.key}
@@ -2726,15 +2662,39 @@ export const ChatPane = React.memo(function ChatPane({
     );
   }, [
     activeDisplayActionId,
-    footerElements,
     handleDisplayFollowupAction,
     inlineActionDisplays,
-    messages,
     notificationEvents,
-    backend,
     connectionId,
     sessionId,
     sessionSummary,
+  ]);
+
+  const streamingFooter = useMemo(() => {
+    const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
+    if (!hasStreaming) {
+      return null;
+    }
+    return (
+      <View>
+        <DesktopMessageBubble
+          index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
+          message={{
+            role: 'assistant',
+            content: streamingRow?.content,
+            metadata: {
+              ...(streamingRow?.metadata || {}),
+              reasoning: streamingRow?.reasoning,
+            },
+          }}
+          renderMode="markdown"
+          footerElements={footerElements}
+        />
+      </View>
+    );
+  }, [
+    footerElements,
+    messages,
     streamingRow,
   ]);
 
@@ -2744,19 +2704,12 @@ export const ChatPane = React.memo(function ChatPane({
       rows.push({ kind: 'message', item: message });
     }
     const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
-    const hasInlineDisplays =
-      inlineActionDisplays.length > 0 ||
-      notificationEvents.length > 0 ||
-      selectPendingSessionNotifications(sessionSummary).length > 0;
-    if (hasStreaming || hasInlineDisplays) {
+    if (hasStreaming) {
       rows.push({ kind: 'stream' });
     }
     return rows;
   }, [
-    inlineActionDisplays.length,
     messages,
-    notificationEvents.length,
-    sessionSummary,
     streamingRow,
   ]);
 
@@ -2906,16 +2859,6 @@ export const ChatPane = React.memo(function ChatPane({
 
   return (
 	  <View style={styles.root}>
-      <ActionResultModal
-        visible={!!actionResultDisplay}
-        display={actionResultDisplay?.display ?? null}
-        activeActionId={activeDisplayActionId}
-        onRequestClose={() => setActionResultDisplay(null)}
-          onFollowupAction={(action, formValues) => {
-          if (!actionResultDisplay) return;
-            handleDisplayFollowupAction(actionResultDisplay, action, formValues);
-        }}
-      />
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.title} numberOfLines={2}>
@@ -2991,6 +2934,9 @@ export const ChatPane = React.memo(function ChatPane({
           />
         </View>
       </View>
+
+      <DesktopConnectionDisplayRail />
+      {sessionDisplayRail}
 
       <View style={styles.body}>
         <View style={styles.statusRow}>

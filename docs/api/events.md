@@ -56,20 +56,34 @@ Presentation support depends on the producer and host:
 
 | Producer | `banner` | `inline` | `modal` |
 | --- | --- | --- | --- |
-| Application notification | Connection-aware banner rail | Rejected because no application-global inline owner exists | Root-level mobile modal; desktop normalizes to inline |
-| Session notification | Connection-aware banner rail tagged with its session | Persistent Messages notification region | Mobile modal; desktop normalizes to the session inline region |
-| Direct action response | Connection-aware banner rail | Nearest initiating Sessions or Messages region | Mobile modal; desktop normalizes to its established inline response |
+| Application notification | Mobile Sessions rail; aggregated desktop message/detail rail | Rejected because no application-global inline owner exists | Mobile Sessions modal; desktop normalizes to inline in the aggregated message/detail rail |
+| Session notification | Matching mobile Chat rail; active desktop ChatPane rail | Persistent matching-Chat notification region | Matching mobile Chat modal; desktop normalizes to inline in the active ChatPane rail |
+| Direct action response | Owning mobile Sessions/Chat rail; connection-level or active-session desktop rail | Nearest owning Sessions or Chat region | Mobile modal on the owning screen; desktop normalizes to the corresponding rail |
 
-On mobile the banner rail participates in normal screen layout. Messages places
-it below the screen header; Sessions places it below the search/filter row.
-The banner therefore pushes transcript/session-list content down instead of
-covering it. Desktop keeps one connection-aware banner rail for every producer
-and notification scope.
+On mobile, application notifications render only on Sessions below the
+search/filter row. Session notifications render only on the exact matching Chat
+below its header. Both rails participate in normal layout and push
+session-list/transcript content down. Displays received while another surface
+is active remain pending until their owning surface opens. Connection and
+session labels are omitted because placement supplies that context.
+
+Desktop aggregates connection-level notifications from every open connection
+in one normal-flow rail in the message/detail area. Each connection-level card
+includes the friendly connection name, falling back to connection id. The
+active ChatPane contributes its own session notifications to the same visual
+location without a redundant session label. When no ChatPane is open, the
+connection-level rail remains above the detail placeholder.
 
 Direct action responses without a presentation default to `modal`; session
 notifications default to `inline`. Application notifications must use
 `banner` or `modal`; attempts to create an inline application notification are
 rejected by the application contract.
+
+Display ownership is independent from storage lifetime. Application
+notifications are connection-level. Session notifications are session-level
+and require `session_id`. Direct action responses default to session ownership
+when they carry `session_id`, while session-list/application surfaces may
+explicitly retain connection ownership.
 
 ---
 

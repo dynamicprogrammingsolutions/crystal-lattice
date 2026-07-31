@@ -1,8 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Clipboard, Linking, StyleSheet, View } from 'react-native';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
+import { Clipboard, Linking, View } from 'react-native';
 
 import {
   ApplicationNotificationsController,
+  classifyDisplayEnvelope,
   displayEnvelopeLifecycleKey,
   displayEnvelopeRevisionKey,
   emitDisplayPresentation,
@@ -17,7 +24,6 @@ import {
 import {
   NotificationBannerHost,
   type NotificationBannerHostItem,
-  useTheme,
 } from '@crystal-lattice/frontend-rn-components';
 
 import type { OpenConnectionsById } from '../connections/useOpenConnections';
@@ -26,7 +32,20 @@ import { ActionResultInlineCard } from './ActionResultInlineCard';
 interface DesktopGlobalDisplayLayerProps {
   openConnectionsById: OpenConnectionsById;
   connectionNameById: Record<string, string>;
+  children: React.ReactNode;
 }
+
+interface DesktopDisplayContextValue {
+  items: DisplayEnvelope[];
+  connectionNameById: Record<string, string>;
+  dismiss: (envelope: DisplayEnvelope) => void;
+  followup: (
+    action: ActionDisplayFollowupAction,
+    envelope: DisplayEnvelope,
+  ) => Promise<void>;
+}
+
+const DesktopDisplayContext = createContext<DesktopDisplayContextValue | null>(null);
 
 function ConnectionDisplaySubscription({
   connectionId,
@@ -63,9 +82,8 @@ function ConnectionDisplaySubscription({
 export function DesktopGlobalDisplayLayer({
   openConnectionsById,
   connectionNameById,
+  children,
 }: DesktopGlobalDisplayLayerProps): React.JSX.Element {
-  const theme = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
   const [transientItems, setTransientItems] = useState<DisplayEnvelope[]>([]);
   const [applicationNotificationsByConnection, setApplicationNotificationsByConnection] =
     useState<Record<string, ApplicationNotification[]>>({});
@@ -133,9 +151,21 @@ export function DesktopGlobalDisplayLayer({
           ),
         ),
   );
-  const items = [...applicationItems, ...transientItems].filter(
-    (item) => !dismissedRevisions.includes(displayEnvelopeRevisionKey(item)),
-  );
+  const openConnectionIds = new Set(connections.map((item) => item.connectionId));
+  const items = [...applicationItems, ...transientItems]
+    .filter(
+      (item) =>
+        !item.connectionId ||
+        openConnectionIds.has(item.connectionId),
+    )
+    .filter(
+      (item) => !dismissedRevisions.includes(displayEnvelopeRevisionKey(item)),
+    )
+    .sort((left, right) =>
+      String(left.updatedAt ?? left.createdAt ?? left.id).localeCompare(
+        String(right.updatedAt ?? right.createdAt ?? right.id),
+      ),
+    );
 
   const followup = useCallback(
     async (action: ActionDisplayFollowupAction, envelope: DisplayEnvelope) => {
@@ -168,6 +198,7 @@ export function DesktopGlobalDisplayLayer({
             backend,
             normalizeDisplayEnvelope({
               source: 'action_response',
+              ownershipScope: classifyDisplayEnvelope(envelope).scope,
               connectionId: envelope.connectionId,
               sessionId: envelope.sessionId,
               display: response.result.display,
@@ -179,19 +210,10 @@ export function DesktopGlobalDisplayLayer({
     [dismiss, openConnectionsById],
   );
 
-  const banners: NotificationBannerHostItem[] = items
-    .filter((item) => item.display.presentation === 'banner')
-    .map((envelope) => ({
-      envelope,
-      connectionLabel: envelope.connectionId
-        ? connectionNameById[envelope.connectionId]
-        : null,
-      sessionLabel: envelope.sessionId ?? null,
-    }));
-  const inline = items.filter((item) => item.display.presentation === 'inline');
-
   return (
-    <>
+    <DesktopDisplayContext.Provider
+      value={{ items, connectionNameById, dismiss, followup }}
+    >
       {connections.map(({ connectionId, backend }) => (
         <ConnectionDisplaySubscription
           key={connectionId}
@@ -201,40 +223,58 @@ export function DesktopGlobalDisplayLayer({
           onNotifications={updateApplicationNotifications}
         />
       ))}
-      <NotificationBannerHost
-        items={banners}
-        onDismiss={(item) => dismiss(item.envelope)}
-        onFollowupAction={(action, item) => {
-          void followup(action, item.envelope);
-        }}
-      />
-      {inline.length > 0 ? (
-        <View style={styles.inlineHost}>
-          {inline.map((envelope) => (
-            <ActionResultInlineCard
-              key={`${envelope.connectionId ?? ''}:${envelope.id}`}
-              display={envelope.display}
-              onDismiss={() => dismiss(envelope)}
-              onFollowupAction={(action) => {
-                void followup(action, envelope);
-              }}
-            />
-          ))}
-        </View>
-      ) : null}
-    </>
+      {children}
+    </DesktopDisplayContext.Provider>
   );
 }
 
-function createStyles(theme: ReturnType<typeof useTheme>) {
-  return StyleSheet.create({
-    inlineHost: {
-      position: 'absolute',
-      top: 8,
-      left: 12,
-      right: 12,
-      zIndex: 9000,
-      backgroundColor: theme.background,
-    },
-  });
+export function DesktopConnectionDisplayRail({
+  testID = 'desktop-connection-display-rail',
+}: {
+  testID?: string;
+}): React.JSX.Element | null {
+  const context = useContext(DesktopDisplayContext);
+  if (!context) return null;
+  const items = context.items.filter(
+    (item) => classifyDisplayEnvelope(item).scope === 'connection',
+  );
+  if (items.length === 0) return null;
+  const banners: NotificationBannerHostItem[] = items
+    .filter((item) => item.display.presentation === 'banner')
+    .map((envelope) => ({
+      envelope,
+      connectionLabel: envelope.connectionId
+        ? context.connectionNameById[envelope.connectionId] ?? envelope.connectionId
+        : null,
+    }));
+  const inline = items.filter((item) => item.display.presentation === 'inline');
+  return (
+    <View testID={testID}>
+      {banners.length > 0 ? (
+        <NotificationBannerHost
+          items={banners}
+          layout="flow"
+          onDismiss={(item) => context.dismiss(item.envelope)}
+          onFollowupAction={(action, item) => {
+            void context.followup(action, item.envelope);
+          }}
+        />
+      ) : null}
+      {inline.map((envelope) => (
+        <ActionResultInlineCard
+          key={`${envelope.connectionId ?? ''}:${envelope.id}`}
+          contextLabel={
+            envelope.connectionId
+              ? context.connectionNameById[envelope.connectionId] ?? envelope.connectionId
+              : undefined
+          }
+          display={envelope.display}
+          onDismiss={() => context.dismiss(envelope)}
+          onFollowupAction={(action) => {
+            void context.followup(action, envelope);
+          }}
+        />
+      ))}
+    </View>
+  );
 }

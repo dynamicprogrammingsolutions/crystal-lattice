@@ -1,5 +1,6 @@
 import React from 'react';
-import { act, fireEvent, screen } from '@testing-library/react-native';
+import { act, fireEvent, screen, within } from '@testing-library/react-native';
+import { View } from 'react-native';
 
 import {
   emitDisplayPresentation,
@@ -9,7 +10,7 @@ import {
 
 import { ApplicationPluginsProvider } from '../src/ApplicationPluginsContext';
 import {
-  GlobalNotificationBannerSlot,
+  MobileDisplayHost,
 } from '../src/components/GlobalDisplayLayer';
 import GlobalDisplayLayer from '../src/components/GlobalDisplayLayer';
 import { renderWithMobileProviders } from '../src/testUtils/renderWithMobileProviders';
@@ -44,9 +45,8 @@ test('presents a later revision after dismissing the same lifecycle id', () => {
       <GlobalDisplayLayer
         backend={backend}
         connectionId="test"
-        connectionName="Test connection"
       >
-        <GlobalNotificationBannerSlot />
+        <MobileDisplayHost scope="connection" />
       </GlobalDisplayLayer>
     </ApplicationPluginsProvider>,
   );
@@ -90,6 +90,95 @@ test('presents a later revision after dismissing the same lifecycle id', () => {
   });
   expect(screen.getByText('Updated revision')).toBeTruthy();
   expect(screen.getByText('Second revision')).toBeTruthy();
+
+  rendered.unmount();
+  jest.useRealTimers();
+});
+
+test('routes connection displays to Sessions and session displays to matching Chat', () => {
+  jest.useFakeTimers();
+  const backend = createBackend();
+  const rendered = renderWithMobileProviders(
+    <ApplicationPluginsProvider backend={backend} connectionId="test">
+      <GlobalDisplayLayer backend={backend} connectionId="test">
+        <View testID="sessions-surface">
+          <MobileDisplayHost
+            scope="connection"
+            testID="sessions-notification-banner-rail"
+          />
+        </View>
+        <View testID="chat-surface">
+          <MobileDisplayHost
+            scope="session"
+            sessionId="session-1"
+            testID="messages-notification-banner-rail"
+          />
+        </View>
+      </GlobalDisplayLayer>
+    </ApplicationPluginsProvider>,
+  );
+
+  act(() => {
+    emitDisplayPresentation(
+      backend,
+      normalizeDisplayEnvelope({
+        id: 'application-notification',
+        source: 'application_notification',
+        connectionId: 'test',
+        display: {
+          format: 'text',
+          body: 'Application only',
+          presentation: 'banner',
+        },
+      }),
+    );
+  });
+  expect(
+    within(screen.getByTestId('sessions-surface')).getByText('Application only'),
+  ).toBeTruthy();
+  expect(
+    within(screen.getByTestId('chat-surface')).queryByText('Application only'),
+  ).toBeNull();
+
+  act(() => {
+    emitDisplayPresentation(
+      backend,
+      normalizeDisplayEnvelope({
+        id: 'session-notification',
+        source: 'session_notification',
+        connectionId: 'test',
+        sessionId: 'session-1',
+        display: {
+          format: 'text',
+          body: 'Matching session only',
+          presentation: 'banner',
+        },
+      }),
+    );
+    emitDisplayPresentation(
+      backend,
+      normalizeDisplayEnvelope({
+        id: 'other-session-notification',
+        source: 'session_notification',
+        connectionId: 'test',
+        sessionId: 'session-2',
+        display: {
+          format: 'text',
+          body: 'Other session',
+          presentation: 'banner',
+        },
+      }),
+    );
+  });
+  expect(
+    within(screen.getByTestId('chat-surface')).getByText('Matching session only'),
+  ).toBeTruthy();
+  expect(
+    within(screen.getByTestId('sessions-surface')).queryByText('Matching session only'),
+  ).toBeNull();
+  expect(screen.queryByText('Other session')).toBeNull();
+  expect(screen.queryByText('test')).toBeNull();
+  expect(screen.queryByText('session-1')).toBeNull();
 
   rendered.unmount();
   jest.useRealTimers();

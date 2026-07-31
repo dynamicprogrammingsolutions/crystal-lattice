@@ -20,7 +20,9 @@ import { ThemeProvider, lightTheme } from '../theme';
 type VisualScenario =
   | 'sessions-banner'
   | 'sessions-modal'
+  | 'sessions-session-hidden'
   | 'messages-banner'
+  | 'messages-application-hidden'
   | 'messages-inline'
   | 'messages-modal';
 
@@ -121,13 +123,21 @@ export function MobileNotificationBannerHarness(): React.JSX.Element {
     const timer = setTimeout(() => {
       const isSessions = scenario.startsWith('sessions');
       const presentation = scenario.endsWith('modal') ? 'modal' : 'banner';
+      const source =
+        scenario === 'sessions-session-hidden'
+          ? 'session_notification'
+          : scenario === 'messages-application-hidden'
+            ? 'application_notification'
+            : isSessions
+              ? 'application_notification'
+              : 'session_notification';
       emitDisplayPresentation(
         backend,
         normalizeDisplayEnvelope({
           id: `notification-visual-${scenario}`,
-          source: isSessions ? 'application_notification' : 'session_notification',
+          source,
           connectionId: 'notification-visual',
-          sessionId: isSessions ? undefined : SESSION_ID,
+          sessionId: source === 'session_notification' ? SESSION_ID : undefined,
           updatedAt: '2026-07-30T00:00:00Z',
           display: {
             format: 'text',
@@ -163,7 +173,9 @@ export function MobileNotificationBannerHarness(): React.JSX.Element {
                   [
                     'sessions-banner',
                     'sessions-modal',
+                    'sessions-session-hidden',
                     'messages-banner',
+                    'messages-application-hidden',
                     'messages-inline',
                     'messages-modal',
                   ] as VisualScenario[]
@@ -182,7 +194,6 @@ export function MobileNotificationBannerHarness(): React.JSX.Element {
               <GlobalDisplayLayer
                 backend={backend}
                 connectionId="notification-visual"
-                connectionName="Visual harness"
               >
                 <View style={styles.screen} testID="notification-visual-ready">
                   {scenario.startsWith('sessions') ? (

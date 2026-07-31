@@ -49,7 +49,9 @@ async function openScenario(
   scenario:
     | 'sessions-banner'
     | 'sessions-modal'
+    | 'sessions-session-hidden'
     | 'messages-banner'
+    | 'messages-application-hidden'
     | 'messages-inline'
     | 'messages-modal',
 ): Promise<void> {
@@ -103,6 +105,16 @@ describe('mobile notification visual placement', () => {
     await captureScreenshot('notifications-sessions-application-modal');
   });
 
+  it('does not show a session notification on Sessions', async () => {
+    await openScenario('sessions-session-hidden');
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+    await detoxExpect(
+      element(by.id('sessions-notification-banner-rail')),
+    ).not.toExist();
+
+    await captureScreenshot('notifications-sessions-session-hidden');
+  });
+
   it('places the session banner below the Messages header and above transcript', async () => {
     await openScenario('messages-banner');
     await waitFor(element(by.id('messages-notification-banner-rail')))
@@ -131,6 +143,16 @@ describe('mobile notification visual placement', () => {
       .withTimeout(30000);
 
     await captureScreenshot('notifications-messages-session-inline');
+  });
+
+  it('does not show an application notification on Messages', async () => {
+    await openScenario('messages-application-hidden');
+    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+    await detoxExpect(
+      element(by.id('messages-notification-banner-rail')),
+    ).not.toExist();
+
+    await captureScreenshot('notifications-messages-application-hidden');
   });
 
   it('captures modal session notification presentation on Messages', async () => {

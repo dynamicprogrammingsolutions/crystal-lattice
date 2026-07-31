@@ -3,6 +3,7 @@ import { View } from 'react-native';
 
 import type {
   ActionDisplayFollowupAction,
+  DisplayPresentation,
   Event,
   SessionNotification,
   SessionSummary,
@@ -18,8 +19,8 @@ import { NotificationBanner } from './NotificationBanner';
 export interface SessionNotificationsHostProps {
   sessionSummary: SessionSummary | null;
   events?: readonly Event[];
-  onBanner: (notification: SessionNotification) => void;
-  onModal: (notification: SessionNotification) => void;
+  onBanner?: (notification: SessionNotification) => void;
+  onModal?: (notification: SessionNotification) => void;
   onFollowupAction?: (
     action: ActionDisplayFollowupAction,
     notification: SessionNotification,
@@ -29,6 +30,7 @@ export interface SessionNotificationsHostProps {
     onDismiss: () => void;
     onFollowupAction: (action: ActionDisplayFollowupAction) => void;
   }) => React.ReactNode;
+  inlinePresentations?: DisplayPresentation[];
 }
 
 export function SessionNotificationsHost({
@@ -38,9 +40,14 @@ export function SessionNotificationsHost({
   onModal,
   onFollowupAction,
   renderInline,
+  inlinePresentations = ['inline'],
 }: SessionNotificationsHostProps): React.JSX.Element | null {
   const [dismissedRevisions, setDismissedRevisions] = useState<string[]>([]);
   const routed = useRef<Record<string, string>>({});
+  const inlinePresentationSet = useMemo(
+    () => new Set(inlinePresentations),
+    [inlinePresentations],
+  );
   const notifications = useMemo(
     () =>
       mergeSessionNotificationEvents(
@@ -66,16 +73,25 @@ export function SessionNotificationsHost({
         sessionId: sessionSummary?.session_id,
         display: notification.display,
       });
-      const revision = `${notification.updated_at}:${envelope.display.presentation}`;
+      const presentation = envelope.display.presentation ?? 'inline';
+      const revision = `${notification.updated_at}:${presentation}`;
       if (routed.current[notification.id] === revision) continue;
       routed.current[notification.id] = revision;
-      if (envelope.display.presentation === 'banner') onBanner(notification);
-      if (envelope.display.presentation === 'modal') onModal(notification);
+      if (inlinePresentationSet.has(presentation)) continue;
+      if (presentation === 'banner') onBanner?.(notification);
+      if (presentation === 'modal') onModal?.(notification);
     }
-  }, [notifications, onBanner, onModal, sessionSummary?.session_id]);
+  }, [
+    inlinePresentationSet,
+    notifications,
+    onBanner,
+    onModal,
+    sessionSummary?.session_id,
+  ]);
 
   const inline = notifications.filter(
-    (notification) => (notification.display.presentation ?? 'inline') === 'inline',
+    (notification) =>
+      inlinePresentationSet.has(notification.display.presentation ?? 'inline'),
   );
   if (inline.length === 0) return null;
 

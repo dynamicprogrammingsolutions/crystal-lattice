@@ -9,7 +9,10 @@ import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
 import { startBackendServer, type StartedServer } from '../../../packages/frontend-sdk/src/integration/harness';
 
 import { buildDesktopTheme } from '../src/theme/buildDesktopTheme';
-import { DesktopGlobalDisplayLayer } from '../src/ui/DesktopGlobalDisplayLayer';
+import {
+  DesktopConnectionDisplayRail,
+  DesktopGlobalDisplayLayer,
+} from '../src/ui/DesktopGlobalDisplayLayer';
 
 const CONFIG = {
   providers: {
@@ -47,7 +50,9 @@ test(
             },
           }}
           connectionNameById={{ local: 'Local integration server' }}
-        />
+        >
+          <DesktopConnectionDisplayRail />
+        </DesktopGlobalDisplayLayer>
       </ThemeProvider>,
     );
 

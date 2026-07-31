@@ -63,7 +63,7 @@ import { handleGeneratedFileFollowupAction } from './utils/generatedFileActions'
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
-import { GlobalNotificationBannerSlot } from './components/GlobalDisplayLayer';
+import { MobileDisplayHost } from './components/GlobalDisplayLayer';
 import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
 
 interface SessionsScreenProps {
@@ -334,6 +334,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         normalizeDisplayEnvelope({
           id: nextEntry.key,
           source: 'action_response',
+          ownershipScope: 'connection',
           connectionId,
           sessionId: context.sessionId,
           display,
@@ -897,7 +898,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         ) : null}
       </View>
 
-      <GlobalNotificationBannerSlot testID="sessions-notification-banner-rail" />
+      <MobileDisplayHost
+        scope="connection"
+        testID="sessions-notification-banner-rail"
+      />
 
       {sessionListFilterSchema.mainSearchConflict ? (
         <Text

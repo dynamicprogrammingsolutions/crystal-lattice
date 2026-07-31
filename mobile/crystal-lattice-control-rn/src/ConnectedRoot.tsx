@@ -138,7 +138,6 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
         <GlobalDisplayLayer
           backend={backend}
           connectionId={activeConnectionId}
-          connectionName={activeConnectionName}
         >
         <View style={styles.contentArea} testID="connected-root-content">
         {/* Connection tab content (kept mounted, visibility toggled) */}

@@ -156,6 +156,37 @@ final class SessionFiltersPopoverUITests: XCTestCase {
     XCTAssertEqual(app.sheets.count, 0)
   }
 
+  func testNotificationRailAggregatesConnectionsAndPushesMessagesDown() throws {
+    let app = XCUIApplication()
+    app.launchEnvironment["CLC_ENABLE_NOTIFICATION_RAIL_HARNESS"] = "1"
+    app.launchArguments.append("--notification-rail-harness")
+    app.launch()
+    app.activate()
+
+    let harnessWindow = app.windows["DesktopNotificationRailHarnessWindow"]
+    XCTAssertTrue(
+      harnessWindow.waitForExistence(timeout: 20),
+      app.debugDescription
+    )
+    let rail = element(app, "desktop-notification-combined-rail")
+    let messages = element(app, "desktop-notification-message-content")
+    XCTAssertTrue(rail.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertTrue(messages.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertTrue(app.staticTexts["First connection"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["Second connection"].waitForExistence(timeout: 10))
+    XCTAssertTrue(app.staticTexts["Active session notification"].waitForExistence(timeout: 10))
+    XCTAssertLessThanOrEqual(
+      rail.frame.maxY,
+      messages.frame.minY,
+      "The shared notification rail must push message content down."
+    )
+
+    let attachment = XCTAttachment(screenshot: app.screenshot())
+    attachment.name = "desktop-notification-message-area-rail"
+    attachment.lifetime = .keepAlways
+    add(attachment)
+  }
+
   func testRichSessionActionsUseNativePopoversAndImmediateStatusSelection() throws {
     let app = launchHarness()
     let harnessWindow = app.windows["SessionFiltersPopoverHarnessWindow"]

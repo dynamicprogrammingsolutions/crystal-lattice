@@ -438,13 +438,13 @@ function SessionsPanelInner({
 
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
     const nextEntry = createDisplayEntry(display, context);
-    const presentation = display.presentation ?? 'modal';
-    if ((presentation === 'banner' || presentation === 'modal') && backend) {
+    if (backend) {
       emitDisplayPresentation(
         backend,
         normalizeDisplayEnvelope({
           id: nextEntry.key,
           source: 'action_response',
+          ownershipScope: 'connection',
           connectionId,
           sessionId: context.sessionId,
           display,
@@ -452,12 +452,8 @@ function SessionsPanelInner({
       );
       return;
     }
-    if (presentation === 'inline') {
-      setActionResultDisplay(null);
-      setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
-      return;
-    }
-    setActionResultDisplay(nextEntry);
+    setActionResultDisplay(null);
+    setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
   }, [backend, connectionId]);
 
   const executePluginAction = useCallback(

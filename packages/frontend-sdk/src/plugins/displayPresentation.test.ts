@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  classifyDisplayEnvelope,
   normalizeDisplayEnvelope,
   normalizeDisplayEnvelopeForHost,
 } from './displayPresentation';
@@ -48,5 +49,56 @@ describe('display presentation envelopes', () => {
     expect(
       normalizeDisplayEnvelopeForHost(envelope, 'desktop').display.presentation,
     ).toBe('inline');
+  });
+
+  it('classifies connection and session display ownership', () => {
+    expect(
+      classifyDisplayEnvelope(
+        normalizeDisplayEnvelope({
+          source: 'application_notification',
+          connectionId: 'connection-1',
+          display: { format: 'text', body: 'Application' },
+        }),
+      ),
+    ).toEqual({ scope: 'connection', connectionId: 'connection-1' });
+    expect(
+      classifyDisplayEnvelope(
+        normalizeDisplayEnvelope({
+          source: 'action_response',
+          connectionId: 'connection-1',
+          sessionId: 'session-1',
+          display: { format: 'text', body: 'Session action' },
+        }),
+      ),
+    ).toEqual({
+      scope: 'session',
+      connectionId: 'connection-1',
+      sessionId: 'session-1',
+    });
+    expect(
+      classifyDisplayEnvelope(
+        normalizeDisplayEnvelope({
+          source: 'action_response',
+          ownershipScope: 'connection',
+          connectionId: 'connection-1',
+          sessionId: 'session-1',
+          display: { format: 'text', body: 'Session-list action' },
+        }),
+      ),
+    ).toEqual({ scope: 'connection', connectionId: 'connection-1' });
+  });
+
+  it('rejects session notifications without session ownership', () => {
+    expect(() =>
+      classifyDisplayEnvelope({
+        id: 'notification-1',
+        source: 'session_notification',
+        display: {
+          format: 'text',
+          body: 'Missing session',
+          presentation: 'inline',
+        },
+      }),
+    ).toThrow('Session notification display requires sessionId');
   });
 });
