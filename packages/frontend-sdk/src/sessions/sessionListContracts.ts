@@ -752,6 +752,9 @@ export function resolveActionDialogInitialValue(
   field: ActionDialogInput,
   context: ActionDialogPrefillContext | undefined,
 ): string {
+  if (field.type === 'secret' || field.type === 'password') {
+    return '';
+  }
   const source = field.prefill_from;
   if (typeof source === 'string' && source) {
     let root: unknown;

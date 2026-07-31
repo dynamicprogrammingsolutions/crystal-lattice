@@ -1041,6 +1041,7 @@ def main() -> None:  # pragma: no cover - manual execution only
     # after logging is configured so that their loggers see the
     # correct level.
     from agent_app.application_future import AgentApplication
+    from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
     from agent_app.events import InMemoryEventStore
     from agent_app.sessions import FilesystemSnapshotSelectionStore
     from .terminal import TerminalApplication, run_terminal
@@ -1113,6 +1114,30 @@ def main() -> None:  # pragma: no cover - manual execution only
             _ensure_crystal_gitignore(crystal_dir)
 
     config_env = _collect_additional_dotenv_values(config_path)
+
+    def build_application_owner(
+        *,
+        event_store: InMemoryEventStore,
+        snapshot_selection_store: FilesystemSnapshotSelectionStore | None = None,
+    ) -> AgentApplicationOwner:
+        first_application = True
+
+        def factory(control: ApplicationControl) -> AgentApplication:
+            nonlocal first_application
+            application = AgentApplication(
+                str(config_path),
+                str(session_root),
+                event_store=event_store,
+                snapshot_selection_store=snapshot_selection_store,
+                config_env=_collect_additional_dotenv_values(config_path),
+                env_overrides=env_overrides,
+                replay_server_settings_on_startup=first_application,
+                application_control=control,
+            )
+            first_application = False
+            return application
+
+        return AgentApplicationOwner(factory, event_store=event_store)
 
     # --- Build integration config (after config is resolved) ---
     bridge_url_from_config = _read_bridge_url_from_config(config_path)
@@ -1225,29 +1250,16 @@ def main() -> None:  # pragma: no cover - manual execution only
     # - --console --server: server in background + console in foreground
     if run_console and run_server:
         shared_events = InMemoryEventStore()
-
-        server_app = AgentApplication(
-            str(config_path),
-            str(session_root),
+        application_owner = build_application_owner(
             event_store=shared_events,
             snapshot_selection_store=FilesystemSnapshotSelectionStore(
                 session_root / ".snapshots"
             ),
-            config_env=config_env,
-            env_overrides=env_overrides,
-        )
-        terminal_agent_app = AgentApplication(
-            str(config_path),
-            str(session_root),
-            event_store=shared_events,
-            config_env=config_env,
-            env_overrides=env_overrides,
-            replay_server_settings_on_startup=False,
         )
         terminal_app = TerminalApplication(
             config_path=str(config_path),
             session_root=str(session_root),
-            agent_app=terminal_agent_app,
+            application_owner=application_owner,
         )
 
         try:
@@ -1257,7 +1269,7 @@ def main() -> None:  # pragma: no cover - manual execution only
                 f"Uvicorn is required for --server mode but could not be imported: {exc}"
             )
 
-        server_mod._agent_app = server_app  # type: ignore[attr-defined]
+        server_mod.configure_application_owner(application_owner)
 
         os.environ.setdefault("SERVER_HOST", effective_host)
         os.environ.setdefault("SERVER_PORT", str(effective_port))
@@ -1292,18 +1304,15 @@ def main() -> None:  # pragma: no cover - manual execution only
             uvicorn_server.should_exit = True
             thread.join()
             terminal_app.close()
-            server_app.close()
+            application_owner.close()
     elif run_console:
-        agent_app = AgentApplication(
-            str(config_path),
-            str(session_root),
-            config_env=config_env,
-            env_overrides=env_overrides,
+        application_owner = build_application_owner(
+            event_store=InMemoryEventStore(),
         )
         terminal_app = TerminalApplication(
             config_path=str(config_path),
             session_root=str(session_root),
-            agent_app=agent_app,
+            application_owner=application_owner,
         )
         try:
             if args.no_tty:
@@ -1312,20 +1321,18 @@ def main() -> None:  # pragma: no cover - manual execution only
                 run_terminal(logger=console_logger, app_instance=terminal_app)
         finally:
             terminal_app.close()
+            application_owner.close()
     else:
-        app_instance = AgentApplication(
-            str(config_path),
-            str(session_root),
+        application_owner = build_application_owner(
+            event_store=InMemoryEventStore(),
             snapshot_selection_store=FilesystemSnapshotSelectionStore(
                 session_root / ".snapshots"
             ),
-            config_env=config_env,
-            env_overrides=env_overrides,
         )
         run_api(
             host=effective_host,
             port=effective_port,
-            app_instance=app_instance,
+            app_owner=application_owner,
             log_config=None if fastapi_log_file else "default",
         )
 

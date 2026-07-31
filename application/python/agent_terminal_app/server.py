@@ -16,8 +16,20 @@ from datetime import datetime
 
 from agent_core.utils import get_logger
 
-from fastapi import Depends, FastAPI, Header, HTTPException  # type: ignore[reportMissingImports]
+from fastapi import (  # type: ignore[reportMissingImports]
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+)
+from fastapi.responses import JSONResponse  # type: ignore[reportMissingImports]
 
+from agent_app.application_owner import (
+    AgentApplicationOwner,
+    ApplicationOperation,
+    ApplicationReloadPendingError,
+)
 from agent_app.application_future import (
     AgentApplication,
     ReadonlySessionViewError,
@@ -46,6 +58,32 @@ _log = get_logger(__name__)
 
 
 app = FastAPI(title="Agent Terminal App - Echo provider (AgentApplication)")
+
+
+@app.middleware("http")
+async def application_operation_gate(
+    request: Request,
+    call_next: Any,
+) -> Any:
+    owner = _application_owner
+    if owner is None or request.url.path.startswith("/__test/"):
+        return await call_next(request)
+    try:
+        operation = owner.acquire_operation()
+    except ApplicationReloadPendingError as exc:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": {
+                    "error_type": exc.error_type,
+                    "message": str(exc),
+                }
+            },
+        )
+    try:
+        return await call_next(request)
+    finally:
+        operation.release()
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +519,7 @@ async def _on_startup() -> None:
 async def _on_shutdown() -> None:
     """FastAPI shutdown hook for cleaning up integrations."""
 
+    global _agent_app, _application_owner
     global _bonjour_handle, _bridge_client, _bridge_task
 
     # Stop bridge client first so that any in-flight requests are
@@ -509,7 +548,14 @@ async def _on_shutdown() -> None:
         _bonjour_handle = None
         _log.info("[bonjour] registration stopped")
 
-    if _agent_app is not None:
+    if _application_owner is not None:
+        try:
+            _application_owner.close()
+        except Exception:  # pragma: no cover - defensive
+            pass
+        _application_owner = None
+        _agent_app = None
+    elif _agent_app is not None:
         try:
             _agent_app.close()
         except Exception:  # pragma: no cover - defensive
@@ -581,6 +627,17 @@ def _build_default_agent_app() -> AgentApplication:
 
 
 _agent_app: Optional[AgentApplication] = None
+_application_owner: Optional[AgentApplicationOwner] = None
+
+
+def configure_application_owner(
+    owner: Optional[AgentApplicationOwner],
+) -> None:
+    """Use ``owner`` for process-wide application lookup and reload gating."""
+
+    global _application_owner, _agent_app
+    _application_owner = owner
+    _agent_app = owner.current if owner is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -623,6 +680,9 @@ def get_agent_app() -> AgentApplication:
     """
 
     global _agent_app
+
+    if _application_owner is not None:
+        return _application_owner.current
 
     if _agent_app is None:
         _agent_app = _build_default_agent_app()
@@ -990,6 +1050,7 @@ def _run_send_request_background(
     session_id: str,
     overrides: Dict[str, Any],
     request_id: Optional[str] = None,
+    operation: ApplicationOperation | None = None,
 ) -> None:
     """Run ``AgentApplication.send_request`` and publish all events.
 
@@ -1065,6 +1126,8 @@ def _run_send_request_background(
         )
     finally:
         _clear_active_send_request_id(session_id, rid)
+        if operation is not None:
+            operation.release()
 
 
 @app.get("/sessions/{session_id}/ui-schema")
@@ -1794,12 +1857,17 @@ def send_request(
     existing = _reserve_active_send_request_id(session_id, request_id)
     if existing is not None:
         return {"status": "already_running", "request_id": existing}
+    operation = (
+        _application_owner.retain_operation(app_instance)
+        if _application_owner is not None
+        else None
+    )
 
     # Start the send_request flow in a background thread so that the
     # HTTP response can return immediately.
     threading.Thread(
         target=_run_send_request_background,
-        args=(app_instance, session_id, overrides, request_id),
+        args=(app_instance, session_id, overrides, request_id, operation),
         daemon=True,
     ).start()
 
@@ -1881,6 +1949,11 @@ def send_message(
                     status_code=409,
                     detail={"status": "already_running", "request_id": existing},
                 )
+            operation = (
+                _application_owner.retain_operation(app_instance)
+                if _application_owner is not None
+                else None
+            )
 
             try:
                 effective_config = _effective_session_config(
@@ -1901,6 +1974,8 @@ def send_message(
                 )
             except Exception:
                 _clear_active_send_request_id(session_id, request_id)
+                if operation is not None:
+                    operation.release()
                 raise
 
             response = {
@@ -1918,7 +1993,7 @@ def send_message(
 
     threading.Thread(
         target=_run_send_request_background,
-        args=(app_instance, session_id, overrides, request_id),
+        args=(app_instance, session_id, overrides, request_id, operation),
         daemon=True,
     ).start()
 
@@ -2927,6 +3002,7 @@ def run_api(
     host: str = "127.0.0.1",
     port: int = 8000,
     app_instance: Optional[AgentApplication] = None,
+    app_owner: Optional[AgentApplicationOwner] = None,
     *,
     log_config: object = "default",
 ) -> None:  # pragma: no cover
@@ -2945,8 +3021,11 @@ def run_api(
         )
         return
 
-    global _agent_app
-    if app_instance is not None:
+    global _agent_app, _application_owner
+    if app_owner is not None:
+        configure_application_owner(app_owner)
+    elif app_instance is not None:
+        _application_owner = None
         _agent_app = app_instance
 
     # Expose host/port via environment variables so that optional

@@ -10,6 +10,7 @@ import type {
 } from '../types/plugins';
 import type { SessionSummary } from '../types/sessions';
 import { resolveSessionListPath } from '../sessions/sessionListContracts';
+import { applicationActionKey } from './applicationActions';
 
 export type ActionEffect =
   | { type: 'navigateToSession'; sessionId: string }
@@ -66,10 +67,13 @@ function getFormFieldSubmitEmpty(form: any, fieldName: string): boolean {
 function buildActionInputs(options: {
   element: ActionUiElement;
   actionDefsById: Record<string, ApplicationActionDefinition>;
+  actionDefsByKey?: Record<string, ApplicationActionDefinition>;
   context: RunActionContext;
 }): Record<string, any> {
-  const { element, actionDefsById, context } = options;
-  const def = actionDefsById[element.action_id];
+  const { element, actionDefsById, actionDefsByKey, context } = options;
+  const def =
+    actionDefsByKey?.[applicationActionKey(element.plugin, element.action_id)] ??
+    actionDefsById[element.action_id];
   const inputs: Record<string, any> = {};
 
   if (element.fixed_params && typeof element.fixed_params === 'object') {
@@ -241,14 +245,20 @@ export async function runApplicationAction(options: {
   backend: AgentBackend;
   element: ActionUiElement;
   actionsById: Record<string, ApplicationActionDefinition>;
+  actionsByKey?: Record<string, ApplicationActionDefinition>;
   context: RunActionContext;
   effects?: RunActionEffectsOptions;
 }): Promise<RunActionResult> {
-  const { backend, element, actionsById, context, effects } = options;
+  const { backend, element, actionsById, actionsByKey, context, effects } = options;
 
   const actionId = element.action_id;
   const pluginId = element.plugin;
-  const inputs = buildActionInputs({ element, actionDefsById: actionsById, context });
+  const inputs = buildActionInputs({
+    element,
+    actionDefsById: actionsById,
+    actionDefsByKey: actionsByKey,
+    context,
+  });
 
   try {
     const executeParams = {

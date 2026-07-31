@@ -2,9 +2,16 @@ import type { AgentBackend } from '../backend/backend';
 import type {
   ActionUiElement,
   ApplicationActionDefinition,
+  ApplicationActionUiElement,
   ApplicationUiElement,
   SessionListFieldElement,
 } from '../types/plugins';
+import type { ApplicationActionDiagnostic } from './applicationActions';
+import {
+  buildApplicationActionsByKey,
+  normalizeApplicationActionElements,
+} from './applicationActions';
+import { subscribeApplicationActionsInvalidated } from './applicationActionsInvalidation';
 import type {
   SessionListActionElement,
   SessionListContractDiagnostic,
@@ -22,6 +29,9 @@ import { SimpleSubscribable } from '../util/subscribable';
 
 export interface PluginsResult {
   actionsById: Record<string, ApplicationActionDefinition>;
+  actionsByKey?: Record<string, ApplicationActionDefinition>;
+  applicationActions?: ApplicationActionUiElement[];
+  applicationActionDiagnostics?: ApplicationActionDiagnostic[];
   sessionActions: ActionUiElement[];
   messageActions: ActionUiElement[];
   sessionListActions: SessionListActionElement[];
@@ -44,6 +54,9 @@ const EMPTY_SESSION_LIST_FILTER_SCHEMA = normalizeSessionListFilterSchema([]);
 
 const EMPTY_RESULT: PluginsResult = {
   actionsById: {},
+  actionsByKey: {},
+  applicationActions: [],
+  applicationActionDiagnostics: [],
   sessionActions: [],
   messageActions: [],
   sessionListActions: [],
@@ -65,8 +78,13 @@ function buildResultFromEntry(entry: CacheEntry | undefined): PluginsResult {
       actionsById[a.id] = a;
     }
   });
+  const actionsByKey = buildApplicationActionsByKey(entry.actions || []);
 
   const elements = Array.isArray(entry.elements) ? entry.elements : [];
+  const normalizedApplicationActions = normalizeApplicationActionElements({
+    elements,
+    actionsByKey,
+  });
   const sessionActions = elements.filter((el) => el && (el as any).ui_type === 'session_action') as ActionUiElement[];
   const messageActions = elements.filter((el) => el && (el as any).ui_type === 'message_action') as ActionUiElement[];
   const sessionListActions: SessionListActionElement[] = [];
@@ -104,6 +122,9 @@ function buildResultFromEntry(entry: CacheEntry | undefined): PluginsResult {
 
   return {
     actionsById,
+    actionsByKey,
+    applicationActions: normalizedApplicationActions.actions,
+    applicationActionDiagnostics: normalizedApplicationActions.diagnostics,
     sessionActions,
     messageActions,
     sessionListActions,
@@ -116,6 +137,9 @@ function buildResultFromEntry(entry: CacheEntry | undefined): PluginsResult {
 function buildResultFromState(state: PluginsRegistryState): PluginsResult {
   return {
     actionsById: state.actionsById || {},
+    actionsByKey: state.actionsByKey || {},
+    applicationActions: state.applicationActions || [],
+    applicationActionDiagnostics: state.applicationActionDiagnostics || [],
     sessionActions: state.sessionActions || [],
     messageActions: state.messageActions || [],
     sessionListActions: state.sessionListActions || [],
@@ -130,6 +154,7 @@ export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
   private backend: AgentBackend | null;
   private cacheKey: string;
   private unsubscribeServerSettings: (() => void) | null = null;
+  private unsubscribeApplicationActions: (() => void) | null = null;
 
   constructor(options: { backend: AgentBackend | null; cacheKey: string }) {
     super({ ...EMPTY_RESULT, loading: false, error: null });
@@ -144,6 +169,15 @@ export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
 
     if (this.backend) {
       this.unsubscribeServerSettings = subscribeServerSettingsInvalidated(
+        this.backend,
+        () => {
+          this.invalidate();
+          this.refresh().catch(() => {
+            // Errors are stored in registry state.
+          });
+        },
+      );
+      this.unsubscribeApplicationActions = subscribeApplicationActionsInvalidated(
         this.backend,
         () => {
           this.invalidate();
@@ -187,6 +221,8 @@ export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
   close(): void {
     this.unsubscribeServerSettings?.();
     this.unsubscribeServerSettings = null;
+    this.unsubscribeApplicationActions?.();
+    this.unsubscribeApplicationActions = null;
   }
 
   private async fetch(options: { preserveExisting: boolean }): Promise<void> {

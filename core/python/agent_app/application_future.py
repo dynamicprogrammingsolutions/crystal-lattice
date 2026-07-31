@@ -32,6 +32,7 @@ from agent_core.plugin.loader import validate_plugin_for_kind
 from .app_context import ApplicationContext
 
 from .app_plugins import ApplicationPluginWrapper
+from .application_owner import ApplicationControl
 from .config import (
     build_config_resolution_env,
     build_runtime_overlay_env,
@@ -332,6 +333,7 @@ class AgentApplication:
         env_overrides: Mapping[str, str] | None = None,
         config_env: Mapping[str, str] | None = None,
         replay_server_settings_on_startup: bool = True,
+        application_control: ApplicationControl | None = None,
     ) -> None:
         logger = get_logger("AgentApplication")
         self._logger = logger
@@ -345,6 +347,7 @@ class AgentApplication:
             self._model_cache,
         )
         self._event_store: EventStore = event_store or InMemoryEventStore()
+        self._application_control = application_control
         self._non_streaming_provider_classes: Set[type[Any]] = set()
         self._provider_capability_lock = threading.Lock()
 
@@ -2219,6 +2222,19 @@ class AgentApplication:
         self._async_runtime_host.close()
         if self._runtime_env_finalizer.alive:
             self._runtime_env_finalizer()
+
+    def request_application_reload(
+        self,
+        *,
+        reason: str = "application_action",
+        on_failure: Callable[[], None] | None = None,
+    ) -> Dict[str, Any]:
+        if self._application_control is None:
+            raise RuntimeError("Application reload is not managed by an owner")
+        return self._application_control.request_reload(
+            reason=reason,
+            on_failure=on_failure,
+        )
 
     def cancel_request(self, request_id: str) -> None:
         """Request cooperative cancellation for an in-flight request.

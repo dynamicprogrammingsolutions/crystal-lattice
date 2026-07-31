@@ -51,6 +51,7 @@ Application plugins are ideal for features that need:
 | Session locking | `app.acquire_session_lock(session_id)` | Context manager for safe concurrent access |
 | Event publishing | `app.publish_event(event)` | Publish events to subscribers |
 | Switch agents | `app.update_agent(agent_id, session)` | Switch a session to a different agent |
+| Request full reload | `app.request_application_reload(reason=..., on_failure=...)` | Ask the owner to drain admitted work and reconstruct `AgentApplication` |
 | Full config access | `self._config` (via `init`) | Access to the full application configuration |
 | Runtime env access | `os.environ[...]` | Real process environment installed from config resolution env |
 | Request config resolution | `resolve_request_config(base_config, overrides)` | Resolve effective config for a request |
@@ -60,6 +61,13 @@ those settings and react to `server_settings_changed`, but should not maintain a
 second authoritative copy in plugin-owned persistence. Plugin-owned sidecar
 files are still appropriate for private caches, credentials, or implementation
 state that is not user-editable server configuration.
+
+`request_application_reload` returns an accepted result immediately. Plugins
+must not close or replace their own application. The owner rejects new
+application operations, waits for admitted work, constructs and validates the
+replacement, and emits application-global requested/completed/failed
+notifications. `on_failure` is an optional in-process compensating callback for
+plugin-owned writes such as restoring a dotenv file.
 
 ---
 

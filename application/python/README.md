@@ -464,6 +464,42 @@ Common slash commands:
 - `/append` - add a message without sending.
 - `/delete`, `/modify`, `/list` - manage message history.
 - `/plugins` - list, enable, disable, or reset per-session plugins.
+
+### Full application reload
+
+The built-in `application-config-app` contributes screen-independent actions
+for requesting a full `AgentApplication` replacement and updating configured
+provider keys in a dotenv file. The CLI process, HTTP listener, bridge, and
+Bonjour integration remain alive while the owner:
+
+1. closes application-operation admission;
+2. lets admitted requests and started tools finish;
+3. constructs a candidate from the current config and freshly read dotenv;
+4. swaps the shared server/console application;
+5. closes the old runtime, including MCP servers;
+6. reopens admission.
+
+The action returns after reload is accepted. Application-global notification
+events report requested, completed, or failed state. New application requests
+receive HTTP 503 with `application_reload_pending` while the owner drains.
+
+Desktop dotenv editing is configured under `application.application_config`:
+
+```json
+{
+  "env_file": "${env:CONFIG_DIR}/.env",
+  "editable_env_keys": ["OPENROUTER_API_KEY"],
+  "provider_env_keys": {
+    "openrouter": "OPENROUTER_API_KEY"
+  }
+}
+```
+
+Only mapped keys in `editable_env_keys` can be changed. A value supplied by the
+process environment is externally managed and cannot be overwritten through
+the dotenv action. Stage 1 does not add protected secret storage or additional
+remote-transport restrictions; production credential hardening is tracked as a
+separate stage.
 - `/set` - update config overrides from plugin UI schema entries.
 - `/cancel` - cancel an active request.
 - `/exit` or `/quit` - exit the terminal.

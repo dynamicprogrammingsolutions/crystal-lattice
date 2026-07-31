@@ -256,6 +256,22 @@ def _patch_server_settings(base_url: str, values: dict[str, Any]) -> dict[str, A
         return json.loads(resp.read().decode("utf-8"))
 
 
+def _post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"content-type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=20) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _get_json(url: str) -> dict[str, Any]:
+    with urllib.request.urlopen(url, timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.is_file():
         return []
@@ -431,7 +447,7 @@ def test_console_no_tty_without_server(tmp_path: Path, _session_home: Path) -> N
     assert process.returncode == 0
 
 
-def test_console_server_lifecycle_plugin_replays_once_and_closes_both_apps(
+def test_console_server_lifecycle_plugin_replays_once_and_closes_shared_app(
     tmp_path: Path,
     _session_home: Path,
 ) -> None:
@@ -495,11 +511,125 @@ def test_console_server_lifecycle_plugin_replays_once_and_closes_both_apps(
         _interrupt(process, timeout=10)
 
     closes = _read_jsonl(closes_path)
-    assert len(closes) == 2
+    assert len(closes) == 1
     assert process.returncode == 0
 
     output = _read_stdout(stdout_file)
     assert "Session started" in output
+
+
+def test_console_server_reload_replaces_shared_application_without_process_restart(
+    tmp_path: Path,
+    _session_home: Path,
+) -> None:
+    workspace = _make_workspace(tmp_path)
+    config_path = workspace / ".crystal" / "reload-config.json"
+    sessions_dir = workspace / ".crystal" / "reload-sessions"
+    sessions_dir.mkdir(parents=True, exist_ok=True)
+    config = {
+        "providers": {
+            "echo": {
+                "provider": "echo_openai_like",
+                "model": "test-model",
+            }
+        },
+        "plugins": [
+            "plugins.echo_openai_like_provider.EchoOpenAILikeProvider",
+            {
+                "path": str(ROOT / "plugins" / "application-config-app"),
+                "entry": "application_config_app.ApplicationConfigAppPlugin",
+            },
+        ],
+        "agents": {"default": {"provider": "echo"}},
+        "application": {
+            "application_config": {
+                "env_file": str(workspace / ".crystal" / ".env"),
+                "editable_env_keys": [],
+                "provider_env_keys": {},
+            }
+        },
+    }
+    config_path.write_text(json.dumps(config), encoding="utf-8")
+    port = _reserve_port()
+    base_url = f"http://127.0.0.1:{port}"
+    process, stdout_file = _launch_cli_custom(
+        workspace,
+        _session_home,
+        port,
+        "--console",
+        "--server",
+        "--no-tty",
+        "--config",
+        str(config_path),
+        "--sessions-dir",
+        str(sessions_dir),
+    )
+    try:
+        _wait_for_server(base_url, process, timeout=120)
+        _wait_for_stdout_contains(stdout_file, process, "Session started", timeout=60)
+        original_pid = process.pid
+        sessions_before = _get_json(f"{base_url}/sessions")["sessions"]
+
+        config["plugins"].append("tests.dummy_app_plugin.DummyAppPlugin")
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        accepted = _post_json(
+            f"{base_url}/actions",
+            {
+                "plugin": "application_config",
+                "action_id": "reload_application",
+                "inputs": {},
+            },
+        )
+        assert accepted["result"]["status"] == "ok"
+        assert accepted["result"]["reload_status"] == "accepted"
+
+        deadline = time.monotonic() + 60
+        actions: list[dict[str, Any]] = []
+        while time.monotonic() < deadline:
+            try:
+                actions = _get_json(f"{base_url}/application/actions")["actions"]
+            except urllib.error.HTTPError as exc:
+                assert exc.code == 503
+                time.sleep(0.1)
+                continue
+            if any(action.get("id") == "do_dummy" for action in actions):
+                break
+            time.sleep(0.1)
+        assert any(action.get("id") == "do_dummy" for action in actions)
+        assert process.poll() is None
+        assert process.pid == original_pid
+        assert _get_json(f"{base_url}/sessions")["sessions"] == sessions_before
+
+        config["plugins"] = [
+            plugin
+            for plugin in config["plugins"]
+            if plugin != "tests.dummy_app_plugin.DummyAppPlugin"
+        ]
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        removed = _post_json(
+            f"{base_url}/actions",
+            {
+                "plugin": "application_config",
+                "action_id": "reload_application",
+                "inputs": {},
+            },
+        )
+        assert removed["result"]["status"] == "ok"
+        assert removed["result"]["reload_status"] == "accepted"
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline:
+            try:
+                actions = _get_json(f"{base_url}/application/actions")["actions"]
+            except urllib.error.HTTPError as exc:
+                assert exc.code == 503
+                time.sleep(0.1)
+                continue
+            if not any(action.get("id") == "do_dummy" for action in actions):
+                break
+            time.sleep(0.1)
+        assert not any(action.get("id") == "do_dummy" for action in actions)
+    finally:
+        _interrupt(process, timeout=15)
 
 
 @pytest.mark.skipif(

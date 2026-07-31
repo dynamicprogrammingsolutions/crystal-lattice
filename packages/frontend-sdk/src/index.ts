@@ -26,6 +26,11 @@ export type {
 } from './types/events';
 
 export type {
+  ApplicationNotification,
+  ApplicationNotificationEvent,
+} from './types/applicationNotifications';
+
+export type {
   UiSchemaElement,
   ConfigSchemaEntry,
 } from './types/uiSchema';
@@ -33,6 +38,7 @@ export type {
 export type {
   ActionInputParam,
   ApplicationActionDefinition,
+  ApplicationActionUiElement,
   ActionUiElement,
   ActionMutations,
   ActionUiEffects,
@@ -107,6 +113,10 @@ export { AgentsController, pickDefaultAgentId } from './agents/agentsController'
 
 export type { PollingStatus, PollingEventSourceOptions } from './events/pollingEventSource';
 export { PollingEventSource } from './events/pollingEventSource';
+export {
+  isApplicationNotificationEvent,
+  mergeApplicationNotificationEvents,
+} from './notifications/applicationNotifications';
 
 export type { PluginsResult, PluginsRegistryState } from './plugins/pluginsRegistry';
 export { PluginsRegistry } from './plugins/pluginsRegistry';
@@ -118,6 +128,16 @@ export {
 
 export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
+export {
+  applicationActionKey,
+  buildApplicationActionsByKey,
+  normalizeApplicationActionElements,
+} from './plugins/applicationActions';
+export type { ApplicationActionDiagnostic } from './plugins/applicationActions';
+export {
+  emitApplicationActionsInvalidated,
+  subscribeApplicationActionsInvalidated,
+} from './plugins/applicationActionsInvalidation';
 export type { ParsedActionDeepLink } from './plugins/actionDeepLinks';
 export { parseActionDeepLink } from './plugins/actionDeepLinks';
 export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';

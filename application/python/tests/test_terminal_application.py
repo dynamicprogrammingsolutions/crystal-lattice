@@ -8,6 +8,7 @@ provider configuration so they do not require network access.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -84,6 +85,50 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "session_created" in kinds
     assert "message_appended" in kinds
     assert "request_started" in kinds or "final" in kinds
+
+
+def test_terminal_rebuilds_cached_runtime_after_application_replacement(
+    tmp_path: Path,
+) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    source_config = (
+        Path(term_mod.__file__).resolve().parent / "config_echo_app.json"
+    )
+    config_path = tmp_path / "config.json"
+    raw_config = json.loads(source_config.read_text(encoding="utf-8"))
+    config_path.write_text(json.dumps(raw_config), encoding="utf-8")
+    session_root = tmp_path / "sessions"
+    events = InMemoryEventStore()
+
+    def factory(control: ApplicationControl) -> AgentApplication:
+        return AgentApplication(
+            config_path,
+            session_root,
+            event_store=events,
+            application_control=control,
+        )
+
+    owner = AgentApplicationOwner(factory, event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        application_owner=owner,
+    )
+    term_app.start_new_session(agent_id="default")
+    _core, first_base, _session = term_app.require_session()
+    assert first_base["model"] == "echo-test-1"
+
+    raw_config["providers"]["echo_openai_like_default"]["model"] = "echo-test-2"
+    config_path.write_text(json.dumps(raw_config), encoding="utf-8")
+    result = owner.request_reload(reason="terminal-test")
+
+    assert owner.wait_for_reload(result["reload_id"], timeout=5)
+    _core, next_base, _session = term_app.require_session()
+    assert next_base["model"] == "echo-test-2"
 
 
 @pytest.mark.asyncio

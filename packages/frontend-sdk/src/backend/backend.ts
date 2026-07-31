@@ -162,7 +162,7 @@ export interface AgentBackend {
 
   // --- Events ---
   listEvents(params: {
-    sessionId: string;
+    sessionId?: string;
     sinceId?: string;
     requestId?: string;
     limit?: number;

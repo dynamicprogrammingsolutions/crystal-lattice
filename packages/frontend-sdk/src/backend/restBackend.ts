@@ -363,7 +363,7 @@ export class RestAgentBackend implements AgentBackend {
   }
 
   async listEvents(params: {
-    sessionId: string;
+    sessionId?: string;
     sinceId?: string;
     requestId?: string;
     limit?: number;

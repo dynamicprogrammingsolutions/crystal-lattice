@@ -1,4 +1,5 @@
 import type { ApiMessage } from './messages';
+import type { ApplicationNotificationEvent } from './applicationNotifications';
 
 export interface BaseEvent {
   event_id: string;
@@ -91,4 +92,5 @@ export type Event =
   | PartialEvent
   | RequestCompletedEvent
   | CheckpointEvent
+  | ApplicationNotificationEvent
   | BaseEvent;

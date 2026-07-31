@@ -6,6 +6,7 @@ export type PollingStatus = 'idle' | 'running' | 'error' | 'expired';
 export interface PollingEventSourceOptions {
   intervalMs?: number;
   backoffMs?: number;
+  applicationScope?: boolean;
 }
 
 export class PollingEventSource {
@@ -20,11 +21,13 @@ export class PollingEventSource {
   private generation = 0;
   private readonly intervalMs: number;
   private readonly backoffMs: number;
+  private readonly applicationScope: boolean;
 
   constructor(backend: AgentBackend, options: PollingEventSourceOptions = {}) {
     this.backend = backend;
     this.intervalMs = options.intervalMs ?? 1000;
     this.backoffMs = options.backoffMs ?? 5000;
+    this.applicationScope = options.applicationScope === true;
   }
 
   start(options: {
@@ -104,14 +107,14 @@ export class PollingEventSource {
   private async pollOnce(onCursorExpired?: () => void): Promise<void> {
     if (this.stopped) return;
     const generation = this.generation;
-    if (!this.sessionId || !this.onEvents) {
+    if ((!this.sessionId && !this.applicationScope) || !this.onEvents) {
       this.schedulePoll(this.intervalMs);
       return;
     }
 
     try {
       const result = await this.backend.listEvents({
-        sessionId: this.sessionId,
+        sessionId: this.sessionId ?? undefined,
         sinceId: this.sinceId ?? undefined,
       });
       const events = result.events;

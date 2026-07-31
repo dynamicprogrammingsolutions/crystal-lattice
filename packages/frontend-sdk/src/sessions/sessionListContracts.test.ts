@@ -113,6 +113,18 @@ describe('session-list shared contract cases', () => {
     },
   );
 
+  it('never prefills secret or password fields', () => {
+    const values = buildActionDialogInitialValues(
+      [
+        { name: 'secret', type: 'secret', default: 'hidden' },
+        { name: 'password', type: 'password', prefill_from: '$session.value' },
+      ],
+      { session: { value: 'hidden' } },
+    );
+
+    expect(values).toEqual({ secret: '', password: '' });
+  });
+
   it('selects rich presentation only for a supported kind', () => {
     const normalized = normalizeSessionListActionElement(
       FIXTURES.action_cases.find(

@@ -57,6 +57,21 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
   return {
     __esModule: true,
     ...actual,
+    ApplicationActionsMenu: ({ actions }: any) =>
+      ReactModule.createElement(
+        View,
+        { testID: 'mock-application-actions-menu' },
+        (actions || []).map((action: any) =>
+          ReactModule.createElement(
+            Text,
+            {
+              key: `${action.plugin}:${action.id}`,
+              testID: `mock-application-action-${action.id}`,
+            },
+            action.label,
+          ),
+        ),
+      ),
     SessionListActionsBar: ({
       pluginActions,
       session,
@@ -287,6 +302,28 @@ beforeEach(() => {
     refresh: refreshApplicationPlugins,
     invalidate: jest.fn(),
   });
+});
+
+test('hosts screen-independent application actions in the Sessions header', () => {
+  mockUseApplicationPlugins.mockReturnValue({
+    ...applicationPluginsResult(),
+    applicationActions: [
+      {
+        ui_type: 'application_action',
+        plugin: 'application_config',
+        id: 'reload_application',
+        label: 'Reload application',
+        action_id: 'reload_application',
+      },
+    ],
+  });
+
+  renderScreen();
+
+  expect(screen.getByTestId('mock-application-actions-menu')).toBeTruthy();
+  expect(
+    screen.getByTestId('mock-application-action-reload_application').props.children,
+  ).toBe('Reload application');
 });
 
 test('renders application-derived presentation in server order', () => {

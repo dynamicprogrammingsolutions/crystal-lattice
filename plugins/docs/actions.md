@@ -121,6 +121,12 @@ Guidance:
   should be added later only when there is a concrete use case and a UI
   approach that works on both mobile and desktop
 
+Application actions that request full reload return an accepted result rather
+than waiting for active work. The stable application owner publishes
+application-global notification events for requested, completed, and failed
+states. Frontends refresh action definitions only after completion, when the
+replacement application is active.
+
 ### Embedded display forms
 
 Action displays may include an embedded form when the user should enter values

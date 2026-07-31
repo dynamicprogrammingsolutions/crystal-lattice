@@ -1,0 +1,10 @@
+{
+  "module": "application_config_app",
+  "subdirectory": ".",
+  "entries": [
+    "application_config_app.ApplicationConfigAppPlugin"
+  ],
+  "kinds": {
+    "application_config_app.ApplicationConfigAppPlugin": "application"
+  }
+}

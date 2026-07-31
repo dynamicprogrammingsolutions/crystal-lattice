@@ -61,6 +61,7 @@ def main() -> None:
         os.environ["AGENT_APP_TEST_CONTROL"] = "1"
 
     from agent_app.application_future import AgentApplication
+    from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
     from agent_app.events import InMemoryEventStore
 
     from agent_terminal_app.__main__ import _collect_additional_dotenv_values
@@ -84,7 +85,9 @@ def main() -> None:
         def get_file_state(self, session_id: str):
             return self._inner.get_file_state(session_id)  # type: ignore[attr-defined]
 
-        def save_backup(self, session, *, request_id: str, suffix: str = "tool-loop-conflict"):
+        def save_backup(
+            self, session, *, request_id: str, suffix: str = "tool-loop-conflict"
+        ):
             return self._inner.save_backup(  # type: ignore[attr-defined]
                 session,
                 request_id=request_id,
@@ -95,30 +98,42 @@ def main() -> None:
     sessions_root = Path(args.sessions).expanduser().resolve()
     sessions_root.mkdir(parents=True, exist_ok=True)
 
-    server_mod._agent_app = AgentApplication(
-        str(config_path),
-        str(sessions_root),
-        event_store=InMemoryEventStore(
-            max_events_global=args.max_events_global,
-            max_event_age_seconds=args.max_event_age_seconds,
-        ),
-        # Mirror the terminal app entrypoint so TS integration tests exercise
-        # normal config-adjacent and current-directory dotenv resolution.
-        config_env=_collect_additional_dotenv_values(config_path),
+    event_store = InMemoryEventStore(
+        max_events_global=args.max_events_global,
+        max_event_age_seconds=args.max_event_age_seconds,
     )
-    if args.session_save_delay_ms > 0:
-        server_mod._agent_app._session_store = DelayingSessionStore(  # type: ignore[attr-defined]
-            server_mod._agent_app._session_store,  # type: ignore[attr-defined]
-            save_delay_seconds=float(args.session_save_delay_ms) / 1000.0,
+
+    def factory(control: ApplicationControl) -> AgentApplication:
+        application = AgentApplication(
+            str(config_path),
+            str(sessions_root),
+            event_store=event_store,
+            # Mirror the terminal app entrypoint so TS integration tests exercise
+            # normal config-adjacent and current-directory dotenv resolution.
+            config_env=_collect_additional_dotenv_values(config_path),
+            application_control=control,
         )
-    if args.checkpoint_delay_ms > 0:
-        original_record_checkpoint = server_mod._agent_app.record_checkpoint
+        if args.session_save_delay_ms > 0:
+            application._session_store = DelayingSessionStore(  # type: ignore[attr-defined]
+                application._session_store,  # type: ignore[attr-defined]
+                save_delay_seconds=float(args.session_save_delay_ms) / 1000.0,
+            )
+        if args.checkpoint_delay_ms > 0:
+            original_record_checkpoint = application.record_checkpoint
 
-        def _delayed_record_checkpoint(session_id: str, request_id: str | None):
-            time.sleep(float(args.checkpoint_delay_ms) / 1000.0)
-            return original_record_checkpoint(session_id, request_id)
+            def _delayed_record_checkpoint(
+                session_id: str,
+                request_id: str | None,
+            ):
+                time.sleep(float(args.checkpoint_delay_ms) / 1000.0)
+                return original_record_checkpoint(session_id, request_id)
 
-        server_mod._agent_app.record_checkpoint = _delayed_record_checkpoint  # type: ignore[assignment]
+            application.record_checkpoint = _delayed_record_checkpoint  # type: ignore[assignment]
+        return application
+
+    server_mod.configure_application_owner(
+        AgentApplicationOwner(factory, event_store=event_store)
+    )
 
     import uvicorn
 

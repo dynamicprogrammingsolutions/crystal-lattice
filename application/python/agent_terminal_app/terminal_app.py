@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
+from agent_app.application_owner import AgentApplicationOwner
 from agent_app.application_future import AgentApplication
 from agent_app.config import resolve_request_config
 from agent_core import Session
@@ -41,11 +42,16 @@ class TerminalApplication:
         config_path: str | Path,
         session_root: str | Path,
         agent_app: AgentApplication | None = None,
+        application_owner: AgentApplicationOwner | None = None,
         env_overrides: Mapping[str, str] | None = None,
     ) -> None:
         self._session_root: Path = Path(session_root)
+        self._application_owner = application_owner
 
-        if agent_app is not None:
+        if application_owner is not None:
+            self._app = application_owner.current
+            application_owner.add_replacement_listener(self.replace_agent_app)
+        elif agent_app is not None:
             self._app = agent_app
         else:
             self._session_root.mkdir(parents=True, exist_ok=True)
@@ -73,7 +79,21 @@ class TerminalApplication:
     def close(self) -> None:
         """Release resources owned by the underlying application."""
 
-        self._app.close()
+        if self._application_owner is None:
+            self._app.close()
+
+    def replace_agent_app(self, application: AgentApplication) -> None:
+        """Switch to a replacement application and invalidate runtime caches."""
+
+        self._app = application
+        self._core = None
+        self._base_config = None
+        if self._session is not None:
+            loaded = application.load_session(self._session.session_id)
+            if loaded is not None:
+                self._core, self._base_config, self._session = loaded
+        self._ui_schema_cache_key = None
+        self._ui_schema_cache = None
 
     @property
     def session(self) -> Session:
@@ -768,6 +788,24 @@ class TerminalApplication:
         self,
         *,
         stream: bool = True,
+    ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
+        operation = (
+            self._application_owner.acquire_operation()
+            if self._application_owner is not None
+            else None
+        )
+        if operation is not None and operation.application is not self._app:
+            self.replace_agent_app(operation.application)
+        try:
+            return self._send_request_admitted(stream=stream)
+        finally:
+            if operation is not None:
+                operation.release()
+
+    def _send_request_admitted(
+        self,
+        *,
+        stream: bool,
     ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
         """Run the core send_request loop for the active session.
 

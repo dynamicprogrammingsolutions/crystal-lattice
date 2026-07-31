@@ -28,6 +28,22 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
           ),
         ),
       ),
+    ApplicationActionsMenu: ({ actions, onExecuteAction }: any) =>
+      ReactModule.createElement(
+        View,
+        { testID: 'real-application-actions-menu' },
+        (actions || []).map((action: any) =>
+          ReactModule.createElement(
+            TouchableOpacity,
+            {
+              key: `${action.plugin}:${action.id}`,
+              testID: `real-application-action-${action.id}`,
+              onPress: () => onExecuteAction(action),
+            },
+            ReactModule.createElement(Text, null, action.label),
+          ),
+        ),
+      ),
     ApplicationActionDialog: ({
       visible,
       dialog,
@@ -93,6 +109,7 @@ const SERVER_CONFIG = {
     'path:${env:REPO_ROOT}/plugins/session-archive-app',
     'path:${env:REPO_ROOT}/plugins/session-status-app',
     'path:${env:REPO_ROOT}/plugins/session-ordering-buckets-app',
+    'path:${env:REPO_ROOT}/plugins/application-config-app',
   ],
   agents: {
     default: {
@@ -101,6 +118,11 @@ const SERVER_CONFIG = {
   },
   application: {
     session_pinned_metadata_key: 'favorite',
+    application_config: {
+      env_file: '${env:CONFIG_DIR}/.env',
+      editable_env_keys: [],
+      provider_env_keys: {},
+    },
   },
 };
 
@@ -253,7 +275,7 @@ describe('SessionsScreen real-backend component integration', () => {
             connectionId="real-backend-session-list"
             cachedSessions={summaries}
             lastLoadedAt={Date.now()}
-            isActive={false}
+            isActive
             onUpdateCache={jest.fn()}
             onSelectSession={jest.fn()}
           />
@@ -277,6 +299,13 @@ describe('SessionsScreen real-backend component integration', () => {
         screen.getAllByTestId('real-session-action-edit_title_from_list'),
       ).toHaveLength(2);
     });
+    expect(await screen.findByTestId('real-application-actions-menu')).toBeTruthy();
+    fireEvent.press(
+      await screen.findByTestId('real-application-action-reload_application'),
+    );
+    expect(
+      await screen.findByText('Application reload completed', {}, { timeout: 15000 }),
+    ).toBeTruthy();
     fireEvent.changeText(
       await screen.findByTestId('session-main-search'),
       'Real backend title',

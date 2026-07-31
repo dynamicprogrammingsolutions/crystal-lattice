@@ -30,6 +30,8 @@ export type {
 export { ApplicationActionDialog } from './ApplicationActionDialog';
 export { ApplicationActionDialogLayout } from './ApplicationActionDialog';
 export { ApplicationActionForm } from './ApplicationActionDialog';
+export type { ApplicationActionsMenuProps } from './actions/ApplicationActionsMenu';
+export { ApplicationActionsMenu } from './actions/ApplicationActionsMenu';
 
 export {
   buildActionsMenuModel,

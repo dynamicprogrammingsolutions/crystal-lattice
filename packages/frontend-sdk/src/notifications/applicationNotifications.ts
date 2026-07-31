@@ -1,0 +1,31 @@
+import type {
+  ApplicationNotification,
+  ApplicationNotificationEvent,
+} from '../types/applicationNotifications';
+import type { Event } from '../types/events';
+
+export function isApplicationNotificationEvent(
+  event: Event,
+): event is ApplicationNotificationEvent {
+  return (
+    (event.type === 'application_notification_created' ||
+      event.type === 'application_notification_updated') &&
+    !!(event as any).notification
+  );
+}
+
+export function mergeApplicationNotificationEvents(
+  current: readonly ApplicationNotification[],
+  events: readonly Event[],
+): ApplicationNotification[] {
+  const byId = new Map(current.map((notification) => [notification.id, notification]));
+  for (const event of events) {
+    if (!isApplicationNotificationEvent(event)) continue;
+    const notification = event.notification;
+    if (!notification || typeof notification.id !== 'string' || !notification.id) continue;
+    byId.set(notification.id, notification);
+  }
+  return [...byId.values()].sort((left, right) =>
+    left.updated_at.localeCompare(right.updated_at),
+  );
+}

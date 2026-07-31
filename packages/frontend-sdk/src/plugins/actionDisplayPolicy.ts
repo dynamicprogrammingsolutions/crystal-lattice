@@ -1,6 +1,9 @@
 import type { ActionDisplayPayload } from '../types/plugins';
 
-export type ActionDisplaySurface = 'session_action' | 'session_list_action';
+export type ActionDisplaySurface =
+  | 'application_action'
+  | 'session_action'
+  | 'session_list_action';
 export type ActionDisplayHost = 'mobile' | 'desktop';
 
 export function normalizeActionDisplayForSurface(options: {

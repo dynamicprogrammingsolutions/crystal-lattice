@@ -126,6 +126,7 @@ nav:
     - Specialized Task Agents: plugin-development/specialized-task-agents.md
   - Built-In Plugins:
     - Index: built-in-plugins/index.md
+    - application-config-app: built-in-plugins/application-config-app/index.md
     - bash-read-line-range: built-in-plugins/bash-read-line-range/index.md
     - bash-send-kindle-icloud: built-in-plugins/bash-send-kindle-icloud/index.md
     - chatgpt-auth-app: built-in-plugins/chatgpt-auth-app/index.md

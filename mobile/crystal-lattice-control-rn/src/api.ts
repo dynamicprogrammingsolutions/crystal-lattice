@@ -11,6 +11,8 @@ export type {
   ConfigSchemaEntry,
   ActionInputParam,
   ApplicationActionDefinition,
+  ApplicationActionUiElement,
+  ApplicationNotification,
   ActionUiElement,
   ActionDisplayFollowupAction,
   ActionDisplayPayload,

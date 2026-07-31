@@ -251,6 +251,8 @@ export const ApplicationActionForm = forwardRef<ApplicationActionFormHandle, App
 
     const renderDefaultField = (params: ApplicationActionDialogFieldRenderParams) => {
       const isMultiline = params.fieldType === 'multiline';
+      const isSecret =
+        params.fieldType === 'secret' || params.fieldType === 'password';
 
       return (
         <View style={styles.inputGroup}>
@@ -270,6 +272,9 @@ export const ApplicationActionForm = forwardRef<ApplicationActionFormHandle, App
             placeholder={params.placeholder}
             placeholderTextColor={theme.textSecondary}
             multiline={isMultiline}
+            secureTextEntry={isSecret}
+            autoCapitalize="none"
+            autoCorrect={false}
             textAlignVertical={isMultiline ? 'top' : 'center'}
             blurOnSubmit={!isMultiline}
             onSubmitEditing={() => {
@@ -521,6 +526,8 @@ export function ApplicationActionDialogLayout({
 
   const renderDefaultField = (params: ApplicationActionDialogFieldRenderParams) => {
     const isMultiline = params.fieldType === 'multiline';
+    const isSecret =
+      params.fieldType === 'secret' || params.fieldType === 'password';
 
     return (
       <View style={styles.inputGroup}>
@@ -540,6 +547,9 @@ export function ApplicationActionDialogLayout({
           placeholder={params.placeholder}
           placeholderTextColor={theme.textSecondary}
           multiline={isMultiline}
+          secureTextEntry={isSecret}
+          autoCapitalize="none"
+          autoCorrect={false}
           textAlignVertical={isMultiline ? 'top' : 'center'}
           blurOnSubmit={!isMultiline}
           onSubmitEditing={() => {

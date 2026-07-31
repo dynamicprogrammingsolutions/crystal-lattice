@@ -15,6 +15,9 @@ export interface ApplicationPluginsContextValue extends PluginsRegistryState {
 
 const defaultContext: ApplicationPluginsContextValue = {
   actionsById: {},
+  actionsByKey: {},
+  applicationActions: [],
+  applicationActionDiagnostics: [],
   sessionActions: [],
   messageActions: [],
   sessionListActions: [],
@@ -81,6 +84,9 @@ export function selectApplicationPlugins(
 ): UseApplicationPluginsResult {
   const {
     actionsById,
+    actionsByKey,
+    applicationActions,
+    applicationActionDiagnostics,
     sessionActions,
     messageActions,
     sessionListActions,
@@ -90,6 +96,9 @@ export function selectApplicationPlugins(
   } = value;
   return {
     actionsById,
+    actionsByKey,
+    applicationActions,
+    applicationActionDiagnostics,
     sessionActions,
     messageActions,
     sessionListActions,

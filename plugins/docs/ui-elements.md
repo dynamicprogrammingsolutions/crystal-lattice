@@ -1220,6 +1220,29 @@ Session-list declarations come from the global application schema because they
 must be interpreted once for the complete list rather than rediscovered per
 session.
 
+### Application actions
+
+An element with `ui_type: "application_action"` is rendered once for the
+connected application and does not require a selected session:
+
+```json
+{
+  "ui_type": "application_action",
+  "plugin": "application_config",
+  "id": "reload_application",
+  "label": "Reload application",
+  "action_id": "reload_application",
+  "dialog": {
+    "kind": "confirm",
+    "title": "Reload application"
+  }
+}
+```
+
+Action identity is the pair `(plugin, action_id)`, so different application
+plugins may use the same local action id. `secret` and `password` dialog fields
+are masked and never prefilled.
+
 ### Session summaries
 
 ```text
