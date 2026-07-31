@@ -11,6 +11,7 @@ examples and integration tests:
 
 They are deliberately absent from production default configuration.
 
+- [Notifications and action displays](notifications-and-action-displays.md)
 - [Provider plugins](provider-plugins.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Feature plugins](feature-plugins.md)

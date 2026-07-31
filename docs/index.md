@@ -21,6 +21,8 @@ harnesses.
   default application configuration.
 - [Event stream types](api/events.md): understand application events exposed by
   HTTP polling and bridge streaming.
+- [Development specifications](development/index.md): cross-package
+  notification, action-display, runtime-reload, and Sessions-action contracts.
 
 ## Developer Reference
 

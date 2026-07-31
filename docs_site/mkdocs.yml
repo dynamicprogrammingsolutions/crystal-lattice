@@ -68,6 +68,14 @@ plugins:
       sections:
         Overview:
           - index.md: Crystal Lattice documentation overview.
+        Development Specifications:
+          - development/index.md: Cross-package development specifications.
+          - development/specifications/notifications/index.md: Notification specification.
+          - development/specifications/notifications/technical-spec.md: Notification technical contract.
+          - development/specifications/notifications/frontend-behavior.md: Portable notification frontend behavior.
+          - development/specifications/action-display/index.md: Action-display specification.
+          - development/specifications/application-runtime-reload/index.md: Application runtime reload specification.
+          - development/specifications/sessions-actions/index.md: Sessions-action specification.
         Guides:
           - plugins/development.md: General plugin authoring and packaging guide.
           - plugins/application-config.md: Application plugin configuration and examples.
@@ -82,6 +90,7 @@ plugins:
           - plugin-development/node-tool-plugins.md: Node tool plugin guide.
           - plugin-development/bash-tool-plugins.md: Bash tool plugin guide.
           - plugin-development/actions.md: Plugin actions guide.
+          - plugin-development/notifications-and-action-displays.md: Notification and action-display authoring guide.
           - plugin-development/plugin-packaging-and-loading.md: Packaging and loading guide.
           - plugin-development/plugin-execution-order.md: Plugin execution order.
           - plugin-development/config-schema.md: Plugin configuration schema guide.
@@ -104,6 +113,27 @@ plugins:
 nav:
   - Website Home: !ENV [PUBLIC_CRYSTAL_LATTICE_SITE_URL, "https://crystallattice.dev"]
   - Overview: index.md
+  - Development Specifications:
+    - Start Here: development/index.md
+    - Notifications:
+      - Overview: development/specifications/notifications/index.md
+      - Product: development/specifications/notifications/product-spec.md
+      - Technical: development/specifications/notifications/technical-spec.md
+      - Frontend Behavior: development/specifications/notifications/frontend-behavior.md
+      - Requirements: development/specifications/notifications/requirements.md
+    - Action Displays:
+      - Overview: development/specifications/action-display/index.md
+      - Technical: development/specifications/action-display/technical-spec.md
+      - Requirements: development/specifications/action-display/requirements.md
+    - Runtime Reload:
+      - Overview: development/specifications/application-runtime-reload/index.md
+      - Product: development/specifications/application-runtime-reload/product-spec.md
+      - Technical: development/specifications/application-runtime-reload/technical-spec.md
+      - Requirements: development/specifications/application-runtime-reload/requirements.md
+    - Sessions Actions:
+      - Overview: development/specifications/sessions-actions/index.md
+      - Technical: development/specifications/sessions-actions/technical-spec.md
+      - Requirements: development/specifications/sessions-actions/requirements.md
   - Guides:
     - Plugin Development: plugins/development.md
     - Application Configuration: plugins/application-config.md
@@ -118,6 +148,7 @@ nav:
     - Node Tool Plugins: plugin-development/node-tool-plugins.md
     - Bash Tool Plugins: plugin-development/bash-tool-plugins.md
     - Plugin Actions: plugin-development/actions.md
+    - Notifications And Action Displays: plugin-development/notifications-and-action-displays.md
     - Packaging And Loading: plugin-development/plugin-packaging-and-loading.md
     - Execution Order: plugin-development/plugin-execution-order.md
     - Configuration Schema: plugin-development/config-schema.md
