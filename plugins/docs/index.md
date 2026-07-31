@@ -2,6 +2,15 @@
 
 Start here for the current shared plugin documentation set.
 
+Non-production notification/display demonstration packages are available for
+examples and integration tests:
+
+- `plugins/dummy-application-notification-app`
+- `plugins/dummy-session-notification-app`
+- `plugins/dummy-action-display-app`
+
+They are deliberately absent from production default configuration.
+
 - [Provider plugins](provider-plugins.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Feature plugins](feature-plugins.md)

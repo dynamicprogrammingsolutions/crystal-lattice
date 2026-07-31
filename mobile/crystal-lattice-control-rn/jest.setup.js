@@ -161,6 +161,7 @@ jest.mock('@likashefqet/react-native-image-zoom', () => {
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
   const { Text, TextInput, View } = require('react-native');
+  const actual = jest.requireActual('@crystal-lattice/frontend-rn-components');
   const lightTheme = {
     typography: {
       fontSize: {
@@ -264,6 +265,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
 
   return {
     __esModule: true,
+    ...actual,
     SESSION_ACTIONS: {},
     ThemeProvider: ({ children }) => React.createElement(React.Fragment, null, children),
     useTheme: () => lightTheme,

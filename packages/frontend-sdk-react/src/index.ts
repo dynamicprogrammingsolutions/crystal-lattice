@@ -87,6 +87,7 @@ export type {
   UseServerSettingsControllerResult,
 } from './useServerSettingsController';
 export { useServerSettingsController } from './useServerSettingsController';
+export { useServerSettingsForm } from './useServerSettingsForm';
 
 export type {
   SessionPluginsState,

@@ -15,30 +15,30 @@ import {
 import Clipboard from '@react-native-clipboard/clipboard';
 import Icon from 'react-native-vector-icons/Feather';
 import {
-  emitApplicationActionsInvalidated,
+  applicationActionKey,
   deriveSessionListPresentationFromGroups,
+  emitDisplayPresentation,
   getDefaultPinnedSessionListActionKeys,
   groupSessionListFields,
-  mergeApplicationNotificationEvents,
+  normalizeDisplayEnvelope,
   normalizeActionDisplayForSurface,
   pickDefaultAgentId,
-  PollingEventSource,
   runApplicationAction,
   selectSessionListRichActionForPlacement,
   type AgentBackend,
   type ApplicationActionUiElement,
-  type ApplicationNotification,
   type RunActionContext,
   type SessionListActionElement,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  ActionsMenuBar,
   ApplicationActionDialog,
-  ApplicationActionsMenu,
   SessionListActionsBar,
   SessionListRichActionControl,
   SessionListRichActionList,
   SessionListFiltersPanel,
   type SessionActionKey,
+  type ActionDefinition,
 } from '@crystal-lattice/frontend-rn-components';
 import {
   useAgentsController,
@@ -63,6 +63,7 @@ import { handleGeneratedFileFollowupAction } from './utils/generatedFileActions'
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
+import { GlobalNotificationBannerSlot } from './components/GlobalDisplayLayer';
 import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
 
 interface SessionsScreenProps {
@@ -76,6 +77,7 @@ interface SessionsScreenProps {
 }
 
 const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
+const STORAGE_KEY_SESSIONS_HEADER_ACTIONS = 'clc_pinned_sessions_header_actions_v1';
 
 const DEFAULT_PINNED_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
 
@@ -86,6 +88,11 @@ type ActionDisplayEntry = {
   display: ActionDisplayPayload;
   context: RunActionContext;
 };
+
+interface SessionsHeaderActionDefinition extends ActionDefinition {
+  kind: 'builtin' | 'plugin';
+  element?: ApplicationActionUiElement;
+}
 
 function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
   const key =
@@ -170,9 +177,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     sessionListFields,
     sessionListFilterSchema,
   } = useApplicationPlugins();
-  const [applicationNotifications, setApplicationNotifications] = useState<
-    ApplicationNotification[]
-  >([]);
   const {
     schema: effectiveFilterSchema,
     values: sessionFilterValues,
@@ -199,32 +203,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     applicationPluginsErrorRef.current = applicationPluginsError;
   }, [applicationPluginsError]);
 
-  useEffect(() => {
-    if (!backend || !isActive) return;
-    const source = new PollingEventSource(backend, {
-      applicationScope: true,
-    });
-    source.start({
-      sessionId: null,
-      initialSinceId: null,
-      onEvents: (events) => {
-        setApplicationNotifications((current) =>
-          mergeApplicationNotificationEvents(current, events),
-        );
-        if (
-          events.some(
-            (event) =>
-              event.type === 'application_reload_completed' ||
-              event.type === 'application_reload_failed',
-          )
-        ) {
-          emitApplicationActionsInvalidated(backend);
-        }
-      },
-    });
-    return () => source.stop();
-  }, [backend, isActive]);
-
   const scopedSessionListActionsStorageKey = useMemo(
     () => `${STORAGE_KEY_SESSION_LIST_ACTIONS}:${connectionId ?? 'default'}`,
     [connectionId],
@@ -249,6 +227,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsSessionId, setSettingsSessionId] = useState<string | null>(null);
   const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
+  const [activeApplicationAction, setActiveApplicationAction] =
+    useState<ApplicationActionUiElement | null>(null);
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [pluginsSessionId, setPluginsSessionId] = useState<string | null>(null);
   const [filtersVisible, setFiltersVisible] = useState(false);
@@ -276,6 +256,48 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     setFiltersVisible(false);
     setActiveRichList(null);
   }, []);
+
+  const sessionsHeaderActionDefinitions = useMemo<SessionsHeaderActionDefinition[]>(
+    () => [
+      {
+        key: 'serverSettings',
+        label: 'Server settings',
+        iconName: 'settings',
+        kind: 'builtin',
+      },
+      {
+        key: 'refreshSessions',
+        label: 'Refresh sessions',
+        iconName: 'refresh-cw',
+        kind: 'builtin',
+      },
+      {
+        key: 'newSession',
+        label: 'New session',
+        iconName: 'plus',
+        kind: 'builtin',
+      },
+      ...applicationActions.map((element) => ({
+        key: applicationActionKey(element.plugin, element.id),
+        label: element.label,
+        iconName: typeof element.icon === 'string' ? element.icon : 'zap',
+        kind: 'plugin' as const,
+        element,
+      })),
+    ],
+    [applicationActions],
+  );
+  const scopedHeaderActionsStorageKey = useMemo(
+    () => `${STORAGE_KEY_SESSIONS_HEADER_ACTIONS}:${connectionId ?? 'default'}`,
+    [connectionId],
+  );
+  const {
+    pinned: pinnedHeaderActions,
+    setPinned: setPinnedHeaderActions,
+  } = usePersistentPinnedActions<string>(
+    scopedHeaderActionsStorageKey,
+    ['serverSettings', 'refreshSessions', 'newSession'],
+  );
 
   const navigateToSession = useCallback(
     (sessionId: string) => {
@@ -306,13 +328,26 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
     const nextEntry = createDisplayEntry(display, context);
     const presentation = display.presentation ?? 'modal';
-    if (presentation === 'inline' || presentation === 'banner') {
+    if (presentation === 'banner' && backend) {
+      emitDisplayPresentation(
+        backend,
+        normalizeDisplayEnvelope({
+          id: nextEntry.key,
+          source: 'action_response',
+          connectionId,
+          sessionId: context.sessionId,
+          display,
+        }),
+      );
+      return;
+    }
+    if (presentation === 'inline') {
       setActionResultDisplay(null);
       setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
       return;
     }
     setActionResultDisplay(nextEntry);
-  }, []);
+  }, [backend, connectionId]);
 
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {
@@ -769,43 +804,55 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.headerButtons}>
-          <ApplicationActionsMenu
-            actions={applicationActions}
-            disabled={!backend}
-            loading={actionLoading}
+          <ActionsMenuBar<SessionsHeaderActionDefinition>
+            title="Sessions actions"
+            baseActions={sessionsHeaderActionDefinitions}
+            pinned={pinnedHeaderActions}
+            onChangePinned={setPinnedHeaderActions}
             isActive={isActive}
-            fieldRenderers={actionDialogFieldRenderers}
             renderIcon={({ name, size, color }) => (
               <Icon name={name} size={size} color={color} />
             )}
-            onExecuteAction={(
-              element: ApplicationActionUiElement,
-              dialogValues?: Record<string, any>,
-            ) =>
-              executePluginAction(element, {
-                connectionId: connectionId ?? undefined,
-                dialogValues,
-              })
+            renderPinIcon={({ size, color }) => (
+              <Icon name="star" size={size} color={color} />
+            )}
+            menuButtonTestID="sessions-actions-menu"
+            isActionDisabled={(key) =>
+              !backend ||
+              actionLoading ||
+              (key === 'refreshSessions' && loading) ||
+              (key === 'newSession' && agentsLoading)
             }
+            onAction={(key) => {
+              if (key === 'serverSettings') {
+                setServerSettingsVisible(true);
+                return;
+              }
+              if (key === 'refreshSessions') {
+                void loadSessions();
+                return;
+              }
+              if (key === 'newSession') {
+                void handleNewSession();
+                return;
+              }
+              const element = sessionsHeaderActionDefinitions.find(
+                (item) => item.key === key,
+              )?.element;
+              if (!element) return;
+              if ((element.dialog?.kind ?? 'none') === 'none') {
+                void executePluginAction(element, {
+                  connectionId: connectionId ?? undefined,
+                });
+              } else {
+                setActiveApplicationAction(element);
+              }
+            }}
           />
-          <TouchableOpacity
-            accessibilityLabel="Open server settings"
-            style={[styles.iconHeaderButton, styles.secondaryButton]}
-            onPress={() => setServerSettingsVisible(true)}
-            disabled={!backend}
-          >
-            <Icon name="settings" size={18} color={theme.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={loadSessions}>
-            <Text style={styles.buttonTextSecondary}>Reload</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={handleNewSession}>
-            <Text style={styles.buttonText}>New Session</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.filterControlsRow}>
+      <View style={styles.filterControlsRow} testID="sessions-search-filter-row">
         <TextInput
           testID="session-main-search"
           accessibilityLabel={mainSearch.label}
@@ -850,6 +897,8 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         ) : null}
       </View>
 
+      <GlobalNotificationBannerSlot testID="sessions-notification-banner-rail" />
+
       {sessionListFilterSchema.mainSearchConflict ? (
         <Text
           testID="session-filter-schema-warning"
@@ -879,19 +928,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               : 'No sessions match the current filter defaults.'}
         </Text>
       )}
-
-      {applicationNotifications.map((notification) => (
-        <ActionResultInlineCard
-          key={notification.id}
-          display={notification.display}
-          onDismiss={() =>
-            setApplicationNotifications((current) =>
-              current.filter((item) => item.id !== notification.id),
-            )
-          }
-          fieldRenderers={actionDialogFieldRenderers}
-        />
-      ))}
 
       <FlatList
         style={styles.list}
@@ -1016,6 +1052,24 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	      </View>
 	    </Modal>
 	  )}
+
+      <ApplicationActionDialog
+        visible={activeApplicationAction !== null}
+        dialog={activeApplicationAction?.dialog ?? null}
+        titleFallback={activeApplicationAction?.label}
+        fieldRenderers={actionDialogFieldRenderers}
+        onSubmit={(dialogValues) => {
+          const element = activeApplicationAction;
+          setActiveApplicationAction(null);
+          if (element) {
+            void executePluginAction(element, {
+              connectionId: connectionId ?? undefined,
+              dialogValues,
+            });
+          }
+        }}
+        onCancel={() => setActiveApplicationAction(null)}
+      />
 
       <ApplicationActionDialog
         visible={!!activePluginDialogElement}

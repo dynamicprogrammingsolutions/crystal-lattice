@@ -239,7 +239,65 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       );
     },
 
-    ActionsMenuBar: () => null,
+    ActionsMenuBar: ({ baseActions = [], extraActions = [], menuButtonTestID }) =>
+      React.createElement(
+        View,
+        { testID: menuButtonTestID },
+        [...baseActions, ...extraActions].map((action) =>
+          React.createElement(
+            Text,
+            { key: action.key, testID: `action-menu-item-${String(action.key).replace(/\u0000/g, '-')}` },
+            action.label,
+          ),
+        ),
+      ),
+    NotificationBanner: ({ display, onDismiss, onFollowupAction, disabledActionIds = [] }) =>
+      React.createElement(
+        View,
+        { accessibilityRole: 'alert' },
+        display?.title ? React.createElement(Text, null, display.title) : null,
+        React.createElement(Text, null, display?.body || ''),
+        (display?.actions || []).map((action) =>
+          React.createElement(
+            Pressable,
+            {
+              key: action.id,
+              disabled: disabledActionIds.includes(action.id),
+              onPress: () =>
+                action.kind === 'dismiss'
+                  ? onDismiss?.()
+                  : onFollowupAction?.(action),
+            },
+            React.createElement(Text, null, action.label),
+          ),
+        ),
+        display?.dismissible !== false && onDismiss
+          ? React.createElement(
+              Pressable,
+              { onPress: onDismiss },
+              React.createElement(Text, null, 'Dismiss'),
+            )
+          : null,
+      ),
+    NotificationBannerHost: ({ items = [], onDismiss, onFollowupAction }) =>
+      React.createElement(
+        View,
+        { testID: 'notification-banner-host' },
+        items.map((item) =>
+          React.createElement(
+            View,
+            { key: item.envelope.id, accessibilityRole: 'alert' },
+            item.connectionLabel
+              ? React.createElement(Text, null, item.connectionLabel)
+              : null,
+            item.envelope.display.title
+              ? React.createElement(Text, null, item.envelope.display.title)
+              : null,
+            React.createElement(Text, null, item.envelope.display.body),
+          ),
+        ),
+      ),
+    SessionNotificationsHost: () => null,
     SessionListActionsBar: ({ session, pluginActions, pinned, onExecuteAction }) =>
       React.createElement(
         View,

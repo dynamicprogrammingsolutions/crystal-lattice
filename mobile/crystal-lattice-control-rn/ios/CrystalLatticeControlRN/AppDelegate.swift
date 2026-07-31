@@ -33,6 +33,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       $0 == "-clcTranscriptScrollHarness" || $0 == "clcTranscriptScrollHarness"
     }) {
       moduleName = "MobileTranscriptScrollHarness"
+    } else if arguments.contains(where: {
+      $0 == "-clcNotificationBannerHarness" || $0 == "clcNotificationBannerHarness"
+    }) {
+      moduleName = "MobileNotificationBannerHarness"
     } else {
       moduleName = "CrystalLatticeControlRN"
     }

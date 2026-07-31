@@ -17,6 +17,7 @@ import Icon from 'react-native-vector-icons/Feather';
 
 import {
   ActionsMenuBar,
+  SessionNotificationsHost,
   ApplicationActionDialog,
   getLastActionsPopoverAnchorTag,
   useTheme,
@@ -36,13 +37,16 @@ import type {
 import {
   attachmentDraftStatusLabel,
   resolveAttachmentActionPluginId,
+  selectPendingSessionNotifications,
   deleteSessionAttachment,
   deriveSessionListPresentationFromGroups,
+  emitDisplayPresentation,
   filterFooterElements,
   groupSessionListFields,
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
   normalizeActionDisplayForSurface,
+  normalizeDisplayEnvelope,
   runApplicationAction,
   selectSessionAssetId,
   selectDisplayContent,
@@ -443,6 +447,7 @@ export const ChatPane = React.memo(function ChatPane({
   const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
   const [inlineActionDisplays, setInlineActionDisplays] = useState<ActionDisplayEntry[]>([]);
   const [activeDisplayActionId, setActiveDisplayActionId] = useState<string | null>(null);
+  const [notificationEvents, setNotificationEvents] = useState<any[]>([]);
   const [attachmentBackgroundOperation, setAttachmentBackgroundOperation] =
     useState<AttachmentBackgroundOperation>(null);
   const [openingAgentPicker, setOpeningAgentPicker] = useState(false);
@@ -466,6 +471,15 @@ export const ChatPane = React.memo(function ChatPane({
 
   // Debug logging removed; composer uses native MacTextView on macOS.
 
+  const handleChatEvents = useCallback((events: any[]) => {
+    const relevant = events.filter((event) =>
+      String(event.type).startsWith('session_notification_'),
+    );
+    if (relevant.length > 0) {
+      setNotificationEvents((current) => [...current, ...relevant].slice(-100));
+    }
+  }, []);
+
   const { controller: chatController, state: chatState } = useChatController({
     backend,
     sessionId,
@@ -473,6 +487,7 @@ export const ChatPane = React.memo(function ChatPane({
     initialEventsCursorId: cachedEntry?.cursorEventId ?? null,
     initialActiveRequestId: cachedEntry?.activeRequestId ?? null,
 	  eventsEnabled: isActive && backend != null,
+    onEvents: handleChatEvents,
   });
 
   const pinnedSessionActionsStorageKey = useMemo(() => {
@@ -2034,13 +2049,26 @@ export const ChatPane = React.memo(function ChatPane({
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
     const nextEntry = createDisplayEntry(display, context);
     const presentation = display.presentation ?? 'modal';
-    if (presentation === 'inline' || presentation === 'banner') {
+    if ((presentation === 'banner' || presentation === 'modal') && backend) {
+      emitDisplayPresentation(
+        backend,
+        normalizeDisplayEnvelope({
+          id: nextEntry.key,
+          source: 'action_response',
+          connectionId,
+          sessionId,
+          display,
+        }),
+      );
+      return;
+    }
+    if (presentation === 'inline') {
       setActionResultDisplay(null);
       setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
       return;
     }
     setActionResultDisplay(nextEntry);
-  }, []);
+  }, [backend, connectionId, sessionId]);
 
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {
@@ -2607,13 +2635,65 @@ export const ChatPane = React.memo(function ChatPane({
 
   const streamingFooter = useMemo(() => {
     const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
-    const hasInlineDisplays = inlineActionDisplays.length > 0;
+    const hasInlineDisplays =
+      inlineActionDisplays.length > 0 ||
+      notificationEvents.length > 0 ||
+      selectPendingSessionNotifications(sessionSummary).length > 0;
     if (!hasStreaming && !hasInlineDisplays) {
       return null;
     }
 
     return (
       <View>
+        <SessionNotificationsHost
+          sessionSummary={sessionSummary ?? null}
+          events={notificationEvents}
+          onBanner={(notification) => {
+            if (!backend) return;
+            emitDisplayPresentation(
+              backend,
+              normalizeDisplayEnvelope({
+                id: notification.id,
+                source: 'session_notification',
+                connectionId,
+                sessionId,
+                sourceKey: notification.key,
+                display: notification.display,
+              }),
+            );
+          }}
+          onModal={(notification) => {
+            presentActionDisplay(
+              {
+                ...notification.display,
+                presentation: 'inline',
+              },
+              {
+                connectionId,
+                sessionId,
+                sessionSummary: sessionSummary ?? undefined,
+              },
+            );
+          }}
+          onFollowupAction={(action, notification) =>
+            handleDisplayFollowupAction(
+              createDisplayEntry(notification.display, {
+                connectionId,
+                sessionId,
+                sessionSummary: sessionSummary ?? undefined,
+              }),
+              action,
+            )
+          }
+          renderInline={({ notification, onDismiss, onFollowupAction }) => (
+            <ActionResultInlineCard
+              display={notification.display}
+              activeActionId={activeDisplayActionId}
+              onDismiss={onDismiss}
+              onFollowupAction={(action) => onFollowupAction(action)}
+            />
+          )}
+        />
         {hasStreaming ? (
           <DesktopMessageBubble
             index={messages.length > 0 ? messages[messages.length - 1].index + 1 : 0}
@@ -2650,6 +2730,11 @@ export const ChatPane = React.memo(function ChatPane({
     handleDisplayFollowupAction,
     inlineActionDisplays,
     messages,
+    notificationEvents,
+    backend,
+    connectionId,
+    sessionId,
+    sessionSummary,
     streamingRow,
   ]);
 
@@ -2659,12 +2744,21 @@ export const ChatPane = React.memo(function ChatPane({
       rows.push({ kind: 'message', item: message });
     }
     const hasStreaming = !!(streamingRow && (streamingRow.content || streamingRow.reasoning));
-    const hasInlineDisplays = inlineActionDisplays.length > 0;
+    const hasInlineDisplays =
+      inlineActionDisplays.length > 0 ||
+      notificationEvents.length > 0 ||
+      selectPendingSessionNotifications(sessionSummary).length > 0;
     if (hasStreaming || hasInlineDisplays) {
       rows.push({ kind: 'stream' });
     }
     return rows;
-  }, [inlineActionDisplays.length, messages, streamingRow]);
+  }, [
+    inlineActionDisplays.length,
+    messages,
+    notificationEvents.length,
+    sessionSummary,
+    streamingRow,
+  ]);
 
   const renderMessageItem = useCallback(
     ({ item: msg }: { item: IndexedMessage; index: number }) => {

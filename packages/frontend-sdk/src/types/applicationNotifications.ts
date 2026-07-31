@@ -10,11 +10,18 @@ export interface ApplicationNotification {
   body: string;
   created_at: string;
   updated_at: string;
+  request_id?: string | null;
   source: {
     plugin: string;
     [key: string]: any;
   };
   display: ActionDisplayPayload;
+  resolution?: {
+    action_id?: string;
+    values?: Record<string, any>;
+    resolved_at: string;
+    [key: string]: any;
+  } | null;
   model_visibility: 'hidden';
 }
 

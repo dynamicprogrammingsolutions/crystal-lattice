@@ -3,7 +3,8 @@ import type { ActionDisplayPayload } from '../types/plugins';
 export type ActionDisplaySurface =
   | 'application_action'
   | 'session_action'
-  | 'session_list_action';
+  | 'session_list_action'
+  | 'message_action';
 export type ActionDisplayHost = 'mobile' | 'desktop';
 
 export function normalizeActionDisplayForSurface(options: {
@@ -11,29 +12,17 @@ export function normalizeActionDisplayForSurface(options: {
   surface: ActionDisplaySurface;
   host: ActionDisplayHost;
 }): ActionDisplayPayload | null {
-  const { display, surface, host } = options;
+  const { display, host } = options;
   if (!display) {
     return null;
   }
 
-  // Session list actions do not currently present rich display payloads on either platform.
-  if (surface === 'session_list_action') {
-    return null;
-  }
-
-  if (host === 'desktop') {
-    return {
-      ...display,
-      presentation: 'inline',
-    };
-  }
-
-  if (display.presentation === 'banner') {
-    return {
-      ...display,
-      presentation: 'inline',
-    };
-  }
-
-  return display;
+  const presentation = display.presentation ?? 'modal';
+  return {
+    ...display,
+    presentation:
+      host === 'desktop' && presentation === 'modal'
+        ? 'inline'
+        : presentation,
+  };
 }

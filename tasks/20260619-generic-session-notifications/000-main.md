@@ -4,10 +4,14 @@ Create a generic platform feature for persistent, evented session notifications 
 
 ## Task checklist
 
-- [ ] `tasks/20260619-generic-session-notifications/010-stage-1-notification-design.md`
-- [ ] `tasks/20260619-generic-session-notifications/020-stage-1-backend-notification-substrate.md`
-- [ ] `tasks/20260619-generic-session-notifications/030-stage-1-sdk-and-rn-notification-ui.md`
-- [ ] `tasks/20260619-generic-session-notifications/040-stage-1-dummy-plugin-integration-tests.md`
+- [x] `tasks/20260619-generic-session-notifications/010-stage-1-notification-design.md`
+  — `COMPLETED VIA tasks/20260729-staged-application-config-and-full-reload.md`
+- [x] `tasks/20260619-generic-session-notifications/020-stage-1-backend-notification-substrate.md`
+  — `COMPLETED VIA tasks/20260729-staged-application-config-and-full-reload.md`
+- [x] `tasks/20260619-generic-session-notifications/030-stage-1-sdk-and-rn-notification-ui.md`
+  — `COMPLETED VIA tasks/20260729-staged-application-config-and-full-reload.md`
+- [x] `tasks/20260619-generic-session-notifications/040-stage-1-dummy-plugin-integration-tests.md`
+  — `COMPLETED VIA tasks/20260729-staged-application-config-and-full-reload.md`
 - [ ] `tasks/20260619-generic-session-notifications/050-stage-2-interaction-flow-design.md`
 - [ ] `tasks/20260619-generic-session-notifications/060-stage-2a-backend-wait-only.md`
 - [ ] `tasks/20260619-generic-session-notifications/070-stage-2a-sdk-and-rn-tests.md`
@@ -71,6 +75,30 @@ MCP work should depend on Stage 1 of this task. The MCP-specific follow-up detai
 - Stage 1 (010–040) has no new task dependencies.
 - Stage 2 (050–080) depends on `tasks/20260717-tool-call-interceptor-capability.md` for the blocking-via-tool-call flow. The interceptor task provides the pre-execution hook; this task provides the interaction lifecycle and notification substrate. The two tasks are independent in implementation; the combined user flow (request → tool call → interceptor blocks + emits notification → user responds → interceptor passes through) is proven in Stage 2a/2b of this task.
 
+## Active Stage 1 overlap
+
+`OVERLAP: tasks/20260729-staged-application-config-and-full-reload.md`
+
+The application-reload task's manual-checkpoint follow-up is planned to
+implement this task's complete non-blocking Stage 1 (010–040) while also
+standardizing display presentation across:
+
+- persistent session notifications;
+- owner-memory application notifications;
+- direct application/session/message/session-list action responses;
+- mobile and React Native macOS hosts.
+
+The shared presentation contract is `banner`, `inline`, and `modal`.
+Application-global, session-scoped, and action-response banner payloads use one
+connection-aware top banner rail on desktop. Session persistence and lifecycle
+remain owned by this task's Stage 1 backend design.
+
+The 010–040 checklist items remain incomplete until their own requirements and
+real-backend evidence pass. After implementation, record `COMPLETED VIA
+tasks/20260729-staged-application-config-and-full-reload.md` only for fully
+satisfied subtasks. Stage 2 interaction work remains independent and is not
+included in that overlap.
+
 ## Non-Goals For Stage 1
 
 - Do not implement full tool-call interception.
@@ -85,9 +113,15 @@ MCP work should depend on Stage 1 of this task. The MCP-specific follow-up detai
 - A dummy plugin can emit a persistent notification during backend work.
 - The notification is persisted in session metadata and emitted through events.
 - SDK can observe the notification through a real backend.
-- React Native can render the notification using existing display/action components.
+- Mobile and React Native macOS can render notifications through the standard
+  banner, inline, and modal hosts using shared display/action components.
+- Session notifications, application notifications, and direct action
+  responses share the same presentation semantics; desktop banner
+  presentations share one location.
 - A notification action can execute through the existing application action flow.
 - Notification emission failure does not abort the request.
+- Pure demonstration plugins can trigger notification and direct action
+  displays without being enabled in production default configuration.
 
 ### Stage 2a (wait-only)
 

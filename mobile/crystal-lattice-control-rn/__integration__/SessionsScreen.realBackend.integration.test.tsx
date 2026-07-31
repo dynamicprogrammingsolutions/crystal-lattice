@@ -28,17 +28,17 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
           ),
         ),
       ),
-    ApplicationActionsMenu: ({ actions, onExecuteAction }: any) =>
+    ActionsMenuBar: ({ baseActions, onAction }: any) =>
       ReactModule.createElement(
         View,
-        { testID: 'real-application-actions-menu' },
-        (actions || []).map((action: any) =>
+        { testID: 'real-sessions-actions-menu' },
+        (baseActions || []).map((action: any) =>
           ReactModule.createElement(
             TouchableOpacity,
             {
-              key: `${action.plugin}:${action.id}`,
-              testID: `real-application-action-${action.id}`,
-              onPress: () => onExecuteAction(action),
+              key: action.key,
+              testID: `real-sessions-action-${action.element?.id ?? action.key}`,
+              onPress: () => onAction(action.key),
             },
             ReactModule.createElement(Text, null, action.label),
           ),
@@ -84,8 +84,10 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
 });
 
 import { ApplicationPluginsProvider } from '../src/ApplicationPluginsContext';
+import { SessionNotificationsHost } from '@crystal-lattice/frontend-rn-components';
 import { PinnedActionsProvider } from '../src/PinnedActionsContext';
 import SessionsScreen from '../src/SessionsScreen';
+import GlobalDisplayLayer from '../src/components/GlobalDisplayLayer';
 import { renderWithMobileProviders } from '../src/testUtils/renderWithMobileProviders';
 import {
   createMobileComponentSession,
@@ -110,6 +112,7 @@ const SERVER_CONFIG = {
     'path:${env:REPO_ROOT}/plugins/session-status-app',
     'path:${env:REPO_ROOT}/plugins/session-ordering-buckets-app',
     'path:${env:REPO_ROOT}/plugins/application-config-app',
+    'path:${env:REPO_ROOT}/plugins/dummy-session-notification-app',
   ],
   agents: {
     default: {
@@ -141,6 +144,7 @@ describe('SessionsScreen real-backend component integration', () => {
       config: SERVER_CONFIG,
       startupTimeoutMs: 30000,
     });
+
     const sessionId = await createMobileComponentSession(started.backend);
     const otherSessionId = await createMobileComponentSession(started.backend);
     await started.backend.appendMessage(sessionId, {
@@ -270,15 +274,21 @@ describe('SessionsScreen real-backend component integration', () => {
           backend={started.backend}
           connectionId="real-backend-session-list"
         >
-          <SessionsScreen
+          <GlobalDisplayLayer
             backend={started.backend}
-            connectionId="real-backend-session-list"
-            cachedSessions={summaries}
-            lastLoadedAt={Date.now()}
-            isActive
-            onUpdateCache={jest.fn()}
-            onSelectSession={jest.fn()}
-          />
+            connectionId="real-backend"
+            connectionName="Real backend"
+          >
+            <SessionsScreen
+              backend={started.backend}
+              connectionId="real-backend-session-list"
+              cachedSessions={summaries}
+              lastLoadedAt={Date.now()}
+              isActive
+              onUpdateCache={jest.fn()}
+              onSelectSession={jest.fn()}
+            />
+          </GlobalDisplayLayer>
         </ApplicationPluginsProvider>
       </PinnedActionsProvider>,
     );
@@ -299,10 +309,11 @@ describe('SessionsScreen real-backend component integration', () => {
         screen.getAllByTestId('real-session-action-edit_title_from_list'),
       ).toHaveLength(2);
     });
-    expect(await screen.findByTestId('real-application-actions-menu')).toBeTruthy();
+    expect(await screen.findByTestId('real-sessions-actions-menu')).toBeTruthy();
     fireEvent.press(
-      await screen.findByTestId('real-application-action-reload_application'),
+      await screen.findByTestId('real-sessions-action-reload_application'),
     );
+    fireEvent.press(await screen.findByTestId('real-dialog-submit-unknown'));
     expect(
       await screen.findByText('Application reload completed', {}, { timeout: 15000 }),
     ).toBeTruthy();
@@ -365,5 +376,44 @@ describe('SessionsScreen real-backend component integration', () => {
     fireEvent.press(screen.getByTestId('session-filters-show-all'));
     expect(screen.getByTestId(`session-row-${sessionId}`)).toBeTruthy();
     expect(screen.getByTestId(`session-row-${otherSessionId}`)).toBeTruthy();
+  }, 60000);
+
+  it('renders a persistent session notification emitted through a real action', async () => {
+    started = await startMobileComponentBackend({
+      config: SERVER_CONFIG,
+      startupTimeoutMs: 30000,
+    });
+    const sessionId = await createMobileComponentSession(started.backend, {
+      agentId: 'default',
+    });
+    const response = await started.backend.executeSessionAction!({
+      sessionId,
+      pluginId: 'dummy_session_notification',
+      actionId: 'emit_session_notification',
+      actionOwner: 'application',
+      inputs: { presentation: 'inline', variant: 'warning' },
+    });
+    expect(response.status).toBe('ok');
+    const summaries = await started.backend.listSessions();
+    const summary = summaries.find((item) => item.session_id === sessionId);
+    expect(summary?.metadata?.notifications?.items).toHaveLength(1);
+    const events = await started.backend.listEvents({
+      sessionId,
+      sinceId: '0',
+    });
+    const onFollowupAction = jest.fn();
+
+    renderWithMobileProviders(
+      <SessionNotificationsHost
+        sessionSummary={summary ?? null}
+        events={events.events}
+        onBanner={() => {}}
+        onModal={() => {}}
+        onFollowupAction={onFollowupAction}
+      />,
+    );
+    expect(await screen.findByText('Session notification demo')).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Run follow-up'));
+    expect(onFollowupAction).toHaveBeenCalled();
   }, 60000);
 });

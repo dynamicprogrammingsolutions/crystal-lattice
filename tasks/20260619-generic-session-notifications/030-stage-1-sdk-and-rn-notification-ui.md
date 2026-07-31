@@ -4,19 +4,30 @@ Add SDK types/selectors and React Native rendering for generic session notificat
 
 ## Requirements checklist
 
-- [ ] Add SDK notification/event types in `packages/frontend-sdk/src/types/notifications.ts`.
-- [ ] Add selector utilities in `packages/frontend-sdk/src/notifications/sessionNotifications.ts`.
-- [ ] Export new types and selectors from `packages/frontend-sdk/src/index.ts`.
-- [ ] Add `SessionNotificationsHost` RN component.
-- [ ] Mount the host in `SessionChatScreen`.
-- [ ] Support notification follow-up actions through the existing `runApplicationAction` runner.
-- [ ] Support local dismiss (frontend-only) without corrupting persisted state.
-- [ ] Add focused SDK unit tests.
-- [ ] Add RN component tests.
+- [x] Add SDK notification/event types in `packages/frontend-sdk/src/types/notifications.ts`.
+- [x] Add selector utilities in `packages/frontend-sdk/src/notifications/sessionNotifications.ts`.
+- [x] Export new types and selectors from `packages/frontend-sdk/src/index.ts`.
+- [x] Add `SessionNotificationsHost` RN component.
+- [x] Mount the host in `SessionChatScreen`.
+- [x] Route `banner`, `inline`, and `modal` consistently for session
+  notifications, application notifications, and direct action responses.
+- [x] Render every desktop banner source in the same connection-aware top
+  notification rail.
+- [x] Support mobile global hosts and React Native macOS inline/window hosts.
+- [x] Support notification follow-up actions through the existing `runApplicationAction` runner.
+- [x] Support local dismiss (frontend-only) without corrupting persisted state.
+- [x] Add focused SDK unit tests.
+- [x] Add RN component tests.
 
 Parent Task: `tasks/20260619-generic-session-notifications/000-main.md`
 
 Depends On: `tasks/20260619-generic-session-notifications/010-stage-1-notification-design.md`
+
+Overlap:
+`tasks/20260729-staged-application-config-and-full-reload.md`
+
+Completed Via:
+`tasks/20260729-staged-application-config-and-full-reload.md`
 
 ## SDK Work
 
@@ -29,7 +40,7 @@ import type { ActionDisplayPayload } from './plugins';
 import type { BaseEvent } from './events';
 
 export type SessionNotificationStatus = 'pending' | 'resolved';
-export type SessionNotificationSeverity = 'info' | 'warning' | 'error';
+export type SessionNotificationSeverity = 'info' | 'success' | 'warning' | 'error';
 export type SessionNotificationModelVisibility = 'hidden';
 
 export interface SessionNotificationSource {
@@ -166,3 +177,12 @@ Add `mobile/crystal-lattice-control-rn/src/components/__tests__/SessionNotificat
 - Pressing `copy_text` calls the existing copy path.
 
 Keep tests generic with dummy notification data. Do not use MCP/Figma names in platform tests.
+
+## Completion Notes
+
+- Completed via
+  `tasks/20260729-staged-application-config-and-full-reload.md`.
+- SDK selectors, event merge, display routing, mobile hosts, desktop hosts,
+  local dismissal, and follow-up action routing are covered.
+- The focused mobile Detox test was added for native overlay z-order/touch
+  behavior but was not run at this checkpoint.

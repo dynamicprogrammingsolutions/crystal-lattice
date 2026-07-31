@@ -5,6 +5,7 @@ let mockFilterSchema: any = null;
 let mockSessionListActions: any[] = [];
 let mockActionsById: Record<string, any> = {};
 let mockPinnedSessionListActions: string[] = [];
+let mockApplicationActions: any[] = [];
 
 jest.mock('@crystal-lattice/frontend-sdk-react', () => {
   const ReactModule = require('react');
@@ -28,6 +29,8 @@ jest.mock('@crystal-lattice/frontend-sdk-react', () => {
     }),
     useApplicationPlugins: () => ({
       actionsById: mockActionsById,
+      actionsByKey: {},
+      applicationActions: mockApplicationActions,
       sessionActions: [],
       messageActions: [],
       sessionListActions: mockSessionListActions,
@@ -101,6 +104,37 @@ describe('SessionsPanel', () => {
     mockSessionListActions = [];
     mockActionsById = {};
     mockPinnedSessionListActions = [];
+    mockApplicationActions = [];
+  });
+
+  test('uses one sessions action bar for built-ins and application actions', () => {
+    mockApplicationActions = [
+      {
+        ui_type: 'application_action',
+        plugin: 'application_config',
+        id: 'reload_application',
+        label: 'Reload application',
+        action_id: 'reload_application',
+      },
+    ];
+    const screen = render(
+      <SessionsPanel
+        focusedConnectionId="connection"
+        focusedConnectionName="Connection"
+        connectionId="connection"
+        backend={{} as any}
+        cachedSessions={[]}
+        cachedLastLoadedAt={null}
+        isOnline
+        onUpdateCache={() => {}}
+        onOpenSessionTab={() => {}}
+      />,
+    );
+    expect(screen.getByTestId('sessions-actions-menu')).toBeTruthy();
+    expect(screen.getByText('Server settings')).toBeTruthy();
+    expect(screen.getByText('Refresh sessions')).toBeTruthy();
+    expect(screen.getByText('New session')).toBeTruthy();
+    expect(screen.getByText('Reload application')).toBeTruthy();
   });
 
   it('renders server presentation in server order and propagates it to tabs', () => {

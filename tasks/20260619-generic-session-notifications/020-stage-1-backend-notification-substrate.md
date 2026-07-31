@@ -4,18 +4,21 @@ Implement backend support for creating, updating, resolving, persisting, and pub
 
 ## Requirements checklist
 
-- [ ] Add `SessionNotifications` helper class in `core/python/agent_app/notifications.py`.
-- [ ] Add thin methods on `AgentApplication` that delegate to `SessionNotifications`.
-- [ ] Persist notifications in `Session.metadata["notifications"]["items"]`.
-- [ ] Publish notification lifecycle events via `app.publish_event` + `app.record_checkpoint`.
-- [ ] Expose a safe `notification_sink` through `ApplicationContext.build_tool_context`.
-- [ ] Use `app.acquire_session_lock` for the read-modify-write in each helper.
-- [ ] Add focused Python unit tests.
-- [ ] Ensure notification failures do not abort requests or tool execution.
+- [x] Add `SessionNotifications` helper class in `core/python/agent_app/notifications.py`.
+- [x] Add thin methods on `AgentApplication` that delegate to `SessionNotifications`.
+- [x] Persist notifications in `Session.metadata["notifications"]["items"]`.
+- [x] Publish notification lifecycle events via `app.publish_event` + `app.record_checkpoint`.
+- [x] Expose a safe `notification_sink` through `ApplicationContext.build_tool_context`.
+- [x] Use `app.acquire_session_lock` for the read-modify-write in each helper.
+- [x] Add focused Python unit tests.
+- [x] Ensure notification failures do not abort requests or tool execution.
 
 Parent Task: `tasks/20260619-generic-session-notifications/000-main.md`
 
 Depends On: `tasks/20260619-generic-session-notifications/010-stage-1-notification-design.md`
+
+Completed Via:
+`tasks/20260729-staged-application-config-and-full-reload.md`
 
 ## Backend API
 
@@ -186,3 +189,12 @@ Add `core/python/tests/test_session_notifications.py`:
 - `test_notification_list_pruning` — create 60 resolved notifications → assert only 50 most recent remain.
 
 Avoid MCP-specific names in platform tests. Use generic names like `dummy:tool:warning`.
+
+## Completion Notes
+
+- Completed via
+  `tasks/20260729-staged-application-config-and-full-reload.md`.
+- Implemented persistent metadata operations, lifecycle events/checkpoints,
+  pruning, session locking, and a failure-contained tool sink.
+- Evidence includes the full core suite and public HTTP demo-plugin
+  integration.

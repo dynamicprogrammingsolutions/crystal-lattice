@@ -74,6 +74,7 @@ const { SessionPluginsWindow } = require('./src/windows/SessionPluginsWindow');
 const { SessionSnapshotsWindow } = require('./src/windows/SessionSnapshotsWindow');
 const { NotificationTestingWindow } = require('./src/windows/NotificationTestingWindow');
 const { AttachmentMetadataWindow } = require('./src/windows/AttachmentMetadataWindow');
+const { ServerSettingsWindow } = require('./src/windows/ServerSettingsWindow');
 const { name: appName } = require('./app.json');
 
 AppRegistry.registerComponent(appName, () => App);
@@ -90,3 +91,4 @@ AppRegistry.registerComponent('SessionPluginsWindow', () => SessionPluginsWindow
 AppRegistry.registerComponent('SessionSnapshotsWindow', () => SessionSnapshotsWindow);
 AppRegistry.registerComponent('NotificationTestingWindow', () => NotificationTestingWindow);
 AppRegistry.registerComponent('AttachmentMetadataWindow', () => AttachmentMetadataWindow);
+AppRegistry.registerComponent('ServerSettingsWindow', () => ServerSettingsWindow);

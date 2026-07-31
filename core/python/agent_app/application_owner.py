@@ -7,6 +7,7 @@ from typing import Any, Callable, Dict, Protocol
 import uuid
 
 from .events import EventStore
+from .notifications import _normalize_notification
 
 
 class ApplicationReloadPendingError(RuntimeError):
@@ -23,6 +24,20 @@ class ApplicationControl(Protocol):
         on_failure: Callable[[], None] | None = None,
     ) -> Dict[str, Any]:
         """Register a full application reload and return its accepted result."""
+
+    def create_notification(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        """Create or update an owner-memory application notification."""
+
+    def update_notification(self, notification_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
+        """Update an owner-memory application notification."""
+
+    def resolve_notification(
+        self, notification_id: str, resolution: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Resolve an owner-memory application notification."""
+
+    def list_notifications(self) -> list[Dict[str, Any]]:
+        """List owner-memory application notifications."""
 
 
 @dataclass
@@ -71,6 +86,7 @@ class AgentApplicationOwner(ApplicationControl):
         self._reload: _ReloadRequest | None = None
         self._reload_threads: Dict[str, threading.Thread] = {}
         self._replacement_listeners: list[Callable[[Any], None]] = []
+        self._notifications: Dict[str, Dict[str, Any]] = {}
         self._closed = False
         self._application = self._factory(self)
 
@@ -122,9 +138,7 @@ class AgentApplicationOwner(ApplicationControl):
             if self._closed:
                 raise RuntimeError("Application owner is closed")
             if self._reload is not None:
-                raise ApplicationReloadPendingError(
-                    "Application reload is already pending"
-                )
+                raise ApplicationReloadPendingError("Application reload is already pending")
             reload_id = f"reload_{uuid.uuid4().hex}"
             notification = self._new_notification(
                 reload_id,
@@ -139,6 +153,7 @@ class AgentApplicationOwner(ApplicationControl):
                 notification=notification,
                 on_failure=on_failure,
             )
+            self._notifications[notification["id"]] = notification
             self._reload = request
             worker = threading.Thread(
                 target=self._run_reload,
@@ -178,10 +193,61 @@ class AgentApplicationOwner(ApplicationControl):
 
     def list_notifications(self) -> list[Dict[str, Any]]:
         with self._condition:
-            request = self._reload
-            if request is None:
-                return []
-            return [request.notification]
+            return list(self._notifications.values())
+
+    def create_notification(self, notification: Dict[str, Any]) -> Dict[str, Any]:
+        with self._condition:
+            key = notification.get("key") if isinstance(notification, dict) else None
+            existing = next(
+                (
+                    item
+                    for item in self._notifications.values()
+                    if item.get("key") == key and item.get("status") == "pending"
+                ),
+                None,
+            )
+            stored = _normalize_notification(
+                notification,
+                existing=existing,
+                allowed_presentations={"banner", "modal"},
+            )
+            if existing is None:
+                event_type = "application_notification_created"
+            else:
+                event_type = "application_notification_updated"
+            self._notifications[stored["id"]] = stored
+        self._publish_notification(event_type, stored)
+        return stored
+
+    def update_notification(self, notification_id: str, patch: Dict[str, Any]) -> Dict[str, Any]:
+        with self._condition:
+            existing = self._notifications.get(notification_id)
+            if existing is None:
+                raise KeyError(f"Application notification {notification_id!r} not found")
+            stored = _normalize_notification(
+                patch,
+                existing=existing,
+                allowed_presentations={"banner", "modal"},
+            )
+            self._notifications[notification_id] = stored
+        self._publish_notification("application_notification_updated", stored)
+        return stored
+
+    def resolve_notification(
+        self, notification_id: str, resolution: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        if not isinstance(resolution, dict):
+            raise ValueError("resolution must be a mapping")
+        return self.update_notification(
+            notification_id,
+            {
+                "status": "resolved",
+                "resolution": {
+                    **resolution,
+                    "resolved_at": self._timestamp(),
+                },
+            },
+        )
 
     def close(self) -> None:
         with self._condition:
@@ -236,6 +302,7 @@ class AgentApplicationOwner(ApplicationControl):
             )
             request.notification = completed
             with self._condition:
+                self._notifications[completed["id"]] = completed
                 self._reload = None
                 self._condition.notify_all()
             self._publish_control_event(
@@ -277,6 +344,7 @@ class AgentApplicationOwner(ApplicationControl):
             )
             request.notification = failed
             with self._condition:
+                self._notifications[failed["id"]] = failed
                 self._reload = None
                 self._condition.notify_all()
             self._publish_control_event(
@@ -351,11 +419,12 @@ class AgentApplicationOwner(ApplicationControl):
             "updated_at": timestamp,
             "source": {"plugin": "application_owner", "subsystem": "reload"},
             "display": {
+                "display_id": f"notification_{reload_id}",
                 "format": "text",
                 "title": title,
                 "body": body,
                 "variant": severity,
-                "presentation": "inline",
+                "presentation": "banner",
                 "dismissible": True,
             },
             "model_visibility": "hidden",

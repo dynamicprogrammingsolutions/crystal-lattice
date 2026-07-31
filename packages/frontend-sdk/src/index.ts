@@ -117,6 +117,22 @@ export {
   isApplicationNotificationEvent,
   mergeApplicationNotificationEvents,
 } from './notifications/applicationNotifications';
+export type { ApplicationNotificationsState } from './notifications/applicationNotificationsController';
+export { ApplicationNotificationsController } from './notifications/applicationNotificationsController';
+export type {
+  NotificationSeverity,
+  SessionNotification,
+  SessionNotificationEvent,
+  SessionNotificationStatus,
+} from './types/notifications';
+export {
+  dismissSessionNotificationLocally,
+  isSessionNotification,
+  isSessionNotificationEvent,
+  mergeSessionNotificationEvents,
+  selectPendingSessionNotifications,
+  selectSessionNotifications,
+} from './notifications/sessionNotifications';
 
 export type { PluginsResult, PluginsRegistryState } from './plugins/pluginsRegistry';
 export { PluginsRegistry } from './plugins/pluginsRegistry';
@@ -142,6 +158,20 @@ export type { ParsedActionDeepLink } from './plugins/actionDeepLinks';
 export { parseActionDeepLink } from './plugins/actionDeepLinks';
 export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';
 export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
+export type {
+  DisplayEnvelope,
+  DisplayPresentation,
+  DisplayPresentationHost,
+  DisplaySourceKind,
+} from './plugins/displayPresentation';
+export {
+  displayEnvelopeLifecycleKey,
+  displayEnvelopeRevisionKey,
+  emitDisplayPresentation,
+  normalizeDisplayEnvelope,
+  normalizeDisplayEnvelopeForHost,
+  subscribeDisplayPresentation,
+} from './plugins/displayPresentation';
 export type {
   ComposerAttachmentUiElement,
   SessionAssetRef,

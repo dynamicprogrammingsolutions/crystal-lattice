@@ -111,3 +111,78 @@ def test_notification_publish_failure_does_not_block_reload() -> None:
     assert owner.wait_for_reload(result["reload_id"], timeout=2)
     assert owner.current is created[1]
     assert closed == ["app-1"]
+
+
+def test_owner_application_notifications_create_update_and_resolve() -> None:
+    event_store = InMemoryEventStore()
+    owner = AgentApplicationOwner(
+        lambda _control: _FakeApplication("app", []),
+        event_store=event_store,
+    )
+
+    created = owner.create_notification(
+        {
+            "key": "dummy:application",
+            "severity": "info",
+            "title": "Application notification",
+            "body": "Created",
+            "source": {"plugin": "dummy_application_notification"},
+            "display": {
+                "format": "text",
+                "presentation": "banner",
+            },
+            "model_visibility": "hidden",
+        }
+    )
+    updated = owner.create_notification(
+        {
+            "key": "dummy:application",
+            "severity": "success",
+            "title": "Application notification",
+            "body": "Updated",
+            "source": {"plugin": "dummy_application_notification"},
+            "display": {
+                "format": "text",
+                "presentation": "banner",
+            },
+            "model_visibility": "hidden",
+        }
+    )
+    resolved = owner.resolve_notification(created["id"], {"action_id": "resolve_dummy"})
+
+    assert updated["id"] == created["id"]
+    assert resolved["status"] == "resolved"
+    assert owner.list_notifications() == [resolved]
+    events = event_store.list(since_id="0", limit=10)["events"]
+    assert [event["type"] for event in events] == [
+        "application_notification_created",
+        "application_notification_updated",
+        "application_notification_updated",
+    ]
+
+
+def test_owner_rejects_inline_application_notifications() -> None:
+    owner = AgentApplicationOwner(
+        lambda _control: _FakeApplication("app", []),
+        event_store=InMemoryEventStore(),
+    )
+
+    try:
+        owner.create_notification(
+            {
+                "key": "dummy:inline",
+                "severity": "info",
+                "title": "Unsupported inline notification",
+                "body": "Application notifications do not have an inline surface.",
+                "source": {"plugin": "dummy"},
+                "display": {
+                    "format": "text",
+                    "presentation": "inline",
+                },
+                "model_visibility": "hidden",
+            }
+        )
+    except ValueError as exc:
+        assert "['banner', 'modal']" in str(exc)
+    else:
+        raise AssertionError("inline application notifications must be rejected")

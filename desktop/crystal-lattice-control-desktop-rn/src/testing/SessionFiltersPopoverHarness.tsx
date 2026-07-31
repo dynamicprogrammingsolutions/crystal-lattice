@@ -217,6 +217,7 @@ function createHarnessBackend(
     sessionId?: string;
     inputs: Record<string, unknown>;
   }) => {
+    const actionId = params.actionId ?? 'unknown';
     const sessionId =
       typeof params.inputs.session_id === 'string'
         ? params.inputs.session_id
@@ -224,7 +225,6 @@ function createHarnessBackend(
     if (!sessionId) {
       return { status: 'error', message: 'missing session_id' };
     }
-    const actionId = params.actionId ?? 'unknown';
     sessionsRef.current = sessionsRef.current.map((session) => {
       if (session.session_id !== sessionId) {
         return session;
@@ -324,6 +324,7 @@ export function SessionFiltersPopoverHarness(): React.JSX.Element {
         <SessionsPanel
           focusedConnectionId={CONNECTION_ID}
           focusedConnectionName="Filter harness"
+          connectionBaseUrl="http://127.0.0.1:9999"
           connectionId={CONNECTION_ID}
           backend={backend}
           cachedSessions={SESSION_SUMMARIES}

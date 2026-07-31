@@ -57,16 +57,16 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
   return {
     __esModule: true,
     ...actual,
-    ApplicationActionsMenu: ({ actions }: any) =>
+    ActionsMenuBar: ({ baseActions }: any) =>
       ReactModule.createElement(
         View,
-        { testID: 'mock-application-actions-menu' },
-        (actions || []).map((action: any) =>
+        { testID: 'mock-sessions-actions-menu' },
+        (baseActions || []).map((action: any) =>
           ReactModule.createElement(
             Text,
             {
-              key: `${action.plugin}:${action.id}`,
-              testID: `mock-application-action-${action.id}`,
+              key: action.key,
+              testID: `mock-sessions-action-${String(action.key).replace(/\u0000/g, '-')}`,
             },
             action.label,
           ),
@@ -320,9 +320,20 @@ test('hosts screen-independent application actions in the Sessions header', () =
 
   renderScreen();
 
-  expect(screen.getByTestId('mock-application-actions-menu')).toBeTruthy();
+  expect(screen.getByTestId('mock-sessions-actions-menu')).toBeTruthy();
+  expect(screen.getByTestId('mock-sessions-action-serverSettings').props.children).toBe(
+    'Server settings',
+  );
+  expect(screen.getByTestId('mock-sessions-action-refreshSessions').props.children).toBe(
+    'Refresh sessions',
+  );
+  expect(screen.getByTestId('mock-sessions-action-newSession').props.children).toBe(
+    'New session',
+  );
   expect(
-    screen.getByTestId('mock-application-action-reload_application').props.children,
+    screen.getByTestId(
+      'mock-sessions-action-application_config-reload_application',
+    ).props.children,
   ).toBe('Reload application');
 });
 

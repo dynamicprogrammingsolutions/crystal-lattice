@@ -26,11 +26,13 @@ import {
   deleteSessionAttachment,
   deriveChatStatusBarParts,
   deriveSessionListPresentationFromGroups,
+  emitDisplayPresentation,
   filterFooterElements,
   filterStatusBarElements,
   groupSessionListFields,
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
+  normalizeDisplayEnvelope,
   runApplicationAction,
   resolveAttachmentActionPluginId,
   selectSessionAssetId,
@@ -48,6 +50,7 @@ import {
   ApplicationActionDialog,
   ActionsMenuBar,
   SessionActionsBar,
+  SessionNotificationsHost,
   SESSION_ACTIONS,
   type ActionDefinition,
   type SessionActionKey,
@@ -84,6 +87,7 @@ import SessionSnapshotsModal from './components/SessionSnapshotsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
+import { GlobalNotificationBannerSlot } from './components/GlobalDisplayLayer';
 import AttachmentViewerHost from './components/AttachmentViewerHost';
 import type { DebugTimelineEntry } from './debugTimeline';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
@@ -1656,13 +1660,26 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
     const nextEntry = createDisplayEntry(display, context);
     const presentation = display.presentation ?? 'modal';
-    if (presentation === 'inline' || presentation === 'banner') {
+    if (presentation === 'banner' && backend) {
+      emitDisplayPresentation(
+        backend,
+        normalizeDisplayEnvelope({
+          id: nextEntry.key,
+          source: 'action_response',
+          connectionId,
+          sessionId,
+          display,
+        }),
+      );
+      return;
+    }
+    if (presentation === 'inline') {
       setActionResultDisplay(null);
       setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
       return;
     }
     setActionResultDisplay(nextEntry);
-  }, []);
+  }, [backend, connectionId, sessionId]);
 
   const reloadSessionSummaries = useCallback(async () => {
     if (!backend || !onUpdateSessionSummaries) {
@@ -1740,8 +1757,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             return;
           }
         }
+        const refreshesCurrentSession = actionContext.sessionId === sessionId;
         if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
-          await reloadSessionSummaries();
+          await Promise.all([
+            reloadSessionSummaries(),
+            sessionContextController?.refresh() ?? Promise.resolve(null),
+          ]);
+        } else if (refreshesCurrentSession) {
+          await sessionContextController?.refresh();
         }
         if (effects.some((effect) => effect.type === 'reloadSession')) {
           await loadMessages({ reason: 'action_reload', refreshUiSchema: true });
@@ -1761,6 +1784,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       onNavigateToSession,
       presentActionDisplay,
       reloadSessionSummaries,
+      sessionContextController,
       sessionId,
     ],
   );
@@ -3396,11 +3420,54 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	  );
 
   const inlineActionDisplaysContent = useMemo(() => {
-    if (inlineActionDisplays.length === 0) {
-      return null;
-    }
     return (
       <View>
+        <SessionNotificationsHost
+          sessionSummary={currentSessionSummary}
+          events={debugEvents}
+          onBanner={(notification) => {
+            if (!backend) return;
+            emitDisplayPresentation(
+              backend,
+              normalizeDisplayEnvelope({
+                id: notification.id,
+                source: 'session_notification',
+                connectionId,
+                sessionId,
+                sourceKey: notification.key,
+                display: notification.display,
+                createdAt: notification.created_at,
+                updatedAt: notification.updated_at,
+              }),
+            );
+          }}
+          onModal={(notification) =>
+            presentActionDisplay(notification.display, {
+              connectionId: connectionId ?? undefined,
+              sessionId,
+              sessionSummary: currentSessionSummary ?? undefined,
+            })
+          }
+          onFollowupAction={(action, notification) =>
+            handleDisplayFollowupAction(
+              createDisplayEntry(notification.display, {
+                connectionId: connectionId ?? undefined,
+                sessionId,
+                sessionSummary: currentSessionSummary ?? undefined,
+              }),
+              action,
+            )
+          }
+          renderInline={({ notification, onDismiss, onFollowupAction }) => (
+            <ActionResultInlineCard
+              display={notification.display}
+              activeActionId={activeDisplayActionId}
+              onDismiss={onDismiss}
+              onFollowupAction={(action) => onFollowupAction(action)}
+              fieldRenderers={actionDialogFieldRenderers}
+            />
+          )}
+        />
         {inlineActionDisplays.map((entry) => (
           <ActionResultInlineCard
             key={entry.key}
@@ -3420,8 +3487,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [
     actionDialogFieldRenderers,
     activeDisplayActionId,
+    backend,
+    connectionId,
+    currentSessionSummary,
+    debugEvents,
     handleDisplayFollowupAction,
     inlineActionDisplays,
+    presentActionDisplay,
+    sessionId,
   ]);
 
   const handleTranscriptScrollStateChange = useCallback(
@@ -3612,7 +3685,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            androidKeyboardHeight > 0 && { paddingBottom: androidKeyboardHeight },
 	        ]}
 	      >
-	        <View style={styles.headerContainer}>
+	        <View style={styles.headerContainer} testID="messages-screen-header">
 	          <View style={styles.headerRow}>
 	            <View style={styles.headerNavigation}>
 	              <TouchableOpacity
@@ -3685,6 +3758,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            </View>
 	          )}
 	        </View>
+
+        <GlobalNotificationBannerSlot testID="messages-notification-banner-rail" />
 
 	      {sessionDirty && (
 	        <View style={styles.dirtyBanner}>

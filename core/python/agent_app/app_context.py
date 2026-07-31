@@ -4,6 +4,8 @@ from typing import Any, Dict, Mapping, Optional
 
 from agent_core.plugin.context_helper import merge_context_layers
 
+from .notifications import NotificationSink
+
 
 class ApplicationContext:
     """Concrete layered context builder for AgentApplication-owned paths."""
@@ -189,6 +191,11 @@ class ApplicationContext:
                 "request_id": request_id,
                 "base_config": dict(base_config),
                 "config": dict(config if config is not None else base_config),
+                "notification_sink": NotificationSink(
+                    self._generic_layer["app"],
+                    session.session_id,
+                    request_id,
+                ),
             },
             extra=extra,
         )

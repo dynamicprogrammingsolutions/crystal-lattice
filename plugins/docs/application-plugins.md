@@ -52,6 +52,8 @@ Application plugins are ideal for features that need:
 | Event publishing | `app.publish_event(event)` | Publish events to subscribers |
 | Switch agents | `app.update_agent(agent_id, session)` | Switch a session to a different agent |
 | Request full reload | `app.request_application_reload(reason=..., on_failure=...)` | Ask the owner to drain admitted work and reconstruct `AgentApplication` |
+| Application notifications | `app.create_application_notification(...)`, `update_application_notification(...)`, `resolve_application_notification(...)`, `list_application_notifications()` | Create owner-memory notifications global to one connected application owner. |
+| Session notifications | `app.create_session_notification(...)`, `update_session_notification(...)`, `update_session_notification_by_key(...)`, `resolve_session_notification(...)`, `list_session_notifications(...)` | Create persistent session notifications stored in metadata and published through lifecycle events. |
 | Full config access | `self._config` (via `init`) | Access to the full application configuration |
 | Runtime env access | `os.environ[...]` | Real process environment installed from config resolution env |
 | Request config resolution | `resolve_request_config(base_config, overrides)` | Resolve effective config for a request |
@@ -68,6 +70,25 @@ application operations, waits for admitted work, constructs and validates the
 replacement, and emits application-global requested/completed/failed
 notifications. `on_failure` is an optional in-process compensating callback for
 plugin-owned writes such as restoring a dotenv file.
+
+Application notifications are intentionally non-durable across owner-process
+restart. Session notifications persist in
+`Session.metadata["notifications"]["items"]` and remain hidden from model
+history when `model_visibility` is `hidden`. Tools receive a failure-contained
+`notification_sink`; application plugins call the application methods directly
+and receive validation errors for malformed payloads.
+
+Application notifications may use `display.presentation: "banner"` or
+`"modal"`. `"inline"` is rejected because there is no application-global
+inline owner. Mobile renders banners below the active screen header (below the
+Sessions search/filter row) and uses a root-level modal overlay. Desktop
+normalizes notification modal requests to inline because React Native modal
+presentation is not supported by the desktop runtime.
+
+Creating another pending notification with the same `key` updates the existing
+lifecycle id. Frontends scope local dismissal to the notification revision
+(`id + updated_at`), so a later update is shown even when the previous revision
+was dismissed.
 
 ---
 

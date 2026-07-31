@@ -60,6 +60,7 @@ from .tool_loop import RequestCancellation, ToolLoopRunner, ToolLoopCheckpointEr
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
 from .runtime_env import RuntimeEnvOverlay
+from .notifications import SessionNotifications
 import weakref
 
 
@@ -547,6 +548,7 @@ class AgentApplication:
             runtime_store=self._runtime_store,
             tool_runtime=self._runtime_store,
         )
+        self._session_notifications = SessionNotifications(self)
         application_ref = weakref.ref(self)
 
         def _require_application() -> "AgentApplication":
@@ -2235,6 +2237,91 @@ class AgentApplication:
             reason=reason,
             on_failure=on_failure,
         )
+
+    def create_session_notification(
+        self,
+        session_id: str,
+        notification: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.create(
+            session_id, notification, request_id=request_id
+        )
+
+    def update_session_notification(
+        self,
+        session_id: str,
+        notification_id: str,
+        patch: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.update(
+            session_id, notification_id, patch, request_id=request_id
+        )
+
+    def update_session_notification_by_key(
+        self,
+        session_id: str,
+        key: str,
+        patch: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.update_by_key(
+            session_id, key, patch, request_id=request_id
+        )
+
+    def resolve_session_notification(
+        self,
+        session_id: str,
+        notification_id: str,
+        resolution: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.resolve(
+            session_id, notification_id, resolution, request_id=request_id
+        )
+
+    def list_session_notifications(
+        self,
+        session_id: str,
+        *,
+        include_resolved: bool = False,
+    ) -> list[Dict[str, Any]]:
+        return self._session_notifications.list(
+            session_id, include_resolved=include_resolved
+        )
+
+    def create_application_notification(
+        self, notification: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        if self._application_control is None:
+            raise RuntimeError("Application notifications require an application owner")
+        return self._application_control.create_notification(notification)
+
+    def update_application_notification(
+        self, notification_id: str, patch: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        if self._application_control is None:
+            raise RuntimeError("Application notifications require an application owner")
+        return self._application_control.update_notification(notification_id, patch)
+
+    def resolve_application_notification(
+        self, notification_id: str, resolution: Dict[str, Any] | None = None
+    ) -> Dict[str, Any]:
+        if self._application_control is None:
+            raise RuntimeError("Application notifications require an application owner")
+        return self._application_control.resolve_notification(
+            notification_id, resolution or {}
+        )
+
+    def list_application_notifications(self) -> list[Dict[str, Any]]:
+        if self._application_control is None:
+            raise RuntimeError("Application notifications require an application owner")
+        return self._application_control.list_notifications()
 
     def cancel_request(self, request_id: str) -> None:
         """Request cooperative cancellation for an in-flight request.

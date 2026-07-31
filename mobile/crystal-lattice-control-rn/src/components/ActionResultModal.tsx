@@ -19,6 +19,8 @@ export interface ActionResultModalProps {
   visible: boolean;
   display: ActionDisplayPayload | null;
   onRequestClose: () => void;
+  presentationMode?: 'native' | 'overlay';
+  testID?: string;
   onFollowupAction?: (
     action: ActionDisplayFollowupAction,
     formValues?: Record<string, any>,
@@ -38,6 +40,8 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
   visible,
   display,
   onRequestClose,
+  presentationMode = 'native',
+  testID,
   onFollowupAction,
   activeActionId,
   fieldRenderers,
@@ -47,33 +51,51 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
 
   const variant = display?.variant ?? 'info';
   const dismissible = display?.dismissible !== false;
+  const content = (
+    <TouchableWithoutFeedback onPress={dismissible ? onRequestClose : undefined}>
+      <View
+        testID={testID}
+        accessibilityViewIsModal
+        style={[
+          styles.overlay,
+          presentationMode === 'overlay' && styles.absoluteOverlay,
+        ]}
+      >
+        <TouchableWithoutFeedback onPress={() => {}}>
+          <View style={styles.panel}>
+            {display ? (
+              <ActionDisplayCard
+                display={display}
+                onDismiss={onRequestClose}
+                onFollowupAction={onFollowupAction}
+                activeActionId={activeActionId}
+                variantLabel={VARIANT_LABELS[variant]}
+                footerDismissLabel={null}
+                fieldRenderers={fieldRenderers}
+              />
+            ) : null}
+          </View>
+        </TouchableWithoutFeedback>
+      </View>
+    </TouchableWithoutFeedback>
+  );
+
+  if (!visible || !display) {
+    return null;
+  }
+
+  if (presentationMode === 'overlay') {
+    return content;
+  }
 
   return (
     <Modal
-      visible={visible && !!display}
+      visible
       transparent
       animationType="fade"
       onRequestClose={dismissible ? onRequestClose : () => {}}
     >
-      <TouchableWithoutFeedback onPress={dismissible ? onRequestClose : undefined}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={styles.panel}>
-              {display ? (
-                <ActionDisplayCard
-                  display={display}
-                  onDismiss={onRequestClose}
-                  onFollowupAction={onFollowupAction}
-                  activeActionId={activeActionId}
-                  variantLabel={VARIANT_LABELS[variant]}
-                  footerDismissLabel={null}
-                  fieldRenderers={fieldRenderers}
-                />
-              ) : null}
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+      {content}
     </Modal>
   );
 };
@@ -86,6 +108,11 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'center',
       alignItems: 'center',
       padding: 20,
+    },
+    absoluteOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 20000,
+      elevation: 20000,
     },
     panel: {
       width: '100%',

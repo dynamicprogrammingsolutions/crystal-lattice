@@ -51,11 +51,57 @@ conditional follow-up work.
   approved stage plan or crosses an approved ownership boundary—for example, a
   plugin-local feature unexpectedly requires broader platform changes—work
   stops and the user approves a revised plan before implementation continues.
+- [x] The public application-level notification contract is documented,
+  including event scope, payload fields, lifecycle, de-duplication, event
+  polling, persistence/reconnect limits, presentation semantics, and failure
+  behavior.
+- [ ] Application notifications with banner presentation render in a
+  connection-global banner rail within every mobile screen and desktop pane,
+  with
+  distinct opaque info, success, warning, and error colors and accessible
+  dismissal. On mobile the rail participates in normal layout immediately
+  below the screen header; on Sessions it is below the search/filter row, and
+  it pushes the remaining active-screen content down instead of overlaying it.
+- [x] Desktop snapshot-selection/read-only feedback composes the same shared
+  banner primitive while remaining scoped to its Messages pane.
+- [ ] The top of the mobile and desktop Sessions surfaces uses the reusable
+  pinnable actions bar for server settings, session-list refresh, new-session
+  creation, and plugin-contributed application actions.
+- [ ] Desktop Sessions actions follow existing macOS conventions: the action
+  menu uses the native anchored popover, server settings open in a separate
+  React Native macOS window, new session uses the existing agent-picker window,
+  and application-action forms use the existing desktop action-dialog
+  presentation.
+- [ ] Application notifications and Sessions actions remain isolated by
+  backend connection, including when the desktop has multiple open
+  connections.
+- [x] Persistent session notifications are implemented according to the
+  non-blocking Stage 1 contract in
+  `tasks/20260619-generic-session-notifications/010-stage-1-notification-design.md`
+  through `040-stage-1-dummy-plugin-integration-tests.md`.
+- [x] The display contract documents and enforces producer- and host-specific
+  presentation support: application notifications support `banner` and mobile
+  `modal` but reject `inline`; session notifications and direct action
+  responses support `banner`, `inline`, and mobile `modal`; desktop normalizes
+  notification `modal` to `inline` because React Native modal presentation is
+  unsupported there.
+- [ ] Desktop routes every banner presentation—application-global,
+  session-scoped, or action-response—to the same connection-aware top banner
+  rail.
+- [x] Dedicated demonstration plugins can trigger application notifications,
+  session notifications, and direct action responses for every presentation
+  supported by their producer/host contract and every semantic variant without
+  being enabled in production default configuration.
+- [x] Notification delivery is revision-aware: dismissing one revision does
+  not suppress a later update of the same lifecycle notification, resolved
+  notifications are removed without redisplay, and an active session shows a
+  newly persisted session notification without requiring navigation away and
+  back.
 
 Supports:
 `tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md`
 
-Uses a minimal non-blocking notification slice from:
+Implements the non-blocking Stage 1 overlap from:
 `tasks/20260619-generic-session-notifications/000-main.md`
 
 ## Requirement questions
@@ -78,10 +124,11 @@ Uses a minimal non-blocking notification slice from:
 - The reload action returns an accepted result without waiting for drain. The
   owner emits generic application-level notifications for requested,
   completed, and failed reload states.
-- Stage 1 borrows only the notification envelope, lifecycle-event, SDK merge,
-  and existing display-host patterns from the generic session-notification
-  task. It does not implement session metadata persistence or interactive
-  notifications and does not claim completion of that task.
+- The initial implementation borrowed only the notification envelope and
+  lifecycle/display patterns. The approved checkpoint follow-up now completes
+  the generic session-notification task's non-blocking Stage 1 (010–040),
+  including persistent session metadata, while leaving every Stage 2
+  interaction subtask out of scope.
 - All application-dependent HTTP/terminal operations and background
   model/tool workers participate in drain accounting. Passive HTTP, bridge,
   and Bonjour listeners remain alive.
@@ -141,6 +188,21 @@ authorization.
   application-global. A minimal global event subscription must not attach the
   reload notification to an arbitrary session or duplicate it into every
   session.
+- The Stage 1 implementation currently owns global polling and rendering in
+  mobile `SessionsScreen`, so notifications disappear with that screen and
+  desktop does not consume them.
+- Desktop already has a tested four-variant `NotificationBanner`, but it is
+  desktop-local and currently used only by its notification test window.
+- Mobile Sessions currently renders a separate non-pinnable application-action
+  menu beside standalone server-settings, refresh, and new-session controls.
+  Desktop Sessions has standalone refresh/new controls and does not yet expose
+  application actions or server settings.
+- Shared `ActionsMenuBar` already supports persisted pinning and the native
+  macOS `NSPopover` path. Desktop's Messages pane already routes settings to a
+  separate React window and application-action dialogs through the macOS
+  action-dialog coordinator.
+- The generic desktop `openReactWindow` API can host a server-settings window;
+  this follow-up should not require a new Objective-C window-manager method.
 - `mcp-runtime-app` stores its registry in the application runtime store.
   `AgentApplication.close()` closes runtime-store values, and `MCPRegistry.close`
   synchronously waits for `clear_all()` through the application's async runtime
@@ -275,6 +337,11 @@ Status: Approved
 This plan covers Stage 1 only. Execution stops at its manual checkpoint; later
 stages remain unplanned.
 
+The original Stage 1 implementation reached its manual checkpoint. Review
+requested the notification-contract and cross-platform UI follow-up below.
+Those changes remain part of Stage 1 and require approval before execution
+resumes.
+
 ### Stage 1 approach
 
 Introduce a small owner-level reload coordinator rather than modifying
@@ -342,6 +409,293 @@ tests; and a production `RestAgentBackend` plus Sessions-screen integration.
 The full default core/application/frontend suites are rerun in proportion to
 the touched boundaries.
 
+### Manual checkpoint follow-up approach
+
+#### 1. Formalize the application notification contract
+
+Document and test the existing owner-scoped contract instead of treating the
+current TypeScript interfaces as its specification. The proposed contract is:
+
+- Events are `application_notification_created` and
+  `application_notification_updated`.
+- Events are application-global and omit `session_id`; clients poll the
+  existing `/events` endpoint with a global cursor and no session filter.
+- Each event carries one `notification` with stable `id` and `key`,
+  `kind: "notification"`, `status: "pending" | "resolved"`,
+  `severity: "info" | "success" | "warning" | "error"`, title/body,
+  created/updated timestamps, source provenance,
+  `model_visibility: "hidden"`, and an `ActionDisplayPayload`.
+- Created and updated events upsert by notification `id`; an update replaces
+  the presentation for the same lifecycle item rather than stacking another
+  reload notice.
+- `display.presentation: "banner"` means connection-global state rendered in
+  the active screen's banner slot on mobile and the common top rail on desktop.
+  `display.variant`, falling back to `severity`, selects
+  info/success/warning/error colors. Other action-display presentations keep
+  their documented producer/host behavior.
+- Notification delivery is best-effort and cannot make reload fail.
+- Stage 1 state remains process-memory/event-store scoped. It survives
+  `AgentApplication` replacement because the owner and event store survive, but
+  it is not durable across owner-process restart. A newly connected client
+  starts from the current global event cursor and is not guaranteed historical
+  banners.
+
+Add an SDK `ApplicationNotificationsController` (or equivalently small
+subscribable) that owns explicit global polling, cursor lifecycle, merge/
+de-duplication, local dismissal, connection identity, and application-action
+registry invalidation after reload completion/failure. This removes polling
+and invalidation responsibilities from `SessionsScreen` and gives mobile and
+desktop one production adapter.
+
+Document the contract in the HTTP event API reference, application runtime
+documentation, SDK exports, and plugin/action-display guidance. Cross-reference
+the broader generic session-notification task and explicitly distinguish
+application-global, non-durable notifications from persistent session
+notifications.
+
+#### 1a. Complete the non-blocking session-notification substrate
+
+Implement the approved Stage 1 design in
+`tasks/20260619-generic-session-notifications/010-stage-1-notification-design.md`
+through `040-stage-1-dummy-plugin-integration-tests.md`:
+
+- add application-layer create/update/update-by-key/resolve/list helpers;
+- persist session notifications under
+  `Session.metadata["notifications"]["items"]`;
+- serialize mutation with the existing session lock;
+- publish created/updated/resolved session events and checkpoints;
+- cap retained items while preserving every pending item;
+- expose the safe tool `notification_sink` whose failures never abort a
+  request;
+- add SDK types, selectors, event merge, local dismiss, and reconnect loading
+  from session metadata;
+- render and execute follow-up actions through the existing generic action
+  runner;
+- prove persistence and real-backend behavior with action-triggered demo
+  notifications and the task's tool fixture.
+
+Extend the session severity type to include `success` so it shares the complete
+semantic variant set with application notifications and action displays.
+Session notifications keep their persistent session metadata and session event
+cursor; they do not move into the owner-memory application store.
+
+During completion, update the generic session-notifications task and its
+010–040 subtasks with requirement evidence. Mark a subtask `COMPLETED VIA
+tasks/20260729-staged-application-config-and-full-reload.md` only when all of
+that subtask's requirements pass; leave Stage 2 interaction subtasks unchanged.
+
+#### 1b. Standardize display routing for every producer
+
+Replace per-screen `presentActionDisplay` branches and the current
+surface-specific suppression/coercion policy with one SDK display envelope and
+presentation router. The envelope carries stable display id, source kind
+(`application_notification`, `session_notification`, or `action_response`),
+connection id, optional session id, action context, and
+`ActionDisplayPayload`.
+
+The routing matrix is:
+
+| Presentation | Application notification | Session notification | Action response |
+| --- | --- | --- | --- |
+| `banner` | Connection-global top banner rail | Same top banner rail, tagged with its session | Same top banner rail |
+| `inline` | Rejected | Active session notification region; persisted until opened | Inline region of the initiating Sessions or Messages surface |
+| `modal` | Mobile global modal; desktop inline fallback | Mobile modal; desktop inline fallback when its session is presented | Mobile modal; desktop inline fallback |
+
+Explicit presentation wins when supported by that producer and host. Existing
+defaults remain compatible: action responses without presentation default to
+`modal`; session notifications without presentation default to `inline`;
+application notifications should declare their presentation, with reload
+using `banner`. Application-notification `inline` and unknown presentation
+values are rejected by normalization and surfaced through diagnostics rather
+than silently dropped. Desktop notification `modal` is deliberately normalized
+to `inline` because React Native modal presentation is unsupported there.
+
+All supported presentations reuse one shared `ActionDisplayCard` body and
+generic follow-up action execution. Hosts vary only placement and platform
+shell. Application, session, session-list, and message action surfaces all
+submit returned displays to this router; a surface may normalize a requested
+presentation only through the documented platform policy.
+
+#### 2. Add a shared global banner presentation
+
+Move the tested desktop `NotificationBanner` visual into
+`@crystal-lattice/frontend-rn-components` and retain its current visual
+contract: colored accent bar, muted variant background, title/body, and dismiss
+control. Use shared notification/success/warning/danger theme tokens so mobile
+and desktop render the same four semantic variants without copying styles.
+Refactor desktop `SnapshotReadonlyBanner` to compose the shared info banner
+while preserving its selected-snapshot text, return-to-live action, disabled
+state, and Messages-pane placement.
+
+Add a shared `ApplicationNotificationBannerHost` that accepts
+connection-tagged notification state and renders a bounded top stack. It
+upserts lifecycle updates, supports local dismissal without backend mutation,
+and uses safe-area/top inset on mobile. Mobile uses a normal-flow rail that
+pushes active content down; desktop keeps its existing top-rail placement. The
+host does not own network polling.
+
+Mount one host at mobile `ConnectedRoot`, above all Connection/Sessions/
+Messages tabs. Mount one at desktop `DesktopRoot`, above pane/tab content.
+Every banner envelope, regardless of whether it originated from an
+application notification, session notification, or action response, enters
+this same host. Desktop notification state is maintained per backend
+connection; banners include the connection name when multiple connections can
+contribute and session-scoped entries include session identity where useful.
+
+Change owner reload notifications to `display.presentation: "banner"` and give
+the display the stable notification id. Route generic application-action
+results with banner presentation through the same global host so the accepted
+action response and lifecycle event do not produce duplicate screen-local
+cards.
+
+#### 3. Unify the mobile Sessions action bar
+
+Replace the separate `ApplicationActionsMenu` plus settings/reload/new buttons
+with one `ActionsMenuBar` composition. Its built-in definitions are:
+
+- `serverSettings` — opens the existing `ServerSettingsModal`;
+- `refreshSessions` — performs the existing session-list refresh;
+- `newSession` — opens the existing agent picker/create flow.
+
+Plugin `application_action` declarations become extra definitions using
+compound `(plugin, element id)` keys. Selection either runs an action without a
+dialog or opens the existing mobile application-action dialog. Execution keeps
+`actionsByKey` input resolution, loading/disabled state, and post-reload action
+registry refresh.
+
+Persist pins by connection using a new Sessions-header storage key. Seed the
+three current controls as defaults so the existing visible affordances are not
+lost. Missing or removed plugin actions are ignored without deleting unrelated
+pin choices.
+
+#### 4. Implement the equivalent desktop Sessions action bar
+
+Use the same shared definitions and compound plugin identities in desktop
+`SessionsPanel`. Render `ActionsMenuBar` with `variant="dropdown"` so macOS
+continues through the existing native `NSPopover` bridge. Remove the one-off
+PanelHeader refresh control and standalone New button after their behavior is
+represented in the action bar.
+
+Desktop built-ins follow existing Messages-pane conventions:
+
+- `refreshSessions` calls the existing Sessions controller.
+- `newSession` opens the existing `AgentPickerWindow`.
+- `serverSettings` opens a `ServerSettingsWindow` through
+  `DesktopWindowManager.openReactWindow`; no new native window API is needed.
+- Plugin application-action forms use `useMacOSApplicationActionDialog`,
+  preserving the configured desktop popover/window presentation and secret
+  field behavior.
+
+Extract the reusable server-settings form body from mobile
+`ServerSettingsModal` into the shared RN package. Mobile keeps its modal frame;
+desktop adds a coordinator and `ServerSettingsWindow` wrapper, registers that
+React component in the desktop entry point, clears coordinator state on native
+window close, and uses the focused connection's production backend.
+
+Persist desktop pins per connection through the existing async-storage
+adapter. Keep mobile and desktop persistence implementations separate unless
+backend-synchronized pins are explicitly requested.
+
+#### 5. Add pure notification/display demonstration plugins
+
+Add three non-default first-party demo plugins with no configuration-writing or
+reload responsibilities:
+
+- `dummy-application-notification-app` — actions create, update, and resolve
+  owner-scoped application notifications.
+- `dummy-session-notification-app` — session actions create, update, and
+  resolve persistent session notifications and provide a generic follow-up
+  action.
+- `dummy-action-display-app` — actions directly return
+  `ActionDisplayPayload`.
+
+Each plugin exposes explicit action inputs or separate deterministic actions
+for `banner`, `inline`, and `modal`, plus info/success/warning/error variants.
+Payloads use stable display/notification ids so tests can verify replacement
+instead of duplication. They may include simple `run_action`, `copy_text`, and
+`dismiss` follow-ups to prove that presentation does not alter action
+execution.
+
+Keep these plugins out of the production default config. Enable them only in
+example and integration-test configs, document their demonstration purpose,
+and use generic names/content unrelated to reload, MCP, authentication, or
+provider credentials.
+
+#### 6. Verification
+
+SDK tests cover global no-session polling, cursor bootstrapping/retry,
+created-to-updated upsert, local dismissal, malformed events, connection
+isolation, action invalidation timing, session metadata reload, session
+notification lifecycle, standard presentation normalization/routing, and
+notification-delivery failure containment.
+
+Shared RN tests cover all four banner variants, title/body, accessibility,
+dismissal, bounded stacking, lifecycle replacement, and pointer-event
+behavior. Existing desktop snapshot-readonly tests are updated to prove that
+snapshot selection uses the shared banner without becoming application-global.
+Shared display-host tests run the same payload through banner, inline, and
+modal routes for all three source kinds.
+
+Mobile component tests prove the banner remains visible while switching among
+Connection, Sessions, and Messages; the unified action bar contains all
+built-ins and plugin actions; pin choices persist; and settings/new/refresh
+retain current behavior. Update the real-backend Sessions integration to
+execute reload through the unified bar and observe the global banner at
+`ConnectedRoot`.
+
+Desktop component tests prove the same action inventory and pin behavior,
+native-popover coordinator data, per-connection notification isolation,
+connection-labelled banners, server-settings window coordination, existing
+agent-picker usage, desktop application-action dialog routing, and one common
+banner location for application/session/action-response envelopes. Add a
+real-backend desktop component integration for discovery, reload execution,
+session notification persistence, each direct action-response presentation,
+global notification update, and action refresh. Add or extend a production UI
+harness/XCUITest to verify the Sessions action popover, common banner rail,
+Settings window, and inline fallback for desktop modal display responses.
+
+Rerun core/application suites because the owner notification payload changes;
+all shared frontend package suites; mobile typecheck/unit/real-backend tests;
+desktop TypeScript/Jest tests; focused macOS UI coverage; docs build; and
+changed-file static checks. Stop again for manual verification on both mobile
+and desktop before Stage 1 is completed.
+
+#### 7. Approved manual-checkpoint notification remediation
+
+Make notification lifecycle presentation revision-aware. The backend continues
+to upsert a pending notification by stable lifecycle id/key, while clients
+record local dismissal against `id + updated_at` so a later revision is
+eligible for presentation. Resolved application notifications are removed
+from display state and are never emitted as a fresh display.
+
+Use controller-owned application notification state for lifecycle items and
+keep the transient display bus only for immediate action responses. Keep the
+display subscription stable while dismissal state changes. After a
+session-scoped action mutates the current session, refresh both the parent
+session-list cache and the active session-context controller so persistent
+notification metadata is visible immediately even if event polling is delayed.
+
+Enforce application-notification presentation support at both the application
+contract and frontend normalization boundary. Remove `inline` from the dummy
+application-notification action form. Session notifications and direct action
+responses retain inline support.
+
+On mobile, retain connection-global banner state at ConnectedRoot but render it
+through reusable screen-owned slots in normal flow below each screen header;
+the Sessions slot follows the search/filter row. Use opaque semantic
+backgrounds. Render global application notification modals as a root-level
+in-tree overlay so they remain pending while an action-form native modal
+dismisses. On desktop, normalize
+application and session notification modal requests to inline; do not attempt
+React Native modal presentation.
+
+Replace the simplified native banner harness with production-screen Detox
+coverage around ConnectedRoot, SessionsScreen, and SessionChatScreen.
+Automated geometry assertions prove that the banner bottom does not overlap
+the Sessions or Messages content top. Capture named screenshots for Sessions
+application banner/modal and Messages session banner/inline/modal states for
+the manual visual checkpoint.
+
 ### Implementation decisions and open questions
 
 Decided for this draft:
@@ -376,12 +730,56 @@ Approved Stage 1 decisions:
 - Reject newly admitted application operations with HTTP 503 and stable
   `application_reload_pending` details, with an equivalent terminal error.
 
+Approved checkpoint-follow-up decisions:
+
+- Use the existing `banner` presentation value for connection-global banner
+  state rendered in platform-appropriate screen/rail placement
+  rather than adding another action-display enum value.
+- Promote the desktop banner visual to the shared RN package.
+- Keep polling/state in an SDK controller and rendering in a shared host.
+- Use one shared `ActionsMenuBar` composition on each Sessions surface; do not
+  create a second menu implementation.
+- Use distinct labels `Refresh sessions` and `Reload application`.
+- Reuse desktop `openReactWindow` and the existing action-dialog/agent-picker
+  coordinators; do not add a dedicated native server-settings API.
+- Pending banners remain until locally dismissed, with at most three visible
+  banners per connection. Resolved notifications leave notification state
+  without being redisplayed; reload completion/failure remains a distinct
+  transient outcome display.
+- Server settings, Refresh sessions, and New session are default-pinned;
+  plugin application actions start in overflow and can be pinned.
+- Pin state remains platform-local and connection-scoped rather than backend
+  synchronized.
+- Desktop polls each open backend connection and labels banners with the
+  connection name when more than one connection is open.
+- Presentation support is producer- and host-specific: application
+  notifications reject inline; desktop notification modal requests fall back
+  to inline; other valid explicit presentations follow the common display
+  envelope/controller.
+- Desktop sends every banner source to one banner rail and uses inline
+  notification presentation when a notification requests modal.
+- Automated implementation and verification stop before macOS
+  simulator/XCUITest execution, which requires a separate user approval.
+- Add mobile Detox coverage only when a required native behavior cannot be
+  verified reliably through shared-component, application-component, or
+  production-backend integration tests.
+
 ### Documentation
 
 - Document the owner-level reload lifecycle and plugin action result/effect.
 - Document the deliberately minimal application-global notification slice, its
   relationship to the generic session-notification task, and its live
   persistence/reconnect limits.
+- Specify the application-notification event and payload contract, global
+  polling rules, lifecycle/upsert semantics, banner presentation, connection
+  scope, and non-durable reconnect behavior in the public event API.
+- Document persistent session-notification storage/events/reconnect behavior
+  and the common presentation matrix shared with application notifications and
+  action responses.
+- Document the pure demonstration plugins and keep their enablement confined
+  to example/test configurations.
+- Document the unified Sessions action-bar behavior, pin persistence, mobile
+  modal conventions, and desktop popover/window conventions.
 - Document the Stage 1 dotenv path and provider-to-key allowlist configuration,
   process-environment precedence, and intentionally deferred security limits.
 - Document application-action declaration, discovery, compound identity,
@@ -417,6 +815,40 @@ Approved Stage 1 decisions:
 - [x] Run the Stage 1 automated verification and record evidence.
 - [ ] Stop for the required manual checkpoint and obtain approval before
   planning any next stage.
+- [x] Approve the expanded manual-checkpoint follow-up execution plan.
+- [x] Add and document the application notification controller/contract.
+- [x] Complete generic non-blocking session-notification subtasks 010–040 and
+  record their evidence/relations in the owning task directory.
+- [x] Add the producer-independent display envelope/router for banner, inline,
+  and modal presentations.
+- [x] Promote the four-variant notification banner and add the global shared
+  host.
+- [x] Move mobile notification ownership to `ConnectedRoot`.
+- [x] Replace mobile Sessions header controls with one pinnable action bar.
+- [x] Add desktop global notification polling/host with connection isolation.
+- [x] Replace desktop Sessions controls with the equivalent native-popover
+  pinnable action bar.
+- [x] Extract the reusable server-settings model and add the desktop settings
+  coordinator/window.
+- [x] Add non-default application-notification, session-notification, and
+  direct-action-display demonstration plugins.
+- [x] Add SDK/shared RN/mobile/desktop unit and component coverage.
+- [x] Add real-backend desktop coverage.
+- [x] Run focused macOS UI verification after explicit user approval.
+- [x] Update notification/action-bar documentation.
+- [x] Run follow-up verification and record evidence.
+- [x] Approve the manual-checkpoint notification remediation plan.
+- [x] Make application and session notification delivery revision-aware and
+  refresh the active session context after notification mutations.
+- [x] Enforce the application-notification presentation policy and desktop
+  notification modal-to-inline fallback.
+- [x] Convert the mobile banner to opaque normal-flow screen slots below each
+  header (below search/filter on Sessions) and add the reliable root-level
+  application-notification modal overlay.
+- [x] Add production-screen Detox geometry assertions and screenshots for
+  notification presentation on Sessions and Messages.
+- [x] Run focused remediation verification and record evidence.
+- [ ] Stop for the revised mobile and desktop manual checkpoint.
 
 ### Requirement verification
 
@@ -450,6 +882,37 @@ Approved Stage 1 decisions:
 - **Manual checkpoint:** The user confirms drain/reject behavior, successful
   replacement, session continuity, plugin catalog changes, dotenv key update,
   and failure recovery in the real local runtime.
+- **Application notification contract:** Poll globally through the production
+  backend, observe one created-to-updated lifecycle without `session_id`, and
+  verify the same stable notification renders as a four-variant-capable
+  connection-global banner in each mobile screen slot and the desktop rail.
+- **Persistent session notifications:** Trigger a notification through a
+  public session action, observe session lifecycle events, reconnect/reload the
+  session from metadata, execute its follow-up action, and resolve it without
+  exposing it to model history.
+- **Standard presentations:** Prove application notifications accept banner
+  and mobile modal but reject inline; session notifications and action
+  responses retain their supported explicit presentations; desktop routes
+  notification modal requests to inline and all banner payloads to one rail.
+- **Notification revision reliability:** Dismiss a pending notification,
+  update the same lifecycle id/key, and prove the new revision appears without
+  reopening the session; resolve it and prove it disappears without redisplay.
+- **Mobile notification layout:** Through production-screen Detox scenarios,
+  prove the banner rail appears below the Sessions search/filter row and below
+  the Messages header while pushing subsequent content down, application modal
+  presentation survives action-dialog dismissal, and named screenshots record
+  the rendered banner/inline/modal states.
+- **Demonstration plugins:** Discover and execute each non-default demo plugin
+  through the public backend while proving none is enabled by production
+  default configuration.
+- **Unified Sessions actions:** On mobile and desktop, discover plugin
+  application actions through the real backend alongside Server settings,
+  Refresh sessions, and New session; pin/unpin them; and verify each routes
+  through the platform-appropriate modal, popover, or window.
+- **Desktop conventions:** Through production desktop components and native UI
+  verification, prove the action list uses the macOS popover and Server
+  settings opens a separate React window while application forms use the
+  existing desktop action-dialog path.
 
 The final credential-security requirement remains incomplete after Stage 1 and
 is accepted only as deferred Stage 3 scope. General JSON configuration writing,
@@ -473,6 +936,51 @@ request refactoring, and live active-request migration remain conditional.
 
 ## Implementation Notes
 
+- **Manual notification/display smoke guidance (July 30, 2026):** The personal
+  `~/.crystal/config.json` enables the three non-default local demonstration
+  packages from this checkout:
+  `dummy-application-notification-app`,
+  `dummy-session-notification-app`, and `dummy-action-display-app`. Request a
+  configuration reload or restart the local runtime before testing. On either
+  mobile or desktop, open **Sessions** and use the unified Sessions actions
+  menu to run **Demo application notification** and **Demo action display**.
+  Application notifications now offer `banner` and `modal` only; verify the
+  mobile banner appears below the Sessions search/filter row and pushes session
+  rows down, while mobile modal opens over the whole application. Direct action
+  displays still exercise `banner`, `inline`, and `modal`. Open a session, run
+  **Demo session notification**, verify the banner appears below the Messages
+  header, inline content is in the transcript region, and modal opens globally;
+  then dismiss one revision, emit an updated revision without reopening, run
+  **Run follow-up**, and resolve it. On desktop, notification modal requests
+  should render inline rather than opening a React Native modal/window. With
+  two connections open, verify one connection's notification/action display
+  does not appear in the other connection's rail or session surface. These
+  packages are demonstration-only and must remain absent from production
+  default configuration.
+- **Notification remediation evidence (July 30, 2026):** Application
+  notification creation rejects inline at the owner boundary and frontend
+  normalization rejects it defensively. Mobile and desktop dismissal are keyed
+  by notification revision, resolved application notifications leave
+  controller-backed display state, and session action mutations refresh the
+  active session context. Desktop normalizes modal notification/action
+  envelopes to inline and no longer invokes the generic display window for
+  those payloads.
+- **Mobile visual evidence (July 30, 2026):** The production-screen iOS Detox
+  suite passed five scenarios. Native frame assertions proved Sessions
+  search/filter row → application banner → first session row and Messages
+  header → session banner → transcript ordering. Screenshots are retained under
+  `mobile/crystal-lattice-control-rn/artifacts/notification-visual/` for
+  Sessions application banner/modal and Messages session banner/inline/modal.
+- **Focused remediation verification (July 30, 2026):** frontend SDK
+  `269 passed`; shared RN components `7 passed`; focused mobile notification
+  unit tests `10 passed`; mobile TypeScript passed; real-backend mobile
+  Sessions integration `2 passed`; real-backend desktop global display
+  integration `1 passed`; focused Python owner/demo HTTP tests `6 passed`; iOS
+  Detox notification visual suite `5 passed`; scoped `git diff --check`
+  passed; `mkdocs build -f docs_site/mkdocs.yml` passed with the repository's
+  pre-existing documentation warnings. Desktop TypeScript still reports the
+  three pre-existing errors in `ChatPane.tsx` and
+  `ActionResultInlineCard.tsx` recorded before this remediation.
 - Stage 1 execution started after explicit plan approval.
 - Added a small `AgentApplicationOwner`; `AgentApplication` remains the real
   application and only gains a reload-request delegation hook.
@@ -507,3 +1015,44 @@ request refactoring, and live active-request migration remain conditional.
   `application.application_config` dotenv path and editable provider/key
   allowlists. Exact-config preflight and one full owner reload succeeded without
   provider calls.
+- Checkpoint follow-up implemented persistent session notifications, generic
+  owner-memory application notifications, and one standard display envelope
+  for application/session notifications and action responses.
+- Mobile owns application-global display state at `ConnectedRoot`; desktop
+  polls every open backend and routes all banner sources to one top rail.
+- Mobile and desktop Sessions now use one pinnable action bar. Desktop Server
+  settings use a separate React window; modal notification/action displays use
+  the established inline fallback.
+- Added non-default `dummy-application-notification-app`,
+  `dummy-session-notification-app`, and `dummy-action-display-app` packages.
+- Added a focused mobile Detox harness for native banner z-order/touch behavior.
+  It has not been run because component/real-backend tests cover the
+  non-native contract and simulator execution is deferred.
+- Follow-up evidence: core `415 passed, 26 deselected, 1 xfailed`;
+  application `315 passed, 90 deselected`; frontend SDK `266 passed`;
+  frontend React `20 passed`; shared RN unit suite `7 passed`; mobile
+  TypeScript and `97` unit/component tests passed; desktop `97` Jest tests
+  passed; mobile real-backend Sessions/reload/session-notification integration
+  passed; desktop real-backend global-banner integration passed; three
+  demo-plugin unit tests and the public HTTP demo-plugin integration passed.
+- Documentation build passed with existing griffe/autoreference warnings and
+  expected nav warnings for non-default demo plugins.
+- macOS simulator/XCUITest was approved and passed on July 30, 2026:
+  `npm run test:macos-ui:session-filters` collected three tests covering
+  native session-filter popovers, rich status-list selection and row refresh,
+  the unified Sessions action popover, and the separate Server settings
+  window. The two rich-list assertions now target accessibility elements that
+  React Native macOS actually exposes (the close control and containing row
+  label), rather than non-accessible layout/text containers.
+- iOS simulator Detox was approved and passed on July 30, 2026:
+  `npm run detox:build:ios` followed by
+  `npm run detox:test:notification-banner:ios`. The native AppDelegate now
+  selects the existing `MobileNotificationBannerHarness` when its Detox launch
+  argument is supplied. The harness places its screen-changing controls below
+  the visible top banner, so the test verifies the intended properties:
+  banner persistence above a screen change and touch delivery to its own
+  action, without requiring a visible banner to pass through touches.
+- Desktop project-wide TypeScript verification still reports three pre-existing
+  errors in `ChatPane.tsx` and `ActionResultInlineCard.tsx`; the new desktop
+  integration directory is excluded consistently with the mobile integration
+  directory, and no new source/harness TypeScript errors remain.

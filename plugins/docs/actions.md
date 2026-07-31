@@ -114,12 +114,22 @@ Guidance:
 - keep follow-up actions intentionally narrow and generic; current supported
   shapes are `open_url`, `copy_text`, `run_action`,
   `download_attachment_asset`, and `dismiss`
-- treat `presentation` as a frontend hint, not a guarantee:
-  current frontends ignore `display` for `session_list_action` surfaces
-  and the desktop app currently coerces session-action displays to `inline`
-- `modal` remains part of the protocol, but richer cross-platform popup support
-  should be added later only when there is a concrete use case and a UI
-  approach that works on both mobile and desktop
+- `presentation` is a standard cross-platform contract:
+  - `banner` uses the connection-aware top notification rail
+  - `inline` uses the nearest owning Sessions or Messages region
+  - `modal` uses a mobile modal; desktop action responses use their established
+    inline fallback
+- application, session, session-list, and message action responses honor valid
+  explicit presentation subject to the host fallback above
+- application notifications support `banner` and mobile `modal`, but reject
+  `inline` because an application-global notification has no meaningful inline
+  owner
+- session notifications support all three values on mobile; desktop normalizes
+  notification `modal` to the same inline region used by session responses
+- mobile banner rails are in normal layout below the active screen header
+  (below search/filter on Sessions), so they push content down
+- local dismissal is revision-scoped: updating the same stable notification id
+  with a later `updated_at` makes the new revision eligible for presentation
 
 Application actions that request full reload return an accepted result rather
 than waiting for active work. The stable application owner publishes

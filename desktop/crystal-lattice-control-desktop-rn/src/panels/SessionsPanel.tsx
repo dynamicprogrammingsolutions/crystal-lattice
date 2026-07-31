@@ -17,6 +17,7 @@ import {
 import Icon from 'react-native-vector-icons/Feather';
 
 import {
+  ActionsMenuBar,
   ApplicationActionDialog,
   getLastActionsPopoverAnchorTag,
   SessionListActionsBar,
@@ -24,6 +25,7 @@ import {
   SessionListRichActionList,
   SessionListFiltersPanel,
   useTheme,
+  type ActionDefinition,
 } from '@crystal-lattice/frontend-rn-components';
 
 import type {
@@ -31,15 +33,19 @@ import type {
   ActionUiElement,
   ActionDisplayPayload,
   AgentBackend,
+  ApplicationActionUiElement,
   SessionSummary,
   RunActionContext,
   SessionListActionElement,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  applicationActionKey,
   deriveSessionListPresentationFromGroups,
+  emitDisplayPresentation,
   getDefaultPinnedSessionListActionKeys,
   groupSessionListFields,
   normalizeActionDisplayForSurface,
+  normalizeDisplayEnvelope,
   runApplicationAction,
   selectSessionListRichActionForPlacement,
 } from '@crystal-lattice/frontend-sdk';
@@ -72,6 +78,8 @@ import { useSessionsPanelTabAutoSelect } from './useSessionsPanelTabAutoSelect';
 import { getMacScrollViewMetrics } from '../native/MacScrollViewMetrics';
 
 const PINNED_SESSION_LIST_ACTIONS_STORAGE_KEY_BASE = 'clc_pinned_session_list_actions_v1';
+const PINNED_SESSIONS_HEADER_ACTIONS_STORAGE_KEY_BASE =
+  'clc_pinned_sessions_header_actions_v1';
 const SESSION_DOUBLE_CLICK_MS = 300;
 const SESSIONS_STALE_MS = 30_000;
 type ActionDisplayEntry = {
@@ -79,6 +87,11 @@ type ActionDisplayEntry = {
   display: ActionDisplayPayload;
   context: RunActionContext;
 };
+
+interface SessionsHeaderActionDefinition extends ActionDefinition {
+  kind: 'builtin' | 'plugin';
+  element?: ApplicationActionUiElement;
+}
 
 function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
   const key =
@@ -107,6 +120,7 @@ function upsertInlineDisplay(
 export interface SessionsPanelProps {
   focusedConnectionId: string | null;
   focusedConnectionName: string | null;
+  connectionBaseUrl?: string | null;
   connectionId: string | null;
   backend: AgentBackend | null;
   cachedSessions: SessionSummary[];
@@ -141,6 +155,7 @@ export function SessionsPanel(props: SessionsPanelProps): React.JSX.Element {
 function SessionsPanelInner({
   focusedConnectionId,
   focusedConnectionName,
+  connectionBaseUrl,
   connectionId,
   backend,
   cachedSessions,
@@ -260,6 +275,8 @@ function SessionsPanelInner({
 
   const {
     actionsById,
+    actionsByKey = {},
+    applicationActions = [],
     sessionListActions,
     sessionListFields,
     sessionListFilterSchema,
@@ -375,6 +392,44 @@ function SessionsPanelInner({
     key: pinnedSessionListActionsStorageKey,
     initialPinned: defaultPinnedSessionListActionKeys,
   });
+  const sessionsHeaderActionDefinitions = useMemo<SessionsHeaderActionDefinition[]>(
+    () => [
+      {
+        key: 'serverSettings',
+        label: 'Server settings',
+        iconName: 'settings',
+        kind: 'builtin',
+      },
+      {
+        key: 'refreshSessions',
+        label: 'Refresh sessions',
+        iconName: 'refresh-cw',
+        kind: 'builtin',
+      },
+      {
+        key: 'newSession',
+        label: 'New session',
+        iconName: 'plus',
+        kind: 'builtin',
+      },
+      ...applicationActions.map((element) => ({
+        key: applicationActionKey(element.plugin, element.id),
+        label: element.label,
+        iconName: typeof element.icon === 'string' ? element.icon : 'zap',
+        kind: 'plugin' as const,
+        element,
+      })),
+    ],
+    [applicationActions],
+  );
+  const {
+    pinned: pinnedHeaderActionKeys,
+    setPinned: setPinnedHeaderActionKeys,
+  } = usePersistentPinnedActions<string>({
+    store: asyncStorageKeyValueStore,
+    key: `${PINNED_SESSIONS_HEADER_ACTIONS_STORAGE_KEY_BASE}:${connectionId ?? 'default'}`,
+    initialPinned: ['serverSettings', 'refreshSessions', 'newSession'],
+  });
 
   const [pluginActionRunning, setPluginActionRunning] = useState(false);
   const [actionResultDisplay, setActionResultDisplay] = useState<ActionDisplayEntry | null>(null);
@@ -384,13 +439,26 @@ function SessionsPanelInner({
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
     const nextEntry = createDisplayEntry(display, context);
     const presentation = display.presentation ?? 'modal';
-    if (presentation === 'inline' || presentation === 'banner') {
+    if ((presentation === 'banner' || presentation === 'modal') && backend) {
+      emitDisplayPresentation(
+        backend,
+        normalizeDisplayEnvelope({
+          id: nextEntry.key,
+          source: 'action_response',
+          connectionId,
+          sessionId: context.sessionId,
+          display,
+        }),
+      );
+      return;
+    }
+    if (presentation === 'inline') {
       setActionResultDisplay(null);
       setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
       return;
     }
     setActionResultDisplay(nextEntry);
-  }, []);
+  }, [backend, connectionId]);
 
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {
@@ -405,6 +473,7 @@ function SessionsPanelInner({
           backend,
           element,
           actionsById,
+          actionsByKey,
           context,
           effects: {
             reloadSessionsListOnMutations: true,
@@ -445,7 +514,7 @@ function SessionsPanelInner({
         setPluginActionRunning(false);
       }
     },
-    [actionsById, backend, connectionId, onOpenSessionTab, presentActionDisplay],
+    [actionsById, actionsByKey, backend, connectionId, onOpenSessionTab, presentActionDisplay],
   );
 
   const openRichListPopover = useCallback(
@@ -546,20 +615,28 @@ function SessionsPanelInner({
     openForElement: openPluginDialogForElement,
     handleSubmit: handleSubmitPluginDialog,
     handleCancel: handleCancelPluginDialog,
-  } = usePluginActionDialog<SessionSummary>(
+  } = usePluginActionDialog<SessionSummary | null>(
     useCallback(
       async (
         element: ActionUiElement,
-        session: SessionSummary,
+        session: SessionSummary | null,
         dialogValues: Record<string, any> | undefined,
       ) => {
-        await executePluginAction(element, {
-          sessionId: session.session_id,
-          sessionSummary: session,
-          dialogValues,
-        });
+        await executePluginAction(
+          element,
+          session
+            ? {
+                sessionId: session.session_id,
+                sessionSummary: session,
+                dialogValues,
+              }
+            : {
+                connectionId: connectionId ?? undefined,
+                dialogValues,
+              },
+        );
       },
-      [executePluginAction],
+      [connectionId, executePluginAction],
     ),
   );
 
@@ -806,8 +883,67 @@ function SessionsPanelInner({
       <PanelHeader
         title="Sessions"
         subtitle={subtitle}
-        menuLabel="↻"
-        onPressMenu={() => refreshSessions()}
+        right={
+          <ActionsMenuBar<SessionsHeaderActionDefinition>
+            title="Sessions actions"
+            variant="dropdown"
+            isActive
+            baseActions={sessionsHeaderActionDefinitions}
+            pinned={pinnedHeaderActionKeys}
+            onChangePinned={setPinnedHeaderActionKeys}
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+            renderPinIcon={({ size, color }) => (
+              <Icon name="star" size={size} color={color} />
+            )}
+            menuButtonTestID="sessions-actions-menu"
+            isActionDisabled={(key) =>
+              !isOnline ||
+              pluginActionRunning ||
+              (key === 'refreshSessions' && sessionsLoading) ||
+              (key === 'newSession' &&
+                (openingAgentPicker || (agentsState?.loading ?? false)))
+            }
+            onAction={(key) => {
+              if (key === 'serverSettings') {
+                if (!backend || !connectionId) return;
+                DesktopWindowManager?.openReactWindow({
+                  windowKey: 'serverSettings',
+                  moduleName: 'ServerSettingsWindow',
+                  title: 'Server settings',
+                  width: 560,
+                  height: 640,
+                  initialProps: {
+                    connectionId,
+                    connectionName: focusedConnectionName ?? connectionId,
+                    baseUrl: connectionBaseUrl ?? undefined,
+                  },
+                });
+                return;
+              }
+              if (key === 'refreshSessions') {
+                void refreshSessions();
+                return;
+              }
+              if (key === 'newSession') {
+                void openAgentPickerWindow();
+                return;
+              }
+              const element = sessionsHeaderActionDefinitions.find(
+                (item) => item.key === key,
+              )?.element;
+              if (!element) return;
+              if ((element.dialog?.kind ?? 'none') === 'none') {
+                void executePluginAction(element, {
+                  connectionId: connectionId ?? undefined,
+                });
+              } else {
+                openPluginDialogForElement(element, null);
+              }
+            }}
+          />
+        }
       />
 
       <View style={styles.controlsRow}>
@@ -870,21 +1006,6 @@ function SessionsPanelInner({
           </>
         ) : null}
 
-        <Pressable
-          style={(state) => {
-            const hovered = (state as any).hovered as boolean | undefined;
-            const disabled = !isOnline || openingAgentPicker || (agentsState?.loading ?? false);
-            return [
-              styles.newButton,
-              disabled && styles.newButtonDisabled,
-              (hovered || state.pressed) && !disabled && styles.newButtonHovered,
-            ];
-          }}
-          disabled={!isOnline || openingAgentPicker || (agentsState?.loading ?? false)}
-          onPress={openAgentPickerWindow}
-        >
-          <Text style={styles.newButtonText}>{openingAgentPicker ? '…' : 'New'}</Text>
-        </Pressable>
       </View>
 
       {sessionListFilterSchema.mainSearchConflict ? (

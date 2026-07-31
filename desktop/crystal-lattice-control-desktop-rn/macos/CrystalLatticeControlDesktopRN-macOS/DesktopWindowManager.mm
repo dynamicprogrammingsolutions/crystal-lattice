@@ -633,6 +633,8 @@ RCT_EXPORT_METHOD(openReactWindow : (NSDictionary *)params)
       title = (NSString *)params[@"title"];
     }
     window.title = title ?: moduleName;
+    window.accessibilityIdentifier = [NSString stringWithFormat:@"%@Window", windowKey];
+    window.accessibilityLabel = windowKey;
     rootView.frame = frame;
     rootView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
     window.contentView = rootView;

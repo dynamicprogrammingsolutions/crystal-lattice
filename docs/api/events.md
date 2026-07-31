@@ -14,6 +14,65 @@ increasing string `event_id` when published.
 
 ---
 
+## Application and session notifications
+
+Notification lifecycle events reuse `GET /events` and
+`ActionDisplayPayload`.
+
+Application notifications are owner-memory scoped:
+
+- `application_notification_created`
+- `application_notification_updated`
+- omit `session_id` and are polled without a session filter
+- survive in-process `AgentApplication` replacement because the owner and
+  event store remain alive
+- are not durable across owner-process restart and are not guaranteed to replay
+  to clients connecting after their event cursor
+
+Session notifications are persisted under
+`Session.metadata.notifications.items`:
+
+- `session_notification_created`
+- `session_notification_updated`
+- `session_notification_resolved`
+- include `session_id` and use ordinary session-filtered polling
+- reload from session metadata on reconnect
+- remain hidden from model/provider history in Stage 1
+
+Both records have stable `id` and `key`, pending/resolved status,
+info/success/warning/error severity, title/body, timestamps, source provenance,
+an action display, and `model_visibility: "hidden"`. Created/updated events
+upsert by `id`; creating a pending item with an existing `key` updates it in
+place. Frontends treat `id + updated_at` as the local presentation revision:
+dismissing one revision does not suppress a later update of the same lifecycle
+item. A resolved notification is removed instead of being presented again.
+
+Notification delivery is best effort. Event publication and the tool-facing
+`notification_sink` cannot fail the user request.
+
+### Standard display presentations
+
+Presentation support depends on the producer and host:
+
+| Producer | `banner` | `inline` | `modal` |
+| --- | --- | --- | --- |
+| Application notification | Connection-aware banner rail | Rejected because no application-global inline owner exists | Root-level mobile modal; desktop normalizes to inline |
+| Session notification | Connection-aware banner rail tagged with its session | Persistent Messages notification region | Mobile modal; desktop normalizes to the session inline region |
+| Direct action response | Connection-aware banner rail | Nearest initiating Sessions or Messages region | Mobile modal; desktop normalizes to its established inline response |
+
+On mobile the banner rail participates in normal screen layout. Messages places
+it below the screen header; Sessions places it below the search/filter row.
+The banner therefore pushes transcript/session-list content down instead of
+covering it. Desktop keeps one connection-aware banner rail for every producer
+and notification scope.
+
+Direct action responses without a presentation default to `modal`; session
+notifications default to `inline`. Application notifications must use
+`banner` or `modal`; attempts to create an inline application notification are
+rejected by the application contract.
+
+---
+
 ## Storage and Transport
 
 - **Event store protocol**: `core/python/agent_app/events.py`

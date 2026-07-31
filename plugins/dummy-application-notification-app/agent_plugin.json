@@ -1,0 +1,8 @@
+{
+  "module": "dummy_application_notification_app",
+  "subdirectory": ".",
+  "entries": ["dummy_application_notification_app.DummyApplicationNotificationPlugin"],
+  "kinds": {
+    "dummy_application_notification_app.DummyApplicationNotificationPlugin": "application"
+  }
+}

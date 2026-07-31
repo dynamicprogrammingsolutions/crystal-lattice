@@ -754,12 +754,23 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 - `POST /sessions/{session_id}/send` - run the model/tool loop.
 - `POST /sessions/{session_id}/send_message` - append and send in one call.
 - `GET /events` - poll request/session events.
+- Application notification events are polled without a session filter. Session
+  notifications use the same endpoint with `session_id` and persist in session
+  metadata. Both use standard `banner`, `inline`, and `modal` display
+  presentations.
 - `POST /requests/{request_id}/cancel` - cancel an active request.
 - `GET /agents` - list configured agents.
 - `PATCH /sessions/{session_id}/agent` - change a session's agent.
 - `GET /sessions/{session_id}/plugins` - list session plugins.
 - `PUT /sessions/{session_id}/plugins` - update enabled session plugins.
 - `GET /application/ui-schema`, `POST /actions`, and `POST /sessions/{session_id}/actions` - application UI/actions.
+
+The mobile and desktop Sessions headers use one pinnable action bar for Server
+settings, Refresh sessions, New session, and contributed
+`application_action` entries. Pin state is frontend-local and
+connection-scoped. On macOS the menu uses a native popover and Server settings
+opens a separate React window. Every desktop banner source uses one
+connection-aware top rail; modal displays use a separate React window.
 
 Run the command help for the complete CLI surface:
 

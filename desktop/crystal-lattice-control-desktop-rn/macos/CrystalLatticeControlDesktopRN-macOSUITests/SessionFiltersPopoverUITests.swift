@@ -34,6 +34,19 @@ final class SessionFiltersPopoverUITests: XCTestCase {
     XCTAssertEqual(result, .completed, file: file, line: line)
   }
 
+  private func waitForLabelContaining(
+    _ element: XCUIElement,
+    _ text: String,
+    timeout: TimeInterval = 5,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) {
+    let predicate = NSPredicate(format: "label CONTAINS %@", text)
+    let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
+    let result = XCTWaiter.wait(for: [expectation], timeout: timeout)
+    XCTAssertEqual(result, .completed, file: file, line: line)
+  }
+
   private func launchHarness() -> XCUIApplication {
     let app = XCUIApplication()
     app.launchEnvironment["CLC_ENABLE_SESSION_FILTERS_POPOVER_HARNESS"] = "1"
@@ -183,7 +196,7 @@ final class SessionFiltersPopoverUITests: XCTestCase {
 
     let statusList = element(
       app,
-      "session-rich-list-pinned-done-set_session_status"
+      "session-rich-list-pinned-done-set_session_status-close"
     )
     XCTAssertTrue(statusList.waitForExistence(timeout: 10), app.debugDescription)
     XCTAssertEqual(app.sheets.count, 0)
@@ -196,10 +209,47 @@ final class SessionFiltersPopoverUITests: XCTestCase {
     blocked.click()
     waitForDisappearance(statusList)
 
-    XCTAssertTrue(
-      element(app, "session-meta-pinned-done").waitForExistence(timeout: 5)
-    )
-    waitForLabel(element(app, "session-meta-pinned-done"), "Status: blocked")
+    waitForLabelContaining(element(app, "session-row-pinned-done"), "Status: blocked")
     XCTAssertEqual(app.sheets.count, 0)
+  }
+
+  func testSessionsHeaderActionsUseNativePopoverAndSettingsWindow() throws {
+    let app = launchHarness()
+    let harnessWindow = app.windows["SessionFiltersPopoverHarnessWindow"]
+    XCTAssertTrue(
+      harnessWindow.waitForExistence(timeout: 20),
+      app.debugDescription
+    )
+
+    let actionsButton = element(app, "sessions-actions-menu")
+    XCTAssertTrue(actionsButton.waitForExistence(timeout: 10), app.debugDescription)
+    actionsButton.click()
+
+    let actionsPopover = harnessWindow.popovers.firstMatch
+    XCTAssertTrue(actionsPopover.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertEqual(app.sheets.count, 0)
+    XCTAssertTrue(
+      element(actionsPopover, "actions-menu-action-serverSettings")
+        .waitForExistence(timeout: 5)
+    )
+    XCTAssertTrue(
+      element(actionsPopover, "actions-menu-action-refreshSessions")
+        .waitForExistence(timeout: 5)
+    )
+    XCTAssertTrue(
+      element(actionsPopover, "actions-menu-action-newSession")
+        .waitForExistence(timeout: 5)
+    )
+
+    element(actionsPopover, "actions-menu-action-serverSettings").click()
+    waitForDisappearance(actionsPopover)
+
+    let settingsWindow = app.windows["serverSettingsWindow"]
+    XCTAssertTrue(settingsWindow.waitForExistence(timeout: 10), app.debugDescription)
+    XCTAssertTrue(
+      element(app, "Close server settings")
+        .waitForExistence(timeout: 5),
+      app.debugDescription
+    )
   }
 }

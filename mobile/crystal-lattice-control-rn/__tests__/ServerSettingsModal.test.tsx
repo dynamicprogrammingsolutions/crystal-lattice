@@ -4,19 +4,23 @@ import { fireEvent, screen, waitFor } from '@testing-library/react-native';
 import ServerSettingsModal from '../src/components/ServerSettingsModal';
 import { renderWithMobileProviders } from '../src/testUtils/renderWithMobileProviders';
 import { ThemeProvider, lightTheme } from '../src/theme';
-import { useServerSettingsController } from '@crystal-lattice/frontend-sdk-react';
+import {
+  buildConfigSchemaByKey,
+  buildSessionSettingItems,
+  useServerSettingsForm,
+} from '@crystal-lattice/frontend-sdk-react';
 
 jest.mock('@crystal-lattice/frontend-sdk-react', () => {
   const actual = jest.requireActual('@crystal-lattice/frontend-sdk-react');
   return {
     __esModule: true,
     ...actual,
-    useServerSettingsController: jest.fn(),
+    useServerSettingsForm: jest.fn(),
   };
 });
 
-const mockedUseServerSettingsController =
-  useServerSettingsController as jest.MockedFunction<typeof useServerSettingsController>;
+const mockedUseServerSettingsForm =
+  useServerSettingsForm as jest.MockedFunction<typeof useServerSettingsForm>;
 
 const patchSetting = jest.fn<Promise<void>, [string, unknown]>(async () => {});
 const deleteSetting = jest.fn<Promise<void>, [string]>(async () => {});
@@ -76,12 +80,19 @@ let currentState: any = baseState;
 
 function renderModal() {
   currentState = baseState;
-  mockedUseServerSettingsController.mockImplementation(() => ({
+  mockedUseServerSettingsForm.mockImplementation(() => ({
     controller: {
       patchSetting,
       deleteSetting,
     } as any,
     state: currentState,
+    items: buildSessionSettingItems({
+      elements: currentState.elements,
+      overrides: currentState.settings,
+      baseConfig: currentState.baseConfig,
+      schemaByKey: buildConfigSchemaByKey([]),
+    }),
+    savingKeys: new Set(currentState.savingKeys),
   }));
 
   return renderWithMobileProviders(

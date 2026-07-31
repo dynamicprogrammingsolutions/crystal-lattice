@@ -32,6 +32,8 @@ import {
   serializePersistedOpenTabsState,
   STORAGE_KEY_OPEN_TABS,
 } from './tabs/openTabsStorage';
+import { DesktopGlobalDisplayLayer } from './ui/DesktopGlobalDisplayLayer';
+import { setActiveServerSettingsWindow } from './windows/serverSettingsCoordinator';
 
 const EMPTY_CACHED_SESSIONS: SessionSummary[] = [];
 
@@ -670,6 +672,9 @@ export function DesktopRoot({
         if (windowKey === 'attachmentMetadata') {
           cancelAttachmentMetadataWindowFromSystem();
         }
+        if (windowKey === 'serverSettings') {
+          setActiveServerSettingsWindow(null);
+        }
       },
     );
 
@@ -750,6 +755,10 @@ export function DesktopRoot({
 
   return (
     <View style={styles.root}>
+      <DesktopGlobalDisplayLayer
+        openConnectionsById={openConnectionsById}
+        connectionNameById={connectionNameById}
+      />
       <DesktopShell
         left={(
           <View style={styles.leftColumn}>
@@ -774,6 +783,11 @@ export function DesktopRoot({
               focusedConnectionId={focusedConnectionId}
               focusedConnectionName={
                 focusedConnectionId ? connectionNameById[focusedConnectionId] : null
+              }
+              connectionBaseUrl={
+                focusedConnectionId
+                  ? openConnectionsById[focusedConnectionId]?.baseUrl ?? null
+                  : null
               }
               connectionId={focusedConnectionId}
               backend={focusedConnectionId ? getBackend(focusedConnectionId) : null}

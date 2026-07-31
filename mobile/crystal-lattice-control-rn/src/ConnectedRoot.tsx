@@ -15,6 +15,7 @@ import type { ChatScrollAnchor } from './chatScroll';
 import { useTheme, type Theme } from './theme';
 import { ApplicationPluginsProvider } from './ApplicationPluginsContext';
 import { DEFAULT_MOBILE_TRANSCRIPT_RANGE } from './transcriptRange';
+import GlobalDisplayLayer from './components/GlobalDisplayLayer';
 
 interface ConnectedRootProps {
   backend: AgentBackend | null;
@@ -134,7 +135,12 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   return (
     <View style={styles.container}>
       <ApplicationPluginsProvider backend={backend} connectionId={activeConnectionId}>
-        <View style={styles.contentArea}>
+        <GlobalDisplayLayer
+          backend={backend}
+          connectionId={activeConnectionId}
+          connectionName={activeConnectionName}
+        >
+        <View style={styles.contentArea} testID="connected-root-content">
         {/* Connection tab content (kept mounted, visibility toggled) */}
         <View
           style={[
@@ -346,6 +352,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           )}
         </View>
         </View>
+        </GlobalDisplayLayer>
       </ApplicationPluginsProvider>
 
       <View style={styles.navBar}>

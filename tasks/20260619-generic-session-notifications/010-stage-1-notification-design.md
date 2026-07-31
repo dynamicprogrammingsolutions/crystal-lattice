@@ -4,14 +4,17 @@ Design the non-blocking generic session notification model. This stage supports 
 
 ## Requirements checklist
 
-- [ ] Define the notification data model stored in `Session.metadata`.
-- [ ] Define notification lifecycle events.
-- [ ] Define de-duplication and update semantics.
-- [ ] Define how `ActionDisplayPayload` is reused for notification rendering and actions.
-- [ ] Define model-visibility rules so notifications are hidden from provider/model history by default.
-- [ ] Document failure behavior: notification emission must not fail the user request.
+- [x] Define the notification data model stored in `Session.metadata`.
+- [x] Define notification lifecycle events.
+- [x] Define de-duplication and update semantics.
+- [x] Define how `ActionDisplayPayload` is reused for notification rendering and actions.
+- [x] Define model-visibility rules so notifications are hidden from provider/model history by default.
+- [x] Document failure behavior: notification emission must not fail the user request.
 
 Parent Task: `tasks/20260619-generic-session-notifications/000-main.md`
+
+Completed Via:
+`tasks/20260729-staged-application-config-and-full-reload.md`
 
 ## Data Model
 
@@ -65,7 +68,7 @@ Notifications are stored under `Session.metadata["notifications"]["items"]` as a
 | `key` | string | Plugin-provided stable dedupe key. If a pending notification with the same key exists, `create` updates it in place instead of appending. |
 | `kind` | `"notification"` | Stage 1 only supports `notification`. Stage 2 adds `interaction`. |
 | `status` | `"pending"` \| `"resolved"` | Stage 1 only. Stage 2 adds `pending_response`, `responded`, `cancelled`, `expired`. |
-| `severity` | `"info"` \| `"warning"` \| `"error"` | Machine-readable level for SDK filtering/sorting. Defaults to `info`. |
+| `severity` | `"info"` \| `"success"` \| `"warning"` \| `"error"` | Machine-readable level for SDK filtering/sorting. Defaults to `info`. |
 | `title`, `body` | string | Plain-text summary. Rich rendering lives in `display`. |
 | `created_at`, `updated_at` | ISO 8601 string | Set by the backend. |
 | `request_id` | string \| null | The request that emitted the notification, if applicable. |
@@ -77,6 +80,23 @@ Notifications are stored under `Session.metadata["notifications"]["items"]` as a
 ### Severity vs. display.variant
 
 `severity` is the stable machine-readable field used by SDK selectors and future filtering. `display.variant` is the presentation hint. When `display.variant` is omitted, the RN host defaults it to match `severity`. Plugins may override `display.variant` for a softer/stronger presentation without changing `severity`.
+
+## Standard display presentations
+
+Stage 1 shares `ActionDisplayPayload.presentation` with owner-memory
+application notifications and direct action responses:
+
+- `banner` — connection-aware top banner rail; on desktop every producer uses
+  the same rail.
+- `inline` — session notification region for the owning session.
+- `modal` — mobile modal or desktop React window.
+
+Explicit presentation wins. A session notification without presentation
+defaults to `inline`. Presentation changes placement only; persistence,
+lifecycle, model visibility, and follow-up action behavior remain unchanged.
+
+This standardization is implemented through the active overlap recorded in
+`tasks/20260729-staged-application-config-and-full-reload.md`.
 
 ## Lifecycle Events
 
@@ -138,3 +158,11 @@ Notification emission must not fail the user request. Two layers:
 ## CL-150 Notes
 
 The CL-150 branch includes prompt lifecycle ideas, but its implementation is tightly coupled to tool-call interception and assistant message metadata. For Stage 1, reuse only the concepts of pending/resolved lifecycle and frontend selectors, not the implementation shape.
+
+## Completion Notes
+
+- Completed via
+  `tasks/20260729-staged-application-config-and-full-reload.md`.
+- The final design includes success severity and producer-independent banner,
+  inline, and modal presentations.
+- Stage 2 interaction design remains untouched.
