@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentBackend } from '../backend/backend';
+import type { KeyValueStore } from '../storage/keyValueStore';
 import type { ApplicationNotification } from '../types/applicationNotifications';
 import { ApplicationNotificationsController } from './applicationNotificationsController';
+import { NotificationDismissalCache } from './notificationDismissalCache';
 
 const pending: ApplicationNotification = {
   id: 'notification-1',
@@ -19,6 +21,46 @@ const pending: ApplicationNotification = {
   display: { format: 'text', body: 'Body', presentation: 'banner' },
   model_visibility: 'hidden',
 };
+
+function createStore(): KeyValueStore {
+  const values = new Map<string, string>();
+  return {
+    get: async (key) => values.get(key) ?? null,
+    set: async (key, value) => {
+      values.set(key, value);
+    },
+    delete: async (key) => {
+      values.delete(key);
+    },
+  };
+}
+
+function createBackend(options: {
+  notification?: ApplicationNotification;
+  dismiss: AgentBackend['dismissApplicationNotification'];
+}): AgentBackend {
+  return {
+    kind: 'inProcess',
+    getCapabilities: () => ({
+      featureCompletions: false,
+      sessionUiSchema: false,
+      sessionConfigOverrides: false,
+      sessionPlugins: false,
+      applicationActions: false,
+      applicationConfig: false,
+      notificationLifecycle: true,
+    }),
+    getLatestEventId: async () => '0',
+    listApplicationNotifications: async () =>
+      options.notification ? [options.notification] : [],
+    dismissApplicationNotification: options.dismiss,
+    listEvents: async () => ({
+      events: [],
+      latestEventId: '0',
+      cursorExpired: false,
+    }),
+  } as unknown as AgentBackend;
+}
 
 describe('ApplicationNotificationsController', () => {
   it('hydrates from a snapshot before polling and applies server dismissal', async () => {
@@ -101,6 +143,118 @@ describe('ApplicationNotificationsController', () => {
     expect(dismissed.status).toBe('dismissed');
     expect(controller.getSnapshot().notifications).toEqual([dismissed]);
 
+    controller.close();
+  });
+
+  it('keeps a failed dismissal hidden in the revision-scoped cache', async () => {
+    const dismissalCache = new NotificationDismissalCache({
+      store: createStore(),
+    });
+    const dismissApplicationNotification = vi.fn(async () => {
+      throw new Error('server unavailable');
+    });
+    const controller = new ApplicationNotificationsController({
+      backend: createBackend({
+        notification: pending,
+        dismiss: dismissApplicationNotification,
+      }),
+      connectionId: 'connection-1',
+      hydrateSnapshot: true,
+      intervalMs: 60_000,
+      dismissalCache,
+    });
+
+    controller.start();
+    await vi.waitFor(() => {
+      expect(controller.getSnapshot().notifications).toEqual([pending]);
+    });
+    await controller.dismiss(pending.id);
+
+    expect(controller.getSnapshot().notifications).toEqual([]);
+    expect(dismissalCache.getSnapshot().entries).toMatchObject([
+      {
+        connectionId: 'connection-1',
+        scope: 'application',
+        notificationId: pending.id,
+        revision: pending.revision,
+      },
+    ]);
+    controller.close();
+  });
+
+  it('rehydrates a cached exact dismissal and retries it without presenting', async () => {
+    const store = createStore();
+    const firstCache = new NotificationDismissalCache({ store });
+    await firstCache.load();
+    await firstCache.record({
+      connectionId: 'connection-1',
+      scope: 'application',
+      notificationId: pending.id,
+      revision: pending.revision!,
+      dismissedAt: '2026-08-01T00:00:02Z',
+    });
+    const dismissalCache = new NotificationDismissalCache({ store });
+    const dismissApplicationNotification = vi.fn(async () => {
+      throw new Error('still unavailable');
+    });
+    const controller = new ApplicationNotificationsController({
+      backend: createBackend({
+        notification: pending,
+        dismiss: dismissApplicationNotification,
+      }),
+      connectionId: 'connection-1',
+      hydrateSnapshot: true,
+      intervalMs: 60_000,
+      dismissalCache,
+    });
+
+    controller.start();
+    await vi.waitFor(() => {
+      expect(controller.getSnapshot().loading).toBe(false);
+      expect(controller.getSnapshot().notifications).toEqual([]);
+      expect(dismissApplicationNotification).toHaveBeenCalledWith(pending.id, {
+        expectedRevision: pending.revision,
+        reason: 'user',
+      });
+    });
+    controller.close();
+  });
+
+  it('removes an obsolete cached dismissal and presents the newer revision', async () => {
+    const store = createStore();
+    const dismissalCache = new NotificationDismissalCache({ store });
+    await dismissalCache.load();
+    await dismissalCache.record({
+      connectionId: 'connection-1',
+      scope: 'application',
+      notificationId: pending.id,
+      revision: pending.revision!,
+      dismissedAt: '2026-08-01T00:00:02Z',
+    });
+    const newer = {
+      ...pending,
+      revision: pending.revision! + 1,
+      body: 'New body',
+      updated_at: '2026-08-01T00:00:03Z',
+    };
+    const dismissApplicationNotification = vi.fn();
+    const controller = new ApplicationNotificationsController({
+      backend: createBackend({
+        notification: newer,
+        dismiss: dismissApplicationNotification,
+      }),
+      connectionId: 'connection-1',
+      hydrateSnapshot: true,
+      intervalMs: 60_000,
+      dismissalCache,
+    });
+
+    controller.start();
+    await vi.waitFor(() => {
+      expect(controller.getSnapshot().notifications).toEqual([newer]);
+      expect(dismissalCache.getSnapshot().entries).toEqual([]);
+    });
+    expect(dismissApplicationNotification).not.toHaveBeenCalled();
     controller.close();
   });
 });

@@ -215,6 +215,47 @@ test('keeps an inline notification visible when server dismissal fails', async (
   expect(screen.getByText('Persistent body')).toBeTruthy();
 });
 
+test('keeps an optimistic inline dismissal hidden when synchronization fails', async () => {
+  const onDismissNotification = jest.fn(async () => {
+    throw new Error('server unavailable');
+  });
+  renderWithMobileProviders(
+    <SessionNotificationsHost
+      sessionSummary={{
+        session_id: 'session-1',
+        modified: 0,
+        preview: '',
+        metadata: { notifications: { items: [notification] } },
+      }}
+      optimisticDismiss
+      onDismissNotification={onDismissNotification}
+    />,
+  );
+
+  fireEvent.press(screen.getByLabelText('Dismiss notification'));
+  expect(screen.queryByText('Persistent body')).toBeNull();
+  await waitFor(() => {
+    expect(onDismissNotification).toHaveBeenCalledWith(notification);
+  });
+  expect(screen.queryByText('Persistent body')).toBeNull();
+});
+
+test('suppresses a revision provided by a persistent dismissal cache', () => {
+  renderWithMobileProviders(
+    <SessionNotificationsHost
+      sessionSummary={{
+        session_id: 'session-1',
+        modified: 0,
+        preview: '',
+        metadata: { notifications: { items: [notification] } },
+      }}
+      suppressedRevisionKeys={['notification-1:1']}
+    />,
+  );
+
+  expect(screen.queryByText('Persistent body')).toBeNull();
+});
+
 test('does not resurrect a terminal session record from an older event', () => {
   const dismissed = {
     ...notification,

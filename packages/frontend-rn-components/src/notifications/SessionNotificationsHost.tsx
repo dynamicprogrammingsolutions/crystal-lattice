@@ -29,6 +29,8 @@ export interface SessionNotificationsHostProps {
   onDismissNotification?: (
     notification: SessionNotification,
   ) => Promise<void> | void;
+  optimisticDismiss?: boolean;
+  suppressedRevisionKeys?: readonly string[];
   renderInline?: (options: {
     notification: SessionNotification;
     onDismiss: () => void;
@@ -44,6 +46,8 @@ export function SessionNotificationsHost({
   onModal,
   onFollowupAction,
   onDismissNotification,
+  optimisticDismiss = false,
+  suppressedRevisionKeys = [],
   renderInline,
   inlinePresentations = ['inline'],
 }: SessionNotificationsHostProps): React.JSX.Element | null {
@@ -66,11 +70,12 @@ export function SessionNotificationsHost({
           const revision = `${notification.id}:${notificationExpectedRevision(notification)}`;
           return (
             notification.status === 'pending' &&
-            !dismissedRevisions.includes(revision)
+            !dismissedRevisions.includes(revision) &&
+            !suppressedRevisionKeys.includes(revision)
           );
         },
       ),
-    [dismissedRevisions, events, sessionSummary],
+    [dismissedRevisions, events, sessionSummary, suppressedRevisionKeys],
   );
 
   useEffect(() => {
@@ -104,17 +109,25 @@ export function SessionNotificationsHost({
 
   const dismiss = async (notification: SessionNotification) => {
     if (dismissingIds.includes(notification.id)) return;
+    const revision = `${notification.id}:${notificationExpectedRevision(notification)}`;
+    if (optimisticDismiss) {
+      setDismissedRevisions((current) =>
+        current.includes(revision) ? current : [...current, revision],
+      );
+    }
     setDismissingIds((current) => [...current, notification.id]);
     try {
       if (onDismissNotification) {
         await onDismissNotification(notification);
       }
-      const revision = `${notification.id}:${notificationExpectedRevision(notification)}`;
-      setDismissedRevisions((current) =>
-        current.includes(revision) ? current : [...current, revision],
-      );
+      if (!optimisticDismiss) {
+        setDismissedRevisions((current) =>
+          current.includes(revision) ? current : [...current, revision],
+        );
+      }
     } catch {
-      // The owner reports the error and the notification remains visible.
+      // Optimistic hosts retain suppression; server-authoritative hosts keep
+      // the notification visible until the mutation succeeds.
     } finally {
       setDismissingIds((current) =>
         current.filter((id) => id !== notification.id),

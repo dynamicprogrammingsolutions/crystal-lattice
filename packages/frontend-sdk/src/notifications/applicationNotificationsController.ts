@@ -9,6 +9,11 @@ import {
   isNewerNotification,
   notificationExpectedRevision,
 } from './notificationLifecycle';
+import {
+  NotificationDismissalCache,
+  notificationDismissalRevisionKey,
+  type NotificationDismissalScopeKey,
+} from './notificationDismissalCache';
 
 export interface ApplicationNotificationsState {
   notifications: ApplicationNotification[];
@@ -22,6 +27,8 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
   private readonly connectionId?: string | null;
   private readonly source: PollingEventSource;
   private readonly hydrateSnapshot: boolean;
+  private readonly dismissalCache?: NotificationDismissalCache;
+  private readonly retryingDismissals = new Set<string>();
   private generation = 0;
 
   constructor(options: {
@@ -30,6 +37,7 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
     intervalMs?: number;
     backoffMs?: number;
     hydrateSnapshot?: boolean;
+    dismissalCache?: NotificationDismissalCache;
   }) {
     super({
       notifications: [],
@@ -40,6 +48,7 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
     this.backend = options.backend;
     this.connectionId = options.connectionId;
     this.hydrateSnapshot = options.hydrateSnapshot === true;
+    this.dismissalCache = options.dismissalCache;
     this.source = new PollingEventSource(options.backend, {
       applicationScope: true,
       intervalMs: options.intervalMs,
@@ -69,11 +78,15 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
 
     let notifications = this.getSnapshot().notifications;
     let error: string | null = null;
+    await this.dismissalCache?.load();
     if (!this.hydrateSnapshot) {
       notifications = this.getSnapshot().notifications;
     } else if (this.backend.listApplicationNotifications) {
       try {
         notifications = await this.backend.listApplicationNotifications();
+        notifications = this.applyDismissalCache(notifications, {
+          completeSnapshot: true,
+        });
       } catch (caught) {
         error =
           caught instanceof Error
@@ -105,7 +118,12 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
             (event) => event.type !== 'application_notification_dismissed',
           ),
         );
-        this.setSnapshot({ ...current, notifications });
+        this.setSnapshot({
+          ...current,
+          notifications: this.applyDismissalCache(notifications, {
+            completeSnapshot: false,
+          }),
+        });
         for (const event of events) {
           if (
             event.type === 'application_reload_completed' ||
@@ -153,13 +171,50 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
     if (!this.backend.dismissApplicationNotification) {
       throw new Error('Backend does not support application notification dismissal.');
     }
-    const dismissed = await this.backend.dismissApplicationNotification(
-      notificationId,
-      {
-        expectedRevision: notificationExpectedRevision(notification),
-        reason: 'user',
-      },
-    );
+    const revision = notificationExpectedRevision(notification);
+    const scope = this.dismissalScope();
+    let cacheWrite: Promise<void> | null = null;
+    if (this.dismissalCache && scope) {
+      cacheWrite = this.dismissalCache.record({
+        ...scope,
+        notificationId,
+        revision,
+        dismissedAt: new Date().toISOString(),
+      });
+      this.setSnapshot({
+        ...current,
+        notifications: current.notifications.filter(
+          (item) =>
+            !(
+              item.id === notificationId &&
+              notificationExpectedRevision(item) === revision
+            ),
+        ),
+      });
+    }
+    await cacheWrite;
+    let dismissed: ApplicationNotification;
+    try {
+      dismissed = await this.backend.dismissApplicationNotification(
+        notificationId,
+        {
+          expectedRevision: revision,
+          reason: 'user',
+        },
+      );
+    } catch (error) {
+      if (this.dismissalCache && scope) {
+        return notification;
+      }
+      throw error;
+    }
+    if (this.dismissalCache && scope) {
+      const entry = this.dismissalCache.find({
+        ...scope,
+        notificationId,
+      });
+      if (entry) void this.dismissalCache.remove(entry);
+    }
     const byId = new Map(
       current.notifications.map((item) => [item.id, item]),
     );
@@ -176,8 +231,80 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
     return dismissed;
   }
 
+  private dismissalScope(): NotificationDismissalScopeKey | null {
+    if (!this.connectionId) return null;
+    return {
+      connectionId: this.connectionId,
+      scope: 'application',
+    };
+  }
+
+  private applyDismissalCache(
+    notifications: ApplicationNotification[],
+    options: { completeSnapshot: boolean },
+  ): ApplicationNotification[] {
+    const cache = this.dismissalCache;
+    const scope = this.dismissalScope();
+    if (!cache || !scope || !cache.getSnapshot().loaded) return notifications;
+    if (options.completeSnapshot) {
+      cache.reconcileSnapshot(scope, notifications);
+    }
+    return notifications.filter((notification) => {
+      const result = cache.observe(scope, notification);
+      if (result !== 'suppress') return true;
+      void this.retryCachedDismissal(notification, scope);
+      return false;
+    });
+  }
+
+  private async retryCachedDismissal(
+    notification: ApplicationNotification,
+    scope: NotificationDismissalScopeKey,
+  ): Promise<void> {
+    const cache = this.dismissalCache;
+    if (!cache || !this.backend.dismissApplicationNotification) return;
+    const revision = notificationExpectedRevision(notification);
+    const retryKey = notificationDismissalRevisionKey({
+      ...scope,
+      notificationId: notification.id,
+      revision,
+    });
+    if (this.retryingDismissals.has(retryKey)) return;
+    this.retryingDismissals.add(retryKey);
+    try {
+      const dismissed = await this.backend.dismissApplicationNotification(
+        notification.id,
+        {
+          expectedRevision: revision,
+          reason: 'user',
+        },
+      );
+      const entry = cache.find({
+        ...scope,
+        notificationId: notification.id,
+      });
+      if (entry) await cache.remove(entry);
+      const current = this.getSnapshot();
+      const byId = new Map(
+        current.notifications.map((item) => [item.id, item]),
+      );
+      byId.set(dismissed.id, dismissed);
+      this.setSnapshot({
+        ...current,
+        notifications: [...byId.values()].sort((left, right) =>
+          left.updated_at.localeCompare(right.updated_at),
+        ),
+      });
+    } catch {
+      // Keep the exact cached revision hidden until it can be retried.
+    } finally {
+      this.retryingDismissals.delete(retryKey);
+    }
+  }
+
   close(): void {
     this.generation += 1;
+    this.retryingDismissals.clear();
     this.source.stop();
     this.setSnapshot({
       ...this.getSnapshot(),

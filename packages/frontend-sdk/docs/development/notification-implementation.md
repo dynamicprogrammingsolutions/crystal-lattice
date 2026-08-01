@@ -21,12 +21,20 @@ prevents stale events from replacing newer snapshot records. Display envelopes
 classify connection and session ownership independently from presentation.
 
 `RestAgentBackend` exposes application/session list and dismiss operations.
-Mobile enables snapshot hydration and applies successful server dismissal
-responses immediately. Dismissal events are retained in the event contract but
-are not forced onto another already-open presentation.
+Mobile enables snapshot hydration and uses
+`NotificationDismissalCache` over a host-provided `KeyValueStore`. The cache
+stores connection/scope/session/notification identity plus the exact dismissed
+revision, but no notification content.
 
-Local revision suppression remains available for transient action displays and
-for hosts that have not yet adopted server dismissal. It is not the
+Application notification controllers hide a cached exact revision, retry its
+unchanged dismissal during hydration or observation, and remove the cache after
+server convergence. A newer authoritative revision invalidates the older
+cache entry and is presented; the controller never rewrites the cached expected
+revision. Dismissal events remain in the event contract but are not forced onto
+another already-open presentation.
+
+Direct action-display close remains transient and does not enter the
+notification dismissal cache. The cache is synchronization state, not the
 authoritative notification record.
 
 Tests should distinguish portable contract coverage from TypeScript-specific

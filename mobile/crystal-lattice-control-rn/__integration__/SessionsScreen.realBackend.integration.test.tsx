@@ -1,5 +1,7 @@
 import React from 'react';
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const actual = jest.requireActual('@crystal-lattice/frontend-rn-components');
@@ -132,8 +134,55 @@ const SERVER_CONFIG = {
   },
 };
 
+function withFailedApplicationDismissal(backend: AgentBackend): AgentBackend {
+  return new Proxy(backend, {
+    get(target, property, receiver) {
+      if (property === 'dismissApplicationNotification') {
+        return async () => {
+          throw new Error('simulated network failure');
+        };
+      }
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
+function withFrozenApplicationEvents(
+  backend: AgentBackend,
+  onDismissError: (error: unknown) => void,
+): AgentBackend {
+  return new Proxy(backend, {
+    get(target, property, receiver) {
+      if (property === 'listEvents') {
+        return async () => ({
+          events: [],
+          latestEventId: '0',
+          cursorExpired: false,
+        });
+      }
+      if (property === 'dismissApplicationNotification') {
+        return async (...args: any[]) => {
+          try {
+            return await (target.dismissApplicationNotification as any)(...args);
+          } catch (error) {
+            onDismissError(error);
+            throw error;
+          }
+        };
+      }
+      const value = Reflect.get(target, property, receiver);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+
 describe('SessionsScreen real-backend component integration', () => {
   let started: StartedMobileComponentBackend | null = null;
+
+  beforeEach(async () => {
+    await AsyncStorage.clear();
+  });
 
   afterEach(async () => {
     if (started) {
@@ -434,6 +483,109 @@ describe('SessionsScreen real-backend component integration', () => {
         screen.queryByText('Application notification demo'),
       ).toBeNull();
     });
+    reopened.unmount();
+  }, 60000);
+
+  it('retries a cached application dismissal through the real backend', async () => {
+    started = await startMobileComponentBackend({
+      config: SERVER_CONFIG,
+      startupTimeoutMs: 30000,
+    });
+    await started.backend.executeAction({
+      pluginId: 'dummy_application_notification',
+      actionId: 'emit_application_notification',
+      inputs: { presentation: 'banner', variant: 'warning' },
+    });
+    const flakyBackend = withFailedApplicationDismissal(started.backend);
+    const renderApplicationNotifications = (backend: AgentBackend) =>
+      renderWithMobileProviders(
+        <ApplicationPluginsProvider backend={backend} connectionId="real-backend">
+          <GlobalDisplayLayer backend={backend} connectionId="real-backend">
+            <MobileDisplayHost scope="connection" />
+          </GlobalDisplayLayer>
+        </ApplicationPluginsProvider>,
+      );
+
+    const rendered = renderApplicationNotifications(flakyBackend);
+    expect(
+      await screen.findByText('warning notification using banner presentation.'),
+    ).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Dismiss notification'));
+    await waitFor(() => {
+      expect(
+        screen.queryByText('warning notification using banner presentation.'),
+      ).toBeNull();
+    });
+    expect(await started.backend.listApplicationNotifications!()).toHaveLength(1);
+
+    rendered.unmount();
+    const reopened = renderApplicationNotifications(started.backend);
+    await waitFor(async () => {
+      expect(await started!.backend.listApplicationNotifications!()).toEqual([]);
+      expect(
+        screen.queryByText('warning notification using banner presentation.'),
+      ).toBeNull();
+    });
+    reopened.unmount();
+  }, 60000);
+
+  it('shows a newer revision instead of retargeting a cached dismissal', async () => {
+    started = await startMobileComponentBackend({
+      config: SERVER_CONFIG,
+      startupTimeoutMs: 30000,
+    });
+    await started.backend.executeAction({
+      pluginId: 'dummy_application_notification',
+      actionId: 'emit_application_notification',
+      inputs: { presentation: 'banner', variant: 'warning' },
+    });
+    let serverDismissError: unknown = null;
+    const frozenBackend = withFrozenApplicationEvents(
+      started.backend,
+      (error) => {
+        serverDismissError = error;
+      },
+    );
+    const renderApplicationNotifications = (backend: AgentBackend) =>
+      renderWithMobileProviders(
+        <ApplicationPluginsProvider backend={backend} connectionId="real-backend">
+          <GlobalDisplayLayer backend={backend} connectionId="real-backend">
+            <MobileDisplayHost scope="connection" />
+          </GlobalDisplayLayer>
+        </ApplicationPluginsProvider>,
+      );
+
+    const rendered = renderApplicationNotifications(frozenBackend);
+    expect(
+      await screen.findByText('warning notification using banner presentation.'),
+    ).toBeTruthy();
+
+    await started.backend.executeAction({
+      pluginId: 'dummy_application_notification',
+      actionId: 'emit_application_notification',
+      inputs: { presentation: 'banner', variant: 'success' },
+    });
+    fireEvent.press(screen.getByLabelText('Dismiss notification'));
+    await waitFor(() => {
+      expect(
+        screen.queryByText('warning notification using banner presentation.'),
+      ).toBeNull();
+    });
+    const activeAfterConflict =
+      await started.backend.listApplicationNotifications!();
+    expect(activeAfterConflict).toHaveLength(1);
+    expect(activeAfterConflict[0].revision).toBe(2);
+    expect(activeAfterConflict[0].status).toBe('pending');
+    expect(String(serverDismissError)).toContain('HTTP 409');
+    rendered.unmount();
+
+    const reopened = renderApplicationNotifications(started.backend);
+    expect(
+      await screen.findByText('success notification using banner presentation.'),
+    ).toBeTruthy();
+    const active = await started.backend.listApplicationNotifications!();
+    expect(active).toHaveLength(1);
+    expect(active[0].revision).toBe(2);
     reopened.unmount();
   }, 60000);
 

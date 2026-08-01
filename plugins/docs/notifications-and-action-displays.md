@@ -480,10 +480,20 @@ POST /sessions/{session_id}/notifications/{notification_id}/dismiss
 List routes return active notifications by default and accept
 `include_terminal=true`.
 
-The initiating mobile frontend removes the notification after a successful
-server response. Another already-open frontend is not forced to remove it
+The initiating mobile frontend stores an exact-revision dismissal cache entry
+and hides the notification immediately. If the server request fails, that
+revision stays hidden without a blocking error and the same expected-revision
+request is retried when the record is observed after reconnect or
+rehydration.
+
+The cache never transfers dismissal to a newer revision. If the server returns
+the same notification ID at a newer pending revision, mobile removes the
+obsolete cache entry and presents the newer content. Direct action displays do
+not enter this cache.
+
+Another already-open frontend is not forced to remove a notification
 immediately; a newly opened, reconnected, or authoritatively refreshed mobile
-frontend does not present the dismissed record.
+frontend does not present a server-dismissed record.
 
 Dismissal records a user presentation decision. Resolve the notification when
 the underlying condition itself is complete.

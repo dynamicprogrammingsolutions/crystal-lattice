@@ -6,7 +6,8 @@ import {
   waitFor,
   within,
 } from '@testing-library/react-native';
-import { View } from 'react-native';
+import { Alert, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import {
   emitDisplayPresentation,
@@ -20,6 +21,10 @@ import {
 } from '../src/components/GlobalDisplayLayer';
 import GlobalDisplayLayer from '../src/components/GlobalDisplayLayer';
 import { renderWithMobileProviders } from '../src/testUtils/renderWithMobileProviders';
+
+beforeEach(async () => {
+  await AsyncStorage.clear();
+});
 
 function createBackend(): AgentBackend {
   return {
@@ -172,6 +177,81 @@ test('persists application notification dismissal and does not rehydrate it', as
     ).toBeNull();
   });
   reopened.unmount();
+});
+
+test('keeps a failed application dismissal hidden and presents a newer revision', async () => {
+  let notification = {
+    id: 'application-notification',
+    key: 'demo',
+    kind: 'notification' as const,
+    status: 'pending' as const,
+    revision: 1,
+    severity: 'info' as const,
+    title: 'Application notification',
+    body: 'Cached application notification',
+    created_at: '2026-08-01T00:00:00Z',
+    updated_at: '2026-08-01T00:00:00Z',
+    source: { plugin: 'dummy' },
+    display: {
+      format: 'text' as const,
+      body: 'Cached application notification',
+      presentation: 'banner' as const,
+    },
+    model_visibility: 'hidden' as const,
+  };
+  const dismissApplicationNotification = jest.fn(async () => {
+    throw new Error('server unavailable');
+  });
+  const backend = {
+    ...createBackend(),
+    listApplicationNotifications: jest.fn(async () => [notification]),
+    dismissApplicationNotification,
+  } as AgentBackend;
+  const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+  const renderLayer = () =>
+    renderWithMobileProviders(
+      <ApplicationPluginsProvider backend={backend} connectionId="test">
+        <GlobalDisplayLayer backend={backend} connectionId="test">
+          <MobileDisplayHost scope="connection" />
+        </GlobalDisplayLayer>
+      </ApplicationPluginsProvider>,
+    );
+
+  const rendered = renderLayer();
+  expect(await screen.findByText('Cached application notification')).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Dismiss notification'));
+  await waitFor(() => {
+    expect(screen.queryByText('Cached application notification')).toBeNull();
+    expect(dismissApplicationNotification).toHaveBeenCalledWith(
+      'application-notification',
+      { expectedRevision: 1, reason: 'user' },
+    );
+  });
+  expect(alert).not.toHaveBeenCalled();
+
+  rendered.unmount();
+  const reopened = renderLayer();
+  await waitFor(() => {
+    expect(screen.queryByText('Cached application notification')).toBeNull();
+    expect(dismissApplicationNotification.mock.calls.length).toBeGreaterThan(1);
+  });
+
+  notification = {
+    ...notification,
+    revision: 2,
+    body: 'New application revision',
+    updated_at: '2026-08-01T00:00:01Z',
+    display: {
+      ...notification.display,
+      body: 'New application revision',
+    },
+  };
+  reopened.unmount();
+  const updated = renderLayer();
+  expect(await screen.findByText('New application revision')).toBeTruthy();
+
+  updated.unmount();
+  alert.mockRestore();
 });
 
 test('routes connection displays to Sessions and session displays to matching Chat', () => {

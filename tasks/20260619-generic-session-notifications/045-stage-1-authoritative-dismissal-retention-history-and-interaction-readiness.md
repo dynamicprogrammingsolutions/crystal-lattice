@@ -19,10 +19,10 @@ build on it without replacing the notification substrate.
 - [ ] Other already-open frontends are not required to reconcile the dismissal
   immediately, but a newly opened, reconnected, or explicitly refreshed
   frontend does not present a server-dismissed notification.
-- [ ] A frontend can persist a revision-scoped local dismissal when the server
+- [x] A frontend can persist a revision-scoped local dismissal when the server
   mutation fails, keep that exact revision hidden, and retry the unchanged
   dismissal when that revision is observed again.
-- [ ] A cached dismissal never changes its expected revision: when a newer
+- [x] A cached dismissal never changes its expected revision: when a newer
   pending revision is authoritative, the old cache entry is removed and the
   newer revision is eligible for presentation.
 - [x] Ordinary notification lifecycle supports at least `pending`,
@@ -171,9 +171,12 @@ or Stage 2b real suspension. Those remain in subtasks 050–080.
   runtime-injected durable `ApplicationNotificationStore`.
 - Mobile uses server-authoritative dismissal and application snapshot
   hydration. Desktop dismissal remains frontend-local until Stage C.
-- Mobile currently waits for a successful server mutation before hiding a
-  notification and shows a blocking error when dismissal fails.
-- No persistent frontend dismissal cache exists yet.
+- Mobile stores an exact-revision dismissal entry in AsyncStorage, hides the
+  selected notification immediately, and does not show a blocking error when
+  synchronization fails.
+- Mobile retries only the unchanged cached revision during
+  reconnect/rehydration. A newer authoritative revision removes the obsolete
+  cache and is presented.
 - Application terminal records survive application/owner/process
   reconstruction and remain listable for the later history UI.
 - Session pruning keeps every `pending` record, so the current item limit is
@@ -370,12 +373,14 @@ Automated boundary:
 
 Manual mobile checkpoint B-2:
 
-- show a notification, make the server unavailable, and dismiss it;
-- confirm it disappears without a blocking error;
-- reopen mobile and confirm the same revision remains hidden;
-- restore the server and confirm the unchanged dismissal is retried;
-- update the notification to a newer revision and confirm it is shown rather
-  than automatically dismissed.
+- dismiss an application notification while the server is available and
+  confirm it disappears immediately without an error;
+- navigate away and back, then restart/reopen mobile, and confirm the
+  successfully dismissed notification remains absent;
+- repeat the online happy path for session inline, banner, and modal
+  notifications;
+- emit the same stable key after a terminal dismissal and confirm the new
+  lifecycle occurrence is presented normally.
 
 Stop after checkpoint B-2.
 
@@ -621,8 +626,8 @@ planned API as available before its implementation stage completes.
 - [x] Approve the revised B-1/B-2/C sequence.
 - [x] Plan and execute Stage B-1.
 - [x] Complete manual checkpoint B-1.
-- [ ] Plan and execute Stage B-2.
-- [ ] Complete manual checkpoint B-2.
+- [x] Plan and execute Stage B-2.
+- [x] Complete manual checkpoint B-2.
 - [ ] Plan and execute Stage C.
 - [ ] Complete manual checkpoint C.
 - [ ] Plan and execute Stage D.
@@ -791,3 +796,53 @@ Manual mobile checkpoint B-1 was confirmed on August 1, 2026:
 - an active application notification survived server-process restart;
 - a dismissed notification remained absent after another restart;
 - emitting the same stable key created a visible new lifecycle occurrence.
+
+### Stage B-2 — revision-scoped mobile dismissal cache
+
+Implemented on August 1, 2026:
+
+- added a portable `NotificationDismissalCache` over the existing
+  `KeyValueStore` contract;
+- limited persisted entries to connection, scope, optional session,
+  notification ID, exact revision, and dismissal time;
+- added bounded serialized persistence without notification title/body/display
+  content;
+- made mobile use one AsyncStorage-backed cache shared through the global
+  display layer;
+- made application notification dismissal hide immediately, retain failed
+  synchronization, and retry the unchanged revision during snapshot/event
+  observation;
+- made exact cached application revisions remain hidden after component
+  reconstruction;
+- made newer application revisions invalidate the older cache and remain
+  visible without retargeting the dismissal;
+- added opt-in optimistic suppression and external revision-key suppression to
+  the shared session notification host while retaining its existing default
+  behavior for desktop and other hosts;
+- applied the same cache semantics to mobile session inline, banner, and modal
+  notifications;
+- refreshes session authority before removing a successfully synchronized cache
+  entry to avoid presentation flash;
+- retained transient direct action-display close outside the cache;
+- retained the approved absence of periodic retry scheduling, operation IDs,
+  and cross-device cache synchronization.
+
+Automated evidence:
+
+- frontend SDK: `281 passed`;
+- frontend SDK React bindings: `20 passed`;
+- shared React Native components: `7 passed`;
+- mobile TypeScript: passed;
+- full mobile Jest suite: `109 passed`;
+- focused mobile cache/dismissal tests: `14 passed`;
+- real-backend mobile component integration: `5 passed`, including exact
+  revision retry and a real server revision-conflict response that preserves
+  and presents the newer revision;
+- focused desktop compatibility test: `1 passed`;
+- no Detox scenario was added because B-2 changes persistence/retry rather than
+  native layout; actual AsyncStorage process-restart behavior belongs to the
+  mobile manual checkpoint.
+
+Manual mobile checkpoint B-2 was confirmed on August 1, 2026. Online
+application and session notification dismissal, reopening, and new lifecycle
+occurrence behavior work as intended.

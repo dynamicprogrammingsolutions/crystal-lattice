@@ -56,9 +56,11 @@ authoritative listing. Existing records without `revision` accept their
 `updated_at` as the compatibility expected-revision token and gain integer
 revision `1` on first mutation.
 
-Mobile Dismiss controls use the server mutation routes and rehydrate
-application/session state from authoritative backend records. Desktop retains
-frontend-local dismissal until its Stage C integration.
+Mobile Dismiss controls cache and hide the exact displayed revision before
+using the server mutation routes. A failed request is retried for that
+unchanged revision during reconnect/rehydration; a newer revision invalidates
+the cache and remains presentable. Desktop retains frontend-local dismissal
+until its Stage C integration.
 
 Notification delivery is best effort. Event publication and the tool-facing
 `notification_sink` cannot fail the user request.

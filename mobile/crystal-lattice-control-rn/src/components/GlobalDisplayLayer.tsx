@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { Alert, Linking, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
 
 import {
@@ -17,12 +18,16 @@ import {
   displayEnvelopeRevisionKey,
   emitDisplayPresentation,
   normalizeDisplayEnvelope,
+  NotificationDismissalCache,
+  notificationDismissalRevisionKey,
   runApplicationAction,
   subscribeDisplayPresentation,
   type ActionDisplayFollowupAction,
   type AgentBackend,
   type ApplicationNotification,
   type DisplayEnvelope,
+  type KeyValueStore,
+  type NotificationDismissalCacheState,
 } from '@crystal-lattice/frontend-sdk';
 import {
   NotificationBannerHost,
@@ -42,6 +47,8 @@ interface GlobalDisplayLayerProps {
 
 interface GlobalDisplayContextValue {
   items: DisplayEnvelope[];
+  dismissalCache: NotificationDismissalCache | null;
+  dismissalCacheState: NotificationDismissalCacheState;
   dismiss: (envelope: DisplayEnvelope) => Promise<void>;
   followup: (
     action: ActionDisplayFollowupAction,
@@ -50,6 +57,22 @@ interface GlobalDisplayContextValue {
 }
 
 const GlobalDisplayContext = createContext<GlobalDisplayContextValue | null>(null);
+const notificationDismissalStore: KeyValueStore = {
+  get: (key) => AsyncStorage.getItem(key),
+  set: (key, value) => AsyncStorage.setItem(key, value),
+  delete: (key) => AsyncStorage.removeItem(key),
+};
+
+export function useNotificationDismissalCache(): {
+  cache: NotificationDismissalCache | null;
+  state: NotificationDismissalCacheState;
+} {
+  const context = useContext(GlobalDisplayContext);
+  return {
+    cache: context?.dismissalCache ?? null,
+    state: context?.dismissalCacheState ?? { loaded: false, entries: [] },
+  };
+}
 
 export function MobileDisplayHost({
   scope,
@@ -138,6 +161,20 @@ export default function GlobalDisplayLayer({
   const [locallyDismissedRevisions, setLocallyDismissedRevisions] = useState<
     string[]
   >([]);
+  const dismissalCache = useMemo(
+    () =>
+      backend && connectionId
+        ? new NotificationDismissalCache({
+            store: notificationDismissalStore,
+          })
+        : null,
+    [backend, connectionId],
+  );
+  const [dismissalCacheState, setDismissalCacheState] =
+    useState<NotificationDismissalCacheState>({
+      loaded: false,
+      entries: [],
+    });
   const applicationControllerRef =
     useRef<ApplicationNotificationsController | null>(null);
 
@@ -163,6 +200,18 @@ export default function GlobalDisplayLayer({
   }, [backend, upsert]);
 
   useEffect(() => {
+    if (!dismissalCache) {
+      setDismissalCacheState({ loaded: false, entries: [] });
+      return;
+    }
+    const sync = () => setDismissalCacheState(dismissalCache.getSnapshot());
+    const unsubscribe = dismissalCache.subscribe(sync);
+    sync();
+    void dismissalCache.load();
+    return unsubscribe;
+  }, [dismissalCache]);
+
+  useEffect(() => {
     if (!backend) {
       setApplicationNotifications([]);
       return;
@@ -171,6 +220,7 @@ export default function GlobalDisplayLayer({
       backend,
       connectionId,
       hydrateSnapshot: true,
+      dismissalCache: dismissalCache ?? undefined,
     });
     applicationControllerRef.current = controller;
     const sync = () => {
@@ -186,7 +236,7 @@ export default function GlobalDisplayLayer({
       unsubscribe();
       controller.close();
     };
-  }, [backend, connectionId]);
+  }, [backend, connectionId, dismissalCache]);
 
   const dismissLocally = useCallback((envelope: DisplayEnvelope) => {
     const lifecycle = displayEnvelopeLifecycleKey(envelope);
@@ -214,16 +264,47 @@ export default function GlobalDisplayLayer({
           if (!backend?.dismissSessionNotification || !envelope.sessionId) {
             throw new Error('Backend does not support session notification dismissal.');
           }
-          await backend.dismissSessionNotification(
-            envelope.sessionId,
-            envelope.id,
-            {
-              expectedRevision:
-                envelope.notificationRevision ?? envelope.updatedAt,
-              reason: 'user',
-            },
-          );
+          const revision = envelope.notificationRevision ?? envelope.updatedAt;
+          if (revision == null) {
+            throw new Error('Notification revision is unavailable.');
+          }
+          const cache = dismissalCache;
+          const cachedDismissal =
+            cache && connectionId
+              ? {
+                  cache,
+                  entry: {
+                    connectionId,
+                    scope: 'session' as const,
+                    sessionId: envelope.sessionId,
+                    notificationId: envelope.id,
+                    revision,
+                    dismissedAt: new Date().toISOString(),
+                  },
+                }
+              : null;
+          const cacheWrite = cachedDismissal
+            ? cachedDismissal.cache.record(cachedDismissal.entry)
+            : null;
           dismissLocally(envelope);
+          await cacheWrite;
+          try {
+            await backend.dismissSessionNotification(
+              envelope.sessionId,
+              envelope.id,
+              {
+                expectedRevision: revision,
+                reason: 'user',
+              },
+            );
+            if (cachedDismissal) {
+              void cachedDismissal.cache.remove(cachedDismissal.entry);
+            }
+          } catch {
+            if (!cachedDismissal) {
+              throw new Error('Notification dismissal failed.');
+            }
+          }
           return;
         }
         dismissLocally(envelope);
@@ -236,7 +317,7 @@ export default function GlobalDisplayLayer({
         );
       }
     },
-    [backend, dismissLocally],
+    [backend, connectionId, dismissalCache, dismissLocally],
   );
 
   const followup = useCallback(
@@ -314,12 +395,49 @@ export default function GlobalDisplayLayer({
           notification.revision ?? notification.updated_at,
       }),
     );
-  const items = [...applicationItems, ...transientItems].filter(
-    (item) =>
-      !locallyDismissedRevisions.includes(displayEnvelopeRevisionKey(item)),
-  );
+  const items = [...applicationItems, ...transientItems].filter((item) => {
+    if (locallyDismissedRevisions.includes(displayEnvelopeRevisionKey(item))) {
+      return false;
+    }
+    if (
+      !connectionId ||
+      (item.source !== 'application_notification' &&
+        item.source !== 'session_notification')
+    ) {
+      return true;
+    }
+    const revision = item.notificationRevision ?? item.updatedAt;
+    if (revision == null) return true;
+    const scope =
+      item.source === 'application_notification' ? 'application' : 'session';
+    const revisionKey = notificationDismissalRevisionKey({
+      connectionId,
+      scope,
+      sessionId: item.sessionId ?? undefined,
+      notificationId: item.id,
+      revision,
+    });
+    return !dismissalCacheState.entries.some(
+      (entry) =>
+        notificationDismissalRevisionKey({
+          connectionId: entry.connectionId,
+          scope: entry.scope,
+          sessionId: entry.sessionId,
+          notificationId: entry.notificationId,
+          revision: entry.revision,
+        }) === revisionKey,
+    );
+  });
   return (
-    <GlobalDisplayContext.Provider value={{ items, dismiss, followup }}>
+    <GlobalDisplayContext.Provider
+      value={{
+        items,
+        dismissalCache,
+        dismissalCacheState,
+        dismiss,
+        followup,
+      }}
+    >
       {children}
     </GlobalDisplayContext.Provider>
   );

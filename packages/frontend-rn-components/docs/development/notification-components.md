@@ -9,6 +9,9 @@ Shared notification components provide:
 - banner and modal routing callbacks;
 - optional owner-provided asynchronous dismissal;
 - immediate local suppression only after successful owner dismissal;
+- opt-in optimistic suppression that remains hidden after synchronization
+  failure;
+- externally supplied revision keys for a persistent host dismissal cache;
 - local fallback for hosts that have not adopted server dismissal;
 - terminal-snapshot protection against stale event resurrection;
 - accessibility labels and action semantics.

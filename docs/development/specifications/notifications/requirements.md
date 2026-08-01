@@ -24,8 +24,8 @@
 | FNT-006 | Relevant top action bars expose a reusable Notifications history action. | Proposed | Unverified | Draft |
 | FNT-007 | Historical rich displays can be shown again locally without reactivating lifecycle state. | Proposed | Unverified | Draft |
 | FNT-008 | Active interactions are nondismissible and discoverable through a compact waiting-for-input indicator. | Proposed | Unverified | Draft |
-| FNT-009 | A failed frontend dismissal can remain locally persisted and hidden for the exact notification revision, with retry when that same revision is observed again. | Approved B-2 | Unverified | Draft |
-| FNT-010 | A cached dismissal is never promoted to a newer revision; an authoritative newer pending revision removes the obsolete cache and is presented. | Approved B-2 | Unverified | Draft |
+| FNT-009 | A failed frontend dismissal can remain locally persisted and hidden for the exact notification revision, with retry when that same revision is observed again. | Implemented mobile | Automated SDK/component/real-backend; mobile confirmed | Documented |
+| FNT-010 | A cached dismissal is never promoted to a newer revision; an authoritative newer pending revision removes the obsolete cache and is presented. | Implemented mobile | Automated SDK/component/real-backend; mobile confirmed | Documented |
 
 Primary task evidence:
 

@@ -1,6 +1,6 @@
 # Notification technical specification
 
-Status: Implementing — B-1 automated verification complete; manual pending
+Status: Implementing — Stage B-2 complete; Stage C pending
 
 ## Record family
 
@@ -202,5 +202,5 @@ revision token during migration.
 Stage A migrates such a record to integer revision `1` on its first mutation.
 Mobile calls the server mutation routes and hydrates application notifications
 from the owner snapshot. Desktop retains frontend-local dismissal until Stage
-C. The revision-scoped failed-dismissal cache is planned for Stage B-2 and
-does not change the meaning of `expected_revision`.
+C. Mobile uses the Stage B-2 revision-scoped failed-dismissal cache, which does
+not change the meaning of `expected_revision`.

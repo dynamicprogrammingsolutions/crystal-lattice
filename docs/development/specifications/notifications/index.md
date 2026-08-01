@@ -1,6 +1,6 @@
 # Notifications
 
-Status: Implementing — B-1 automated verification complete; manual pending
+Status: Implementing — Stage B-2 complete; Stage C pending
 
 The notification specification defines application- and session-scoped
 notification records, lifecycle, event delivery, persistence, and portable

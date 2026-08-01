@@ -37,10 +37,13 @@ import {
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
   normalizeDisplayEnvelope,
+  notificationDismissalRevisionKey,
+  notificationExpectedRevision,
   runApplicationAction,
   resolveAttachmentActionPluginId,
   selectSessionAssetId,
   selectLastAssistantMessage,
+  selectSessionNotifications,
   storeSessionAttachment,
   generateIdempotencyKey,
   getTranscriptRangeControlPresentation,
@@ -91,7 +94,10 @@ import SessionSnapshotsModal from './components/SessionSnapshotsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
-import { MobileDisplayHost } from './components/GlobalDisplayLayer';
+import {
+  MobileDisplayHost,
+  useNotificationDismissalCache,
+} from './components/GlobalDisplayLayer';
 import AttachmentViewerHost from './components/AttachmentViewerHost';
 import type { DebugTimelineEntry } from './debugTimeline';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
@@ -751,6 +757,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const {
+    cache: notificationDismissalCache,
+    state: notificationDismissalCacheState,
+  } = useNotificationDismissalCache();
+  const retryingNotificationDismissalsRef = useRef(new Set<string>());
   const actionDialogFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
   const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
   const [sendInProgress, setSendInProgress] = useState(false);
@@ -1192,6 +1203,109 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   });
   const currentSessionSummary = sessionContextState?.summary ?? sessionSummary ?? null;
   const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
+
+  const suppressedSessionNotificationRevisionKeys = useMemo(
+    () =>
+      notificationDismissalCacheState.entries
+        .filter(
+          (entry) =>
+            entry.connectionId === connectionId &&
+            entry.scope === 'session' &&
+            entry.sessionId === sessionId,
+        )
+        .map((entry) => `${entry.notificationId}:${String(entry.revision)}`),
+    [connectionId, notificationDismissalCacheState.entries, sessionId],
+  );
+
+  const retryCachedSessionNotificationDismissal = useCallback(
+    async (notification: SessionNotification) => {
+      if (
+        !backend?.dismissSessionNotification ||
+        !connectionId ||
+        !notificationDismissalCache
+      ) {
+        return;
+      }
+      const revision = notificationExpectedRevision(notification);
+      const retryKey = notificationDismissalRevisionKey({
+        connectionId,
+        scope: 'session',
+        sessionId,
+        notificationId: notification.id,
+        revision,
+      });
+      if (retryingNotificationDismissalsRef.current.has(retryKey)) return;
+      retryingNotificationDismissalsRef.current.add(retryKey);
+      try {
+        await backend.dismissSessionNotification(sessionId, notification.id, {
+          expectedRevision: revision,
+          reason: 'user',
+        });
+        sessionContextController?.invalidate();
+        await sessionContextController?.refresh();
+        const entry = notificationDismissalCache.find({
+          connectionId,
+          scope: 'session',
+          sessionId,
+          notificationId: notification.id,
+        });
+        if (entry) await notificationDismissalCache.remove(entry);
+      } catch {
+        // Keep the exact cached revision hidden until it can be retried.
+      } finally {
+        retryingNotificationDismissalsRef.current.delete(retryKey);
+      }
+    },
+    [
+      backend,
+      connectionId,
+      notificationDismissalCache,
+      sessionContextController,
+      sessionId,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      !notificationDismissalCacheState.loaded ||
+      !notificationDismissalCache ||
+      !connectionId ||
+      !currentSessionSummary
+    ) {
+      return;
+    }
+    const scope = {
+      connectionId,
+      scope: 'session' as const,
+      sessionId,
+    };
+    const notifications = selectSessionNotifications(currentSessionSummary);
+    const suppressed = notificationDismissalCache.reconcileSnapshot(
+      scope,
+      notifications,
+    );
+    for (const notification of notifications) {
+      const revision = notificationExpectedRevision(notification);
+      if (
+        suppressed.has(
+          notificationDismissalRevisionKey({
+            ...scope,
+            notificationId: notification.id,
+            revision,
+          }),
+        )
+      ) {
+        void retryCachedSessionNotificationDismissal(notification);
+      }
+    }
+  }, [
+    connectionId,
+    currentSessionSummary,
+    notificationDismissalCache,
+    notificationDismissalCacheState.loaded,
+    retryCachedSessionNotificationDismissal,
+    sessionId,
+  ]);
 
   useEffect(() => {
     const md = currentSessionSummary?.metadata;
@@ -3425,22 +3539,39 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 
   const dismissPersistentSessionNotification = useCallback(
     async (notification: SessionNotification) => {
-      if (!backend?.dismissSessionNotification) {
-        const error = new Error(
-          'Backend does not support session notification dismissal.',
-        );
-        Alert.alert('Dismiss failed', error.message);
-        throw error;
-      }
+      const revision = notificationExpectedRevision(notification);
+      const cache = notificationDismissalCache;
+      const cachedDismissal =
+        cache && connectionId
+          ? {
+              cache,
+              entry: {
+                connectionId,
+                scope: 'session' as const,
+                sessionId,
+                notificationId: notification.id,
+                revision,
+                dismissedAt: new Date().toISOString(),
+              },
+            }
+          : null;
+      const cacheWrite = cachedDismissal
+        ? cachedDismissal.cache.record(cachedDismissal.entry)
+        : null;
+      await cacheWrite;
+      if (!backend?.dismissSessionNotification) return;
       try {
         await backend.dismissSessionNotification(sessionId, notification.id, {
-          expectedRevision:
-            notification.revision ?? notification.updated_at,
+          expectedRevision: revision,
           reason: 'user',
         });
         sessionContextController?.invalidate();
         await sessionContextController?.refresh();
+        if (cachedDismissal) {
+          void cachedDismissal.cache.remove(cachedDismissal.entry);
+        }
       } catch (error) {
+        if (cachedDismissal) return;
         Alert.alert(
           'Dismiss failed',
           error instanceof Error
@@ -3450,15 +3581,27 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
         throw error;
       }
     },
-    [backend, sessionContextController, sessionId],
+    [
+      backend,
+      connectionId,
+      notificationDismissalCache,
+      sessionContextController,
+      sessionId,
+    ],
   );
 
   const inlineActionDisplaysContent = useMemo(() => {
     return (
       <View>
         <SessionNotificationsHost
-          sessionSummary={currentSessionSummary}
+          sessionSummary={
+            notificationDismissalCacheState.loaded
+              ? currentSessionSummary
+              : null
+          }
           events={debugEvents}
+          optimisticDismiss={!!(notificationDismissalCache && connectionId)}
+          suppressedRevisionKeys={suppressedSessionNotificationRevisionKeys}
           onBanner={(notification) => {
             if (!backend) return;
             emitDisplayPresentation(
@@ -3542,7 +3685,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     dismissPersistentSessionNotification,
     handleDisplayFollowupAction,
     inlineActionDisplays,
+    notificationDismissalCache,
+    notificationDismissalCacheState.loaded,
     presentActionDisplay,
+    suppressedSessionNotificationRevisionKeys,
     sessionId,
   ]);
 

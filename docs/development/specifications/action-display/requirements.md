@@ -10,4 +10,4 @@
 | DSP-006 | Notification dismiss delegates to server lifecycle while direct-display close remains frontend-local. | Implemented mobile; desktop pending C | Automated mobile; human pending | Documented |
 | DSP-007 | All hosts preserve embedded form values and parameter mappings for follow-up actions. | Proposed | Unverified | Draft |
 | DSP-008 | Historical replay disables mutating actions unless explicitly valid and server-validated. | Proposed | Unverified | Draft |
-| DSP-009 | A notification display may optimistically cache dismissal only for the exact displayed revision; direct and historical display close never enters that cache. | Approved B-2 | Unverified | Draft |
+| DSP-009 | A notification display may optimistically cache dismissal only for the exact displayed revision; direct and historical display close never enters that cache. | Implemented mobile | Automated SDK/component; mobile confirmed | Documented |

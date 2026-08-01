@@ -140,6 +140,18 @@ export {
   isNewerNotification,
   notificationExpectedRevision,
 } from './notifications/notificationLifecycle';
+export type {
+  NotificationDismissalCacheEntry,
+  NotificationDismissalCacheState,
+  NotificationDismissalObservation,
+  NotificationDismissalObservationResult,
+  NotificationDismissalScope,
+  NotificationDismissalScopeKey,
+} from './notifications/notificationDismissalCache';
+export {
+  NotificationDismissalCache,
+  notificationDismissalRevisionKey,
+} from './notifications/notificationDismissalCache';
 
 export type { PluginsResult, PluginsRegistryState } from './plugins/pluginsRegistry';
 export { PluginsRegistry } from './plugins/pluginsRegistry';
