@@ -16,6 +16,7 @@ Parent Task: `tasks/20260619-generic-session-notifications/000-main.md`
 
 Depends On:
 - `tasks/20260619-generic-session-notifications/010-stage-1-notification-design.md`
+- `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`
 - `tasks/20260717-tool-call-interceptor-capability.md` (for the blocking-via-tool-call flow)
 
 ## Target User Flow

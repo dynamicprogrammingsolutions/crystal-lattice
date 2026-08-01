@@ -64,6 +64,10 @@ under the repository documentation profile; do not add empty placeholders.
 - `SessionNotifications` and thin `AgentApplication` APIs.
 - application-owner notification storage and lifetime.
 - normalized record validation.
+- notification/interaction kind and lifecycle transition validation.
+- explicit revision and stale mutation handling.
+- server-owned dismissal and expiration.
+- retention evaluation and active/history pruning.
 - live-session loading and readonly snapshot constraints.
 - session lock around read-modify-write.
 - immutable `Session` replacement and save path.
@@ -72,6 +76,7 @@ under the repository documentation profile; do not add empty placeholders.
 - pending-preserving resolved-item pruning.
 - interaction with request checkpoint metadata reconciliation.
 - `NotificationSink` failure boundary in tool context.
+- application current-state snapshot/list support.
 - focused unit and concurrency evidence.
 
 This page maps implementation to root requirement IDs. It must not repeat the
@@ -86,6 +91,7 @@ root lifecycle, persistence, or frontend behavior explanation.
 - HTTP 503 payload for pending reload.
 - bridge/Bonjour/listener lifetime.
 - reload action response versus later notification events.
+- dismissal mutation responses and authoritative notification hydration.
 - config/env reread and application-config plugin relationship.
 - MCP and runtime cleanup before completion.
 - graceful process shutdown.

@@ -186,3 +186,7 @@ Keep tests generic with dummy notification data. Do not use MCP/Figma names in p
   local dismissal, and follow-up action routing are covered.
 - The focused mobile Detox test was added for native overlay z-order/touch
   behavior but was not run at this checkpoint.
+- The completed local-dismissal behavior is the current implementation
+  baseline. Proposed server-authoritative dismissal, retention, history, and
+  interaction-readiness changes are tracked by
+  `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`.

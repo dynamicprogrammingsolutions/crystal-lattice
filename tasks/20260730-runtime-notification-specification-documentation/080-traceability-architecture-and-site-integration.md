@@ -50,8 +50,9 @@ Add a compact cross-package view:
 Owning process
   └─ stable application owner
        ├─ shared event store / application notifications
+       ├─ authoritative application-notification snapshot/history
        └─ current replaceable application
-            ├─ sessions / persistent session notifications
+            ├─ sessions / persistent notification lifecycle and history
             ├─ application plugins
             ├─ request and tool operations
             └─ MCP/runtime resources
@@ -59,6 +60,7 @@ Owning process
 Backend contracts and events
   → frontend controller/state
   → portable display routing
+  → compact notification history / historical replay
   → shared or native presentation capabilities
   → mobile/desktop platform hosts
 ```

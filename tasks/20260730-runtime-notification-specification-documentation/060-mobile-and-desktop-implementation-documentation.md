@@ -45,14 +45,18 @@ desktop/crystal-lattice-control-desktop-rn/docs/development/
 
 - `ConnectedRoot` as the application-global host lifetime.
 - one application notification controller per active backend/connection.
-- display subscription, stable upsert, and current local revision dismissal.
+- display subscription, stable revision upsert, authoritative dismissal
+  mutation, and hydration after restart/reconnect.
 - normal-flow placement below the owning screen header/search region.
 - behavior across Connection, Sessions, and Messages kept-mounted tabs.
 - Sessions and SessionChat inline/modal responsibilities.
 - session notification hydration plus live events.
 - follow-up URL, clipboard, file, dismiss, and run-action behavior.
 - unified Sessions action bar, default pins, connection-scoped persistence,
-  Server settings modal, refresh, and new-session agent picker.
+  Notifications history, Server settings modal, refresh, and new-session agent
+  picker.
+- compact history, historical inline/modal replay, and waiting-for-input
+  navigation.
 - production component tests, real-backend component tests, and focused Detox
   z-order/touch harness.
 
@@ -70,13 +74,14 @@ Primary references:
 
 - `DesktopRoot` global display ownership.
 - subscription/controller per open backend.
-- connection-aware banner labels and dismissal.
+- connection-aware banner labels and authoritative dismissal.
 - one message/detail-area rail for connection-level displays from every open
   connection plus active-session displays.
 - session inline rendering in ChatPane.
 - action-display and Server settings coordinators/windows.
 - consumed modal removal and system-window closure.
 - unified Sessions action bar and platform-local pins.
+- connection/session notification history and historical replay.
 - native `NSPopover` for anchored transient action menus.
 - generic `openReactWindow` for settings; notification/action modal requests
   use inline fallback in the current desktop runtime.

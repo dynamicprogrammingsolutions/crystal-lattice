@@ -12,6 +12,7 @@ Create a generic platform feature for persistent, evented session notifications 
   — `COMPLETED VIA tasks/20260729-staged-application-config-and-full-reload.md`
 - [x] `tasks/20260619-generic-session-notifications/040-stage-1-dummy-plugin-integration-tests.md`
   — `COMPLETED VIA tasks/20260729-staged-application-config-and-full-reload.md`
+- [ ] `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`
 - [ ] `tasks/20260619-generic-session-notifications/050-stage-2-interaction-flow-design.md`
 - [ ] `tasks/20260619-generic-session-notifications/060-stage-2a-backend-wait-only.md`
 - [ ] `tasks/20260619-generic-session-notifications/070-stage-2a-sdk-and-rn-tests.md`
@@ -136,6 +137,16 @@ included in that overlap.
 - The user can respond; the action handler restarts the request.
 - The interceptor is idempotent on restart.
 - Timeout and cancellation are handled gracefully.
+
+### Stage 1 follow-up
+
+- Notification dismissal is stored by the same server-side authority as the
+  notification record.
+- Retention and expiration prevent accidentally permanent active records.
+- Notification history and safe historical replay are available through
+  portable frontend surfaces.
+- The record, action, and frontend contracts are generalized enough for Stage
+  2 interactions without implementing the wait/suspend execution flows.
 
 ## Execution plan
 

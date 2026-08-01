@@ -60,7 +60,7 @@ Normative ownership:
 | Notification fields, lifecycle, persistence classes, events, and plugin/tool behavior | Root notification specification |
 | Action-display shape, follow-up actions, and presentation semantics | Root action-display specification |
 | Reload state machine and externally observable runtime behavior | Root runtime-reload specification |
-| Portable notification placement, visual semantics, local dismissal, connection isolation, and reusable frontend capabilities | Root frontend notification-presentation specification |
+| Portable notification placement, authoritative dismissal behavior, history/replay, connection isolation, and reusable frontend capabilities | Root notification frontend-behavior specification |
 | Portable Sessions action composition and pinning behavior | Root frontend Sessions-actions specification |
 | Python storage, locks, owner internals, and server wiring | Core/Application package development docs |
 | TypeScript polling, controllers, selectors, and display bus | Frontend SDK package development docs |
@@ -130,8 +130,10 @@ be generated or kept to a genuinely concise field/event table.
 - Package documentation maps requirement IDs to classes, modules, tests, and
   debugging paths; it does not restate the normative rule.
 - Platform documentation describes hosting and native conventions only.
-- Plugin documentation provides decisions and recipes rather than another
-  schema definition.
+- Plugin documentation must stand on its own for plugin authors. It may include
+  the concise field summaries and tested examples required to use the feature,
+  while leaving lifecycle rationale, requirements, and cross-package decisions
+  authoritative in the root specification.
 - Public references, when added, contain concise lookup tables or generated
   material rather than lifecycle rationale.
 - Prefer a substantive section in an existing package page over a new
@@ -169,6 +171,9 @@ workflow, task-guidance synchronization, or broad migration inventory.
 - `tasks/20260619-generic-session-notifications/000-main.md` and subtasks
   `010`–`040` contain the original persistent session-notification model and
   completed implementation details.
+- `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`
+  contains the proposed next lifecycle, retention, history, and Stage
+  2-readiness changes.
 - `tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md`
   is a downstream consumer of the application-owner/restart plumbing and may
   use different credential storage and owner-process integration.
@@ -328,9 +333,9 @@ The user approved a two-baseline workflow on July 31, 2026:
   broader page when separate files would add duplicate prose.
 - Hand-maintained public reference pages are deferred unless they can remain
   concise or be generated.
-- The current-state baseline documents frontend-local revision dismissal
-  because that is the implementation being captured before the follow-up
-  proposal changes the contract.
+- Commit `f14b39bf` preserves the current-state frontend-local revision
+  dismissal baseline. The working specification now proposes server-owned
+  dismissal, retention, history/replay, and interaction readiness.
 
 ### Documentation
 
@@ -347,8 +352,8 @@ The user approved a two-baseline workflow on July 31, 2026:
 - [x] Author the current-state root specification baseline.
 - [x] Author concise package implementation maps.
 - [x] Add the plugin decision guide and root navigation.
-- [ ] Add the follow-up notification lifecycle subtask.
-- [ ] Revise the baseline specs to the approved proposed lifecycle and leave
+- [x] Add the follow-up notification lifecycle subtask.
+- [x] Revise the baseline specs to the approved proposed lifecycle and leave
   those changes uncommitted for review.
 
 ### Requirement verification
@@ -372,3 +377,12 @@ The user approved a two-baseline workflow on July 31, 2026:
   completed notification surface-ownership implementation. The baseline
   deliberately records local revision dismissal as implemented behavior so the
   subsequent uncommitted proposal can be reviewed as a focused lifecycle diff.
+- July 31, 2026: Added
+  `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`
+  and revised the root notification/action-display/Sessions-action
+  specifications in the working tree. No implementation code was changed.
+- August 1, 2026: Expanded
+  `plugins/docs/notifications-and-action-displays.md` into the self-contained,
+  runtime-accurate plugin authoring guide required by `plugins/docs/AGENTS.md`.
+  Reduced notification duplication in `application-plugins.md` and
+  `actions.md` to concise capability summaries and links.

@@ -63,8 +63,11 @@ Normalize and verify:
 - hidden model visibility;
 - requirements not to expose credentials or sensitive config in records,
   events, or displays.
-- current revision-scoped frontend-local dismissal, clearly labeled as current
-  implementation rather than an irreversible contract decision;
+- authoritative server-side dismissal stored with the notification record,
+  while preserving the committed local-dismissal behavior as implementation
+  history rather than the target contract;
+- explicit revisions, stale mutation behavior, retention, history, historical
+  replay, and interaction-compatible extension rules;
 
 Primary code/evidence references:
 
@@ -116,6 +119,11 @@ Primary code/evidence references:
 - Keep Stage 1 notification model visibility hidden.
 - Use stable-key update semantics for pending notifications.
 - Honor explicit presentation independently of producer/action surface.
+- Store dismissal with the same server-side authority as the notification.
+- Do not require immediate dismissal reconciliation on other already-open
+  devices; require authoritative hydration for newly opened devices.
+- Keep direct action displays transient unless explicitly recorded as
+  notifications.
 
 ## Existing documentation treatment
 

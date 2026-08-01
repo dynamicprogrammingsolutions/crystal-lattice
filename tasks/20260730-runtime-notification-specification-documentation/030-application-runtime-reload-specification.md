@@ -84,6 +84,9 @@ Record but do not resolve:
 - deeper `AgentApplication.send_request` self-containment/refactoring;
 - secure application-action credential mutation;
 - device-specific secret stores for an embedded mobile owner.
+- drain-safe interaction response/cancel control operations for future
+  wait-only interactions;
+- an owner-aware continuation scheduler for future real-suspend interactions.
 
 ## Ground-truth references
 

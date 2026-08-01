@@ -5,7 +5,7 @@ mobile, desktop, web, or any other implementation language.
 
 ## Requirements checklist
 
-- [ ] A root frontend notification-presentation specification is sufficient to
+- [ ] The root notification frontend-behavior specification is sufficient to
   implement compliant notification and action-display behavior in a new
   frontend.
 - [ ] A root frontend Sessions-actions specification defines the reusable
@@ -38,15 +38,18 @@ docs/development/specifications/
     └── requirements.md
 ```
 
-## Notification-presentation content
+## Notification frontend-behavior content
 
 Define:
 
-- frontend inputs: persisted session metadata, application events, session
-  events, and direct action responses;
-- stable-ID upsert and updated-display replacement;
-- session metadata authority after reconnect;
-- local dismissal versus backend resolution;
+- frontend inputs: persisted session metadata, application snapshots,
+  lifecycle events, and direct action responses;
+- stable-ID upsert, monotonic revision ordering, and updated-display
+  replacement;
+- session metadata and application snapshot authority after reconnect;
+- server-side dismissal versus backend resolution/expiration;
+- immediate initiating-device update without mandatory live reconciliation on
+  other already-open devices;
 - backend/connection isolation;
 - route matrix:
 
@@ -66,7 +69,10 @@ Define:
 - title/body/context/action hierarchy;
 - accessible alert and action semantics;
 - follow-up actions, including a modal result that returns a banner;
-- handling notification updates after local dismissal;
+- compact notification history and filters;
+- local historical Show again without lifecycle reactivation;
+- read-only/safe historical action behavior;
+- pending interaction nondismissibility and waiting-for-input navigation;
 - reconnect examples for persistent session versus owner-memory application
   state.
 
@@ -81,6 +87,7 @@ Specify conceptual reusable capabilities:
 - inline display renderer;
 - modal display host;
 - follow-up action runner.
+- notification history controller and compact history surface.
 
 Do not name `ApplicationNotificationsController`, `DisplayEnvelope`,
 `NotificationBannerHost`, React contexts, hooks, or platform window classes in
@@ -91,7 +98,8 @@ normative requirements. Package documentation may map those names later.
 Define:
 
 - one reusable Sessions action surface containing Server settings, Refresh
-  sessions, New session, and plugin-contributed application actions;
+  sessions, New session, Notifications, and plugin-contributed application
+  actions;
 - distinction between Refresh sessions and Reload application;
 - stable action identity;
 - complete-menu and pinned representations invoking the same action;
@@ -113,7 +121,12 @@ Include examples such as:
 - a session inline notification appears only in its owning session;
 - two server connections have independently dismissible labeled banners;
 - a notification update replaces the pending version;
-- local dismissal leaves persisted metadata unchanged;
+- dismissing a session notification persists `dismissed` in the session;
+- an already-open second device may continue showing the notification, while a
+  newly opened device hydrates server state and does not show it;
+- a historical rich notification can be shown again without changing its
+  terminal lifecycle state;
+- an active interaction cannot be dismissed;
 - an explicit banner response is not coerced because it originated from a
   session-list or message action;
 - built-in and plugin actions can both be pinned and remain connection-scoped.

@@ -50,7 +50,9 @@ packages/frontend-rn-components/docs/development/
 - reload success/failure invalidating application actions.
 - display envelope fields, source kinds, defaults, and validation.
 - backend-instance keyed presentation subscriptions.
-- local dismissal/upsert and connection identity.
+- authoritative dismissal mutation, revision-aware upsert, hydration, history
+  selectors, and connection identity.
+- form-value propagation through every notification follow-up host.
 - public exports and compatibility implications.
 - tests that prove portable requirements versus TypeScript internals.
 
@@ -73,8 +75,9 @@ Primary references:
 - shared `useServerSettingsForm` model versus platform rendering.
 - `NotificationBanner` semantic variants and accessibility.
 - `NotificationBannerHost` connection grouping and maximum visible count.
-- `SessionNotificationsHost` metadata/event merge, routed revision tracking,
-  local dismissal, and `renderInline`.
+- `SessionNotificationsHost` metadata/event merge, server-dismiss callback,
+  interaction nondismissibility, and `renderInline`.
+- compact notification history and historical replay components.
 - action/follow-up callbacks and form-capable inline rendering.
 - `ActionsMenuBar` reusable model, pin callbacks, and injected menu surface.
 - why pin persistence remains in mobile/desktop consumers.

@@ -8,8 +8,12 @@ plugin authoring guidance from the authoritative root specifications.
 - [ ] Shared plugin documentation includes a decision guide for application
   notifications, session notifications, direct action displays, and tool
   notification sinks.
+- [ ] The shared plugin guide is understandable and usable on its own, with
+  current APIs, required fields, complete examples, lifecycle behavior,
+  presentation, failure boundaries, security guidance, and test commands.
 - [ ] Plugin examples link to and conform to the root `NTF-*` and `DSP-*`
-  contracts instead of redefining schemas.
+  contracts without requiring plugin authors to read internal specification
+  pages before using the documented APIs.
 - [ ] Public lookup material is either generated from authoritative shapes or
   kept to concise field/event/action tables without lifecycle duplication.
 - [ ] Existing action and application-plugin docs link to the new guide and
@@ -56,15 +60,24 @@ Document:
 
 Include:
 
-- create/update/resolve examples;
+- complete current application/session/tool examples;
+- concise current record fields and backend-added fields;
+- create/update/dismiss/resolve/expire examples;
+- retention selection and history consequences;
 - stable keys and deduplication;
 - presentation and variant selection;
 - follow-up action examples;
 - model visibility;
 - event/persistence/reconnect expectations;
+- historical action safety and Show again behavior;
+- interaction nondismissibility and response lifecycle boundaries;
 - application-plugin error responsibility versus sink failure containment;
 - no secrets in titles, bodies, source metadata, displays, events, or action
   results.
+
+Clearly separate currently implemented APIs from planned lifecycle extensions.
+Do not present proposed dismissal, retention, history, or interaction methods
+as available runtime APIs before implementation.
 
 ## Public reference content
 
