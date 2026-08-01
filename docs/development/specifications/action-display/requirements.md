@@ -7,3 +7,6 @@
 | DSP-003 | Explicit supported presentation is not suppressed because of action source. | Implemented | Automated | Documented |
 | DSP-004 | Mobile and desktop may use documented platform fallbacks without changing notification lifecycle. | Implemented | Automated; human checkpoint pending | Documented |
 | DSP-005 | Sensitive values are excluded from display payloads. | Implemented contract | Focused tests/manual review | Documented |
+| DSP-006 | Notification dismiss delegates to server lifecycle while direct-display close remains frontend-local. | Proposed | Unverified | Draft |
+| DSP-007 | All hosts preserve embedded form values and parameter mappings for follow-up actions. | Proposed | Unverified | Draft |
+| DSP-008 | Historical replay disables mutating actions unless explicitly valid and server-validated. | Proposed | Unverified | Draft |

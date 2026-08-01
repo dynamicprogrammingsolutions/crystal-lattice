@@ -44,6 +44,10 @@ This is the preferred way for plugins to tell frontends to show instructions,
 status summaries, or rich follow-up text without introducing plugin-specific
 result keys.
 
+For choosing between an application notification, session notification, tool
+notification, and direct action display, see
+[Notifications and action displays](notifications-and-action-displays.md).
+
 Recommended shape:
 
 ```json
@@ -121,24 +125,9 @@ Guidance:
     inline fallback
 - application, session, session-list, and message action responses honor valid
   explicit presentation subject to the host fallback above
-- application notifications support `banner` and mobile `modal`, but reject
-  `inline` because an application-global notification has no meaningful inline
-  owner
-- session notifications support all three values on mobile; desktop normalizes
-  notification `modal` to the same inline region used by session responses
-- mobile application notifications appear only on Sessions below
-  search/filter; session notifications appear only on the matching Chat below
-  its header; hidden displays remain pending until their owning screen opens
-- mobile notification cards omit connection/session labels because their
-  owning screen supplies that context
-- desktop connection-level notifications and application/session-list action
-  responses from all open connections share one message/detail-area rail and
-  retain a connection label
-- the active desktop ChatPane contributes session notifications and
-  session/message responses to the same visual location without a redundant
-  session label; desktop modal requests use inline cards there
-- local dismissal is revision-scoped: updating the same stable notification id
-  with a later `updated_at` makes the new revision eligible for presentation
+- notification persistence, allowed presentations, placement, lifecycle, and
+  current dismissal behavior are documented in
+  [Notifications and action displays](notifications-and-action-displays.md)
 
 Application actions that request full reload return an accepted result rather
 than waiting for active work. The stable application owner publishes
@@ -211,8 +200,10 @@ elements. Values entered into the embedded display form are addressed with
 `$form.<field_name>`. Existing action dialogs continue to use
 `$dialog.<field_name>`.
 
-Use `dismiss` when a display action should close the display locally without a
-backend call.
+For a direct action display, use `dismiss` when the display should close
+locally without a backend call. Notification dismissal behavior is documented
+separately in
+[Notifications and action displays](notifications-and-action-displays.md).
 
 For manual testing, the `plugins/dummy-action-display-form-app` plugin exposes
 a `Show display form` session action that returns an embedded form and echoes

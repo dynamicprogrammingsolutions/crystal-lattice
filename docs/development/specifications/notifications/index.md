@@ -1,6 +1,6 @@
 # Notifications
 
-Status: Implemented baseline
+Status: Accepted; implementation pending
 
 The notification specification defines application- and session-scoped
 notification records, lifecycle, event delivery, persistence, and portable
@@ -11,9 +11,13 @@ frontend presentation.
 - [Portable frontend behavior](frontend-behavior.md)
 - [Requirements and evidence](requirements.md)
 
-The current baseline documents the implementation delivered through
-`tasks/20260729-staged-application-config-and-full-reload.md`. Future lifecycle
-changes must update this specification before package implementation pages.
+The committed baseline documents the implementation delivered through
+`tasks/20260729-staged-application-config-and-full-reload.md`. This working
+revision proposes authoritative dismissal, retention, history/replay, and
+interaction-ready contracts tracked by
+`tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`.
+
+The proposed behavior is not yet implemented.
 
 Related contracts:
 

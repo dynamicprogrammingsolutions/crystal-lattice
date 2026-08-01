@@ -5,6 +5,7 @@ The Sessions action surface contains:
 - Server settings;
 - Refresh sessions;
 - New session;
+- Notifications, when notification history is supported on the surface;
 - plugin-contributed application actions.
 
 Complete-menu and pinned representations invoke the same stable action
@@ -14,3 +15,6 @@ Plugin dialogs use the common action parameter and form model. Returned
 displays use the action-display contract. Platforms may use native anchored
 menus or other standard transient controls while retaining the same action
 model and accessibility semantics.
+
+The Notifications action opens the scope-appropriate compact history surface
+and may expose an active or waiting-for-input count badge.

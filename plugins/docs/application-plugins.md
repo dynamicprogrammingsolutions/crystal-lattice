@@ -14,6 +14,11 @@ Reference implementations:
 
 - `plugins/gemini-compaction-app/src/gemini_compaction_app/__init__.py`
 
+Related guides:
+
+- [Notifications and action displays](notifications-and-action-displays.md)
+- [Plugin actions](actions.md)
+
 ---
 
 ## What application plugins are for
@@ -71,26 +76,22 @@ replacement, and emits application-global requested/completed/failed
 notifications. `on_failure` is an optional in-process compensating callback for
 plugin-owned writes such as restoring a dotenv file.
 
-Application notifications are intentionally non-durable across owner-process
-restart. Session notifications persist in
+Application plugins can create owner-scoped application notifications and
+persistent session notifications through the methods listed above. The
+notification APIs validate records and report malformed input to the calling
+application plugin. Tools use a separate failure-contained
+`notification_sink`.
+
+Application notifications currently last for the application-owner process
+lifetime. Session notifications are stored in
 `Session.metadata["notifications"]["items"]` and remain hidden from model
-history when `model_visibility` is `hidden`. Tools receive a failure-contained
-`notification_sink`; application plugins call the application methods directly
-and receive validation errors for malformed payloads.
+history. Creating with the key of an existing pending notification updates
+that lifecycle item.
 
-Application notifications may use `display.presentation: "banner"` or
-`"modal"`. `"inline"` is rejected because there is no application-global
-inline owner. Mobile renders application notifications only on Sessions below
-the search/filter row and uses a Sessions-owned modal overlay. Desktop
-aggregates application notifications from every open connection in one
-normal-flow message/detail-area rail, labels each with its connection, and
-normalizes modal requests to inline because React Native modal presentation is
-not supported by the desktop runtime.
-
-Creating another pending notification with the same `key` updates the existing
-lifecycle id. Frontends scope local dismissal to the notification revision
-(`id + updated_at`), so a later update is shown even when the previous revision
-was dismissed.
+For complete record fields, examples, presentation behavior, stable-key
+updates, resolution, tool-sink usage, current dismissal limitations, event
+names, and focused test commands, see
+[Notifications and action displays](notifications-and-action-displays.md).
 
 ---
 

@@ -33,8 +33,19 @@ Application notifications reject `inline`. Desktop currently normalizes
 notification and action-response `modal` presentation to inline cards in the
 message/detail area.
 
-For the implemented baseline, `dismiss` closes the current display locally.
-When the display belongs to a persisted notification, local dismissal does not
-resolve that notification.
+Dismiss behavior depends on display ownership:
+
+- notification display: invoke the owning server notification dismissal
+  operation;
+- direct action display: close the transient frontend display locally;
+- historical replay: close only the replay presentation.
+
+The display envelope or equivalent owner context must distinguish these cases.
+
+Every host preserves fixed parameters, parameter mappings, embedded forms, and
+submitted form values when invoking `run_action`.
+
+Historical replay is read-only by default. Mutating actions require explicit
+historical validity and server-side lifecycle/revision validation.
 
 Displays must not expose credentials or sensitive configuration values.
