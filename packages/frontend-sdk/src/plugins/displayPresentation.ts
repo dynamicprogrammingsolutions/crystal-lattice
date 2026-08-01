@@ -1,5 +1,6 @@
 import type { AgentBackend } from '../backend/backend';
 import type { ActionDisplayPayload } from '../types/plugins';
+import type { NotificationExpectedRevision } from '../types/notifications';
 import type { Unsubscribe } from '../util/subscribable';
 
 export type DisplaySourceKind =
@@ -22,6 +23,7 @@ export interface DisplayEnvelope {
   createdAt?: string;
   updatedAt?: string;
   sourceKey?: string;
+  notificationRevision?: NotificationExpectedRevision;
 }
 
 type DisplayListener = (envelope: DisplayEnvelope) => void;
@@ -37,6 +39,7 @@ export function normalizeDisplayEnvelope(options: {
   sourceKey?: string;
   createdAt?: string;
   updatedAt?: string;
+  notificationRevision?: NotificationExpectedRevision;
 }): DisplayEnvelope {
   const fallback: DisplayPresentation =
     options.source === 'action_response'
@@ -64,6 +67,7 @@ export function normalizeDisplayEnvelope(options: {
     sourceKey: options.sourceKey,
     createdAt: options.createdAt,
     updatedAt: options.updatedAt,
+    notificationRevision: options.notificationRevision,
     display: { ...options.display, display_id: id, presentation },
   };
 }

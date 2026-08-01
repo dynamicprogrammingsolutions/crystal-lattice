@@ -754,6 +754,14 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 - `POST /sessions/{session_id}/send` - run the model/tool loop.
 - `POST /sessions/{session_id}/send_message` - append and send in one call.
 - `GET /events` - poll request/session events.
+- `GET /application/notifications` - load the active application-notification
+  snapshot; use `include_terminal=true` for terminal records.
+- `POST /application/notifications/{notification_id}/dismiss` - persist
+  application-notification dismissal with optional revision checking.
+- `GET /sessions/{session_id}/notifications` - list active session
+  notifications; use `include_terminal=true` for terminal records.
+- `POST /sessions/{session_id}/notifications/{notification_id}/dismiss` -
+  persist session-notification dismissal with optional revision checking.
 - Application notification events are polled without a session filter. Session
   notifications use the same endpoint with `session_id` and persist in session
   metadata. Both use standard `banner`, `inline`, and `modal` display

@@ -31,6 +31,11 @@ class DummySessionNotificationPlugin:
                 "inputs": {},
             },
             {
+                "id": "expire_session_notification",
+                "label": "Expire session notification",
+                "inputs": {},
+            },
+            {
                 "id": "notification_followup",
                 "label": "Notification follow-up",
                 "inputs": {},
@@ -73,7 +78,13 @@ class DummySessionNotificationPlugin:
                     "presentation": "$dialog.presentation",
                     "variant": "$dialog.variant",
                 },
-            }
+            },
+            {
+                "ui_type": "session_action",
+                "id": "expire_session_notification",
+                "label": "Expire demo session notification",
+                "action_id": "expire_session_notification",
+            },
         ]
 
     def get_commands(self, state: dict[str, Any]) -> list[dict[str, Any]]:
@@ -98,16 +109,25 @@ class DummySessionNotificationPlugin:
                     "presentation": "banner",
                 },
             }
-        if action_id == "resolve_session_notification":
+        if action_id in {
+            "resolve_session_notification",
+            "expire_session_notification",
+        }:
             items = app.list_session_notifications(session_id)
             items = [
                 item
                 for item in items
                 if item.get("key") == "dummy:session:notification"
             ]
-            if items:
+            if items and action_id == "resolve_session_notification":
                 app.resolve_session_notification(
                     session_id, items[-1]["id"], {"action_id": action_id}
+                )
+            if items and action_id == "expire_session_notification":
+                app.expire_session_notification(
+                    session_id,
+                    items[-1]["id"],
+                    reason="demo_action",
                 )
             return {"status": "ok"}
         if action_id != "emit_session_notification":

@@ -23,6 +23,8 @@ Application notifications are owner-memory scoped:
 
 - `application_notification_created`
 - `application_notification_updated`
+- `application_notification_dismissed`
+- `application_notification_expired`
 - omit `session_id` and are polled without a session filter
 - survive in-process `AgentApplication` replacement because the owner and
   event store remain alive
@@ -35,20 +37,45 @@ Session notifications are persisted under
 - `session_notification_created`
 - `session_notification_updated`
 - `session_notification_resolved`
+- `session_notification_dismissed`
+- `session_notification_expired`
 - include `session_id` and use ordinary session-filtered polling
 - reload from session metadata on reconnect
 - remain hidden from model/provider history in Stage 1
 
-Both records have stable `id` and `key`, pending/resolved status,
-info/success/warning/error severity, title/body, timestamps, source provenance,
-an action display, and `model_visibility: "hidden"`. Created/updated events
-upsert by `id`; creating a pending item with an existing `key` updates it in
-place. Frontends treat `id + updated_at` as the local presentation revision:
-dismissing one revision does not suppress a later update of the same lifecycle
-item. A resolved notification is removed instead of being presented again.
+Both records have stable `id` and `key`, an integer `revision`,
+pending/dismissed/resolved/expired status, info/success/warning/error severity,
+title/body, timestamps, source provenance, an action display, and
+`model_visibility: "hidden"`. Created/updated events upsert by `id`; creating
+with the key of an active notification updates it in place. Creating with the
+key of a terminal notification creates a new lifecycle occurrence.
+
+Server-side dismiss, resolve, and expire mutations retain terminal records for
+authoritative listing. Existing records without `revision` accept their
+`updated_at` as the compatibility expected-revision token and gain integer
+revision `1` on first mutation.
+
+Mobile Dismiss controls use the server mutation routes and rehydrate
+application/session state from authoritative backend records. Desktop retains
+frontend-local dismissal until its Stage C integration.
 
 Notification delivery is best effort. Event publication and the tool-facing
 `notification_sink` cannot fail the user request.
+
+### Notification state endpoints
+
+```text
+GET  /application/notifications
+POST /application/notifications/{notification_id}/dismiss
+GET  /sessions/{session_id}/notifications
+POST /sessions/{session_id}/notifications/{notification_id}/dismiss
+```
+
+List endpoints return active records by default. Set
+`include_terminal=true` to include dismissed, resolved, and expired records.
+Dismiss accepts optional `expected_revision` and `reason` fields. A stale
+revision or invalid lifecycle transition returns HTTP 409 with the current
+notification record.
 
 ### Standard display presentations
 

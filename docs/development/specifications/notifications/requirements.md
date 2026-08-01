@@ -12,13 +12,13 @@
 | FNT-002 | Mobile session notifications render only on the matching Chat. | Implemented | Automated; human checkpoint pending | Documented |
 | FNT-003 | Desktop connection notifications aggregate in the message/detail area and retain connection identity. | Implemented | Component/integration automated; native/human pending | Documented |
 | FNT-004 | Desktop session notifications render for the active session at the common message/detail location. | Implemented | Component/integration automated; native/human pending | Documented |
-| NTF-007 | Notification dismissal is persisted by the same server-side authority as the notification record. | Proposed | Unverified | Draft |
-| NTF-008 | Notification records have monotonic revisions and reject stale mutations. | Proposed | Unverified | Draft |
+| NTF-007 | Notification dismissal is persisted by the same server-side authority as the notification record. | In progress: backend/mobile implemented; desktop pending C | Automated backend/API/mobile; mobile human pending | Documented |
+| NTF-008 | Notification records have monotonic revisions and reject stale mutations. | Implemented | Automated | Documented |
 | NTF-009 | Retention supports explicit, TTL, request-completion, and server-lifetime policies. | Proposed | Unverified | Draft |
-| NTF-010 | Active and terminal/history limits are separate and active interactions are never silently pruned. | Proposed | Unverified | Draft |
-| NTF-011 | Application notifications expose an authoritative current-state snapshot for new or reconnected frontends. | Proposed | Unverified | Draft |
+| NTF-010 | Active and terminal/history limits are separate and active interactions are never silently pruned. | In progress: active/terminal classification implemented; configurable limits/interactions pending | Automated backend | Documented |
+| NTF-011 | Application notifications expose an authoritative current-state snapshot for new or reconnected frontends. | Implemented backend/mobile; desktop adoption pending C | Automated HTTP/SDK/mobile | Documented |
 | NTF-012 | The record model represents notification and interaction lifecycles without destructive normalization. | Proposed | Unverified | Draft |
-| FNT-005 | The dismissing frontend updates immediately, while other open devices may reconcile later and newly hydrated devices honor server dismissal. | Proposed | Unverified | Draft |
+| FNT-005 | The dismissing frontend updates immediately, while other open devices may reconcile later and newly hydrated devices honor server dismissal. | Implemented mobile; desktop pending C | Automated mobile; human checkpoint pending | Documented |
 | FNT-006 | Relevant top action bars expose a reusable Notifications history action. | Proposed | Unverified | Draft |
 | FNT-007 | Historical rich displays can be shown again locally without reactivating lifecycle state. | Proposed | Unverified | Draft |
 | FNT-008 | Active interactions are nondismissible and discoverable through a compact waiting-for-input indicator. | Proposed | Unverified | Draft |

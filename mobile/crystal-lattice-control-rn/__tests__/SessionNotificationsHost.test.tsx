@@ -1,5 +1,10 @@
 import React from 'react';
-import { fireEvent, screen } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+} from '@testing-library/react-native';
 
 import {
   SessionNotificationsHost,
@@ -14,6 +19,7 @@ const notification: SessionNotification = {
   key: 'dummy:session',
   kind: 'notification',
   status: 'pending',
+  revision: 1,
   severity: 'warning',
   title: 'Session notification',
   body: 'Persistent body',
@@ -138,6 +144,7 @@ test('shows an updated revision after the previous revision was dismissed', () =
   const updated = {
     ...notification,
     body: 'Updated persistent body',
+    revision: 2,
     updated_at: '2026-01-01T00:00:01Z',
     display: {
       ...notification.display,
@@ -158,4 +165,112 @@ test('shows an updated revision after the previous revision was dismissed', () =
   );
 
   expect(screen.getByText('Updated persistent body')).toBeTruthy();
+});
+
+test('suppresses an inline notification only after server dismissal succeeds', async () => {
+  const onDismissNotification = jest.fn(async () => {});
+  renderWithMobileProviders(
+    <SessionNotificationsHost
+      sessionSummary={{
+        session_id: 'session-1',
+        modified: 0,
+        preview: '',
+        metadata: { notifications: { items: [notification] } },
+      }}
+      onDismissNotification={onDismissNotification}
+    />,
+  );
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Dismiss notification'));
+  });
+  await waitFor(() => {
+    expect(onDismissNotification).toHaveBeenCalledWith(notification);
+    expect(screen.queryByText('Persistent body')).toBeNull();
+  });
+});
+
+test('keeps an inline notification visible when server dismissal fails', async () => {
+  const onDismissNotification = jest.fn(async () => {
+    throw new Error('server unavailable');
+  });
+  renderWithMobileProviders(
+    <SessionNotificationsHost
+      sessionSummary={{
+        session_id: 'session-1',
+        modified: 0,
+        preview: '',
+        metadata: { notifications: { items: [notification] } },
+      }}
+      onDismissNotification={onDismissNotification}
+    />,
+  );
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText('Dismiss notification'));
+  });
+  await waitFor(() => {
+    expect(onDismissNotification).toHaveBeenCalledWith(notification);
+  });
+  expect(screen.getByText('Persistent body')).toBeTruthy();
+});
+
+test('does not resurrect a terminal session record from an older event', () => {
+  const dismissed = {
+    ...notification,
+    status: 'dismissed' as const,
+    revision: 2,
+    updated_at: '2026-01-01T00:00:01Z',
+    dismissal: { dismissed_at: '2026-01-01T00:00:01Z' },
+  };
+  renderWithMobileProviders(
+    <SessionNotificationsHost
+      sessionSummary={{
+        session_id: 'session-1',
+        modified: 0,
+        preview: '',
+        metadata: { notifications: { items: [dismissed] } },
+      }}
+      events={[
+        {
+          event_id: 'event-1',
+          type: 'session_notification_created',
+          session_id: 'session-1',
+          notification,
+        },
+      ]}
+    />,
+  );
+
+  expect(screen.queryByText('Persistent body')).toBeNull();
+});
+
+test('does not force an already-open host to apply a remote dismissal event', () => {
+  const dismissed = {
+    ...notification,
+    status: 'dismissed' as const,
+    revision: 2,
+    updated_at: '2026-01-01T00:00:01Z',
+    dismissal: { dismissed_at: '2026-01-01T00:00:01Z' },
+  };
+  renderWithMobileProviders(
+    <SessionNotificationsHost
+      sessionSummary={{
+        session_id: 'session-1',
+        modified: 0,
+        preview: '',
+        metadata: { notifications: { items: [notification] } },
+      }}
+      events={[
+        {
+          event_id: 'event-2',
+          type: 'session_notification_dismissed',
+          session_id: 'session-1',
+          notification: dismissed,
+        },
+      ]}
+    />,
+  );
+
+  expect(screen.getByText('Persistent body')).toBeTruthy();
 });

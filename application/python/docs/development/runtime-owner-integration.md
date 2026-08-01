@@ -18,6 +18,19 @@ Notification events use the shared event store. Application notifications are
 polled without a session filter; session notifications use ordinary
 session-filtered polling and session metadata for reconnect.
 
+Stage A exposes authoritative notification state and server dismissal through:
+
+```text
+GET  /application/notifications
+POST /application/notifications/{notification_id}/dismiss
+GET  /sessions/{session_id}/notifications
+POST /sessions/{session_id}/notifications/{notification_id}/dismiss
+```
+
+List routes return active records unless `include_terminal=true`. Dismiss
+accepts optional `expected_revision` and `reason`; stale revisions and invalid
+lifecycle transitions return HTTP 409 with the current notification.
+
 Server and terminal shutdown close the owner, which closes the active
 application and its MCP/runtime resources.
 

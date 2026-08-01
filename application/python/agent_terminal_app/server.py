@@ -36,6 +36,10 @@ from agent_app.application_future import (
     SessionConflictError,
 )
 from agent_app.config import resolve_request_config
+from agent_app.notifications import (
+    NotificationRevisionConflictError,
+    NotificationTransitionError,
+)
 from agent_app.sessions import FilesystemSnapshotSelectionStore
 from agent_core import Message, Session
 from agent_terminal_app import bonjour as bonjour_mod
@@ -2770,6 +2774,130 @@ def update_session_agent(
     response = {"session": new_session.to_dict(), "agent_id": target_agent_id}
     _idempotency_store(scope, idempotency_key, payload, response)
     return response
+
+
+def _notification_mutation_inputs(
+    payload: Optional[Dict[str, Any]],
+) -> tuple[int | str | None, str | None]:
+    body = payload or {}
+    expected_revision = body.get("expected_revision")
+    if isinstance(expected_revision, bool) or not (
+        expected_revision is None or isinstance(expected_revision, (int, str))
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="expected_revision must be an integer, string, or null",
+        )
+    if isinstance(expected_revision, int) and expected_revision <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="expected_revision integer must be greater than zero",
+        )
+    if isinstance(expected_revision, str) and not expected_revision:
+        raise HTTPException(
+            status_code=400,
+            detail="expected_revision string must be non-empty",
+        )
+    reason = body.get("reason")
+    if reason is not None and not isinstance(reason, str):
+        raise HTTPException(status_code=400, detail="reason must be a string or null")
+    return expected_revision, reason
+
+
+def _raise_notification_mutation_error(exc: Exception) -> None:
+    if isinstance(
+        exc,
+        (NotificationRevisionConflictError, NotificationTransitionError),
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_type": exc.error_type,
+                "message": str(exc),
+                "notification": exc.current,
+            },
+        ) from exc
+    if isinstance(exc, KeyError):
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if isinstance(exc, ValueError):
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise exc
+
+
+@app.get("/application/notifications")
+def list_application_notifications(
+    include_terminal: bool = False,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return the current application-owner notification snapshot."""
+
+    return {
+        "notifications": app_instance.list_application_notifications(
+            include_terminal=include_terminal
+        )
+    }
+
+
+@app.post("/application/notifications/{notification_id}/dismiss")
+def dismiss_application_notification(
+    notification_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Persist dismissal in the application notification store."""
+
+    expected_revision, reason = _notification_mutation_inputs(payload)
+    try:
+        notification = app_instance.dismiss_application_notification(
+            notification_id,
+            reason=reason,
+            expected_revision=expected_revision,
+        )
+    except Exception as exc:
+        _raise_notification_mutation_error(exc)
+        raise AssertionError("unreachable") from exc
+    return {"notification": notification}
+
+
+@app.get("/sessions/{session_id}/notifications")
+def list_session_notifications(
+    session_id: str,
+    include_terminal: bool = False,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return the authoritative notification collection for one session."""
+
+    try:
+        notifications = app_instance.list_session_notifications(
+            session_id,
+            include_terminal=include_terminal,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"notifications": notifications}
+
+
+@app.post("/sessions/{session_id}/notifications/{notification_id}/dismiss")
+def dismiss_session_notification(
+    session_id: str,
+    notification_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Persist dismissal in the owning session notification record."""
+
+    expected_revision, reason = _notification_mutation_inputs(payload)
+    try:
+        notification = app_instance.dismiss_session_notification(
+            session_id,
+            notification_id,
+            reason=reason,
+            expected_revision=expected_revision,
+        )
+    except Exception as exc:
+        _raise_notification_mutation_error(exc)
+        raise AssertionError("unreachable") from exc
+    return {"notification": notification}
 
 
 @app.get("/application/actions")

@@ -2256,9 +2256,14 @@ class AgentApplication:
         patch: Dict[str, Any],
         *,
         request_id: str | None = None,
+        expected_revision: int | str | None = None,
     ) -> Dict[str, Any]:
         return self._session_notifications.update(
-            session_id, notification_id, patch, request_id=request_id
+            session_id,
+            notification_id,
+            patch,
+            request_id=request_id,
+            expected_revision=expected_revision,
         )
 
     def update_session_notification_by_key(
@@ -2268,9 +2273,14 @@ class AgentApplication:
         patch: Dict[str, Any],
         *,
         request_id: str | None = None,
+        expected_revision: int | str | None = None,
     ) -> Dict[str, Any]:
         return self._session_notifications.update_by_key(
-            session_id, key, patch, request_id=request_id
+            session_id,
+            key,
+            patch,
+            request_id=request_id,
+            expected_revision=expected_revision,
         )
 
     def resolve_session_notification(
@@ -2280,9 +2290,48 @@ class AgentApplication:
         resolution: Dict[str, Any],
         *,
         request_id: str | None = None,
+        expected_revision: int | str | None = None,
     ) -> Dict[str, Any]:
         return self._session_notifications.resolve(
-            session_id, notification_id, resolution, request_id=request_id
+            session_id,
+            notification_id,
+            resolution,
+            request_id=request_id,
+            expected_revision=expected_revision,
+        )
+
+    def dismiss_session_notification(
+        self,
+        session_id: str,
+        notification_id: str,
+        *,
+        reason: str | None = None,
+        request_id: str | None = None,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.dismiss(
+            session_id,
+            notification_id,
+            reason=reason,
+            request_id=request_id,
+            expected_revision=expected_revision,
+        )
+
+    def expire_session_notification(
+        self,
+        session_id: str,
+        notification_id: str,
+        *,
+        reason: str = "expired",
+        request_id: str | None = None,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.expire(
+            session_id,
+            notification_id,
+            reason=reason,
+            request_id=request_id,
+            expected_revision=expected_revision,
         )
 
     def list_session_notifications(
@@ -2290,9 +2339,12 @@ class AgentApplication:
         session_id: str,
         *,
         include_resolved: bool = False,
+        include_terminal: bool | None = None,
     ) -> list[Dict[str, Any]]:
         return self._session_notifications.list(
-            session_id, include_resolved=include_resolved
+            session_id,
+            include_resolved=include_resolved,
+            include_terminal=include_terminal,
         )
 
     def create_application_notification(
@@ -2303,25 +2355,75 @@ class AgentApplication:
         return self._application_control.create_notification(notification)
 
     def update_application_notification(
-        self, notification_id: str, patch: Dict[str, Any]
+        self,
+        notification_id: str,
+        patch: Dict[str, Any],
+        *,
+        expected_revision: int | str | None = None,
     ) -> Dict[str, Any]:
         if self._application_control is None:
             raise RuntimeError("Application notifications require an application owner")
-        return self._application_control.update_notification(notification_id, patch)
+        return self._application_control.update_notification(
+            notification_id,
+            patch,
+            expected_revision=expected_revision,
+        )
 
     def resolve_application_notification(
-        self, notification_id: str, resolution: Dict[str, Any] | None = None
+        self,
+        notification_id: str,
+        resolution: Dict[str, Any] | None = None,
+        *,
+        expected_revision: int | str | None = None,
     ) -> Dict[str, Any]:
         if self._application_control is None:
             raise RuntimeError("Application notifications require an application owner")
         return self._application_control.resolve_notification(
-            notification_id, resolution or {}
+            notification_id,
+            resolution or {},
+            expected_revision=expected_revision,
         )
 
-    def list_application_notifications(self) -> list[Dict[str, Any]]:
+    def dismiss_application_notification(
+        self,
+        notification_id: str,
+        *,
+        reason: str | None = None,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
         if self._application_control is None:
             raise RuntimeError("Application notifications require an application owner")
-        return self._application_control.list_notifications()
+        return self._application_control.dismiss_notification(
+            notification_id,
+            reason=reason,
+            expected_revision=expected_revision,
+        )
+
+    def expire_application_notification(
+        self,
+        notification_id: str,
+        *,
+        reason: str = "expired",
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        if self._application_control is None:
+            raise RuntimeError("Application notifications require an application owner")
+        return self._application_control.expire_notification(
+            notification_id,
+            reason=reason,
+            expected_revision=expected_revision,
+        )
+
+    def list_application_notifications(
+        self,
+        *,
+        include_terminal: bool = True,
+    ) -> list[Dict[str, Any]]:
+        if self._application_control is None:
+            raise RuntimeError("Application notifications require an application owner")
+        return self._application_control.list_notifications(
+            include_terminal=include_terminal
+        )
 
     def cancel_request(self, request_id: str) -> None:
         """Request cooperative cancellation for an in-flight request.

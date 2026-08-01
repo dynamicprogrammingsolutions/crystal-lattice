@@ -17,6 +17,21 @@ class _App:
         self.items = [{**self.items[0], "status": "resolved", "resolution": resolution}]
         return self.items[0]
 
+    def expire_session_notification(
+        self,
+        session_id,
+        notification_id,
+        reason,
+    ):
+        self.items = [
+            {
+                **self.items[0],
+                "status": "expired",
+                "expiration": {"reason": reason},
+            }
+        ]
+        return self.items[0]
+
 
 def test_emits_and_resolves_session_notification():
     plugin = DummySessionNotificationPlugin()
@@ -33,3 +48,13 @@ def test_emits_and_resolves_session_notification():
     assert app.items[0]["display"]["presentation"] == "inline"
     plugin.execute_action(app, "resolve_session_notification", {}, context, {})
     assert app.items[0]["status"] == "resolved"
+
+    plugin.execute_action(
+        app,
+        "emit_session_notification",
+        {"presentation": "inline", "variant": "warning"},
+        context,
+        {},
+    )
+    plugin.execute_action(app, "expire_session_notification", {}, context, {})
+    assert app.items[0]["status"] == "expired"

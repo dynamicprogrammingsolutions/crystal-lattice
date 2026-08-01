@@ -15,12 +15,19 @@ Maintainer entry points:
 - `src/events/pollingEventSource.ts`
 
 Session selectors validate metadata and skip malformed records. Application
-notification controllers poll owner-scoped events. Display envelopes classify
-connection and session ownership independently from presentation.
+notification controllers can hydrate an authoritative owner snapshot before
+polling from a cursor captured before that snapshot. Revision-aware merge
+prevents stale events from replacing newer snapshot records. Display envelopes
+classify connection and session ownership independently from presentation.
 
-The current implementation tracks dismissal in frontend state by lifecycle
-revision. This is an implementation of `FNT-005`, not a general SDK storage
-primitive.
+`RestAgentBackend` exposes application/session list and dismiss operations.
+Mobile enables snapshot hydration and applies successful server dismissal
+responses immediately. Dismissal events are retained in the event contract but
+are not forced onto another already-open presentation.
+
+Local revision suppression remains available for transient action displays and
+for hosts that have not yet adopted server dismissal. It is not the
+authoritative notification record.
 
 Tests should distinguish portable contract coverage from TypeScript-specific
 details such as backend-keyed subscriptions and controller ownership.

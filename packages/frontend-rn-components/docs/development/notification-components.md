@@ -7,7 +7,10 @@ Shared notification components provide:
 - session notification metadata/event merging;
 - inline-renderer injection;
 - banner and modal routing callbacks;
-- revision-aware current local dismissal;
+- optional owner-provided asynchronous dismissal;
+- immediate local suppression only after successful owner dismissal;
+- local fallback for hosts that have not adopted server dismissal;
+- terminal-snapshot protection against stale event resurrection;
 - accessibility labels and action semantics.
 
 Maintainer entry points:

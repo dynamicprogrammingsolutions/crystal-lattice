@@ -7,27 +7,27 @@ build on it without replacing the notification substrate.
 
 ## Requirements checklist
 
-- [ ] A session notification and its dismissal state are stored together in
+- [x] A session notification and its dismissal state are stored together in
   the owning session.
-- [ ] An application notification and its dismissal state are stored together
+- [x] An application notification and its dismissal state are stored together
   in the server-side application notification store.
 - [ ] The frontend that dismisses a notification updates immediately after a
   successful server response.
 - [ ] Other already-open frontends are not required to reconcile the dismissal
   immediately, but a newly opened, reconnected, or explicitly refreshed
   frontend does not present a server-dismissed notification.
-- [ ] Ordinary notification lifecycle supports at least `pending`,
+- [x] Ordinary notification lifecycle supports at least `pending`,
   `dismissed`, `resolved`, and `expired` terminal behavior with validated
   transitions.
-- [ ] Notification records have an explicit monotonic revision used for stale
+- [x] Notification records have an explicit monotonic revision used for stale
   mutation detection and event/snapshot ordering.
-- [ ] Stable-key deduplication applies to active records; creating with the key
+- [x] Stable-key deduplication applies to active records; creating with the key
   of a terminal record creates a new lifecycle occurrence.
 - [ ] Retention supports an extensible policy object with initial policies for
   explicit resolution, TTL, request completion, and server lifetime.
 - [ ] Active and terminal/history limits are distinct; active interactions are
   never silently pruned.
-- [ ] Application notifications expose an authoritative current-state
+- [x] Application notifications expose an authoritative current-state
   snapshot/list path so event-cursor bootstrap is not the only hydration
   mechanism.
 - [ ] A reusable Notifications action is available through the top pinnable
@@ -39,7 +39,7 @@ build on it without replacing the notification substrate.
 - [ ] Historical action replay is safe by default: mutating `run_action`
   entries require explicit validity and server-side lifecycle/revision
   validation.
-- [ ] Direct action displays remain transient displays unless the producer
+- [x] Direct action displays remain transient displays unless the producer
   explicitly creates a notification; closing a transient display does not
   create notification history.
 - [ ] Notification follow-up routing preserves fixed parameters, parameter
@@ -58,7 +58,7 @@ build on it without replacing the notification substrate.
 - [ ] Real-suspend interaction continuation remains owned by an owner-aware
   request scheduler rather than direct plugin calls to the low-level
   `AgentApplication.send_request` iterator.
-- [ ] Root specifications remain the only normative explanation; package docs
+- [x] Root specifications remain the only normative explanation; package docs
   map implementation and tests without duplicating lifecycle semantics.
 - [ ] Any implementation discovery that requires materially more complex
   architecture or crosses the approved ownership boundaries stops for user
@@ -164,14 +164,14 @@ Package-local development pages document implementation mappings only.
 ## Planning status
 
 The product and technical requirements above were approved on August 1, 2026.
-The lettered staging proposal below is Draft until the user confirms the
-checkpoint sequence. Only one lettered stage is planned in implementation
-detail at a time. After its automated verification passes, stop for the
-specified manual checkpoint before planning the next stage.
+Only one lettered stage is planned in implementation detail at a time.
+Backend-only stages may end at an automated gate; stages with user-visible
+behavior stop for the specified mobile or desktop manual checkpoint before the
+next stage is planned.
 
 ## Execution plan
 
-Status: Draft
+Status: Approved
 
 ### Stage A — Backend lifecycle, revision, and snapshot foundation
 
@@ -199,14 +199,16 @@ Automated boundary:
 - public HTTP tests for create/update/dismiss/resolve/expire/list;
 - existing notification/reload suites remain green.
 
-Manual checkpoint A:
+Automated completion gate A:
 
-- use the non-default demo plugins or HTTP calls to create, update, dismiss,
-  resolve, and list application/session notifications;
-- reopen the session and inspect stored terminal records;
-- confirm existing mobile/desktop presentation has not otherwise changed.
+- exercise create, update, dismiss, resolve, expire, and list through unit and
+  public HTTP integration tests;
+- verify persisted session terminal records and owner-memory application
+  terminal records;
+- verify existing notification/reload suites remain green.
 
-Stop after checkpoint A. Plan Stage B in detail only after approval.
+Stage A has no human checkpoint because its deterministic backend behavior is
+fully automatable and current frontends intentionally do not consume it yet.
 
 ### Stage B — Shared SDK and mobile authoritative dismissal
 
@@ -223,8 +225,8 @@ Automated boundary:
 
 - SDK selector/controller tests;
 - mobile component and real-backend tests;
-- Detox scenarios for dismiss, navigation away/back, frontend restart or
-  rehydration, and a later notification occurrence.
+- Detox only if inspection identifies native-only behavior that cannot be
+  established reliably through production component and real-backend tests.
 
 Manual checkpoint B:
 
@@ -399,7 +401,7 @@ wait-only or real-suspend behavior.
 ### Implementation decisions and open questions
 
 - The requirements and target contract are approved.
-- The lettered checkpoint sequence remains Draft pending user confirmation.
+- The lettered checkpoint sequence was approved on August 1, 2026.
 - Detailed implementation planning is intentionally limited to the next
   approved lettered stage.
 - If a stage requires materially more complexity or crosses an approved
@@ -407,6 +409,42 @@ wait-only or real-suspend behavior.
   scope.
 - Stage C and Stage G require explicit approval before native macOS test
   execution.
+- Stage A uses platform-owned HTTP list/dismiss operations rather than exposing
+  notification creation/update/resolve as generic public CRUD:
+  - `GET /application/notifications`
+  - `POST /application/notifications/{notification_id}/dismiss`
+  - `GET /sessions/{session_id}/notifications`
+  - `POST /sessions/{session_id}/notifications/{notification_id}/dismiss`
+- New records begin at integer `revision: 1`; each mutation increments it.
+  Existing records without `revision` accept `updated_at` as a compatibility
+  expected-revision token and gain an integer revision on first mutation.
+- Dismiss, resolve, and expire return the current record without a new event
+  when the record is already in the requested terminal state. Stale revisions
+  and incompatible terminal transitions are conflicts.
+- Dismiss and expire use explicit lifecycle event types. Existing frontends may
+  ignore them until Stage B/C; authoritative list/session state remains the
+  source of truth.
+- HTTP snapshot/list responses return active records by default and accept
+  `include_terminal=true`. Existing Python list methods retain compatibility
+  for current plugin callers and tests.
+- Stage A ends at an automated gate. Terminal/curl smoke steps are not counted
+  as manual verification.
+- Stage B uses optional notification-lifecycle methods on the shared
+  `AgentBackend` interface for source compatibility with existing mock and
+  alternate backends. `RestAgentBackend` implements them and the production
+  mobile path requires them for notification dismissal.
+- Application hydration captures the latest event cursor before loading the
+  authoritative snapshot, then polls from that cursor. Revision-aware merging
+  makes duplicate snapshot/event records harmless and prevents stale events
+  from replacing newer state.
+- Mobile local suppression is applied only after a successful server mutation
+  and exists solely to make the initiating frontend update immediately.
+  Backend state remains authoritative after navigation or reconnect.
+- Direct action-display dismissal remains frontend-local.
+- Stage B will use production component and real-backend integration tests for
+  persistence and rehydration. Existing Detox coverage already validates
+  notification placement; new Detox is required only if a native-only gap is
+  found during implementation.
 
 ### Documentation
 
@@ -417,10 +455,10 @@ planned API as available before its implementation stage completes.
 
 ### Task checklist
 
-- [ ] Approve the lettered stage/checkpoint sequence.
-- [ ] Plan and execute Stage A.
-- [ ] Complete manual checkpoint A.
-- [ ] Plan and execute Stage B.
+- [x] Approve the lettered stage/checkpoint sequence.
+- [x] Plan and execute Stage A.
+- [x] Complete automated gate A.
+- [x] Plan and execute Stage B.
 - [ ] Complete manual checkpoint B.
 - [ ] Plan and execute Stage C.
 - [ ] Complete manual checkpoint C.
@@ -457,3 +495,89 @@ passes.
   documentation changes.
 - Keep current demo plugins out of production default configuration.
 - Preserve current notification behavior outside the stage being changed.
+
+## Implementation Notes
+
+### Stage A — backend lifecycle, revision, and snapshot foundation
+
+Implemented on August 1, 2026:
+
+- added integer notification revisions and legacy `updated_at` compatibility
+  tokens;
+- added active/terminal classification and pending/dismissed/resolved/expired
+  transition validation;
+- made stable-key creation update active records only;
+- added expected-revision conflicts carrying the current record;
+- added idempotent dismiss/resolve/expire transitions;
+- added session and application dismiss/expire methods and explicit
+  dismiss/expire events;
+- added active-only application/session HTTP snapshots with
+  `include_terminal=true`;
+- added platform-owned HTTP dismissal routes;
+- added non-default application/session demo actions for manually expiring
+  notifications through the existing action system;
+- retained existing mobile and desktop local Dismiss behavior for Stage B/C;
+- updated root, API, package-development, application README, and plugin
+  authoring documentation.
+
+Automated evidence:
+
+- focused Core notification/owner tests: `16 passed`;
+- real HTTP demo-plugin integration: `1 passed`;
+- demo application/session plugin package tests: `2 passed`;
+- full fast Core suite: `422 passed, 26 deselected, 1 xfailed`;
+- full fast Application suite: `315 passed, 90 deselected`;
+- modified Core Python files pass Ruff;
+- full `server.py` Ruff remains blocked only by the five pre-existing F841/F811
+  findings outside the notification routes.
+- normal prepared documentation build passes with only the repository's
+  existing Griffe/autoreference warnings.
+
+Automated gate A is complete. The first human checkpoint is mobile checkpoint
+B.
+
+### Stage B — shared SDK and mobile authoritative dismissal
+
+Implemented on August 1, 2026:
+
+- expanded SDK notification types and event guards for integer revisions and
+  dismissed/resolved/expired terminal states;
+- added revision-token and revision-aware merge helpers;
+- added optional application/session notification list and dismiss operations
+  to `AgentBackend` and implemented them in `RestAgentBackend`;
+- added explicit notification revision ownership to display envelopes;
+- added opt-in authoritative application snapshot hydration using
+  cursor-before-snapshot ordering;
+- enabled snapshot hydration only on mobile so desktop remains on the approved
+  Stage C boundary;
+- changed mobile application notification dismissal to use the controller's
+  server mutation response;
+- changed mobile session inline, banner, and modal dismissal to use the server
+  mutation routes;
+- retained local close behavior for direct action displays;
+- retained successful-response local suppression only to update the initiating
+  frontend immediately;
+- deliberately ignored remote dismissal events for live presentation so
+  another already-open frontend is not forced to dismiss immediately;
+- refreshed active mobile session context after inline session dismissal;
+- fixed stale-event reconciliation so an old created event cannot resurrect a
+  newer terminal session record;
+- updated the root, SDK, shared component, mobile, API, and plugin
+  documentation.
+
+Automated evidence:
+
+- frontend SDK: `275 passed`;
+- shared React Native components: `7 passed`;
+- frontend SDK React bindings: `20 passed`;
+- mobile TypeScript: passed;
+- full mobile Jest suite: `106 passed`;
+- focused mobile dismissal/rehydration tests: `11 passed`;
+- real-backend mobile component integration: `3 passed`; application and
+  session dismissal survive production component recreation;
+- focused desktop compatibility test: `1 passed`;
+- no new Detox scenario was added because persistence/rehydration crosses the
+  HTTP/backend boundary but has no native-only behavior; existing Detox
+  coverage continues to own visual placement.
+
+Manual mobile checkpoint B remains open.

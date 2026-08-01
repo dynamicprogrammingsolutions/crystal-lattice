@@ -11,7 +11,8 @@ import type {
 import {
   mergeSessionNotificationEvents,
   normalizeDisplayEnvelope,
-  selectPendingSessionNotifications,
+  notificationExpectedRevision,
+  selectSessionNotifications,
 } from '@crystal-lattice/frontend-sdk';
 
 import { NotificationBanner } from './NotificationBanner';
@@ -25,6 +26,9 @@ export interface SessionNotificationsHostProps {
     action: ActionDisplayFollowupAction,
     notification: SessionNotification,
   ) => void;
+  onDismissNotification?: (
+    notification: SessionNotification,
+  ) => Promise<void> | void;
   renderInline?: (options: {
     notification: SessionNotification;
     onDismiss: () => void;
@@ -39,10 +43,12 @@ export function SessionNotificationsHost({
   onBanner,
   onModal,
   onFollowupAction,
+  onDismissNotification,
   renderInline,
   inlinePresentations = ['inline'],
 }: SessionNotificationsHostProps): React.JSX.Element | null {
   const [dismissedRevisions, setDismissedRevisions] = useState<string[]>([]);
+  const [dismissingIds, setDismissingIds] = useState<string[]>([]);
   const routed = useRef<Record<string, string>>({});
   const inlinePresentationSet = useMemo(
     () => new Set(inlinePresentations),
@@ -51,11 +57,13 @@ export function SessionNotificationsHost({
   const notifications = useMemo(
     () =>
       mergeSessionNotificationEvents(
-        selectPendingSessionNotifications(sessionSummary),
-        events,
+        selectSessionNotifications(sessionSummary),
+        events.filter(
+          (event) => event.type !== 'session_notification_dismissed',
+        ),
       ).filter(
         (notification) => {
-          const revision = `${notification.id}:${notification.updated_at}`;
+          const revision = `${notification.id}:${notificationExpectedRevision(notification)}`;
           return (
             notification.status === 'pending' &&
             !dismissedRevisions.includes(revision)
@@ -93,6 +101,27 @@ export function SessionNotificationsHost({
     (notification) =>
       inlinePresentationSet.has(notification.display.presentation ?? 'inline'),
   );
+
+  const dismiss = async (notification: SessionNotification) => {
+    if (dismissingIds.includes(notification.id)) return;
+    setDismissingIds((current) => [...current, notification.id]);
+    try {
+      if (onDismissNotification) {
+        await onDismissNotification(notification);
+      }
+      const revision = `${notification.id}:${notificationExpectedRevision(notification)}`;
+      setDismissedRevisions((current) =>
+        current.includes(revision) ? current : [...current, revision],
+      );
+    } catch {
+      // The owner reports the error and the notification remains visible.
+    } finally {
+      setDismissingIds((current) =>
+        current.filter((id) => id !== notification.id),
+      );
+    }
+  };
+
   if (inline.length === 0) return null;
 
   return (
@@ -102,11 +131,9 @@ export function SessionNotificationsHost({
           {renderInline ? (
             renderInline({
               notification,
-              onDismiss: () =>
-                setDismissedRevisions((current) => [
-                  ...current,
-                  `${notification.id}:${notification.updated_at}`,
-                ]),
+              onDismiss: () => {
+                void dismiss(notification);
+              },
               onFollowupAction: (action) =>
                 onFollowupAction?.(action, notification),
             })
@@ -114,12 +141,9 @@ export function SessionNotificationsHost({
             <NotificationBanner
               display={notification.display}
               severity={notification.severity}
-              onDismiss={() =>
-                setDismissedRevisions((current) => [
-                  ...current,
-                  `${notification.id}:${notification.updated_at}`,
-                ])
-              }
+              onDismiss={() => {
+                void dismiss(notification);
+              }}
               onFollowupAction={(action) =>
                 onFollowupAction?.(action, notification)
               }

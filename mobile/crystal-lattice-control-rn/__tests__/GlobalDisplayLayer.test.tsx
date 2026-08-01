@@ -1,5 +1,11 @@
 import React from 'react';
-import { act, fireEvent, screen, within } from '@testing-library/react-native';
+import {
+  act,
+  fireEvent,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react-native';
 import { View } from 'react-native';
 
 import {
@@ -56,7 +62,7 @@ test('presents a later revision after dismissing the same lifecycle id', () => {
       backend,
       normalizeDisplayEnvelope({
         id: 'same-notification',
-        source: 'application_notification',
+        source: 'action_response',
         connectionId: 'test',
         updatedAt: '2026-07-30T00:00:00Z',
         display: {
@@ -76,7 +82,7 @@ test('presents a later revision after dismissing the same lifecycle id', () => {
       backend,
       normalizeDisplayEnvelope({
         id: 'same-notification',
-        source: 'application_notification',
+        source: 'action_response',
         connectionId: 'test',
         updatedAt: '2026-07-30T00:00:01Z',
         display: {
@@ -93,6 +99,79 @@ test('presents a later revision after dismissing the same lifecycle id', () => {
 
   rendered.unmount();
   jest.useRealTimers();
+});
+
+test('persists application notification dismissal and does not rehydrate it', async () => {
+  let notifications = [
+    {
+      id: 'application-notification',
+      key: 'demo',
+      kind: 'notification' as const,
+      status: 'pending' as const,
+      revision: 1,
+      severity: 'info' as const,
+      title: 'Application notification',
+      body: 'Persisted application notification',
+      created_at: '2026-08-01T00:00:00Z',
+      updated_at: '2026-08-01T00:00:00Z',
+      source: { plugin: 'dummy' },
+      display: {
+        format: 'text' as const,
+        body: 'Persisted application notification',
+        presentation: 'banner' as const,
+      },
+      model_visibility: 'hidden' as const,
+    },
+  ];
+  const dismissApplicationNotification = jest.fn(async () => {
+    const dismissed = {
+      ...notifications[0],
+      status: 'dismissed' as const,
+      revision: 2,
+      updated_at: '2026-08-01T00:00:01Z',
+      dismissal: { dismissed_at: '2026-08-01T00:00:01Z' },
+    };
+    notifications = [];
+    return dismissed;
+  });
+  const backend = {
+    ...createBackend(),
+    listApplicationNotifications: jest.fn(async () => notifications),
+    dismissApplicationNotification,
+  } as AgentBackend;
+
+  const renderLayer = () =>
+    renderWithMobileProviders(
+      <ApplicationPluginsProvider backend={backend} connectionId="test">
+        <GlobalDisplayLayer backend={backend} connectionId="test">
+          <MobileDisplayHost scope="connection" />
+        </GlobalDisplayLayer>
+      </ApplicationPluginsProvider>,
+    );
+
+  const rendered = renderLayer();
+  expect(
+    await screen.findByText('Persisted application notification'),
+  ).toBeTruthy();
+  fireEvent.press(screen.getByLabelText('Dismiss notification'));
+  await waitFor(() => {
+    expect(dismissApplicationNotification).toHaveBeenCalledWith(
+      'application-notification',
+      { expectedRevision: 1, reason: 'user' },
+    );
+    expect(
+      screen.queryByText('Persisted application notification'),
+    ).toBeNull();
+  });
+
+  rendered.unmount();
+  const reopened = renderLayer();
+  await waitFor(() => {
+    expect(
+      screen.queryByText('Persisted application notification'),
+    ).toBeNull();
+  });
+  reopened.unmount();
 });
 
 test('routes connection displays to Sessions and session displays to matching Chat', () => {

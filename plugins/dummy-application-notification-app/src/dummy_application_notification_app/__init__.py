@@ -60,6 +60,11 @@ class DummyApplicationNotificationPlugin:
                 "label": "Resolve application notification",
                 "inputs": {},
             },
+            {
+                "id": "expire_application_notification",
+                "label": "Expire application notification",
+                "inputs": {},
+            },
         ]
 
     def get_ui_elements(
@@ -86,6 +91,13 @@ class DummyApplicationNotificationPlugin:
                 "icon": "check",
                 "action_id": "resolve_application_notification",
             },
+            {
+                "ui_type": "application_action",
+                "id": "expire_application_notification",
+                "label": "Expire demo application notification",
+                "icon": "clock",
+                "action_id": "expire_application_notification",
+            },
         ]
 
     def get_commands(self, state: dict[str, Any]) -> list[dict[str, Any]]:
@@ -96,7 +108,10 @@ class DummyApplicationNotificationPlugin:
         self, app: Any, action_id: str, params: dict[str, Any], context, state
     ) -> dict[str, Any]:
         _ = context, state
-        if action_id == "resolve_application_notification":
+        if action_id in {
+            "resolve_application_notification",
+            "expire_application_notification",
+        }:
             items = [
                 item
                 for item in app.list_application_notifications()
@@ -105,10 +120,18 @@ class DummyApplicationNotificationPlugin:
             ]
             if not items:
                 return {"status": "ok", "message": "No pending demo notification."}
-            app.resolve_application_notification(
-                items[-1]["id"], {"action_id": action_id}
-            )
-            return {"status": "ok", "message": "Demo notification resolved."}
+            if action_id == "resolve_application_notification":
+                app.resolve_application_notification(
+                    items[-1]["id"], {"action_id": action_id}
+                )
+                message = "Demo notification resolved."
+            else:
+                app.expire_application_notification(
+                    items[-1]["id"],
+                    reason="demo_action",
+                )
+                message = "Demo notification expired."
+            return {"status": "ok", "message": message}
         if action_id != "emit_application_notification":
             raise KeyError(action_id)
         presentation = str(params.get("presentation") or "banner")

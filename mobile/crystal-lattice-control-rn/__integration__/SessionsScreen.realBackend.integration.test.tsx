@@ -87,7 +87,9 @@ import { ApplicationPluginsProvider } from '../src/ApplicationPluginsContext';
 import { SessionNotificationsHost } from '@crystal-lattice/frontend-rn-components';
 import { PinnedActionsProvider } from '../src/PinnedActionsContext';
 import SessionsScreen from '../src/SessionsScreen';
-import GlobalDisplayLayer from '../src/components/GlobalDisplayLayer';
+import GlobalDisplayLayer, {
+  MobileDisplayHost,
+} from '../src/components/GlobalDisplayLayer';
 import { renderWithMobileProviders } from '../src/testUtils/renderWithMobileProviders';
 import {
   createMobileComponentSession,
@@ -112,6 +114,7 @@ const SERVER_CONFIG = {
     'path:${env:REPO_ROOT}/plugins/session-status-app',
     'path:${env:REPO_ROOT}/plugins/session-ordering-buckets-app',
     'path:${env:REPO_ROOT}/plugins/application-config-app',
+    'path:${env:REPO_ROOT}/plugins/dummy-application-notification-app',
     'path:${env:REPO_ROOT}/plugins/dummy-session-notification-app',
   ],
   agents: {
@@ -377,7 +380,64 @@ describe('SessionsScreen real-backend component integration', () => {
     expect(screen.getByTestId(`session-row-${otherSessionId}`)).toBeTruthy();
   }, 60000);
 
-  it('renders a persistent session notification emitted through a real action', async () => {
+  it('persists application notification dismissal across component recreation', async () => {
+    started = await startMobileComponentBackend({
+      config: SERVER_CONFIG,
+      startupTimeoutMs: 30000,
+    });
+    const response = await started.backend.executeAction({
+      pluginId: 'dummy_application_notification',
+      actionId: 'emit_application_notification',
+      inputs: { presentation: 'banner', variant: 'warning' },
+    });
+    expect(response.status).toBe('ok');
+
+    const renderApplicationNotifications = () =>
+      renderWithMobileProviders(
+        <ApplicationPluginsProvider
+          backend={started!.backend}
+          connectionId="real-backend"
+        >
+          <GlobalDisplayLayer
+            backend={started!.backend}
+            connectionId="real-backend"
+          >
+            <MobileDisplayHost scope="connection" />
+          </GlobalDisplayLayer>
+        </ApplicationPluginsProvider>,
+      );
+
+    const rendered = renderApplicationNotifications();
+    expect(
+      await screen.findByText('Application notification demo'),
+    ).toBeTruthy();
+    fireEvent.press(screen.getByLabelText('Dismiss notification'));
+
+    await waitFor(async () => {
+      expect(
+        await started!.backend.listApplicationNotifications!(),
+      ).toEqual([]);
+      expect(
+        screen.queryByText('Application notification demo'),
+      ).toBeNull();
+    });
+    const terminal = await started.backend.listApplicationNotifications!({
+      includeTerminal: true,
+    });
+    expect(terminal).toHaveLength(1);
+    expect(terminal[0].status).toBe('dismissed');
+
+    rendered.unmount();
+    const reopened = renderApplicationNotifications();
+    await waitFor(() => {
+      expect(
+        screen.queryByText('Application notification demo'),
+      ).toBeNull();
+    });
+    reopened.unmount();
+  }, 60000);
+
+  it('persists session notification dismissal across component recreation', async () => {
     started = await startMobileComponentBackend({
       config: SERVER_CONFIG,
       startupTimeoutMs: 30000,
@@ -402,17 +462,53 @@ describe('SessionsScreen real-backend component integration', () => {
     });
     const onFollowupAction = jest.fn();
 
-    renderWithMobileProviders(
+    const renderSessionNotifications = (currentSummary: typeof summary) =>
+      renderWithMobileProviders(
       <SessionNotificationsHost
-        sessionSummary={summary ?? null}
+        sessionSummary={currentSummary ?? null}
         events={events.events}
         onBanner={() => {}}
         onModal={() => {}}
         onFollowupAction={onFollowupAction}
+        onDismissNotification={async (notification) => {
+          await started!.backend.dismissSessionNotification!(
+            sessionId,
+            notification.id,
+            {
+              expectedRevision:
+                notification.revision ?? notification.updated_at,
+              reason: 'user',
+            },
+          );
+        }}
       />,
     );
+
+    const rendered = renderSessionNotifications(summary);
     expect(await screen.findByText('Session notification demo')).toBeTruthy();
     fireEvent.press(screen.getByLabelText('Run follow-up'));
     expect(onFollowupAction).toHaveBeenCalled();
+    fireEvent.press(screen.getByLabelText('Dismiss notification'));
+
+    await waitFor(async () => {
+      expect(
+        await started!.backend.listSessionNotifications!(sessionId),
+      ).toEqual([]);
+      expect(screen.queryByText('Session notification demo')).toBeNull();
+    });
+    const terminal = await started.backend.listSessionNotifications!(
+      sessionId,
+      { includeTerminal: true },
+    );
+    expect(terminal).toHaveLength(1);
+    expect(terminal[0].status).toBe('dismissed');
+
+    rendered.unmount();
+    const refreshedSummary = await started.backend.getSessionSummary(sessionId);
+    const reopened = renderSessionNotifications(refreshedSummary);
+    await waitFor(() => {
+      expect(screen.queryByText('Session notification demo')).toBeNull();
+    });
+    reopened.unmount();
   }, 60000);
 });

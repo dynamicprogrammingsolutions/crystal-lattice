@@ -75,7 +75,9 @@ def test_demo_plugins_exercise_public_notification_and_display_contract(
         }
         assert {
             "emit_application_notification",
+            "expire_application_notification",
             "emit_session_notification",
+            "expire_session_notification",
             "show_action_display",
         } <= action_ids
 
@@ -88,6 +90,62 @@ def test_demo_plugins_exercise_public_notification_and_display_contract(
             },
         ).json()
         assert application_response["status"] == "ok"
+        application_notification = client.get("/application/notifications").json()[
+            "notifications"
+        ][0]
+        assert application_notification["revision"] == 1
+
+        application_dismiss = client.post(
+            f"/application/notifications/{application_notification['id']}/dismiss",
+            json={
+                "expected_revision": application_notification["revision"],
+                "reason": "integration-test",
+            },
+        )
+        assert application_dismiss.status_code == 200
+        dismissed_application_notification = application_dismiss.json()["notification"]
+        assert dismissed_application_notification["status"] == "dismissed"
+        assert dismissed_application_notification["revision"] == 2
+        assert client.get("/application/notifications").json()["notifications"] == []
+        assert client.get(
+            "/application/notifications",
+            params={"include_terminal": True},
+        ).json()["notifications"] == [dismissed_application_notification]
+
+        stale_application_dismiss = client.post(
+            f"/application/notifications/{application_notification['id']}/dismiss",
+            json={"expected_revision": application_notification["revision"]},
+        )
+        assert stale_application_dismiss.status_code == 409
+        assert (
+            stale_application_dismiss.json()["detail"]["error_type"]
+            == "notification_revision_conflict"
+        )
+
+        client.post(
+            "/actions",
+            json={
+                "plugin": "dummy_application_notification",
+                "action_id": "emit_application_notification",
+                "inputs": {"presentation": "banner", "variant": "warning"},
+            },
+        )
+        application_expire = client.post(
+            "/actions",
+            json={
+                "plugin": "dummy_application_notification",
+                "action_id": "expire_application_notification",
+                "inputs": {},
+            },
+        ).json()
+        assert application_expire["status"] == "ok"
+        assert any(
+            item["status"] == "expired"
+            for item in client.get(
+                "/application/notifications",
+                params={"include_terminal": True},
+            ).json()["notifications"]
+        )
 
         unsupported_application_response = client.post(
             "/actions",
@@ -128,9 +186,61 @@ def test_demo_plugins_exercise_public_notification_and_display_contract(
         notification = stored.metadata["notifications"]["items"][0]
         assert notification["display"]["presentation"] == "inline"
         assert notification["model_visibility"] == "hidden"
+        assert client.get(f"/sessions/{session_id}/notifications").json()[
+            "notifications"
+        ] == [notification]
+
+        session_dismiss = client.post(
+            f"/sessions/{session_id}/notifications/{notification['id']}/dismiss",
+            json={
+                "expected_revision": notification["revision"],
+                "reason": "integration-test",
+            },
+        )
+        assert session_dismiss.status_code == 200
+        dismissed_session_notification = session_dismiss.json()["notification"]
+        assert dismissed_session_notification["status"] == "dismissed"
+        assert dismissed_session_notification["revision"] == 2
+        assert (
+            client.get(f"/sessions/{session_id}/notifications").json()["notifications"]
+            == []
+        )
+        assert client.get(
+            f"/sessions/{session_id}/notifications",
+            params={"include_terminal": True},
+        ).json()["notifications"] == [dismissed_session_notification]
+
+        client.post(
+            f"/sessions/{session_id}/actions",
+            json={
+                "plugin": "dummy_session_notification",
+                "action_id": "emit_session_notification",
+                "action_owner": "application",
+                "inputs": {"presentation": "inline", "variant": "warning"},
+            },
+        )
+        session_expire = client.post(
+            f"/sessions/{session_id}/actions",
+            json={
+                "plugin": "dummy_session_notification",
+                "action_id": "expire_session_notification",
+                "action_owner": "application",
+                "inputs": {},
+            },
+        ).json()
+        assert session_expire["status"] == "ok"
+        assert any(
+            item["status"] == "expired"
+            for item in client.get(
+                f"/sessions/{session_id}/notifications",
+                params={"include_terminal": True},
+            ).json()["notifications"]
+        )
 
         events = client.get(
             "/events",
             params={"since_id": "0", "session_id": session_id},
         ).json()["events"]
-        assert "session_notification_created" in {event["type"] for event in events}
+        event_types = {event["type"] for event in events}
+        assert "session_notification_created" in event_types
+        assert "session_notification_dismissed" in event_types

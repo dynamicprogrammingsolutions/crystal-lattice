@@ -1,6 +1,6 @@
 # Notification technical specification
 
-Status: Accepted; implementation pending
+Status: Implementing — Stage A automated verification complete
 
 ## Record family
 
@@ -72,6 +72,18 @@ server-side dismiss, expire, and list/history. Application notifications
 support equivalent owner-scoped operations plus an authoritative current-state
 snapshot/list path.
 
+Stage A exposes the frontend-facing subset through:
+
+```text
+GET  /application/notifications
+POST /application/notifications/{notification_id}/dismiss
+GET  /sessions/{session_id}/notifications
+POST /sessions/{session_id}/notifications/{notification_id}/dismiss
+```
+
+List endpoints return active records by default and accept
+`include_terminal=true`.
+
 Mutations may include `expected_revision`. A stale mutation returns the current
 record rather than overwriting a later revision.
 
@@ -98,14 +110,16 @@ Application events:
 
 - `application_notification_created`
 - `application_notification_updated`
+- `application_notification_dismissed`
+- `application_notification_expired`
 
 Session events:
 
 - `session_notification_created`
 - `session_notification_updated`
 - `session_notification_resolved`
-- proposed dismissal and expiration transitions, either as explicit lifecycle
-  events or revisioned updates with equivalent observable meaning.
+- `session_notification_dismissed`
+- `session_notification_expired`
 
 Application events omit `session_id`. Session events include it. Event
 delivery is best effort. Events accelerate updates but are not authoritative.
@@ -150,3 +164,8 @@ with unrelated semantics.
 
 Existing records without `revision` may use `updated_at` as a compatibility
 revision token during migration.
+
+Stage A migrates such a record to integer revision `1` on its first mutation.
+Mobile calls the server mutation routes and hydrates application notifications
+from the owner snapshot. Desktop retains frontend-local dismissal until Stage
+C.

@@ -121,6 +121,8 @@ export type { ApplicationNotificationsState } from './notifications/applicationN
 export { ApplicationNotificationsController } from './notifications/applicationNotificationsController';
 export type {
   NotificationSeverity,
+  NotificationExpectedRevision,
+  NotificationStatus,
   SessionNotification,
   SessionNotificationEvent,
   SessionNotificationStatus,
@@ -133,6 +135,11 @@ export {
   selectPendingSessionNotifications,
   selectSessionNotifications,
 } from './notifications/sessionNotifications';
+export {
+  isActiveNotification,
+  isNewerNotification,
+  notificationExpectedRevision,
+} from './notifications/notificationLifecycle';
 
 export type { PluginsResult, PluginsRegistryState } from './plugins/pluginsRegistry';
 export { PluginsRegistry } from './plugins/pluginsRegistry';

@@ -9,6 +9,7 @@ describe('application notifications', () => {
       key: 'application:reload',
       kind: 'notification',
       status: 'pending',
+      revision: 1,
       severity: 'info',
       title: 'Requested',
       body: 'Waiting',
@@ -21,6 +22,7 @@ describe('application notifications', () => {
     const updated = {
       ...created,
       status: 'resolved',
+      revision: 2,
       severity: 'success',
       title: 'Completed',
       updated_at: '2026-01-01T00:00:01Z',
@@ -40,5 +42,39 @@ describe('application notifications', () => {
     ]);
 
     expect(merged).toEqual([updated]);
+  });
+
+  it('does not replace a newer snapshot record with a stale event', () => {
+    const current = {
+      id: 'notification-1',
+      key: 'application:reload',
+      kind: 'notification',
+      status: 'dismissed',
+      revision: 3,
+      severity: 'info',
+      title: 'Dismissed',
+      body: 'Done',
+      created_at: '2026-08-01T00:00:00Z',
+      updated_at: '2026-08-01T00:00:03Z',
+      source: { plugin: 'application_owner' },
+      display: { format: 'text', body: 'Done' },
+      model_visibility: 'hidden',
+    } as const;
+    const stale = {
+      ...current,
+      status: 'pending',
+      revision: 2,
+      updated_at: '2026-08-01T00:00:02Z',
+    } as const;
+
+    expect(
+      mergeApplicationNotificationEvents([current], [
+        {
+          event_id: '2',
+          type: 'application_notification_updated',
+          notification: stale,
+        },
+      ]),
+    ).toEqual([current]);
   });
 });

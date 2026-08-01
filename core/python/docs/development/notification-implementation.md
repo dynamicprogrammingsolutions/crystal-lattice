@@ -7,8 +7,9 @@ root specification.
 ## Session notifications
 
 `core/python/agent_app/notifications.py` implements normalized creation,
-same-key update, update by ID/key, resolution, listing, locking, persistence,
-event publication, and pruning.
+same-key update, update by ID/key, dismissal, resolution, expiration, listing,
+revision conflicts, lifecycle transitions, locking, persistence, event
+publication, and pruning.
 
 The implementation:
 
@@ -22,7 +23,12 @@ The implementation:
 
 `core/python/agent_app/application_owner.py` keeps application notifications in
 owner memory so they survive `AgentApplication` replacement but not owner
-process restart.
+process restart. It applies the same revision, active/terminal, stable-key, and
+terminal-transition rules as session notifications.
+
+New records start at integer revision `1`. Existing records without an integer
+revision accept `updated_at` as a compatibility token and migrate on first
+mutation.
 
 ## Tool boundary
 

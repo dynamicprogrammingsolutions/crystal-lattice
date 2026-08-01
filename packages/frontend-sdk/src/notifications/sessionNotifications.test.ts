@@ -13,6 +13,7 @@ const notification: SessionNotification = {
   key: 'dummy:notification',
   kind: 'notification',
   status: 'pending',
+  revision: 1,
   severity: 'success',
   title: 'Demo',
   body: 'Body',
@@ -38,6 +39,7 @@ describe('session notifications', () => {
     const resolved = {
       ...notification,
       status: 'resolved' as const,
+      revision: 2,
       updated_at: '2026-01-02T00:00:00Z',
       resolution: { action_id: 'resolve', resolved_at: '2026-01-02T00:00:00Z' },
     };
@@ -51,6 +53,27 @@ describe('session notifications', () => {
         },
       ]),
     ).toEqual([resolved]);
+  });
+
+  it('selects terminal records but excludes them from active presentation', () => {
+    const dismissed = {
+      ...notification,
+      status: 'dismissed' as const,
+      revision: 2,
+      dismissal: {
+        dismissed_at: '2026-08-01T00:00:00Z',
+      },
+    };
+    expect(
+      selectSessionNotifications({
+        notifications: { items: [notification, dismissed] },
+      }),
+    ).toEqual([notification, dismissed]);
+    expect(
+      selectPendingSessionNotifications({
+        notifications: { items: [notification, dismissed] },
+      }),
+    ).toEqual([notification]);
   });
 
   it('dismisses locally without mutating the notification', () => {

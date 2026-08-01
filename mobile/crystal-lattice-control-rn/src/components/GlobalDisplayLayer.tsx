@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { Alert, Linking, View } from 'react-native';
@@ -41,7 +42,7 @@ interface GlobalDisplayLayerProps {
 
 interface GlobalDisplayContextValue {
   items: DisplayEnvelope[];
-  dismiss: (envelope: DisplayEnvelope) => void;
+  dismiss: (envelope: DisplayEnvelope) => Promise<void>;
   followup: (
     action: ActionDisplayFollowupAction,
     envelope: DisplayEnvelope,
@@ -84,7 +85,9 @@ export function MobileDisplayHost({
           items={banners}
           layout="flow"
           testID={testID}
-          onDismiss={(item) => context.dismiss(item.envelope)}
+          onDismiss={(item) => {
+            void context.dismiss(item.envelope);
+          }}
           onFollowupAction={(action, item) => {
             void context.followup(action, item.envelope);
           }}
@@ -96,7 +99,9 @@ export function MobileDisplayHost({
             <ActionResultInlineCard
               key={envelope.id}
               display={envelope.display}
-              onDismiss={() => context.dismiss(envelope)}
+              onDismiss={() => {
+                void context.dismiss(envelope);
+              }}
               onFollowupAction={(action) => {
                 void context.followup(action, envelope);
               }}
@@ -110,7 +115,7 @@ export function MobileDisplayHost({
         presentationMode="overlay"
         testID="global-notification-modal"
         onRequestClose={() => {
-          if (modal) context.dismiss(modal);
+          if (modal) void context.dismiss(modal);
         }}
         onFollowupAction={(action) => {
           if (modal) void context.followup(action, modal);
@@ -130,7 +135,11 @@ export default function GlobalDisplayLayer({
   const [applicationNotifications, setApplicationNotifications] = useState<
     ApplicationNotification[]
   >([]);
-  const [dismissedRevisions, setDismissedRevisions] = useState<string[]>([]);
+  const [locallyDismissedRevisions, setLocallyDismissedRevisions] = useState<
+    string[]
+  >([]);
+  const applicationControllerRef =
+    useRef<ApplicationNotificationsController | null>(null);
 
   const upsert = useCallback((envelope: DisplayEnvelope) => {
     const key = displayEnvelopeLifecycleKey(envelope);
@@ -161,7 +170,9 @@ export default function GlobalDisplayLayer({
     const controller = new ApplicationNotificationsController({
       backend,
       connectionId,
+      hydrateSnapshot: true,
     });
+    applicationControllerRef.current = controller;
     const sync = () => {
       setApplicationNotifications(controller.getSnapshot().notifications);
     };
@@ -169,15 +180,18 @@ export default function GlobalDisplayLayer({
     sync();
     controller.start();
     return () => {
+      if (applicationControllerRef.current === controller) {
+        applicationControllerRef.current = null;
+      }
       unsubscribe();
       controller.close();
     };
   }, [backend, connectionId]);
 
-  const dismiss = useCallback((envelope: DisplayEnvelope) => {
-    const revision = displayEnvelopeRevisionKey(envelope);
+  const dismissLocally = useCallback((envelope: DisplayEnvelope) => {
     const lifecycle = displayEnvelopeLifecycleKey(envelope);
-    setDismissedRevisions((current) =>
+    const revision = displayEnvelopeRevisionKey(envelope);
+    setLocallyDismissedRevisions((current) =>
       current.includes(revision) ? current : [...current, revision],
     );
     setTransientItems((current) =>
@@ -185,10 +199,50 @@ export default function GlobalDisplayLayer({
     );
   }, []);
 
+  const dismiss = useCallback(
+    async (envelope: DisplayEnvelope) => {
+      try {
+        if (envelope.source === 'application_notification') {
+          const controller = applicationControllerRef.current;
+          if (!controller) {
+            throw new Error('Application notification controller is unavailable.');
+          }
+          await controller.dismiss(envelope.id);
+          return;
+        }
+        if (envelope.source === 'session_notification') {
+          if (!backend?.dismissSessionNotification || !envelope.sessionId) {
+            throw new Error('Backend does not support session notification dismissal.');
+          }
+          await backend.dismissSessionNotification(
+            envelope.sessionId,
+            envelope.id,
+            {
+              expectedRevision:
+                envelope.notificationRevision ?? envelope.updatedAt,
+              reason: 'user',
+            },
+          );
+          dismissLocally(envelope);
+          return;
+        }
+        dismissLocally(envelope);
+      } catch (error) {
+        Alert.alert(
+          'Dismiss failed',
+          error instanceof Error
+            ? error.message || 'Notification dismissal failed.'
+            : 'Notification dismissal failed.',
+        );
+      }
+    },
+    [backend, dismissLocally],
+  );
+
   const followup = useCallback(
     async (action: ActionDisplayFollowupAction, envelope: DisplayEnvelope) => {
       if (action.kind === 'dismiss') {
-        dismiss(envelope);
+        await dismiss(envelope);
         return;
       }
       if (action.kind === 'open_url') {
@@ -256,10 +310,13 @@ export default function GlobalDisplayLayer({
         display: notification.display,
         createdAt: notification.created_at,
         updatedAt: notification.updated_at,
+        notificationRevision:
+          notification.revision ?? notification.updated_at,
       }),
     );
   const items = [...applicationItems, ...transientItems].filter(
-    (item) => !dismissedRevisions.includes(displayEnvelopeRevisionKey(item)),
+    (item) =>
+      !locallyDismissedRevisions.includes(displayEnvelopeRevisionKey(item)),
   );
   return (
     <GlobalDisplayContext.Provider value={{ items, dismiss, followup }}>

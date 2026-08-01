@@ -17,6 +17,16 @@ class _App:
         self.items = [{**self.items[0], "status": "resolved", "resolution": resolution}]
         return self.items[0]
 
+    def expire_application_notification(self, notification_id, reason):
+        self.items = [
+            {
+                **self.items[0],
+                "status": "expired",
+                "expiration": {"reason": reason},
+            }
+        ]
+        return self.items[0]
+
 
 def test_emits_and_resolves_application_notification():
     plugin = DummyApplicationNotificationPlugin()
@@ -32,3 +42,13 @@ def test_emits_and_resolves_application_notification():
     assert app.items[0]["display"]["presentation"] == "banner"
     plugin.execute_action(app, "resolve_application_notification", {}, None, {})
     assert app.items[0]["status"] == "resolved"
+
+    plugin.execute_action(
+        app,
+        "emit_application_notification",
+        {"presentation": "banner", "variant": "warning"},
+        None,
+        {},
+    )
+    plugin.execute_action(app, "expire_application_notification", {}, None, {})
+    assert app.items[0]["status"] == "expired"

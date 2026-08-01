@@ -8,6 +8,10 @@ from agent_app.application_owner import (
     ApplicationReloadPendingError,
 )
 from agent_app.events import InMemoryEventStore
+from agent_app.notifications import (
+    NotificationRevisionConflictError,
+    NotificationTransitionError,
+)
 
 
 class _FakeApplication:
@@ -57,6 +61,8 @@ def test_owner_waits_for_active_operation_then_replaces_application() -> None:
         "application_reload_completed",
         "application_notification_updated",
     ]
+    assert events[1]["notification"]["revision"] == 1
+    assert events[-1]["notification"]["revision"] == 2
     assert events[-1]["notification"]["title"] == "Application reload completed"
 
 
@@ -151,7 +157,10 @@ def test_owner_application_notifications_create_update_and_resolve() -> None:
     resolved = owner.resolve_notification(created["id"], {"action_id": "resolve_dummy"})
 
     assert updated["id"] == created["id"]
+    assert created["revision"] == 1
+    assert updated["revision"] == 2
     assert resolved["status"] == "resolved"
+    assert resolved["revision"] == 3
     assert owner.list_notifications() == [resolved]
     events = event_store.list(since_id="0", limit=10)["events"]
     assert [event["type"] for event in events] == [
@@ -186,3 +195,105 @@ def test_owner_rejects_inline_application_notifications() -> None:
         assert "['banner', 'modal']" in str(exc)
     else:
         raise AssertionError("inline application notifications must be rejected")
+
+
+def test_owner_notification_dismiss_snapshot_and_new_occurrence() -> None:
+    event_store = InMemoryEventStore()
+    owner = AgentApplicationOwner(
+        lambda _control: _FakeApplication("app", []),
+        event_store=event_store,
+    )
+    created = owner.create_notification(
+        {
+            "key": "dummy:application",
+            "severity": "info",
+            "title": "Application notification",
+            "body": "Created",
+            "source": {"plugin": "dummy_application_notification"},
+            "display": {"format": "text", "presentation": "banner"},
+            "model_visibility": "hidden",
+        }
+    )
+
+    dismissed = owner.dismiss_notification(
+        created["id"],
+        reason="user",
+        expected_revision=created["revision"],
+    )
+    assert dismissed["status"] == "dismissed"
+    assert dismissed["revision"] == 2
+    assert owner.list_notifications(include_terminal=False) == []
+    assert owner.list_notifications(include_terminal=True) == [dismissed]
+
+    replacement = owner.create_notification(
+        {
+            "key": "dummy:application",
+            "severity": "warning",
+            "title": "Application notification again",
+            "body": "New occurrence",
+            "source": {"plugin": "dummy_application_notification"},
+            "display": {"format": "text", "presentation": "banner"},
+            "model_visibility": "hidden",
+        }
+    )
+    assert replacement["id"] != created["id"]
+    assert replacement["revision"] == 1
+
+    events = event_store.list(since_id="0", limit=20)["events"]
+    assert [event["type"] for event in events] == [
+        "application_notification_created",
+        "application_notification_dismissed",
+        "application_notification_created",
+    ]
+
+
+def test_owner_notification_revision_and_transition_conflicts() -> None:
+    owner = AgentApplicationOwner(
+        lambda _control: _FakeApplication("app", []),
+        event_store=InMemoryEventStore(),
+    )
+    created = owner.create_notification(
+        {
+            "key": "dummy:application",
+            "severity": "info",
+            "title": "Application notification",
+            "body": "Created",
+            "source": {"plugin": "dummy_application_notification"},
+            "display": {"format": "text", "presentation": "banner"},
+            "model_visibility": "hidden",
+        }
+    )
+    updated = owner.update_notification(
+        created["id"],
+        {"body": "Updated"},
+        expected_revision=created["revision"],
+    )
+
+    try:
+        owner.dismiss_notification(
+            created["id"],
+            expected_revision=created["revision"],
+        )
+    except NotificationRevisionConflictError as exc:
+        assert exc.current == updated
+    else:
+        raise AssertionError("stale notification revision must be rejected")
+
+    expired = owner.expire_notification(
+        created["id"],
+        reason="manual",
+        expected_revision=updated["revision"],
+    )
+    assert expired["status"] == "expired"
+    assert expired["expiration"]["reason"] == "manual"
+
+    try:
+        owner.resolve_notification(
+            created["id"],
+            {"action_id": "too-late"},
+            expected_revision=expired["revision"],
+        )
+    except NotificationTransitionError:
+        pass
+    else:
+        raise AssertionError("terminal notification transition must be rejected")

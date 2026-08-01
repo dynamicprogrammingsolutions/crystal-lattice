@@ -20,7 +20,11 @@ import type { FlatList as FlatListType } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
-import type { AgentBackend, ChatController as FrontendChatController } from '@crystal-lattice/frontend-sdk';
+import type {
+  AgentBackend,
+  ChatController as FrontendChatController,
+  SessionNotification,
+} from '@crystal-lattice/frontend-sdk';
 import {
   attachmentDraftStatusLabel,
   deleteSessionAttachment,
@@ -3419,6 +3423,36 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    ],
 	  );
 
+  const dismissPersistentSessionNotification = useCallback(
+    async (notification: SessionNotification) => {
+      if (!backend?.dismissSessionNotification) {
+        const error = new Error(
+          'Backend does not support session notification dismissal.',
+        );
+        Alert.alert('Dismiss failed', error.message);
+        throw error;
+      }
+      try {
+        await backend.dismissSessionNotification(sessionId, notification.id, {
+          expectedRevision:
+            notification.revision ?? notification.updated_at,
+          reason: 'user',
+        });
+        sessionContextController?.invalidate();
+        await sessionContextController?.refresh();
+      } catch (error) {
+        Alert.alert(
+          'Dismiss failed',
+          error instanceof Error
+            ? error.message || 'Notification dismissal failed.'
+            : 'Notification dismissal failed.',
+        );
+        throw error;
+      }
+    },
+    [backend, sessionContextController, sessionId],
+  );
+
   const inlineActionDisplaysContent = useMemo(() => {
     return (
       <View>
@@ -3438,6 +3472,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 display: notification.display,
                 createdAt: notification.created_at,
                 updatedAt: notification.updated_at,
+                notificationRevision:
+                  notification.revision ?? notification.updated_at,
               }),
             );
           }}
@@ -3454,9 +3490,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
                 display: notification.display,
                 createdAt: notification.created_at,
                 updatedAt: notification.updated_at,
+                notificationRevision:
+                  notification.revision ?? notification.updated_at,
               }),
             );
           }}
+          onDismissNotification={dismissPersistentSessionNotification}
           onFollowupAction={(action, notification) =>
             handleDisplayFollowupAction(
               createDisplayEntry(notification.display, {
@@ -3500,6 +3539,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     connectionId,
     currentSessionSummary,
     debugEvents,
+    dismissPersistentSessionNotification,
     handleDisplayFollowupAction,
     inlineActionDisplays,
     presentActionDisplay,

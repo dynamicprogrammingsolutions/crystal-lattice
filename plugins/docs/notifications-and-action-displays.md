@@ -87,8 +87,9 @@ notification = {
 The backend adds and maintains:
 
 - `id`;
+- `revision`;
 - `kind: "notification"`;
-- `status: "pending" | "resolved"`;
+- `status: "pending" | "dismissed" | "resolved" | "expired"`;
 - `created_at` and `updated_at`;
 - optional `request_id`;
 - optional resolution details.
@@ -152,9 +153,27 @@ Available application methods:
 
 ```python
 app.create_application_notification(notification)
-app.update_application_notification(notification_id, patch)
-app.resolve_application_notification(notification_id, resolution)
-app.list_application_notifications()
+app.update_application_notification(
+    notification_id,
+    patch,
+    expected_revision=revision,
+)
+app.dismiss_application_notification(
+    notification_id,
+    reason="user",
+    expected_revision=revision,
+)
+app.resolve_application_notification(
+    notification_id,
+    resolution,
+    expected_revision=revision,
+)
+app.expire_application_notification(
+    notification_id,
+    reason="expired",
+    expected_revision=revision,
+)
+app.list_application_notifications(include_terminal=True)
 ```
 
 ## Session notifications
@@ -209,11 +228,38 @@ Available session methods:
 
 ```python
 app.create_session_notification(session_id, notification)
-app.update_session_notification(session_id, notification_id, patch)
-app.update_session_notification_by_key(session_id, key, patch)
-app.resolve_session_notification(session_id, notification_id, resolution)
+app.update_session_notification(
+    session_id,
+    notification_id,
+    patch,
+    expected_revision=revision,
+)
+app.update_session_notification_by_key(
+    session_id,
+    key,
+    patch,
+    expected_revision=revision,
+)
+app.dismiss_session_notification(
+    session_id,
+    notification_id,
+    reason="user",
+    expected_revision=revision,
+)
+app.resolve_session_notification(
+    session_id,
+    notification_id,
+    resolution,
+    expected_revision=revision,
+)
+app.expire_session_notification(
+    session_id,
+    notification_id,
+    reason="expired",
+    expected_revision=revision,
+)
 app.list_session_notifications(session_id)
-app.list_session_notifications(session_id, include_resolved=True)
+app.list_session_notifications(session_id, include_terminal=True)
 ```
 
 ## Stable keys and updates
@@ -243,9 +289,24 @@ app.create_session_notification(
 )
 ```
 
-The stored notification keeps its existing `id` and receives a later
-`updated_at`. Use separate keys when two conditions must be represented
-independently.
+The stored notification keeps its existing `id`, increments `revision`, and
+receives a later `updated_at`. Creating with the key of a dismissed, resolved,
+or expired record creates a new notification occurrence with a new ID. Use
+separate keys when two active conditions must be represented independently.
+
+## Revisions and conflicts
+
+New notification records begin at revision `1`. Pass the revision shown to the
+user back as `expected_revision` for update, dismiss, resolve, or expire
+operations.
+
+A stale revision raises `NotificationRevisionConflictError`. The exception
+contains the current notification. HTTP dismissal routes return the same
+condition as status 409.
+
+Existing records created before integer revisions use their `updated_at` value
+as the compatibility expected-revision token. Their first mutation assigns
+integer revision `1`.
 
 ## Resolving a notification
 
@@ -273,6 +334,33 @@ app.resolve_application_notification(
     {"action_id": "reload_completed"},
 )
 ```
+
+## Dismissing and expiring
+
+Dismissal is a terminal server-side lifecycle transition:
+
+```python
+dismissed = app.dismiss_session_notification(
+    session_id,
+    notification_id,
+    reason="user",
+    expected_revision=revision,
+)
+```
+
+Expiration is also terminal:
+
+```python
+expired = app.expire_application_notification(
+    notification_id,
+    reason="manual_expiration",
+    expected_revision=revision,
+)
+```
+
+Dismiss, resolve, and expire are idempotent when the record is already in the
+requested state. Transitioning from one terminal state to another raises
+`NotificationTransitionError`.
 
 ## Tool notification sink
 
@@ -373,33 +461,49 @@ follow-up can map submitted fields through `$form.<field_name>`. See
 [Plugin actions](actions.md#embedded-display-forms) for a complete form
 example.
 
-## Current dismissal behavior
+## Current frontend dismissal behavior
 
-Dismissal is currently frontend-local:
+The backend and HTTP API support persistent dismissal. Mobile notification
+Dismiss controls use those server operations for application and session
+notifications. Desktop notification Dismiss controls remain local until the
+desktop integration stage.
 
-- dismissing does not change backend notification status;
-- a session notification remains `pending` in session metadata;
-- reopening the session or restarting the frontend can show it again;
-- updating the same notification produces a later `updated_at`, which is
-  eligible for presentation again;
-- backend resolution is the only currently implemented persistent way to stop
-  presentation across reloads.
+Plugins can already call the server-side dismiss methods. API clients can use:
 
-Do not rely on user dismissal to end a backend condition. Resolve the
-notification when the condition is complete.
+```text
+GET  /application/notifications
+POST /application/notifications/{notification_id}/dismiss
+GET  /sessions/{session_id}/notifications
+POST /sessions/{session_id}/notifications/{notification_id}/dismiss
+```
+
+List routes return active notifications by default and accept
+`include_terminal=true`.
+
+The initiating mobile frontend removes the notification after a successful
+server response. Another already-open frontend is not forced to remove it
+immediately; a newly opened, reconnected, or authoritatively refreshed mobile
+frontend does not present the dismissed record.
+
+Dismissal records a user presentation decision. Resolve the notification when
+the underlying condition itself is complete.
 
 ## Events and reconnect
 
 Application notification events:
 
 - `application_notification_created`;
-- `application_notification_updated`.
+- `application_notification_updated`;
+- `application_notification_dismissed`;
+- `application_notification_expired`.
 
 Session notification events:
 
 - `session_notification_created`;
 - `session_notification_updated`;
-- `session_notification_resolved`.
+- `session_notification_resolved`;
+- `session_notification_dismissed`;
+- `session_notification_expired`.
 
 Session metadata is authoritative when a session is reopened. Application
 notifications are owner-memory state and are not durable across owner-process
@@ -435,7 +539,7 @@ configuration.
 
 ## Planned lifecycle extension
 
-The next planned notification revision adds server-persisted dismissal,
-retention and expiration policies, notification history, historical replay,
-and interaction-compatible records. Those APIs and statuses are not part of
-the current runtime yet.
+Automated retention policies, notification history, historical replay,
+desktop adoption of server dismissal, and interaction-compatible records
+remain planned. The manual expire methods and terminal status already exist;
+TTL, request-completion, and server-lifetime policy evaluation do not.

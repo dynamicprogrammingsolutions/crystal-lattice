@@ -1,6 +1,6 @@
 # Notifications
 
-Status: Accepted; implementation pending
+Status: Implementing — Stages A and B automated verification complete
 
 The notification specification defines application- and session-scoped
 notification records, lifecycle, event delivery, persistence, and portable
@@ -17,7 +17,9 @@ revision proposes authoritative dismissal, retention, history/replay, and
 interaction-ready contracts tracked by
 `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`.
 
-The proposed behavior is not yet implemented.
+Stage A implements the backend lifecycle, revision, authoritative snapshot, and
+server dismissal foundation. Stage B integrates authoritative snapshot and
+dismissal behavior into mobile. Desktop keeps local dismissal until Stage C.
 
 Related contracts:
 
