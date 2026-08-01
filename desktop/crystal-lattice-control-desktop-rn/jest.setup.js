@@ -37,6 +37,10 @@ jest.mock('@crystal-lattice/frontend-sdk', () => ({
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
   const { Pressable, Text, TextInput, View } = require('react-native');
+  const {
+    notificationExpectedRevision,
+    selectSessionNotifications,
+  } = jest.requireActual('@crystal-lattice/frontend-sdk');
   const theme = {
     typography: {
       fontSize: {
@@ -294,10 +298,85 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
               ? React.createElement(Text, null, item.envelope.display.title)
               : null,
             React.createElement(Text, null, item.envelope.display.body),
+            item.envelope.display.dismissible !== false && onDismiss
+              ? React.createElement(
+                  Pressable,
+                  {
+                    accessibilityLabel: 'Dismiss notification',
+                    onPress: () => onDismiss(item),
+                  },
+                  React.createElement(Text, null, 'Dismiss'),
+                )
+              : null,
           ),
         ),
       ),
-    SessionNotificationsHost: () => null,
+    SessionNotificationsHost: ({
+      sessionSummary,
+      onDismissNotification,
+      onFollowupAction,
+      renderInline,
+      inlinePresentations = ['inline'],
+    }) => {
+      const [dismissedRevisions, setDismissedRevisions] = React.useState([]);
+      const notifications = selectSessionNotifications(sessionSummary).filter(
+        (notification) =>
+          notification.status === 'pending' &&
+          inlinePresentations.includes(
+            notification.display.presentation || 'inline',
+          ) &&
+          !dismissedRevisions.includes(
+            `${notification.id}:${notificationExpectedRevision(notification)}`,
+          ),
+      );
+      return notifications.length > 0
+        ? React.createElement(
+            View,
+            null,
+            notifications.map((notification) => {
+              const dismiss = async () => {
+                try {
+                  await onDismissNotification?.(notification);
+                  const revision =
+                    `${notification.id}:${notificationExpectedRevision(notification)}`;
+                  setDismissedRevisions((current) =>
+                    current.includes(revision)
+                      ? current
+                      : [...current, revision],
+                  );
+                } catch {
+                  // Keep the notification visible when its owner rejects dismissal.
+                }
+              };
+              if (renderInline) {
+                return React.createElement(
+                  React.Fragment,
+                  { key: notification.id },
+                  renderInline({
+                    notification,
+                    onDismiss: () => {
+                      void dismiss();
+                    },
+                    onFollowupAction: (action) =>
+                      onFollowupAction?.(action, notification),
+                  }),
+                );
+              }
+              return React.createElement(
+                View,
+                { key: notification.id },
+                React.createElement(Text, null, notification.display.body),
+                React.createElement(Pressable, {
+                  accessibilityLabel: 'Dismiss notification',
+                  onPress: () => {
+                    void dismiss();
+                  },
+                }),
+              );
+            }),
+          )
+        : null;
+    },
     SessionListActionsBar: ({ session, pluginActions, pinned, onExecuteAction }) =>
       React.createElement(
         View,

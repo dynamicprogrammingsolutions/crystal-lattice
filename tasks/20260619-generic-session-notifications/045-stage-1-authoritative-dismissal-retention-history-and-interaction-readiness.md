@@ -169,8 +169,8 @@ or Stage 2b real suspension. Those remain in subtasks 050–080.
   metadata.
 - Application notification records and dismissal are authoritative in the
   runtime-injected durable `ApplicationNotificationStore`.
-- Mobile uses server-authoritative dismissal and application snapshot
-  hydration. Desktop dismissal remains frontend-local until Stage C.
+- Mobile and desktop use server-authoritative dismissal and authoritative
+  application/session snapshot hydration.
 - Mobile stores an exact-revision dismissal entry in AsyncStorage, hides the
   selected notification immediately, and does not show a blocking error when
   synchronization fails.
@@ -628,7 +628,7 @@ planned API as available before its implementation stage completes.
 - [x] Complete manual checkpoint B-1.
 - [x] Plan and execute Stage B-2.
 - [x] Complete manual checkpoint B-2.
-- [ ] Plan and execute Stage C.
+- [x] Plan and execute Stage C.
 - [ ] Complete manual checkpoint C.
 - [ ] Plan and execute Stage D.
 - [ ] Complete manual checkpoint D.
@@ -846,3 +846,49 @@ Automated evidence:
 Manual mobile checkpoint B-2 was confirmed on August 1, 2026. Online
 application and session notification dismissal, reopening, and new lifecycle
 occurrence behavior work as intended.
+
+### Stage C — desktop authoritative-dismissal parity
+
+Implemented on August 1, 2026:
+
+- enabled authoritative application-notification snapshot hydration for every
+  open desktop connection;
+- retained one application notification controller per connection and routed
+  dismissal through the controller owning the displayed notification;
+- preserved connection labels, aggregated message-area placement, and
+  per-connection isolation;
+- added a focused desktop session notification rail that hydrates the active
+  session summary, sends revision-checked server dismissal, refreshes
+  authoritative state after success, and retains the notification after
+  failure;
+- kept desktop `modal` presentation as inline fallback in the common
+  message/detail rail;
+- retained direct action-display close as frontend-local behavior;
+- updated the deterministic macOS notification harness to use authoritative
+  application/session backend snapshots and the production desktop session
+  rail;
+- reassessed the B-2 cache for desktop and kept the simpler success-only
+  behavior: desktop does not optimistically hide a failed dismissal, so it
+  does not currently require a platform-local failed-dismissal cache.
+
+Automated evidence:
+
+- focused desktop notification component tests: `5 passed`;
+- real-backend desktop integration: `2 passed`, covering application and
+  session snapshot hydration, revision-checked dismissal, desktop inline
+  fallback, authoritative absence after reopen, and server persistence;
+- multi-connection component coverage verifies that dismissing one
+  connection's notification does not mutate another connection;
+- the deterministic native notification harness now exercises the production
+  Stage C hosts, but XCUITest has not been run pending explicit approval;
+- desktop TypeScript still reports the three pre-existing errors in
+  `ChatPane.tsx` attachment plugin IDs and `ActionResultInlineCard.tsx`
+  `theme.shadow`; Stage C adds no TypeScript error;
+- full desktop Jest suite: `19 suites, 102 passed`;
+- the prepared MkDocs site builds successfully with the repository's existing
+  nav, Griffe indentation, and autoreference warnings.
+
+Manual desktop checkpoint C and the macOS XCUITest notification-harness run
+were explicitly postponed on August 1, 2026. They remain incomplete and must
+be performed before the task is completed, but they do not block planning the
+next contained stage.

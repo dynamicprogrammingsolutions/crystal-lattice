@@ -1,25 +1,25 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import {
-  emitDisplayPresentation,
-  normalizeDisplayEnvelope,
+  type ApplicationNotification,
   type AgentBackend,
   type SessionNotification,
 } from '@crystal-lattice/frontend-sdk';
-import {
-  SessionNotificationsHost,
-  ThemeProvider,
-} from '@crystal-lattice/frontend-rn-components';
+import { ThemeProvider } from '@crystal-lattice/frontend-rn-components';
 
 import { useDesktopTheme } from '../theme/useDesktopTheme';
-import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import {
   DesktopConnectionDisplayRail,
   DesktopGlobalDisplayLayer,
 } from '../ui/DesktopGlobalDisplayLayer';
+import { DesktopSessionNotificationRail } from '../ui/DesktopSessionNotificationRail';
 
-function createBackend(): AgentBackend {
+function createBackend(
+  applicationNotification: ApplicationNotification,
+): AgentBackend {
+  let currentApplicationNotification = applicationNotification;
+  let currentSessionNotification = SESSION_NOTIFICATION;
   return {
     kind: 'inProcess',
     getLatestEventId: async () => '0',
@@ -28,14 +28,89 @@ function createBackend(): AgentBackend {
       latestEventId: '0',
       cursorExpired: false,
     }),
+    listApplicationNotifications: async () =>
+      currentApplicationNotification.status === 'pending'
+        ? [currentApplicationNotification]
+        : [],
+    dismissApplicationNotification: async () => {
+      currentApplicationNotification = {
+        ...currentApplicationNotification,
+        status: 'dismissed',
+        revision: (currentApplicationNotification.revision ?? 1) + 1,
+        updated_at: '2026-08-01T00:00:01Z',
+        dismissal: { dismissed_at: '2026-08-01T00:00:01Z' },
+      };
+      return currentApplicationNotification;
+    },
+    getSessionSummary: async () => ({
+      session_id: 'active-session',
+      modified: 0,
+      preview: '',
+      metadata: {
+        notifications: {
+          items: [currentSessionNotification],
+        },
+      },
+    }),
+    dismissSessionNotification: async () => {
+      currentSessionNotification = {
+        ...currentSessionNotification,
+        status: 'dismissed',
+        revision: (currentSessionNotification.revision ?? 1) + 1,
+        updated_at: '2026-08-01T00:00:01Z',
+        dismissal: { dismissed_at: '2026-08-01T00:00:01Z' },
+      };
+      return currentSessionNotification;
+    },
   } as unknown as AgentBackend;
 }
+
+const FIRST_APPLICATION_NOTIFICATION: ApplicationNotification = {
+  id: 'first-connection-notification',
+  key: 'desktop:first',
+  kind: 'notification',
+  status: 'pending',
+  revision: 1,
+  severity: 'success',
+  title: 'First application notification',
+  body: 'Banner from the first open connection.',
+  created_at: '2026-08-01T00:00:00Z',
+  updated_at: '2026-08-01T00:00:00Z',
+  source: { plugin: 'desktop_notification_rail_harness' },
+  display: {
+    format: 'text',
+    title: 'First application notification',
+    body: 'Banner from the first open connection.',
+    variant: 'success',
+    presentation: 'banner',
+    dismissible: true,
+  },
+  model_visibility: 'hidden',
+};
+
+const SECOND_APPLICATION_NOTIFICATION: ApplicationNotification = {
+  ...FIRST_APPLICATION_NOTIFICATION,
+  id: 'second-connection-notification',
+  key: 'desktop:second',
+  severity: 'info',
+  title: 'Second application notification',
+  body: 'Desktop modal fallback from the second connection.',
+  display: {
+    format: 'text',
+    title: 'Second application notification',
+    body: 'Desktop modal fallback from the second connection.',
+    variant: 'info',
+    presentation: 'modal',
+    dismissible: true,
+  },
+};
 
 const SESSION_NOTIFICATION: SessionNotification = {
   id: 'desktop-session-notification',
   key: 'desktop:session',
   kind: 'notification',
   status: 'pending',
+  revision: 1,
   severity: 'warning',
   title: 'Active session notification',
   body: 'Session notification in the shared message-area rail.',
@@ -55,46 +130,14 @@ const SESSION_NOTIFICATION: SessionNotification = {
 
 export function DesktopNotificationRailHarness(): React.JSX.Element {
   const theme = useDesktopTheme();
-  const first = useMemo(() => createBackend(), []);
-  const second = useMemo(() => createBackend(), []);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      emitDisplayPresentation(
-        first,
-        normalizeDisplayEnvelope({
-          id: 'first-connection-notification',
-          source: 'action_response',
-          ownershipScope: 'connection',
-          connectionId: 'first',
-          display: {
-            format: 'text',
-            title: 'First application notification',
-            body: 'Banner from the first open connection.',
-            variant: 'success',
-            presentation: 'banner',
-          },
-        }),
-      );
-      emitDisplayPresentation(
-        second,
-        normalizeDisplayEnvelope({
-          id: 'second-connection-notification',
-          source: 'action_response',
-          ownershipScope: 'connection',
-          connectionId: 'second',
-          display: {
-            format: 'text',
-            title: 'Second application notification',
-            body: 'Desktop modal fallback from the second connection.',
-            variant: 'info',
-            presentation: 'modal',
-          },
-        }),
-      );
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [first, second]);
+  const first = useMemo(
+    () => createBackend(FIRST_APPLICATION_NOTIFICATION),
+    [],
+  );
+  const second = useMemo(
+    () => createBackend(SECOND_APPLICATION_NOTIFICATION),
+    [],
+  );
 
   return (
     <ThemeProvider theme={theme}>
@@ -123,25 +166,11 @@ export function DesktopNotificationRailHarness(): React.JSX.Element {
           </View>
           <View testID="desktop-notification-combined-rail">
             <DesktopConnectionDisplayRail />
-            <SessionNotificationsHost
-              sessionSummary={{
-                session_id: 'active-session',
-                modified: 0,
-                preview: '',
-                metadata: {
-                  notifications: {
-                    items: [SESSION_NOTIFICATION],
-                  },
-                },
-              }}
-              inlinePresentations={['inline', 'banner', 'modal']}
-              renderInline={({ notification, onDismiss, onFollowupAction }) => (
-                <ActionResultInlineCard
-                  display={notification.display}
-                  onDismiss={onDismiss}
-                  onFollowupAction={(action) => onFollowupAction(action)}
-                />
-              )}
+            <DesktopSessionNotificationRail
+              backend={first}
+              connectionId="first"
+              sessionId="active-session"
+              sessionSummary={null}
             />
           </View>
           <View style={styles.messages} testID="desktop-notification-message-content">

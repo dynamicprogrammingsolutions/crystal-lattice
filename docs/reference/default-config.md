@@ -556,6 +556,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "path:${env:BUILTIN_PLUGINS}/feature-file-context",
     "path:${env:BUILTIN_PLUGINS}/feature-web-context",
     "path:${env:BUILTIN_PLUGINS}/chatgpt-auth-app",
+    "path:${env:BUILTIN_PLUGINS}/application-config-app",
     "path:${env:BUILTIN_PLUGINS}/session-actions-app",
     "path:${env:BUILTIN_PLUGINS}/summarize-range-app",
     "path:${env:BUILTIN_PLUGINS}/session-title-app",
@@ -578,6 +579,28 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "tool_output_line_limit": 20,
     "tool_output_char_limit": 2000,
     "tool_output_short_one_line": true,
+    "notifications": {
+      "store": {
+        "type": "sqlite",
+        "path": "${env:CONFIG_DIR}/application-notifications.sqlite3"
+      }
+    },
+    "application_config": {
+      "env_file": "${env:CONFIG_DIR}/.env",
+      "editable_env_keys": [
+        "OPENROUTER_API_KEY",
+        "OPENAI_API_KEY",
+        "FIREWORKS_API_KEY",
+        "ZAI_API_KEY"
+      ],
+      "provider_env_keys": {
+        "openrouter": "OPENROUTER_API_KEY",
+        "openrouter_image_generation": "OPENROUTER_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "fireworks": "FIREWORKS_API_KEY",
+        "zai": "ZAI_API_KEY"
+      }
+    },
     "session_status_show_in_session_list_footer": true,
     "session_actions": {
       "allow_delete": true

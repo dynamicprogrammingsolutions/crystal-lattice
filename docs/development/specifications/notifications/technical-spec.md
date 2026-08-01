@@ -1,6 +1,6 @@
 # Notification technical specification
 
-Status: Implementing — Stage B-2 complete; Stage C pending
+Status: Implementing — Stage C automated implementation complete; manual postponed
 
 ## Record family
 
@@ -200,7 +200,8 @@ Existing records without `revision` may use `updated_at` as a compatibility
 revision token during migration.
 
 Stage A migrates such a record to integer revision `1` on its first mutation.
-Mobile calls the server mutation routes and hydrates application notifications
-from the owner snapshot. Desktop retains frontend-local dismissal until Stage
-C. Mobile uses the Stage B-2 revision-scoped failed-dismissal cache, which does
-not change the meaning of `expected_revision`.
+Mobile and desktop call the server mutation routes and hydrate application
+notifications from the owner snapshot. Mobile uses the Stage B-2
+revision-scoped failed-dismissal cache, which does not change the meaning of
+`expected_revision`. Desktop uses conservative success-only dismissal and
+keeps a notification visible when its server mutation fails.

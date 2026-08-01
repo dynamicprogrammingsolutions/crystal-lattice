@@ -23,4 +23,6 @@ Maintainer entry points:
 - `src/notifications/SessionNotificationsHost.tsx`
 
 Components do not choose application/session ownership or platform modal
-fallback. Mobile and desktop hosts supply those policies.
+fallback. Mobile supplies optimistic revision-scoped cache policy. Desktop
+supplies server-authoritative success-only policy and leaves a notification
+visible when owner dismissal fails.

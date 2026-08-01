@@ -59,8 +59,8 @@ revision `1` on first mutation.
 Mobile Dismiss controls cache and hide the exact displayed revision before
 using the server mutation routes. A failed request is retried for that
 unchanged revision during reconnect/rehydration; a newer revision invalidates
-the cache and remains presentable. Desktop retains frontend-local dismissal
-until its Stage C integration.
+the cache and remains presentable. Desktop uses server-authoritative
+success-only dismissal: a failed mutation leaves the notification visible.
 
 Notification delivery is best effort. Event publication and the tool-facing
 `notification_sink` cannot fail the user request.

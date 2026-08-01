@@ -17,7 +17,6 @@ import Icon from 'react-native-vector-icons/Feather';
 
 import {
   ActionsMenuBar,
-  SessionNotificationsHost,
   ApplicationActionDialog,
   getLastActionsPopoverAnchorTag,
   useTheme,
@@ -37,7 +36,6 @@ import type {
 import {
   attachmentDraftStatusLabel,
   resolveAttachmentActionPluginId,
-  selectPendingSessionNotifications,
   deleteSessionAttachment,
   deriveSessionListPresentationFromGroups,
   filterFooterElements,
@@ -75,6 +73,7 @@ import { PlaceholderFlatList } from '../ui/PlaceholderFlatList';
 import { ProgressiveScrollList } from '../ui/ProgressiveScrollList';
 import { ActionResultInlineCard } from '../ui/ActionResultInlineCard';
 import { DesktopConnectionDisplayRail } from '../ui/DesktopGlobalDisplayLayer';
+import { DesktopSessionNotificationRail } from '../ui/DesktopSessionNotificationRail';
 import { DesktopWindowManager } from '../windows/desktopWindowManager';
 import { closeDesktopPopover, openDesktopPopover } from '../windows/desktopPopoverCoordinator';
 import { MessageLimitPopoverContent } from '../windows/MessageLimitPopoverContent';
@@ -2612,20 +2611,16 @@ export const ChatPane = React.memo(function ChatPane({
   );
 
   const sessionDisplayRail = useMemo(() => {
-    const hasInlineDisplays =
-      inlineActionDisplays.length > 0 ||
-      notificationEvents.length > 0 ||
-      selectPendingSessionNotifications(sessionSummary).length > 0;
-    if (!hasInlineDisplays) {
-      return null;
-    }
-
     return (
       <View testID="desktop-session-display-rail">
-        <SessionNotificationsHost
+        <DesktopSessionNotificationRail
+          backend={backend}
+          connectionId={connectionId}
+          sessionId={sessionId}
           sessionSummary={sessionSummary ?? null}
           events={notificationEvents}
-          inlinePresentations={['inline', 'banner', 'modal']}
+          enabled={isVisible}
+          activeActionId={activeDisplayActionId}
           onFollowupAction={(action, notification) =>
             handleDisplayFollowupAction(
               createDisplayEntry(notification.display, {
@@ -2636,14 +2631,6 @@ export const ChatPane = React.memo(function ChatPane({
               action,
             )
           }
-          renderInline={({ notification, onDismiss, onFollowupAction }) => (
-            <ActionResultInlineCard
-              display={notification.display}
-              activeActionId={activeDisplayActionId}
-              onDismiss={onDismiss}
-              onFollowupAction={(action) => onFollowupAction(action)}
-            />
-          )}
         />
         {inlineActionDisplays.map((entry) => (
           <ActionResultInlineCard
@@ -2662,10 +2649,12 @@ export const ChatPane = React.memo(function ChatPane({
     );
   }, [
     activeDisplayActionId,
+    backend,
     handleDisplayFollowupAction,
     inlineActionDisplays,
     notificationEvents,
     connectionId,
+    isVisible,
     sessionId,
     sessionSummary,
   ]);

@@ -3,6 +3,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 import { Clipboard, Linking, View } from 'react-native';
@@ -38,7 +39,7 @@ interface DesktopGlobalDisplayLayerProps {
 interface DesktopDisplayContextValue {
   items: DisplayEnvelope[];
   connectionNameById: Record<string, string>;
-  dismiss: (envelope: DisplayEnvelope) => void;
+  dismiss: (envelope: DisplayEnvelope) => Promise<void>;
   followup: (
     action: ActionDisplayFollowupAction,
     envelope: DisplayEnvelope,
@@ -52,6 +53,7 @@ function ConnectionDisplaySubscription({
   backend,
   onDisplay,
   onNotifications,
+  onController,
 }: {
   connectionId: string;
   backend: AgentBackend;
@@ -60,10 +62,19 @@ function ConnectionDisplaySubscription({
     connectionId: string,
     notifications: ApplicationNotification[],
   ) => void;
+  onController: (
+    connectionId: string,
+    controller: ApplicationNotificationsController | null,
+  ) => void;
 }): null {
   useEffect(() => subscribeDisplayPresentation(backend, onDisplay), [backend, onDisplay]);
   useEffect(() => {
-    const controller = new ApplicationNotificationsController({ backend, connectionId });
+    const controller = new ApplicationNotificationsController({
+      backend,
+      connectionId,
+      hydrateSnapshot: true,
+    });
+    onController(connectionId, controller);
     const sync = () => {
       onNotifications(connectionId, controller.getSnapshot().notifications);
     };
@@ -73,9 +84,10 @@ function ConnectionDisplaySubscription({
     return () => {
       unsubscribe();
       controller.close();
+      onController(connectionId, null);
       onNotifications(connectionId, []);
     };
-  }, [backend, connectionId, onNotifications]);
+  }, [backend, connectionId, onController, onNotifications]);
   return null;
 }
 
@@ -88,6 +100,9 @@ export function DesktopGlobalDisplayLayer({
   const [applicationNotificationsByConnection, setApplicationNotificationsByConnection] =
     useState<Record<string, ApplicationNotification[]>>({});
   const [dismissedRevisions, setDismissedRevisions] = useState<string[]>([]);
+  const applicationControllersRef = useRef<
+    Record<string, ApplicationNotificationsController>
+  >({});
 
   const upsert = useCallback((envelope: DisplayEnvelope) => {
     const normalized = normalizeDisplayEnvelopeForHost(envelope, 'desktop');
@@ -113,7 +128,7 @@ export function DesktopGlobalDisplayLayer({
     [],
   );
 
-  const dismiss = useCallback((envelope: DisplayEnvelope) => {
+  const dismissLocally = useCallback((envelope: DisplayEnvelope) => {
     const revision = displayEnvelopeRevisionKey(envelope);
     const lifecycle = displayEnvelopeLifecycleKey(envelope);
     setDismissedRevisions((current) =>
@@ -124,13 +139,48 @@ export function DesktopGlobalDisplayLayer({
     );
   }, []);
 
+  const updateApplicationController = useCallback(
+    (
+      connectionId: string,
+      controller: ApplicationNotificationsController | null,
+    ) => {
+      if (controller) {
+        applicationControllersRef.current[connectionId] = controller;
+      } else {
+        delete applicationControllersRef.current[connectionId];
+      }
+    },
+    [],
+  );
+
+  const dismiss = useCallback(async (envelope: DisplayEnvelope) => {
+    if (
+      envelope.source === 'application_notification' &&
+      envelope.connectionId
+    ) {
+      const controller =
+        applicationControllersRef.current[envelope.connectionId];
+      if (!controller) return;
+      try {
+        await controller.dismiss(envelope.id);
+      } catch {
+        // Keep the server-owned notification visible when dismissal fails.
+      }
+      return;
+    }
+    dismissLocally(envelope);
+  }, [dismissLocally]);
+
   const connections = Object.entries(openConnectionsById).flatMap(([connectionId, state]) =>
     state.status === 'open' && state.backend ? [{ connectionId, backend: state.backend }] : [],
   );
-  const backendFor = (envelope: DisplayEnvelope): AgentBackend | null =>
-    envelope.connectionId
-      ? openConnectionsById[envelope.connectionId]?.backend ?? null
-      : null;
+  const backendFor = useCallback(
+    (envelope: DisplayEnvelope): AgentBackend | null =>
+      envelope.connectionId
+        ? openConnectionsById[envelope.connectionId]?.backend ?? null
+        : null,
+    [openConnectionsById],
+  );
 
   const applicationItems = Object.entries(applicationNotificationsByConnection).flatMap(
     ([connectionId, notifications]) =>
@@ -146,6 +196,8 @@ export function DesktopGlobalDisplayLayer({
               display: notification.display,
               createdAt: notification.created_at,
               updatedAt: notification.updated_at,
+              notificationRevision:
+                notification.revision ?? notification.updated_at,
             }),
             'desktop',
           ),
@@ -170,7 +222,7 @@ export function DesktopGlobalDisplayLayer({
   const followup = useCallback(
     async (action: ActionDisplayFollowupAction, envelope: DisplayEnvelope) => {
       if (action.kind === 'dismiss') {
-        dismiss(envelope);
+        await dismiss(envelope);
       } else if (action.kind === 'open_url') {
         await Linking.openURL(action.url);
       } else if (action.kind === 'copy_text') {
@@ -207,7 +259,7 @@ export function DesktopGlobalDisplayLayer({
         }
       }
     },
-    [dismiss, openConnectionsById],
+    [backendFor, dismiss],
   );
 
   return (
@@ -221,6 +273,7 @@ export function DesktopGlobalDisplayLayer({
           backend={backend}
           onDisplay={upsert}
           onNotifications={updateApplicationNotifications}
+          onController={updateApplicationController}
         />
       ))}
       {children}
@@ -254,9 +307,11 @@ export function DesktopConnectionDisplayRail({
         <NotificationBannerHost
           items={banners}
           layout="flow"
-          onDismiss={(item) => context.dismiss(item.envelope)}
+          onDismiss={(item) => {
+            context.dismiss(item.envelope).catch(() => {});
+          }}
           onFollowupAction={(action, item) => {
-            void context.followup(action, item.envelope);
+            context.followup(action, item.envelope).catch(() => {});
           }}
         />
       ) : null}
@@ -269,9 +324,11 @@ export function DesktopConnectionDisplayRail({
               : undefined
           }
           display={envelope.display}
-          onDismiss={() => context.dismiss(envelope)}
+          onDismiss={() => {
+            context.dismiss(envelope).catch(() => {});
+          }}
           onFollowupAction={(action) => {
-            void context.followup(action, envelope);
+            context.followup(action, envelope).catch(() => {});
           }}
         />
       ))}

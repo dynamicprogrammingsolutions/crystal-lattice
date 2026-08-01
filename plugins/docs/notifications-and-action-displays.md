@@ -463,10 +463,9 @@ example.
 
 ## Current frontend dismissal behavior
 
-The backend and HTTP API support persistent dismissal. Mobile notification
-Dismiss controls use those server operations for application and session
-notifications. Desktop notification Dismiss controls remain local until the
-desktop integration stage.
+The backend and HTTP API support persistent dismissal. Mobile and desktop
+notification Dismiss controls use those server operations for application and
+session notifications. Direct action-display close remains frontend-local.
 
 Plugins can already call the server-side dismiss methods. API clients can use:
 
@@ -493,7 +492,11 @@ not enter this cache.
 
 Another already-open frontend is not forced to remove a notification
 immediately; a newly opened, reconnected, or authoritatively refreshed mobile
-frontend does not present a server-dismissed record.
+or desktop frontend does not present a server-dismissed record.
+
+Desktop uses conservative success-only dismissal. It keeps the notification
+visible if the server rejects or cannot complete the mutation, and therefore
+does not currently use the mobile failed-dismissal cache.
 
 Dismissal records a user presentation decision. Resolve the notification when
 the underlying condition itself is complete.

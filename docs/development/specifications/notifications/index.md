@@ -1,6 +1,6 @@
 # Notifications
 
-Status: Implementing — Stage B-2 complete; Stage C pending
+Status: Implementing — Stage C automated implementation complete; manual postponed
 
 The notification specification defines application- and session-scoped
 notification records, lifecycle, event delivery, persistence, and portable
@@ -21,7 +21,7 @@ Stage A implements the backend lifecycle, revision, authoritative snapshot, and
 server dismissal foundation. Stage B integrates authoritative snapshot and
 dismissal behavior into mobile. Stage B-1 makes application notification
 history durable, Stage B-2 adds revision-scoped failed-dismissal caching, and
-desktop keeps local dismissal until Stage C.
+Stage C adds authoritative desktop snapshot hydration and server dismissal.
 
 Related contracts:
 
