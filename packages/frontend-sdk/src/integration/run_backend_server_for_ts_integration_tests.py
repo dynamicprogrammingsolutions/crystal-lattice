@@ -61,6 +61,7 @@ def main() -> None:
         os.environ["AGENT_APP_TEST_CONTROL"] = "1"
 
     from agent_app.application_future import AgentApplication
+    from agent_app.application_notifications import InMemoryApplicationNotificationStore
     from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
     from agent_app.events import InMemoryEventStore
 
@@ -102,12 +103,14 @@ def main() -> None:
         max_events_global=args.max_events_global,
         max_event_age_seconds=args.max_event_age_seconds,
     )
+    notification_store = InMemoryApplicationNotificationStore()
 
     def factory(control: ApplicationControl) -> AgentApplication:
         application = AgentApplication(
             str(config_path),
             str(sessions_root),
             event_store=event_store,
+            application_notification_store=notification_store,
             # Mirror the terminal app entrypoint so TS integration tests exercise
             # normal config-adjacent and current-directory dotenv resolution.
             config_env=_collect_additional_dotenv_values(config_path),

@@ -1,18 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
 import threading
 from typing import Any, Callable, Dict, Protocol
 import uuid
 
 from .events import EventStore
-from .notifications import (
-    _normalize_notification,
-    _require_expected_revision,
-    _validate_transition,
-    is_active_notification,
-)
 
 
 class ApplicationReloadPendingError(RuntimeError):
@@ -29,52 +22,6 @@ class ApplicationControl(Protocol):
         on_failure: Callable[[], None] | None = None,
     ) -> Dict[str, Any]:
         """Register a full application reload and return its accepted result."""
-
-    def create_notification(self, notification: Dict[str, Any]) -> Dict[str, Any]:
-        """Create or update an owner-memory application notification."""
-
-    def update_notification(
-        self,
-        notification_id: str,
-        patch: Dict[str, Any],
-        *,
-        expected_revision: int | str | None = None,
-    ) -> Dict[str, Any]:
-        """Update an owner-memory application notification."""
-
-    def resolve_notification(
-        self,
-        notification_id: str,
-        resolution: Dict[str, Any],
-        *,
-        expected_revision: int | str | None = None,
-    ) -> Dict[str, Any]:
-        """Resolve an owner-memory application notification."""
-
-    def dismiss_notification(
-        self,
-        notification_id: str,
-        *,
-        reason: str | None = None,
-        expected_revision: int | str | None = None,
-    ) -> Dict[str, Any]:
-        """Dismiss an owner-memory application notification."""
-
-    def expire_notification(
-        self,
-        notification_id: str,
-        *,
-        reason: str = "expired",
-        expected_revision: int | str | None = None,
-    ) -> Dict[str, Any]:
-        """Expire an owner-memory application notification."""
-
-    def list_notifications(
-        self,
-        *,
-        include_terminal: bool = True,
-    ) -> list[Dict[str, Any]]:
-        """List owner-memory application notifications."""
 
 
 @dataclass
@@ -114,6 +61,7 @@ class AgentApplicationOwner(ApplicationControl):
         factory: Callable[[ApplicationControl], Any],
         *,
         event_store: EventStore,
+        owner_epoch: str | None = None,
     ) -> None:
         self._factory = factory
         self._event_store = event_store
@@ -123,7 +71,7 @@ class AgentApplicationOwner(ApplicationControl):
         self._reload: _ReloadRequest | None = None
         self._reload_threads: Dict[str, threading.Thread] = {}
         self._replacement_listeners: list[Callable[[Any], None]] = []
-        self._notifications: Dict[str, Dict[str, Any]] = {}
+        self._owner_epoch = owner_epoch or f"owner_{uuid.uuid4().hex}"
         self._closed = False
         self._application = self._factory(self)
 
@@ -179,12 +127,14 @@ class AgentApplicationOwner(ApplicationControl):
                     "Application reload is already pending"
                 )
             reload_id = f"reload_{uuid.uuid4().hex}"
-            notification = self._new_notification(
-                reload_id,
-                status="pending",
-                severity="info",
-                title="Application reload requested",
-                body="Current work will finish before the application reloads.",
+            notification = self._application.create_application_notification(
+                self._new_notification(
+                    reload_id,
+                    status="pending",
+                    severity="info",
+                    title="Application reload requested",
+                    body="Current work will finish before the application reloads.",
+                )
             )
             request = _ReloadRequest(
                 reload_id=reload_id,
@@ -192,7 +142,6 @@ class AgentApplicationOwner(ApplicationControl):
                 notification=notification,
                 on_failure=on_failure,
             )
-            self._notifications[notification["id"]] = notification
             self._reload = request
             worker = threading.Thread(
                 target=self._run_reload,
@@ -207,7 +156,6 @@ class AgentApplicationOwner(ApplicationControl):
             request,
             notification=notification,
         )
-        self._publish_notification("application_notification_created", notification)
         worker.start()
         return {
             "status": "ok",
@@ -229,161 +177,6 @@ class AgentApplicationOwner(ApplicationControl):
             return True
         worker.join(timeout=timeout)
         return not worker.is_alive()
-
-    def list_notifications(
-        self,
-        *,
-        include_terminal: bool = True,
-    ) -> list[Dict[str, Any]]:
-        with self._condition:
-            notifications = list(self._notifications.values())
-            if include_terminal:
-                return notifications
-            return [item for item in notifications if is_active_notification(item)]
-
-    def create_notification(self, notification: Dict[str, Any]) -> Dict[str, Any]:
-        with self._condition:
-            key = notification.get("key") if isinstance(notification, dict) else None
-            existing = next(
-                (
-                    item
-                    for item in self._notifications.values()
-                    if item.get("key") == key and is_active_notification(item)
-                ),
-                None,
-            )
-            stored = _normalize_notification(
-                notification,
-                existing=existing,
-                allowed_presentations={"banner", "modal"},
-            )
-            if existing is None:
-                event_type = "application_notification_created"
-            else:
-                event_type = "application_notification_updated"
-            self._notifications[stored["id"]] = stored
-        self._publish_notification(event_type, stored)
-        return stored
-
-    def update_notification(
-        self,
-        notification_id: str,
-        patch: Dict[str, Any],
-        *,
-        expected_revision: int | str | None = None,
-    ) -> Dict[str, Any]:
-        with self._condition:
-            existing = self._notifications.get(notification_id)
-            if existing is None:
-                raise KeyError(
-                    f"Application notification {notification_id!r} not found"
-                )
-            _require_expected_revision(existing, expected_revision)
-            target_status = patch.get("status", existing.get("status", "pending"))
-            _validate_transition(existing, target_status)
-            stored = _normalize_notification(
-                patch,
-                existing=existing,
-                allowed_presentations={"banner", "modal"},
-            )
-            self._notifications[notification_id] = stored
-        self._publish_notification("application_notification_updated", stored)
-        return stored
-
-    def resolve_notification(
-        self,
-        notification_id: str,
-        resolution: Dict[str, Any],
-        *,
-        expected_revision: int | str | None = None,
-    ) -> Dict[str, Any]:
-        if not isinstance(resolution, dict):
-            raise ValueError("resolution must be a mapping")
-        return self._transition_notification(
-            notification_id,
-            target_status="resolved",
-            patch_factory=lambda: {
-                "resolution": {
-                    **resolution,
-                    "resolved_at": self._timestamp(),
-                },
-            },
-            expected_revision=expected_revision,
-            event_type="application_notification_updated",
-        )
-
-    def dismiss_notification(
-        self,
-        notification_id: str,
-        *,
-        reason: str | None = None,
-        expected_revision: int | str | None = None,
-    ) -> Dict[str, Any]:
-        return self._transition_notification(
-            notification_id,
-            target_status="dismissed",
-            patch_factory=lambda: {
-                "dismissal": {
-                    "dismissed_at": self._timestamp(),
-                    **(
-                        {"reason": reason} if isinstance(reason, str) and reason else {}
-                    ),
-                },
-            },
-            expected_revision=expected_revision,
-            event_type="application_notification_dismissed",
-        )
-
-    def expire_notification(
-        self,
-        notification_id: str,
-        *,
-        reason: str = "expired",
-        expected_revision: int | str | None = None,
-    ) -> Dict[str, Any]:
-        return self._transition_notification(
-            notification_id,
-            target_status="expired",
-            patch_factory=lambda: {
-                "expiration": {
-                    "expired_at": self._timestamp(),
-                    "reason": reason,
-                },
-            },
-            expected_revision=expected_revision,
-            event_type="application_notification_expired",
-        )
-
-    def _transition_notification(
-        self,
-        notification_id: str,
-        *,
-        target_status: str,
-        patch_factory: Callable[[], Dict[str, Any]],
-        expected_revision: int | str | None,
-        event_type: str,
-    ) -> Dict[str, Any]:
-        with self._condition:
-            existing = self._notifications.get(notification_id)
-            if existing is None:
-                raise KeyError(
-                    f"Application notification {notification_id!r} not found"
-                )
-            _require_expected_revision(existing, expected_revision)
-            if existing.get("status") == target_status:
-                return existing
-            _validate_transition(existing, target_status)
-            stored = _normalize_notification(
-                {
-                    "status": target_status,
-                    **patch_factory(),
-                },
-                existing=existing,
-                allowed_presentations={"banner", "modal"},
-            )
-            self._notifications[notification_id] = stored
-        self._publish_notification(event_type, stored)
-        return stored
 
     def close(self) -> None:
         with self._condition:
@@ -428,17 +221,25 @@ class AgentApplicationOwner(ApplicationControl):
             for listener in listeners:
                 listener(candidate)
 
-            old_application.close()
-            completed = self._updated_notification(
-                request.notification,
-                status="resolved",
-                severity="success",
-                title="Application reload completed",
-                body="The replacement application is active.",
+            completed = candidate.update_application_notification(
+                request.notification["id"],
+                {
+                    "status": "resolved",
+                    "severity": "success",
+                    "title": "Application reload completed",
+                    "body": "The replacement application is active.",
+                    "display": {
+                        **request.notification.get("display", {}),
+                        "title": "Application reload completed",
+                        "body": "The replacement application is active.",
+                        "variant": "success",
+                    },
+                },
+                expected_revision=request.notification.get("revision"),
             )
+            old_application.close()
             request.notification = completed
             with self._condition:
-                self._notifications[completed["id"]] = completed
                 self._reload = None
                 self._condition.notify_all()
             self._publish_control_event(
@@ -446,7 +247,6 @@ class AgentApplicationOwner(ApplicationControl):
                 request,
                 notification=completed,
             )
-            self._publish_notification("application_notification_updated", completed)
         except Exception as exc:
             if swapped and old_application is not None:
                 with self._condition:
@@ -471,16 +271,26 @@ class AgentApplicationOwner(ApplicationControl):
             detail = str(exc) or type(exc).__name__
             if rollback_error:
                 detail = f"{detail}; rollback failed: {rollback_error}"
-            failed = self._updated_notification(
-                request.notification,
-                status="resolved",
-                severity="error",
-                title="Application reload failed",
-                body=detail,
+            with self._condition:
+                notification_application = self._application
+            failed = notification_application.update_application_notification(
+                request.notification["id"],
+                {
+                    "status": "resolved",
+                    "severity": "error",
+                    "title": "Application reload failed",
+                    "body": detail,
+                    "display": {
+                        **request.notification.get("display", {}),
+                        "title": "Application reload failed",
+                        "body": detail,
+                        "variant": "error",
+                    },
+                },
+                expected_revision=request.notification.get("revision"),
             )
             request.notification = failed
             with self._condition:
-                self._notifications[failed["id"]] = failed
                 self._reload = None
                 self._condition.notify_all()
             self._publish_control_event(
@@ -489,7 +299,6 @@ class AgentApplicationOwner(ApplicationControl):
                 notification=failed,
                 detail=detail,
             )
-            self._publish_notification("application_notification_updated", failed)
         finally:
             with self._condition:
                 self._reload_threads.pop(request.reload_id, None)
@@ -509,18 +318,6 @@ class AgentApplicationOwner(ApplicationControl):
             }
         )
 
-    def _publish_notification(
-        self,
-        event_type: str,
-        notification: Dict[str, Any],
-    ) -> None:
-        self._safe_publish(
-            {
-                "type": event_type,
-                "notification": notification,
-            }
-        )
-
     def _safe_publish(self, event: Dict[str, Any]) -> None:
         try:
             self._event_store.publish(event)
@@ -528,13 +325,8 @@ class AgentApplicationOwner(ApplicationControl):
             # Reload must not fail because user-facing notification delivery did.
             return
 
-    @staticmethod
-    def _timestamp() -> str:
-        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-    @classmethod
     def _new_notification(
-        cls,
+        self,
         reload_id: str,
         *,
         status: str,
@@ -542,18 +334,14 @@ class AgentApplicationOwner(ApplicationControl):
         title: str,
         body: str,
     ) -> Dict[str, Any]:
-        timestamp = cls._timestamp()
         return {
             "id": f"notification_{reload_id}",
             "key": "application:reload",
             "kind": "notification",
             "status": status,
-            "revision": 1,
             "severity": severity,
             "title": title,
             "body": body,
-            "created_at": timestamp,
-            "updated_at": timestamp,
             "source": {"plugin": "application_owner", "subsystem": "reload"},
             "display": {
                 "display_id": f"notification_{reload_id}",
@@ -564,39 +352,11 @@ class AgentApplicationOwner(ApplicationControl):
                 "presentation": "banner",
                 "dismissible": True,
             },
-            "model_visibility": "hidden",
-        }
-
-    @classmethod
-    def _updated_notification(
-        cls,
-        notification: Dict[str, Any],
-        *,
-        status: str,
-        severity: str,
-        title: str,
-        body: str,
-    ) -> Dict[str, Any]:
-        return {
-            **notification,
-            "status": status,
-            "revision": (
-                notification["revision"] + 1
-                if isinstance(notification.get("revision"), int)
-                and not isinstance(notification.get("revision"), bool)
-                and notification["revision"] > 0
-                else 1
-            ),
-            "severity": severity,
-            "title": title,
-            "body": body,
-            "updated_at": cls._timestamp(),
-            "display": {
-                **notification.get("display", {}),
-                "title": title,
-                "body": body,
-                "variant": severity,
+            "retention": {
+                "policy": "until_server_restart",
+                "owner_epoch": self._owner_epoch,
             },
+            "model_visibility": "hidden",
         }
 
 

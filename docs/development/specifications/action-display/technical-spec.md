@@ -36,11 +36,15 @@ message/detail area.
 Dismiss behavior depends on display ownership:
 
 - notification display: invoke the owning server notification dismissal
-  operation;
+  operation; a frontend may optimistically cache and hide only the exact
+  displayed revision while that operation is pending or retryable;
 - direct action display: close the transient frontend display locally;
 - historical replay: close only the replay presentation.
 
 The display envelope or equivalent owner context must distinguish these cases.
+A cached notification dismissal is obsolete when authoritative state contains
+a newer pending revision. It is removed rather than retargeted; the newer
+revision remains eligible for presentation.
 
 Every host preserves fixed parameters, parameter mappings, embedded forms, and
 submitted form values when invoking `run_action`.

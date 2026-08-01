@@ -10,6 +10,11 @@ processing to `AgentCore`.
 from __future__ import annotations
 
 from .application_future import AgentApplication
+from .application_notifications import (
+    ApplicationNotificationStore,
+    InMemoryApplicationNotificationStore,
+    SQLiteApplicationNotificationStore,
+)
 from .application_owner import (
     AgentApplicationOwner,
     ApplicationReloadPendingError,
@@ -17,6 +22,9 @@ from .application_owner import (
 
 __all__ = [
     "AgentApplication",
+    "ApplicationNotificationStore",
     "AgentApplicationOwner",
     "ApplicationReloadPendingError",
+    "InMemoryApplicationNotificationStore",
+    "SQLiteApplicationNotificationStore",
 ]

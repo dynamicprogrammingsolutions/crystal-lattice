@@ -91,24 +91,25 @@ def test_terminal_rebuilds_cached_runtime_after_application_replacement(
     tmp_path: Path,
 ) -> None:
     from agent_app.application_future import AgentApplication
+    from agent_app.application_notifications import InMemoryApplicationNotificationStore
     from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
     from agent_app.events import InMemoryEventStore
     from agent_terminal_app import terminal as term_mod
 
-    source_config = (
-        Path(term_mod.__file__).resolve().parent / "config_echo_app.json"
-    )
+    source_config = Path(term_mod.__file__).resolve().parent / "config_echo_app.json"
     config_path = tmp_path / "config.json"
     raw_config = json.loads(source_config.read_text(encoding="utf-8"))
     config_path.write_text(json.dumps(raw_config), encoding="utf-8")
     session_root = tmp_path / "sessions"
     events = InMemoryEventStore()
+    notification_store = InMemoryApplicationNotificationStore()
 
     def factory(control: ApplicationControl) -> AgentApplication:
         return AgentApplication(
             config_path,
             session_root,
             event_store=events,
+            application_notification_store=notification_store,
             application_control=control,
         )
 
@@ -171,7 +172,9 @@ async def test_run_terminal_uses_compact_erasing_prompt(
     monkeypatch.setattr(term_mod, "PromptSession", _FakePromptSession)
     monkeypatch.setattr(term_mod, "_poll_events", _fake_poll_events)
     monkeypatch.setattr(term_mod, "_set_terminal_title", lambda title: None)
-    monkeypatch.setattr(term_mod, "patch_stdout", lambda *_args, **_kwargs: contextlib.nullcontext())
+    monkeypatch.setattr(
+        term_mod, "patch_stdout", lambda *_args, **_kwargs: contextlib.nullcontext()
+    )
 
     await term_mod._run_terminal(term_app)
 

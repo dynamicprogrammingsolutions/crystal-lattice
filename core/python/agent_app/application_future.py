@@ -32,6 +32,10 @@ from agent_core.plugin.loader import validate_plugin_for_kind
 from .app_context import ApplicationContext
 
 from .app_plugins import ApplicationPluginWrapper
+from .application_notifications import (
+    ApplicationNotificationMutation,
+    ApplicationNotificationStore,
+)
 from .application_owner import ApplicationControl
 from .config import (
     build_config_resolution_env,
@@ -330,6 +334,7 @@ class AgentApplication:
         session_root: str | Path,
         core_factory: Callable[[], AgentCore] = AgentCore,
         event_store: Optional[EventStore] = None,
+        application_notification_store: ApplicationNotificationStore | None = None,
         snapshot_selection_store: SnapshotSelectionStore | None = None,
         env_overrides: Mapping[str, str] | None = None,
         config_env: Mapping[str, str] | None = None,
@@ -348,6 +353,7 @@ class AgentApplication:
             self._model_cache,
         )
         self._event_store: EventStore = event_store or InMemoryEventStore()
+        self._application_notification_store = application_notification_store
         self._application_control = application_control
         self._non_streaming_provider_classes: Set[type[Any]] = set()
         self._provider_capability_lock = threading.Lock()
@@ -2350,9 +2356,10 @@ class AgentApplication:
     def create_application_notification(
         self, notification: Dict[str, Any]
     ) -> Dict[str, Any]:
-        if self._application_control is None:
-            raise RuntimeError("Application notifications require an application owner")
-        return self._application_control.create_notification(notification)
+        store = self._require_application_notification_store()
+        return self._complete_application_notification_mutation(
+            store.create(notification)
+        )
 
     def update_application_notification(
         self,
@@ -2361,12 +2368,13 @@ class AgentApplication:
         *,
         expected_revision: int | str | None = None,
     ) -> Dict[str, Any]:
-        if self._application_control is None:
-            raise RuntimeError("Application notifications require an application owner")
-        return self._application_control.update_notification(
-            notification_id,
-            patch,
-            expected_revision=expected_revision,
+        store = self._require_application_notification_store()
+        return self._complete_application_notification_mutation(
+            store.update(
+                notification_id,
+                patch,
+                expected_revision=expected_revision,
+            )
         )
 
     def resolve_application_notification(
@@ -2376,12 +2384,13 @@ class AgentApplication:
         *,
         expected_revision: int | str | None = None,
     ) -> Dict[str, Any]:
-        if self._application_control is None:
-            raise RuntimeError("Application notifications require an application owner")
-        return self._application_control.resolve_notification(
-            notification_id,
-            resolution or {},
-            expected_revision=expected_revision,
+        store = self._require_application_notification_store()
+        return self._complete_application_notification_mutation(
+            store.resolve(
+                notification_id,
+                resolution or {},
+                expected_revision=expected_revision,
+            )
         )
 
     def dismiss_application_notification(
@@ -2391,12 +2400,13 @@ class AgentApplication:
         reason: str | None = None,
         expected_revision: int | str | None = None,
     ) -> Dict[str, Any]:
-        if self._application_control is None:
-            raise RuntimeError("Application notifications require an application owner")
-        return self._application_control.dismiss_notification(
-            notification_id,
-            reason=reason,
-            expected_revision=expected_revision,
+        store = self._require_application_notification_store()
+        return self._complete_application_notification_mutation(
+            store.dismiss(
+                notification_id,
+                reason=reason,
+                expected_revision=expected_revision,
+            )
         )
 
     def expire_application_notification(
@@ -2406,12 +2416,13 @@ class AgentApplication:
         reason: str = "expired",
         expected_revision: int | str | None = None,
     ) -> Dict[str, Any]:
-        if self._application_control is None:
-            raise RuntimeError("Application notifications require an application owner")
-        return self._application_control.expire_notification(
-            notification_id,
-            reason=reason,
-            expected_revision=expected_revision,
+        store = self._require_application_notification_store()
+        return self._complete_application_notification_mutation(
+            store.expire(
+                notification_id,
+                reason=reason,
+                expected_revision=expected_revision,
+            )
         )
 
     def list_application_notifications(
@@ -2419,11 +2430,37 @@ class AgentApplication:
         *,
         include_terminal: bool = True,
     ) -> list[Dict[str, Any]]:
-        if self._application_control is None:
-            raise RuntimeError("Application notifications require an application owner")
-        return self._application_control.list_notifications(
+        return self._require_application_notification_store().list(
             include_terminal=include_terminal
         )
+
+    def _require_application_notification_store(
+        self,
+    ) -> ApplicationNotificationStore:
+        store = self._application_notification_store
+        if store is None:
+            raise RuntimeError(
+                "Application notifications require an injected notification store"
+            )
+        return store
+
+    def _complete_application_notification_mutation(
+        self,
+        mutation: ApplicationNotificationMutation,
+    ) -> Dict[str, Any]:
+        if mutation.event_type is not None:
+            try:
+                self._event_store.publish(
+                    {
+                        "type": mutation.event_type,
+                        "notification": mutation.notification,
+                    }
+                )
+            except Exception:
+                # Durable state remains authoritative when best-effort event
+                # publication is unavailable.
+                pass
+        return mutation.notification
 
     def cancel_request(self, request_id: str) -> None:
         """Request cooperative cancellation for an in-flight request.
@@ -3347,11 +3384,7 @@ class AgentApplication:
             self.get_application_ui_schema()
         )
         declaration = next(
-            (
-                item
-                for item in schema.filters
-                if item.element_id == filter_id
-            ),
+            (item for item in schema.filters if item.element_id == filter_id),
             None,
         )
         if declaration is None:

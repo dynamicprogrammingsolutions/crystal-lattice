@@ -38,7 +38,17 @@ accessibly distinguishable.
 ## Dismissal, refresh, and resolution
 
 Dismissal invokes the owning server notification operation. The initiating
-frontend removes the item after a successful response.
+frontend may first persist a local dismissal entry for the exact displayed
+revision and hide that revision optimistically.
+
+If the mutation fails, that exact revision remains hidden. When the same active
+ID and revision is observed again, the frontend may resend the unchanged
+dismissal request.
+
+The cache is never promoted to a newer revision. If authoritative state
+contains the same ID at a newer pending revision, the cached dismissal is
+obsolete, is removed, and the newer revision is presented normally. A
+terminal or missing record also removes the cache entry.
 
 An already-open frontend on another device may keep its current display until
 it refreshes or reconnects. Immediate cross-device removal is not required.
@@ -75,5 +85,7 @@ Session metadata is authoritative after session reload or reconnect.
 Application frontends hydrate from the current owner notification snapshot
 before or alongside event polling.
 
-Server-lifetime application records expire on owner-process restart. Longer
-retention requires a correspondingly durable application notification store.
+Application notification records and terminal history use the configured
+durable store. Records with explicit server-lifetime retention expire according
+to owner-restart recovery semantics rather than disappearing because the whole
+store is memory-only.

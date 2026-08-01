@@ -11,7 +11,8 @@ history.
 Application notifications describe state belonging to one server application
 owner or connection. The application notification store is authoritative for
 the record, dismissal, resolution, expiration, and history during the record's
-configured retention lifetime.
+configured retention lifetime. The target store is durable across
+`AgentApplicationOwner` and server-process restart.
 
 Session notifications describe state belonging to one session. They are
 persisted with the session. Their dismissal and terminal lifecycle state are
@@ -32,11 +33,17 @@ it is:
 Creating with the stable key of an active record updates that record. Creating
 with the key of a terminal record creates a new lifecycle occurrence.
 
-The frontend that dismisses a notification updates immediately after the
-server mutation succeeds. Other already-open devices do not have to reconcile
-the dismissal immediately. A newly opened, reconnected, or explicitly
-refreshed frontend loads authoritative state and does not present a dismissed
-record as active.
+The frontend that dismisses a notification may hide and cache that exact
+revision immediately while sending the server mutation. If the request fails,
+the cached revision remains hidden and the same expected-revision request may
+be resent when that revision is observed again.
+
+A cached dismissal never transfers to a newer revision. A newer pending
+revision makes the old cache entry obsolete and is presented normally.
+
+Other already-open devices do not have to reconcile the dismissal immediately.
+A newly opened, reconnected, or explicitly refreshed frontend loads
+authoritative state and does not present a server-dismissed record as active.
 
 ## Retention
 
@@ -47,7 +54,8 @@ Every notification has a defined lifetime. Initial retention policies support:
 - request-completion expiration;
 - server-lifetime expiration.
 
-Terminal records remain in history until history retention removes them.
+Terminal records remain in durable history until history retention removes
+them.
 
 ## Placement
 
@@ -91,6 +99,9 @@ may show a compact waiting-for-input indicator.
 Notifications are hidden from provider/model history. Notification delivery
 must not abort a request or tool call. Notification content must not contain
 credentials or sensitive configuration values.
+
+Frontend dismissal caches store only notification identity, scope, revision,
+and retry metadata. They do not duplicate notification content.
 
 ## Non-goals of this proposed follow-up
 

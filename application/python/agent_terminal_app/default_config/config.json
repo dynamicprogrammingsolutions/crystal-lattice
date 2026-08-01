@@ -543,6 +543,12 @@
     "tool_output_line_limit": 20,
     "tool_output_char_limit": 2000,
     "tool_output_short_one_line": true,
+    "notifications": {
+      "store": {
+        "type": "sqlite",
+        "path": "${env:CONFIG_DIR}/application-notifications.sqlite3"
+      }
+    },
     "application_config": {
       "env_file": "${env:CONFIG_DIR}/.env",
       "editable_env_keys": [

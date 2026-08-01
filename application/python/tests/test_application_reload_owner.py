@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 from dotenv import dotenv_values
 
 from agent_app.application_future import AgentApplication
+from agent_app.application_notifications import InMemoryApplicationNotificationStore
 from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
 from agent_app.events import InMemoryEventStore
 from agent_terminal_app import server as server_mod
@@ -51,12 +52,14 @@ def _build_owner(
     config_path = tmp_path / "config.json"
     _write_config(config_path)
     event_store = InMemoryEventStore()
+    notification_store = InMemoryApplicationNotificationStore()
 
     def factory(control: ApplicationControl) -> AgentApplication:
         return AgentApplication(
             config_path,
             tmp_path / "sessions",
             event_store=event_store,
+            application_notification_store=notification_store,
             application_control=control,
             config_env={
                 key: value

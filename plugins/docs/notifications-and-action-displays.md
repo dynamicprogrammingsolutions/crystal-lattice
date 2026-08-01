@@ -506,8 +506,10 @@ Session notification events:
 - `session_notification_expired`.
 
 Session metadata is authoritative when a session is reopened. Application
-notifications are owner-memory state and are not durable across owner-process
-restart.
+notifications are stored in the runtime's durable application notification
+store and survive `AgentApplication` replacement and server-process restart.
+Events remain best effort; the application snapshot/list endpoint is the
+reconnect authority.
 
 ## Failure and security boundaries
 

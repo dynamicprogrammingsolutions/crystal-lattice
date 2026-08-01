@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_app.application_future import AgentApplication
+from agent_app.application_notifications import InMemoryApplicationNotificationStore
 from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
 from agent_app.events import InMemoryEventStore
 from mcp_shared.registry import MCPRegistry
@@ -38,12 +39,14 @@ def test_application_replacement_closes_mcp_before_completion(tmp_path: Path) ->
         encoding="utf-8",
     )
     event_store = InMemoryEventStore()
+    notification_store = InMemoryApplicationNotificationStore()
 
     def factory(control: ApplicationControl) -> AgentApplication:
         return AgentApplication(
             config_path,
             tmp_path / "sessions",
             event_store=event_store,
+            application_notification_store=notification_store,
             application_control=control,
         )
 

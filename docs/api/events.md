@@ -19,17 +19,18 @@ increasing string `event_id` when published.
 Notification lifecycle events reuse `GET /events` and
 `ActionDisplayPayload`.
 
-Application notifications are owner-memory scoped:
+Application notifications are stored durably by the runtime-injected
+`ApplicationNotificationStore`:
 
 - `application_notification_created`
 - `application_notification_updated`
 - `application_notification_dismissed`
 - `application_notification_expired`
 - omit `session_id` and are polled without a session filter
-- survive in-process `AgentApplication` replacement because the owner and
-  event store remain alive
-- are not durable across owner-process restart and are not guaranteed to replay
-  to clients connecting after their event cursor
+- survive `AgentApplication` replacement and server-process restart
+- retain terminal history until retention removes it
+- rehydrate through `GET /application/notifications`; event replay remains
+  best effort and is not the persistence authority
 
 Session notifications are persisted under
 `Session.metadata.notifications.items`:
@@ -123,6 +124,13 @@ explicitly retain connection ownership.
 - **Application event producer**: `core/python/agent_app/application_future.py`
   - `AgentApplication.send_request(...)` yields events from
     `ToolLoopRunner.run(...)` and prepends a `request_started` event.
+
+- **Application notification store**:
+  `core/python/agent_app/application_notifications.py`
+  - `ApplicationNotificationStore` defines lifecycle persistence.
+  - `SQLiteApplicationNotificationStore` is the terminal/server runtime
+    implementation.
+  - `InMemoryApplicationNotificationStore` supports tests and embedding.
   - Also handles cancellation and marks requests as completed.
 
 - **Tool loop and streaming**: `core/python/agent_app/tool_loop.py`

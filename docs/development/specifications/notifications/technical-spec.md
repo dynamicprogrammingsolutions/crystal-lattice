@@ -1,6 +1,6 @@
 # Notification technical specification
 
-Status: Implementing — Stage A automated verification complete
+Status: Implementing — B-1 automated verification complete; manual pending
 
 ## Record family
 
@@ -31,12 +31,20 @@ Session notifications are stored under:
 Session.metadata.notifications.items
 ```
 
-Application notifications are stored by the stable application owner. The
-initial store may remain memory-backed for server-lifetime records, but it is
-authoritative for notification lifecycle and dismissal while the record
-exists.
+Application notifications are stored through an
+`ApplicationNotificationStore` created and closed by the owning runtime. The
+same long-lived store is injected into every `AgentApplication` generation.
+The production implementation is durable at an application-configured path,
+while tests may use an in-memory implementation.
+
+The durable store preserves active and terminal records across
+`AgentApplication` replacement, owner reconstruction, and server-process
+restart. Event delivery remains separate and best-effort.
 
 The notification record and dismissal state have the same authoritative owner.
+`AgentApplication` owns the public notification API and lifecycle event
+publication. `ApplicationControl` coordinates reload only. The owner creates
+reload notifications through the current `AgentApplication`.
 
 ## Ordinary notification lifecycle
 
@@ -136,19 +144,45 @@ The tool-facing notification sink catches failures and returns no notification
 result rather than failing the tool or request. Application plugins calling
 the application API directly receive validation errors.
 
+Application notification create/update/transition operations perform
+stable-key selection, expected-revision comparison, revision increment, and
+durable replacement in one store transaction. Lifecycle events are published
+only after the durable mutation commits.
+
 ## Dismissal consistency
 
-The dismissing frontend updates immediately from the successful mutation
-response. The server is not required to force immediate presentation removal
-on other already-open frontends. Their state converges on reconnect, explicit
-refresh, or normal authoritative reload.
+The dismissing frontend may persist a local cache entry and hide the selected
+revision immediately before the server mutation completes. A retryable failure
+does not restore that revision or require a blocking error.
+
+A cache entry contains at least:
+
+- owning connection;
+- application/session scope and optional session ID;
+- notification ID;
+- exact dismissed revision;
+- dismissal time.
+
+When the same active notification ID and revision is observed again, the
+frontend keeps it hidden and may resend the unchanged expected-revision
+request. The frontend never replaces the cached expected revision with a newer
+revision.
+
+When a newer pending revision is authoritative, the older cached dismissal is
+obsolete, is removed, and the newer revision is eligible for presentation.
+Terminal or missing authoritative state also removes the cache entry.
+
+The server is not required to force immediate presentation removal on other
+already-open frontends. Their state converges on reconnect, explicit refresh,
+or normal authoritative reload.
 
 A newly hydrated frontend filters terminal dismissed records from active
 presentation.
 
 ## History and replay
 
-History queries include active and terminal records subject to retention.
+History queries include active and terminal records from durable application
+storage or session metadata, subject to retention.
 Historical replay is a local display operation and does not mutate lifecycle,
 increment revision, or publish a notification lifecycle event.
 
@@ -168,4 +202,5 @@ revision token during migration.
 Stage A migrates such a record to integer revision `1` on its first mutation.
 Mobile calls the server mutation routes and hydrates application notifications
 from the owner snapshot. Desktop retains frontend-local dismissal until Stage
-C.
+C. The revision-scoped failed-dismissal cache is planned for Stage B-2 and
+does not change the meaning of `expected_revision`.

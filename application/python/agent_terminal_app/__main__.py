@@ -1041,7 +1041,12 @@ def main() -> None:  # pragma: no cover - manual execution only
     # after logging is configured so that their loggers see the
     # correct level.
     from agent_app.application_future import AgentApplication
+    from agent_app.application_notifications import (
+        SQLiteApplicationNotificationStore,
+        resolve_application_notification_store_path,
+    )
     from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
+    from agent_app.config import load_resolved_config
     from agent_app.events import InMemoryEventStore
     from agent_app.sessions import FilesystemSnapshotSelectionStore
     from .terminal import TerminalApplication, run_terminal
@@ -1114,13 +1119,27 @@ def main() -> None:  # pragma: no cover - manual execution only
             _ensure_crystal_gitignore(crystal_dir)
 
     config_env = _collect_additional_dotenv_values(config_path)
+    resolved_runtime_config, _config_errors, _resolution_env = load_resolved_config(
+        config_path,
+        config_env=config_env,
+        env_overrides=env_overrides,
+    )
+    application_notification_store_path = resolve_application_notification_store_path(
+        config_path,
+        resolved_runtime_config,
+    )
 
     def build_application_owner(
         *,
         event_store: InMemoryEventStore,
         snapshot_selection_store: FilesystemSnapshotSelectionStore | None = None,
-    ) -> AgentApplicationOwner:
+    ) -> tuple[AgentApplicationOwner, SQLiteApplicationNotificationStore]:
         first_application = True
+        owner_epoch = f"owner_{uuid.uuid4().hex}"
+        notification_store = SQLiteApplicationNotificationStore(
+            application_notification_store_path
+        )
+        notification_store.recover_owner_lifetime(owner_epoch)
 
         def factory(control: ApplicationControl) -> AgentApplication:
             nonlocal first_application
@@ -1128,6 +1147,7 @@ def main() -> None:  # pragma: no cover - manual execution only
                 str(config_path),
                 str(session_root),
                 event_store=event_store,
+                application_notification_store=notification_store,
                 snapshot_selection_store=snapshot_selection_store,
                 config_env=_collect_additional_dotenv_values(config_path),
                 env_overrides=env_overrides,
@@ -1137,7 +1157,16 @@ def main() -> None:  # pragma: no cover - manual execution only
             first_application = False
             return application
 
-        return AgentApplicationOwner(factory, event_store=event_store)
+        try:
+            owner = AgentApplicationOwner(
+                factory,
+                event_store=event_store,
+                owner_epoch=owner_epoch,
+            )
+        except Exception:
+            notification_store.close()
+            raise
+        return owner, notification_store
 
     # --- Build integration config (after config is resolved) ---
     bridge_url_from_config = _read_bridge_url_from_config(config_path)
@@ -1250,7 +1279,7 @@ def main() -> None:  # pragma: no cover - manual execution only
     # - --console --server: server in background + console in foreground
     if run_console and run_server:
         shared_events = InMemoryEventStore()
-        application_owner = build_application_owner(
+        application_owner, application_notification_store = build_application_owner(
             event_store=shared_events,
             snapshot_selection_store=FilesystemSnapshotSelectionStore(
                 session_root / ".snapshots"
@@ -1305,8 +1334,9 @@ def main() -> None:  # pragma: no cover - manual execution only
             thread.join()
             terminal_app.close()
             application_owner.close()
+            application_notification_store.close()
     elif run_console:
-        application_owner = build_application_owner(
+        application_owner, application_notification_store = build_application_owner(
             event_store=InMemoryEventStore(),
         )
         terminal_app = TerminalApplication(
@@ -1322,19 +1352,23 @@ def main() -> None:  # pragma: no cover - manual execution only
         finally:
             terminal_app.close()
             application_owner.close()
+            application_notification_store.close()
     else:
-        application_owner = build_application_owner(
+        application_owner, application_notification_store = build_application_owner(
             event_store=InMemoryEventStore(),
             snapshot_selection_store=FilesystemSnapshotSelectionStore(
                 session_root / ".snapshots"
             ),
         )
-        run_api(
-            host=effective_host,
-            port=effective_port,
-            app_owner=application_owner,
-            log_config=None if fastapi_log_file else "default",
-        )
+        try:
+            run_api(
+                host=effective_host,
+                port=effective_port,
+                app_owner=application_owner,
+                log_config=None if fastapi_log_file else "default",
+            )
+        finally:
+            application_notification_store.close()
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution only

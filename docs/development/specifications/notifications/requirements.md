@@ -18,10 +18,14 @@
 | NTF-010 | Active and terminal/history limits are separate and active interactions are never silently pruned. | In progress: active/terminal classification implemented; configurable limits/interactions pending | Automated backend | Documented |
 | NTF-011 | Application notifications expose an authoritative current-state snapshot for new or reconnected frontends. | Implemented backend/mobile; desktop adoption pending C | Automated HTTP/SDK/mobile | Documented |
 | NTF-012 | The record model represents notification and interaction lifecycles without destructive normalization. | Proposed | Unverified | Draft |
+| NTF-013 | Application notification active and terminal records persist across owner and server-process restart in a configurable durable store. | Implemented | Automated public HTTP/store restart; mobile checkpoint pending | Documented |
+| NTF-014 | Application notification lifecycle mutations are atomic and terminal records remain available to later history queries until retention removes them. | Implemented | Automated store/API lifecycle tests | Documented |
 | FNT-005 | The dismissing frontend updates immediately, while other open devices may reconcile later and newly hydrated devices honor server dismissal. | Implemented mobile; desktop pending C | Automated mobile; human checkpoint pending | Documented |
 | FNT-006 | Relevant top action bars expose a reusable Notifications history action. | Proposed | Unverified | Draft |
 | FNT-007 | Historical rich displays can be shown again locally without reactivating lifecycle state. | Proposed | Unverified | Draft |
 | FNT-008 | Active interactions are nondismissible and discoverable through a compact waiting-for-input indicator. | Proposed | Unverified | Draft |
+| FNT-009 | A failed frontend dismissal can remain locally persisted and hidden for the exact notification revision, with retry when that same revision is observed again. | Approved B-2 | Unverified | Draft |
+| FNT-010 | A cached dismissal is never promoted to a newer revision; an authoritative newer pending revision removes the obsolete cache and is presented. | Approved B-2 | Unverified | Draft |
 
 Primary task evidence:
 

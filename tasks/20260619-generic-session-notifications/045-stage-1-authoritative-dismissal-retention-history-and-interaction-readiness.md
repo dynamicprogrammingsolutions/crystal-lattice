@@ -11,11 +11,20 @@ build on it without replacing the notification substrate.
   the owning session.
 - [x] An application notification and its dismissal state are stored together
   in the server-side application notification store.
-- [ ] The frontend that dismisses a notification updates immediately after a
+- [x] Application notifications and their terminal history survive
+  `AgentApplicationOwner` and server-process restart through a configurable
+  durable store.
+- [x] The frontend that dismisses a notification updates immediately after a
   successful server response.
 - [ ] Other already-open frontends are not required to reconcile the dismissal
   immediately, but a newly opened, reconnected, or explicitly refreshed
   frontend does not present a server-dismissed notification.
+- [ ] A frontend can persist a revision-scoped local dismissal when the server
+  mutation fails, keep that exact revision hidden, and retry the unchanged
+  dismissal when that revision is observed again.
+- [ ] A cached dismissal never changes its expected revision: when a newer
+  pending revision is authoritative, the old cache entry is removed and the
+  newer revision is eligible for presentation.
 - [x] Ordinary notification lifecycle supports at least `pending`,
   `dismissed`, `resolved`, and `expired` terminal behavior with validated
   transitions.
@@ -97,6 +106,36 @@ authoritative refresh, or normal state reload.
 A newly opened or rehydrated frontend must load current server state and must
 not present a dismissed notification as active.
 
+### Failed-dismissal cache
+
+The frontend may optimistically persist and hide a notification revision before
+the server confirms dismissal. A failed mutation leaves that exact revision in
+the local dismissal cache and does not restore it or show a blocking error.
+
+The cache is revision-scoped:
+
+- the same notification ID and revision remains hidden and may resend the
+  unchanged dismissal request;
+- a newer pending revision makes the cached dismissal obsolete, removes it,
+  and is presented normally;
+- the expected revision is never rewritten automatically;
+- a terminal or missing server record removes the cache entry;
+- a new lifecycle occurrence with a new ID is presented normally.
+
+The local cache is synchronization state only. Durable server notification
+history remains authoritative.
+
+### Durable application history
+
+Application notification records, including terminal records, are stored
+durably at a path selected by application configuration. They survive
+`AgentApplication` replacement, owner reconstruction, and server-process
+restart until retention removes them.
+
+The persistent store provides the source records needed by the later
+notification history query and UI stages. It does not make the event store
+durable.
+
 ### Notification history
 
 Terminal notifications remain inspectable until retention removes them.
@@ -126,16 +165,22 @@ or Stage 2b real suspension. Those remain in subtasks 050–080.
 
 ## Current implementation facts
 
-- Session notifications are stored in session metadata, but dismissal is only
-  React/frontend state keyed by `id + updated_at`.
-- Application notifications live in owner memory, but their dismissal is also
-  frontend-local.
-- Reopening a session or restarting a frontend can therefore show a still
-  pending dismissed notification again.
+- Session notification records and dismissal are persisted in session
+  metadata.
+- Application notification records and dismissal are authoritative in the
+  runtime-injected durable `ApplicationNotificationStore`.
+- Mobile uses server-authoritative dismissal and application snapshot
+  hydration. Desktop dismissal remains frontend-local until Stage C.
+- Mobile currently waits for a successful server mutation before hiding a
+  notification and shows a blocking error when dismissal fails.
+- No persistent frontend dismissal cache exists yet.
+- Application terminal records survive application/owner/process
+  reconstruction and remain listable for the later history UI.
 - Session pruning keeps every `pending` record, so the current item limit is
   not a strict bound when unresolved notifications accumulate.
-- Backend normalization and SDK selectors accept only
-  `kind: notification` with `pending`/`resolved`.
+- Backend normalization and SDK selectors support ordinary
+  pending/dismissed/resolved/expired notification records; interaction records
+  remain future work.
 - Shared notification follow-up callbacks do not consistently preserve
   submitted form values across every host.
 - `send_request` does not hold the session lock for the whole request, so a
@@ -163,11 +208,11 @@ Package-local development pages document implementation mappings only.
 
 ## Planning status
 
-The product and technical requirements above were approved on August 1, 2026.
-Only one lettered stage is planned in implementation detail at a time.
-Backend-only stages may end at an automated gate; stages with user-visible
-behavior stop for the specified mobile or desktop manual checkpoint before the
-next stage is planned.
+Stages A and B were approved and implemented on August 1, 2026. The revised
+B-1/B-2/C sequence was approved on August 1, 2026. Only one uncompleted stage
+is planned in implementation detail at a time. Backend-only stages may end at
+an automated gate; stages with user-visible behavior stop for the specified
+mobile or desktop manual checkpoint before the next stage is planned.
 
 ## Execution plan
 
@@ -238,6 +283,102 @@ Manual checkpoint B:
 
 Stop after checkpoint B.
 
+### Stage B-1 — Durable application notification store and history foundation
+
+- replace owner-memory application notification authority with a configurable
+  durable store owned by `AgentApplicationOwner`;
+- preserve application notification IDs, revisions, lifecycle state, display
+  payloads, and terminal history across owner and server-process restart;
+- keep event delivery best-effort and separate from durable notification
+  state;
+- make status mutations atomic with expected-revision validation;
+- retain the existing active snapshot/list contract;
+- provide the durable records needed by the later paginated history-query
+  stage without implementing the history UI yet;
+- define safe startup behavior for owner-lifetime pending records.
+
+Recommended implementation:
+
+- an `ApplicationNotificationStore` protocol;
+- an in-memory test implementation;
+- a SQLite production implementation using Python's standard library;
+- a store path defined by application configuration and resolved through the
+  runtime layout;
+- runtime composition creates and closes the long-lived store;
+- every `AgentApplication` generation receives the same injected store;
+- `AgentApplication` owns the public notification contract and lifecycle event
+  publication;
+- `ApplicationControl` contains reload coordination only;
+- `AgentApplicationOwner` emits reload notifications through the current
+  `AgentApplication`.
+
+The store path is owner-startup configuration. The recommended minimal rule is
+that changing `application.notifications.store.path` requires reconstructing
+the owning process or `AgentApplicationOwner`; an inner `AgentApplication`
+reload continues using the already-open store. Live database switching or
+migration is outside B-1.
+
+Automated boundary:
+
+- store contract tests;
+- atomic revision and stable-key concurrency tests;
+- process close/reopen persistence tests;
+- owner reload/reconstruction tests;
+- real HTTP active/terminal listing after restart;
+- configuration/default-path tests.
+
+Manual mobile checkpoint B-1:
+
+- create an application notification from mobile;
+- restart the Python server and reconnect mobile;
+- confirm the active notification remains;
+- dismiss it, restart the server again, and confirm it remains absent;
+- emit the same key again and confirm a new occurrence appears.
+
+Stop after checkpoint B-1.
+
+### Stage B-2 — Revision-scoped mobile dismissal cache
+
+- add a small portable dismissal-cache model to the frontend SDK;
+- persist mobile cache entries in AsyncStorage using connection, scope,
+  optional session, notification ID, and exact dismissed revision;
+- hide the selected revision immediately before the server request completes;
+- keep the exact revision hidden when the request fails and avoid a blocking
+  dismissal error;
+- resend the unchanged expected-revision request when the same active revision
+  is observed again or the connection is rehydrated;
+- remove the cache entry after successful dismissal, terminal/missing server
+  state, or an authoritative newer pending revision;
+- never update a cached expected revision automatically;
+- present a newer revision or new lifecycle occurrence normally;
+- keep direct action-display close outside the notification cache.
+
+This stage intentionally excludes:
+
+- operation IDs or a general mutation outbox;
+- periodic background scheduling;
+- cross-device cache synchronization;
+- notification body/content storage in the cache.
+
+Automated boundary:
+
+- SDK cache state-machine and storage-adapter tests;
+- mobile component tests for optimistic hide, failed mutation, retry, and
+  obsolete-revision removal;
+- real-backend reconnect tests;
+- validation that only identifiers/revision metadata are stored locally.
+
+Manual mobile checkpoint B-2:
+
+- show a notification, make the server unavailable, and dismiss it;
+- confirm it disappears without a blocking error;
+- reopen mobile and confirm the same revision remains hidden;
+- restore the server and confirm the unchanged dismissal is retried;
+- update the notification to a newer revision and confirm it is shown rather
+  than automatically dismissed.
+
+Stop after checkpoint B-2.
+
 ### Stage C — Desktop authoritative-dismissal parity
 
 - apply the same server dismissal and snapshot hydration to every open desktop
@@ -261,7 +402,8 @@ Manual checkpoint C:
 - verify two open connections retain correct labels and isolation.
 
 Stop before the macOS native simulator/XCUITest checkpoint when approval is
-required by the desktop testing policy.
+required by the desktop testing policy. Reassess whether desktop also needs a
+platform-local adapter for the B-2 cache after the mobile checkpoint.
 
 ### Stage D — Retention, expiration, and bounded storage
 
@@ -400,8 +542,14 @@ wait-only or real-suspend behavior.
 
 ### Implementation decisions and open questions
 
-- The requirements and target contract are approved.
-- The lettered checkpoint sequence was approved on August 1, 2026.
+- Stages A/B and their requirements are approved and implemented.
+- The B-1/B-2/C requirements and revised sequence were approved on August 1,
+  2026.
+- B-1 store ownership was clarified and approved on August 1, 2026: the store
+  is a runtime-owned injected dependency, not an `ApplicationControl`
+  responsibility. The store path remains runtime-startup configuration and
+  does not switch during inner `AgentApplication` reload. Supporting live
+  store switching/migration is outside B-1.
 - Detailed implementation planning is intentionally limited to the next
   approved lettered stage.
 - If a stage requires materially more complexity or crosses an approved
@@ -421,9 +569,9 @@ wait-only or real-suspend behavior.
 - Dismiss, resolve, and expire return the current record without a new event
   when the record is already in the requested terminal state. Stale revisions
   and incompatible terminal transitions are conflicts.
-- Dismiss and expire use explicit lifecycle event types. Existing frontends may
-  ignore them until Stage B/C; authoritative list/session state remains the
-  source of truth.
+- Dismiss and expire use explicit lifecycle event types. Mobile applies the
+  Stage B policy; desktop may ignore dismissal lifecycle events until C.
+  Authoritative list/session state remains the source of truth.
 - HTTP snapshot/list responses return active records by default and accept
   `include_terminal=true`. Existing Python list methods retain compatibility
   for current plugin callers and tests.
@@ -441,10 +589,20 @@ wait-only or real-suspend behavior.
   and exists solely to make the initiating frontend update immediately.
   Backend state remains authoritative after navigation or reconnect.
 - Direct action-display dismissal remains frontend-local.
-- Stage B will use production component and real-backend integration tests for
+- Stage B used production component and real-backend integration tests for
   persistence and rehydration. Existing Detox coverage already validates
   notification placement; new Detox is required only if a native-only gap is
   found during implementation.
+- Stage B-1 makes application notification records and terminal history
+  durable; the event store remains best-effort and memory-backed.
+- Stage B-2 uses a revision-scoped cache rather than a general outbox. A cached
+  dismissal is resent only for the exact same revision.
+- If a newer pending revision is authoritative, the cached dismissal is
+  obsolete and removed. The frontend presents the newer revision and never
+  rewrites the expected revision automatically.
+- Retry is observation-driven on reconnect/rehydration or receipt of the same
+  active revision. Stage B-2 does not add periodic retry scheduling or
+  operation IDs.
 
 ### Documentation
 
@@ -459,7 +617,12 @@ planned API as available before its implementation stage completes.
 - [x] Plan and execute Stage A.
 - [x] Complete automated gate A.
 - [x] Plan and execute Stage B.
-- [ ] Complete manual checkpoint B.
+- [x] Complete manual checkpoint B.
+- [x] Approve the revised B-1/B-2/C sequence.
+- [x] Plan and execute Stage B-1.
+- [x] Complete manual checkpoint B-1.
+- [ ] Plan and execute Stage B-2.
+- [ ] Complete manual checkpoint B-2.
 - [ ] Plan and execute Stage C.
 - [ ] Complete manual checkpoint C.
 - [ ] Plan and execute Stage D.
@@ -580,4 +743,51 @@ Automated evidence:
   HTTP/backend boundary but has no native-only behavior; existing Detox
   coverage continues to own visual placement.
 
-Manual mobile checkpoint B remains open.
+Manual mobile checkpoint B was confirmed on August 1, 2026. Stage B behaves as
+intended.
+
+### Stage B-1 — durable application notification store and history foundation
+
+Implemented on August 1, 2026:
+
+- added the runtime-injected `ApplicationNotificationStore` contract;
+- added in-memory and SQLite store implementations;
+- moved application notification lifecycle, revision validation, stable-key
+  updates, terminal history, and owner-lifetime recovery out of
+  `AgentApplicationOwner`;
+- kept the public notification API and best-effort lifecycle event publication
+  on `AgentApplication`;
+- reduced `ApplicationControl` to reload coordination;
+- changed the owner to create and update reload notifications through the
+  current application;
+- made the terminal/server runtime create one store and inject it into every
+  application generation;
+- made application close treat the injected store as borrowed, with runtime
+  shutdown closing it after the owner;
+- added configurable `application.notifications.store` with a config-adjacent
+  SQLite default;
+- marked reload notifications with `until_server_restart` owner epochs and
+  expire stale pending reload records during startup recovery;
+- added durable public HTTP restart coverage and updated root, API,
+  implementation, application, and plugin documentation;
+- added the explicit SQLite path to the bundled default config and the user's
+  `~/.crystal/config.json` for checkpoint testing.
+
+Automated evidence:
+
+- focused Core owner/application/session notification tests: `17 passed`;
+- focused real HTTP persistence plus MCP reload cleanup: `2 passed`;
+- focused Application owner/terminal/demo HTTP tests: `42 passed`;
+- full fast Core suite: `423 passed, 26 deselected, 1 xfailed`;
+- full fast Application suite: `316 passed, 90 deselected`;
+- modified Python files pass Ruff;
+- default and personal config files pass JSON parsing;
+- normal prepared documentation build passes with only the repository's
+  existing Griffe/autoreference warnings;
+- Pyright was not available in the current Python environment.
+
+Manual mobile checkpoint B-1 was confirmed on August 1, 2026:
+
+- an active application notification survived server-process restart;
+- a dismissed notification remained absent after another restart;
+- emitting the same stable key created a visible new lifecycle occurrence.

@@ -57,7 +57,7 @@ Application plugins are ideal for features that need:
 | Event publishing | `app.publish_event(event)` | Publish events to subscribers |
 | Switch agents | `app.update_agent(agent_id, session)` | Switch a session to a different agent |
 | Request full reload | `app.request_application_reload(reason=..., on_failure=...)` | Ask the owner to drain admitted work and reconstruct `AgentApplication` |
-| Application notifications | `app.create_application_notification(...)`, `update_application_notification(...)`, `dismiss_application_notification(...)`, `resolve_application_notification(...)`, `expire_application_notification(...)`, `list_application_notifications()` | Create owner-memory notifications global to one connected application owner. |
+| Application notifications | `app.create_application_notification(...)`, `update_application_notification(...)`, `dismiss_application_notification(...)`, `resolve_application_notification(...)`, `expire_application_notification(...)`, `list_application_notifications()` | Create durable notifications global to one connected application runtime. |
 | Session notifications | `app.create_session_notification(...)`, `update_session_notification(...)`, `update_session_notification_by_key(...)`, `dismiss_session_notification(...)`, `resolve_session_notification(...)`, `expire_session_notification(...)`, `list_session_notifications(...)` | Create persistent session notifications stored in metadata and published through lifecycle events. |
 | Full config access | `self._config` (via `init`) | Access to the full application configuration |
 | Runtime env access | `os.environ[...]` | Real process environment installed from config resolution env |
@@ -82,8 +82,9 @@ notification APIs validate records and report malformed input to the calling
 application plugin. Tools use a separate failure-contained
 `notification_sink`.
 
-Application notifications currently last for the application-owner process
-lifetime. Session notifications are stored in
+Application notifications are stored in the runtime's injected durable store
+and survive application replacement and server-process restart until
+retention removes them. Session notifications are stored in
 `Session.metadata["notifications"]["items"]` and remain hidden from model
 history. Records have monotonic revisions and support pending, dismissed,
 resolved, and expired states. Creating with the key of an active notification

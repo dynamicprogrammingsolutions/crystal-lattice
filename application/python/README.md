@@ -773,6 +773,27 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 - `PUT /sessions/{session_id}/plugins` - update enabled session plugins.
 - `GET /application/ui-schema`, `POST /actions`, and `POST /sessions/{session_id}/actions` - application UI/actions.
 
+Application notifications use a durable SQLite store by default. Configure its
+path under `application.notifications.store`:
+
+```json
+{
+  "application": {
+    "notifications": {
+      "store": {
+        "type": "sqlite",
+        "path": "${env:CONFIG_DIR}/application-notifications.sqlite3"
+      }
+    }
+  }
+}
+```
+
+Relative paths are resolved beside the active config file. The runtime opens
+the store once and shares it across replacement `AgentApplication`
+generations. Changing the path requires restarting the owning runtime; an
+inner application reload does not switch or migrate notification databases.
+
 The mobile and desktop Sessions headers use one pinnable action bar for Server
 settings, Refresh sessions, New session, and contributed
 `application_action` entries. Pin state is frontend-local and

@@ -6,6 +6,11 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from agent_app.application_future import AgentApplication
+from agent_app.application_notifications import (
+    ApplicationNotificationStore,
+    InMemoryApplicationNotificationStore,
+    SQLiteApplicationNotificationStore,
+)
 from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
 from agent_app.events import InMemoryEventStore
 from agent_terminal_app import server as server_mod
@@ -14,7 +19,11 @@ from agent_terminal_app import server as server_mod
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def _owner(tmp_path: Path) -> AgentApplicationOwner:
+def _owner(
+    tmp_path: Path,
+    *,
+    notification_store: ApplicationNotificationStore | None = None,
+) -> AgentApplicationOwner:
     config_path = tmp_path / "config.json"
     config_path.write_text(
         json.dumps(
@@ -50,18 +59,60 @@ def _owner(tmp_path: Path) -> AgentApplicationOwner:
         encoding="utf-8",
     )
     event_store = InMemoryEventStore()
+    effective_notification_store = (
+        notification_store or InMemoryApplicationNotificationStore()
+    )
 
     def factory(control: ApplicationControl) -> AgentApplication:
         return AgentApplication(
             config_path,
             tmp_path / "sessions",
             event_store=event_store,
+            application_notification_store=effective_notification_store,
             application_control=control,
         )
 
     owner = AgentApplicationOwner(factory, event_store=event_store)
     server_mod.configure_application_owner(owner)
     return owner
+
+
+def test_application_notification_history_survives_server_owner_restart(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "application-notifications.sqlite3"
+    first_store = SQLiteApplicationNotificationStore(database_path)
+    first_owner = _owner(tmp_path, notification_store=first_store)
+    with TestClient(server_mod.app) as client:
+        response = client.post(
+            "/actions",
+            json={
+                "plugin": "dummy_application_notification",
+                "action_id": "emit_application_notification",
+                "inputs": {"presentation": "banner", "variant": "success"},
+            },
+        )
+        assert response.status_code == 200
+        notification = client.get("/application/notifications").json()["notifications"][
+            0
+        ]
+        dismissed = client.post(
+            f"/application/notifications/{notification['id']}/dismiss",
+            json={"expected_revision": notification["revision"]},
+        ).json()["notification"]
+    first_owner.close()
+    first_store.close()
+
+    second_store = SQLiteApplicationNotificationStore(database_path)
+    second_owner = _owner(tmp_path, notification_store=second_store)
+    with TestClient(server_mod.app) as client:
+        assert client.get("/application/notifications").json()["notifications"] == []
+        assert client.get(
+            "/application/notifications",
+            params={"include_terminal": True},
+        ).json()["notifications"] == [dismissed]
+    second_owner.close()
+    second_store.close()
 
 
 def test_demo_plugins_exercise_public_notification_and_display_contract(
