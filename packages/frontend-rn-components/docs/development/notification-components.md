@@ -4,6 +4,8 @@ Shared notification components provide:
 
 - semantic info/success/warning/error banners;
 - normal-flow banner rails;
+- host-configurable horizontal and top insets so owning screens can align
+  banners with their existing content padding without double spacing;
 - session notification metadata/event merging;
 - inline-renderer injection;
 - banner and modal routing callbacks;
@@ -27,3 +29,8 @@ Components do not choose application/session ownership or platform modal
 fallback. Mobile supplies optimistic revision-scoped cache policy. Desktop
 supplies server-authoritative success-only policy and leaves a notification
 visible when owner dismissal fails.
+
+Mobile notification hosts use the same native transparent modal boundary as
+ordinary action-response modals, so the backdrop covers the whole application
+window. Desktop renders modal notifications through its documented inline
+fallback.

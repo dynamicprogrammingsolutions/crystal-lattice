@@ -791,7 +791,7 @@ planned API as available before its implementation stage completes.
 - [x] Complete manual checkpoint B-2.
 - [x] Plan and execute Stage C.
 - [x] Complete Stage C macOS XCUITest.
-- [ ] Complete manual checkpoint C.
+- [x] Complete manual checkpoint C.
 - [x] Approve the Stage D execution plan.
 - [x] Plan and execute Stage D.
 - [x] Complete manual checkpoint D.
@@ -1055,9 +1055,45 @@ Automated evidence:
   nav, Griffe indentation, and autoreference warnings.
 
 Manual desktop checkpoint C was explicitly postponed on August 1, 2026 and
-remains incomplete. The macOS XCUITest notification-harness run was completed
-successfully on August 2, 2026 after exposing stable accessibility identities
-for the actual rendered rail and message-content containers.
+was confirmed on August 2, 2026 after the desktop action-field, immediate
+session-event delivery, presentation, spacing, context-label, stacking, and
+follow-up corrections. The macOS XCUITest notification-harness run was also
+completed successfully after exposing stable accessibility identities for the
+actual rendered rail and message-content containers.
+
+Desktop checkpoint follow-up on August 2, 2026:
+
+- desktop application/session action dialogs now render `select` inputs with
+  the existing native `MacSelect` control;
+- `ChatPane` keeps one event listener that handles both session notification
+  events and snapshot-selection refresh, so action-created session
+  notifications appear without reopening the session;
+- session `banner` presentation keeps banner rendering while `modal` retains
+  the documented desktop inline fallback;
+- inline cards have top spacing and render connection identity inside the
+  card;
+- the full desktop Jest suite passed `19 suites, 104 tests`; the focused
+  notification-rail and native select XCUITests passed `2 tests`.
+
+Visual/follow-up checkpoint follow-up on August 2, 2026:
+
+- desktop session banners now use the same side/top flow margins as
+  application banners;
+- mobile application banners avoid duplicating the Sessions screen's existing
+  side/top inset while mobile session banner spacing remains unchanged;
+- shared banner hosts expose configurable horizontal and top insets;
+- both dummy notification plugins offer zero, one, or three follow-up buttons,
+  and follow-up responses preserve presentation and variant for stacked
+  notification testing;
+- both plugin suites passed `3 tests`; shared component tests passed `7`;
+  mobile passed TypeScript and `26 suites, 110 tests`; desktop passed
+  `19 suites, 104 tests`;
+- the iOS Detox visual suite passed `7 tests` with two stacked application
+  banners and two stacked session banners, geometry assertions, and refreshed
+  screenshots.
+- mobile application and session notification modals now use the same native
+  full-window modal boundary as ordinary action responses; Detox verifies both
+  notification modal backdrops have the full application frame.
 
 ### Stage D — retention lifetimes and bounded history
 
@@ -1093,10 +1129,10 @@ Automated evidence:
 - frontend SDK: `284 passed`;
 - mobile TypeScript: passed;
 - full mobile Jest suite: `26 suites, 110 passed`;
-- full desktop Jest suite: `19 suites, 102 passed`;
+- full desktop Jest suite: `19 suites, 104 passed`;
 - real-backend mobile component integration: `6 passed`, including visible
   past-deadline TTL behavior and suppression after reconstruction;
-- both dummy notification plugin suites: `2 passed` each;
+- both dummy notification plugin suites: `3 passed` each;
 - modified Python files pass Ruff and Black.
 
 No Stage D Detox or XCUITest was added because TTL changes initial data

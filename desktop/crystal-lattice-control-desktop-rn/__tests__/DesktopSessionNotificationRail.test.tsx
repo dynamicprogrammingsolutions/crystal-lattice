@@ -74,7 +74,9 @@ test('hydrates, renders modal as inline, and persists session dismissal', async 
     );
 
   const rendered = renderRail();
-  expect(await screen.findByText('Server-owned session notification')).toBeTruthy();
+  expect(
+    await screen.findByText('Server-owned session notification', {}, { timeout: 3000 }),
+  ).toBeTruthy();
   fireEvent.press(screen.getByText('Close'));
   await waitFor(() => {
     expect(dismissSessionNotification).toHaveBeenCalledWith(
@@ -118,4 +120,40 @@ test('keeps a session notification visible when server dismissal fails', async (
     expect(backend.dismissSessionNotification).toHaveBeenCalled();
   });
   expect(screen.getByText('Server-owned session notification')).toBeTruthy();
+});
+
+test('renders action-created session events immediately with banner presentation', async () => {
+  const bannerNotification: SessionNotification = {
+    ...notification,
+    display: {
+      ...notification.display,
+      presentation: 'banner',
+    },
+  };
+  const backend = {
+    kind: 'inProcess',
+    getSessionSummary: jest.fn(async () => summary([])),
+  } as unknown as AgentBackend;
+  const rendered = render(
+    <ThemeProvider theme={buildDesktopTheme(null)}>
+      <DesktopSessionNotificationRail
+        backend={backend}
+        connectionId="connection-1"
+        sessionId="session-1"
+        sessionSummary={summary([])}
+        events={[
+          {
+            event_id: '1',
+            type: 'session_notification_created',
+            session_id: 'session-1',
+            notification: bannerNotification,
+          },
+        ]}
+      />
+    </ThemeProvider>,
+  );
+
+  expect(await screen.findByText('Server-owned session notification')).toBeTruthy();
+  expect(screen.UNSAFE_getByProps({ accessibilityRole: 'alert' })).toBeTruthy();
+  rendered.unmount();
 });

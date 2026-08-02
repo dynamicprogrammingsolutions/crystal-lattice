@@ -21,6 +21,8 @@ export interface NotificationBannerHostProps {
   maxVisible?: number;
   topInset?: number;
   layout?: 'overlay' | 'flow';
+  horizontalInset?: number;
+  topSpacing?: number;
   testID?: string;
   onDismiss: (item: NotificationBannerHostItem) => void;
   onFollowupAction?: (
@@ -34,6 +36,8 @@ export function NotificationBannerHost({
   maxVisible = 3,
   topInset = 0,
   layout = 'overlay',
+  horizontalInset = 12,
+  topSpacing = 8,
   testID,
   onDismiss,
   onFollowupAction,
@@ -59,9 +63,12 @@ export function NotificationBannerHost({
       testID={testID}
       style={[
         layout === 'overlay' ? styles.overlayHost : styles.flowHost,
+        { left: layout === 'overlay' ? horizontalInset : undefined,
+          right: layout === 'overlay' ? horizontalInset : undefined,
+          marginHorizontal: layout === 'flow' ? horizontalInset : undefined },
         layout === 'overlay'
-          ? { top: topInset + 8 }
-          : { paddingTop: topInset + 8 },
+          ? { top: topInset + topSpacing }
+          : { paddingTop: topInset + topSpacing },
       ]}
     >
       {visible.map((item) => (
@@ -83,14 +90,11 @@ export function NotificationBannerHost({
 const styles = StyleSheet.create({
   overlayHost: {
     position: 'absolute',
-    left: 12,
-    right: 12,
     zIndex: 10000,
     elevation: 10000,
     gap: 8,
   },
   flowHost: {
-    marginHorizontal: 12,
     paddingBottom: 8,
     gap: 8,
   },

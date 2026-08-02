@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type {
   ActionDisplayFollowupAction,
@@ -8,7 +8,10 @@ import type {
   SessionNotification,
   SessionSummary,
 } from '@crystal-lattice/frontend-sdk';
-import { SessionNotificationsHost } from '@crystal-lattice/frontend-rn-components';
+import {
+  NotificationBanner,
+  SessionNotificationsHost,
+} from '@crystal-lattice/frontend-rn-components';
 
 import { ActionResultInlineCard } from './ActionResultInlineCard';
 
@@ -88,15 +91,33 @@ export function DesktopSessionNotificationRail({
         inlinePresentations={['inline', 'banner', 'modal']}
         onDismissNotification={dismiss}
         onFollowupAction={onFollowupAction}
-        renderInline={({ notification, onDismiss, onFollowupAction: followup }) => (
-          <ActionResultInlineCard
-            display={notification.display}
-            activeActionId={activeActionId}
-            onDismiss={onDismiss}
-            onFollowupAction={(action) => followup(action)}
-          />
-        )}
+        renderInline={({ notification, onDismiss, onFollowupAction: followup }) =>
+          notification.display.presentation === 'banner' ? (
+            <View style={styles.banner}>
+              <NotificationBanner
+                display={notification.display}
+                severity={notification.severity}
+                onDismiss={onDismiss}
+                onFollowupAction={(action) => followup(action)}
+              />
+            </View>
+          ) : (
+            <ActionResultInlineCard
+              display={notification.display}
+              activeActionId={activeActionId}
+              onDismiss={onDismiss}
+              onFollowupAction={(action) => followup(action)}
+            />
+          )
+        }
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  banner: {
+    marginHorizontal: 12,
+    marginTop: 8,
+  },
+});

@@ -131,10 +131,12 @@ export function MobileNotificationBannerHarness(): React.JSX.Element {
             : isSessions
               ? 'application_notification'
               : 'session_notification';
-      emitDisplayPresentation(
-        backend,
-        normalizeDisplayEnvelope({
-          id: `notification-visual-${scenario}`,
+      const count = presentation === 'banner' ? 2 : 1;
+      for (let index = 1; index <= count; index += 1) {
+        emitDisplayPresentation(
+          backend,
+          normalizeDisplayEnvelope({
+          id: `notification-visual-${scenario}-${index}`,
           source,
           connectionId: 'notification-visual',
           sessionId: source === 'session_notification' ? SESSION_ID : undefined,
@@ -144,7 +146,7 @@ export function MobileNotificationBannerHarness(): React.JSX.Element {
             title:
               presentation === 'modal'
                 ? 'Notification visual modal'
-                : 'Notification visual banner',
+                : `Notification visual banner ${index}`,
             body: isSessions
               ? 'Application notification on the Sessions screen.'
               : 'Session notification on the Messages screen.',
@@ -152,8 +154,9 @@ export function MobileNotificationBannerHarness(): React.JSX.Element {
             presentation,
             dismissible: true,
           },
-        }),
-      );
+          }),
+        );
+      }
     }, 100);
     return () => clearTimeout(timer);
   }, [backend, scenario]);

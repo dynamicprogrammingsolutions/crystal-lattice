@@ -33,6 +33,7 @@ export interface ActionDisplayCardProps {
   footerDismissLabel?: string | null;
   compact?: boolean;
   fieldRenderers?: ApplicationActionDialogFieldRenderers;
+  contextLabel?: string;
 }
 
 export function ActionDisplayCard({
@@ -44,6 +45,7 @@ export function ActionDisplayCard({
   footerDismissLabel,
   compact = false,
   fieldRenderers,
+  contextLabel,
 }: ActionDisplayCardProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme, compact), [theme, compact]);
@@ -77,6 +79,11 @@ export function ActionDisplayCard({
     <View style={styles.card}>
       <View style={styles.header}>
         <View style={styles.headerText}>
+          {contextLabel ? (
+            <Text style={styles.contextLabel} numberOfLines={1}>
+              {contextLabel}
+            </Text>
+          ) : null}
           <Text style={styles.title}>{title}</Text>
           {variantLabel ? <Text style={styles.variant}>{variantLabel}</Text> : null}
         </View>
@@ -168,6 +175,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>, compact: boolean) =>
       textTransform: 'uppercase',
       letterSpacing: 0.8,
       color: theme.textSecondary,
+    },
+    contextLabel: {
+      color: theme.textSecondary,
+      fontSize: 11,
+      fontWeight: '600',
+      marginBottom: 3,
     },
     headerDismiss: {
       paddingHorizontal: 10,

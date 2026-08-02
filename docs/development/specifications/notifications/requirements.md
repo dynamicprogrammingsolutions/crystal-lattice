@@ -10,8 +10,8 @@
 | NTF-006 | Notification lifecycle events preserve application/session scope. | Implemented | Automated | Documented |
 | FNT-001 | Mobile application notifications render only on Sessions. | Implemented | Automated; human checkpoint pending | Documented |
 | FNT-002 | Mobile session notifications render only on the matching Chat. | Implemented | Automated; human checkpoint pending | Documented |
-| FNT-003 | Desktop connection notifications aggregate in the message/detail area and retain connection identity. | Implemented | Component/integration/native automated; human pending | Documented |
-| FNT-004 | Desktop session notifications render for the active session at the common message/detail location. | Implemented | Component/integration/native automated; human pending | Documented |
+| FNT-003 | Desktop connection notifications aggregate in the message/detail area and retain connection identity. | Implemented | Component/integration/native automated; desktop confirmed | Documented |
+| FNT-004 | Desktop session notifications render for the active session at the common message/detail location. | Implemented | Component/integration/native automated; desktop confirmed | Documented |
 | NTF-007 | Notification dismissal is persisted by the same server-side authority as the notification record. | Implemented backend/mobile/desktop | Automated backend/API/mobile/desktop; desktop human postponed | Documented |
 | NTF-008 | Notification records have monotonic revisions and reject stale mutations. | Implemented | Automated | Documented |
 | NTF-009 | Retention supports explicit, presentation-TTL, request-completion, and server-lifetime policies. | Implemented | Automated backend/SDK/mobile integration; mobile confirmed | Documented |

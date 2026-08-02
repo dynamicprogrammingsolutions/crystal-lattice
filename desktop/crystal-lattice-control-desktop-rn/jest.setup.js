@@ -38,6 +38,7 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
   const { Pressable, Text, TextInput, View } = require('react-native');
   const {
+    mergeSessionNotificationEvents,
     notificationExpectedRevision,
     selectSessionNotifications,
   } = jest.requireActual('@crystal-lattice/frontend-sdk');
@@ -313,13 +314,17 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
       ),
     SessionNotificationsHost: ({
       sessionSummary,
+      events = [],
       onDismissNotification,
       onFollowupAction,
       renderInline,
       inlinePresentations = ['inline'],
     }) => {
       const [dismissedRevisions, setDismissedRevisions] = React.useState([]);
-      const notifications = selectSessionNotifications(sessionSummary).filter(
+      const notifications = mergeSessionNotificationEvents(
+        selectSessionNotifications(sessionSummary),
+        events,
+      ).filter(
         (notification) =>
           notification.status === 'pending' &&
           inlinePresentations.includes(

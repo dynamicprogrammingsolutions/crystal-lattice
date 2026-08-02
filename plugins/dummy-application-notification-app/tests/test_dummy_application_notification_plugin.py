@@ -87,3 +87,43 @@ def test_emits_ttl_application_notification_and_validates_duration():
             None,
             {},
         )
+
+
+def test_configures_application_followups_and_preserves_display_format():
+    plugin = DummyApplicationNotificationPlugin()
+    app = _App()
+    plugin.execute_action(
+        app,
+        "emit_application_notification",
+        {
+            "presentation": "banner",
+            "variant": "warning",
+            "followup_buttons": "multiple",
+        },
+        None,
+        {},
+    )
+    actions = app.items[0]["display"]["actions"]
+    assert len(actions) == 3
+    result = plugin.execute_action(
+        app,
+        "notification_followup",
+        actions[1]["fixed_params"],
+        None,
+        {},
+    )
+    assert result["display"]["presentation"] == "banner"
+    assert result["display"]["variant"] == "warning"
+
+    plugin.execute_action(
+        app,
+        "emit_application_notification",
+        {
+            "presentation": "modal",
+            "variant": "info",
+            "followup_buttons": "none",
+        },
+        None,
+        {},
+    )
+    assert app.items[0]["display"]["actions"] == []

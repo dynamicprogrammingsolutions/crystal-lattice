@@ -483,7 +483,6 @@ export const ChatPane = React.memo(function ChatPane({
     initialEventsCursorId: cachedEntry?.cursorEventId ?? null,
     initialActiveRequestId: cachedEntry?.activeRequestId ?? null,
 	  eventsEnabled: isActive && backend != null,
-    onEvents: handleChatEvents,
   });
 
   const pinnedSessionActionsStorageKey = useMemo(() => {
@@ -911,6 +910,7 @@ export const ChatPane = React.memo(function ChatPane({
       return;
     }
     chatController.setEventsListener((events) => {
+      handleChatEvents(events);
       let needsRefresh = false;
       for (const ev of events) {
         const type = (ev as any)?.type;
@@ -930,7 +930,7 @@ export const ChatPane = React.memo(function ChatPane({
     return () => {
       chatController.setEventsListener(null);
     };
-  }, [chatController, refreshSelectedSnapshot]);
+  }, [chatController, handleChatEvents, refreshSelectedSnapshot]);
 
   const persistCacheSnapshot = useCallback(() => {
     if (!chatController) {

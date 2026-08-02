@@ -38,6 +38,27 @@ function expectBefore(upper: Frame, lower: Frame, label: string): void {
   }
 }
 
+function expectAligned(left: Frame, right: Frame, label: string): void {
+  if (Math.abs(left.x - right.x) > 2 || Math.abs(left.width - right.width) > 2) {
+    throw new Error(
+      `${label}: left=${JSON.stringify(left)} right=${JSON.stringify(right)}`,
+    );
+  }
+}
+
+function expectSameFrame(expected: Frame, actual: Frame, label: string): void {
+  if (
+    Math.abs(expected.x - actual.x) > 2 ||
+    Math.abs(expected.y - actual.y) > 2 ||
+    Math.abs(expected.width - actual.width) > 2 ||
+    Math.abs(expected.height - actual.height) > 2
+  ) {
+    throw new Error(
+      `${label}: expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}`,
+    );
+  }
+}
+
 async function captureScreenshot(name: string): Promise<void> {
   const source = await device.takeScreenshot(name);
   const directory = path.resolve(process.cwd(), 'artifacts', 'notification-visual');
@@ -86,11 +107,23 @@ describe('mobile notification visual placement', () => {
     const banner = frameFrom(
       await element(by.id('sessions-notification-banner-rail')).getAttributes(),
     );
+    const firstBanner = frameFrom(
+      await element(
+        by.id('notification-banner-notification-visual-sessions-banner-1'),
+      ).getAttributes(),
+    );
+    const secondBanner = frameFrom(
+      await element(
+        by.id('notification-banner-notification-visual-sessions-banner-2'),
+      ).getAttributes(),
+    );
     const firstRow = frameFrom(
       await element(by.id('session-row-notification-visual-session')).getAttributes(),
     );
     expectBefore(filter, banner, 'Sessions filter row must precede banner');
+    expectBefore(firstBanner, secondBanner, 'Application banners must stack');
     expectBefore(banner, firstRow, 'Sessions banner must push rows down');
+    expectAligned(filter, firstBanner, 'Application banner must align with Sessions content');
 
     await captureScreenshot('notifications-sessions-application-banner');
   });
@@ -101,6 +134,11 @@ describe('mobile notification visual placement', () => {
       .toExist()
       .withTimeout(30000);
     await detoxExpect(element(by.text('Notification visual modal'))).toBeVisible();
+    expectSameFrame(
+      frameFrom(await element(by.id('notification-banner-harness-ready')).getAttributes()),
+      frameFrom(await element(by.id('global-notification-modal')).getAttributes()),
+      'Application notification modal must cover the whole app',
+    );
 
     await captureScreenshot('notifications-sessions-application-modal');
   });
@@ -127,10 +165,21 @@ describe('mobile notification visual placement', () => {
     const banner = frameFrom(
       await element(by.id('messages-notification-banner-rail')).getAttributes(),
     );
+    const firstBanner = frameFrom(
+      await element(
+        by.id('notification-banner-notification-visual-messages-banner-1'),
+      ).getAttributes(),
+    );
+    const secondBanner = frameFrom(
+      await element(
+        by.id('notification-banner-notification-visual-messages-banner-2'),
+      ).getAttributes(),
+    );
     const transcript = frameFrom(
       await element(by.id('transcript-scroll-list')).getAttributes(),
     );
     expectBefore(header, banner, 'Messages header must precede banner');
+    expectBefore(firstBanner, secondBanner, 'Session banners must stack');
     expectBefore(banner, transcript, 'Messages banner must push transcript down');
 
     await captureScreenshot('notifications-messages-session-banner');
@@ -160,6 +209,11 @@ describe('mobile notification visual placement', () => {
     await waitFor(element(by.id('global-notification-modal')))
       .toExist()
       .withTimeout(30000);
+    expectSameFrame(
+      frameFrom(await element(by.id('notification-banner-harness-ready')).getAttributes()),
+      frameFrom(await element(by.id('global-notification-modal')).getAttributes()),
+      'Session notification modal must cover the whole app',
+    );
 
     await captureScreenshot('notifications-messages-session-modal');
   });

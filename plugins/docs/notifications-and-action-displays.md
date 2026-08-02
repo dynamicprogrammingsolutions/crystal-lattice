@@ -552,6 +552,13 @@ pytest plugins/dummy-action-display-app/tests -q
 These plugins are intentionally absent from the production default
 configuration.
 
+The application and session notification demos expose presentation, variant,
+retention, TTL duration, and follow-up-button controls. Follow-up buttons may
+be disabled, shown once, or shown as a group of three for stacked-notification
+testing. Follow-up action responses preserve the originating presentation and
+variant. Application notifications support follow-up actions normally; their
+earlier absence was only a limitation of the demonstration plugin.
+
 ## Retention
 
 Notifications accept a versioned retention object with `until_resolved`,

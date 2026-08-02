@@ -94,3 +94,44 @@ def test_emits_ttl_session_notification_and_validates_duration():
             context,
             {},
         )
+
+
+def test_configures_session_followups_and_preserves_display_format():
+    plugin = DummySessionNotificationPlugin()
+    app = _App()
+    context = {"session_id": "session"}
+    plugin.execute_action(
+        app,
+        "emit_session_notification",
+        {
+            "presentation": "banner",
+            "variant": "error",
+            "followup_buttons": "multiple",
+        },
+        context,
+        {},
+    )
+    actions = app.items[0]["display"]["actions"]
+    assert len(actions) == 3
+    result = plugin.execute_action(
+        app,
+        "notification_followup",
+        actions[2]["fixed_params"],
+        context,
+        {},
+    )
+    assert result["display"]["presentation"] == "banner"
+    assert result["display"]["variant"] == "error"
+
+    plugin.execute_action(
+        app,
+        "emit_session_notification",
+        {
+            "presentation": "inline",
+            "variant": "info",
+            "followup_buttons": "one",
+        },
+        context,
+        {},
+    )
+    assert len(app.items[0]["display"]["actions"]) == 1

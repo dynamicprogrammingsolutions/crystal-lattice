@@ -5,6 +5,30 @@ from typing import Any
 
 
 _RETENTION_POLICIES = ["until_resolved", "ttl", "until_server_restart"]
+_FOLLOWUP_OPTIONS = ["none", "one", "multiple"]
+
+
+def _followup_actions(params: dict[str, Any]) -> list[dict[str, Any]]:
+    mode = str(params.get("followup_buttons") or "none")
+    if mode not in _FOLLOWUP_OPTIONS:
+        raise ValueError(f"Unsupported follow-up button mode: {mode}")
+    count = 0 if mode == "none" else 1 if mode == "one" else 3
+    return [
+        {
+            "kind": "run_action",
+            "id": f"followup_{index}",
+            "label": f"Follow-up {index}",
+            "plugin": "dummy_session_notification",
+            "action_id": "notification_followup",
+            "action_owner": "application",
+            "fixed_params": {
+                "presentation": params.get("presentation"),
+                "variant": params.get("variant"),
+                "followup_index": index,
+            },
+        }
+        for index in range(1, count + 1)
+    ]
 
 
 def _retention(params: dict[str, Any]) -> dict[str, Any]:
@@ -49,6 +73,7 @@ class DummySessionNotificationPlugin:
                     "variant": {"type": "string", "required": True},
                     "retention": {"type": "string", "required": False},
                     "ttl_seconds": {"type": "integer", "required": False},
+                    "followup_buttons": {"type": "string", "required": False},
                 },
             },
             {
@@ -64,7 +89,11 @@ class DummySessionNotificationPlugin:
             {
                 "id": "notification_followup",
                 "label": "Notification follow-up",
-                "inputs": {},
+                "inputs": {
+                    "presentation": {"type": "string", "required": True},
+                    "variant": {"type": "string", "required": True},
+                    "followup_index": {"type": "integer", "required": False},
+                },
             },
         ]
 
@@ -113,6 +142,14 @@ class DummySessionNotificationPlugin:
                             "required": False,
                             "default": 60,
                         },
+                        {
+                            "name": "followup_buttons",
+                            "type": "select",
+                            "label": "Follow-up buttons",
+                            "required": True,
+                            "options": _FOLLOWUP_OPTIONS,
+                            "default": "none",
+                        },
                     ],
                 },
                 "param_map": {
@@ -120,6 +157,7 @@ class DummySessionNotificationPlugin:
                     "variant": "$dialog.variant",
                     "retention": "$dialog.retention",
                     "ttl_seconds": "$dialog.ttl_seconds",
+                    "followup_buttons": "$dialog.followup_buttons",
                 },
             },
             {
@@ -142,14 +180,18 @@ class DummySessionNotificationPlugin:
         if not isinstance(session_id, str) or not session_id:
             raise ValueError("A session context is required")
         if action_id == "notification_followup":
+            presentation = str(params.get("presentation") or "inline")
+            variant = str(params.get("variant") or "success")
+            index = int(params.get("followup_index") or 1)
             return {
                 "status": "ok",
                 "display": {
                     "format": "text",
-                    "title": "Follow-up completed",
+                    "title": f"Session follow-up {index}",
                     "body": "The demo follow-up action ran.",
-                    "variant": "success",
-                    "presentation": "banner",
+                    "variant": variant,
+                    "presentation": presentation,
+                    "dismissible": True,
                 },
             }
         if action_id in {
@@ -192,16 +234,7 @@ class DummySessionNotificationPlugin:
                     "variant": variant,
                     "presentation": presentation,
                     "dismissible": True,
-                    "actions": [
-                        {
-                            "kind": "run_action",
-                            "id": "followup",
-                            "label": "Run follow-up",
-                            "plugin": self.name,
-                            "action_id": "notification_followup",
-                            "action_owner": "application",
-                        }
-                    ],
+                    "actions": _followup_actions(params),
                 },
                 "model_visibility": "hidden",
                 "retention": _retention(params),

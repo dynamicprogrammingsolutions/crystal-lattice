@@ -107,6 +107,8 @@ export function MobileDisplayHost({
         <NotificationBannerHost
           items={banners}
           layout="flow"
+          horizontalInset={scope === 'connection' ? 0 : 12}
+          topSpacing={scope === 'connection' ? 0 : 8}
           testID={testID}
           onDismiss={(item) => {
             void context.dismiss(item.envelope);
@@ -135,7 +137,6 @@ export function MobileDisplayHost({
       <ActionResultModal
         visible={modal !== null}
         display={modal?.display ?? null}
-        presentationMode="overlay"
         testID="global-notification-modal"
         onRequestClose={() => {
           if (modal) void context.dismiss(modal);

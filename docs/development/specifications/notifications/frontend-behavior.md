@@ -31,6 +31,8 @@ revisions.
 - `inline` uses the owning session or initiating action region.
 - `modal` uses a platform-appropriate modal; desktop may provide a documented
   inline fallback.
+- Mobile modal notifications use the full-application native modal boundary,
+  matching ordinary modal action responses.
 
 Info, success, warning, and error variants must remain visually and
 accessibly distinguishable.
