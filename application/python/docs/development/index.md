@@ -1,5 +1,6 @@
 # Application runtime development
 
+- [Application request execution](request-execution.md)
 - [Runtime owner integration](runtime-owner-integration.md)
 
 Portable reload and notification behavior is specified in root development

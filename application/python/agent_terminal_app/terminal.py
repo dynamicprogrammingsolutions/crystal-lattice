@@ -29,9 +29,7 @@ from .terminal_app import (
 from agent_app.config import resolve_request_config
 
 _DEFAULT_RUNTIME_LAYOUT = load_runtime_layout()
-_DEFAULT_CONFIG_PATH = (
-    _DEFAULT_RUNTIME_LAYOUT.config_examples / "config_fallback.json"
-)
+_DEFAULT_CONFIG_PATH = _DEFAULT_RUNTIME_LAYOUT.config_examples / "config_fallback.json"
 _DEFAULT_SESSION_ROOT = _DEFAULT_RUNTIME_LAYOUT.user_path("default_sessions_dir")
 
 
@@ -1495,7 +1493,10 @@ async def _cmd_send(
     # treated as application errors and handled by the central wrapper.
     _ = app.session
 
-    await _start_background_request(app)
+    started = app.start_request(stream=True)
+    if started.status == "already_running":
+        write(f"[send] request already running: {started.request_id}")
+        return
     write("[send] request started for current session")
 
 
@@ -1774,20 +1775,6 @@ async def _handle_slash_command(
         _render_terminal_exception(cmd.name, exc, write)
 
 
-async def _start_background_request(app: TerminalApplication) -> None:
-    async def _run_request() -> None:
-        def _worker() -> None:
-            try:
-                app.send_request(stream=True)
-            except Exception:
-                # Background errors are logged via events; keep UI responsive.
-                pass
-
-        await asyncio.to_thread(_worker)
-
-    asyncio.create_task(_run_request())
-
-
 async def _handle_user_message(
     app: TerminalApplication,
     text: str,
@@ -1795,20 +1782,24 @@ async def _handle_user_message(
     ui_state: Dict[str, Any],
 ) -> None:
     try:
-        app.append_user_message(text)
+        started = app.append_user_message_and_start_request(text, stream=True)
     except RuntimeError:
         # Auto-recover when no active session is present by starting a
         # new ephemeral session and retrying the append.
         write("[error] session not found; starting a new one")
         app.start_new_session(agent_id=None, persist=False)
-        app.append_user_message(text)
+        started = app.append_user_message_and_start_request(text, stream=True)
     except Exception as exc:  # pragma: no cover - defensive
         # For user-caused errors (``TerminalUserError``) render a
         # simple message; for application errors, include a traceback.
         _render_terminal_exception("input", exc, write)
         return
 
-    await _start_background_request(app)
+    if started.status == "already_running":
+        write(
+            f"[error] request already running: {started.request_id}; "
+            "message was not appended"
+        )
 
 
 async def _handle_modify_message(

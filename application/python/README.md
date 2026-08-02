@@ -773,6 +773,21 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 - `PUT /sessions/{session_id}/plugins` - update enabled session plugins.
 - `GET /application/ui-schema`, `POST /actions`, and `POST /sessions/{session_id}/actions` - application UI/actions.
 
+Request admission and execution are application-layer behavior. FastAPI and
+the terminal delegate to the same `AgentApplication` session-request
+coordinator:
+
+- `start_session_request(...)` starts from existing history;
+- `start_session_request_with_message(...)` atomically appends and starts;
+- `run_session_request(...)` provides the synchronous equivalent;
+- `get_active_session_request_id(...)` exposes the shared single-flight state.
+
+The HTTP adapter retains payload validation, idempotency keys, status mapping,
+and serialization. It does not own request worker threads, active-request
+state, or event publication. Maintainers should start with
+[`docs/development/request-execution.md`](docs/development/request-execution.md)
+for the complete application request lifecycle.
+
 Application notifications use a durable SQLite store by default. Configure its
 path under `application.notifications.store`:
 

@@ -19,6 +19,11 @@ from .application_owner import (
     AgentApplicationOwner,
     ApplicationReloadPendingError,
 )
+from .request_execution import (
+    SessionRequestAlreadyRunningError,
+    SessionRequestResult,
+    SessionRequestStart,
+)
 
 __all__ = [
     "AgentApplication",
@@ -26,5 +31,8 @@ __all__ = [
     "AgentApplicationOwner",
     "ApplicationReloadPendingError",
     "InMemoryApplicationNotificationStore",
+    "SessionRequestAlreadyRunningError",
+    "SessionRequestResult",
+    "SessionRequestStart",
     "SQLiteApplicationNotificationStore",
 ]

@@ -429,28 +429,33 @@ terminal app to persist `Session` objects incrementally.
 }
 ```
 
-The HTTP server’s background worker (`_run_send_request_background` in
-`application/python/agent_terminal_app/server.py`) consumes these
-events but does **not** forward them to `/events` or the bridge as
-public API.
+The application-layer session request coordinator
+(`core/python/agent_app/request_execution.py`) consumes these events but does
+**not** forward them to `/events` or the bridge as public API. An optional
+in-process checkpoint callback lets terminal-style consumers track the live
+`Session`. The package-local maintainer guide lives at
+`application/python/docs/development/request-execution.md`.
 
-Instead, whenever the server processes a `session_checkpoint` it
-emits a lightweight, serializable **checkpoint marker** event into the
-shared event store (described below).
+The low-level application request flow persists request checkpoints and emits
+lightweight, serializable **checkpoint marker** events into the shared event
+store (described below).
 
 ### `checkpoint` (marker event)
 
 Defined in:
 
+- `core/python/agent_app/application_future.py`
+  - request checkpoint persistence and `record_checkpoint`
+- `core/python/agent_app/request_execution.py`
+  - shared request execution and internal checkpoint filtering
 - `application/python/agent_terminal_app/server.py`
-  - `_run_send_request_background`
-  - Session/message lifecycle endpoints
+  - non-request session/message lifecycle endpoints
 
-Lightweight marker emitted whenever a session has just been persisted
-to disk, either:
+Lightweight marker emitted whenever a session has just been persisted to disk,
+either:
 
-- after processing an internal `session_checkpoint` from the tool
-  loop, or
+- by the low-level application request flow after processing a request
+  checkpoint, or
 - after a non-streaming HTTP operation that modifies a session and
   saves it (append/modify/delete messages, create/fork sessions,
   certain agent updates).

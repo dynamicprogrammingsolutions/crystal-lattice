@@ -570,6 +570,11 @@ Stop after checkpoint D.
 
 ### Stage E — History query model and shared history components
 
+Stage E is paused until
+`tasks/20260802-openai-responses-background-compaction.md`
+defines whether durable compaction progress remains an ordinary notification
+record or introduces an operation specialization that history must represent.
+
 - add active/terminal history query and filtering contracts;
 - add SDK selectors/controllers for status, severity, time, connection, and
   session filtering;

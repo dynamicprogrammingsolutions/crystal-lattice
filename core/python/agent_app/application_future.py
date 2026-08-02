@@ -65,6 +65,11 @@ from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
 from .runtime_env import RuntimeEnvOverlay
 from .notifications import SessionNotifications
+from .request_execution import (
+    SessionRequestCoordinator,
+    SessionRequestResult,
+    SessionRequestStart,
+)
 import weakref
 
 
@@ -610,6 +615,12 @@ class AgentApplication:
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
         self._request_cancellations: Dict[str, RequestCancellation] = {}
+        self._session_request_coordinator = SessionRequestCoordinator(
+            app=self,
+            application_control=self._application_control,
+            new_request_id=self._new_request_id,
+            logger=self._logger,
+        )
 
         # Event compaction controls. These are primarily intended for
         # debugging and tests; in normal operation they remain enabled
@@ -2231,6 +2242,7 @@ class AgentApplication:
         if self._closed:
             return
         self._closed = True
+        self._session_request_coordinator.close()
 
         for wrapper in list(self._app_plugins.values()):
             try:
@@ -2493,9 +2505,7 @@ class AgentApplication:
         )
         return (
             value
-            if isinstance(value, int)
-            and not isinstance(value, bool)
-            and value > 0
+            if isinstance(value, int) and not isinstance(value, bool) and value > 0
             else 500
         )
 
@@ -2572,6 +2582,68 @@ class AgentApplication:
         cancellation = self._request_cancellations.get(request_id)
         if cancellation is not None:
             cancellation.cancel()
+
+    def start_session_request(
+        self,
+        session_id: str,
+        overrides: Optional[Dict[str, Any]] = None,
+        *,
+        stream: bool = True,
+    ) -> SessionRequestStart:
+        """Start a coordinated request without appending a message."""
+
+        return self._session_request_coordinator.start(
+            session_id,
+            overrides,
+            stream=stream,
+        )
+
+    def start_session_request_with_message(
+        self,
+        session_id: str,
+        *,
+        role: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        multipart_content: Optional[List[Dict[str, Any]]] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+        stream: bool = True,
+    ) -> SessionRequestStart:
+        """Atomically append one message and start a coordinated request."""
+
+        return self._session_request_coordinator.start(
+            session_id,
+            overrides,
+            stream=stream,
+            message={
+                "role": role,
+                "content": content,
+                "metadata": metadata,
+                "multipart_content": multipart_content,
+            },
+        )
+
+    def run_session_request(
+        self,
+        session_id: str,
+        overrides: Optional[Dict[str, Any]] = None,
+        *,
+        stream: bool = True,
+        on_checkpoint: Callable[[Session], None] | None = None,
+    ) -> SessionRequestResult:
+        """Run a coordinated request synchronously."""
+
+        return self._session_request_coordinator.run(
+            session_id,
+            overrides,
+            stream=stream,
+            on_checkpoint=on_checkpoint,
+        )
+
+    def get_active_session_request_id(self, session_id: str) -> str | None:
+        """Return the active coordinated request id for one session."""
+
+        return self._session_request_coordinator.get_active_request_id(session_id)
 
     def list_agents(self) -> List[str]:
         """Return the configured agent identifiers.

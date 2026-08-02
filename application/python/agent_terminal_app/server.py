@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import asyncio
 import hashlib
@@ -27,7 +26,6 @@ from fastapi.responses import JSONResponse  # type: ignore[reportMissingImports]
 
 from agent_app.application_owner import (
     AgentApplicationOwner,
-    ApplicationOperation,
     ApplicationReloadPendingError,
 )
 from agent_app.application_future import (
@@ -40,6 +38,10 @@ from agent_app.notifications import (
     NotificationRevisionConflictError,
     NotificationTransitionError,
 )
+from agent_app.request_execution import (
+    SessionRequestCoordinatorClosedError,
+    StaleApplicationGenerationError,
+)
 from agent_app.sessions import FilesystemSnapshotSelectionStore
 from agent_core import Message, Session
 from agent_terminal_app import bonjour as bonjour_mod
@@ -48,9 +50,7 @@ from agent_terminal_app.runtime_layout import load_runtime_layout
 
 
 _DEFAULT_RUNTIME_LAYOUT = load_runtime_layout()
-_DEFAULT_CONFIG_PATH = (
-    _DEFAULT_RUNTIME_LAYOUT.config_examples / "config_fallback.json"
-)
+_DEFAULT_CONFIG_PATH = _DEFAULT_RUNTIME_LAYOUT.config_examples / "config_fallback.json"
 _DEFAULT_SESSION_ROOT = _DEFAULT_RUNTIME_LAYOUT.user_path("default_sessions_dir")
 
 _log = get_logger(__name__)
@@ -141,47 +141,6 @@ def clear_configured_integrations() -> None:
 
 
 _log = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Process-local concurrency guards
-# ---------------------------------------------------------------------------
-
-
-_send_single_flight_lock = threading.Lock()
-_active_send_request_by_session: Dict[str, str] = {}
-
-
-def _get_active_send_request_id(session_id: str) -> Optional[str]:
-    with _send_single_flight_lock:
-        return _active_send_request_by_session.get(session_id)
-
-
-def _set_active_send_request_id(session_id: str, request_id: str) -> None:
-    with _send_single_flight_lock:
-        _active_send_request_by_session[session_id] = request_id
-
-
-def _reserve_active_send_request_id(session_id: str, request_id: str) -> Optional[str]:
-    """Reserve ``request_id`` as the active send for ``session_id``.
-
-    Returns the existing active request id when the session already has
-    a send in flight; returns ``None`` when the reservation succeeds.
-    """
-
-    with _send_single_flight_lock:
-        existing = _active_send_request_by_session.get(session_id)
-        if existing is not None:
-            return existing
-        _active_send_request_by_session[session_id] = request_id
-        return None
-
-
-def _clear_active_send_request_id(session_id: str, request_id: str) -> None:
-    with _send_single_flight_lock:
-        current = _active_send_request_by_session.get(session_id)
-        if current == request_id:
-            _active_send_request_by_session.pop(session_id, None)
 
 
 _IDEMPOTENCY_TTL_SECONDS = 10 * 60.0
@@ -287,68 +246,6 @@ def _idempotency_store(
         _idempotency_cache[cache_key] = (now, fingerprint, response)
 
 
-def _generate_request_id(app_instance: AgentApplication) -> str:
-    """Generate a request id matching AgentApplication conventions."""
-
-    new_rid = getattr(app_instance, "_new_request_id", None)
-    if callable(new_rid):
-        try:
-            rid = new_rid()
-            if isinstance(rid, str) and rid:
-                return rid
-        except Exception:  # pragma: no cover - defensive
-            pass
-    return str(uuid.uuid4())
-
-
-def _load_session_ctx_for_send(
-    app_instance: AgentApplication,
-    session_id: str,
-    overrides: Optional[Dict[str, Any]] = None,
-    *,
-    acquire_lock: bool = True,
-) -> Tuple[Any, Any, Session, Any]:
-    try:
-
-        @contextmanager
-        def _maybe_lock() -> Iterator[None]:
-            if not acquire_lock:
-                yield
-                return
-            with app_instance.acquire_session_lock(session_id):
-                yield
-
-        with _maybe_lock():
-            selected_snapshot_id = app_instance.get_selected_session_snapshot(
-                session_id
-            )
-            if isinstance(selected_snapshot_id, str) and selected_snapshot_id:
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        f"Session {session_id!r} is viewing readonly snapshot "
-                        f"{selected_snapshot_id!r}; clear snapshot selection before sending"
-                    ),
-                )
-            session_record = app_instance.load_session_record(session_id)
-            if session_record is None:
-                raise KeyError(f"Session {session_id!r} not found")
-
-            ctx = app_instance.load_session(session_id, overrides=overrides)
-            if ctx is None:
-                raise KeyError(f"Session {session_id!r} not found")
-
-            file_state = app_instance.get_session_file_state(session_id)
-            return (*ctx, file_state)
-    except KeyError as exc:
-        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
-        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
-            raise HTTPException(status_code=400, detail=detail) from exc
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 def _snapshot_response_fields(
     app_instance: AgentApplication,
     session_id: str,
@@ -358,19 +255,6 @@ def _snapshot_response_fields(
         "readonly": bool(snapshot_id),
         "snapshot_id": snapshot_id,
     }
-
-
-def _merged_session_overrides(
-    session: Session,
-    request_overrides: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    metadata = session.metadata if isinstance(session.metadata, dict) else {}
-    stored_val = metadata.get("overrides")
-    stored_overrides: Dict[str, Any] = (
-        stored_val if isinstance(stored_val, dict) else {}
-    )
-    http_overrides = request_overrides if isinstance(request_overrides, dict) else {}
-    return {**stored_overrides, **http_overrides}
 
 
 def _effective_session_config(
@@ -1047,91 +931,6 @@ def _list_plugins_for_session(
         )
 
     return result
-
-
-def _run_send_request_background(
-    app_instance: AgentApplication,
-    session_id: str,
-    overrides: Dict[str, Any],
-    request_id: Optional[str] = None,
-    operation: ApplicationOperation | None = None,
-) -> None:
-    """Run ``AgentApplication.send_request`` and publish all events.
-
-    This helper mirrors the previous behaviour of :func:`send_request`
-    but is designed to run in a background thread so that the HTTP
-    route can return immediately.
-    """
-
-    rid = request_id or _generate_request_id(app_instance)
-
-    try:
-        core, base_config, session, baseline_file_state = _load_session_ctx_for_send(
-            app_instance,
-            session_id,
-            overrides=overrides,
-        )
-
-        # Merge per-session configuration overrides stored on the
-        # session metadata with any overrides provided in the HTTP
-        # request. Request-level overrides take precedence. This
-        # mirrors the terminal application's behaviour where
-        # `session.metadata["overrides"]` is always applied and
-        # explicit overrides can further refine it.
-        merged_overrides = _merged_session_overrides(session, overrides)
-
-        final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
-        final_messages: List[Dict[str, Any]] = []
-        final_request_id: Optional[str] = None
-
-        for ev in app_instance.send_request(
-            core,
-            session,
-            base_config,
-            merged_overrides,
-            stream=True,
-            request_id=rid,
-            baseline_file_state=baseline_file_state,
-        ):
-            etype = ev.get("type")
-
-            # Internal checkpoint events carry the live Session object so the
-            # server can track progress incrementally. They are not
-            # published to the shared event store or serialized in responses.
-            if etype == "session_checkpoint":
-                session_obj = ev.get("session")
-                if isinstance(session_obj, Session):
-                    try:
-                        final_session_dict = session_obj.to_dict()
-                    except Exception:  # pragma: no cover - defensive
-                        _log.exception(
-                            "failed to serialize session checkpoint for %r", session_id
-                        )
-                continue
-
-            stored = app_instance.publish_event(ev)
-
-            if stored.get("type") == "final":
-                final_messages = list(stored.get("messages") or [])
-                final_request_id = stored.get("request_id")
-            elif "session" in stored and isinstance(stored.get("session"), dict):
-                # Backwards compatibility for older event shapes that include
-                # a serialized session payload.
-                final_session_dict = stored["session"]
-
-        # ``final_messages`` and ``request_id`` are intentionally unused
-        # here; callers are expected to observe results via the event
-        # store and session history.
-
-    except Exception:  # pragma: no cover - defensive
-        _log.exception(
-            "unexpected error in send_request background worker for session %r",
-            session_id,
-        )
-    finally:
-        _clear_active_send_request_id(session_id, rid)
-        if operation is not None:
-            operation.release()
 
 
 @app.get("/sessions/{session_id}/ui-schema")
@@ -1855,27 +1654,32 @@ def send_request(
             detail="config_overrides must be a mapping if provided",
         )
 
-    _ = _load_session_ctx_for_send(app_instance, session_id, overrides=overrides)
+    try:
+        started = app_instance.start_session_request(
+            session_id,
+            overrides,
+            stream=True,
+        )
+    except KeyError as exc:
+        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
+            raise HTTPException(status_code=400, detail=detail) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (
+        ApplicationReloadPendingError,
+        SessionRequestCoordinatorClosedError,
+        StaleApplicationGenerationError,
+    ) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    request_id = _generate_request_id(app_instance)
-    existing = _reserve_active_send_request_id(session_id, request_id)
-    if existing is not None:
-        return {"status": "already_running", "request_id": existing}
-    operation = (
-        _application_owner.retain_operation(app_instance)
-        if _application_owner is not None
-        else None
-    )
-
-    # Start the send_request flow in a background thread so that the
-    # HTTP response can return immediately.
-    threading.Thread(
-        target=_run_send_request_background,
-        args=(app_instance, session_id, overrides, request_id, operation),
-        daemon=True,
-    ).start()
-
-    response = {"status": "started", "request_id": request_id}
+    response = {
+        "status": started.status,
+        "request_id": started.request_id,
+    }
     _idempotency_store(scope, idempotency_key, data, response)
     return response
 
@@ -1930,76 +1734,47 @@ def send_message(
         return cached
 
     try:
-        with app_instance.acquire_session_lock(session_id):
-            cached = _idempotency_maybe_replay(
-                scope, effective_idempotency_key, idempotency_payload
-            )
-            if cached is not None:
-                return cached
-
-            core, base_config, session, _baseline_file_state = (
-                _load_session_ctx_for_send(
-                    app_instance,
-                    session_id,
-                    overrides=overrides,
-                    acquire_lock=False,
-                )
-            )
-
-            request_id = _generate_request_id(app_instance)
-            existing = _reserve_active_send_request_id(session_id, request_id)
-            if existing is not None:
-                raise HTTPException(
-                    status_code=409,
-                    detail={"status": "already_running", "request_id": existing},
-                )
-            operation = (
-                _application_owner.retain_operation(app_instance)
-                if _application_owner is not None
-                else None
+        started = app_instance.start_session_request_with_message(
+            session_id,
+            role=normalized_role,
+            content=content,
+            metadata=metadata,
+            multipart_content=multipart_content,
+            overrides=overrides,
+            stream=True,
+        )
+        if started.status == "already_running":
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "status": "already_running",
+                    "request_id": started.request_id,
+                },
             )
 
-            try:
-                effective_config = _effective_session_config(
-                    app_instance,
-                    base_config,
-                    session,
-                    overrides,
-                )
-                _append_message_to_session_locked(
-                    app_instance,
-                    core,
-                    effective_config,
-                    session,
-                    role=normalized_role,
-                    content=content,
-                    metadata=metadata,
-                    multipart_content=multipart_content,
-                )
-            except Exception:
-                _clear_active_send_request_id(session_id, request_id)
-                if operation is not None:
-                    operation.release()
-                raise
-
-            response = {
-                "status": "started",
-                "request_id": request_id,
-                "session_id": session_id,
-            }
-            _idempotency_store(
-                scope, effective_idempotency_key, idempotency_payload, response
-            )
+        response = {
+            "status": "started",
+            "request_id": started.request_id,
+            "session_id": session_id,
+        }
+        _idempotency_store(
+            scope, effective_idempotency_key, idempotency_payload, response
+        )
     except ReadonlySessionViewError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except KeyError as exc:
+        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
+            raise HTTPException(status_code=400, detail=detail) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (
+        ApplicationReloadPendingError,
+        SessionRequestCoordinatorClosedError,
+        StaleApplicationGenerationError,
+    ) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    threading.Thread(
-        target=_run_send_request_background,
-        args=(app_instance, session_id, overrides, request_id, operation),
-        daemon=True,
-    ).start()
 
     return response
 
@@ -2286,7 +2061,7 @@ def select_session_snapshot(
     cached = _idempotency_maybe_replay(scope, idempotency_key, {})
     if cached is not None:
         return cached
-    if _get_active_send_request_id(session_id) is not None:
+    if app_instance.get_active_session_request_id(session_id) is not None:
         raise HTTPException(
             status_code=409, detail="Cannot select snapshot while a request is running"
         )
@@ -2349,7 +2124,7 @@ def restore_session_snapshot(
     cached = _idempotency_maybe_replay(scope, idempotency_key, {})
     if cached is not None:
         return cached
-    if _get_active_send_request_id(session_id) is not None:
+    if app_instance.get_active_session_request_id(session_id) is not None:
         raise HTTPException(
             status_code=409, detail="Cannot restore snapshot while a request is running"
         )

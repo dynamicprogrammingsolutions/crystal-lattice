@@ -15,6 +15,9 @@ class ApplicationReloadPendingError(RuntimeError):
 
 
 class ApplicationControl(Protocol):
+    def acquire_operation(self) -> Any:
+        """Admit work against the current application generation."""
+
     def request_reload(
         self,
         *,

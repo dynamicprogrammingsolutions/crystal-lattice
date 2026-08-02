@@ -31,15 +31,18 @@ can send requests and consume streaming events.
       `TerminalApplication.add_message`.
 
 - [EXISTING] `POST /sessions/{session_id}/send`
-    - Purpose: start `AgentApplication.send_request` with optional
-      `config_overrides` in the background, publishing all events to the
-      shared store. The HTTP response is an immediate acknowledgement
-      without embedding the final session, messages, or `request_id`.
-    - Terminal parity: `TerminalApplication.send_request(stream=True)` as
-      used by the prompt_toolkit UI; frontends should observe progress
-      via `/events` and apply incremental events to keep local message
-      history in sync. Reload `/sessions/{id}/messages` only for initial
-      bootstrap or as a fallback when the client becomes out of sync.
+    - Purpose: delegate to the application-layer session request coordinator
+      with optional `config_overrides`. The HTTP response immediately reports
+      `started` or `already_running` with the authoritative `request_id`.
+    - Ownership: FastAPI validates and maps HTTP data only. Request admission,
+      background execution, event publication, cancellation registration, and
+      cleanup are application-layer behavior shared with terminal and plugin
+      callers. See
+      [Application request execution](../docs/development/request-execution.md).
+    - Terminal parity: terminal sends use the same coordinator. Frontends
+      observe progress via `/events` and apply incremental events to keep local
+      message history in sync. Reload `/sessions/{id}/messages` only for
+      initial bootstrap or as a fallback when the client becomes out of sync.
 
 - [EXISTING] `GET /events`
     - Purpose: read events from the shared event store, filtered by

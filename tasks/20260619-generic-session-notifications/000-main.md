@@ -13,6 +13,7 @@ Create a generic platform feature for persistent, evented session notifications 
 - [x] `tasks/20260619-generic-session-notifications/040-stage-1-dummy-plugin-integration-tests.md`
   — `COMPLETED VIA tasks/20260729-staged-application-config-and-full-reload.md`
 - [ ] `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`
+  — `PAUSED BEFORE STAGE E BY tasks/20260802-openai-responses-background-compaction.md`
 - [ ] `tasks/20260619-generic-session-notifications/050-stage-2-interaction-flow-design.md`
 - [ ] `tasks/20260619-generic-session-notifications/060-stage-2a-backend-wait-only.md`
 - [ ] `tasks/20260619-generic-session-notifications/070-stage-2a-sdk-and-rn-tests.md`

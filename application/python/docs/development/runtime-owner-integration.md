@@ -14,6 +14,13 @@ Routes acquire owner operations rather than retaining a replaceable
 `AgentApplication`. While reload is pending, new application operations receive
 the `application_reload_pending` response.
 
+Session request workers retain their exact `AgentApplication` generation until
+cleanup, allowing HTTP to return an immediate acknowledgement without allowing
+reload to replace the active application. Terminal and plugin-started requests
+use the same path. See
+[Application request execution](request-execution.md) for the complete
+admission, worker, event, cancellation, and cleanup lifecycle.
+
 Notification events use the shared event store. Application notifications are
 polled without a session filter; session notifications use ordinary
 session-filtered polling and session metadata for reconnect.
@@ -21,9 +28,9 @@ session-filtered polling and session metadata for reconnect.
 The runtime composition root creates one durable
 `ApplicationNotificationStore` and injects it into every replacement
 `AgentApplication`. `AgentApplication` owns the public notification contract.
-`ApplicationControl` is limited to reload coordination, and the owner creates
-reload requested/completed/failed notifications through the current
-application.
+`ApplicationControl` owns application-generation admission and reload
+coordination. The owner creates reload requested/completed/failed notifications
+through the current application.
 
 The configured SQLite path is read when the owning runtime starts. Inner
 application reloads reuse the already-open store; changing the path requires

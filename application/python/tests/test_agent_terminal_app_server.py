@@ -533,11 +533,11 @@ def test_send_request_single_flight_blocks_while_running(tmp_path: Path) -> None
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
 
 def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None:
@@ -628,11 +628,11 @@ def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
     resp3 = server_mod.send_request(
         session_id,
@@ -728,11 +728,11 @@ def test_send_message_endpoint_appends_and_starts_request(tmp_path: Path) -> Non
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
 
 def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
@@ -827,11 +827,11 @@ def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
 
 def test_send_message_endpoint_idempotency_replays_without_double_append(
@@ -927,11 +927,11 @@ def test_send_message_endpoint_idempotency_replays_without_double_append(
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
 
 def test_send_message_endpoint_idempotency_key_reused_with_different_payload_conflicts(
@@ -1002,11 +1002,11 @@ def test_send_message_endpoint_idempotency_key_reused_with_different_payload_con
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
     with pytest.raises(HTTPException) as excinfo:
         server_mod.send_message(
@@ -1302,12 +1302,8 @@ def test_session_plugins_endpoints_roundtrip(tmp_path: Path) -> None:
     )
 
 
-def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -> None:
-    """Internal helper _run_send_request_background mirrors /send behaviour.
-
-    This test calls the helper directly to ensure that it drives the
-    send_request flow to completion and persists the final session.
-    """
+def test_run_session_request_sends_and_persists(tmp_path: Path) -> None:
+    """The shared application runner drives and persists a request."""
 
     from agent_terminal_app import server as server_mod
 
@@ -1319,7 +1315,7 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
     system_message = "You are a helpful echo assistant."
-    user_message = "hello from the _run_send_request_background test"
+    user_message = "hello from the run_session_request test"
 
     create_resp = server_mod.create_session(
         {"agent_id": "default", "system_message": system_message},
@@ -1336,7 +1332,7 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
 
     # Run the helper synchronously; it should process the request to
     # completion and save the final session.
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     ctx = app.load_session(session_id)
     assert ctx is not None
@@ -1617,7 +1613,7 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
     )
 
     # Run the helper synchronously to drive the non-streaming request.
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     evs = _store_events(app.get_event_store(), session_id=session_id, limit=200)
     final_events = [ev for ev in evs if ev.get("type") == "final"]
@@ -1635,10 +1631,10 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
     assert resp["cursor_event_id"] == last_checkpoint.get("event_id")
 
 
-def test_run_send_request_background_merges_session_and_http_overrides(
+def test_run_session_request_merges_session_and_explicit_overrides(
     tmp_path: Path,
 ) -> None:
-    """Background send merges metadata overrides with HTTP overrides.
+    """Coordinated send merges metadata overrides with explicit overrides.
 
     The per-session overrides stored in session.metadata["overrides"]
     must be merged with any config_overrides passed via HTTP, with the
@@ -1695,16 +1691,16 @@ def test_run_send_request_background_merges_session_and_http_overrides(
 
     # HTTP-provided overrides should be merged on top.
     http_overrides = {"bar": "http", "both": "http"}
-    server_mod._run_send_request_background(app, session_id, http_overrides)
+    app.run_session_request(session_id, http_overrides)
 
     merged = captured.get("overrides") or {}
     assert merged == {"foo": "session", "both": "http", "bar": "http"}
 
 
-def test_run_send_request_background_uses_session_overrides_when_http_empty(
+def test_run_session_request_uses_session_overrides_when_explicit_empty(
     tmp_path: Path,
 ) -> None:
-    """Background send uses only session overrides when HTTP none provided."""
+    """Coordinated send uses session overrides when none are explicit."""
 
     from agent_terminal_app import server as server_mod
     from agent_core import Session
@@ -1752,7 +1748,7 @@ def test_run_send_request_background_uses_session_overrides_when_http_empty(
 
     app.send_request = _fake_send_request  # type: ignore[assignment]
 
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     merged = captured.get("overrides") or {}
     assert merged == {"alpha": 1, "beta": 2}
@@ -1787,7 +1783,7 @@ def test_list_session_messages_includes_cursor_event_id_after_request(
         app_instance=app,
     )
 
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     checkpoint_events = [ev for ev in evs if ev.get("type") == "checkpoint"]
@@ -1895,7 +1891,7 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
     # Drive the background helper once. The stubbed application layer
     # records an in-request checkpoint and then a post-completion
     # checkpoint with request_id None.
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     # Verify that at least one checkpoint exists with a non-null request_id
     # (during the request) and that the last checkpoint has request_id None
@@ -2265,7 +2261,7 @@ def test_events_endpoint_uses_session_cursor_as_default_since_id(
         {"role": "user", "content": "before", "metadata": None},
         app_instance=app,
     )
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     # Capture the cursor and then publish an additional synthetic event
     # for the same session after the checkpoint.
@@ -3239,7 +3235,7 @@ def test_cancel_request_endpoint_cancels_active_provider_request(
         kinds = {ev.get("type") for ev in current_events}
         if "request_started" in kinds:
             saw_started = True
-        if server_mod._get_active_send_request_id(session_id) == request_id:
+        if app.get_active_session_request_id(session_id) == request_id:
             saw_active = True
         if saw_started and saw_active:
             break
