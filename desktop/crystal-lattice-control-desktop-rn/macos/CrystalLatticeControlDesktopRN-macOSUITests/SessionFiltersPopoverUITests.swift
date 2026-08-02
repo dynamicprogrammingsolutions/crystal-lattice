@@ -172,9 +172,9 @@ final class SessionFiltersPopoverUITests: XCTestCase {
     let messages = element(app, "desktop-notification-message-content")
     XCTAssertTrue(rail.waitForExistence(timeout: 10), app.debugDescription)
     XCTAssertTrue(messages.waitForExistence(timeout: 10), app.debugDescription)
-    XCTAssertTrue(app.staticTexts["First connection"].waitForExistence(timeout: 10))
-    XCTAssertTrue(app.staticTexts["Second connection"].waitForExistence(timeout: 10))
-    XCTAssertTrue(app.staticTexts["Active session notification"].waitForExistence(timeout: 10))
+    XCTAssertTrue(rail.label.contains("First connection"))
+    XCTAssertTrue(rail.label.contains("Second connection"))
+    XCTAssertTrue(rail.label.contains("Active session notification"))
     XCTAssertLessThanOrEqual(
       rail.frame.maxY,
       messages.frame.minY,

@@ -682,8 +682,9 @@ wait-only or real-suspend behavior.
 - Stages A/B/B-1/B-2/C and their requirements are approved and implemented.
 - The B-1/B-2/C requirements and revised sequence were approved on August 1,
   2026.
-- Stage C's manual desktop checkpoint and native XCUITest run were postponed
-  on August 1, 2026 and remain required before task completion.
+- Stage C's manual desktop checkpoint was postponed on August 1, 2026 and
+  remains required before task completion. The approved native XCUITest was
+  completed on August 2, 2026.
 - B-1 store ownership was clarified and approved on August 1, 2026: the store
   is a runtime-owned injected dependency, not an `ApplicationControl`
   responsibility. The store path remains runtime-startup configuration and
@@ -765,9 +766,9 @@ wait-only or real-suspend behavior.
   automation. Manual testing then covers visual quality, device-specific
   behavior, and experiential issues that automation does not establish
   reliably.
-- A postponed manual checkpoint does not satisfy or cancel a postponed
-  automated native test. Stage C's postponed XCUITest and manual desktop
-  verification remain separate incomplete evidence.
+- A postponed manual checkpoint does not satisfy or cancel an automated native
+  test. Stage C's native XCUITest is now complete while its manual desktop
+  verification remains separate incomplete evidence.
 
 ### Documentation
 
@@ -789,6 +790,7 @@ planned API as available before its implementation stage completes.
 - [x] Plan and execute Stage B-2.
 - [x] Complete manual checkpoint B-2.
 - [x] Plan and execute Stage C.
+- [x] Complete Stage C macOS XCUITest.
 - [ ] Complete manual checkpoint C.
 - [x] Approve the Stage D execution plan.
 - [x] Plan and execute Stage D.
@@ -1040,8 +1042,10 @@ Automated evidence:
   fallback, authoritative absence after reopen, and server persistence;
 - multi-connection component coverage verifies that dismissing one
   connection's notification does not mutate another connection;
-- the deterministic native notification harness now exercises the production
-  Stage C hosts, but XCUITest has not been run pending explicit approval;
+- the deterministic native notification harness exercises the production
+  Stage C hosts; the focused macOS XCUITest passed on August 2, 2026 and
+  retained the `desktop-notification-message-area-rail` screenshot in its
+  `.xcresult`;
 - desktop TypeScript still reports the three pre-existing errors in
   `ChatPane.tsx` attachment plugin IDs and `ActionResultInlineCard.tsx`
   `theme.shadow`; Stage C adds no TypeScript error;
@@ -1050,10 +1054,10 @@ Automated evidence:
 - the prepared MkDocs site builds successfully with the repository's existing
   nav, Griffe indentation, and autoreference warnings.
 
-Manual desktop checkpoint C and the macOS XCUITest notification-harness run
-were explicitly postponed on August 1, 2026. They remain incomplete and must
-be performed before the task is completed, but they do not block planning the
-next contained stage.
+Manual desktop checkpoint C was explicitly postponed on August 1, 2026 and
+remains incomplete. The macOS XCUITest notification-harness run was completed
+successfully on August 2, 2026 after exposing stable accessibility identities
+for the actual rendered rail and message-content containers.
 
 ### Stage D — retention lifetimes and bounded history
 

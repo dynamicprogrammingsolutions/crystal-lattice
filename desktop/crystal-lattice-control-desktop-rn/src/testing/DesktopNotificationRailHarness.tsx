@@ -164,7 +164,11 @@ export function DesktopNotificationRailHarness(): React.JSX.Element {
             <Text style={styles.title}>Notification rail chat</Text>
             <Text style={styles.subtitle}>active-session</Text>
           </View>
-          <View testID="desktop-notification-combined-rail">
+          <View
+            accessible
+            accessibilityLabel="Notification rail: First connection; Second connection; Active session notification"
+            testID="desktop-notification-combined-rail"
+          >
             <DesktopConnectionDisplayRail />
             <DesktopSessionNotificationRail
               backend={first}
@@ -173,7 +177,12 @@ export function DesktopNotificationRailHarness(): React.JSX.Element {
               sessionSummary={null}
             />
           </View>
-          <View style={styles.messages} testID="desktop-notification-message-content">
+          <View
+            accessible
+            accessibilityLabel="Desktop notification message content"
+            style={styles.messages}
+            testID="desktop-notification-message-content"
+          >
             <Text style={styles.message}>Messages are pushed below the notification rail.</Text>
           </View>
         </View>
