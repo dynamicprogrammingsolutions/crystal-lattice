@@ -552,9 +552,30 @@ pytest plugins/dummy-action-display-app/tests -q
 These plugins are intentionally absent from the production default
 configuration.
 
-## Planned lifecycle extension
+## Retention
 
-Automated retention policies, notification history, historical replay,
-desktop adoption of server dismissal, and interaction-compatible records
-remain planned. The manual expire methods and terminal status already exist;
-TTL, request-completion, and server-lifetime policy evaluation do not.
+Notifications accept a versioned retention object with `until_resolved`,
+`ttl`, `until_request_complete`, or `until_server_restart` policy.
+
+TTL uses an absolute `expires_at` timestamp. It is intentionally a frontend
+presentation deadline: a notification already visible remains visible after
+the deadline, while a newly opened or reconstructed frontend host does not
+present it. TTL alone does not mutate status, increment revision, or publish
+an expiration event.
+
+Request-completion and server-lifetime policies have explicit server
+boundaries and transition matching pending records to `expired`. Terminal
+history is bounded by `application.notifications.history_limit`; active
+records are never silently pruned.
+
+Server lifetime refers to the hosting runtime or server process, not one
+replaceable `AgentApplication` generation. An inner application reload may
+reuse the same lifetime and therefore does not provide a portable expiration
+signal.
+
+Explicit dismissal and resolution always win. A resolved notification stays
+resolved after its TTL deadline, request completion, or a later server
+restart; automatic retention expiration only targets records still pending.
+
+Notification history UI, historical replay, and interaction-compatible
+records remain planned.

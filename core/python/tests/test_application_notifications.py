@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from agent_app.application_future import AgentApplication
@@ -13,6 +14,7 @@ from agent_app.events import InMemoryEventStore
 from agent_app.notifications import (
     NotificationRevisionConflictError,
     NotificationTransitionError,
+    notification_ttl_elapsed,
 )
 
 
@@ -206,6 +208,67 @@ def test_owner_lifetime_recovery_expires_old_pending_records(tmp_path: Path) -> 
     assert recovered[0].notification["revision"] == 2
     assert recovered[0].notification["expiration"]["reason"] == "owner_restarted"
     assert store.recover_owner_lifetime("owner-new") == []
+    store.close()
+
+
+def test_application_ttl_is_presentation_only_and_request_retention_expires(
+    tmp_path: Path,
+) -> None:
+    store = InMemoryApplicationNotificationStore(owner_epoch="owner-current")
+    deadline = datetime(2026, 8, 2, 12, 0, tzinfo=timezone.utc)
+    ttl = store.create(
+        {
+            **_notification(key="ttl"),
+            "retention": {
+                "policy": "ttl",
+                "expires_at": deadline.isoformat().replace("+00:00", "Z"),
+            },
+        }
+    ).notification
+    request_scoped = store.create(
+        {
+            **_notification(key="request"),
+            "retention": {"policy": "until_request_complete"},
+        },
+        request_id="request-1",
+    ).notification
+
+    assert notification_ttl_elapsed(ttl, now=deadline + timedelta(seconds=1))
+    assert store.list(include_terminal=False) == [ttl, request_scoped]
+
+    expired = store.expire_request("request-1")
+    assert [item.notification["id"] for item in expired] == [request_scoped["id"]]
+    assert expired[0].notification["status"] == "expired"
+    assert expired[0].notification["expiration"]["reason"] == "request_completed"
+    assert store.list(include_terminal=False) == [ttl]
+
+
+def test_application_terminal_history_limit_is_separate_from_active(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteApplicationNotificationStore(
+        tmp_path / "notifications.sqlite3",
+        owner_epoch="owner-current",
+    )
+    active = store.create(_notification(key="active"), history_limit=2).notification
+    terminal_ids: list[str] = []
+    for index in range(3):
+        created = store.create(
+            _notification(key=f"terminal:{index}"),
+            history_limit=2,
+        ).notification
+        resolved = store.resolve(
+            created["id"],
+            {"index": index},
+            history_limit=2,
+        ).notification
+        terminal_ids.append(resolved["id"])
+
+    records = store.list()
+    assert active in records
+    assert [item["id"] for item in records if item["status"] == "resolved"] == (
+        terminal_ids[-2:]
+    )
     store.close()
 
 

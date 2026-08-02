@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,7 @@ from agent_app.notifications import (
     NotificationRevisionConflictError,
     NotificationSink,
     NotificationTransitionError,
+    notification_ttl_elapsed,
 )
 from agent_core import AgentCore, Session
 
@@ -176,9 +178,110 @@ def test_pruning_keeps_all_pending_and_only_latest_resolved(tmp_path: Path) -> N
     pending = app.create_session_notification(session_id, _notification("pending:one"))
 
     all_items = app.list_session_notifications(session_id, include_resolved=True)
-    assert len(all_items) == 3
+    assert len(all_items) == 4
     assert pending in all_items
-    assert len([item for item in all_items if item["status"] == "resolved"]) == 2
+    assert len([item for item in all_items if item["status"] == "resolved"]) == 3
+
+
+def test_ttl_is_validated_and_remains_pending_after_deadline(tmp_path: Path) -> None:
+    app, store, session_id = _make_app(tmp_path)
+    deadline = datetime(2026, 8, 2, 12, 0, tzinfo=timezone.utc)
+
+    created = app.create_session_notification(
+        session_id,
+        {
+            **_notification("ttl"),
+            "retention": {
+                "policy": "ttl",
+                "expires_at": deadline.isoformat().replace("+00:00", "Z"),
+            },
+        },
+    )
+
+    assert created["retention"] == {
+        "version": 1,
+        "policy": "ttl",
+        "expires_at": "2026-08-02T12:00:00Z",
+    }
+    assert not notification_ttl_elapsed(
+        created,
+        now=deadline - timedelta(seconds=1),
+    )
+    assert notification_ttl_elapsed(created, now=deadline)
+    assert app.list_session_notifications(session_id) == [created]
+    assert not any(
+        event["type"] == "session_notification_expired"
+        for event in store.list(since_id="0", session_id=session_id, limit=20)["events"]
+    )
+
+    with pytest.raises(ValueError, match="valid RFC3339"):
+        app.create_session_notification(
+            session_id,
+            {
+                **_notification("bad-ttl"),
+                "retention": {"policy": "ttl", "expires_at": "not-a-date"},
+            },
+        )
+
+
+def test_request_and_owner_lifetime_expire_session_notifications(
+    tmp_path: Path,
+) -> None:
+    app, store, session_id = _make_app(tmp_path)
+    request_notification = app.create_session_notification(
+        session_id,
+        {
+            **_notification("request"),
+            "retention": {"policy": "until_request_complete"},
+        },
+        request_id="request-1",
+    )
+    owner_notification = app.create_session_notification(
+        session_id,
+        {
+            **_notification("owner"),
+            "retention": {"policy": "until_server_restart"},
+        },
+    )
+
+    expired_request = app._session_notifications.expire_request(
+        session_id,
+        "request-1",
+    )
+    assert [item["id"] for item in expired_request] == [request_notification["id"]]
+    assert expired_request[0]["expiration"]["reason"] == "request_completed"
+
+    app._notification_owner_epoch = "replacement-owner"
+    summary = app.get_session_summary(session_id)
+    items = summary["metadata"]["notifications"]["items"]
+    recovered_owner = next(
+        item for item in items if item["id"] == owner_notification["id"]
+    )
+    assert recovered_owner["status"] == "expired"
+    assert recovered_owner["expiration"]["reason"] == "owner_restarted"
+
+    event_types = [
+        event["type"]
+        for event in store.list(since_id="0", session_id=session_id, limit=30)["events"]
+        if event["type"].startswith("session_notification_")
+    ]
+    assert event_types[-2:] == [
+        "session_notification_expired",
+        "session_notification_expired",
+    ]
+
+
+def test_request_retention_requires_authoritative_request_id(tmp_path: Path) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+
+    with pytest.raises(ValueError, match="authoritative request_id"):
+        app.create_session_notification(
+            session_id,
+            {
+                **_notification("request"),
+                "retention": {"policy": "until_request_complete"},
+            },
+        )
 
 
 def test_dismiss_persists_terminal_record_and_same_key_creates_new_occurrence(

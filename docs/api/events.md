@@ -29,6 +29,8 @@ Application notifications are stored durably by the runtime-injected
 - omit `session_id` and are polled without a session filter
 - survive `AgentApplication` replacement and server-process restart
 - retain terminal history until retention removes it
+- apply TTL only when a frontend freshly presents a notification; TTL does
+  not emit an event or remove an already displayed notification
 - rehydrate through `GET /application/notifications`; event replay remains
   best effort and is not the persistence authority
 

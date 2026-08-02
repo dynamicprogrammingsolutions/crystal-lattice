@@ -340,6 +340,7 @@ class AgentApplication:
         config_env: Mapping[str, str] | None = None,
         replay_server_settings_on_startup: bool = True,
         application_control: ApplicationControl | None = None,
+        notification_owner_epoch: str | None = None,
     ) -> None:
         logger = get_logger("AgentApplication")
         self._logger = logger
@@ -355,6 +356,20 @@ class AgentApplication:
         self._event_store: EventStore = event_store or InMemoryEventStore()
         self._application_notification_store = application_notification_store
         self._application_control = application_control
+        store_owner_epoch = getattr(
+            application_notification_store,
+            "owner_epoch",
+            None,
+        )
+        self._notification_owner_epoch = (
+            notification_owner_epoch
+            if isinstance(notification_owner_epoch, str) and notification_owner_epoch
+            else (
+                store_owner_epoch
+                if isinstance(store_owner_epoch, str) and store_owner_epoch
+                else f"owner_{uuid.uuid4().hex}"
+            )
+        )
         self._non_streaming_provider_classes: Set[type[Any]] = set()
         self._provider_capability_lock = threading.Lock()
 
@@ -2354,11 +2369,32 @@ class AgentApplication:
         )
 
     def create_application_notification(
-        self, notification: Dict[str, Any]
+        self,
+        notification: Dict[str, Any],
+        *,
+        request_id: str | None = None,
     ) -> Dict[str, Any]:
         store = self._require_application_notification_store()
+        prepared_notification = notification
+        retention = notification.get("retention")
+        if (
+            isinstance(retention, dict)
+            and retention.get("policy") == "until_server_restart"
+            and not retention.get("owner_epoch")
+        ):
+            prepared_notification = {
+                **notification,
+                "retention": {
+                    **retention,
+                    "owner_epoch": self._notification_owner_epoch,
+                },
+            }
         return self._complete_application_notification_mutation(
-            store.create(notification)
+            store.create(
+                prepared_notification,
+                request_id=request_id,
+                history_limit=self._notification_history_limit(),
+            )
         )
 
     def update_application_notification(
@@ -2374,6 +2410,7 @@ class AgentApplication:
                 notification_id,
                 patch,
                 expected_revision=expected_revision,
+                history_limit=self._notification_history_limit(),
             )
         )
 
@@ -2390,6 +2427,7 @@ class AgentApplication:
                 notification_id,
                 resolution or {},
                 expected_revision=expected_revision,
+                history_limit=self._notification_history_limit(),
             )
         )
 
@@ -2406,6 +2444,7 @@ class AgentApplication:
                 notification_id,
                 reason=reason,
                 expected_revision=expected_revision,
+                history_limit=self._notification_history_limit(),
             )
         )
 
@@ -2422,6 +2461,7 @@ class AgentApplication:
                 notification_id,
                 reason=reason,
                 expected_revision=expected_revision,
+                history_limit=self._notification_history_limit(),
             )
         )
 
@@ -2433,6 +2473,60 @@ class AgentApplication:
         return self._require_application_notification_store().list(
             include_terminal=include_terminal
         )
+
+    def recover_session_notification_owner_lifetime(
+        self,
+        session_id: str,
+    ) -> list[Dict[str, Any]]:
+        return self._session_notifications.recover_owner_lifetime(session_id)
+
+    def _notification_history_limit(self) -> int:
+        application = self.get_application_config()
+        notifications = (
+            application.get("notifications") if isinstance(application, dict) else None
+        )
+        if not isinstance(notifications, dict):
+            return 500
+        value = notifications.get(
+            "history_limit",
+            notifications.get("max_items", 500),
+        )
+        return (
+            value
+            if isinstance(value, int)
+            and not isinstance(value, bool)
+            and value > 0
+            else 500
+        )
+
+    def _expire_request_notifications(
+        self,
+        session_id: str,
+        request_id: str,
+    ) -> None:
+        try:
+            self._session_notifications.expire_request(session_id, request_id)
+        except Exception as exc:
+            self._logger.warning(
+                "session_request_notification_expiration_failed",
+                session_id=session_id,
+                request_id=request_id,
+                error=str(exc),
+            )
+        try:
+            mutations = self._require_application_notification_store().expire_request(
+                request_id,
+                history_limit=self._notification_history_limit(),
+            )
+        except Exception as exc:
+            self._logger.warning(
+                "application_request_notification_expiration_failed",
+                request_id=request_id,
+                error=str(exc),
+            )
+            return
+        for mutation in mutations:
+            self._complete_application_notification_mutation(mutation)
 
     def _require_application_notification_store(
         self,
@@ -3359,6 +3453,7 @@ class AgentApplication:
     def get_session_summary(self, session_id: str) -> Dict[str, Any]:
         """Return the shared unfiltered summary for one exact session id."""
 
+        self.recover_session_notification_owner_lifetime(session_id)
         return self._session_list_service.get_session_summary(session_id)
 
     def get_session_list_diagnostics(self) -> List[Dict[str, Any]]:
@@ -3892,6 +3987,7 @@ class AgentApplication:
                 "request_id": rid,
                 "detail": exc.detail,
             }
+            self._expire_request_notifications(session.session_id, rid)
             yield {
                 "type": "request_completed",
                 "session_id": session.session_id,
@@ -3947,6 +4043,7 @@ class AgentApplication:
                 "request_id": rid,
                 "detail": f"Tool preparation failed: {detail}",
             }
+            self._expire_request_notifications(session.session_id, rid)
             yield {
                 "type": "request_completed",
                 "session_id": session.session_id,
@@ -4154,6 +4251,10 @@ class AgentApplication:
                                             "request_id": rid,
                                             "session": latest_session,
                                         }
+                            self._expire_request_notifications(
+                                latest_session.session_id,
+                                rid,
+                            )
                             yield event
                             self.record_checkpoint(latest_session.session_id, None)
                             continue

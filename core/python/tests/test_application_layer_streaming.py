@@ -48,6 +48,57 @@ def test_send_request_streaming_emits_events(tmp_path: Path) -> None:
     assert any(ev["type"] == "request_completed" for ev in events)
 
 
+def test_send_request_completion_expires_request_scoped_notification(
+    tmp_path: Path,
+) -> None:
+    config_path = _make_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "Hello")
+    app.save_session(session)
+    request_id = "request-with-notification"
+    created = app.create_session_notification(
+        session.session_id,
+        {
+            "key": "request:notification",
+            "severity": "info",
+            "title": "Request notification",
+            "body": "Visible until request completion",
+            "source": {"plugin": "test"},
+            "display": {
+                "format": "text",
+                "body": "Visible until request completion",
+                "presentation": "inline",
+            },
+            "retention": {"policy": "until_request_complete"},
+        },
+        request_id=request_id,
+    )
+
+    events = list(
+        app.send_request(
+            core,
+            session,
+            base_config,
+            stream=True,
+            request_id=request_id,
+        )
+    )
+
+    assert events[-1]["type"] == "request_completed"
+    retained = app.list_session_notifications(
+        session.session_id,
+        include_terminal=True,
+    )
+    expired = next(item for item in retained if item["id"] == created["id"])
+    assert expired["status"] == "expired"
+    assert expired["expiration"]["reason"] == "request_completed"
+
+
 def test_send_request_completes_when_tool_preparation_fails(tmp_path: Path) -> None:
     config_path = _make_failing_prepare_tool_config(tmp_path)
     session_root = tmp_path / "sessions"
@@ -68,6 +119,57 @@ def test_send_request_completes_when_tool_preparation_fails(tmp_path: Path) -> N
         "request_completed",
     ]
     assert "Tool preparation failed" in str(events[1].get("detail"))
+
+
+def test_prepare_failure_still_expires_request_scoped_notification(
+    tmp_path: Path,
+) -> None:
+    config_path = _make_failing_prepare_tool_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "Hello")
+    app.save_session(session)
+    request_id = "prepare-failure-request"
+    created = app.create_session_notification(
+        session.session_id,
+        {
+            "key": "prepare:notification",
+            "severity": "warning",
+            "title": "Preparation notification",
+            "body": "Expires even when preparation fails",
+            "source": {"plugin": "test"},
+            "display": {
+                "format": "text",
+                "body": "Expires even when preparation fails",
+                "presentation": "inline",
+            },
+            "retention": {"policy": "until_request_complete"},
+        },
+        request_id=request_id,
+    )
+
+    events = list(
+        app.send_request(
+            core,
+            session,
+            base_config,
+            stream=True,
+            request_id=request_id,
+        )
+    )
+
+    assert events[-1]["type"] == "request_completed"
+    retained = app.list_session_notifications(
+        session.session_id,
+        include_terminal=True,
+    )
+    expired = next(item for item in retained if item["id"] == created["id"])
+    assert expired["status"] == "expired"
+    assert expired["expiration"]["reason"] == "request_completed"
 
 
 def _make_slow_config(tmp_path: Path, *, sleep_per_char: float = 0.05) -> Path:

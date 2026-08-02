@@ -1,6 +1,6 @@
 # Notification technical specification
 
-Status: Implementing — Stage C automated implementation complete; manual postponed
+Status: Implementing — Stage D complete; Stage E pending
 
 ## Record family
 
@@ -108,9 +108,25 @@ The extensible retention object initially supports:
 - `until_request_complete`;
 - `until_server_restart`.
 
-Active and terminal limits are separate. Terminal records are pruned by
-history policy. Active interactions are never silently pruned. Unsupported
-retention policies fail validation rather than receiving guessed semantics.
+TTL is a frontend fresh-presentation rule. It does not schedule a server
+mutation or lifecycle event. A host that accepted the notification before the
+deadline keeps it until an explicit terminal transition or host
+reconstruction.
+
+`until_server_restart` is stamped with the hosting runtime's owner epoch. An
+`AgentApplication` generation replacement normally reuses that epoch and does
+not itself end the retention lifetime. Hosts may choose a different runtime
+boundary, so plugins must not use inner application reload as a portable
+expiration signal.
+
+Automatic request/server expiration applies only to records still `pending`.
+Explicit dismissal or resolution is final and is never overwritten by a later
+TTL, request-completion, or server-restart boundary.
+
+Active records are not pruned. Terminal records are bounded independently by
+`application.notifications.history_limit`; legacy `max_items` is accepted as
+an alias. Active interactions are never silently pruned. Unsupported retention
+policies fail validation rather than receiving guessed semantics.
 
 ## Events
 

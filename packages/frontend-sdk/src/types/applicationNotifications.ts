@@ -1,5 +1,6 @@
 import type { ActionDisplayPayload } from './plugins';
 import type {
+  NotificationRetention,
   NotificationSeverity,
   NotificationStatus,
 } from './notifications';
@@ -16,6 +17,7 @@ export interface ApplicationNotification {
   created_at: string;
   updated_at: string;
   request_id?: string | null;
+  retention?: NotificationRetention;
   source: {
     plugin: string;
     [key: string]: any;

@@ -486,6 +486,51 @@ describe('SessionsScreen real-backend component integration', () => {
     reopened.unmount();
   }, 60000);
 
+  it('keeps a shown TTL notification until reconstruction and suppresses it afterward', async () => {
+    started = await startMobileComponentBackend({
+      config: SERVER_CONFIG,
+      startupTimeoutMs: 30000,
+    });
+    const response = await started.backend.executeAction({
+      pluginId: 'dummy_application_notification',
+      actionId: 'emit_application_notification',
+      inputs: {
+        presentation: 'banner',
+        variant: 'info',
+        retention: 'ttl',
+        ttl_seconds: 1,
+      },
+    });
+    expect(response.status).toBe('ok');
+    const renderApplicationNotifications = () =>
+      renderWithMobileProviders(
+        <ApplicationPluginsProvider
+          backend={started!.backend}
+          connectionId="real-backend"
+        >
+          <GlobalDisplayLayer
+            backend={started!.backend}
+            connectionId="real-backend"
+          >
+            <MobileDisplayHost scope="connection" />
+          </GlobalDisplayLayer>
+        </ApplicationPluginsProvider>,
+      );
+
+    const rendered = renderApplicationNotifications();
+    expect(
+      await screen.findByText('Application notification demo'),
+    ).toBeTruthy();
+    await new Promise<void>((resolve) => setTimeout(resolve, 1200));
+    expect(screen.getByText('Application notification demo')).toBeTruthy();
+
+    rendered.unmount();
+    const reopened = renderApplicationNotifications();
+    await new Promise<void>((resolve) => setTimeout(resolve, 300));
+    expect(screen.queryByText('Application notification demo')).toBeNull();
+    reopened.unmount();
+  }, 60000);
+
   it('retries a cached application dismissal through the real backend', async () => {
     started = await startMobileComponentBackend({
       config: SERVER_CONFIG,

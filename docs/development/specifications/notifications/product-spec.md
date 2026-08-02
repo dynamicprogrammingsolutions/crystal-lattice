@@ -50,9 +50,24 @@ authoritative state and does not present a server-dismissed record as active.
 Every notification has a defined lifetime. Initial retention policies support:
 
 - explicit resolution;
-- TTL expiration;
+- a TTL deadline for fresh frontend presentation;
 - request-completion expiration;
 - server-lifetime expiration.
+
+TTL does not remove a notification that is already displayed and does not
+change server lifecycle state by itself. A frontend that reconstructs its
+notification host after the deadline does not present the elapsed record.
+
+Server lifetime means the lifetime of the hosting runtime or server process,
+not the lifetime of one replaceable `AgentApplication` generation. Reloading
+or replacing an inner application may preserve the same lifetime. Whether a
+particular host reconstructs that lifetime during an inner reload is an
+implementation detail and is not a portable plugin contract.
+
+Explicit dismissal or resolution takes precedence over every retention
+boundary. A notification resolved before its TTL deadline or before a server
+restart remains `resolved`; retention never replaces that terminal state with
+`expired`.
 
 Terminal records remain in durable history until history retention removes
 them.

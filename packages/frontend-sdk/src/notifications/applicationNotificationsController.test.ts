@@ -257,4 +257,47 @@ describe('ApplicationNotificationsController', () => {
     expect(dismissApplicationNotification).not.toHaveBeenCalled();
     controller.close();
   });
+
+  it('keeps accepted TTL notifications until reconstruction and suppresses them afterward', async () => {
+    let now = new Date('2026-08-02T11:59:00Z');
+    const ttlNotification: ApplicationNotification = {
+      ...pending,
+      retention: {
+        version: 1,
+        policy: 'ttl',
+        expires_at: '2026-08-02T12:00:00Z',
+      },
+    };
+    const backend = createBackend({
+      notification: ttlNotification,
+      dismiss: vi.fn(),
+    });
+    const first = new ApplicationNotificationsController({
+      backend,
+      hydrateSnapshot: true,
+      intervalMs: 60_000,
+      now: () => now,
+    });
+
+    first.start();
+    await vi.waitFor(() => {
+      expect(first.getSnapshot().notifications).toEqual([ttlNotification]);
+    });
+    now = new Date('2026-08-02T12:01:00Z');
+    expect(first.getSnapshot().notifications).toEqual([ttlNotification]);
+    first.close();
+
+    const reopened = new ApplicationNotificationsController({
+      backend,
+      hydrateSnapshot: true,
+      intervalMs: 60_000,
+      now: () => now,
+    });
+    reopened.start();
+    await vi.waitFor(() => {
+      expect(reopened.getSnapshot().loading).toBe(false);
+      expect(reopened.getSnapshot().notifications).toEqual([]);
+    });
+    reopened.close();
+  });
 });

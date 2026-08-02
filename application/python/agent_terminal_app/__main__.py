@@ -1137,9 +1137,34 @@ def main() -> None:  # pragma: no cover - manual execution only
         first_application = True
         owner_epoch = f"owner_{uuid.uuid4().hex}"
         notification_store = SQLiteApplicationNotificationStore(
-            application_notification_store_path
+            application_notification_store_path,
+            owner_epoch=owner_epoch,
         )
-        notification_store.recover_owner_lifetime(owner_epoch)
+        application_config = resolved_runtime_config.get("application")
+        notification_config = (
+            application_config.get("notifications")
+            if isinstance(application_config, dict)
+            else None
+        )
+        raw_history_limit = (
+            notification_config.get(
+                "history_limit",
+                notification_config.get("max_items", 500),
+            )
+            if isinstance(notification_config, dict)
+            else 500
+        )
+        history_limit = (
+            raw_history_limit
+            if isinstance(raw_history_limit, int)
+            and not isinstance(raw_history_limit, bool)
+            and raw_history_limit > 0
+            else 500
+        )
+        notification_store.recover_owner_lifetime(
+            owner_epoch,
+            history_limit=history_limit,
+        )
 
         def factory(control: ApplicationControl) -> AgentApplication:
             nonlocal first_application
@@ -1153,6 +1178,7 @@ def main() -> None:  # pragma: no cover - manual execution only
                 env_overrides=env_overrides,
                 replay_server_settings_on_startup=first_application,
                 application_control=control,
+                notification_owner_epoch=owner_epoch,
             )
             first_application = False
             return application

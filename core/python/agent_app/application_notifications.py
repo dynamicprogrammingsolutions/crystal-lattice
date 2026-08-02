@@ -25,7 +25,15 @@ class ApplicationNotificationMutation:
 
 
 class ApplicationNotificationStore(Protocol):
-    def create(self, notification: Dict[str, Any]) -> ApplicationNotificationMutation:
+    owner_epoch: str | None
+
+    def create(
+        self,
+        notification: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        history_limit: int = 500,
+    ) -> ApplicationNotificationMutation:
         """Create or update the active record matching the notification key."""
 
     def update(
@@ -34,6 +42,7 @@ class ApplicationNotificationStore(Protocol):
         patch: Dict[str, Any],
         *,
         expected_revision: int | str | None = None,
+        history_limit: int = 500,
     ) -> ApplicationNotificationMutation:
         """Update one application notification."""
 
@@ -43,6 +52,7 @@ class ApplicationNotificationStore(Protocol):
         resolution: Dict[str, Any],
         *,
         expected_revision: int | str | None = None,
+        history_limit: int = 500,
     ) -> ApplicationNotificationMutation:
         """Resolve one application notification."""
 
@@ -52,6 +62,7 @@ class ApplicationNotificationStore(Protocol):
         *,
         reason: str | None = None,
         expected_revision: int | str | None = None,
+        history_limit: int = 500,
     ) -> ApplicationNotificationMutation:
         """Dismiss one application notification."""
 
@@ -61,6 +72,7 @@ class ApplicationNotificationStore(Protocol):
         *,
         reason: str = "expired",
         expected_revision: int | str | None = None,
+        history_limit: int = 500,
     ) -> ApplicationNotificationMutation:
         """Expire one application notification."""
 
@@ -70,14 +82,27 @@ class ApplicationNotificationStore(Protocol):
     def recover_owner_lifetime(
         self,
         owner_epoch: str,
+        *,
+        history_limit: int = 500,
     ) -> list[ApplicationNotificationMutation]:
         """Expire pending records belonging to an earlier owner lifetime."""
+
+    def expire_request(
+        self,
+        request_id: str,
+        *,
+        history_limit: int = 500,
+    ) -> list[ApplicationNotificationMutation]:
+        """Expire pending records belonging to a completed request."""
 
     def close(self) -> None:
         """Close resources owned by the store."""
 
 
 class _BaseApplicationNotificationStore:
+    def __init__(self, *, owner_epoch: str | None = None) -> None:
+        self.owner_epoch = owner_epoch
+
     @contextmanager
     def _transaction(self, *, write: bool) -> Iterator[None]:
         raise NotImplementedError
@@ -91,7 +116,34 @@ class _BaseApplicationNotificationStore:
     def _save_locked(self, notification: Dict[str, Any]) -> None:
         raise NotImplementedError
 
-    def create(self, notification: Dict[str, Any]) -> ApplicationNotificationMutation:
+    def _delete_locked(self, notification_id: str) -> None:
+        raise NotImplementedError
+
+    @staticmethod
+    def _normalized_history_limit(value: int) -> int:
+        return (
+            value
+            if isinstance(value, int) and not isinstance(value, bool) and value > 0
+            else 500
+        )
+
+    def _prune_history_locked(self, history_limit: int) -> None:
+        terminal = [
+            item for item in self._load_all_locked() if not is_active_notification(item)
+        ]
+        terminal.sort(key=lambda item: str(item.get("updated_at", "")), reverse=True)
+        for item in terminal[self._normalized_history_limit(history_limit) :]:
+            notification_id = item.get("id")
+            if isinstance(notification_id, str):
+                self._delete_locked(notification_id)
+
+    def create(
+        self,
+        notification: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        history_limit: int = 500,
+    ) -> ApplicationNotificationMutation:
         with self._transaction(write=True):
             key = notification.get("key") if isinstance(notification, dict) else None
             existing = next(
@@ -105,9 +157,12 @@ class _BaseApplicationNotificationStore:
             stored = _normalize_notification(
                 notification,
                 existing=existing,
+                request_id=request_id,
+                owner_epoch=self.owner_epoch,
                 allowed_presentations={"banner", "modal"},
             )
             self._save_locked(stored)
+            self._prune_history_locked(history_limit)
             return ApplicationNotificationMutation(
                 notification=stored,
                 event_type=(
@@ -124,6 +179,7 @@ class _BaseApplicationNotificationStore:
         patch: Dict[str, Any],
         *,
         expected_revision: int | str | None = None,
+        history_limit: int = 500,
     ) -> ApplicationNotificationMutation:
         if not isinstance(patch, dict):
             raise ValueError("notification patch must be a mapping")
@@ -135,9 +191,11 @@ class _BaseApplicationNotificationStore:
             stored = _normalize_notification(
                 patch,
                 existing=existing,
+                owner_epoch=self.owner_epoch,
                 allowed_presentations={"banner", "modal"},
             )
             self._save_locked(stored)
+            self._prune_history_locked(history_limit)
             return ApplicationNotificationMutation(
                 notification=stored,
                 event_type="application_notification_updated",
@@ -150,6 +208,7 @@ class _BaseApplicationNotificationStore:
         resolution: Dict[str, Any],
         *,
         expected_revision: int | str | None = None,
+        history_limit: int = 500,
     ) -> ApplicationNotificationMutation:
         if not isinstance(resolution, dict):
             raise ValueError("resolution must be a mapping")
@@ -164,6 +223,7 @@ class _BaseApplicationNotificationStore:
             },
             expected_revision=expected_revision,
             event_type="application_notification_updated",
+            history_limit=history_limit,
         )
 
     def dismiss(
@@ -172,6 +232,7 @@ class _BaseApplicationNotificationStore:
         *,
         reason: str | None = None,
         expected_revision: int | str | None = None,
+        history_limit: int = 500,
     ) -> ApplicationNotificationMutation:
         return self._transition(
             notification_id,
@@ -186,6 +247,7 @@ class _BaseApplicationNotificationStore:
             },
             expected_revision=expected_revision,
             event_type="application_notification_dismissed",
+            history_limit=history_limit,
         )
 
     def expire(
@@ -194,6 +256,7 @@ class _BaseApplicationNotificationStore:
         *,
         reason: str = "expired",
         expected_revision: int | str | None = None,
+        history_limit: int = 500,
     ) -> ApplicationNotificationMutation:
         return self._transition(
             notification_id,
@@ -206,6 +269,7 @@ class _BaseApplicationNotificationStore:
             },
             expected_revision=expected_revision,
             event_type="application_notification_expired",
+            history_limit=history_limit,
         )
 
     def list(self, *, include_terminal: bool = True) -> list[Dict[str, Any]]:
@@ -218,8 +282,11 @@ class _BaseApplicationNotificationStore:
     def recover_owner_lifetime(
         self,
         owner_epoch: str,
+        *,
+        history_limit: int = 500,
     ) -> list[ApplicationNotificationMutation]:
         recovered: list[ApplicationNotificationMutation] = []
+        self.owner_epoch = owner_epoch
         with self._transaction(write=True):
             for existing in self._load_all_locked():
                 if not is_active_notification(existing):
@@ -240,6 +307,7 @@ class _BaseApplicationNotificationStore:
                         },
                     },
                     existing=existing,
+                    owner_epoch=owner_epoch,
                     allowed_presentations={"banner", "modal"},
                 )
                 self._save_locked(stored)
@@ -250,7 +318,49 @@ class _BaseApplicationNotificationStore:
                         changed=True,
                     )
                 )
+            self._prune_history_locked(history_limit)
         return recovered
+
+    def expire_request(
+        self,
+        request_id: str,
+        *,
+        history_limit: int = 500,
+    ) -> list[ApplicationNotificationMutation]:
+        expired: list[ApplicationNotificationMutation] = []
+        with self._transaction(write=True):
+            for existing in self._load_all_locked():
+                retention = existing.get("retention")
+                if (
+                    not is_active_notification(existing)
+                    or existing.get("request_id") != request_id
+                    or not isinstance(retention, Mapping)
+                    or retention.get("policy") != "until_request_complete"
+                ):
+                    continue
+                stored = _normalize_notification(
+                    {
+                        "status": "expired",
+                        "expiration": {
+                            "expired_at": _timestamp(),
+                            "reason": "request_completed",
+                        },
+                    },
+                    existing=existing,
+                    request_id=request_id,
+                    owner_epoch=self.owner_epoch,
+                    allowed_presentations={"banner", "modal"},
+                )
+                self._save_locked(stored)
+                expired.append(
+                    ApplicationNotificationMutation(
+                        notification=stored,
+                        event_type="application_notification_expired",
+                        changed=True,
+                    )
+                )
+            self._prune_history_locked(history_limit)
+        return expired
 
     def _transition(
         self,
@@ -260,6 +370,7 @@ class _BaseApplicationNotificationStore:
         patch: Dict[str, Any],
         expected_revision: int | str | None,
         event_type: str,
+        history_limit: int,
     ) -> ApplicationNotificationMutation:
         with self._transaction(write=True):
             existing = self._require_locked(notification_id)
@@ -277,9 +388,11 @@ class _BaseApplicationNotificationStore:
                     **patch,
                 },
                 existing=existing,
+                owner_epoch=self.owner_epoch,
                 allowed_presentations={"banner", "modal"},
             )
             self._save_locked(stored)
+            self._prune_history_locked(history_limit)
             return ApplicationNotificationMutation(
                 notification=stored,
                 event_type=event_type,
@@ -294,7 +407,8 @@ class _BaseApplicationNotificationStore:
 
 
 class InMemoryApplicationNotificationStore(_BaseApplicationNotificationStore):
-    def __init__(self) -> None:
+    def __init__(self, *, owner_epoch: str | None = None) -> None:
+        super().__init__(owner_epoch=owner_epoch)
         self._lock = threading.RLock()
         self._notifications: Dict[str, Dict[str, Any]] = {}
 
@@ -313,12 +427,21 @@ class InMemoryApplicationNotificationStore(_BaseApplicationNotificationStore):
     def _save_locked(self, notification: Dict[str, Any]) -> None:
         self._notifications[notification["id"]] = notification
 
+    def _delete_locked(self, notification_id: str) -> None:
+        self._notifications.pop(notification_id, None)
+
     def close(self) -> None:
         return None
 
 
 class SQLiteApplicationNotificationStore(_BaseApplicationNotificationStore):
-    def __init__(self, path: str | Path) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        owner_epoch: str | None = None,
+    ) -> None:
+        super().__init__(owner_epoch=owner_epoch)
         self.path = Path(path).expanduser().resolve()
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
@@ -435,6 +558,12 @@ class SQLiteApplicationNotificationStore(_BaseApplicationNotificationStore):
                     ensure_ascii=False,
                 ),
             ),
+        )
+
+    def _delete_locked(self, notification_id: str) -> None:
+        self._connection.execute(
+            "DELETE FROM application_notifications WHERE id = ?",
+            (notification_id,),
         )
 
     @staticmethod

@@ -55,6 +55,20 @@ it refreshes or reconnects. Immediate cross-device removal is not required.
 A newly opened or rehydrated frontend uses authoritative state and does not
 present dismissed, resolved, or expired records as active.
 
+## TTL presentation
+
+A TTL deadline is checked when a frontend host first observes or rehydrates a
+notification. An elapsed TTL record is not presented by that fresh host.
+
+Once a host has accepted a notification before its deadline, passage of time
+does not remove it. The accepted identity is retained only in host memory.
+Reopening the application, reconnecting, or reconstructing the owning host
+performs the deadline check again. TTL alone does not create a lifecycle event
+or replace explicit dismissal and resolution.
+
+An explicit dismissed, resolved, or expired record is terminal regardless of
+its TTL deadline and is not presented as active on a fresh host.
+
 ## Follow-up actions
 
 Notification actions use the common action-display follow-up contract. The

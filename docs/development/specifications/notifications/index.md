@@ -1,6 +1,6 @@
 # Notifications
 
-Status: Implementing — Stage C automated implementation complete; manual postponed
+Status: Implementing — Stage D complete; Stage E pending
 
 The notification specification defines application- and session-scoped
 notification records, lifecycle, event delivery, persistence, and portable

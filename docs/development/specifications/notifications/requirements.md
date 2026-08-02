@@ -14,8 +14,8 @@
 | FNT-004 | Desktop session notifications render for the active session at the common message/detail location. | Implemented | Component/integration automated; native/human pending | Documented |
 | NTF-007 | Notification dismissal is persisted by the same server-side authority as the notification record. | Implemented backend/mobile/desktop | Automated backend/API/mobile/desktop; desktop human postponed | Documented |
 | NTF-008 | Notification records have monotonic revisions and reject stale mutations. | Implemented | Automated | Documented |
-| NTF-009 | Retention supports explicit, TTL, request-completion, and server-lifetime policies. | Proposed | Unverified | Draft |
-| NTF-010 | Active and terminal/history limits are separate and active interactions are never silently pruned. | In progress: active/terminal classification implemented; configurable limits/interactions pending | Automated backend | Documented |
+| NTF-009 | Retention supports explicit, presentation-TTL, request-completion, and server-lifetime policies. | Implemented | Automated backend/SDK/mobile integration; mobile confirmed | Documented |
+| NTF-010 | Active records are never silently pruned and terminal history is independently bounded. | Implemented | Automated session/SQLite store; mobile retention confirmed | Documented |
 | NTF-011 | Application notifications expose an authoritative current-state snapshot for new or reconnected frontends. | Implemented backend/mobile/desktop | Automated HTTP/SDK/mobile/desktop; desktop human postponed | Documented |
 | NTF-012 | The record model represents notification and interaction lifecycles without destructive normalization. | Proposed | Unverified | Draft |
 | NTF-013 | Application notification active and terminal records persist across owner and server-process restart in a configurable durable store. | Implemented | Automated public HTTP/store restart; mobile confirmed | Documented |

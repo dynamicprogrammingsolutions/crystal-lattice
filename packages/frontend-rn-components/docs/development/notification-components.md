@@ -14,6 +14,7 @@ Shared notification components provide:
 - externally supplied revision keys for a persistent host dismissal cache;
 - local fallback for hosts that have not adopted server dismissal;
 - terminal-snapshot protection against stale event resurrection;
+- fresh-host TTL filtering with mounted-host stickiness;
 - accessibility labels and action semantics.
 
 Maintainer entry points:

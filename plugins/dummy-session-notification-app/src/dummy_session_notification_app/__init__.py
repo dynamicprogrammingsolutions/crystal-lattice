@@ -1,6 +1,30 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
+
+
+_RETENTION_POLICIES = ["until_resolved", "ttl", "until_server_restart"]
+
+
+def _retention(params: dict[str, Any]) -> dict[str, Any]:
+    policy = str(params.get("retention") or "until_resolved")
+    if policy not in _RETENTION_POLICIES:
+        raise ValueError(f"Unsupported notification retention policy: {policy}")
+    if policy != "ttl":
+        return {"policy": policy}
+    ttl_seconds = params.get("ttl_seconds", 60)
+    if (
+        not isinstance(ttl_seconds, int)
+        or isinstance(ttl_seconds, bool)
+        or ttl_seconds <= 0
+    ):
+        raise ValueError("ttl_seconds must be a positive integer")
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=ttl_seconds)
+    return {
+        "policy": "ttl",
+        "expires_at": expires_at.isoformat().replace("+00:00", "Z"),
+    }
 
 
 class DummySessionNotificationPlugin:
@@ -23,6 +47,8 @@ class DummySessionNotificationPlugin:
                 "inputs": {
                     "presentation": {"type": "string", "required": True},
                     "variant": {"type": "string", "required": True},
+                    "retention": {"type": "string", "required": False},
+                    "ttl_seconds": {"type": "integer", "required": False},
                 },
             },
             {
@@ -72,11 +98,28 @@ class DummySessionNotificationPlugin:
                             "options": ["info", "success", "warning", "error"],
                             "default": "info",
                         },
+                        {
+                            "name": "retention",
+                            "type": "select",
+                            "label": "Retention",
+                            "required": True,
+                            "options": _RETENTION_POLICIES,
+                            "default": "until_resolved",
+                        },
+                        {
+                            "name": "ttl_seconds",
+                            "type": "integer",
+                            "label": "TTL seconds",
+                            "required": False,
+                            "default": 60,
+                        },
                     ],
                 },
                 "param_map": {
                     "presentation": "$dialog.presentation",
                     "variant": "$dialog.variant",
+                    "retention": "$dialog.retention",
+                    "ttl_seconds": "$dialog.ttl_seconds",
                 },
             },
             {
@@ -161,6 +204,7 @@ class DummySessionNotificationPlugin:
                     ],
                 },
                 "model_visibility": "hidden",
+                "retention": _retention(params),
             },
         )
         return {"status": "ok", "notification_id": stored["id"]}

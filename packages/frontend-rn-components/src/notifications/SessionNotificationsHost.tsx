@@ -12,10 +12,13 @@ import {
   mergeSessionNotificationEvents,
   normalizeDisplayEnvelope,
   notificationExpectedRevision,
+  isNotificationTtlElapsed,
   selectSessionNotifications,
 } from '@crystal-lattice/frontend-sdk';
 
 import { NotificationBanner } from './NotificationBanner';
+
+const currentDate = () => new Date();
 
 export interface SessionNotificationsHostProps {
   sessionSummary: SessionSummary | null;
@@ -37,6 +40,7 @@ export interface SessionNotificationsHostProps {
     onFollowupAction: (action: ActionDisplayFollowupAction) => void;
   }) => React.ReactNode;
   inlinePresentations?: DisplayPresentation[];
+  now?: () => Date;
 }
 
 export function SessionNotificationsHost({
@@ -50,33 +54,42 @@ export function SessionNotificationsHost({
   suppressedRevisionKeys = [],
   renderInline,
   inlinePresentations = ['inline'],
+  now = currentDate,
 }: SessionNotificationsHostProps): React.JSX.Element | null {
   const [dismissedRevisions, setDismissedRevisions] = useState<string[]>([]);
   const [dismissingIds, setDismissingIds] = useState<string[]>([]);
   const routed = useRef<Record<string, string>>({});
+  const acceptedTtlNotificationIds = useRef(new Set<string>());
   const inlinePresentationSet = useMemo(
     () => new Set(inlinePresentations),
     [inlinePresentations],
   );
-  const notifications = useMemo(
-    () =>
-      mergeSessionNotificationEvents(
+  const notifications = useMemo(() => {
+    const observedAt = now();
+    return mergeSessionNotificationEvents(
         selectSessionNotifications(sessionSummary),
         events.filter(
           (event) => event.type !== 'session_notification_dismissed',
         ),
-      ).filter(
-        (notification) => {
-          const revision = `${notification.id}:${notificationExpectedRevision(notification)}`;
-          return (
-            notification.status === 'pending' &&
-            !dismissedRevisions.includes(revision) &&
-            !suppressedRevisionKeys.includes(revision)
-          );
-        },
-      ),
-    [dismissedRevisions, events, sessionSummary, suppressedRevisionKeys],
-  );
+      ).filter((notification) => {
+        if (notification.status !== 'pending') {
+          acceptedTtlNotificationIds.current.delete(notification.id);
+          return false;
+        }
+        const revision = `${notification.id}:${notificationExpectedRevision(notification)}`;
+        if (
+          dismissedRevisions.includes(revision) ||
+          suppressedRevisionKeys.includes(revision)
+        ) {
+          return false;
+        }
+        if (notification.retention?.policy !== 'ttl') return true;
+        if (acceptedTtlNotificationIds.current.has(notification.id)) return true;
+        if (isNotificationTtlElapsed(notification, observedAt)) return false;
+        acceptedTtlNotificationIds.current.add(notification.id);
+        return true;
+      });
+  }, [dismissedRevisions, events, now, sessionSummary, suppressedRevisionKeys]);
 
   useEffect(() => {
     for (const notification of notifications) {

@@ -5,6 +5,11 @@ export type NotificationStatus = 'pending' | 'dismissed' | 'resolved' | 'expired
 export type SessionNotificationStatus = NotificationStatus;
 export type NotificationExpectedRevision = number | string;
 export type NotificationSeverity = 'info' | 'success' | 'warning' | 'error';
+export type NotificationRetention =
+  | { version?: 1; policy: 'until_resolved' }
+  | { version?: 1; policy: 'ttl'; expires_at: string }
+  | { version?: 1; policy: 'until_request_complete' }
+  | { version?: 1; policy: 'until_server_restart'; owner_epoch?: string };
 
 export interface SessionNotification {
   id: string;
@@ -18,6 +23,7 @@ export interface SessionNotification {
   created_at: string;
   updated_at: string;
   request_id?: string | null;
+  retention?: NotificationRetention;
   source: { plugin: string; [key: string]: any };
   display: ActionDisplayPayload;
   resolution?: {

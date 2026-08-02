@@ -14,6 +14,7 @@ import {
   notificationDismissalRevisionKey,
   type NotificationDismissalScopeKey,
 } from './notificationDismissalCache';
+import { isNotificationTtlElapsed } from './notificationRetention';
 
 export interface ApplicationNotificationsState {
   notifications: ApplicationNotification[];
@@ -28,7 +29,9 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
   private readonly source: PollingEventSource;
   private readonly hydrateSnapshot: boolean;
   private readonly dismissalCache?: NotificationDismissalCache;
+  private readonly now: () => Date;
   private readonly retryingDismissals = new Set<string>();
+  private readonly acceptedTtlNotificationIds = new Set<string>();
   private generation = 0;
 
   constructor(options: {
@@ -38,6 +41,7 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
     backoffMs?: number;
     hydrateSnapshot?: boolean;
     dismissalCache?: NotificationDismissalCache;
+    now?: () => Date;
   }) {
     super({
       notifications: [],
@@ -49,6 +53,7 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
     this.connectionId = options.connectionId;
     this.hydrateSnapshot = options.hydrateSnapshot === true;
     this.dismissalCache = options.dismissalCache;
+    this.now = options.now ?? (() => new Date());
     this.source = new PollingEventSource(options.backend, {
       applicationScope: true,
       intervalMs: options.intervalMs,
@@ -84,9 +89,11 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
     } else if (this.backend.listApplicationNotifications) {
       try {
         notifications = await this.backend.listApplicationNotifications();
-        notifications = this.applyDismissalCache(notifications, {
-          completeSnapshot: true,
-        });
+        notifications = this.applyPresentationRetention(
+          this.applyDismissalCache(notifications, {
+            completeSnapshot: true,
+          }),
+        );
       } catch (caught) {
         error =
           caught instanceof Error
@@ -120,9 +127,11 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
         );
         this.setSnapshot({
           ...current,
-          notifications: this.applyDismissalCache(notifications, {
-            completeSnapshot: false,
-          }),
+          notifications: this.applyPresentationRetention(
+            this.applyDismissalCache(notifications, {
+              completeSnapshot: false,
+            }),
+          ),
         });
         for (const event of events) {
           if (
@@ -191,6 +200,7 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
             ),
         ),
       });
+      this.acceptedTtlNotificationIds.delete(notificationId);
     }
     await cacheWrite;
     let dismissed: ApplicationNotification;
@@ -208,6 +218,7 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
       }
       throw error;
     }
+    this.acceptedTtlNotificationIds.delete(notificationId);
     if (this.dismissalCache && scope) {
       const entry = this.dismissalCache.find({
         ...scope,
@@ -237,6 +248,23 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
       connectionId: this.connectionId,
       scope: 'application',
     };
+  }
+
+  private applyPresentationRetention(
+    notifications: ApplicationNotification[],
+  ): ApplicationNotification[] {
+    const now = this.now();
+    return notifications.filter((notification) => {
+      if (notification.status !== 'pending') {
+        this.acceptedTtlNotificationIds.delete(notification.id);
+        return true;
+      }
+      if (notification.retention?.policy !== 'ttl') return true;
+      if (this.acceptedTtlNotificationIds.has(notification.id)) return true;
+      if (isNotificationTtlElapsed(notification, now)) return false;
+      this.acceptedTtlNotificationIds.add(notification.id);
+      return true;
+    });
   }
 
   private applyDismissalCache(

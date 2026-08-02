@@ -580,6 +580,7 @@ Generated from `application/python/agent_terminal_app/default_config/config.json
     "tool_output_char_limit": 2000,
     "tool_output_short_one_line": true,
     "notifications": {
+      "history_limit": 500,
       "store": {
         "type": "sqlite",
         "path": "${env:CONFIG_DIR}/application-notifications.sqlite3"

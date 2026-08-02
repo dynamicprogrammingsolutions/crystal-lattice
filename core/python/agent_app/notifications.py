@@ -13,6 +13,9 @@ _PRESENTATIONS = {"banner", "inline", "modal"}
 _ACTIVE_NOTIFICATION_STATUSES = frozenset({"pending"})
 _TERMINAL_NOTIFICATION_STATUSES = frozenset({"dismissed", "resolved", "expired"})
 _NOTIFICATION_STATUSES = _ACTIVE_NOTIFICATION_STATUSES | _TERMINAL_NOTIFICATION_STATUSES
+_RETENTION_POLICIES = frozenset(
+    {"until_resolved", "ttl", "until_request_complete", "until_server_restart"}
+)
 
 
 class NotificationRevisionConflictError(RuntimeError):
@@ -37,6 +40,123 @@ class NotificationTransitionError(RuntimeError):
 
 def _timestamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _parse_timestamp(value: Any, field: str) -> datetime:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"{field} must be a non-empty RFC3339 timestamp")
+    normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise ValueError(f"{field} must be a valid RFC3339 timestamp") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{field} must include a timezone")
+    return parsed.astimezone(timezone.utc)
+
+
+def normalize_notification_retention(
+    notification: Mapping[str, Any],
+    *,
+    existing: Mapping[str, Any] | None = None,
+    request_id: str | None = None,
+    owner_epoch: str | None = None,
+) -> Dict[str, Any]:
+    """Validate and normalize the versioned notification retention object."""
+
+    retention_supplied = "retention" in notification
+    raw = notification.get("retention")
+    if raw is None and existing is not None:
+        raw = existing.get("retention")
+    if raw is None:
+        raw = {"version": 1, "policy": "until_resolved"}
+    if not isinstance(raw, Mapping):
+        raise ValueError("notification.retention must be a mapping")
+
+    version = raw.get("version", 1)
+    if version != 1:
+        raise ValueError("notification.retention.version must be 1")
+    policy = raw.get("policy", "until_resolved")
+    if policy not in _RETENTION_POLICIES:
+        raise ValueError(
+            "notification.retention.policy must be one of "
+            f"{sorted(_RETENTION_POLICIES)}"
+        )
+
+    if policy == "until_resolved":
+        return {"version": 1, "policy": policy}
+    if policy == "ttl":
+        expires_at = raw.get("expires_at")
+        _parse_timestamp(expires_at, "notification.retention.expires_at")
+        return {"version": 1, "policy": policy, "expires_at": expires_at}
+    if policy == "until_request_complete":
+        effective_request_id = request_id
+        if effective_request_id is None:
+            candidate = notification.get("request_id")
+            if not isinstance(candidate, str) or not candidate:
+                candidate = existing.get("request_id") if existing is not None else None
+            effective_request_id = (
+                candidate if isinstance(candidate, str) and candidate else None
+            )
+        if effective_request_id is None:
+            raise ValueError(
+                "until_request_complete retention requires an authoritative request_id"
+            )
+        return {"version": 1, "policy": policy}
+
+    raw_owner_epoch = raw.get("owner_epoch")
+    if owner_epoch is not None:
+        if (
+            retention_supplied
+            and isinstance(raw_owner_epoch, str)
+            and raw_owner_epoch
+            and raw_owner_epoch != owner_epoch
+        ):
+            raise ValueError(
+                "notification.retention.owner_epoch is owned by the runtime"
+            )
+        effective_owner_epoch = (
+            raw_owner_epoch
+            if not retention_supplied
+            and isinstance(raw_owner_epoch, str)
+            and raw_owner_epoch
+            else owner_epoch
+        )
+    else:
+        effective_owner_epoch = (
+            raw_owner_epoch
+            if isinstance(raw_owner_epoch, str) and raw_owner_epoch
+            else None
+        )
+    if effective_owner_epoch is None:
+        raise ValueError(
+            "until_server_restart retention requires a runtime owner epoch"
+        )
+    return {
+        "version": 1,
+        "policy": policy,
+        "owner_epoch": effective_owner_epoch,
+    }
+
+
+def notification_ttl_elapsed(
+    notification: Mapping[str, Any],
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Return whether a TTL notification is ineligible for fresh presentation."""
+
+    retention = notification.get("retention")
+    if not isinstance(retention, Mapping) or retention.get("policy") != "ttl":
+        return False
+    deadline = _parse_timestamp(
+        retention.get("expires_at"),
+        "notification.retention.expires_at",
+    )
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        raise ValueError("notification TTL comparison time must include a timezone")
+    return current.astimezone(timezone.utc) >= deadline
 
 
 def _require_text(value: Any, field: str) -> str:
@@ -101,6 +221,7 @@ def _normalize_notification(
     *,
     existing: Mapping[str, Any] | None = None,
     request_id: str | None = None,
+    owner_epoch: str | None = None,
     allowed_presentations: set[str] | None = None,
 ) -> Dict[str, Any]:
     if not isinstance(notification, Mapping):
@@ -144,6 +265,19 @@ def _normalize_notification(
             f"notification.status must be one of {sorted(_NOTIFICATION_STATUSES)}"
         )
 
+    effective_request_id = (
+        request_id if request_id is not None else merged.get("request_id")
+    )
+    retention = normalize_notification_retention(
+        notification,
+        existing=existing,
+        request_id=(
+            effective_request_id
+            if isinstance(effective_request_id, str) and effective_request_id
+            else None
+        ),
+        owner_epoch=owner_epoch,
+    )
     now = _timestamp()
     notification_id = merged.get("id")
     if not isinstance(notification_id, str) or not notification_id:
@@ -175,9 +309,8 @@ def _normalize_notification(
         "body": body,
         "created_at": created_at,
         "updated_at": now,
-        "request_id": (
-            request_id if request_id is not None else merged.get("request_id")
-        ),
+        "request_id": effective_request_id,
+        "retention": retention,
         "source": dict(source),
         "display": {
             **display,
@@ -219,7 +352,11 @@ class SessionNotifications:
                 None,
             )
             if existing_index is None:
-                stored = _normalize_notification(notification, request_id=request_id)
+                stored = _normalize_notification(
+                    notification,
+                    request_id=request_id,
+                    owner_epoch=self._app._notification_owner_epoch,
+                )
                 event_type = "session_notification_created"
                 items = [*items, stored]
             else:
@@ -227,6 +364,7 @@ class SessionNotifications:
                     notification,
                     existing=items[existing_index],
                     request_id=request_id,
+                    owner_epoch=self._app._notification_owner_epoch,
                 )
                 items = [
                     stored if index == existing_index else item
@@ -349,6 +487,38 @@ class SessionNotifications:
             event_type="session_notification_expired",
         )
 
+    def expire_request(
+        self,
+        session_id: str,
+        request_id: str,
+    ) -> list[Dict[str, Any]]:
+        return self._expire_many(
+            session_id,
+            lambda item: (
+                item.get("request_id") == request_id
+                and isinstance(item.get("retention"), Mapping)
+                and item["retention"].get("policy") == "until_request_complete"
+            ),
+            reason="request_completed",
+            request_id=request_id,
+        )
+
+    def recover_owner_lifetime(
+        self,
+        session_id: str,
+    ) -> list[Dict[str, Any]]:
+        owner_epoch = self._app._notification_owner_epoch
+        return self._expire_many(
+            session_id,
+            lambda item: (
+                isinstance(item.get("retention"), Mapping)
+                and item["retention"].get("policy") == "until_server_restart"
+                and item["retention"].get("owner_epoch") != owner_epoch
+            ),
+            reason="owner_restarted",
+            request_id=None,
+        )
+
     def list(
         self,
         session_id: str,
@@ -356,12 +526,56 @@ class SessionNotifications:
         include_resolved: bool = False,
         include_terminal: bool | None = None,
     ) -> list[Dict[str, Any]]:
+        self.recover_owner_lifetime(session_id)
         with self._app.acquire_session_lock(session_id):
             session = self._require_session(session_id)
             items = self._items(session)
             if include_terminal if include_terminal is not None else include_resolved:
                 return items
             return [item for item in items if is_active_notification(item)]
+
+    def _expire_many(
+        self,
+        session_id: str,
+        predicate: Any,
+        *,
+        reason: str,
+        request_id: str | None,
+    ) -> list[Dict[str, Any]]:
+        with self._app.acquire_session_lock(session_id):
+            session = self._require_session(session_id)
+            items = self._items(session)
+            expired: list[Dict[str, Any]] = []
+            next_items: list[Dict[str, Any]] = []
+            for item in items:
+                if not is_active_notification(item) or not predicate(item):
+                    next_items.append(item)
+                    continue
+                stored = _normalize_notification(
+                    {
+                        "status": "expired",
+                        "expiration": {
+                            "expired_at": _timestamp(),
+                            "reason": reason,
+                        },
+                    },
+                    existing=item,
+                    request_id=request_id,
+                    owner_epoch=self._app._notification_owner_epoch,
+                )
+                expired.append(stored)
+                next_items.append(stored)
+            if not expired:
+                return []
+            self._persist(session, next_items)
+            for stored in expired:
+                self._publish(
+                    "session_notification_expired",
+                    session_id,
+                    stored,
+                    request_id,
+                )
+            return expired
 
     def _update_matching(
         self,
@@ -392,6 +606,7 @@ class SessionNotifications:
                 patch,
                 existing=items[index],
                 request_id=request_id,
+                owner_epoch=self._app._notification_owner_epoch,
             )
             items = [
                 stored if current_index == index else item
@@ -434,6 +649,7 @@ class SessionNotifications:
                 },
                 existing=existing,
                 request_id=request_id,
+                owner_epoch=self._app._notification_owner_epoch,
             )
             items = [
                 stored if current_index == index else item
@@ -460,24 +676,26 @@ class SessionNotifications:
             return []
         return [item for item in raw_items if isinstance(item, dict)]
 
-    def _max_items(self) -> int:
+    def _history_limit(self) -> int:
         application = self._app.get_application_config()
         notifications = (
             application.get("notifications") if isinstance(application, dict) else None
         )
-        value = (
-            notifications.get("max_items", 50)
-            if isinstance(notifications, dict)
-            else 50
+        if not isinstance(notifications, dict):
+            return 500
+        value = notifications.get(
+            "history_limit",
+            notifications.get("max_items", 500),
         )
-        return value if isinstance(value, int) and value > 0 else 50
+        return value if isinstance(value, int) and value > 0 else 500
 
     def _prune(self, items: list[Dict[str, Any]]) -> list[Dict[str, Any]]:
         active = [item for item in items if is_active_notification(item)]
         terminal = [item for item in items if not is_active_notification(item)]
         terminal.sort(key=lambda item: str(item.get("updated_at", "")), reverse=True)
-        keep_terminal = max(0, self._max_items() - len(active))
-        kept_ids = {item.get("id") for item in [*active, *terminal[:keep_terminal]]}
+        kept_ids = {
+            item.get("id") for item in [*active, *terminal[: self._history_limit()]]
+        }
         return [item for item in items if item.get("id") in kept_ids]
 
     def _persist(self, session: Session, items: list[Dict[str, Any]]) -> Session:

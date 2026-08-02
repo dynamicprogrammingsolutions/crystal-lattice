@@ -256,6 +256,51 @@ test('suppresses a revision provided by a persistent dismissal cache', () => {
   expect(screen.queryByText('Persistent body')).toBeNull();
 });
 
+test('keeps an accepted TTL notification until the host is reconstructed', () => {
+  let now = new Date('2026-08-02T11:59:00Z');
+  const ttlNotification: SessionNotification = {
+    ...notification,
+    retention: {
+      version: 1,
+      policy: 'ttl',
+      expires_at: '2026-08-02T12:00:00Z',
+    },
+  };
+  const summary = {
+    session_id: 'session-1',
+    modified: 0,
+    preview: '',
+    metadata: { notifications: { items: [ttlNotification] } },
+  };
+  const rendered = renderWithMobileProviders(
+    <SessionNotificationsHost
+      sessionSummary={summary}
+      now={() => now}
+    />,
+  );
+
+  expect(screen.getByText('Persistent body')).toBeTruthy();
+  now = new Date('2026-08-02T12:01:00Z');
+  rendered.rerender(
+    <ThemeProvider theme={lightTheme}>
+      <SessionNotificationsHost
+        sessionSummary={{ ...summary }}
+        now={() => now}
+      />
+    </ThemeProvider>,
+  );
+  expect(screen.getByText('Persistent body')).toBeTruthy();
+
+  rendered.unmount();
+  renderWithMobileProviders(
+    <SessionNotificationsHost
+      sessionSummary={summary}
+      now={() => now}
+    />,
+  );
+  expect(screen.queryByText('Persistent body')).toBeNull();
+});
+
 test('does not resurrect a terminal session record from an older event', () => {
   const dismissed = {
     ...notification,

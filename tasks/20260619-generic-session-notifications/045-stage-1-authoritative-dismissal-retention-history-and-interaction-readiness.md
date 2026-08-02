@@ -32,9 +32,9 @@ build on it without replacing the notification substrate.
   mutation detection and event/snapshot ordering.
 - [x] Stable-key deduplication applies to active records; creating with the key
   of a terminal record creates a new lifecycle occurrence.
-- [ ] Retention supports an extensible policy object with initial policies for
+- [x] Retention supports an extensible policy object with initial policies for
   explicit resolution, TTL, request completion, and server lifetime.
-- [ ] Active and terminal/history limits are distinct; active interactions are
+- [x] Active and terminal/history limits are distinct; active interactions are
   never silently pruned.
 - [x] Application notifications expose an authoritative current-state
   snapshot/list path so event-cursor bootstrap is not the only hydration
@@ -211,10 +211,10 @@ Package-local development pages document implementation mappings only.
 
 ## Planning status
 
-Stages A and B were approved and implemented on August 1, 2026. The revised
-B-1/B-2/C sequence was approved on August 1, 2026. Only one uncompleted stage
-is planned in implementation detail at a time. Backend-only stages may end at
-an automated gate; stages with user-visible behavior stop for the specified
+Stages A through C were approved and implemented on August 1, 2026. Stage C's
+manual and native checkpoints are postponed. Only one uncompleted stage is
+planned in implementation detail at a time. Backend-only stages may end at an
+automated gate; stages with user-visible behavior stop for the specified
 mobile or desktop manual checkpoint before the next stage is planned.
 
 ## Execution plan
@@ -410,29 +410,161 @@ Stop before the macOS native simulator/XCUITest checkpoint when approval is
 required by the desktop testing policy. Reassess whether desktop also needs a
 platform-local adapter for the B-2 cache after the mobile checkpoint.
 
-### Stage D — Retention, expiration, and bounded storage
+### Stage D — Retention lifetimes and bounded history
 
-- validate extensible retention objects;
-- implement `until_resolved`, `ttl`, `until_request_complete`, and
-  `until_server_restart`;
-- define deterministic expiration evaluation and events;
-- separate active-record and terminal-history bounds;
-- guarantee that active interactions are not silently pruned;
-- add demo-plugin controls for deterministic retention testing.
+Stage D adds retention to the existing notification authorities. It does not
+add a background scheduler, history UI, generic action/request coupling, or a
+new owner-level notification service.
+
+#### D1 — Small retention contract
+
+- add one shared validator used by session and application notifications;
+- normalize new records to a versioned retention object:
+  - `{"version": 1, "policy": "until_resolved"}`;
+  - `{"version": 1, "policy": "ttl", "expires_at": "<RFC3339 UTC>"}`;
+  - `{"version": 1, "policy": "until_request_complete"}`;
+  - `{"version": 1, "policy": "until_server_restart",
+    "owner_epoch": "<runtime-owned>"}`;
+- treat legacy records without retention as `until_resolved` and materialize
+  the normalized policy on their next mutation;
+- require an authoritative request ID for `until_request_complete`;
+- reject unknown policies, malformed versions, invalid timestamps,
+  producer-supplied foreign owner epochs, and request-completion retention
+  without a request ID;
+- provide a small portable deadline helper so backend and frontend tests can
+  use an injected current time without sleeping.
+
+TTL is based on the explicit `expires_at` instant. Updating an active record
+retains its existing deadline unless the producer supplies a new valid
+retention object.
+
+#### D2 — TTL is a fresh-presentation rule
+
+- do not add a server timer, event-poll reconciliation, or automatic TTL
+  expiration event;
+- do not remove a TTL notification merely because its deadline passes while
+  it is already displayed;
+- when a frontend host first observes or rehydrates a notification, suppress
+  it if its TTL deadline has already passed;
+- keep a notification that was accepted before its deadline visible in that
+  mounted host until it is explicitly dismissed, resolved, otherwise
+  terminal, or the host/application is reconstructed;
+- retain accepted notification identities only in frontend memory; reopening
+  the application, reconnecting, or reconstructing the owning notification
+  host performs the TTL eligibility check again;
+- add the same initial-eligibility behavior to application controllers and
+  session notification hosts on mobile and desktop;
+- leave the stored lifecycle record unchanged solely because wall-clock TTL
+  elapsed. TTL therefore does not increment revision or publish an expiration
+  event in Stage D.
+
+This deliberately treats TTL as a presentation lifetime rather than a live
+server-driven removal timer. Dismissal and resolution remain authoritative
+server lifecycle transitions.
+
+#### D3 — Request and server lifetime boundaries
+
+- expire `until_request_complete` records from the central
+  `AgentApplication.send_request` completion boundary on success, handled
+  error, cancellation, preparation failure, and session-conflict completion;
+- reuse the existing runtime owner epoch for `until_server_restart`;
+- proactively reconcile application records at runtime startup;
+- reconcile persisted session records lazily on their first authoritative
+  read after restart rather than scanning every session file at startup;
+- publish the existing application/session `*_notification_expired` event for
+  request-completion expiration with reason `request_completed`;
+- preserve the current owner-restart expiration behavior with reason
+  `owner_restarted`.
+
+These two policies have explicit server lifecycle boundaries and therefore
+remain server-authoritative. They do not require time polling.
+
+#### D4 — Bounded inactive history
+
+- replace the session-only combined `max_items` pruning rule with
+  `application.notifications.history_limit`;
+- apply the history limit independently per session and once for the
+  application notification store;
+- preserve legacy `max_items` as a compatibility alias for
+  `history_limit`;
+- keep active records unbounded rather than adding active-capacity rejection
+  in this stage;
+- never silently prune an active record, including a future active
+  interaction;
+- prune only the oldest terminal records;
+- perform application terminal pruning in the store transaction so SQLite and
+  in-memory behavior remain atomic;
+- use immutable per-operation history settings so one application generation
+  does not silently adopt another generation's reloaded limit.
+
+The recommended default is `history_limit: 500`.
+
+An elapsed TTL record remains stored as pending because TTL alone does not
+change server lifecycle state. It can still be dismissed, resolved, updated
+with a new deadline, or replaced after another terminal transition. This is
+the intentional simple model; Stage E history can display its elapsed
+presentation deadline without inventing a lifecycle event.
+
+#### D5 — Application and session integration
+
+- keep public notification creation, mutation, list, and event publication on
+  `AgentApplication`;
+- keep the application store as an injected runtime-owned dependency;
+- pass the runtime owner epoch into each application generation without giving
+  `ApplicationControl` notification responsibilities;
+- centralize request-completion expiration in a small
+  `AgentApplication` helper called from every existing completion path;
+- add atomic application-store request/owner expiration and terminal-pruning
+  operations plus the equivalent locked session-metadata operation;
+- preserve revision increments and terminal transition rules for
+  request-completion and owner-restart expiration.
+
+#### D6 — Demonstration controls and portable frontend behavior
+
+- extend the non-default application/session notification demo plugins with
+  retention selection for `until_resolved`, TTL, and server lifetime;
+- let demo forms accept a small TTL duration and translate it into the
+  contract's absolute `expires_at`;
+- keep request-completion demonstration in an automated tool/request fixture
+  rather than adding unreliable application-action access to a concurrently
+  running request ID;
+- add SDK/shared/mobile/desktop tests proving:
+  - a TTL notification already shown remains visible after its deadline;
+  - a fresh host does not present the same notification after its deadline;
+  - explicit terminal events still remove an already shown notification;
+- do not add notification history UI in Stage D; terminal inspection remains
+  available through backend/list integration tests until Stage E.
 
 Automated boundary:
 
-- unit tests with controlled clocks;
-- request-completion and owner-restart integration tests;
-- pruning and migration tests;
-- SDK/mobile/desktop tests proving expired records leave active presentation.
+- shared policy-validation and deadline-helper tests with controlled time;
+- SDK/controller/shared-host tests for fresh TTL suppression and sticky
+  already-presented behavior;
+- session metadata tests for request completion, lazy server-restart
+  reconciliation, revision/event ordering, terminal pruning, and legacy
+  migration;
+- in-memory and SQLite application-store tests for request/server lifetime,
+  transactionality, restart recovery, and terminal history limits;
+- `AgentApplication.send_request` tests covering every completion path without
+  sleeping;
+- public HTTP tests for request/server-lifetime terminal records;
+- default-config and config-reload tests for `history_limit`;
+- demo-plugin tests for valid retention payloads and invalid input;
+- mobile and desktop real-backend/component tests for TTL behavior across host
+  reconstruction.
 
 Manual checkpoint D:
 
-- create TTL and request-scoped notifications;
-- observe expiration and history status;
-- restart the server and verify server-lifetime application notifications end
-  while persisted session history remains according to policy.
+- from mobile, create application and session TTL notifications and verify
+  they remain visible after the configured deadline while already shown;
+- restart/reopen the application or owning notification surface and verify the
+  elapsed TTL notifications no longer appear;
+- create `until_resolved` controls and verify they remain active across the
+  same reopen;
+- create server-lifetime application and session notifications, restart the
+  server, reconnect/reopen the session, and verify they no longer appear;
+- leave request-completion timing and terminal-history inspection to automated
+  verification because Stage D does not yet expose notification history UI.
 
 Stop after checkpoint D.
 
@@ -547,9 +679,11 @@ wait-only or real-suspend behavior.
 
 ### Implementation decisions and open questions
 
-- Stages A/B and their requirements are approved and implemented.
+- Stages A/B/B-1/B-2/C and their requirements are approved and implemented.
 - The B-1/B-2/C requirements and revised sequence were approved on August 1,
   2026.
+- Stage C's manual desktop checkpoint and native XCUITest run were postponed
+  on August 1, 2026 and remain required before task completion.
 - B-1 store ownership was clarified and approved on August 1, 2026: the store
   is a runtime-owned injected dependency, not an `ApplicationControl`
   responsibility. The store path remains runtime-startup configuration and
@@ -608,6 +742,32 @@ wait-only or real-suspend behavior.
 - Retry is observation-driven on reconnect/rehydration or receipt of the same
   active revision. Stage B-2 does not add periodic retry scheduling or
   operation IDs.
+- Stage D was approved on August 2, 2026 with these material choices:
+  - **TTL semantics:** recommend treating TTL as a fresh-presentation
+    deadline only. It does not mutate server status, increment revision, emit
+    an expiration event, or remove an already displayed notification. An
+    elapsed record remains pending in storage and a later stable-key update
+    may give that same lifecycle record a new deadline.
+  - **History capacity:** recommend only
+    `application.notifications.history_limit`, defaulting to `500`.
+    Active records remain unbounded and are never silently pruned; only
+    terminal history is bounded.
+  - **Request-completion demonstration:** recommend automated request/tool
+    integration coverage only in Stage D. A mobile application action cannot
+    reliably bind itself to a concurrently completing request without adding
+    new action/request coordination outside the retention boundary.
+- The simplified Stage D plan and all three recommendations were approved on
+  August 2, 2026.
+- Manual checkpoints are additive visual and real-device validation. They do
+  not replace automated verification of important behavior. Each stage must
+  first use the appropriate combination of unit tests, public-boundary
+  integration tests, production component/UI tests, and simulator/native UI
+  automation. Manual testing then covers visual quality, device-specific
+  behavior, and experiential issues that automation does not establish
+  reliably.
+- A postponed manual checkpoint does not satisfy or cancel a postponed
+  automated native test. Stage C's postponed XCUITest and manual desktop
+  verification remain separate incomplete evidence.
 
 ### Documentation
 
@@ -630,8 +790,9 @@ planned API as available before its implementation stage completes.
 - [x] Complete manual checkpoint B-2.
 - [x] Plan and execute Stage C.
 - [ ] Complete manual checkpoint C.
-- [ ] Plan and execute Stage D.
-- [ ] Complete manual checkpoint D.
+- [x] Approve the Stage D execution plan.
+- [x] Plan and execute Stage D.
+- [x] Complete manual checkpoint D.
 - [ ] Plan and execute Stage E.
 - [ ] Complete manual checkpoint E.
 - [ ] Plan and execute Stage F.
@@ -884,7 +1045,8 @@ Automated evidence:
 - desktop TypeScript still reports the three pre-existing errors in
   `ChatPane.tsx` attachment plugin IDs and `ActionResultInlineCard.tsx`
   `theme.shadow`; Stage C adds no TypeScript error;
-- full desktop Jest suite: `19 suites, 102 passed`;
+- full desktop Jest suite: `19 suites, 103 passed`, including elapsed-TTL
+  suppression during desktop application hydration;
 - the prepared MkDocs site builds successfully with the repository's existing
   nav, Griffe indentation, and autoreference warnings.
 
@@ -892,3 +1054,68 @@ Manual desktop checkpoint C and the macOS XCUITest notification-harness run
 were explicitly postponed on August 1, 2026. They remain incomplete and must
 be performed before the task is completed, but they do not block planning the
 next contained stage.
+
+### Stage D — retention lifetimes and bounded history
+
+Implemented on August 2, 2026:
+
+- added versioned `until_resolved`, TTL, request-completion, and
+  server-lifetime retention validation;
+- made TTL a fresh-presentation rule with no server timer, status mutation,
+  revision increment, or expiration event;
+- made application controllers and shared session hosts retain TTL
+  notifications accepted before their deadline for the mounted host lifetime
+  and suppress elapsed records after reconstruction;
+- added server-authoritative request-completion expiration across normal and
+  tool-preparation-failure request completion paths;
+- added runtime-owned server-lifetime stamping and lazy session recovery after
+  owner restart;
+- replaced combined session pruning with terminal-only
+  `application.notifications.history_limit`, default `500`, while retaining
+  `max_items` as a compatibility alias;
+- added atomic terminal-history pruning to in-memory and SQLite application
+  stores;
+- extended the non-default application/session demo plugins with retention and
+  TTL-duration controls;
+- kept request-completion demonstration in automated request integration
+  rather than expanding application-action/request coordination.
+
+Automated evidence:
+
+- focused backend retention/request tests: `31 passed`;
+- full Core suite: `430 passed, 26 deselected, 1 xfailed`;
+- application reload-owner regression tests: `4 passed`;
+- full Application suite: `316 passed, 90 deselected`;
+- frontend SDK: `284 passed`;
+- mobile TypeScript: passed;
+- full mobile Jest suite: `26 suites, 110 passed`;
+- full desktop Jest suite: `19 suites, 102 passed`;
+- real-backend mobile component integration: `6 passed`, including visible
+  past-deadline TTL behavior and suppression after reconstruction;
+- both dummy notification plugin suites: `2 passed` each;
+- modified Python files pass Ruff and Black.
+
+No Stage D Detox or XCUITest was added because TTL changes initial data
+eligibility rather than native layout, geometry, navigation, or platform
+interaction. Controlled-time shared-host tests, production desktop component
+coverage, and real-backend mobile reconstruction cover the functional
+boundary. The manual checkpoint remains responsible for visual quality and
+real-device application restart behavior.
+
+The first full Core run found three owner test-double compatibility failures.
+The runtime stamping boundary was corrected, the focused owner suite passed
+`3 passed`, and the clean full Core rerun passed.
+
+Manual mobile checkpoint D was confirmed on August 2, 2026. TTL notifications
+remain visible after their deadline while already shown and are suppressed
+after application/host reconstruction; explicit retention remains visible;
+server-lifetime records disappear after full server restart.
+
+Clarifications confirmed during checkpoint D:
+
+- `until_server_restart` refers to the hosting runtime/process lifetime, not
+  one `AgentApplication` generation. Inner application reload behavior is a
+  host implementation detail and is not a portable expiration guarantee.
+- explicit dismissal or resolution has precedence over TTL,
+  request-completion, and server-restart retention. Automatic expiration only
+  applies while a record is still pending.

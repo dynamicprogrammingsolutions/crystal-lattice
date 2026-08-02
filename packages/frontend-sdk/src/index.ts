@@ -122,6 +122,7 @@ export { ApplicationNotificationsController } from './notifications/applicationN
 export type {
   NotificationSeverity,
   NotificationExpectedRevision,
+  NotificationRetention,
   NotificationStatus,
   SessionNotification,
   SessionNotificationEvent,
@@ -135,6 +136,9 @@ export {
   selectPendingSessionNotifications,
   selectSessionNotifications,
 } from './notifications/sessionNotifications';
+export {
+  isNotificationTtlElapsed,
+} from './notifications/notificationRetention';
 export {
   isActiveNotification,
   isNewerNotification,

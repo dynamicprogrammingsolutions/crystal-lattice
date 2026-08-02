@@ -269,3 +269,58 @@ test('isolates authoritative dismissal between open desktop connections', async 
     expect(screen.getByText('Second server')).toBeTruthy();
   });
 });
+
+test('suppresses an elapsed TTL application notification during desktop hydration', async () => {
+  const listApplicationNotifications = jest.fn(async () => [
+    {
+      id: 'elapsed-notification',
+      key: 'demo:elapsed',
+      kind: 'notification' as const,
+      status: 'pending' as const,
+      revision: 1,
+      severity: 'info' as const,
+      title: 'Elapsed notification',
+      body: 'Should not be freshly presented',
+      created_at: '2020-01-01T00:00:00Z',
+      updated_at: '2020-01-01T00:00:00Z',
+      retention: {
+        version: 1 as const,
+        policy: 'ttl' as const,
+        expires_at: '2020-01-01T00:01:00Z',
+      },
+      source: { plugin: 'dummy' },
+      display: {
+        format: 'text' as const,
+        body: 'Should not be freshly presented',
+        presentation: 'banner' as const,
+      },
+      model_visibility: 'hidden' as const,
+    },
+  ]);
+  const backend = {
+    ...createBackend(),
+    listApplicationNotifications,
+    dismissApplicationNotification: jest.fn(),
+  } as AgentBackend;
+  render(
+    <ThemeProvider theme={buildDesktopTheme(null)}>
+      <DesktopGlobalDisplayLayer
+        openConnectionsById={{
+          first: {
+            status: 'open',
+            baseUrl: 'http://first',
+            backend: backend as any,
+          },
+        }}
+        connectionNameById={{ first: 'First connection' }}
+      >
+        <DesktopConnectionDisplayRail />
+      </DesktopGlobalDisplayLayer>
+    </ThemeProvider>,
+  );
+
+  await waitFor(() => {
+    expect(listApplicationNotifications).toHaveBeenCalled();
+  });
+  expect(screen.queryByText('Should not be freshly presented')).toBeNull();
+});
