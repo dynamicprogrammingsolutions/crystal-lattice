@@ -8,17 +8,17 @@ components implement the portable frontend and cross-package contracts.
 - [ ] Frontend SDK development documentation maps current event types,
   selectors, polling, controller, display envelope, subscriptions, and action
   invalidation to `NTF-*`, `DSP-*`, and `FNT-*`.
-- [ ] The documentation clearly labels backend-keyed WeakMaps/subscriptions,
+- [x] The documentation clearly labels backend-keyed WeakMaps/subscriptions,
   polling implementation, and TypeScript types as current implementation
   choices rather than portable frontend requirements.
-- [ ] Shared React Native documentation describes notification banner/rail,
+- [x] Shared React Native documentation describes notification banner/rail,
   session host, inline renderer extension, accessibility, theme semantics, and
   per-connection bounds.
-- [ ] Shared action-menu documentation describes stable keys, built-in/plugin
+- [x] Shared action-menu documentation describes stable keys, built-in/plugin
   composition, pin-model boundaries, and platform surface injection.
 - [ ] Shared server-settings form/model behavior is documented at its owning
   package boundary.
-- [ ] Package READMEs or docs indexes route users and contributors to the new
+- [x] Package READMEs or docs indexes route users and contributors to the new
   substantive pages.
 
 Parent Task:
@@ -89,3 +89,21 @@ Do not tell a new frontend implementer to reproduce WeakMaps, React hooks,
 context providers, or React Native component trees. Those readers use the root
 portable frontend specifications. This subtask serves maintainers and consumers
 of the current TypeScript packages.
+
+## Status audit — August 3, 2026
+
+The SDK notification and shared notification/action-menu pages exist.
+
+Incomplete work within the approved current-state scope:
+
+- add a concise `NTF-*`/`DSP-*`/`FNT-*` implementation mapping;
+- document shared server-settings form/model ownership substantively rather
+  than relying on consumer pages.
+
+Explicit scope decision:
+
+- decide whether documentation for future notification-history
+  controllers/components stays in this documentation task until Stage E is
+  implemented or is completed by the Stage E implementation work. Those
+  components do not exist yet and are not a missing description of current
+  runtime behavior.

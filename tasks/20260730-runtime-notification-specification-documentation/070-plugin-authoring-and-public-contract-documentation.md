@@ -5,18 +5,18 @@ plugin authoring guidance from the authoritative root specifications.
 
 ## Requirements checklist
 
-- [ ] Shared plugin documentation includes a decision guide for application
+- [x] Shared plugin documentation includes a decision guide for application
   notifications, session notifications, direct action displays, and tool
   notification sinks.
-- [ ] The shared plugin guide is understandable and usable on its own, with
+- [x] The shared plugin guide is understandable and usable on its own, with
   current APIs, required fields, complete examples, lifecycle behavior,
   presentation, failure boundaries, security guidance, and test commands.
-- [ ] Plugin examples link to and conform to the root `NTF-*` and `DSP-*`
+- [x] Plugin examples link to and conform to the root `NTF-*` and `DSP-*`
   contracts without requiring plugin authors to read internal specification
   pages before using the documented APIs.
-- [ ] Public lookup material is either generated from authoritative shapes or
+- [x] Public lookup material is either generated from authoritative shapes or
   kept to concise field/event/action tables without lifecycle duplication.
-- [ ] Existing action and application-plugin docs link to the new guide and
+- [x] Existing action and application-plugin docs link to the new guide and
   remove or clearly label duplicated normative text.
 - [ ] Application-config plugin documentation covers configuration, actions,
   allowlisting, environment precedence, rollback, current security boundary,
@@ -24,7 +24,7 @@ plugin authoring guidance from the authoritative root specifications.
 - [ ] The three dummy plugin READMEs document purpose, actions, presentation
   coverage, non-default status, and test commands without adding unnecessary
   specification trees.
-- [ ] Sensitive-value guidance is explicit in plugin and public reference docs.
+- [x] Sensitive-value guidance is explicit in plugin and public reference docs.
 
 Parent Task:
 `tasks/20260730-runtime-notification-specification-documentation/000-main.md`
@@ -119,3 +119,17 @@ Dummy plugins:
 
 Do not create package-local `docs/` trees for these small plugins unless their
 README content later becomes too large.
+
+## Status audit — August 3, 2026
+
+The shared guide is complete and linked from the action/application-plugin
+authoring pages. Remaining README work is concrete:
+
+- expand `plugins/application-config-app/README.md` with action IDs,
+  allowlisting, environment precedence, rollback, current security boundary,
+  tests, and canonical links;
+- correct the dummy application notification README's obsolete owner-memory
+  statement;
+- document the current actions, presentation/follow-up coverage, non-default
+  status, test commands, and shared-guide links consistently across all three
+  dummy plugin READMEs.

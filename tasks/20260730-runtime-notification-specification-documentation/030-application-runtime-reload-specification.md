@@ -6,18 +6,18 @@ remain alive.
 
 ## Requirements checklist
 
-- [ ] The root reload specification defines user-visible behavior, the reload
+- [x] The root reload specification defines user-visible behavior, the reload
   state machine, admission/drain semantics, candidate swap/rollback, cleanup,
   events, and compatibility.
-- [ ] The specification explicitly distinguishes application reconstruction
+- [x] The specification explicitly distinguishes application reconstruction
   from full CLI/server process restart.
-- [ ] Stable `RLD-*` requirements link implementation and verification across
+- [x] Stable `RLD-*` requirements link implementation and verification across
   Core, Application, plugins, server, CLI, and frontends.
-- [ ] Deferred running-request, configuration-writing, credential-hardening,
+- [x] Deferred running-request, configuration-writing, credential-hardening,
   and possible refactoring stages are clearly separated from implemented
   behavior.
-- [ ] Material cross-package reload decisions are recorded as root decisions.
-- [ ] Downstream owner-process variations, including the local mobile runtime
+- [x] Material cross-package reload decisions are recorded as root decisions.
+- [x] Downstream owner-process variations, including the local mobile runtime
   task, can conform without assuming terminal-process ownership.
 
 Parent Task:
@@ -102,3 +102,12 @@ Record but do not resolve:
 - `plugins/mcp-runtime-app/tests/test_application_owner_reload.py`
 - `tasks/20260729-staged-application-config-and-full-reload.md`
 - `tasks/20260614-ios-testflight-github-fastlane/085-app-review-local-runtime-and-testable-mode.md`
+
+## Completion Notes
+
+Completed in the documentation baseline. The root runtime-reload product,
+technical, and requirement pages define application reconstruction without a
+process restart, admission/drain behavior, candidate rollback, cleanup,
+observable events, deferred policies, and owner-process portability. Delivery
+evidence in the requirement matrix still needs the main task's final
+traceability refresh.

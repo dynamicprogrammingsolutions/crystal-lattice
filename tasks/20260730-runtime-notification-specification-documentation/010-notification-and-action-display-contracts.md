@@ -5,19 +5,19 @@ lifecycle events, plugin/tool behavior, and action-display payloads.
 
 ## Requirements checklist
 
-- [ ] A root notification specification defines application and session
+- [x] A root notification specification defines application and session
   notification records, lifecycle, persistence classes, event contracts,
   plugin/tool APIs, failure behavior, security, and compatibility.
-- [ ] A separate root action-display specification defines display payloads,
+- [x] A separate root action-display specification defines display payloads,
   follow-up actions, presentation semantics, defaults, replacement behavior,
   and compatibility.
-- [ ] Stable `NTF-*` and `DSP-*` requirements record implementation,
+- [x] Stable `NTF-*` and `DSP-*` requirements record implementation,
   verification, documentation, task, and delivery evidence.
 - [ ] Material cross-package decisions are captured as root-level decision
   records.
-- [ ] The contracts are implementation-neutral and do not assign authority to
+- [x] The contracts are implementation-neutral and do not assign authority to
   current Python, TypeScript, or React Native types.
-- [ ] Existing event/action/plugin pages link to the contracts or are recorded
+- [x] Existing event/action/plugin pages link to the contracts or are recorded
   for compatibility handling without becoming competing sources of truth.
 
 Parent Task:
@@ -56,7 +56,7 @@ Normalize and verify:
 - application notification events without `session_id`;
 - session notification create/update/resolve events with `session_id`;
 - session metadata as reconnect authority;
-- application owner-memory lifetime and process-restart boundary;
+- durable application-store lifetime and process-restart behavior;
 - checkpoint/event ordering and event publication being best effort;
 - session lock/read-modify-write expectations and pending-preserving pruning;
 - direct application-plugin APIs versus failure-contained tool sink;
@@ -112,8 +112,9 @@ Primary code/evidence references:
 
 ## Candidate cross-package decisions
 
-- Persist session notifications but retain application notifications in stable
-  owner memory.
+- Persist session notifications in session metadata and application
+  notifications in the runtime-injected durable application notification
+  store.
 - Reuse action-display payloads for notifications.
 - Keep notification event delivery and tool sinks best effort.
 - Keep Stage 1 notification model visibility hidden.
@@ -141,3 +142,16 @@ eventually become authoring-oriented consumers of these contracts.
 Do not create hand-maintained `docs/reference/contracts/*` pages in the first
 baseline. Add them later only as generated references or concise lookup tables
 with no competing lifecycle narrative.
+
+## Status audit — August 3, 2026
+
+The approved root artifacts exist and the `NTF-*` and `DSP-*` matrices are in
+place.
+
+Explicit scope decision:
+
+- determine whether the unchecked decision-record requirement accepts material
+  rationale recorded directly in the root technical specifications, consistent
+  with the approved “create a decision record only when needed” rule, or
+  requires standalone decision files. No additional contract content is
+  currently known to be missing.

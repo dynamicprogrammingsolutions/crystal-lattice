@@ -12,15 +12,15 @@ surface conventions and verification boundaries.
 - [ ] Desktop development documentation explains multi-backend polling, the
   common banner rail, separate React windows, native popovers, coordinators,
   Sessions actions, and connection isolation.
-- [ ] A desktop window/popover convention page clearly distinguishes anchored
+- [x] A desktop window/popover convention page clearly distinguishes anchored
   transient controls, settings windows, modal result windows, global banners,
   and session inline displays.
-- [ ] Native test documentation explains deterministic harness registration,
+- [x] Native test documentation explains deterministic harness registration,
   real-backend component integration, Detox/XCUITest boundaries, and manual
   approval/verification.
 - [ ] Platform documentation maps to `FNT-*` and `FSA-*` without redefining
   portable frontend behavior.
-- [ ] Current unverified macOS native/human evidence remains explicitly
+- [x] Current unverified macOS native/human evidence remains explicitly
   incomplete until performed.
 
 Parent Task:
@@ -117,3 +117,25 @@ Document this as a development rule:
   native boundary.
 - XCUITest verifies macOS popover/window behavior.
 - Human verification remains distinct from successful automated native tests.
+
+## Status audit — August 3, 2026
+
+All proposed platform pages exist, and the macOS native and human checkpoints
+were completed on August 2, 2026 after remaining separate until execution.
+
+Incomplete work within the approved current-state scope:
+
+- mobile hosting documentation still describes notification modal presentation
+  as a screen-local overlay, while the implementation now uses the native
+  full-application modal boundary;
+- mobile and desktop pages need fuller follow-up, coordinator, and Sessions
+  action ownership detail;
+- platform pages do not yet provide concise `FNT-*`/`FSA-*` implementation
+  mappings.
+
+Explicit scope decision:
+
+- decide whether notification-history and waiting-for-input hosting
+  documentation remains in this subtask until Stages F–H exist or moves to
+  those implementation stages. Those future surfaces are not undocumented
+  current functionality.

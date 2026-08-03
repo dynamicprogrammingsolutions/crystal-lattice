@@ -16,17 +16,17 @@ assembly without treating generated output as authored source.
 - [ ] Important acceptance/contract tests reference appropriate `RLD-*`,
   `NTF-*`, `DSP-*`, `FNT-*`, or `FSA-*` identifiers without tagging ordinary
   low-level tests unnecessarily.
-- [ ] Root and package documentation indexes provide a clear reading path and
+- [x] Root and package documentation indexes provide a clear reading path and
   no circular or competing authority.
 - [ ] Existing URLs and inbound links are updated or covered by compatibility
   pages/redirects.
 - [ ] Current documentation-site preparation publishes the authored root and
   package-local sources; if the package registry is not yet available, the
   task records the bounded compatible integration used.
-- [ ] Generated prepared/dist files remain untracked sources.
-- [ ] Normal documentation build succeeds without new warnings caused by this
+- [x] Generated prepared/dist files remain untracked sources.
+- [x] Normal documentation build succeeds without new warnings caused by this
   work.
-- [ ] Native desktop and human-verification fields remain incomplete until the
+- [x] Native desktop and human-verification fields remain incomplete until the
   related checkpoint is actually performed and confirmed.
 
 Parent Task:
@@ -126,3 +126,31 @@ If those mechanisms are still drafts, use the smallest current-pipeline change
 that publishes these authored sources and record follow-up needed to adopt the
 future registry. Do not make this task depend on completing unrelated broad
 documentation migration.
+
+## Status audit — August 3, 2026
+
+Completed:
+
+- root and package-local indexes provide authored-source reading paths;
+- root specification navigation is published by the current MkDocs site;
+- generated prepared/dist directories remain generated boundaries;
+- the documentation build passes without new task-caused warnings;
+- desktop native and human evidence stayed incomplete until the August 2,
+  2026 checkpoints were actually performed.
+
+Incomplete work within the approved scope:
+
+- add the root conceptual architecture view for owner/application,
+  notification authority, events/snapshots, and frontend hosts;
+- refresh all requirement matrices with current implementation, automated,
+  native/human, related-task, and delivery evidence;
+- complete the inbound-link/compatibility audit.
+
+Explicit scope decisions:
+
+- either add requirement references to selected acceptance/contract tests or
+  approve a centralized test-evidence map as the replacement completion
+  artifact;
+- either publish package-local development pages through the current
+  documentation-site assembly or split/defer that requirement to the package
+  documentation registry task.

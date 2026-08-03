@@ -6,19 +6,19 @@ normative cross-package source.
 
 ## Requirements checklist
 
-- [ ] Core Python development documentation explains stable owner internals,
+- [x] Core Python development documentation explains stable owner internals,
   replaceable application lifetime, operation admission, swap/rollback, and
   cleanup.
-- [ ] Core Python development documentation explains session-notification
+- [x] Core Python development documentation explains session-notification
   persistence, locking, event/checkpoint publication, pruning, reconciliation,
   and tool sink behavior.
-- [ ] Application Python development documentation explains server/terminal
+- [x] Application Python development documentation explains server/terminal
   owner construction, shared server-console wiring, HTTP admission errors,
   event exposure, shutdown, and MCP cleanup.
 - [ ] Package docs explicitly map implementation sections to `RLD-*`, `NTF-*`,
   and relevant `DSP-*` requirements.
-- [ ] User/operator reload guidance is separated from implementation internals.
-- [ ] Existing useful application README content is moved or linked without
+- [x] User/operator reload guidance is separated from implementation internals.
+- [x] Existing useful application README content is moved or linked without
   leaving a competing long-form source.
 
 Parent Task:
@@ -55,7 +55,8 @@ under the repository documentation profile; do not add empty placeholders.
 - candidate construction, listener update, swap, rollback, and closure.
 - owner close and reload-thread behavior.
 - event-store ownership and best-effort publication.
-- application notification storage in owner memory.
+- runtime-injected durable application notification storage shared by
+  replacement application generations.
 - cleanup responsibilities delegated to `AgentApplication.close()`.
 - code links to `application_owner.py` instead of duplicating every method.
 
@@ -110,3 +111,11 @@ large enough to justify extraction.
 - The application documentation migration directions in
   `tasks/20260728-package-local-documentation-standard/040-application-and-plugin-documentation-migration.md`
   are reference context, not a dependency.
+
+## Status audit — August 3, 2026
+
+The Core and Application implementation pages exist and describe the current
+durable notification store and shared request-owner wiring. The remaining
+unchecked requirement is explicit section-level mapping to the relevant
+`RLD-*`, `NTF-*`, and `DSP-*` identifiers; current pages mostly link to the
+root specifications without a concise mapping table.

@@ -7,37 +7,170 @@ independent frontend behavior and from package-local implementation details.
 
 ## Requirements checklist
 
-- [ ] Root documentation contains authoritative, cross-package specifications
+- [x] Root documentation contains authoritative, cross-package specifications
   for notifications, action displays, and application runtime reload.
-- [ ] Root documentation contains implementation-independent frontend
+  - Documentation: [Notifications](../../docs/development/specifications/notifications/index.md),
+    [action displays](../../docs/development/specifications/action-display/index.md),
+    and [application runtime reload](../../docs/development/specifications/application-runtime-reload/index.md).
+- [x] Root documentation contains implementation-independent frontend
   specifications that are sufficient to implement notification presentation
   and Sessions action behavior in a new frontend language or framework.
-- [ ] Cross-package specifications own public shapes, lifecycle semantics,
+  - Documentation: [Portable notification frontend behavior](../../docs/development/specifications/notifications/frontend-behavior.md)
+    and [Sessions actions](../../docs/development/specifications/sessions-actions/index.md).
+- [x] Cross-package specifications own public shapes, lifecycle semantics,
   plugin-facing behavior, compatibility rules, and stable requirements rather
   than assigning that authority to the current Python or TypeScript packages.
+  - Documentation: [Notification technical contract](../../docs/development/specifications/notifications/technical-spec.md),
+    [action-display technical contract](../../docs/development/specifications/action-display/technical-spec.md),
+    and [runtime-reload technical contract](../../docs/development/specifications/application-runtime-reload/technical-spec.md).
 - [ ] Package-local development documentation explains how Core Python,
   Application Python, the TypeScript SDK, shared React Native components,
   mobile, and desktop conform to the root specifications without redefining
   them.
+  - Documentation: [Core application owner](../../core/python/docs/development/application-owner.md),
+    [Core notification implementation](../../core/python/docs/development/notification-implementation.md),
+    [Application runtime-owner integration](../../application/python/docs/development/runtime-owner-integration.md),
+    [Frontend SDK notification implementation](../../packages/frontend-sdk/docs/development/notification-implementation.md),
+    [shared notification components](../../packages/frontend-rn-components/docs/development/notification-components.md),
+    [shared action-menu components](../../packages/frontend-rn-components/docs/development/actions-menu-components.md),
+    [mobile frontend hosting](../../mobile/crystal-lattice-control-rn/docs/development/frontend-hosting.md),
+    and [desktop frontend hosting](../../desktop/crystal-lattice-control-desktop-rn/docs/development/frontend-hosting.md).
 - [ ] Plugin authoring documentation and public reference pages derive from and
   link to the root contracts.
+  - Documentation: [Plugin notification/action-display guide](../../plugins/docs/notifications-and-action-displays.md),
+    [plugin actions](../../plugins/docs/actions.md), and
+    [application plugins](../../plugins/docs/application-plugins.md).
+  - Authoritative destinations: [Notification specification](../../docs/development/specifications/notifications/index.md)
+    and [action-display specification](../../docs/development/specifications/action-display/index.md).
 - [ ] Specifications use stable requirement identifiers and record current
   implementation, automated verification, documentation, task, and eventual
   delivery evidence.
-- [ ] Material cross-package and frontend decisions are recorded at the layer
+  - Documentation: [Notification requirements](../../docs/development/specifications/notifications/requirements.md),
+    [action-display requirements](../../docs/development/specifications/action-display/requirements.md),
+    [runtime-reload requirements](../../docs/development/specifications/application-runtime-reload/requirements.md),
+    and [Sessions-action requirements](../../docs/development/specifications/sessions-actions/requirements.md).
+- [x] Material cross-package and frontend decisions are recorded at the layer
   whose consumers they constrain; language- or platform-specific choices
   remain package-local.
+  - Documentation: [Notification technical contract](../../docs/development/specifications/notifications/technical-spec.md),
+    [portable frontend behavior](../../docs/development/specifications/notifications/frontend-behavior.md),
+    [action-display technical contract](../../docs/development/specifications/action-display/technical-spec.md),
+    and [runtime-reload technical contract](../../docs/development/specifications/application-runtime-reload/technical-spec.md).
 - [ ] Existing accurate documentation is migrated, linked, or reduced to a
   concise compatibility page without creating competing sources of truth.
-- [ ] Small demonstration plugins retain the reduced README-oriented package
+  - Compatibility/source pages: [Events API](../../docs/api/events.md),
+    [Application README](../../application/python/README.md),
+    [plugin actions](../../plugins/docs/actions.md), and
+    [application plugins](../../plugins/docs/application-plugins.md).
+  - Authoritative destinations: [Notification specification](../../docs/development/specifications/notifications/index.md),
+    [action-display specification](../../docs/development/specifications/action-display/index.md),
+    and [runtime-reload specification](../../docs/development/specifications/application-runtime-reload/index.md).
+- [x] Small demonstration plugins retain the reduced README-oriented package
   profile and are not given unnecessary standalone specification trees.
-- [ ] Authored sources are not placed in `docs_site/prepared/` or
+  - Documentation: [Dummy application notifications](../../plugins/dummy-application-notification-app/README.md),
+    [dummy session notifications](../../plugins/dummy-session-notification-app/README.md),
+    and [dummy action displays](../../plugins/dummy-action-display-app/README.md).
+- [x] Authored sources are not placed in `docs_site/prepared/` or
   `docs_site/dist/`, and generated outputs are not treated as specification
   sources.
 - [ ] Documentation-site assembly and navigation expose the resulting root and
   package-local documents without breaking intentionally retained public URLs.
-- [ ] The final requirements evidence distinguishes automated verification from
-  the still-required human/native desktop checkpoint.
+  - Root navigation: [Development documentation](../../docs/development/index.md).
+  - Package entry points: [Core development docs](../../core/python/docs/development/index.md),
+    [Application development docs](../../application/python/docs/development/index.md),
+    [Frontend SDK development docs](../../packages/frontend-sdk/docs/development/index.md),
+    [shared React Native development docs](../../packages/frontend-rn-components/docs/development/index.md),
+    [mobile development docs](../../mobile/crystal-lattice-control-rn/docs/development/index.md),
+    and [desktop development docs](../../desktop/crystal-lattice-control-desktop-rn/docs/development/index.md).
+- [ ] The final requirements evidence distinguishes automated verification
+  from native/human verification and records checkpoint completion only after
+  the corresponding evidence exists.
+  - Evidence pages: [Notification requirements](../../docs/development/specifications/notifications/requirements.md),
+    [action-display requirements](../../docs/development/specifications/action-display/requirements.md),
+    [runtime-reload requirements](../../docs/development/specifications/application-runtime-reload/requirements.md),
+    and [Sessions-action requirements](../../docs/development/specifications/sessions-actions/requirements.md).
+
+## Subtasks
+
+- [ ] `tasks/20260730-runtime-notification-specification-documentation/010-notification-and-action-display-contracts.md`
+  - Missing: determine whether the original root decision-record requirement
+    needs standalone files or is satisfied by rationale in the technical specs.
+  - Documentation: [Notification overview](../../docs/development/specifications/notifications/index.md),
+    [product specification](../../docs/development/specifications/notifications/product-spec.md),
+    [technical specification](../../docs/development/specifications/notifications/technical-spec.md),
+    [requirements](../../docs/development/specifications/notifications/requirements.md),
+    [action-display overview](../../docs/development/specifications/action-display/index.md),
+    [action-display technical specification](../../docs/development/specifications/action-display/technical-spec.md),
+    and [action-display requirements](../../docs/development/specifications/action-display/requirements.md).
+- [x] `tasks/20260730-runtime-notification-specification-documentation/020-portable-frontend-behavior-specifications.md`
+  - Documentation: [Portable notification frontend behavior](../../docs/development/specifications/notifications/frontend-behavior.md),
+    [Sessions-action overview](../../docs/development/specifications/sessions-actions/index.md),
+    [Sessions-action technical specification](../../docs/development/specifications/sessions-actions/technical-spec.md),
+    and [Sessions-action requirements](../../docs/development/specifications/sessions-actions/requirements.md).
+- [x] `tasks/20260730-runtime-notification-specification-documentation/030-application-runtime-reload-specification.md`
+  - Documentation: [Runtime-reload overview](../../docs/development/specifications/application-runtime-reload/index.md),
+    [product specification](../../docs/development/specifications/application-runtime-reload/product-spec.md),
+    [technical specification](../../docs/development/specifications/application-runtime-reload/technical-spec.md),
+    and [requirements](../../docs/development/specifications/application-runtime-reload/requirements.md).
+- [ ] `tasks/20260730-runtime-notification-specification-documentation/040-core-and-application-implementation-documentation.md`
+  - Missing: explicit package implementation mappings to the applicable
+    `RLD-*`, `NTF-*`, and `DSP-*` requirements.
+  - Documentation: [Core application owner](../../core/python/docs/development/application-owner.md),
+    [Core notification implementation](../../core/python/docs/development/notification-implementation.md),
+    [Core development index](../../core/python/docs/development/index.md),
+    [Application runtime-owner integration](../../application/python/docs/development/runtime-owner-integration.md),
+    and [Application development index](../../application/python/docs/development/index.md).
+- [ ] `tasks/20260730-runtime-notification-specification-documentation/050-frontend-sdk-and-shared-components-documentation.md`
+  - Missing: SDK/shared-component requirement mappings and substantive
+    shared server-settings form/model ownership documentation.
+  - Documentation: [Frontend SDK notification implementation](../../packages/frontend-sdk/docs/development/notification-implementation.md),
+    [Frontend SDK development index](../../packages/frontend-sdk/docs/development/index.md),
+    [shared notification components](../../packages/frontend-rn-components/docs/development/notification-components.md),
+    [shared action-menu components](../../packages/frontend-rn-components/docs/development/actions-menu-components.md),
+    and [shared React Native development index](../../packages/frontend-rn-components/docs/development/index.md).
+- [ ] `tasks/20260730-runtime-notification-specification-documentation/060-mobile-and-desktop-implementation-documentation.md`
+  - Missing: current hosting/follow-up/coordinator details, corrected mobile
+    modal hosting, and `FNT-*`/`FSA-*` implementation mappings.
+  - Documentation: [Mobile frontend hosting](../../mobile/crystal-lattice-control-rn/docs/development/frontend-hosting.md),
+    [mobile development index](../../mobile/crystal-lattice-control-rn/docs/development/index.md),
+    [desktop frontend hosting](../../desktop/crystal-lattice-control-desktop-rn/docs/development/frontend-hosting.md),
+    [desktop window/popover conventions](../../desktop/crystal-lattice-control-desktop-rn/docs/development/window-and-popover-conventions.md),
+    [desktop native UI testing](../../desktop/crystal-lattice-control-desktop-rn/docs/development/native-ui-testing.md),
+    and [desktop development index](../../desktop/crystal-lattice-control-desktop-rn/docs/development/index.md).
+- [ ] `tasks/20260730-runtime-notification-specification-documentation/070-plugin-authoring-and-public-contract-documentation.md`
+  - Missing: the originally required application-config and three dummy-plugin
+    README coverage; some current README statements are stale or incomplete.
+  - Documentation: [Notification/action-display authoring guide](../../plugins/docs/notifications-and-action-displays.md),
+    [plugin actions](../../plugins/docs/actions.md),
+    [application plugins](../../plugins/docs/application-plugins.md),
+    [plugin documentation index](../../plugins/docs/index.md),
+    [application-config plugin](../../plugins/application-config-app/README.md),
+    [dummy application notifications](../../plugins/dummy-application-notification-app/README.md),
+    [dummy session notifications](../../plugins/dummy-session-notification-app/README.md),
+    and [dummy action displays](../../plugins/dummy-action-display-app/README.md).
+  - Authoritative destinations: [Notification specification](../../docs/development/specifications/notifications/index.md)
+    and [action-display specification](../../docs/development/specifications/action-display/index.md).
+- [ ] `tasks/20260730-runtime-notification-specification-documentation/080-traceability-architecture-and-site-integration.md`
+  - Missing: root architecture, current evidence matrices, selected test
+    traceability, compatibility-link audit, and package-local site publication
+    or an approved replacement/deferment for those requirements.
+  - Documentation: [Architecture](../../ARCHITECTURE.md),
+    [development documentation index](../../docs/development/index.md),
+    [notification requirements](../../docs/development/specifications/notifications/requirements.md),
+    [action-display requirements](../../docs/development/specifications/action-display/requirements.md),
+    [runtime-reload requirements](../../docs/development/specifications/application-runtime-reload/requirements.md),
+    and [Sessions-action requirements](../../docs/development/specifications/sessions-actions/requirements.md).
+  - Package pages to publish/link: [Core](../../core/python/docs/development/index.md),
+    [Application](../../application/python/docs/development/index.md),
+    [Frontend SDK](../../packages/frontend-sdk/docs/development/index.md),
+    [shared React Native](../../packages/frontend-rn-components/docs/development/index.md),
+    [mobile](../../mobile/crystal-lattice-control-rn/docs/development/index.md),
+    and [desktop](../../desktop/crystal-lattice-control-desktop-rn/docs/development/index.md).
+
+The root notification/action-display contracts and runtime-reload specification
+can be developed independently. Package implementation-documentation subtasks
+can also proceed in parallel after the specific root contract they reference
+is stable.
 
 ## Scope and authority model
 
@@ -211,8 +344,10 @@ new specifications.
   notifications under `Session.metadata["notifications"]["items"]`, session
   locking, event/checkpoint publication, deduplication, update/resolve, pruning,
   and the failure-contained tool `notification_sink`.
-- Application notifications live in `AgentApplicationOwner` memory. They
-  survive replacement of `AgentApplication` but not owner-process restart.
+- Application notifications use a runtime-injected durable
+  `ApplicationNotificationStore`. They survive replacement of
+  `AgentApplication`, owner reconstruction, and server-process restart subject
+  to retention.
 - Application events omit `session_id`; session notification events include it.
 - Stage 1 notifications are model-hidden.
 - Existing public discussion is split among `docs/api/events.md`,
@@ -256,8 +391,8 @@ new specifications.
 - Mobile includes a focused notification-banner Detox harness.
 - Desktop extends the existing Session Filters native harness/XCUITest for the
   unified action popover, shared banner rail, and Server settings window.
-- The native desktop test and human desktop checkpoint remain unverified at
-  this task's creation.
+- The native desktop test and human desktop checkpoint were subsequently
+  completed and confirmed on August 2, 2026.
 
 ### Existing documentation structure
 
@@ -296,22 +431,6 @@ new specifications.
   Application, SDK, shared-component, mobile, or desktop pages. Link to its
   requirement ID and document only the package-specific implementation.
 
-## Subtasks
-
-- [ ] `tasks/20260730-runtime-notification-specification-documentation/010-notification-and-action-display-contracts.md`
-- [ ] `tasks/20260730-runtime-notification-specification-documentation/020-portable-frontend-behavior-specifications.md`
-- [ ] `tasks/20260730-runtime-notification-specification-documentation/030-application-runtime-reload-specification.md`
-- [ ] `tasks/20260730-runtime-notification-specification-documentation/040-core-and-application-implementation-documentation.md`
-- [ ] `tasks/20260730-runtime-notification-specification-documentation/050-frontend-sdk-and-shared-components-documentation.md`
-- [ ] `tasks/20260730-runtime-notification-specification-documentation/060-mobile-and-desktop-implementation-documentation.md`
-- [ ] `tasks/20260730-runtime-notification-specification-documentation/070-plugin-authoring-and-public-contract-documentation.md`
-- [ ] `tasks/20260730-runtime-notification-specification-documentation/080-traceability-architecture-and-site-integration.md`
-
-The root notification/action-display contracts and runtime-reload specification
-can be developed independently. Package implementation-documentation subtasks
-can also proceed in parallel after the specific root contract they reference
-is stable.
-
 ## Execution plan
 
 Status: Approved
@@ -333,9 +452,11 @@ The user approved a two-baseline workflow on July 31, 2026:
   broader page when separate files would add duplicate prose.
 - Hand-maintained public reference pages are deferred unless they can remain
   concise or be generated.
-- Commit `f14b39bf` preserves the current-state frontend-local revision
-  dismissal baseline. The working specification now proposes server-owned
-  dismissal, retention, history/replay, and interaction readiness.
+- Commit `f14b39bf` preserves the original frontend-local dismissal baseline.
+  Later notification commits implemented and documented server-owned
+  dismissal, durable application history, retention, and the completed
+  Stage A–D frontend behavior. History/replay and interaction readiness remain
+  proposed.
 
 ### Documentation
 
@@ -363,6 +484,54 @@ The user approved a two-baseline workflow on July 31, 2026:
   current-state documentation baseline is committed.
 - Package-local public-site assembly remains pending the separate registry
   mechanism and is not claimed complete by this baseline.
+
+### August 3, 2026 evidence audit
+
+The authored baseline is present, but the task is not complete.
+
+Completed in substance:
+
+- root notification, action-display, runtime-reload, Sessions-action, and
+  portable frontend specification sets;
+- root and MkDocs navigation for those specifications;
+- Core, Application, SDK, shared React Native, mobile, and desktop package
+  development-page structure;
+- the shared notification/action-display plugin authoring guide;
+- reduced README-only profiles for the demonstration plugins;
+- generated-output boundaries.
+
+Incomplete work within the approved scope:
+
+- correct stale package documentation, including mobile native modal hosting
+  and the durable application-notification authority;
+- complete the application-config and demonstration plugin README content;
+- add package implementation-to-requirement-ID mappings;
+- complete the root architecture view;
+- complete the inbound-link and compatibility audit;
+- refresh requirement matrices with current native/human and delivery
+  evidence;
+- run final link/build verification and add immutable completion notes to the
+  main task and completed subtasks.
+
+Explicit scope or ownership decisions:
+
+- decide whether the requirement for separate root decision records is
+  satisfied by rationale in the root technical specifications or requires new
+  standalone decision files;
+- decide whether selected acceptance tests must contain requirement-ID
+  references or whether a centralized test-evidence map replaces that
+  requirement;
+- decide whether this task must publish package-local development pages through
+  the current documentation site or whether that requirement is split/deferred
+  to the package documentation registry task;
+- decide whether mobile/desktop/SDK package documentation for notification
+  history and interaction hosting remains in this task until Stages E–H are
+  implemented, or moves to the owning implementation stages in
+  `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`.
+
+The scope-decision items remain unchecked until the user approves a changed
+completion boundary. They are not evidence that the already-authored
+current-state pages are missing.
 
 ### Additional implementation verification
 

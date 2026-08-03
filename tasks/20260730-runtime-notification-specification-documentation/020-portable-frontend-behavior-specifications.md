@@ -5,19 +5,19 @@ mobile, desktop, web, or any other implementation language.
 
 ## Requirements checklist
 
-- [ ] The root notification frontend-behavior specification is sufficient to
+- [x] The root notification frontend-behavior specification is sufficient to
   implement compliant notification and action-display behavior in a new
   frontend.
-- [ ] A root frontend Sessions-actions specification defines the reusable
+- [x] A root frontend Sessions-actions specification defines the reusable
   action surface, built-ins, plugin actions, pinning, settings/new-session
   behavior, result routing, and accessibility.
-- [ ] Stable `FNT-*` and `FSA-*` requirements contain portable acceptance
+- [x] Stable `FNT-*` and `FSA-*` requirements contain portable acceptance
   examples and evidence links.
-- [ ] The specifications distinguish normative frontend behavior from current
+- [x] The specifications distinguish normative frontend behavior from current
   SDK, React Native component, mobile, and desktop implementation choices.
-- [ ] Reusable frontend capabilities are specified conceptually without
+- [x] Reusable frontend capabilities are specified conceptually without
   requiring current component/class names.
-- [ ] Cross-package notification and action-display shapes are referenced
+- [x] Cross-package notification and action-display shapes are referenced
   rather than duplicated.
 
 Parent Task:
@@ -73,8 +73,7 @@ Define:
 - local historical Show again without lifecycle reactivation;
 - read-only/safe historical action behavior;
 - pending interaction nondismissibility and waiting-for-input navigation;
-- reconnect examples for persistent session versus owner-memory application
-  state.
+- reconnect examples for persistent session and durable application state.
 
 Specify conceptual reusable capabilities:
 
@@ -143,3 +142,12 @@ Use these for evidence, not as the specification source:
   `SessionChatScreen.tsx`
 - desktop `DesktopRoot.tsx`, `SessionsPanel.tsx`, `ChatPane.tsx`, and global
   display/window coordinators.
+
+## Completion Notes
+
+Completed in the documentation baseline. Root portable frontend behavior and
+Sessions-action specifications exist with `FNT-*` and `FSA-*` requirement
+matrices, conceptual capabilities, acceptance examples, and links to the
+cross-package notification/action-display contracts. Later implementation
+stages may update evidence and implementation status without changing this
+subtask's authority boundary.
