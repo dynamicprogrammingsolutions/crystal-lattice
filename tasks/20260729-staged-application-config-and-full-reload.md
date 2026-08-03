@@ -44,10 +44,10 @@ conditional follow-up work.
 - [x] Replacing the application closes the retired application's MCP registries,
   MCP server sessions/transports, runtime-store values, and other plugin-owned
   resources before reload is reported complete.
-- [ ] Delivery is divided into manually approved stages; only the next stage is
+- [x] Delivery is divided into manually approved stages; only the next stage is
   planned, and no later stage begins until the current stage passes its manual
   checkpoint.
-- [ ] If completion requires a materially more complicated solution than the
+- [x] If completion requires a materially more complicated solution than the
   approved stage plan or crosses an approved ownership boundary—for example, a
   plugin-local feature unexpectedly requires broader platform changes—work
   stops and the user approves a revised plan before implementation continues.
@@ -55,22 +55,22 @@ conditional follow-up work.
   including event scope, payload fields, lifecycle, de-duplication, event
   polling, persistence/reconnect limits, presentation semantics, and failure
   behavior.
-- [ ] Application notifications with banner presentation render only on the
+- [x] Application notifications with banner presentation render only on the
   mobile Sessions screen, below search/filter, and in one aggregated desktop
   message/detail-area rail for all open connections. Both placements use
   distinct opaque info, success, warning, and error colors, accessible
   dismissal, and normal layout that pushes subsequent content down.
 - [x] Desktop snapshot-selection/read-only feedback composes the same shared
   banner primitive while remaining scoped to its Messages pane.
-- [ ] The top of the mobile and desktop Sessions surfaces uses the reusable
+- [x] The top of the mobile and desktop Sessions surfaces uses the reusable
   pinnable actions bar for server settings, session-list refresh, new-session
   creation, and plugin-contributed application actions.
-- [ ] Desktop Sessions actions follow existing macOS conventions: the action
+- [x] Desktop Sessions actions follow existing macOS conventions: the action
   menu uses the native anchored popover, server settings open in a separate
   React Native macOS window, new session uses the existing agent-picker window,
   and application-action forms use the existing desktop action-dialog
   presentation.
-- [ ] Application notifications and Sessions actions remain isolated by
+- [x] Application notifications and Sessions actions remain isolated by
   backend connection, including when the desktop has multiple open
   connections.
 - [x] Persistent session notifications are implemented according to the
@@ -83,9 +83,9 @@ conditional follow-up work.
   responses support `banner`, `inline`, and mobile `modal`; desktop normalizes
   notification `modal` to `inline` because React Native modal presentation is
   unsupported there.
-- [ ] Desktop routes every banner presentation—application-global,
-  session-scoped, or action-response—to the same connection-aware top banner
-  rail.
+- [x] Desktop routes application-global, active-session, and action-response
+  banner presentations to the shared message/detail-area notification
+  location while retaining connection/session ownership.
 - [x] Dedicated demonstration plugins can trigger application notifications,
   session notifications, and direct action responses for every presentation
   supported by their producer/host contract and every semantic variant without
@@ -98,7 +98,7 @@ conditional follow-up work.
 - [x] Mobile session notifications render only on the matching Chat screen,
   mobile application notifications render only on Sessions, and neither uses
   redundant connection/session context labels.
-- [ ] Desktop connection-level notifications from every open connection share
+- [x] Desktop connection-level notifications from every open connection share
   one normal-flow rail in the message/detail area with connection labels;
   active-session notifications share that visual location without redundant
   session labels, and notification popup/modal requests use inline cards in
@@ -109,6 +109,30 @@ Supports:
 
 Implements the non-blocking Stage 1 overlap from:
 `tasks/20260619-generic-session-notifications/000-main.md`
+
+## Current status
+
+As of August 3, 2026:
+
+- Stage 1 full application replacement is implemented, automatically verified,
+  and manually accepted.
+- The revised mobile and desktop notification/action-surface checkpoint is
+  manually accepted. Mobile Detox and macOS XCUITest evidence is recorded
+  below; the later authoritative-dismissal desktop checkpoint is recorded in
+  the notification follow-up task.
+- Notification lifecycle work after the original Stage 1 baseline is owned by
+  `tasks/20260619-generic-session-notifications/045-stage-1-authoritative-dismissal-retention-history-and-interaction-readiness.md`.
+  That follow-up has completed authoritative dismissal, durable application
+  notification storage, mobile/desktop parity, and retention through Stage D.
+  Its history UI and interaction-ready stages remain separate follow-up scope.
+- Commit `ad2ce849` later centralized application request execution and reduces
+  the original optional Stage 4 concern, but live reload policy for an
+  in-flight request remains deferred.
+- The only required product outcome still open in this task is Stage 3
+  production hardening of the credential-changing action.
+- Optional general configuration mutation and live config-only activation
+  remain deferred because full application replacement satisfies the current
+  reload requirements.
 
 ## Requirement questions
 
@@ -162,7 +186,12 @@ finding, return the Stage 1 plan to `Draft`, and obtain approval for the revised
 scope. Do not treat an apparently useful broader refactor as implicit
 authorization.
 
-## Ground truths
+## Original planning ground truths
+
+This section records the pre-implementation state used to choose the Stage 1
+architecture. Statements about missing UI, owner-memory-only notifications, or
+request routing are historical where superseded by the current status above,
+task 045, and later request-execution centralization.
 
 - On the base `develop` implementation, `AgentApplication` resolves
   configuration, plugin catalogs, per-agent runtimes, application-plugin state,
@@ -238,6 +267,8 @@ authorization.
 
 ### Stage 1 — Full application replacement and sample environment plugin
 
+Status: Complete and manually accepted on August 3, 2026.
+
 Keep the CLI/server process alive while an owner-level coordinator closes
 application-operation admission, drains active work, constructs a candidate
 `AgentApplication`, atomically replaces the selected application, and reopens
@@ -257,10 +288,12 @@ server/console ownership, and persisted session continuity. It intentionally
 does not add new credential transport restrictions, protected secret storage,
 or a general JSON configuration mutation API.
 
-Completion requires a manual checkpoint. No later stage is planned until that
-checkpoint is approved.
+Completion required a manual checkpoint. The user recorded that checkpoint as
+complete on August 3, 2026.
 
 ### Stage 2 — Optional general configuration mutation
+
+Status: Deferred; no demonstrated requirement currently justifies this stage.
 
 Add an application-owned JSON/overlay mutation and transaction API only if the
 Stage 1 checkpoint or dependent iOS design demonstrates a concrete setting that
@@ -268,6 +301,8 @@ cannot be represented by allowlisted environment values or owner-supplied
 configuration inputs.
 
 ### Stage 3 — Required credential-action hardening
+
+Status: Required and not yet implemented.
 
 Make credential-changing application actions production-safe through the
 approved transport/authentication policy, secret persistence and precedence
@@ -277,11 +312,16 @@ or skipped.
 
 ### Stage 4 — Optional self-contained request execution
 
+Status: Partially addressed later by centralized request execution in commit
+`ad2ce849`; the optional in-flight reload policy remains deferred.
+
 Refactor the complete request lifecycle out of mutable `AgentApplication` state
 only if full replacement leaves problematic request ownership or maintenance
 complexity.
 
 ### Stage 5 — Optional live config-only activation
+
+Status: Deferred.
 
 For reloads that do not change plugin topology, optionally allow active requests
 to continue with their old config, adopt the new config at a safe phase
@@ -740,6 +780,11 @@ surface-ownership refinement as the current product behavior.
 
 ### Implementation decisions and open questions
 
+This section preserves the decisions made for the original Stage 1 and its UI
+checkpoint follow-ups. Notification storage, dismissal, retention, and
+reconnect details were subsequently superseded by the authoritative contract
+implemented under task 045.
+
 Decided for this draft:
 
 - Normal Stage 1 reload reconstructs `AgentApplication`; it does not restart the
@@ -855,7 +900,7 @@ Approved checkpoint-follow-up decisions:
   coverage.
 - [x] Update Stage 1 documentation.
 - [x] Run the Stage 1 automated verification and record evidence.
-- [ ] Stop for the required manual checkpoint and obtain approval before
+- [x] Stop for the required manual checkpoint and obtain approval before
   planning any next stage.
 - [x] Approve the expanded manual-checkpoint follow-up execution plan.
 - [x] Add and document the application notification controller/contract.
@@ -901,7 +946,7 @@ Approved checkpoint-follow-up decisions:
 - [x] Update current notification documentation while retaining prior plan and
   implementation history.
 - [x] Run focused ownership/aggregation verification and record evidence.
-- [ ] Stop for the revised mobile and desktop manual checkpoint.
+- [x] Stop for the revised mobile and desktop manual checkpoint.
 
 ### Requirement verification
 
@@ -932,7 +977,8 @@ Approved checkpoint-follow-up decisions:
   desktop files or raw secrets.
 - **Integration coverage:** Collect and pass real HTTP and subprocess tests for
   both a general configuration change and a plugin-catalog change.
-- **Manual checkpoint:** The user confirms drain/reject behavior, successful
+- **Manual checkpoint — completed August 3, 2026:** The user confirms
+  drain/reject behavior, successful
   replacement, session continuity, plugin catalog changes, dotenv key update,
   and failure recovery in the real local runtime.
 - **Application notification contract:** Poll globally through the production
@@ -997,6 +1043,15 @@ request refactoring, and live active-request migration remain conditional.
   targeted mobile integration, formatting, and docs checks pass.
 
 ## Implementation Notes
+
+- **Formal manual checkpoint completion (August 3, 2026):** The user confirmed
+  the original reload checkpoint and the revised mobile/desktop checkpoint as
+  complete. This closes manual acceptance for Stage 1: drain/reject behavior,
+  full replacement without process restart, session continuity, plugin
+  catalog/config changes, dotenv update/rollback behavior, notification
+  placement, unified Sessions actions, desktop conventions, and
+  multi-connection isolation. Credential-action production hardening remains
+  the only required unfinished outcome in this task.
 
 - **Manual notification/display smoke guidance (July 30, 2026):** The personal
   `~/.crystal/config.json` enables the three non-default local demonstration
@@ -1106,9 +1161,12 @@ request refactoring, and live active-request migration remain conditional.
   `application.application_config` dotenv path and editable provider/key
   allowlists. Exact-config preflight and one full owner reload succeeded without
   provider calls.
-- Checkpoint follow-up implemented persistent session notifications, generic
-  owner-memory application notifications, and one standard display envelope
-  for application/session notifications and action responses.
+- Checkpoint follow-up initially implemented persistent session notifications,
+  owner-lifetime application notifications, and one standard display envelope
+  for application/session notifications and action responses. Task 045 later
+  replaced the owner-memory-only notification authority with configurable
+  durable application notification storage and server-authoritative
+  dismissal.
 - Mobile owns application-global display state at `ConnectedRoot`; the
   July 31 surface-ownership correction limits rendering to Sessions or the
   matching Chat. Desktop polls every open backend and aggregates
@@ -1118,9 +1176,9 @@ request refactoring, and live active-request migration remain conditional.
   the established inline fallback.
 - Added non-default `dummy-application-notification-app`,
   `dummy-session-notification-app`, and `dummy-action-display-app` packages.
-- Added a focused mobile Detox harness for native banner z-order/touch behavior.
-  It has not been run because component/real-backend tests cover the
-  non-native contract and simulator execution is deferred.
+- Added a focused mobile Detox harness for native banner z-order/touch
+  behavior. It was subsequently approved and passed on July 30, 2026, as
+  recorded below.
 - Follow-up evidence: core `415 passed, 26 deselected, 1 xfailed`;
   application `315 passed, 90 deselected`; frontend SDK `266 passed`;
   frontend React `20 passed`; shared RN unit suite `7 passed`; mobile
