@@ -63,10 +63,11 @@ Out of scope:
    changes?
    - Recommendation: reject the new send so the user does not pay for
      compaction that cannot be committed.
-2. Is cooperative cancellation sufficient when the synchronous OpenAI SDK
-   call cannot be interrupted immediately?
-   - Recommendation: yes for the first implementation, provided cancelled or
-     closed work can never apply a late result.
+2. Is transport cancellation sufficient when the current OpenAI compact
+   endpoint has no background operation ID or explicit cancel method?
+   - Recommendation: yes. Run compact through the async SDK and cancel its
+     task, which closes/resets the underlying HTTP exchange. Retain
+     late-result and guarded-commit checks as defense in depth.
 3. What should application reload do with active compaction?
    - Recommendation: close the application-generation-owned process, mark it
      interrupted, and discard a late provider result rather than delaying
@@ -78,10 +79,11 @@ Out of scope:
    obtain request admission?
    - Recommendation: keep compaction successful and present a persistent
      manual Continue action.
-6. Should compaction progress remain an ordinary notification or introduce a
-   distinct operation kind before notification history is implemented?
-   - Recommendation: retain `kind: "notification"` and add only the structured
-     operation information needed by this feature.
+6. How should authoritative operation state relate to notifications before a
+   persistent operation-history UI exists?
+   - Recommendation: use a distinct application operation record for
+     admission, status, and future queries; retain `kind: "notification"` as
+     the current persistent attention/presentation projection.
 
 ## Supporting facts
 
@@ -735,31 +737,516 @@ Checkpoint B:
 
 ### Stage C — Background native compaction and progress
 
-Refactor the OpenAI Responses package so the user-facing native compaction
-action starts a managed process and returns an accepted result promptly.
+Stage C plan status: Approved on August 3, 2026.
 
-Keep provider-native input construction, API invocation, output sanitation,
-and native-history mapping in the existing provider-extension implementation.
-If application-level orchestration is cleaner, add a narrowly scoped companion
-application plugin in the same package rather than moving provider-native
-logic into the application layer.
+#### Material admission decision
 
-The compaction process should:
+Stage A provides request-versus-request single-flight admission, and Stage B
+provides managed-process identity, but there is not yet one atomic admission
+boundary shared by ordinary requests and compaction.
 
-- create one persistent session notification for the occurrence;
-- update its revision approximately every 15 seconds with elapsed time and a
-  safe phase description;
-- execute native compaction against a captured session baseline;
-- use existing optimistic reconciliation when committing;
-- resolve the notification on success;
-- turn the notification into a persistent error with retry guidance on
-  provider or commit failure;
-- expose cancellation through a notification follow-up action;
-- discard late provider results after cancellation or application close;
-- unregister itself on every terminal path.
+Optimistic session reconciliation prevents a corrupt late compaction commit,
+but by itself it allows this race:
 
-Use deterministic clocks and controllable provider calls in automated tests
-instead of real 15-second waits.
+1. compaction captures history and starts the provider call;
+2. an ordinary request appends or generates new history;
+3. compaction finishes and fails its commit safely.
+
+The user still pays for compaction that can no longer be applied.
+
+Recommended Stage C decision: add a small application-level operation service
+that owns operation admission and live operation records, while the Stage B
+managed-process registry continues to own runtime-object lifetime.
+
+Store the operation service in `RuntimeStore` rather than adding
+`AgentApplication` methods for its registry contract. Both
+`SessionRequestCoordinator` and the compaction application plugin receive the
+same service instance.
+
+The operation service should:
+
+- atomically reserve an operation ID and optional exclusivity key;
+- support session-scoped and application-scoped operations;
+- expose one immutable serializable live record per operation;
+- update state, phase, timestamps, progress metrics, cancellability, and
+  follow-up descriptors;
+- list current operations globally or by session;
+- release exclusivity when an operation reaches a terminal state;
+- retain only bounded in-memory terminal records in Stage C;
+- remain independent from worker threads, concrete process objects, and
+  notification presentation.
+
+Ordinary requests and compaction reserve the same session exclusivity key:
+
+- a competing request still returns `already_running` when the admitted
+  operation is another request;
+- a request competing with compaction receives an explicit session-busy
+  application error that FastAPI maps to HTTP 409;
+- compaction competing with a request or existing compaction returns a
+  user-facing busy result without starting provider work.
+
+The managed-process registry stores the concrete runtime object used for
+lookup, cancellation, and close. The operation service stores the
+serializable, inspectable status and admission lease. Notifications project
+important operation changes into the current user-facing attention surface.
+
+This separation prepares later product surfaces without making notifications
+or managed processes authoritative operation history:
+
+- a connection-level list of all active operations;
+- per-session operation status;
+- cancellation from a central operations menu;
+- recent operation outcomes;
+- retry actions;
+- no-message request continuation or resend actions;
+- later durable operation history and event replay.
+
+Persistence is not required in Stage C. The live record shape and terminal
+outcome model must be serializable so a later `OperationHistoryStore` can
+persist it without changing operation producers. Persistent retry/resend
+descriptors must be data, not Python closures, and must not capture
+credentials, conversation contents, or runtime objects.
+
+The technical document must distinguish:
+
+- retrying the producer action with safe serialized parameters;
+- continuing the current session with no appended message;
+- exact replay of a historical request.
+
+The first two are feasible through action descriptors and the Stage A request
+coordinator. Exact historical replay is not promised: model/config overrides,
+attachments, credentials, tool availability, and session history may have
+changed, so it requires a separate immutable request-intent contract before it
+can be offered honestly.
+
+Alternative if strict rejection is not approved: leave ordinary requests
+admitted and rely on optimistic reconciliation to fail compaction visibly.
+That is data-safe but can waste provider work.
+
+Add `application/python/docs/development/operations.md` as the canonical
+technical document. Keep it separate from `request-execution.md`: request
+execution is one concrete operation producer, while operations cover
+cross-producer admission, status, observability, future query surfaces, and
+possible persistence.
+
+#### Package structure and action ownership
+
+Extract provider-native compaction into a shared package-local backend/helper,
+tentatively `openai_responses_native_compaction.py`.
+
+The shared backend should own:
+
+- compaction configuration and auth selection;
+- model and timeout selection;
+- native-prefix resolution and request preparation;
+- OpenAI compact transport parameters and response interpretation;
+- compacted-output validation and sanitation;
+- suffix preservation;
+- safe progress callback hooks at meaningful local stages.
+
+Define the actual SDK call behind a small package-local transport dependency:
+
+- the synchronous provider-extension adapter uses the normal `OpenAI`
+  transport;
+- the application process supplies an `AsyncOpenAI` transport whose task can
+  be cancelled;
+- both transports return the same compacted-response mapping to the shared
+  backend.
+
+Both the application plugin and provider extension use this backend. The
+application plugin supersedes the extension as the supported visible
+background implementation. The extension remains a synchronous
+alternative/historical adapter and a useful compatibility demonstration.
+
+Add a companion application plugin and process implementation in the same
+package, tentatively:
+
+- `openai_responses_native_compaction_app.py`;
+- `openai_responses_native_compaction_process.py`.
+
+Register the application plugin in `agent_plugin.json` with kind
+`"application"` and export it from the package.
+
+Move the user-facing `compact_native_history` action and UI element from the
+provider extension to the application plugin:
+
+- action ID remains `compact_native_history`;
+- action owner becomes `application`;
+- the existing end-index dialog and visible behavior remain;
+- `toggle_compaction_transcript_mode` stays a provider-extension action because
+  it is a quick synchronous native-history projection change.
+
+Rename the synchronous provider-extension compaction action to an explicitly
+alternative ID such as `compact_native_history_sync`. It has no default UI
+element and is not the supported user-facing action.
+
+The application process may initially invoke this adapter through
+`AgentCore.execute_session_action(...)`, but the important compaction work is
+owned by the shared backend rather than the extension class.
+
+Pass the application-owned cancellable transport through the core action
+context. The extension adapter remains synchronous from AgentCore's
+perspective, while its transport blocks on an async compact task owned by the
+process. This preserves the existing core preparation/rebuild pipeline and
+still gives the process a real task handle to cancel.
+
+Calling through `AgentCore` remains useful because it already:
+
+- resolves the active provider, extensions, features, and state;
+- validates action inputs;
+- obtains canonical native history;
+- initializes the action request and compiled instructions;
+- rebuilds visible messages from returned native history;
+- reapplies feature/provider transforms;
+- recomputes native-history integrity;
+- returns an unpersisted session suitable for the process's guarded commit.
+
+A direct backend call from the application plugin would otherwise duplicate
+or expose these core preparation/rebuild steps. Do not add public split-phase
+AgentCore APIs in Stage C merely to avoid the extension adapter. Reassess that
+only when a second background native-history operation needs the same seam.
+
+This avoids returning an accepted no-op result through the provider-extension
+session-action path, which would save the session after the background worker
+had already started and introduce a startup/commit race.
+
+#### Application action behavior
+
+The application action should:
+
+1. require a live writable session rather than a selected snapshot;
+2. verify that the session's effective tags include the native-compaction
+   extension;
+3. validate the optional visible `end_index` shape without calling the
+   provider;
+4. reserve one operation record and the session exclusivity key;
+5. choose one concrete process ID;
+6. construct the process with narrow dependencies;
+7. register and start it through `ManagedProcessRegistry`;
+8. return promptly with:
+   - `status: "accepted"`;
+   - `operation_id`;
+   - `process_id`;
+   - `notification_id`.
+
+Use the operation service's session exclusivity key to prevent duplicate
+compactions and competing ordinary requests. Put the unique operation ID in
+notification follow-up actions so a stale Cancel button can never target a
+later process.
+
+Add an application action such as `cancel_native_compaction` with
+`session_id`, `operation_id`, and `process_id`. It verifies that the operation
+and process identities still match, looks up the concrete process, and calls
+`request_cancel(...)`.
+
+#### Captured execution and safe commit
+
+The process must not call `AgentApplication.execute_session_action(...)` for
+the long-running operation because that method runs the provider transform and
+commits immediately. Cancellation or application close could arrive after the
+provider call but before that commit.
+
+Instead:
+
+1. create the initial notification;
+2. capture under the session lock:
+   - core;
+   - base and effective config;
+   - immutable session baseline;
+   - file-state baseline;
+   - the generic application context values needed by core action execution;
+3. launch a daemon provider worker that calls
+   `core.execute_session_action(...)` with the internal compaction action;
+4. receive an unpersisted `(new_session, result)` from the core;
+5. before persistence, acquire the process state lock and session lock;
+6. re-check cancellation/close while holding the state lock;
+7. commit with `app.save_session(..., reconcile=True)` against the captured
+   session and file-state baseline;
+8. discard the result if cancellation or close won before commit;
+9. report a `SessionConflictError` as a visible compaction failure without
+   overwriting current history.
+
+Holding the process state lock through the final guarded save gives close and
+cancellation a precise authority boundary:
+
+- if cancellation/close sets invalidation first, no commit occurs;
+- if commit has already acquired authority, it completes before close or
+  cancellation returns;
+- no result is applied after `close()` has returned.
+
+The process should pass the same application/core context capabilities used by
+ordinary session actions so feature initialization, system-message
+compilation, attachment/native-history behavior, and auth selection remain
+unchanged.
+
+#### Worker and heartbeat model
+
+`start()` should create the notification, capture the baseline, launch the
+daemon supervisor/provider work, and return.
+
+The supervisor waits for the blocking SDK operation with a production
+heartbeat interval of approximately 15 seconds. Each timeout publishes a new
+operation revision and notification projection with:
+
+- safe phase text;
+- elapsed whole seconds;
+- operation state;
+- whether cancellation remains available.
+
+Suggested safe phases:
+
+- `preparing`;
+- `waiting_for_provider`;
+- `committing`;
+- `cancellation_requested`.
+
+Do not include conversation content, credentials, raw native history, or full
+provider payloads in notification fields.
+
+Use injected monotonic/wall clocks and a configurable heartbeat interval in
+tests. Provider calls are controlled by events/futures; tests must not wait 15
+real seconds.
+
+The current OpenAI `/responses/compact` endpoint returns one final
+`CompactedResponse`. Its request schema does not expose semantic model-output
+streaming or `background`, and it does not provide an operation ID that can be
+polled. The OpenAI Responses cancel endpoint only accepts IDs for responses
+created with `background: true`, which compact does not support.
+
+Therefore OpenAI native compaction has no authoritative intermediary provider
+status, token count, polling state, or server-side cancellation in the current
+API. Its progress consists of:
+
+- client-known preparation stages;
+- an indeterminate `waiting_for_provider` phase;
+- elapsed-time heartbeats;
+- output validation and commit stages.
+
+The SDK's `with_streaming_response.compact(...)` wrapper exposes raw HTTP
+response handling, not model output events or incremental compact output, so
+it does not improve semantic progress reporting.
+
+Transport-level cancellation is nevertheless feasible. The existing OpenAI
+Responses provider already tracks in-flight requests and closes active SDK
+clients/streams from `cancel_request(...)`. Real-API tests cover the streaming
+Responses path, while the non-streaming path currently has mocked coverage.
+
+For compact, do not rely only on closing the synchronous SDK client or raw
+response from another thread. A local delayed-HTTP reproduction with the
+installed OpenAI/httpx stack found that cross-thread synchronous close did not
+unblock a compact call promptly either before headers or while reading the
+body.
+
+Use the async OpenAI SDK for the application-owned compact transport:
+
+- schedule `AsyncOpenAI.responses.compact(...)` as a task;
+- retain its event loop/task handle in the concrete process/transport;
+- `request_cancel(...)` marks commit invalid immediately and calls
+  `task.cancel()` on the owning loop;
+- await task termination and async-client cleanup;
+- resolve the operation as cancelled and release the session operation lease;
+- preserve the guarded commit check so even an unexpected late result cannot
+  apply.
+
+The same local reproduction showed async task cancellation interrupting both
+the pre-header wait and response-body wait promptly and resetting the HTTP
+connection.
+
+Represent the result as transport cancellation, not as a successful call to
+OpenAI's explicit background-response cancel endpoint. Add a gated hosted
+compact cancellation test to verify real-endpoint latency and cleanup when
+credentials are available.
+
+Design the shared operation progress API for richer producers:
+
+- `set_phase(...)`;
+- `heartbeat(...)`;
+- `report_progress(completed, unit, total=None)`;
+- `report_metric(name, value, unit=None)`;
+- terminal success/failure/cancellation.
+
+Claude, Kimi, and Gemini-style compaction currently call
+`core.send_request_stream(...)` but discard partial events and only collect the
+final message. Later migrations can consume partial events and report real
+output chunks, characters, or provider-reported token metrics. Exact token
+progress should only be shown when the provider stream supplies an
+authoritative monotonic token count; otherwise use chunk/character progress
+and final usage.
+
+There is no implemented Qwen compaction under `plugins/qwen-tools` yet; it is
+tracked separately. Its future implementation should use the same operation
+progress callbacks rather than adding a Qwen-specific status channel.
+
+#### Notification contract
+
+Create one persistent session notification per operation:
+
+- `kind: "notification"`;
+- stable notification key derived from the operation ID;
+- `status: "pending"` while active;
+- `severity: "info"`;
+- `presentation: "inline"`;
+- `dismissible: false` while running;
+- `retention: until_resolved`;
+- one Cancel `run_action` follow-up carrying session/operation/process IDs.
+
+`display.dismissible: false` is already part of the action-display contract and
+is honored by the shared React Native notification banner. No notification
+schema or frontend behavior change is needed to hide the dismiss control while
+the operation is running.
+
+The visible title/body should be sufficient for current frontends:
+
+```text
+Compacting native history
+Waiting for OpenAI native compaction. Elapsed: 45 seconds.
+```
+
+Add an optional structured `operation` object while keeping
+`kind: "notification"`:
+
+```json
+{
+  "version": 1,
+  "type": "openai_responses_native_compaction",
+  "id": "<operation-id>",
+  "state": "running",
+  "phase": "waiting_for_provider",
+  "started_at": "<RFC3339>",
+  "elapsed_seconds": 45,
+  "cancellable": true
+}
+```
+
+Add the corresponding optional type to the frontend SDK notification contract.
+Current frontends continue rendering title, body, variant, and actions; no
+compaction-specific component is required.
+
+All process notification mutations are serialized under a process-owned lock
+and use `expected_revision`. On revision conflict:
+
+- accept the authoritative current revision;
+- retry only when the record is still pending and belongs to the same
+  operation;
+- notification failure must not alter commit/cancellation correctness.
+
+Terminal behavior:
+
+- success:
+  update once with success state, resolve with compaction details, then remove
+  the process;
+- provider, malformed-output, or reconciliation failure:
+  retain a pending persistent error notification with dismissibility, concise
+  retry guidance, and a Retry action carrying the original `end_index`;
+- user cancellation:
+  resolve with cancellation details after the provider call returns and its
+  result is discarded;
+- application replacement or shutdown:
+  `close()` marks the notification interrupted, revokes commit authority, and
+  returns promptly; any late provider result is discarded.
+
+Do not add a generic notification cancel method to the managed registry.
+
+#### Existing native behavior and compatibility
+
+Keep unchanged:
+
+- effective ChatGPT/API auth selection;
+- compaction-model selection;
+- timeout validation;
+- request initialization and compiled instructions;
+- native input sanitation;
+- system/developer-message restoration;
+- prefix compaction and suffix preservation;
+- compacted-output sanitation;
+- placeholder versus expanded transcript projection;
+- native integrity rebuild.
+
+Migrate existing synchronous unit tests to the internal action ID so they
+continue proving the provider-native transform in isolation.
+
+Add compatibility coverage proving the visible UI action now resolves to the
+application plugin and returns accepted rather than blocking.
+
+#### Automated verification
+
+Process unit tests:
+
+- action returns before a controlled provider call is released;
+- operation admission, immutable snapshots, list-by-session, and bounded
+  terminal retention;
+- request-versus-compaction and compaction-versus-request atomic races;
+- initial notification and repeated heartbeat revisions;
+- elapsed-time and safe-phase updates;
+- backend stage callbacks without OpenAI intermediary events;
+- successful guarded commit and process removal;
+- provider exception and malformed/empty output;
+- async transport cancellation before response headers and while reading the
+  response body;
+- user cancellation before provider completion;
+- close/replacement before provider completion;
+- cancellation and close immediately before commit;
+- stale notification revision handling;
+- late provider results never commit;
+- conflict after concurrent history change preserves current history;
+- stale Cancel occurrence cannot target a later process.
+
+Application/action integration:
+
+- session UI exposes the application-owned compaction action only when the
+  extension tag is active;
+- HTTP action execution returns accepted promptly;
+- notification events are observable through the ordinary event API;
+- cancel follow-up routes through `action_owner: "application"`;
+- readonly snapshot selection fails before provider work;
+- strict admission, if approved, rejects ordinary sends and duplicate
+  compaction while the process owns the session gate;
+- live operation listing exposes both ordinary requests and compaction through
+  one serializable record shape;
+- application-owner replacement marks interruption and prevents late commit.
+
+Provider compatibility:
+
+- all existing native-compaction transform tests pass under the internal
+  action ID;
+- targeted OpenAI Responses package tests pass;
+- the existing provider cancellation tests remain green;
+- a local delayed-HTTP compact transport test proves task cancellation closes
+  the exchange promptly;
+- a gated hosted compact cancellation test verifies the real endpoint when
+  credentials are available;
+- the existing independently reproducible unrelated provider-suite failures
+  remain reported separately if still present.
+
+Frontend contract:
+
+- frontend SDK accepts and merges operation-bearing notification revisions;
+- shared RN notification components render revised bodies and Cancel/Retry
+  actions without compaction-specific code;
+- focused mobile and desktop component tests cover at least two progress
+  revisions and the cancellation follow-up payload.
+
+#### Documentation
+
+Update:
+
+- add `application/python/docs/development/operations.md` covering operation
+  identity, scope, admission, exclusivity, live records, progress, managed
+  process relation, notification projection, request integration, cancellation,
+  terminal outcomes, and future persistent history/connection-level UI;
+- link the operations document from
+  `application/python/docs/development/request-execution.md` and the
+  application README development section;
+- `plugins/openai_responses/README.md` with asynchronous action behavior,
+  heartbeat-only OpenAI provider progress, local cancellation semantics,
+  interruption, errors, and conflict safety;
+- `plugins/docs/notifications-and-action-displays.md` with the concrete
+  heartbeat/revision example;
+- `plugins/docs/managed-background-processes.md` with a link to the first
+  production implementation;
+- plugin action docs for the application-owned Cancel/Retry follow-ups;
+- plugin authoring docs distinguishing application-operation status from
+  managed-process lifetime and notification presentation.
 
 Checkpoint C:
 
@@ -825,6 +1312,41 @@ Checkpoint E:
 - notification Stage E history planning can proceed with an established
   background-operation record shape.
 
+### Stage F — Provider-extension background-action alternative
+
+Treat this as a later follow-up within the same task after the application
+plugin implementation is stable.
+
+Investigate and, if justified, add a provider-extension authoring path that can
+start the same background compaction safely while sharing:
+
+- the OpenAI native compaction backend;
+- application operation records;
+- managed-process lifecycle;
+- notification projection;
+- cancellation semantics;
+- compact-and-continue or manual resend follow-ups.
+
+Do not start a background process directly inside the current synchronous
+provider-extension action and return unchanged native history. The application
+still saves the outer action result after the extension returns, creating a
+race with the background process.
+
+Preferred framework direction:
+
+- allow a session action result to request a deferred application action or
+  operation launch that runs only after the synchronous session-action save
+  succeeds;
+- optionally provide a failure-contained operation reporter in extension and
+  feature action context for synchronous phases and richer streaming backends;
+- let status records carry serializable follow-up action descriptors, including
+  the Stage D no-message continuation action;
+- document the application-plugin implementation and extension implementation
+  side by side in provider-extension and application-plugin authoring docs.
+
+The extension alternative should remain a demonstration of capabilities, not a
+second compaction backend or separate operation model.
+
 ### Implementation decisions and open questions
 
 - Recommended: shared request orchestration is an application-layer service or
@@ -834,8 +1356,13 @@ Checkpoint E:
 - Recommended: the process receives narrow callbacks for notifications,
   session operations, and request continuation rather than using a registry
   that understands those domains.
-- Recommended: cancellation is cooperative for the initial synchronous SDK
-  implementation.
+- Recommended: operation admission and serializable live status are owned by a
+  RuntimeStore-backed application operation service; managed processes own
+  runtime objects; notifications are a presentation projection.
+- Confirmed: OpenAI native compaction has no semantic output stream,
+  background operation ID, or explicit server-side cancel API in the current
+  compact endpoint. The async SDK request can still be cancelled at the HTTP
+  transport level; guarded commit and late-result discard remain required.
 - Recommended: new sends are rejected while compaction owns session
   admission.
 - Recommended: application replacement closes and invalidates compaction
@@ -851,10 +1378,17 @@ Checkpoint E:
 - Stage A approval decision: keep HTTP idempotency in FastAPI while moving
   single-flight admission, request preparation, worker execution, and event
   publication into the application layer.
-- Open: whether the existing provider-extension action remains the visible
-  action or a companion application plugin owns the visible orchestration
-  action.
-- Open: exact structured operation fields carried by the notification.
+- Stage C proposed decision: the companion application plugin owns the visible
+  background action; the provider extension remains a synchronous
+  alternative/historical adapter over the same backend.
+- Stage C proposed decision: use `AgentCore.execute_session_action(...)` for
+  the in-memory adapter path because it preserves provider/feature
+  initialization and native-history rebuild; do not add split-phase core APIs
+  yet.
+- Open: exact serializable operation record fields and bounded in-memory
+  terminal retention limits.
+- Open: whether Stage F should add deferred application actions, an
+  extension-facing operation reporter, or both.
 
 ### Documentation
 
@@ -871,6 +1405,13 @@ Checkpoint E:
   business logic.
 - Update notification specifications only for public record or presentation
   changes demonstrated by the implementation.
+- Add the application operation technical guide under
+  `application/python/docs/development/` and explicitly cover future
+  connection-level operation lists, durable outcomes, retry/resend action
+  descriptors, and the boundary between operation state, managed processes,
+  events, and notifications.
+- After Stage F, document both the application-plugin and provider-extension
+  background-action patterns and explain when each is appropriate.
 
 ### Task checklist
 
@@ -882,12 +1423,14 @@ Checkpoint E:
 - [x] Approve the detailed Stage B plan.
 - [x] Implement and verify Stage B.
 - [x] Complete checkpoint B.
+- [x] Approve the detailed Stage C plan and shared session-operation admission.
 - [ ] Implement and verify Stage C.
 - [ ] Complete mobile manual checkpoint C.
 - [ ] Implement and verify Stage D.
 - [ ] Complete mobile manual checkpoint D.
 - [ ] Implement and verify Stage E.
 - [ ] Complete desktop/mobile checkpoint E.
+- [ ] Decide and, if approved, implement Stage F extension alternative.
 - [ ] Complete documentation and requirement evidence.
 - [ ] Record completion notes.
 
