@@ -148,6 +148,12 @@ def close(self, state: Dict[str, Any]) -> None:
 idempotent and release resources owned by the plugin, such as background
 processes or OS handles.
 
+For background work that must be found by later actions and close with the
+application generation, prefer the shared
+[managed background process registry](managed-background-processes.md). It is
+stored in `RuntimeStore`, so plugins do not need to duplicate process maps or
+add another `AgentApplication` contract.
+
 ---
 
 ## UI context in `get_ui_elements`

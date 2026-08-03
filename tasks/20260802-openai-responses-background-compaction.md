@@ -25,7 +25,7 @@ orchestration out of the FastAPI adapter into shared application-layer code.
 - [ ] Background compaction, session updates, and optional request
   continuation are coordinated safely with concurrent session activity and
   application reload or shutdown.
-- [ ] The background-operation lifecycle support introduced for compaction is
+- [x] The background-operation lifecycle support introduced for compaction is
   reusable by other plugins while notification, progress, and cancellation
   behavior remain controlled by the owning plugin.
 - [ ] Existing user-visible send behavior and compatibility are preserved
@@ -521,32 +521,217 @@ Checkpoint A:
 
 ### Stage B — Shared managed background-process lifecycle
 
-Add a small shared application-layer library for managed background process
-objects. Keep the contract independent of OpenAI, sessions, notifications,
-and request semantics.
+Stage B plan status: Implemented on August 3, 2026.
 
-The shared registry should:
+#### Target package and ownership
 
-- be obtained through `RuntimeStore`;
-- register and start a process under a unique ID;
-- allow later lookup;
-- support identity-safe removal;
-- close every registered process when the application runtime store closes;
-- remain safe under concurrent start, completion, lookup, removal, and close;
-- isolate startup and close failures so one process cannot strand the rest.
+Add a shared application-layer module:
 
-The managed process owns its own communication API. For example, the
-compaction process may expose `request_cancel(...)`, while another plugin may
-expose a queue or another operation-specific method.
+`core/python/agent_app/managed_processes.py`
 
-Do not migrate MCP or shell tools. Add compatibility-focused tests using
-dummy closeable runtime objects rather than modifying those plugins.
+This location makes the contract available to every Python plugin that depends
+on the `agent-core` distribution without creating a plugin-to-plugin
+dependency. Export the public types through `agent_app`, but do not add new
+managed-process methods to `AgentApplication`.
+
+Plugins obtain the registry through the existing runtime store:
+
+```python
+registry = get_managed_process_registry(app.get_runtime_store())
+```
+
+The helper uses one stable runtime-store key and
+`RuntimeStore.get_or_create(...)`. The runtime store remains the application
+lifetime owner and invokes `registry.close()` during application close or
+replacement.
+
+#### Public contract
+
+Define a minimal synchronous process protocol:
+
+```python
+class ManagedProcess(Protocol):
+    def start(self) -> None:
+        """Launch background work and return promptly."""
+
+    def close(self) -> None:
+        """Request shutdown, invalidate late work, and return promptly."""
+```
+
+The process object may expose any additional concrete API required by its
+plugin, such as `request_cancel(...)`, `send(...)`, or state inspection. Those
+methods are intentionally absent from the shared protocol.
+
+Define a registry with this conceptual API:
+
+```python
+registry.start(process_id, process) -> process
+registry.get(process_id) -> ManagedProcess | None
+registry.remove(process_id, process) -> bool
+registry.close() -> None
+```
+
+Use a type variable so `start(...)` and typed lookup helpers can preserve the
+concrete process type where practical. Keep runtime behavior duck-typed.
+
+Contract details:
+
+- the plugin chooses the unique process ID;
+- duplicate IDs fail explicitly rather than replacing live work;
+- `start(...)` reserves the ID before invoking process code;
+- `start()` must only launch work and return promptly;
+- `close()` must perform bounded shutdown signaling and return promptly rather
+  than waiting indefinitely for a non-interruptible provider or subprocess;
+- startup failure removes the reservation, attempts best-effort process
+  cleanup, and re-raises the original error;
+- `remove(process_id, process)` removes only when both ID and object identity
+  match, preventing an old completion callback from removing a replacement;
+- normal completion does not imply `close()`; the process removes itself after
+  it has completed its own terminal behavior;
+- registry close rejects future starts, closes every still-registered process,
+  and attempts all closes even when one fails;
+- startup-cleanup and close failures are logged, while registry close remains
+  best effort and does not stop at the first failing process;
+- close is idempotent;
+- the registry does not generate IDs, create threads, inspect process state,
+  persist records, publish events, send notifications, or define cancellation
+  semantics.
+
+#### Start, completion, and close races
+
+Use an internal entry state and condition variable so arbitrary process code is
+not called while holding the registry lock.
+
+The registry should distinguish `starting` from `running` entries:
+
+1. reserve a `starting` entry under the registry lock;
+2. call `process.start()` outside the lock;
+3. promote the same entry to `running` after successful return;
+4. remove and best-effort close it after startup failure;
+5. allow identity-safe removal requested by an extremely fast completion while
+   startup is still returning;
+6. make `close()` reject new starts and wait for in-progress `start()` calls to
+   finish their registry transition;
+7. if close wins the race, close the newly started process before registry
+   close returns.
+
+The prompt-returning `start()` requirement prevents an application shutdown
+from waiting on the actual long-running operation. The operation itself runs in
+the process-owned thread, task, subprocess, or runtime.
+
+`get(...)` may return the reserved process while it is starting. This keeps
+lookup simple and allows operation-specific communication as soon as the
+process has been registered.
+
+#### Dependency injection and process responsibilities
+
+Construct the process with its dependencies before registration. For
+compaction this can later include narrow callbacks or capability objects for:
+
+- notification creation/revision/resolution;
+- session baseline loading and commit;
+- request continuation;
+- clocks and timers;
+- provider invocation;
+- identity-safe registry removal.
+
+The generic registry must not import notification, session, request, OpenAI,
+HTTP, or frontend modules.
+
+The process is responsible for:
+
+- its worker implementation;
+- cooperative cancellation;
+- progress and error reporting;
+- refusing late commits after cancellation or close;
+- terminal notification behavior;
+- removing itself from the registry on normal completion.
+
+#### MCP and shell compatibility boundary
+
+Do not modify or wrap the existing MCP and shell registries in Stage B.
+
+- MCP owns an aggregate registry of asynchronous server runtimes, discovery
+  state, and tool calls. Its existing `RuntimeStore` ownership already provides
+  application close.
+- `tool-compat-shared.BackgroundProcessRegistry` owns durable subprocess
+  manifests, detached-process reconciliation, output files, and shutdown
+  policies. The new in-memory object registry must not duplicate or replace
+  those semantics.
+
+Document that future adapters may register an owning facade when useful, but
+there is no requirement that every subprocess or MCP server become an
+individual `ManagedProcess`.
+
+#### Automated verification
+
+Add focused core tests for:
+
+- start, lookup, normal identity-safe removal, and close;
+- duplicate process IDs;
+- stale removal after a replacement uses the same ID;
+- startup failure cleanup without affecting other processes;
+- one failing `close()` not preventing remaining closes;
+- idempotent registry close and rejection of later starts;
+- concurrent starts for the same ID admitting exactly one process;
+- completion/removal while `start()` is still returning;
+- close racing with a controlled startup and closing the admitted process
+  before registry close returns;
+- `RuntimeStore.close()` closing the registry and all registered objects.
+
+Add one application-level integration fixture plugin whose public actions:
+
+1. construct and start a dummy managed process;
+2. return immediately with its process ID;
+3. find it in a later action;
+4. call a process-specific communication method;
+5. report observed state.
+
+Run that flow through `AgentApplication.execute_application_action(...)`, then
+replace the application through `AgentApplicationOwner` and assert that the old
+generation closes the dummy process.
+
+The fixture should live in the owning test package, not as a production plugin.
+
+Retain the existing MCP owner-reload test and shell registry tests as
+compatibility evidence; no new dependency on the shared registry should be
+introduced.
+
+#### Documentation
+
+Add a generic plugin-authoring page:
+
+`plugins/docs/managed-background-processes.md`
+
+It should explain:
+
+- when to use this in-memory application-lifetime registry;
+- when to use a durable subprocess registry instead;
+- process construction and dependency injection;
+- start, lookup, communication, completion removal, and close;
+- why notifications and cancellation stay process-owned;
+- the non-blocking `start()` requirement;
+- application reload and shutdown behavior;
+- a minimal dummy process example.
+
+Link it from:
+
+- `plugins/docs/index.md`;
+- `plugins/docs/actions.md`;
+- `plugins/docs/application-plugins.md`;
+- `plugins/docs/provider-extensions.md`.
+
+Do not add compaction-specific notification examples until Stage C defines the
+actual process behavior.
 
 Checkpoint B:
 
 - a dummy application plugin can start a process, return, find it in a later
   action, communicate with it, and observe it close during application
-  replacement.
+  replacement;
+- registry concurrency tests prove duplicate admission, startup cleanup,
+  identity-safe completion, and close/start race behavior;
+- MCP and shell behavior remains unchanged.
 
 ### Stage C — Background native compaction and progress
 
@@ -694,8 +879,9 @@ Checkpoint E:
 - [x] Implement and verify Stage A.
 - [x] Write and verify the approved Stage A request-execution development guide.
 - [ ] Complete manual checkpoint A.
-- [ ] Implement and verify Stage B.
-- [ ] Complete checkpoint B.
+- [x] Approve the detailed Stage B plan.
+- [x] Implement and verify Stage B.
+- [x] Complete checkpoint B.
 - [ ] Implement and verify Stage C.
 - [ ] Complete mobile manual checkpoint C.
 - [ ] Implement and verify Stage D.
@@ -814,3 +1000,46 @@ Additional verification findings:
 Manual checkpoint A remains open. Verify an ordinary send and cancellation
 from mobile and desktop against the same server, then confirm that duplicate
 sends are rejected without appending a second message.
+
+### Stage B — Shared managed background-process lifecycle
+
+Implemented on August 3, 2026.
+
+Outcome:
+
+- added `agent_app.managed_processes` as a shared library in the `agent-core`
+  distribution;
+- added a minimal `ManagedProcess` protocol with bounded synchronous
+  `start()` and `close()` methods;
+- added a `ManagedProcessRegistry` with unique-ID admission, lookup,
+  identity-safe removal, startup cleanup, best-effort close, and idempotent
+  shutdown;
+- added `get_managed_process_registry(...)`, which stores one registry under a
+  stable `RuntimeStore` key without adding another `AgentApplication` method;
+- made close/start, duplicate-start, fast-completion, stale-removal, startup
+  failure, and individual close-failure behavior explicit and thread-safe;
+- kept notifications, progress, cancellation, communication, worker
+  implementation, and late-result protection owned by the concrete process;
+- retained existing MCP and durable shell process registries unchanged;
+- added a test-only application plugin proving start, later lookup,
+  process-specific communication, and close on application replacement;
+- added the generic plugin-authoring guide
+  `plugins/docs/managed-background-processes.md` and linked it from action,
+  application-plugin, provider-extension, plugin-index, and public docs-site
+  navigation.
+
+Automated evidence:
+
+- `pytest core/python/tests -q`: 442 passed, 26 deselected, 1 xfailed;
+- `pytest application/python/tests -q`: 318 passed, 90 deselected;
+- `pytest plugins/mcp-runtime-app/tests/test_application_owner_reload.py -q`:
+  1 passed;
+- `pytest plugins/tool-compat-shared/tests/test_background_processes.py -q`:
+  4 passed;
+- docs-site preparation and MkDocs build passed with existing warnings;
+- focused Ruff and Black checks passed;
+- `git diff --check` passed.
+
+Checkpoint B is complete through automated public-boundary coverage. Stage C
+can now build the first production process object without extending the
+registry contract.

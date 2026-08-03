@@ -731,6 +731,12 @@ def execute_action(
         pass
 ```
 
+Provider-extension actions that launch long-running application-owned work can
+use the shared
+[managed background process registry](managed-background-processes.md) when
+`context["app"]` is available. The concrete process remains responsible for
+provider calls, notifications, cancellation, and late-result safety.
+
 ---
 
 ## Testing strategy

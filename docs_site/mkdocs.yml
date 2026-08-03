@@ -85,6 +85,7 @@ plugins:
           - plugin-development/provider-extensions.md: Provider extension guide.
           - plugin-development/feature-plugins.md: Feature plugin guide.
           - plugin-development/application-plugins.md: Application plugin guide.
+          - plugin-development/managed-background-processes.md: Managed background process guide.
           - plugin-development/tool-plugins.md: Tool plugin guide.
           - plugin-development/tool-interop.md: Tool interop flow.
           - plugin-development/node-tool-plugins.md: Node tool plugin guide.
@@ -143,6 +144,7 @@ nav:
     - Provider Extensions: plugin-development/provider-extensions.md
     - Feature Plugins: plugin-development/feature-plugins.md
     - Application Plugins: plugin-development/application-plugins.md
+    - Managed Background Processes: plugin-development/managed-background-processes.md
     - Tool Plugins: plugin-development/tool-plugins.md
     - Tool Interop Flow: plugin-development/tool-interop.md
     - Node Tool Plugins: plugin-development/node-tool-plugins.md

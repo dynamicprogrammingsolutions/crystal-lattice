@@ -16,6 +16,7 @@ They are deliberately absent from production default configuration.
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Feature plugins](feature-plugins.md)
 - [Application plugins](application-plugins.md)
+- [Managed background processes](managed-background-processes.md)
 - [Tool plugins](tool-plugins.md)
 - [Tool interop flow](tool-interop.md)
 - [Node tool plugins](node-tool-plugins.md)

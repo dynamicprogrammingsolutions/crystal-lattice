@@ -24,6 +24,13 @@ from .request_execution import (
     SessionRequestResult,
     SessionRequestStart,
 )
+from .managed_processes import (
+    ManagedProcess,
+    ManagedProcessAlreadyExistsError,
+    ManagedProcessRegistry,
+    ManagedProcessRegistryClosedError,
+    get_managed_process_registry,
+)
 
 __all__ = [
     "AgentApplication",
@@ -31,8 +38,13 @@ __all__ = [
     "AgentApplicationOwner",
     "ApplicationReloadPendingError",
     "InMemoryApplicationNotificationStore",
+    "ManagedProcess",
+    "ManagedProcessAlreadyExistsError",
+    "ManagedProcessRegistry",
+    "ManagedProcessRegistryClosedError",
     "SessionRequestAlreadyRunningError",
     "SessionRequestResult",
     "SessionRequestStart",
     "SQLiteApplicationNotificationStore",
+    "get_managed_process_registry",
 ]

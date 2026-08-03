@@ -135,6 +135,11 @@ application-global notification events for requested, completed, and failed
 states. Frontends refresh action definitions only after completion, when the
 replacement application is active.
 
+Actions that launch application-lifetime work should use the shared
+[managed background process](managed-background-processes.md) contract. The
+action can return an accepted result promptly, while later actions look up the
+concrete process for operation-specific status or cancellation.
+
 ### Embedded display forms
 
 Action displays may include an embedded form when the user should enter values
