@@ -165,7 +165,7 @@ def test_compaction_action_uses_sdk_and_sanitizes_input(
     ]
 
     result = extension.execute_action(
-        "compact_native_history",
+        "compact_native_history_sync",
         session=session,
         native_messages=native_messages,
         params={},
@@ -234,7 +234,7 @@ def test_compaction_model_overrides_request_model_when_configured(
     }
 
     extension.execute_action(
-        "compact_native_history",
+        "compact_native_history_sync",
         session=session,
         native_messages=native_messages,
         params={},
@@ -294,7 +294,7 @@ def test_compaction_sanitizes_output_before_storing_native_history(
     ]
 
     result = extension.execute_action(
-        "compact_native_history",
+        "compact_native_history_sync",
         session=session,
         native_messages=native_messages,
         params={},
@@ -513,7 +513,7 @@ def test_compaction_allows_missing_compaction_summary_index_in_visible_prefix(
     )
 
     extension.execute_action(
-        "compact_native_history",
+        "compact_native_history_sync",
         session=session,
         native_messages=native_messages,
         params={},
@@ -589,7 +589,7 @@ def test_core_session_action_rebuilds_from_compacted_native_output_and_keeps_fut
         session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={},
     )
 
@@ -693,7 +693,7 @@ def test_core_session_action_can_use_placeholder_transcript_when_enabled(
         session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={},
     )
 
@@ -802,7 +802,7 @@ def test_core_session_action_compacts_only_visible_prefix_slice(
         session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={"end_index": 2},
     )
 
@@ -900,7 +900,7 @@ def test_compaction_uses_chatgpt_effective_endpoint_when_enabled(
     }
 
     extension.execute_action(
-        "compact_native_history",
+        "compact_native_history_sync",
         session=session,
         native_messages=native_messages,
         params={},
@@ -954,7 +954,7 @@ def test_compaction_can_force_api_endpoint_when_chatgpt_compaction_disabled(
     }
 
     extension.execute_action(
-        "compact_native_history",
+        "compact_native_history_sync",
         session=session,
         native_messages=native_messages,
         params={},
@@ -1053,7 +1053,7 @@ def test_core_session_action_uses_compiled_request_instructions_and_strips_leadi
         session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={},
     )
 
@@ -1165,7 +1165,7 @@ def test_core_session_action_message_injection_compaction_uses_rendered_system_m
         session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={},
     )
 
@@ -1306,7 +1306,7 @@ def test_chatgpt_message_injection_compaction_sends_rendered_system_as_instructi
         session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={},
     )
 
@@ -1375,7 +1375,7 @@ def test_compaction_disabled_chatgpt_mode_requires_api_key(
 
     with pytest.raises(RuntimeError) as excinfo:
         extension.execute_action(
-            "compact_native_history",
+            "compact_native_history_sync",
             session=session,
             native_messages=native_messages,
             params={},

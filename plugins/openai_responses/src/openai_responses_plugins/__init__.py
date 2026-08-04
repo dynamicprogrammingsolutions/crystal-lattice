@@ -5,6 +5,9 @@ from .openai_responses_chatgpt_auth_feature import OpenAIResponsesChatGPTAuthFea
 from .openai_responses_fast_mode_extension import OpenAIResponsesFastModeExtension
 from .openai_responses_flex_processing_extension import OpenAIResponsesFlexProcessingExtension
 from .openai_responses_native_compaction_extension import OpenAIResponsesNativeCompactionExtension
+from .openai_responses_native_compaction_app import (
+    OpenAIResponsesNativeCompactionAppPlugin,
+)
 from .openai_responses_prompt_caching_extension import OpenAIResponsesPromptCachingExtension
 from .openai_responses_provider import OpenAIResponsesProvider
 from .openai_responses_reasoning_extension import OpenAIResponsesReasoningExtension
@@ -20,6 +23,7 @@ __all__ = [
     "OpenAIResponsesFastModeExtension",
     "OpenAIResponsesFlexProcessingExtension",
     "OpenAIResponsesNativeCompactionExtension",
+    "OpenAIResponsesNativeCompactionAppPlugin",
     "OpenAIResponsesPromptCachingExtension",
     "OpenAIResponsesToolsExtension",
     "OpenAIResponsesWebSearchExtension",

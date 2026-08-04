@@ -11,6 +11,19 @@ export type NotificationRetention =
   | { version?: 1; policy: 'until_request_complete' }
   | { version?: 1; policy: 'until_server_restart'; owner_epoch?: string };
 
+export interface NotificationOperation {
+  version: 1;
+  type: string;
+  id: string;
+  state: string;
+  phase?: string;
+  started_at?: string;
+  elapsed_seconds?: number;
+  cancellable?: boolean;
+  process_id?: string;
+  [key: string]: any;
+}
+
 export interface SessionNotification {
   id: string;
   key: string;
@@ -42,6 +55,7 @@ export interface SessionNotification {
     reason?: string;
     [key: string]: any;
   } | null;
+  operation?: NotificationOperation;
   model_visibility: 'hidden';
 }
 

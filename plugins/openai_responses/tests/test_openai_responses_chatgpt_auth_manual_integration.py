@@ -279,7 +279,7 @@ def test_openai_responses_chatgpt_visible_system_message_round_trip_and_compacti
         first_session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={},
     )
 

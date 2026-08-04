@@ -39,6 +39,7 @@ from agent_app.notifications import (
     NotificationTransitionError,
 )
 from agent_app.request_execution import (
+    SessionOperationBusyError,
     SessionRequestCoordinatorClosedError,
     StaleApplicationGenerationError,
 )
@@ -1667,6 +1668,11 @@ def send_request(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ReadonlySessionViewError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SessionOperationBusyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "session_busy", "operation": exc.operation},
+        ) from exc
     except (
         ApplicationReloadPendingError,
         SessionRequestCoordinatorClosedError,
@@ -1767,6 +1773,11 @@ def send_message(
         if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
             raise HTTPException(status_code=400, detail=detail) from exc
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SessionOperationBusyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "session_busy", "operation": exc.operation},
+        ) from exc
     except (
         ApplicationReloadPendingError,
         SessionRequestCoordinatorClosedError,

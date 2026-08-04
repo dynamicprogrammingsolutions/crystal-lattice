@@ -55,6 +55,45 @@ describe('session notifications', () => {
     ).toEqual([resolved]);
   });
 
+  it('merges background operation progress revisions', () => {
+    const running: SessionNotification = {
+      ...notification,
+      operation: {
+        version: 1,
+        type: 'openai_responses_native_compaction',
+        id: 'operation-1',
+        state: 'running',
+        phase: 'waiting_for_provider',
+        elapsed_seconds: 15,
+        cancellable: true,
+      },
+    };
+    const heartbeat: SessionNotification = {
+      ...running,
+      revision: 2,
+      body: 'Waiting for OpenAI native compaction. Elapsed: 30 seconds.',
+      display: {
+        ...running.display,
+        body: 'Waiting for OpenAI native compaction. Elapsed: 30 seconds.',
+      },
+      operation: {
+        ...running.operation!,
+        elapsed_seconds: 30,
+      },
+    };
+
+    expect(
+      mergeSessionNotificationEvents([running], [
+        {
+          event_id: 'event-heartbeat',
+          type: 'session_notification_updated',
+          session_id: 'session-1',
+          notification: heartbeat,
+        },
+      ]),
+    ).toEqual([heartbeat]);
+  });
+
   it('selects terminal records but excludes them from active presentation', () => {
     const dismissed = {
       ...notification,

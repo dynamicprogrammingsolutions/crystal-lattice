@@ -140,6 +140,12 @@ Actions that launch application-lifetime work should use the shared
 action can return an accepted result promptly, while later actions look up the
 concrete process for operation-specific status or cancellation.
 
+When the work also needs session admission or active lookup, reserve an
+application operation separately. Managed processes and plugins own runtime
+status and behavior; application operations own only active identity and
+admission; notifications own presentation. See
+`application/python/docs/development/operations.md`.
+
 ### Embedded display forms
 
 Action displays may include an embedded form when the user should enter values

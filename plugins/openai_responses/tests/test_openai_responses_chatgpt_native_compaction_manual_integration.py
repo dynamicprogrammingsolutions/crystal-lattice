@@ -121,7 +121,7 @@ def test_openai_responses_chatgpt_saved_login_native_compaction() -> None:
         first_session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={},
     )
 

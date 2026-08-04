@@ -308,6 +308,52 @@ Existing records created before integer revisions use their `updated_at` value
 as the compatibility expected-revision token. Their first mutation assigns
 integer revision `1`.
 
+### Background-operation heartbeats
+
+Background work can keep one pending notification and update it by revision:
+
+```python
+notification = app.create_session_notification(
+    session_id,
+    {
+        "key": f"example:operation:{operation_id}",
+        "severity": "info",
+        "title": "Operation running",
+        "body": "Waiting for the provider. Elapsed: 0 seconds.",
+        "source": {"plugin": self.name},
+        "display": {
+            "format": "text",
+            "title": "Operation running",
+            "body": "Waiting for the provider. Elapsed: 0 seconds.",
+            "variant": "info",
+            "presentation": "inline",
+            "dismissible": False,
+        },
+        "operation": {
+            "version": 1,
+            "type": "example_operation",
+            "id": operation_id,
+            "state": "running",
+            "phase": "waiting_for_provider",
+            "elapsed_seconds": 0,
+            "cancellable": True,
+        },
+        "model_visibility": "hidden",
+    },
+)
+```
+
+Each heartbeat updates the visible body and structured `operation` field with
+`expected_revision=notification["revision"]`. The structured `operation`
+mapping is plugin-owned presentation data; its optional fields do not define
+the application operation registration contract. The minimal active
+registration used for admission and lookup remains separate. Notification
+failure must not grant commit authority or cancel the underlying operation.
+
+Use `display.dismissible: false` while Cancel is the intended user action.
+After failure or interruption, update the display to `dismissible: true` and
+provide Retry or Continue follow-ups as appropriate.
+
 ## Resolving a notification
 
 Resolve a notification when the underlying condition is no longer active:

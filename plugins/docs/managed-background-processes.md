@@ -355,3 +355,18 @@ Plugin tests should use controlled workers and clocks to cover:
 
 Do not use real long sleeps to test progress heartbeats. Inject a clock or
 controllable wait mechanism into the concrete process.
+
+The first production consumer is the OpenAI Responses native compaction
+application plugin. It combines:
+
+- `ApplicationOperationService` for minimal active identity, lookup, and
+  session admission;
+- `ManagedProcessRegistry` for the concrete process object;
+- session notifications for progress, Cancel, Retry, and terminal
+  presentation;
+- an async OpenAI compact transport for prompt HTTP cancellation;
+- guarded optimistic reconciliation for the final session update.
+
+See `application/python/docs/development/operations.md` for the application
+operation model and `plugins/openai_responses/README.md` for provider-specific
+behavior.

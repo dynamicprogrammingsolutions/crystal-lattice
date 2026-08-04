@@ -65,6 +65,7 @@ from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
 from .runtime_env import RuntimeEnvOverlay
 from .notifications import SessionNotifications
+from .operations import get_application_operation_service
 from .request_execution import (
     SessionRequestCoordinator,
     SessionRequestResult,
@@ -565,6 +566,9 @@ class AgentApplication:
         self._server_settings_lock = threading.RLock()
         self._runtime_store = RuntimeStore()
         self._runtime_store.set("agent_core.model_discovery_cache", self._model_cache)
+        self._application_operations = get_application_operation_service(
+            self._runtime_store
+        )
         self._tool_runtime = self._runtime_store
         self._context = ApplicationContext(
             app=self,
@@ -618,6 +622,7 @@ class AgentApplication:
         self._session_request_coordinator = SessionRequestCoordinator(
             app=self,
             application_control=self._application_control,
+            operations=self._application_operations,
             new_request_id=self._new_request_id,
             logger=self._logger,
         )

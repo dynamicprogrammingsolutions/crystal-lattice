@@ -20,9 +20,20 @@ from .application_owner import (
     ApplicationReloadPendingError,
 )
 from .request_execution import (
+    SessionOperationBusyError,
     SessionRequestAlreadyRunningError,
     SessionRequestResult,
     SessionRequestStart,
+)
+from .operations import (
+    ApplicationOperationBusyError,
+    ApplicationOperationClosedError,
+    ApplicationOperationLease,
+    ApplicationOperationLeaseReleasedError,
+    ApplicationOperationRegistration,
+    ApplicationOperationService,
+    get_application_operation_service,
+    session_operation_exclusivity_key,
 )
 from .managed_processes import (
     ManagedProcess,
@@ -34,6 +45,12 @@ from .managed_processes import (
 
 __all__ = [
     "AgentApplication",
+    "ApplicationOperationBusyError",
+    "ApplicationOperationClosedError",
+    "ApplicationOperationLease",
+    "ApplicationOperationLeaseReleasedError",
+    "ApplicationOperationRegistration",
+    "ApplicationOperationService",
     "ApplicationNotificationStore",
     "AgentApplicationOwner",
     "ApplicationReloadPendingError",
@@ -43,8 +60,11 @@ __all__ = [
     "ManagedProcessRegistry",
     "ManagedProcessRegistryClosedError",
     "SessionRequestAlreadyRunningError",
+    "SessionOperationBusyError",
     "SessionRequestResult",
     "SessionRequestStart",
     "SQLiteApplicationNotificationStore",
     "get_managed_process_registry",
+    "get_application_operation_service",
+    "session_operation_exclusivity_key",
 ]

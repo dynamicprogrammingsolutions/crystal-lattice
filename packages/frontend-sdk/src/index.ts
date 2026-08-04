@@ -122,6 +122,7 @@ export { ApplicationNotificationsController } from './notifications/applicationN
 export type {
   NotificationSeverity,
   NotificationExpectedRevision,
+  NotificationOperation,
   NotificationRetention,
   NotificationStatus,
   SessionNotification,

@@ -788,6 +788,12 @@ state, or event publication. Maintainers should start with
 [`docs/development/request-execution.md`](docs/development/request-execution.md)
 for the complete application request lifecycle.
 
+Requests and longer-lived plugin work also share minimal active operation
+registration and admission. See
+[`docs/development/operations.md`](docs/development/operations.md) for session
+exclusivity, lookup, managed-process ownership, plugin-owned status, and the
+future extensible operations-menu direction.
+
 Application notifications use a durable SQLite store by default. Configure its
 path under `application.notifications.store`:
 

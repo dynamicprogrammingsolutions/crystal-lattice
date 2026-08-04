@@ -6,12 +6,12 @@ orchestration out of the FastAPI adapter into shared application-layer code.
 
 ## Requirements checklist
 
-- [ ] OpenAI Responses native compaction runs in the background, allowing the
+- [x] OpenAI Responses native compaction runs in the background, allowing the
   initiating action to return promptly.
-- [ ] The user can follow compaction progress through a persistent session
+- [x] The user can follow compaction progress through a persistent session
   notification that reports current activity and elapsed time approximately
   every 15 seconds.
-- [ ] The compaction notification reports successful completion or failure
+- [x] The compaction notification reports successful completion or failure
   and allows the user to request cancellation while compaction is running.
 - [ ] The user can choose whether successful compaction stops after updating
   the session or immediately starts a normal model request without appending a
@@ -79,11 +79,12 @@ Out of scope:
    obtain request admission?
    - Recommendation: keep compaction successful and present a persistent
      manual Continue action.
-6. How should authoritative operation state relate to notifications before a
-   persistent operation-history UI exists?
-   - Recommendation: use a distinct application operation record for
-     admission, status, and future queries; retain `kind: "notification"` as
-     the current persistent attention/presentation projection.
+6. How should active operation registration relate to plugin status and
+   notifications before an operations-menu UI exists?
+   - Decision: the application service stores only active identity and
+     admission. Plugins own all additional status and notification fields.
+     A future menu may accept arbitrary optional owner-provided details without
+     predefining them in the admission service.
 
 ## Supporting facts
 
@@ -737,7 +738,7 @@ Checkpoint B:
 
 ### Stage C — Background native compaction and progress
 
-Stage C plan status: Approved on August 3, 2026.
+Stage C plan status: Implemented on August 3, 2026.
 
 #### Material admission decision
 
@@ -755,8 +756,8 @@ but by itself it allows this race:
 The user still pays for compaction that can no longer be applied.
 
 Recommended Stage C decision: add a small application-level operation service
-that owns operation admission and live operation records, while the Stage B
-managed-process registry continues to own runtime-object lifetime.
+that owns only active registration, lookup, and operation admission, while the
+Stage B managed-process registry continues to own runtime-object lifetime.
 
 Store the operation service in `RuntimeStore` rather than adding
 `AgentApplication` methods for its registry contract. Both
@@ -765,16 +766,13 @@ same service instance.
 
 The operation service should:
 
-- atomically reserve an operation ID and optional exclusivity key;
-- support session-scoped and application-scoped operations;
-- expose one immutable serializable live record per operation;
-- update state, phase, timestamps, progress metrics, cancellability, and
-  follow-up descriptors;
-- list current operations globally or by session;
-- release exclusivity when an operation reaches a terminal state;
-- retain only bounded in-memory terminal records in Stage C;
-- remain independent from worker threads, concrete process objects, and
-  notification presentation.
+- atomically reserve an operation ID and opaque exclusivity keys;
+- expose only `operation_id`, `owner_id`, and optional `session_id`;
+- list active registrations globally, by owner, or by session;
+- release registration and exclusivity by identity-bound lease;
+- clear active registrations on application close;
+- remain independent from status, progress, metrics, cancellation,
+  presentation, worker threads, concrete process objects, and outcomes.
 
 Ordinary requests and compaction reserve the same session exclusivity key:
 
@@ -786,38 +784,18 @@ Ordinary requests and compaction reserve the same session exclusivity key:
   user-facing busy result without starting provider work.
 
 The managed-process registry stores the concrete runtime object used for
-lookup, cancellation, and close. The operation service stores the
-serializable, inspectable status and admission lease. Notifications project
-important operation changes into the current user-facing attention surface.
+lookup, cancellation, and close. The operation service stores only active
+identity and admission. The plugin or request coordinator owns status,
+progress, cancellation, outcomes, and notifications.
 
-This separation prepares later product surfaces without making notifications
-or managed processes authoritative operation history:
+A future connection-level operations menu may add a separate owner-description
+contract with arbitrary optional fields such as `description`,
+`operation_actions`, or provider-specific status. Those fields do not need to
+be predefined or interpreted by the admission service; frontends may recognize
+them optionally and ignore unknown fields.
 
-- a connection-level list of all active operations;
-- per-session operation status;
-- cancellation from a central operations menu;
-- recent operation outcomes;
-- retry actions;
-- no-message request continuation or resend actions;
-- later durable operation history and event replay.
-
-Persistence is not required in Stage C. The live record shape and terminal
-outcome model must be serializable so a later `OperationHistoryStore` can
-persist it without changing operation producers. Persistent retry/resend
-descriptors must be data, not Python closures, and must not capture
-credentials, conversation contents, or runtime objects.
-
-The technical document must distinguish:
-
-- retrying the producer action with safe serialized parameters;
-- continuing the current session with no appended message;
-- exact replay of a historical request.
-
-The first two are feasible through action descriptors and the Stage A request
-coordinator. Exact historical replay is not promised: model/config overrides,
-attachments, credentials, tool availability, and session history may have
-changed, so it requires a separate immutable request-intent contract before it
-can be offered honestly.
+Persistent outcomes remain a separate future event/history concern rather than
+bounded terminal records in the active operation service.
 
 Alternative if strict rejection is not approved: leave ordinary requests
 admitted and rely on optimistic reconciliation to fail compaction visibly.
@@ -826,8 +804,8 @@ That is data-safe but can waste provider work.
 Add `application/python/docs/development/operations.md` as the canonical
 technical document. Keep it separate from `request-execution.md`: request
 execution is one concrete operation producer, while operations cover
-cross-producer admission, status, observability, future query surfaces, and
-possible persistence.
+cross-producer active identity, lookup, exclusivity, owner responsibility, and
+the future extensible operations-menu boundary.
 
 #### Package structure and action ownership
 
@@ -919,14 +897,14 @@ The application action should:
    extension;
 3. validate the optional visible `end_index` shape without calling the
    provider;
-4. reserve one operation record and the session exclusivity key;
-5. choose one concrete process ID;
+4. choose one ID shared by the operation registration and managed process;
+5. reserve the minimal operation registration and session exclusivity key;
 6. construct the process with narrow dependencies;
 7. register and start it through `ManagedProcessRegistry`;
 8. return promptly with:
-   - `status: "accepted"`;
+   - standard action `status: "ok"`;
+   - `operation_status: "accepted"`;
    - `operation_id`;
-   - `process_id`;
    - `notification_id`.
 
 Use the operation service's session exclusivity key to prevent duplicate
@@ -934,10 +912,9 @@ compactions and competing ordinary requests. Put the unique operation ID in
 notification follow-up actions so a stale Cancel button can never target a
 later process.
 
-Add an application action such as `cancel_native_compaction` with
-`session_id`, `operation_id`, and `process_id`. It verifies that the operation
-and process identities still match, looks up the concrete process, and calls
-`request_cancel(...)`.
+Add an application action such as `cancel_native_compaction` with `session_id`
+and `operation_id`. It verifies owner and session registration, looks up the
+concrete process under the same ID, and calls `request_cancel(...)`.
 
 #### Captured execution and safe commit
 
@@ -1084,11 +1061,12 @@ Create one persistent session notification per operation:
 - `kind: "notification"`;
 - stable notification key derived from the operation ID;
 - `status: "pending"` while active;
-- `severity: "info"`;
-- `presentation: "inline"`;
+- `severity: "warning"`;
+- `presentation: "banner"`;
 - `dismissible: false` while running;
 - `retention: until_resolved`;
-- one Cancel `run_action` follow-up carrying session/operation/process IDs.
+- one `Cancel compaction` `run_action` follow-up carrying session and
+  operation IDs.
 
 `display.dismissible: false` is already part of the action-display contract and
 is honored by the shared React Native notification banner. No notification
@@ -1133,14 +1111,14 @@ and use `expected_revision`. On revision conflict:
 Terminal behavior:
 
 - success:
-  update once with success state, resolve with compaction details, then remove
-  the process;
+  retain a pending dismissible success banner, release active registration,
+  then remove the process;
 - provider, malformed-output, or reconciliation failure:
   retain a pending persistent error notification with dismissibility, concise
   retry guidance, and a Retry action carrying the original `end_index`;
 - user cancellation:
-  resolve with cancellation details after the provider call returns and its
-  result is discarded;
+  retain a pending dismissible warning banner after the provider call returns
+  and its result is discarded;
 - application replacement or shutdown:
   `close()` marks the notification interrupted, revokes commit authority, and
   returns promptly; any late provider result is discarded.
@@ -1202,7 +1180,7 @@ Application/action integration:
 - strict admission, if approved, rejects ordinary sends and duplicate
   compaction while the process owns the session gate;
 - live operation listing exposes both ordinary requests and compaction through
-  one serializable record shape;
+  one minimal active registration shape;
 - application-owner replacement marks interruption and prevents late commit.
 
 Provider compatibility:
@@ -1231,9 +1209,9 @@ Frontend contract:
 Update:
 
 - add `application/python/docs/development/operations.md` covering operation
-  identity, scope, admission, exclusivity, live records, progress, managed
-  process relation, notification projection, request integration, cancellation,
-  terminal outcomes, and future persistent history/connection-level UI;
+  identity, owner, session association, admission, exclusivity, lookup,
+  identity-safe release, managed-process relation, plugin-owned status, and the
+  future extensible operations-menu boundary;
 - link the operations document from
   `application/python/docs/development/request-execution.md` and the
   application README development section;
@@ -1245,8 +1223,9 @@ Update:
 - `plugins/docs/managed-background-processes.md` with a link to the first
   production implementation;
 - plugin action docs for the application-owned Cancel/Retry follow-ups;
-- plugin authoring docs distinguishing application-operation status from
-  managed-process lifetime and notification presentation.
+- plugin authoring docs distinguishing minimal active operation registration
+  from plugin-owned status, managed-process lifetime, and notification
+  presentation.
 
 Checkpoint C:
 
@@ -1256,6 +1235,110 @@ Checkpoint C:
 - Cancel prevents the result from being applied;
 - success updates the session;
 - provider and concurrent-history failures remain visible.
+
+### Stage C follow-up — Notification-driven UI effects
+
+Stage C follow-up plan status: Draft; approval required before implementation.
+
+#### Outcome
+
+A session notification revision may request the same reload behavior already
+available to successful application-action responses. Native compaction will
+use this only on successful completion so the active chat reloads the compacted
+session without a manual refresh.
+
+#### Proposed contract
+
+Add an optional `ui_effects` mapping to the session-notification contract:
+
+```json
+{
+  "ui_effects": {
+    "reload_session_ids": ["session-1"],
+    "reload_sessions_list": false
+  }
+}
+```
+
+Reuse the action-response field names and shared frontend types. Preserve
+unknown `ui_effects` fields, but the first implementation should execute only:
+
+- `reload_session_ids`;
+- `reload_sessions_list`.
+
+Do not automatically execute navigation from asynchronously arriving
+notifications in this stage. Unexpected navigation is materially more
+disruptive than refreshing current data and should require a separate product
+decision.
+
+The notification store already preserves additional JSON-compatible fields.
+Add explicit validation and frontend typing for the supported reload fields
+without making the server interpret or execute them.
+
+#### Shared frontend behavior
+
+Extract action-response UI-effect parsing from the private action runner into a
+shared frontend SDK helper so action responses and notifications use the same
+reload semantics.
+
+Extend the shared session-notification host with a callback that reports
+notification UI effects once for each newly observed notification revision.
+Deduplicate by connection, notification ID, and revision so:
+
+- heartbeat rerenders do not repeat an effect;
+- refreshing a summary containing the same revision does not loop;
+- a newer revision can deliberately request another effect;
+- reconnecting or remounting may apply the latest persisted effect once,
+  ensuring a stale client catches up.
+
+Effect execution is best effort. A reload failure must not change notification
+status, retry the compaction, or affect operation correctness.
+
+#### Frontend integration
+
+Mobile Chat should translate a matching `reload_session_ids` entry into its
+existing message/session-context reload path.
+
+Desktop Chat should translate it into the existing `handleReload()` path and
+refresh session-list state when requested.
+
+The implementation should remain generic: neither frontend should contain
+OpenAI-compaction-specific branching.
+
+Application-scoped notification UI effects are deferred. They require routing
+effects from the connection-level display layer into potentially multiple
+session and list owners. The shared field shape should remain reusable when
+that routing is added.
+
+#### Compaction producer behavior
+
+The compaction process should:
+
+- omit `ui_effects` from preparing, waiting, committing, cancellation, and
+  failure revisions;
+- add `ui_effects.reload_session_ids: [session_id]` only to the successful
+  completion revision;
+- keep the success banner pending and dismissible after requesting the reload.
+
+#### Verification
+
+- frontend SDK unit tests cover parsing, ignored unknown fields, and
+  revision-based deduplication;
+- shared React Native notification-host tests prove one callback per revision;
+- mobile component coverage proves a successful notification reloads the
+  current transcript without OpenAI-specific logic;
+- desktop component coverage proves the same behavior through
+  `handleReload()`;
+- plugin tests prove only the success revision carries the reload request;
+- failure, cancellation, and heartbeat revisions never trigger a reload;
+- existing action-response UI-effect tests remain green after extracting the
+  shared parser.
+
+#### Approval decision
+
+Approve or revise the recommendation that notification-driven automatic
+effects initially support reloads only, while navigation and other imperative
+effects remain deferred.
 
 ### Stage D — Selectable no-message continuation
 
@@ -1356,9 +1439,9 @@ second compaction backend or separate operation model.
 - Recommended: the process receives narrow callbacks for notifications,
   session operations, and request continuation rather than using a registry
   that understands those domains.
-- Recommended: operation admission and serializable live status are owned by a
-  RuntimeStore-backed application operation service; managed processes own
-  runtime objects; notifications are a presentation projection.
+- Recommended: a RuntimeStore-backed application operation service owns only
+  active identity, lookup, and admission; managed processes and plugins own
+  runtime behavior and status; notifications own presentation.
 - Confirmed: OpenAI native compaction has no semantic output stream,
   background operation ID, or explicit server-side cancel API in the current
   compact endpoint. The async SDK request can still be cancelled at the HTTP
@@ -1385,8 +1468,12 @@ second compaction backend or separate operation model.
   the in-memory adapter path because it preserves provider/feature
   initialization and native-history rebuild; do not add split-phase core APIs
   yet.
-- Open: exact serializable operation record fields and bounded in-memory
-  terminal retention limits.
+- Stage C decision: active operation registrations contain only operation ID,
+  owner ID, and optional session ID. Terminal retention and status are outside
+  the service.
+- Future operations-menu decision: owner descriptions may add arbitrary
+  optional fields such as `description` or `operation_actions`; the admission
+  service and frontends need not predefine or interpret every field.
 - Open: whether Stage F should add deferred application actions, an
   extension-facing operation reporter, or both.
 
@@ -1424,7 +1511,7 @@ second compaction backend or separate operation model.
 - [x] Implement and verify Stage B.
 - [x] Complete checkpoint B.
 - [x] Approve the detailed Stage C plan and shared session-operation admission.
-- [ ] Implement and verify Stage C.
+- [x] Implement and verify Stage C.
 - [ ] Complete mobile manual checkpoint C.
 - [ ] Implement and verify Stage D.
 - [ ] Complete mobile manual checkpoint D.
@@ -1511,7 +1598,7 @@ Outcome:
 Automated evidence:
 
 - `pytest core/python/tests -q`: 430 passed, 26 deselected, 1 xfailed;
-- `pytest application/python/tests -q`: 318 passed, 90 deselected;
+- `pytest application/python/tests -q`: 319 passed, 90 deselected;
 - focused coordinator/reload/server/terminal run: 93 passed, 13 deselected;
 - `npm --workspace @crystal-lattice/frontend-sdk test`: 40 files and 284 tests
   passed;
@@ -1586,3 +1673,100 @@ Automated evidence:
 Checkpoint B is complete through automated public-boundary coverage. Stage C
 can now build the first production process object without extending the
 registry contract.
+
+### Stage C — Background native compaction and application operations
+
+Implemented on August 3, 2026.
+
+Outcome:
+
+- added `ApplicationOperationService` as a RuntimeStore-owned application
+  service for atomic exclusivity and minimal active registration containing
+  only operation ID, owner ID, and optional session ID;
+- added global, owner, and per-session active lookup plus identity-safe
+  release, without storing status, progress, cancellation, presentation, or
+  outcomes;
+- integrated ordinary coordinated requests with the operation service while
+  preserving request IDs and existing request-versus-request behavior;
+- added HTTP 409 `session_busy` mapping when a non-request operation owns the
+  session;
+- extracted a shared OpenAI native compaction backend and sync/async transport
+  seam;
+- retained `compact_native_history_sync` as the provider-extension
+  compatibility adapter without a default UI action;
+- added an application-owned `compact_native_history` action that returns
+  a standard successful action result promptly and starts a managed process;
+- added approximately 15-second revisioned notification heartbeats with
+  elapsed time, nondismissible warning-banner presentation, and
+  `Cancel compaction`;
+- implemented async compact transport cancellation that interrupts delayed
+  HTTP exchange before headers or during response-body reading;
+- added guarded optimistic commit, conflict-safe failure, retry
+  notifications, cancellation result discard, and reload/shutdown
+  interruption;
+- added optional frontend notification operation typing and progress-revision
+  merge coverage;
+- added the application operation development guide and updated application,
+  plugin-authoring, notification, managed-process, and OpenAI package docs.
+- documented that a future operations-menu owner-description contract may add
+  arbitrary optional fields such as `description`, `operation_actions`, or
+  provider details without expanding admission-service semantics.
+
+Automated evidence:
+
+- `pytest core/python/tests -q`: 447 passed, 26 deselected, 1 xfailed;
+- `pytest application/python/tests -q`: 319 passed, 90 deselected;
+- focused Stage C application/transport/extension tests: 27 passed;
+- focused operation/request-admission tests: 8 passed;
+- `pytest plugins/openai_responses/tests -q`: 394 passed, 76 deselected, with
+  the same 3 independently reproducible attachment-history failures recorded
+  before Stage C;
+- `npm --workspace @crystal-lattice/frontend-sdk test`: 40 files and 285 tests
+  passed;
+- docs-site preparation and MkDocs build passed with existing warnings;
+- focused Ruff and Black checks passed;
+- `git diff --check` passed.
+
+Additional verification findings:
+
+- the hosted OpenAI compact cancellation test was not run because it requires
+  credentials and incurs provider work;
+- no OpenAI compact endpoint provides semantic intermediary output, so current
+  progress is phase plus elapsed time;
+- manual mobile checkpoint C remains open;
+- Stage D selectable no-message continuation remains unimplemented.
+
+Post-implementation corrections from manual testing on August 4, 2026:
+
+- changed background start and cancellation actions to return standard action
+  `status: "ok"` results with a separate `operation_status`, preventing
+  accepted work from being reported as an immediate action failure;
+- changed preparing, provider wait, commit, and cancellation-in-progress
+  notifications to nondismissible warning banners;
+- retained completion as a dismissible success banner and failures as
+  dismissible error banners so terminal outcomes remain visible;
+- changed the desktop Chat composer from the legacy append-then-send sequence
+  to the atomic shared `sendMessage()` path, so admission rejects a competing
+  send before its user message is persisted;
+- added a regression test proving a rejected atomic send neither appends
+  history nor invalidates the active compaction;
+- recorded notification-driven reload integration as a separate Draft Stage C
+  follow-up plan; no notification UI-effect execution was implemented without
+  approval.
+
+Correction verification:
+
+- focused compaction application/transport/extension tests: 27 passed;
+- focused HTTP send-message tests: 4 passed, 57 deselected;
+- request-coordinator tests: 3 passed;
+- targeted desktop atomic-send and notification-rail Jest: 2 suites and 4
+  tests passed;
+- full desktop Jest collected 20 suites and 105 passing assertions but exited
+  nonzero because the existing `DependencyFlatList` test left a timer that
+  accessed Jest after environment teardown; this run is not counted as
+  successful;
+- targeted desktop ChatPane ESLint: 0 errors and 4 existing warnings;
+- frontend SDK: 40 files and 285 tests passed.
+- full OpenAI Responses package: 395 passed and 76 deselected, with the same 3
+  independently reproducible attachment-history failures recorded before this
+  correction.

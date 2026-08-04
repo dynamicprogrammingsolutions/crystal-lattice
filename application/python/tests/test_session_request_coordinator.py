@@ -5,10 +5,17 @@ import time
 from pathlib import Path
 from typing import Any, Dict
 
+from fastapi import HTTPException
+import pytest
+
 from agent_app.application_future import AgentApplication
 from agent_app.application_notifications import InMemoryApplicationNotificationStore
 from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
 from agent_app.events import InMemoryEventStore
+from agent_app.operations import (
+    get_application_operation_service,
+    session_operation_exclusivity_key,
+)
 from agent_terminal_app import server as server_mod
 from agent_terminal_app.terminal_app import TerminalApplication
 
@@ -96,6 +103,11 @@ def test_terminal_and_http_share_one_active_request_authority(tmp_path: Path) ->
     terminal_start = terminal.start_request()
     assert terminal_start.status == "started"
     assert started.wait(timeout=2)
+    operations = get_application_operation_service(app.get_runtime_store())
+    active_operation = operations.get(terminal_start.request_id)
+    assert active_operation is not None
+    assert active_operation.owner_id == "agent_app.session_request"
+    assert active_operation.session_id == session.session_id
 
     http_start = server_mod.send_request(
         session.session_id,
@@ -118,6 +130,7 @@ def test_terminal_and_http_share_one_active_request_authority(tmp_path: Path) ->
 
     release.set()
     _wait_for_request_cleanup(app, session.session_id)
+    assert operations.get(terminal_start.request_id) is None
 
 
 def test_background_request_retains_application_generation_during_reload(
@@ -168,3 +181,31 @@ def test_background_request_retains_application_generation_during_reload(
     release.set()
     assert owner.wait_for_reload(reload_result["reload_id"], timeout=5)
     assert owner.current is not old_application
+
+
+def test_http_send_reports_session_busy_for_non_request_operation(
+    tmp_path: Path,
+) -> None:
+    config_path = _echo_config_path()
+    app = AgentApplication(config_path, tmp_path / "sessions")
+    _core, _base_config, session = app.create_session("default")
+    operations = get_application_operation_service(app.get_runtime_store())
+    lease = operations.reserve(
+        operation_id="test-compaction",
+        owner_id="test_compaction",
+        session_id=session.session_id,
+        exclusivity_keys=(session_operation_exclusivity_key(session.session_id),),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        server_mod.send_request(
+            session.session_id,
+            {"config_overrides": {}},
+            app_instance=app,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail["status"] == "session_busy"
+    assert exc_info.value.detail["operation"]["owner_id"] == "test_compaction"
+    lease.release()
+    app.close()

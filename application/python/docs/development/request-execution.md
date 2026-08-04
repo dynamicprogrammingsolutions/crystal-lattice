@@ -522,3 +522,8 @@ npm --workspace @crystal-lattice/frontend-sdk test
 
 For provider, mobile, and desktop follow-up expectations, see the repository
 development workflow in the root `AGENTS.md`.
+
+Requests also participate in the shared application-operation admission and
+lookup model. See [Application operations](operations.md) for cross-producer
+session exclusivity, minimal active registration, managed-process integration,
+plugin-owned status, and future operation-menu extensions.

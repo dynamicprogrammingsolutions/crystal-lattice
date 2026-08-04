@@ -7,6 +7,12 @@ from typing import Any, Callable, Dict, Literal, Optional
 from agent_core import Session
 
 from .application_owner import ApplicationControl
+from .operations import (
+    ApplicationOperationBusyError,
+    ApplicationOperationLease,
+    ApplicationOperationService,
+    session_operation_exclusivity_key,
+)
 from .sessions import SessionFileState
 
 
@@ -36,6 +42,7 @@ class _PreparedSessionRequest:
     overrides: Dict[str, Any]
     request_id: str
     baseline_file_state: SessionFileState | None
+    operation: ApplicationOperationLease
 
 
 class SessionRequestAlreadyRunningError(RuntimeError):
@@ -51,6 +58,17 @@ class SessionRequestCoordinatorClosedError(RuntimeError):
     pass
 
 
+class SessionOperationBusyError(RuntimeError):
+    def __init__(self, session_id: str, operation: Dict[str, Any]) -> None:
+        super().__init__(
+            f"Session {session_id!r} is busy with operation "
+            f"{operation.get('operation_id')!r} owned by "
+            f"{operation.get('owner_id')!r}"
+        )
+        self.session_id = session_id
+        self.operation = operation
+
+
 class StaleApplicationGenerationError(RuntimeError):
     pass
 
@@ -63,11 +81,13 @@ class SessionRequestCoordinator:
         *,
         app: Any,
         application_control: ApplicationControl | None,
+        operations: ApplicationOperationService,
         new_request_id: Callable[[], str],
         logger: Any,
     ) -> None:
         self._app = app
         self._application_control = application_control
+        self._operations = operations
         self._new_request_id = new_request_id
         self._logger = logger
         self._lock = threading.RLock()
@@ -128,6 +148,7 @@ class SessionRequestCoordinator:
         except Exception:
             if prepared is not None:
                 self._clear_active(prepared.session.session_id, prepared.request_id)
+                prepared.operation.release()
             self._release_operation(operation)
             raise
 
@@ -158,6 +179,7 @@ class SessionRequestCoordinator:
         finally:
             if prepared is not None:
                 self._clear_active(prepared.session.session_id, prepared.request_id)
+                prepared.operation.release()
             self._release_operation(operation)
 
     def close(self) -> None:
@@ -207,6 +229,7 @@ class SessionRequestCoordinator:
             raise ValueError("session_id must be a non-empty string")
         request_overrides = dict(overrides or {})
         request_id = self._new_request_id()
+        operation: ApplicationOperationLease | None = None
 
         with self._app.acquire_session_lock(session_id):
             self._app._require_live_session_writable(session_id)
@@ -223,14 +246,28 @@ class SessionRequestCoordinator:
                 **request_overrides,
             }
 
+            try:
+                operation = self._operations.reserve(
+                    operation_id=request_id,
+                    owner_id="agent_app.session_request",
+                    session_id=session_id,
+                    exclusivity_keys=(session_operation_exclusivity_key(session_id),),
+                )
+            except ApplicationOperationBusyError as exc:
+                current = exc.current
+                if current.owner_id == "agent_app.session_request":
+                    return None, current.operation_id
+                raise SessionOperationBusyError(
+                    session_id,
+                    current.to_dict(),
+                ) from exc
+
             with self._lock:
                 if self._closed:
+                    operation.release()
                     raise SessionRequestCoordinatorClosedError(
                         "Session request coordinator is closed"
                     )
-                existing_request_id = self._active_by_session.get(session_id)
-                if existing_request_id is not None:
-                    return None, existing_request_id
                 self._active_by_session[session_id] = request_id
 
             try:
@@ -245,8 +282,11 @@ class SessionRequestCoordinator:
                 baseline_file_state = self._app.get_session_file_state(session_id)
             except Exception:
                 self._clear_active(session_id, request_id)
+                if operation is not None:
+                    operation.release()
                 raise
 
+        assert operation is not None
         return (
             _PreparedSessionRequest(
                 core=core,
@@ -255,6 +295,7 @@ class SessionRequestCoordinator:
                 overrides=effective_overrides,
                 request_id=request_id,
                 baseline_file_state=baseline_file_state,
+                operation=operation,
             ),
             None,
         )
@@ -349,6 +390,7 @@ class SessionRequestCoordinator:
             )
             with self._lock:
                 self._threads_by_request.pop(prepared.request_id, None)
+            prepared.operation.release()
             self._release_operation(operation)
 
     def _execute(
@@ -415,6 +457,7 @@ __all__ = [
     "SessionRequestAlreadyRunningError",
     "SessionRequestCoordinator",
     "SessionRequestCoordinatorClosedError",
+    "SessionOperationBusyError",
     "SessionRequestResult",
     "SessionRequestStart",
     "StaleApplicationGenerationError",

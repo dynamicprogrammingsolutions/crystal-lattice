@@ -83,6 +83,7 @@ import { setActiveSessionSnapshotsWindow } from '../windows/sessionSnapshotsCoor
 import { useMacOSApplicationActionDialog } from '../windows/useMacOSApplicationActionDialog';
 import { pickMacAttachment } from '../native/MacAttachmentPicker';
 import { SnapshotReadonlyBanner } from './SnapshotReadonlyBanner';
+import { sendComposerMessageAtomically } from './sendComposerMessage';
 import { AppendAsPopoverContent, type AppendAsRole } from './AppendAsPopoverContent';
 import {
   buildAttachmentMetadataDefaults,
@@ -1546,7 +1547,7 @@ export const ChatPane = React.memo(function ChatPane({
 
     setSendInFlight(true);
     try {
-      await chatController.appendMessage({
+      await sendComposerMessageAtomically(chatController, {
         role: 'user',
         content,
         multipartContent,
@@ -1554,8 +1555,6 @@ export const ChatPane = React.memo(function ChatPane({
       setComposeText('');
       composerRef.current?.setText('');
       clearComposerAttachments();
-      chatController.clearRequestState();
-      await chatController.send();
       composerRef.current?.focus();
     } catch (err: any) {
       const message =

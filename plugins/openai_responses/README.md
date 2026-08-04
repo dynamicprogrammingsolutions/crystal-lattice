@@ -752,9 +752,28 @@ No extra config key is required beyond loading tools in the application.
 
 ### Native compaction
 
-It exposes a session action with id `compact_native_history` that uses the
-native compaction API, rewrites provider-native history, and then rebuilds the
-visible transcript directly from the compacted native output.
+The bundle exposes an application-owned session action with id
+`compact_native_history`. It starts native compaction in the background,
+returns a standard successful action result with
+`operation_status: "accepted"` promptly, rewrites provider-native history
+after the provider call completes, and rebuilds the visible transcript from
+the compacted native output.
+
+While compaction runs, a persistent nondismissible warning banner reports the
+current phase and elapsed time approximately every 15 seconds. Its
+`Cancel compaction` action cancels the async OpenAI HTTP task and revokes
+commit authority. The process still checks cancellation immediately before
+its reconciled session save so a late result cannot be applied.
+
+Ordinary requests and compaction use the same session operation admission.
+Starting either while the other is active is rejected before provider work.
+Successful completion leaves a dismissible success banner. Provider,
+output-validation, and concurrent-history failures leave a dismissible
+persistent error banner with a Retry action.
+
+The synchronous provider-extension compatibility action remains available as
+`compact_native_history_sync`, but it has no default UI element. Both paths
+share the same native compaction backend.
 
 If you prefer the older placeholder-style transcript behavior, enable:
 
@@ -886,7 +905,8 @@ like this:
 - prompt caching: `prompt_cache_key` / retention request shaping and session-key lifecycle
 - ChatGPT auth feature: saved-credential loading plus `api` / `chatgpt` /
   `auto` auth-mode selection
-- native compaction: session action for provider-native compaction
+- native compaction: shared backend, application-owned background action and
+  process, plus synchronous provider-extension compatibility adapter
 
 Implementation classes registered by the bundle:
 
@@ -895,6 +915,7 @@ Implementation classes registered by the bundle:
 - `openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature`
 - `openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension`
 - `openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension`
+- `openai_responses_plugins.openai_responses_native_compaction_app.OpenAIResponsesNativeCompactionAppPlugin`
 - `openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension`
 - `openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension`
 - `openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension`

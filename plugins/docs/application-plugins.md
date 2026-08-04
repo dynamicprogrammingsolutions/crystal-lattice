@@ -59,6 +59,7 @@ Application plugins are ideal for features that need:
 | Request full reload | `app.request_application_reload(reason=..., on_failure=...)` | Ask the owner to drain admitted work and reconstruct `AgentApplication` |
 | Application notifications | `app.create_application_notification(...)`, `update_application_notification(...)`, `dismiss_application_notification(...)`, `resolve_application_notification(...)`, `expire_application_notification(...)`, `list_application_notifications()` | Create durable notifications global to one connected application runtime. |
 | Session notifications | `app.create_session_notification(...)`, `update_session_notification(...)`, `update_session_notification_by_key(...)`, `dismiss_session_notification(...)`, `resolve_session_notification(...)`, `expire_session_notification(...)`, `list_session_notifications(...)` | Create persistent session notifications stored in metadata and published through lifecycle events. |
+| Application operations | `get_application_operation_service(app.get_runtime_store())` | Reserve minimal active identity and cross-producer admission without storing plugin status, progress, presentation, or outcomes. |
 | Full config access | `self._config` (via `init`) | Access to the full application configuration |
 | Runtime env access | `os.environ[...]` | Real process environment installed from config resolution env |
 | Request config resolution | `resolve_request_config(base_config, overrides)` | Resolve effective config for a request |
@@ -95,6 +96,17 @@ For complete record fields, examples, presentation behavior, stable-key
 updates, dismissal, resolution, expiration, tool-sink usage, current frontend
 integration limitations, event names, and focused test commands, see
 [Notifications and action displays](notifications-and-action-displays.md).
+
+For background work, keep active registration, runtime ownership, and
+presentation separate:
+
+- use `ApplicationOperationService` for active identity, lookup, and admission;
+- use `ManagedProcessRegistry` for the concrete process object;
+- let the plugin/process own status, progress, cancellation, and outcomes;
+- use notifications for visible progress and follow-up actions.
+
+The application operation contract and future operation-history direction are
+documented in `application/python/docs/development/operations.md`.
 
 ---
 

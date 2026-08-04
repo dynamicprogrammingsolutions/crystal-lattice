@@ -14,6 +14,12 @@ from .openai_responses_runtime import (
     effective_auth_mode,
     prepare_input_and_instructions_for_endpoint,
 )
+from .openai_responses_native_compaction import (
+    COMPACTION_TRANSPORT_CONTEXT_KEY,
+    OpenAIResponsesNativeCompactionBackend,
+    OpenAIResponsesCompactionTransport,
+    SyncOpenAIResponsesCompactionTransport,
+)
 
 _USE_CHATGPT_AUTH_FOR_COMPACTION_KEY = "use_chatgpt_auth_for_compaction"
 _COMPACTION_MODEL_KEY = "compaction_model"
@@ -24,6 +30,7 @@ _COMPACTION_PLACEHOLDER_TEXT = "Earlier conversation compacted to reduce context
 _PLACEHOLDER_TRANSCRIPT_STATE_KEY = (
     "_openai_responses_use_compaction_placeholder_transcript"
 )
+_SYNC_COMPACTION_ACTION_ID = "compact_native_history_sync"
 
 
 class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
@@ -119,37 +126,6 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                     "session_id": "$session.session_id",
                 },
             },
-            {
-                "ui_type": "session_action",
-                "id": "compact_native_history",
-                "label": "Compact native history",
-                "icon": "archive",
-                "order": 46,
-                "action_id": "compact_native_history",
-                "action_owner": "provider_extension",
-                "fixed_params": {},
-                "param_map": {
-                    "session_id": "$session.session_id",
-                    "end_index": "$dialog.end_index",
-                },
-                "dialog": {
-                    "kind": "form",
-                    "title": "Compact native history",
-                    "message": (
-                        "Compact provider-native history for future Responses requests "
-                        "using the OpenAI Responses compact API."
-                    ),
-                    "inputs": [
-                        {
-                            "name": "end_index",
-                            "type": "number",
-                            "label": "Compact visible messages [:end]",
-                            "required": False,
-                            "placeholder": "Leave empty to compact the full history",
-                        }
-                    ],
-                },
-            },
         ]
 
     def get_tags(
@@ -179,9 +155,12 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 "inputs": {},
             },
             {
-                "id": "compact_native_history",
-                "label": "Compact native history",
-                "description": "Compact provider-native history with the OpenAI Responses compact API.",
+                "id": _SYNC_COMPACTION_ACTION_ID,
+                "label": "Compact native history synchronously",
+                "description": (
+                    "Synchronous compatibility adapter for OpenAI Responses "
+                    "native compaction."
+                ),
                 "inputs": {
                     "end_index": {"type": "integer", "required": False},
                 },
@@ -799,17 +778,6 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             )
         return unique_indices[-1] + 1
 
-    def _response_to_dict(self, payload: Any) -> Dict[str, Any]:
-        if isinstance(payload, dict):
-            return payload
-        if hasattr(payload, "model_dump"):
-            dumped = payload.model_dump(mode="python")
-            if isinstance(dumped, dict):
-                return dumped
-        raise RuntimeError(
-            "[openai_responses_native_compaction] invalid SDK compaction payload"
-        )
-
     def execute_action(
         self,
         action_id: str,
@@ -827,7 +795,7 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 config,
             )
 
-        if action_id != "compact_native_history":
+        if action_id != _SYNC_COMPACTION_ACTION_ID:
             raise ValueError(
                 f"Unknown action_id {action_id!r} for OpenAIResponsesNativeCompactionExtension"
             )
@@ -878,19 +846,6 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             else None
         )
 
-        try:
-            client = self._build_client(compaction_config)
-        except ValueError as exc:
-            if effective_auth_mode(
-                config
-            ) == "chatgpt" and not self._use_chatgpt_auth_for_compaction(config):
-                raise RuntimeError(
-                    "OpenAI Responses native compaction is configured to use the API endpoint, "
-                    "but no OpenAI API key is available. Set config.api_key / OPENAI_API_KEY "
-                    "or re-enable use_chatgpt_auth_for_compaction."
-                ) from exc
-            raise
-
         (
             input_items,
             instructions_value,
@@ -905,10 +860,36 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
             instructions_value,
         )
 
+        transport: OpenAIResponsesCompactionTransport
+        raw_transport = (
+            context.get(COMPACTION_TRANSPORT_CONTEXT_KEY)
+            if isinstance(context, dict)
+            else None
+        )
+        if raw_transport is not None and callable(
+            getattr(raw_transport, "compact", None)
+        ):
+            transport = raw_transport
+        else:
+            try:
+                client = self._build_client(compaction_config)
+            except ValueError as exc:
+                if effective_auth_mode(
+                    config
+                ) == "chatgpt" and not self._use_chatgpt_auth_for_compaction(config):
+                    raise RuntimeError(
+                        "OpenAI Responses native compaction is configured to use the API endpoint, "
+                        "but no OpenAI API key is available. Set config.api_key / OPENAI_API_KEY "
+                        "or re-enable use_chatgpt_auth_for_compaction."
+                    ) from exc
+                raise
+            transport = SyncOpenAIResponsesCompactionTransport(client)
+
         try:
-            sdk_response = client.responses.compact(  # type: ignore[union-attr]
+            response_obj = OpenAIResponsesNativeCompactionBackend().compact(
+                transport,
                 model=model,
-                input=input_items,
+                input_items=input_items,
                 instructions=instructions_value,
                 timeout=timeout,
             )
@@ -921,7 +902,6 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
                 ) from exc
             raise RuntimeError(f"OpenAI Responses compact failed: {exc}") from exc
 
-        response_obj = self._response_to_dict(sdk_response)
         output = response_obj.get("output")
         if not isinstance(output, list):
             raise RuntimeError(
