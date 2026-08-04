@@ -9,6 +9,7 @@ import App from './App';
 import { MobileSessionListHarness } from './src/testing/MobileSessionListHarness';
 import { MobileTranscriptScrollHarness } from './src/testing/MobileTranscriptScrollHarness';
 import { MobileNotificationBannerHarness } from './src/testing/MobileNotificationBannerHarness';
+import { MobileSelectableCodeBlockHarness } from './src/testing/MobileSelectableCodeBlockHarness';
 import { name as appName } from './app.json';
 
 const RootComponent = props => {
@@ -19,6 +20,8 @@ const RootComponent = props => {
     Component = MobileSessionListHarness;
   } else if (props?.clcNotificationBannerHarness === '1') {
     Component = MobileNotificationBannerHarness;
+  } else if (props?.clcSelectableCodeBlockHarness === '1') {
+    Component = MobileSelectableCodeBlockHarness;
   }
   return React.createElement(Component, props);
 };
@@ -35,4 +38,8 @@ AppRegistry.registerComponent(
 AppRegistry.registerComponent(
   'MobileNotificationBannerHarness',
   () => MobileNotificationBannerHarness,
+);
+AppRegistry.registerComponent(
+  'MobileSelectableCodeBlockHarness',
+  () => MobileSelectableCodeBlockHarness,
 );

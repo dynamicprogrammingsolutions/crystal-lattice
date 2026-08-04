@@ -29,6 +29,7 @@ export interface SelectableCodeBlockProps {
   code: string;
   language?: string;
   variant?: MarkdownMessageVariant;
+  testID?: string;
 }
 
 function normalizeLanguage(language?: string): string {
@@ -147,6 +148,7 @@ export function tokenizeCode(
 const SelectableCodeBlock: React.FC<SelectableCodeBlockProps> = ({
   code,
   language,
+  testID,
 }) => {
   const theme = useTheme();
   const [wrapLines, setWrapLines] = useState(false);
@@ -172,6 +174,7 @@ const SelectableCodeBlock: React.FC<SelectableCodeBlockProps> = ({
       color={baseCodeColor}
       wrapLines={wrapLines}
       menuOptions={['Copy']}
+      testID={testID ? `${testID}-native` : undefined}
       style={StyleSheet.flatten([
         styles.selectableTextContainer,
         wrapLines && styles.selectableTextContainerWrapped,
@@ -188,7 +191,7 @@ const SelectableCodeBlock: React.FC<SelectableCodeBlockProps> = ({
           borderColor: theme.border,
         },
       ]}
-      testID="selectable-markdown-code-block"
+      testID={testID ?? 'selectable-markdown-code-block'}
     >
       <View style={[styles.codeBlockToolbar, { borderBottomColor: theme.border }]}>
         <Pressable

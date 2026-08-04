@@ -37,6 +37,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       $0 == "-clcNotificationBannerHarness" || $0 == "clcNotificationBannerHarness"
     }) {
       moduleName = "MobileNotificationBannerHarness"
+    } else if arguments.contains(where: {
+      $0 == "-clcSelectableCodeBlockHarness" || $0 == "clcSelectableCodeBlockHarness"
+    }) {
+      moduleName = "MobileSelectableCodeBlockHarness"
     } else {
       moduleName = "CrystalLatticeControlRN"
     }
