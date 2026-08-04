@@ -115,6 +115,62 @@ def test_application_notification_history_survives_server_owner_restart(
     second_store.close()
 
 
+def test_notification_ui_effects_survive_public_http_contract(
+    tmp_path: Path,
+) -> None:
+    owner = _owner(tmp_path)
+    with TestClient(server_mod.app) as client:
+        created = client.post("/sessions", json={"agent_id": "default"}).json()
+        session_id = created["session"]["session_id"]
+        common = {
+            "severity": "success",
+            "title": "Refresh requested",
+            "body": "Refresh connection data.",
+            "source": {"plugin": "http_contract_test"},
+            "model_visibility": "hidden",
+            "ui_effects": {
+                "reload_session_ids": [session_id],
+                "reload_sessions_list": True,
+                "reload_application_actions": True,
+                "plugin_detail": {"preserved": True},
+            },
+        }
+        owner.current.create_application_notification(
+            {
+                **common,
+                "key": "http:application:ui-effects",
+                "display": {"format": "text", "presentation": "banner"},
+            }
+        )
+        owner.current.create_session_notification(
+            session_id,
+            {
+                **common,
+                "key": "http:session:ui-effects",
+                "display": {"format": "text", "presentation": "inline"},
+            },
+        )
+
+        application_notification = client.get("/application/notifications").json()[
+            "notifications"
+        ][0]
+        session_notification = client.get(
+            f"/sessions/{session_id}/notifications"
+        ).json()["notifications"][0]
+
+        assert application_notification["ui_effects"] == common["ui_effects"]
+        assert session_notification["ui_effects"] == common["ui_effects"]
+        events = client.get(
+            "/events",
+            params={"since_id": "0", "session_id": session_id},
+        ).json()["events"]
+        assert any(
+            event.get("notification", {}).get("ui_effects") == common["ui_effects"]
+            for event in events
+        )
+    owner.close()
+
+
 def test_demo_plugins_exercise_public_notification_and_display_contract(
     tmp_path: Path,
 ) -> None:

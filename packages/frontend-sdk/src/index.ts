@@ -42,6 +42,7 @@ export type {
   ActionUiElement,
   ActionMutations,
   ActionUiEffects,
+  RefreshUiEffects,
   ActionDisplayOpenUrlAction,
   ActionDisplayCopyTextAction,
   ActionDisplayRunActionAction,
@@ -134,6 +135,7 @@ export {
   isSessionNotification,
   isSessionNotificationEvent,
   mergeSessionNotificationEvents,
+  observeSessionNotificationUiEffects,
   selectPendingSessionNotifications,
   selectSessionNotifications,
 } from './notifications/sessionNotifications';
@@ -168,6 +170,13 @@ export {
 
 export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
+export type { RefreshUiEffect } from './plugins/uiEffects';
+export {
+  emitRefreshUiEffects,
+  NotificationUiEffectObserver,
+  parseRefreshUiEffects,
+  subscribeRefreshUiEffects,
+} from './plugins/uiEffects';
 export {
   applicationActionKey,
   buildApplicationActionsByKey,

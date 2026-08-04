@@ -106,10 +106,23 @@ def test_application_notification_validation_and_revision_conflicts(
         raise AssertionError("inline application notifications must be rejected")
 
     created = application.create_application_notification(_notification())
+    effects = application.update_application_notification(
+        created["id"],
+        {
+            "ui_effects": {
+                "reload_session_ids": ["session-1"],
+                "reload_sessions_list": True,
+                "reload_application_actions": True,
+                "plugin_detail": "kept",
+            }
+        },
+        expected_revision=created["revision"],
+    )
+    assert effects["ui_effects"]["plugin_detail"] == "kept"
     updated = application.update_application_notification(
         created["id"],
         {"body": "Updated"},
-        expected_revision=created["revision"],
+        expected_revision=effects["revision"],
     )
     try:
         application.dismiss_application_notification(

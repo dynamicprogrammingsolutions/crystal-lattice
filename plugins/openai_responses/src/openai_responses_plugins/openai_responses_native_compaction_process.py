@@ -553,6 +553,10 @@ class OpenAIResponsesNativeCompactionProcess:
                     "cancellable": False,
                 },
             }
+            if state == "succeeded":
+                patch["ui_effects"] = {
+                    "reload_session_ids": [self.session_id],
+                }
             try:
                 stored = self._app.update_session_notification(
                     self.session_id,

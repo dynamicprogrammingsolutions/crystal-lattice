@@ -5,6 +5,7 @@ import {
   isActiveNotification,
   isNewerNotification,
 } from './notificationLifecycle';
+import { NotificationUiEffectObserver } from '../plugins/uiEffects';
 
 const SEVERITIES = new Set(['info', 'success', 'warning', 'error']);
 
@@ -91,4 +92,17 @@ export function dismissSessionNotificationLocally(
   notificationId: string,
 ): SessionNotification[] {
   return current.filter((notification) => notification.id !== notificationId);
+}
+
+export function observeSessionNotificationUiEffects(
+  observer: NotificationUiEffectObserver,
+  input: SessionSummary | Record<string, any> | null | undefined,
+  events: readonly Event[],
+): void {
+  for (const notification of mergeSessionNotificationEvents(
+    selectSessionNotifications(input),
+    events,
+  )) {
+    observer.observe('session', notification);
+  }
 }

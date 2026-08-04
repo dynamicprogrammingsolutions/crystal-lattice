@@ -385,7 +385,9 @@ Application plugin actions return a dictionary with the following structure:
     # UI effects (optional)
     "ui_effects": {
         "reload_session_ids": ["session-2"],
-        "navigate": {"screen": "sessions"},
+        "reload_sessions_list": true,
+        "reload_application_actions": true,
+        "navigate_to_session_id": "session-2",
     },
     
     # Result message (optional)
@@ -400,6 +402,35 @@ Application plugin actions return a dictionary with the following structure:
     "debug": {...},
 }
 ```
+
+### Action/notification UI-effect relationship
+
+Application-action responses retain the complete action UI-effect contract:
+
+- refresh effects:
+  - `reload_session_ids`;
+  - `reload_sessions_list`;
+  - `reload_application_actions`;
+- action-only navigation:
+  - `navigate_to_session_id`.
+
+The three refresh effects are reused by both session and application
+notifications. They are connection-scoped, idempotent
+invalidation requests and do not open sessions or change focus.
+
+`navigate_to_session_id` is intentionally not shared with asynchronous
+notifications. For example, a user-invoked Fork action may navigate to the new
+session, but a background notification must not unexpectedly move the user
+away from the session or screen they are viewing. A notification follow-up may
+invoke an action that navigates after the user explicitly chooses it.
+
+Action `mutations` remain separate from UI effects. Existing frontend policy
+may infer session-list refresh or created-session navigation from an action's
+mutation result. Notifications do not have mutation semantics and must request
+refreshes explicitly.
+
+See [Notifications and action displays](notifications-and-action-displays.md)
+for the proposed notification delivery and revision-deduplication rules.
 
 ---
 

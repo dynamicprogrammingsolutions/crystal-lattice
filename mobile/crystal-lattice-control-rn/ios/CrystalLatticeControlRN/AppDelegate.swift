@@ -45,6 +45,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
       $0 == "-clcOrderedListMarkdownHarness" || $0 == "clcOrderedListMarkdownHarness"
     }) {
       moduleName = "MobileOrderedListMarkdownHarness"
+    } else if arguments.contains(where: {
+      $0 == "-clcNotificationUiEffectsHarness" || $0 == "clcNotificationUiEffectsHarness"
+    }) {
+      moduleName = "MobileNotificationUiEffectsHarness"
     } else {
       moduleName = "CrystalLatticeControlRN"
     }

@@ -45,11 +45,15 @@ export interface ActionMutations {
   deleted_session_ids?: string[];
 }
 
-export interface ActionUiEffects {
-  navigate_to_session_id?: string | null;
+export interface RefreshUiEffects {
   reload_session_ids?: string[];
   reload_sessions_list?: boolean;
   reload_application_actions?: boolean;
+  [key: string]: any;
+}
+
+export interface ActionUiEffects extends RefreshUiEffects {
+  navigate_to_session_id?: string | null;
 }
 
 export interface ActionDisplayOpenUrlAction {

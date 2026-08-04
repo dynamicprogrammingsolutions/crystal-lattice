@@ -2,6 +2,7 @@ import type { AgentBackend } from '../backend/backend';
 import { PollingEventSource } from '../events/pollingEventSource';
 import { emitApplicationActionsInvalidated } from '../plugins/applicationActionsInvalidation';
 import { emitDisplayPresentation, normalizeDisplayEnvelope } from '../plugins/displayPresentation';
+import { NotificationUiEffectObserver } from '../plugins/uiEffects';
 import type { ApplicationNotification } from '../types/applicationNotifications';
 import { SimpleSubscribable } from '../util/subscribable';
 import { mergeApplicationNotificationEvents } from './applicationNotifications';
@@ -32,6 +33,7 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
   private readonly now: () => Date;
   private readonly retryingDismissals = new Set<string>();
   private readonly acceptedTtlNotificationIds = new Set<string>();
+  private readonly uiEffectObserver: NotificationUiEffectObserver;
   private generation = 0;
 
   constructor(options: {
@@ -54,6 +56,7 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
     this.hydrateSnapshot = options.hydrateSnapshot === true;
     this.dismissalCache = options.dismissalCache;
     this.now = options.now ?? (() => new Date());
+    this.uiEffectObserver = new NotificationUiEffectObserver(options.backend);
     this.source = new PollingEventSource(options.backend, {
       applicationScope: true,
       intervalMs: options.intervalMs,
@@ -114,6 +117,9 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
       loading: false,
       error,
     });
+    for (const notification of notifications) {
+      this.uiEffectObserver.observe('application', notification);
+    }
     this.source.start({
       sessionId: null,
       initialSinceId,
@@ -133,6 +139,9 @@ export class ApplicationNotificationsController extends SimpleSubscribable<Appli
             }),
           ),
         });
+        for (const notification of notifications) {
+          this.uiEffectObserver.observe('application', notification);
+        }
         for (const event of events) {
           if (
             event.type === 'application_reload_completed' ||

@@ -1,5 +1,6 @@
 import type { BaseEvent } from './events';
 import type { ActionDisplayPayload } from './plugins';
+import type { RefreshUiEffects } from './plugins';
 
 export type NotificationStatus = 'pending' | 'dismissed' | 'resolved' | 'expired';
 export type SessionNotificationStatus = NotificationStatus;
@@ -56,6 +57,7 @@ export interface SessionNotification {
     [key: string]: any;
   } | null;
   operation?: NotificationOperation;
+  ui_effects?: RefreshUiEffects;
   model_visibility: 'hidden';
 }
 

@@ -131,6 +131,42 @@ def test_update_by_id_and_key(tmp_path: Path) -> None:
     assert by_key["display"]["variant"] == "info"
 
 
+def test_session_notification_ui_effects_are_normalized(tmp_path: Path) -> None:
+    app, _store, session_id = _make_app(tmp_path)
+    stored = app.create_session_notification(
+        session_id,
+        {
+            **_notification(),
+            "ui_effects": {
+                "reload_session_ids": [session_id, session_id],
+                "reload_sessions_list": True,
+                "reload_application_actions": True,
+                "plugin_detail": {"value": 1},
+            },
+        },
+    )
+    assert stored["ui_effects"] == {
+        "reload_session_ids": [session_id],
+        "reload_sessions_list": True,
+        "reload_application_actions": True,
+        "plugin_detail": {"value": 1},
+    }
+
+    with pytest.raises(ValueError, match="action-only"):
+        app.update_session_notification(
+            session_id,
+            stored["id"],
+            {"ui_effects": {"navigate_to_session_id": session_id}},
+        )
+
+    with pytest.raises(ValueError, match="must be a list"):
+        app.update_session_notification(
+            session_id,
+            stored["id"],
+            {"ui_effects": {"reload_session_ids": session_id}},
+        )
+
+
 def test_notification_validation_and_sink_failure_are_contained(
     tmp_path: Path,
 ) -> None:

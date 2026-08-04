@@ -11,11 +11,14 @@ import type {
 import type { SessionSummary } from '../types/sessions';
 import { resolveSessionListPath } from '../sessions/sessionListContracts';
 import { applicationActionKey } from './applicationActions';
+import { emitApplicationActionsInvalidated } from './applicationActionsInvalidation';
+import { parseRefreshUiEffects } from './uiEffects';
 
 export type ActionEffect =
   | { type: 'navigateToSession'; sessionId: string }
   | { type: 'reloadSession'; sessionId: string }
-  | { type: 'reloadSessionsList' };
+  | { type: 'reloadSessionsList' }
+  | { type: 'reloadApplicationActions' };
 
 export interface RunActionContext {
   sessionId?: string;
@@ -180,10 +183,7 @@ function deriveActionEffectsFromResult(options: {
       ? uiEffects.navigate_to_session_id
       : null;
 
-  const reloadSessionIds: string[] = Array.isArray(uiEffects.reload_session_ids)
-    ? (uiEffects.reload_session_ids as any[]).filter((id) => typeof id === 'string')
-    : [];
-  const reloadSessionsList = uiEffects.reload_sessions_list === true;
+  const refreshEffects = parseRefreshUiEffects(uiEffects);
 
   const effectList: ActionEffect[] = [];
 
@@ -193,7 +193,7 @@ function deriveActionEffectsFromResult(options: {
     effectList.push({ type: 'navigateToSession', sessionId: createdSessionIds[0] });
   }
 
-  if (reloadSessionsList) {
+  if (refreshEffects.some((effect) => effect.type === 'reloadSessionsList')) {
     effectList.push({ type: 'reloadSessionsList' });
   } else if (effects.reloadSessionsListOnMutations) {
     if (createdSessionIds.length > 0 || updatedSessionIds.length > 0 || deletedSessionIds.length > 0) {
@@ -202,9 +202,17 @@ function deriveActionEffectsFromResult(options: {
   }
 
   if (effects.currentSessionId) {
-    if (reloadSessionIds.includes(effects.currentSessionId)) {
+    if (
+      refreshEffects.some(
+        (effect) =>
+          effect.type === 'reloadSession' && effect.sessionId === effects.currentSessionId,
+      )
+    ) {
       effectList.push({ type: 'reloadSession', sessionId: effects.currentSessionId });
     }
+  }
+  if (refreshEffects.some((effect) => effect.type === 'reloadApplicationActions')) {
+    effectList.push({ type: 'reloadApplicationActions' });
   }
 
   return effectList;
@@ -298,6 +306,17 @@ export async function runApplicationAction(options: {
       };
     }
 
+    const actionEffects = deriveActionEffectsFromResult({
+      okResponse,
+      effects: {
+        currentSessionId: effects?.currentSessionId ?? null,
+        navigateOnCreatedSession: effects?.navigateOnCreatedSession ?? false,
+        reloadSessionsListOnMutations: effects?.reloadSessionsListOnMutations ?? false,
+      },
+    });
+    if (actionEffects.some((effect) => effect.type === 'reloadApplicationActions')) {
+      emitApplicationActionsInvalidated(backend);
+    }
     return {
       ok: true,
       rawResponse,
@@ -306,14 +325,7 @@ export async function runApplicationAction(options: {
         result && typeof result.display === 'object' && result.display
           ? (result.display as ActionDisplayPayload)
           : undefined,
-      effects: deriveActionEffectsFromResult({
-        okResponse,
-        effects: {
-          currentSessionId: effects?.currentSessionId ?? null,
-          navigateOnCreatedSession: effects?.navigateOnCreatedSession ?? false,
-          reloadSessionsListOnMutations: effects?.reloadSessionsListOnMutations ?? false,
-        },
-      }),
+      effects: actionEffects,
     };
   } catch (err: any) {
     return {

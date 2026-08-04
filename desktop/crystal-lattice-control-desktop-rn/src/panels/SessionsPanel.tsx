@@ -47,6 +47,7 @@ import {
   normalizeActionDisplayForSurface,
   normalizeDisplayEnvelope,
   runApplicationAction,
+  subscribeRefreshUiEffects,
   selectSessionListRichActionForPlacement,
 } from '@crystal-lattice/frontend-sdk';
 
@@ -272,6 +273,15 @@ function SessionsPanelInner({
       refreshSessions();
     });
   }, [connectionId, refreshSessions]);
+
+  useEffect(() => {
+    if (!backend) return;
+    return subscribeRefreshUiEffects(backend, (effect) => {
+      if (effect.type === 'reloadSessionsList') {
+        void refreshSessions();
+      }
+    });
+  }, [backend, refreshSessions]);
 
   const {
     actionsById,

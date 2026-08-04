@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 from typing import Any, Dict, Mapping
 import uuid
 
@@ -216,6 +217,42 @@ def _validate_transition(
     )
 
 
+def normalize_notification_ui_effects(value: Any) -> Dict[str, Any]:
+    if not isinstance(value, Mapping):
+        raise ValueError("notification.ui_effects must be a mapping")
+    if "navigate_to_session_id" in value:
+        raise ValueError(
+            "notification.ui_effects.navigate_to_session_id is action-only"
+        )
+    normalized = dict(value)
+    session_ids = value.get("reload_session_ids")
+    if session_ids is not None:
+        if not isinstance(session_ids, list):
+            raise ValueError(
+                "notification.ui_effects.reload_session_ids must be a list"
+            )
+        deduplicated: list[str] = []
+        for session_id in session_ids:
+            if not isinstance(session_id, str) or not session_id:
+                raise ValueError(
+                    "notification.ui_effects.reload_session_ids entries "
+                    "must be non-empty strings"
+                )
+            if session_id not in deduplicated:
+                deduplicated.append(session_id)
+        normalized["reload_session_ids"] = deduplicated
+    for field in ("reload_sessions_list", "reload_application_actions"):
+        if field in value and not isinstance(value[field], bool):
+            raise ValueError(f"notification.ui_effects.{field} must be a boolean")
+    try:
+        json.dumps(normalized)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "notification.ui_effects must contain JSON-compatible values"
+        ) from exc
+    return normalized
+
+
 def _normalize_notification(
     notification: Mapping[str, Any],
     *,
@@ -264,6 +301,11 @@ def _normalize_notification(
         raise ValueError(
             f"notification.status must be one of {sorted(_NOTIFICATION_STATUSES)}"
         )
+    ui_effects = (
+        normalize_notification_ui_effects(merged["ui_effects"])
+        if "ui_effects" in merged
+        else None
+    )
 
     effective_request_id = (
         request_id if request_id is not None else merged.get("request_id")
@@ -297,7 +339,7 @@ def _normalize_notification(
             else 1
         )
 
-    return {
+    stored = {
         **merged,
         "id": notification_id,
         "key": key,
@@ -324,6 +366,9 @@ def _normalize_notification(
         "expiration": merged.get("expiration"),
         "model_visibility": "hidden",
     }
+    if ui_effects is not None:
+        stored["ui_effects"] = ui_effects
+    return stored
 
 
 class SessionNotifications:

@@ -43,10 +43,13 @@ import {
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
   normalizeActionDisplayForSurface,
+  NotificationUiEffectObserver,
+  observeSessionNotificationUiEffects,
   runApplicationAction,
   selectSessionAssetId,
   selectDisplayContent,
   storeSessionAttachment,
+  subscribeRefreshUiEffects,
   type ComposerAttachmentUiElement as SharedComposerAttachmentUiElement,
   type AttachmentDraftStatus,
 } from '@crystal-lattice/frontend-sdk';
@@ -2040,6 +2043,38 @@ export const ChatPane = React.memo(function ChatPane({
       setReloadInFlight(false);
     }
   }, [canRunHeaderActions, chatController, rangeEndText, rangeStartText, reloadInFlight]);
+
+  const notificationUiEffectObserver = useMemo(
+    () => (backend ? new NotificationUiEffectObserver(backend) : null),
+    [backend],
+  );
+
+  useEffect(() => {
+    if (!backend) return;
+    return subscribeRefreshUiEffects(backend, (effect) => {
+      if (effect.type === 'reloadSession' && effect.sessionId === sessionId) {
+        void handleReload();
+      } else if (effect.type === 'reloadSessionsList') {
+        desktopEventBus.publish('sessionsReloadRequested', {
+          connectionId,
+          reason: 'notification_ui_effect',
+        });
+      }
+    });
+  }, [backend, connectionId, handleReload, sessionId]);
+
+  useEffect(() => {
+    if (!notificationUiEffectObserver) return;
+    observeSessionNotificationUiEffects(
+      notificationUiEffectObserver,
+      sessionSummary ?? null,
+      notificationEvents,
+    );
+  }, [
+    notificationEvents,
+    notificationUiEffectObserver,
+    sessionSummary,
+  ]);
 
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
     const nextEntry = createDisplayEntry(

@@ -829,6 +829,34 @@ Application-plugin action results remain application-level. They may include:
 - `ui_effects` such as reload requests or navigation hints
 - additional app-facing payloads used by HTTP, terminal, or mobile flows
 
+#### Shared UI-effect boundary
+
+The shared refresh fields are:
+
+- `reload_session_ids`;
+- `reload_sessions_list`;
+- `reload_application_actions`.
+
+These fields have the same meaning for application-action responses, session
+notifications, and application notifications. They invalidate data only on
+the owning connection. A session reload refreshes a mounted/open session and
+otherwise invalidates cached state; it does not open the session.
+
+`navigate_to_session_id` remains action-response-only. Action execution has a
+direct user gesture and a concrete navigation context. Asynchronous
+notification delivery must not move focus or switch sessions. A notification
+follow-up can still invoke an action that returns navigation after the user
+clicks it.
+
+Action `mutations` also remain action-only. Frontend policy may derive
+additional behavior from an action's created, updated, or deleted session IDs,
+including optional navigation to a newly created session or session-list
+refresh. Notifications do not carry mutations and never derive implicit
+effects; their `ui_effects` must be explicit.
+
+Unknown JSON-compatible UI-effect fields remain allowed for forward
+compatibility. Frontends ignore fields they do not implement.
+
 When application actions are lifecycle-triggered, they still use the same
 contract. The difference is only how they were selected for execution.
 

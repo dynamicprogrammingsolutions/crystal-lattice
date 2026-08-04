@@ -400,6 +400,24 @@ describe('runApplicationAction effect derivation', () => {
     expect(res.effects).toEqual([{ type: 'reloadSessionsList' }]);
   });
 
+  it('emits the declared application-actions refresh effect', async () => {
+    const backend = buildBackend({
+      status: 'ok',
+      plugin: 'settings',
+      action_id: 'save',
+      result: {
+        ui_effects: { reload_application_actions: true },
+      },
+    });
+    const res = await runApplicationAction({
+      backend,
+      element: ELEMENT,
+      actionsById: { save: ACTION_DEF },
+      context: {},
+    });
+    expect(res.effects).toContainEqual({ type: 'reloadApplicationActions' });
+  });
+
   it('passes through generic display payloads for frontend rendering', async () => {
     const backend = buildBackend({
       status: 'ok',

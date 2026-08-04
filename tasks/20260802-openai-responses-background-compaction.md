@@ -1238,7 +1238,7 @@ Checkpoint C:
 
 ### Stage C follow-up — Notification-driven UI effects
 
-Stage C follow-up plan status: Approved on August 4, 2026.
+Stage C follow-up plan status: Implemented on August 4, 2026.
 
 #### Outcome
 
@@ -1676,6 +1676,8 @@ second compaction backend or separate operation model.
 - [x] Complete checkpoint B.
 - [x] Approve the detailed Stage C plan and shared session-operation admission.
 - [x] Implement and verify Stage C.
+- [x] Implement and verify notification-driven UI effects, including native
+  simulator coverage.
 - [x] Correct and verify auth-resolved background compaction transport binding.
 - [ ] Complete mobile manual checkpoint C.
 - [ ] Implement and verify Stage D.
@@ -1932,6 +1934,12 @@ Correction verification:
   successful;
 - targeted desktop ChatPane ESLint: 0 errors and 4 existing warnings;
 - frontend SDK: 40 files and 285 tests passed.
+- notification UI effects follow-up: frontend SDK 41 files and 290 tests
+  passed; focused core notification tests 20 passed; focused OpenAI Responses
+  background compaction tests 8 passed; mobile and desktop notification
+  component suites passed; the iOS Detox production-screen harness verified
+  that a successful notification revision replaced the mounted transcript
+  through the real reload path without navigation.
 - full OpenAI Responses package: 395 passed and 76 deselected, with the same 3
   independently reproducible attachment-history failures recorded before this
   correction.
@@ -2026,6 +2034,55 @@ Verification note:
   coverage proves the saved-login feature output crosses the background
   transport boundary, while the local HTTP transport harness exercises late
   configuration through the real cancellable transport.
+
+### Stage C follow-up — Notification-driven UI effects
+
+Implemented on August 4, 2026.
+
+Outcome:
+
+- added shared `reload_session_ids`, `reload_sessions_list`, and
+  `reload_application_actions` parsing and backend-scoped dispatch;
+- kept `navigate_to_session_id` action-only and rejected it in notification
+  validation;
+- preserved unknown JSON-compatible notification effect fields while
+  validating known fields;
+- added revision-aware notification observation for session and application
+  notifications;
+- routed session reloads to the production mobile and desktop Chat reload
+  paths, session-list reloads to the production list controllers, and
+  application-action reloads to the existing application action invalidation
+  mechanism;
+- added the session reload effect only to successful native compaction
+  completion notifications;
+- retained explicit action navigation and mutation-derived action policies;
+- documented the accepted shared contract and the operation-service boundary;
+- added a deterministic Detox harness using the production
+  `SessionChatScreen`; the iOS simulator verified that the successful
+  notification revision replaced the authoritative transcript without
+  navigation.
+
+Automated evidence:
+
+- focused core session/application notification tests: 20 passed;
+- public FastAPI notification contract tests: 3 passed, including session and
+  application `ui_effects` payload/event preservation;
+- frontend SDK: 41 files and 290 tests passed;
+- focused OpenAI Responses background compaction application tests: 8 passed;
+- focused mobile notification component tests: 2 suites and 15 tests passed;
+- focused desktop notification component tests: 2 suites and 7 tests passed;
+- mobile TypeScript check passed;
+- iOS Detox release build passed;
+- iOS Detox notification UI-effect scenario passed;
+- focused Ruff, Black, and diff checks passed.
+
+Verification notes:
+
+- desktop TypeScript still reports three pre-existing errors in attachment
+  calls and `ActionResultInlineCard` theme typing; the changed notification
+  wiring introduced no additional diagnostics;
+- Android emulator execution was not run in this environment; the same Detox
+  scenario and package script were added for Android.
 
 ## Completion Notes
 

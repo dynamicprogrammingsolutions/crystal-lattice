@@ -24,6 +24,7 @@ import {
   normalizeActionDisplayForSurface,
   pickDefaultAgentId,
   runApplicationAction,
+  subscribeRefreshUiEffects,
   selectSessionListRichActionForPlacement,
   type AgentBackend,
   type ApplicationActionUiElement,
@@ -324,6 +325,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       Alert.alert('Error', message);
     }
 	  }, [sessionsController, onUpdateCache, refreshApplicationPlugins]);
+
+  useEffect(() => {
+    if (!backend) return;
+    return subscribeRefreshUiEffects(backend, (effect) => {
+      if (effect.type === 'reloadSessionsList') {
+        void loadSessions();
+      }
+    });
+  }, [backend, loadSessions]);
 
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
     const nextEntry = createDisplayEntry(display, context);

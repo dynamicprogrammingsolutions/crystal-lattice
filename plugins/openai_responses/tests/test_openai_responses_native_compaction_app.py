@@ -264,6 +264,7 @@ def test_background_action_returns_promptly_and_publishes_heartbeats(
     assert completed_notification["display"]["presentation"] == "banner"
     assert completed_notification["display"]["dismissible"] is True
     assert completed_notification["title"] == "Native compaction complete"
+    assert completed_notification["ui_effects"] == {"reload_session_ids": [session_id]}
     app.close()
 
 
@@ -442,6 +443,7 @@ def test_cancel_action_interrupts_transport_and_discards_result(
     assert notification["display"]["variant"] == "warning"
     assert notification["display"]["presentation"] == "banner"
     assert notification["display"]["dismissible"] is True
+    assert "ui_effects" not in notification
     app.close()
 
 
@@ -471,6 +473,7 @@ def test_provider_failure_keeps_persistent_retry_notification(
     assert notification["display"]["actions"][0]["action_id"] == (
         "compact_native_history"
     )
+    assert "ui_effects" not in notification
     app.close()
 
 

@@ -1,4 +1,4 @@
-import type { ActionDisplayPayload } from './plugins';
+import type { ActionDisplayPayload, RefreshUiEffects } from './plugins';
 import type {
   NotificationRetention,
   NotificationSeverity,
@@ -23,6 +23,7 @@ export interface ApplicationNotification {
     [key: string]: any;
   };
   display: ActionDisplayPayload;
+  ui_effects?: RefreshUiEffects;
   resolution?: {
     action_id?: string;
     values?: Record<string, any>;

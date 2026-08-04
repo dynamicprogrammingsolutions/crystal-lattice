@@ -5,6 +5,7 @@ import type { KeyValueStore } from '../storage/keyValueStore';
 import type { ApplicationNotification } from '../types/applicationNotifications';
 import { ApplicationNotificationsController } from './applicationNotificationsController';
 import { NotificationDismissalCache } from './notificationDismissalCache';
+import { subscribeRefreshUiEffects } from '../plugins/uiEffects';
 
 const pending: ApplicationNotification = {
   id: 'notification-1',
@@ -63,6 +64,34 @@ function createBackend(options: {
 }
 
 describe('ApplicationNotificationsController', () => {
+  it('dispatches hydrated application-notification effects once', async () => {
+    const notification = {
+      ...pending,
+      ui_effects: {
+        reload_sessions_list: true,
+        reload_application_actions: true,
+      },
+    };
+    const backend = createBackend({
+      notification,
+      dismiss: vi.fn(),
+    });
+    const effects: string[] = [];
+    subscribeRefreshUiEffects(backend, (effect) => effects.push(effect.type));
+    const controller = new ApplicationNotificationsController({
+      backend,
+      hydrateSnapshot: true,
+      intervalMs: 60_000,
+    });
+
+    controller.start();
+    await vi.waitFor(() => {
+      expect(controller.getSnapshot().loading).toBe(false);
+    });
+    expect(effects).toEqual(['reloadSessionsList', 'reloadApplicationActions']);
+    controller.close();
+  });
+
   it('hydrates from a snapshot before polling and applies server dismissal', async () => {
     const calls: string[] = [];
     const dismissApplicationNotification = vi.fn(async () => ({

@@ -223,6 +223,23 @@ OpenAI compaction may report elapsed time. A streaming compaction plugin may
 report chunks, characters, or provider token counts. The application operation
 service interprets none of them.
 
+### Notification refresh effects
+
+A plugin-owned notification may request connection-scoped refreshes
+through `ui_effects`:
+
+- `reload_session_ids`;
+- `reload_sessions_list`;
+- `reload_application_actions`.
+
+These remain notification data and are not stored, validated, routed, or
+executed by `ApplicationOperationService`. The notification contract and
+frontend consumers own those responsibilities.
+
+Focus-changing effects such as `navigate_to_session_id` remain action-only.
+Operation completion occurring in the background must not navigate the user
+away from their current context.
+
 ## Future operations menu
 
 A future connection-level operations menu can begin with active registrations:

@@ -354,6 +354,69 @@ Use `display.dismissible: false` while Cancel is the intended user action.
 After failure or interruption, update the display to `dismissible: true` and
 provide Retry or Continue follow-ups as appropriate.
 
+### Notification UI effects
+
+Notifications may carry an optional `ui_effects` mapping using the
+same refresh field names as application-action results:
+
+```json
+{
+  "ui_effects": {
+    "reload_session_ids": ["session-1"],
+    "reload_sessions_list": true,
+    "reload_application_actions": true
+  }
+}
+```
+
+The shared notification-safe effects are:
+
+| Field | Meaning |
+| --- | --- |
+| `reload_session_ids` | Invalidate the listed sessions on the notification's connection and refresh any listed session that is currently mounted or open. This does not open or navigate to a session. |
+| `reload_sessions_list` | Invalidate and refresh the session collection for the notification's connection. |
+| `reload_application_actions` | Invalidate and refresh application-action definitions and related application UI schema for the notification's connection. |
+
+These refresh effects are applicable to both notification scopes:
+
+- a session notification applies them within the connection that owns its
+  session;
+- an application notification applies them within the connection on which it
+  was received.
+
+Effects never cross connection boundaries. A connection-level notification
+may request `reload_session_ids`, but the frontend does not open those
+sessions. It refreshes mounted consumers and invalidates cached data so a later
+open observes current state.
+
+Known fields are validated. Additional JSON-compatible `ui_effects` fields are
+preserved and remain producer-owned. Frontends may implement recognized
+optional fields and must ignore unknown fields.
+
+`navigate_to_session_id` is deliberately not part of notification UI effects.
+Navigation is focus-changing and is appropriate after a direct user action,
+such as Fork, but not when an asynchronous notification revision arrives.
+A notification follow-up may still run an action whose successful action
+response navigates after the user explicitly selects it.
+
+Notifications also do not carry action `mutations` and do not infer effects
+from created, updated, or deleted session IDs. A notification producer must
+request every desired refresh explicitly through `ui_effects`.
+
+Delivery is revision-based:
+
+- an effect is considered once per connection, notification ID, and revision;
+- observing the same revision through a snapshot and event does not repeat it;
+- a newer revision may request another effect;
+- reconnecting or remounting may apply the latest persisted revision once so
+  a stale client catches up;
+- effect execution is best effort and does not change notification lifecycle,
+  retry the producer, or affect operation commit authority.
+
+Action responses remain one-shot and are not revisioned. Their shared refresh
+fields should use the same parsing and routing implementation as notification
+refresh effects.
+
 ## Resolving a notification
 
 Resolve a notification when the underlying condition is no longer active:

@@ -37,9 +37,12 @@ import {
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
   normalizeDisplayEnvelope,
+  NotificationUiEffectObserver,
   notificationDismissalRevisionKey,
   notificationExpectedRevision,
   runApplicationAction,
+  observeSessionNotificationUiEffects,
+  subscribeRefreshUiEffects,
   resolveAttachmentActionPluginId,
   selectSessionAssetId,
   selectLastAssistantMessage,
@@ -1806,6 +1809,31 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     const sessions = await backend.listSessions();
     onUpdateSessionSummaries(sessions);
   }, [backend, onUpdateSessionSummaries]);
+
+  const notificationUiEffectObserver = useMemo(
+    () => (backend ? new NotificationUiEffectObserver(backend) : null),
+    [backend],
+  );
+
+  useEffect(() => {
+    if (!backend) return;
+    return subscribeRefreshUiEffects(backend, (effect) => {
+      if (effect.type === 'reloadSession' && effect.sessionId === sessionId) {
+        void loadMessages({ reason: 'notification_ui_effect', refreshUiSchema: true });
+      } else if (effect.type === 'reloadSessionsList') {
+        void reloadSessionSummaries();
+      }
+    });
+  }, [backend, loadMessages, reloadSessionSummaries, sessionId]);
+
+  useEffect(() => {
+    if (!notificationUiEffectObserver) return;
+    observeSessionNotificationUiEffects(
+      notificationUiEffectObserver,
+      currentSessionSummary,
+      debugEvents,
+    );
+  }, [currentSessionSummary, debugEvents, notificationUiEffectObserver]);
 
   const refreshSessionContextInBackground = useCallback(() => {
     if (!sessionContextController) {
