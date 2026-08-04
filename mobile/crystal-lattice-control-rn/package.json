@@ -27,6 +27,8 @@
     "detox:test:notification-banner:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/notificationBanner.e2e.test.ts --cleanup",
     "detox:test:selectable-code-block:ios": "detox test -c ios.sim.release e2e/selectableCodeBlock.e2e.test.ts --cleanup",
     "detox:test:selectable-code-block:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/selectableCodeBlock.e2e.test.ts --cleanup",
+    "detox:test:ordered-list:ios": "detox test -c ios.sim.release e2e/orderedListMarkdown.e2e.test.ts --cleanup",
+    "detox:test:ordered-list:android": "scripts/prepare_android_detox_emulator.sh && detox test -c android.emu.e2e e2e/orderedListMarkdown.e2e.test.ts --cleanup",
     "tsc": "tsc --noEmit"
   },
   "dependencies": {
