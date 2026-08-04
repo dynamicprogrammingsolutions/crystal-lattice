@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   ApplicationActionDialogLayout,
@@ -8,6 +8,7 @@ import {
 } from '@crystal-lattice/frontend-rn-components';
 
 import { useDesktopTheme } from '../theme/useDesktopTheme';
+import { MacSelect } from '../native/MacSelect';
 import {
   clearActiveApplicationActionDialog,
   useActiveApplicationActionDialog,
@@ -38,6 +39,26 @@ function ApplicationActionDialogWindowInner(
   const presentation: Presentation = props.presentation === 'window' ? 'window' : 'popover';
   const styles = useMemo(() => createStyles(theme, presentation), [presentation, theme]);
   const active = useActiveApplicationActionDialog();
+  const fieldRenderers = useMemo(
+    () => ({
+      select: (params: any) => (
+        <View style={styles.selectGroup}>
+          <Text style={styles.selectLabel}>{params.label}</Text>
+          {params.description ? (
+            <Text style={styles.selectDescription}>{params.description}</Text>
+          ) : null}
+          <MacSelect
+            style={styles.select}
+            options={params.options}
+            selectedValue={params.value}
+            placeholder={params.placeholder || 'Select…'}
+            onValueChange={params.onChange}
+          />
+        </View>
+      ),
+    }),
+    [styles],
+  );
 
   const closeWindow = useCallback(() => {
     DesktopWindowManager?.closeApplicationActionDialogPopover();
@@ -67,6 +88,7 @@ function ApplicationActionDialogWindowInner(
           dialog={active.state.dialog}
           titleFallback={active.state.titleFallback}
           prefillContext={active.state.prefillContext}
+          fieldRenderers={fieldRenderers}
           onSubmit={handleSubmit}
           onCancel={handleCancel}
           style={presentation === 'popover' ? styles.popoverLayout : styles.windowLayout}
@@ -100,6 +122,23 @@ function createStyles(theme: ReturnType<typeof useTheme>, presentation: Presenta
       borderWidth: 0,
       borderColor: 'transparent',
       borderRadius: 0,
+    },
+    selectGroup: {
+      marginBottom: 14,
+    },
+    selectLabel: {
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: '600',
+      marginBottom: 5,
+    },
+    selectDescription: {
+      color: theme.textSecondary,
+      fontSize: 11,
+      marginBottom: 5,
+    },
+    select: {
+      minHeight: 28,
     },
   });
 }

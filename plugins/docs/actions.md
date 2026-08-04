@@ -16,13 +16,14 @@ Runtime references for the current codebase:
 
 - `core/python/agent_app/app_plugins.py`
 - `core/python/agent_app/application_future.py`
+- `core/python/agent_app/session_listing.py`
 - `core/python/agent_core/types.py`
 - `core/python/agent_core/core.py`
 - `application/python/agent_terminal_app/server.py`
 
 ## Overview
 
-After the update, actions will follow these rules:
+Actions follow these rules:
 
 - Application plugins continue to define actions with `get_actions(...)` and
   execute them with `execute_action(...)`.
@@ -42,6 +43,10 @@ Successful actions may return a generic user-facing display payload in
 This is the preferred way for plugins to tell frontends to show instructions,
 status summaries, or rich follow-up text without introducing plugin-specific
 result keys.
+
+For choosing between an application notification, session notification, tool
+notification, and direct action display, see
+[Notifications and action displays](notifications-and-action-displays.md).
 
 Recommended shape:
 
@@ -75,6 +80,11 @@ Recommended shape:
         "plugin": "chatgpt_auth",
         "action_id": "check_status",
         "preserve_display": true
+      },
+      {
+        "kind": "dismiss",
+        "id": "dismiss-login-instructions",
+        "label": "Close"
       }
     ]
   }
@@ -94,6 +104,8 @@ Fields:
   rendered display
 - `display_id`: optional stable id so frontends can update or replace an
   existing inline/banner display instead of always appending a new one
+- `form`: optional embedded form; uses the same `kind: "form"` and `inputs`
+  schema as action dialogs
 - `actions`: optional list of generic follow-up actions
 
 Guidance:
@@ -104,13 +116,118 @@ Guidance:
 - do not overload top-level `message` keys for successful rich content when
   `display` is more appropriate
 - keep follow-up actions intentionally narrow and generic; current supported
-  shapes are `open_url`, `copy_text`, and `run_action`
-- treat `presentation` as a frontend hint, not a guarantee:
-  current frontends ignore `display` for `session_list_action` surfaces
-  and the desktop app currently coerces session-action displays to `inline`
-- `modal` remains part of the protocol, but richer cross-platform popup support
-  should be added later only when there is a concrete use case and a UI
-  approach that works on both mobile and desktop
+  shapes are `open_url`, `copy_text`, `run_action`,
+  `download_attachment_asset`, and `dismiss`
+- `presentation` is a standard cross-platform contract:
+  - `banner` uses the connection-aware top notification rail
+  - `inline` uses the nearest owning Sessions or Messages region
+  - `modal` uses a mobile modal; desktop action responses use their established
+    inline fallback
+- application, session, session-list, and message action responses honor valid
+  explicit presentation subject to the host fallback above
+- notification persistence, allowed presentations, placement, lifecycle, and
+  current dismissal behavior are documented in
+  [Notifications and action displays](notifications-and-action-displays.md)
+
+Application actions that request full reload return an accepted result rather
+than waiting for active work. The stable application owner publishes
+application-global notification events for requested, completed, and failed
+states. Frontends refresh action definitions only after completion, when the
+replacement application is active.
+
+Actions that launch application-lifetime work should use the shared
+[managed background process](managed-background-processes.md) contract. The
+action can return an accepted result promptly, while later actions look up the
+concrete process for operation-specific status or cancellation.
+
+When the work also needs session admission or active lookup, reserve an
+application operation separately. Managed processes and plugins own runtime
+status and behavior; application operations own only active identity and
+admission; notifications own presentation. See
+`application/python/docs/development/operations.md`.
+
+### Embedded display forms
+
+Action displays may include an embedded form when the user should enter values
+directly in the returned display surface before pressing a follow-up action.
+
+The embedded form schema is intentionally the same form schema used by action
+dialogs:
+
+```json
+{
+  "display": {
+    "format": "markdown",
+    "title": "Finish external login",
+    "body": "Paste the callback URL from your browser.",
+    "variant": "info",
+    "presentation": "inline",
+    "form": {
+      "kind": "form",
+      "inputs": [
+        {
+          "name": "callback_url",
+          "type": "multiline",
+          "label": "Callback URL",
+          "placeholder": "http://127.0.0.1:41793/callback?code=...&state=...",
+          "required": true
+        },
+        {
+          "name": "note",
+          "type": "string",
+          "label": "Note",
+          "submit_empty": true
+        }
+      ]
+    },
+    "actions": [
+      {
+        "kind": "run_action",
+        "id": "submit-callback-url",
+        "label": "Submit",
+        "plugin": "example_login_app",
+        "action_id": "finish_login_from_callback_url",
+        "fixed_params": {
+          "source": "display_form"
+        },
+        "param_map": {
+          "callback_url": "$form.callback_url",
+          "note": "$form.note"
+        },
+        "preserve_display": true
+      },
+      {
+        "kind": "dismiss",
+        "id": "cancel-callback-url",
+        "label": "Cancel"
+      }
+    ]
+  }
+}
+```
+
+Follow-up `run_action` entries may use `param_map` just like action UI
+elements. Values entered into the embedded display form are addressed with
+`$form.<field_name>`. Existing action dialogs continue to use
+`$dialog.<field_name>`.
+
+For a direct action display, use `dismiss` when the display should close
+locally without a backend call. Notification dismissal behavior is documented
+separately in
+[Notifications and action displays](notifications-and-action-displays.md).
+
+For manual testing, the `plugins/dummy-action-display-form-app` plugin exposes
+a `Show display form` session action that returns an embedded form and echoes
+submitted values in a confirmation display.
+
+### Future follow-up dialog proposal
+
+Some workflows may eventually need a display action that opens a separate form
+dialog rather than showing fields inline in the display. The proposed future
+shape is for a `run_action` display action to include a `dialog` object that
+reuses the same action-dialog schema, with submitted values mapped through
+`$dialog.<field_name>`. This is not part of the current implemented contract;
+it is tracked in `tasks/20260620-action-display-followup-dialogs.md`.
 
 ## Dynamic lifecycle names
 
@@ -142,7 +259,7 @@ Examples:
 
 The meaning of common triggers is:
 
-- `session_list`: the application/server is building session-list summary data
+- `session_list`: the application is building shared session-list summary data
 - `session_create`: a new session has just been created and may need initial
   session-owned settings
 - `session_save_prepare`: a session is about to be persisted and may need
@@ -170,6 +287,153 @@ The meaning of common triggers is:
   need to record or clean up related state
 
 Actions without a `trigger` are manual actions.
+
+## `session_list` trigger contract
+
+`session_list` is a cold-path application trigger owned by
+`AgentApplication`. HTTP and terminal adapters do not discover or execute these
+actions independently.
+
+The application runs every matching application-plugin action once per stored
+session, in application plugin configuration order and action declaration
+order. It supplies only inputs the action declares:
+
+| Declared input | Supplied value |
+| --- | --- |
+| `session_id` | Opaque session ID |
+| `session_summary` | Summary accumulated so far, including fields from earlier actions |
+| `session` | Loaded live `Session` object |
+
+Execution context includes:
+
+```python
+{
+    "lifecycle": "session_list",
+    "trigger_source": "application",
+    "session_id": session_id,
+}
+```
+
+An action that does not need full history should omit `session`; this lets the
+application avoid treating a failed/malformed load as a prerequisite for that
+action. List-trigger actions should be deterministic for a stored session and
+should not mutate it as a side effect.
+
+### Contributed fields
+
+An action can add JSON-serializable fields:
+
+```python
+return {
+    "session_list_fields": {
+        "message_count": len(session.messages),
+        "status_rank": 20,
+    }
+}
+```
+
+Contributed fields become top-level members of the shared summary and are
+available to later trigger actions, `session_list_field` paths, order
+specifications, and filters. The application reserves:
+
+- `session_id`
+- `modified`
+- `preview`
+- `metadata`
+- `presentation`
+
+Invalid keys, reserved-key writes, and non-JSON-serializable values are
+reported and ignored individually.
+
+A list trigger can also translate a stored machine value into presentation or
+search text without changing session metadata:
+
+```python
+status = summary.get("metadata", {}).get("status", "todo")
+labels = {
+    "todo": "To do",
+    "in_progress": "In progress",
+    "blocked": "Blocked",
+    "done": "Done",
+}
+return {
+    "session_list_fields": {
+        "session_status_label": labels.get(status, "To do"),
+    }
+}
+```
+
+The resulting field can feed a `role: "meta"` session-list field while the
+original `metadata.status` remains authoritative for actions and filters.
+
+### Contributed ordering
+
+An action can contribute one order object or an ordered list:
+
+```python
+return {
+    "session_list_fields": {
+        "status_rank": 20,
+        "last_updated_sort_key": -summary["modified"],
+    },
+    "session_list_order": [
+        {
+            "key": "status_rank",
+            "direction": "asc",
+            "fallback": 100,
+            "priority": 20,
+        },
+        {
+            "key": "last_updated_sort_key",
+            "direction": "asc",
+            "fallback": 0,
+            "priority": 30,
+        },
+    ],
+}
+```
+
+Each specification has:
+
+| Field | Contract |
+| --- | --- |
+| `key` | Required non-empty dotted path into the shared summary |
+| `direction` | Required `asc` or `desc` |
+| `fallback` | Required when the key is missing from any summary |
+| `priority` | Optional integer, default `100`; lower values run first |
+
+Specifications compose by:
+
+1. ascending `priority`;
+2. application plugin configuration order;
+3. action and specification declaration order within the plugin.
+
+Each key keeps its own direction. Modification time descending is applied first
+as the stable final tie-break and is also the complete fallback when no valid
+plugin order remains. There is no built-in pinned-first fallback.
+
+Missing is distinct from explicit `null`, false, zero, and an empty string.
+Values for one order key must be mutually comparable scalar values. Invalid
+directions, priorities, missing fallbacks, conflicting declarations, or
+non-sortable/incompatible values invalidate only that specification.
+
+Ordering always occurs before filtering. Filtering preserves that order, and a
+query `limit` is applied after both.
+
+The built-in `session-ordering-buckets-app` uses this contract to place its
+`recent_archived_rank` at priority 5. With `session-archive-app` enabled, that
+rank moves archived summaries updated within the last 60 days below
+non-archived summaries. It reads
+`application.session_archived_metadata_key`; older archived summaries are
+exempt and keep the subsequent recency, pin, and last-updated ordering.
+
+### Failure isolation and diagnostics
+
+A failed list-trigger action affects only that action for that session. Other
+actions and summaries remain available. Invalid contributed fields, UI fields,
+and order specifications are likewise isolated. `AgentApplication` exposes
+structured diagnostics from the latest list query, while HTTP continues to
+return the stable `{"sessions": [...]}` response shape.
 
 ## Standard built-in lifecycle set
 
@@ -836,12 +1100,13 @@ by one session and one provider/config context, especially when it needs to:
 
 ## Relation to existing `session_list` actions
 
-The current code already has one server-interpreted triggered-action pattern:
-application-plugin actions with `trigger: "session_list"`.
+Application-plugin actions with `trigger: "session_list"` run through the
+dedicated application session-list service described above. They are not
+server-interpreted and are not core/provider lifecycle actions.
 
-The runtime generalizes that idea so lifecycle triggers are no longer a
-server-only special case and can also be used by non-application plugins
-through shared application/core orchestration.
+Other dynamic lifecycle triggers continue through shared application/core
+orchestration. `session_list` is distinct because its result contributes to a
+read-only multi-session query rather than mutating one current session.
 
 ## Core-side lifecycle vocabulary
 

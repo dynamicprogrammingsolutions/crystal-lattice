@@ -5,9 +5,13 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
+from agent_app.application_owner import AgentApplicationOwner
 from agent_app.application_future import AgentApplication
 from agent_app.config import resolve_request_config
+from agent_app.request_execution import SessionRequestStart
 from agent_core import Session
+
+from .session_query import parse_multi_select_csv
 
 
 class TerminalUserError(Exception):
@@ -39,11 +43,16 @@ class TerminalApplication:
         config_path: str | Path,
         session_root: str | Path,
         agent_app: AgentApplication | None = None,
+        application_owner: AgentApplicationOwner | None = None,
         env_overrides: Mapping[str, str] | None = None,
     ) -> None:
         self._session_root: Path = Path(session_root)
+        self._application_owner = application_owner
 
-        if agent_app is not None:
+        if application_owner is not None:
+            self._app = application_owner.current
+            application_owner.add_replacement_listener(self.replace_agent_app)
+        elif agent_app is not None:
             self._app = agent_app
         else:
             self._session_root.mkdir(parents=True, exist_ok=True)
@@ -67,6 +76,25 @@ class TerminalApplication:
     @property
     def agent_app(self) -> AgentApplication:
         return self._app
+
+    def close(self) -> None:
+        """Release resources owned by the underlying application."""
+
+        if self._application_owner is None:
+            self._app.close()
+
+    def replace_agent_app(self, application: AgentApplication) -> None:
+        """Switch to a replacement application and invalidate runtime caches."""
+
+        self._app = application
+        self._core = None
+        self._base_config = None
+        if self._session is not None:
+            loaded = application.load_session(self._session.session_id)
+            if loaded is not None:
+                self._core, self._base_config, self._session = loaded
+        self._ui_schema_cache_key = None
+        self._ui_schema_cache = None
 
     @property
     def session(self) -> Session:
@@ -121,10 +149,7 @@ class TerminalApplication:
             id(core),
             self._stable_config_cache_key(effective_config),
         )
-        if (
-            cache_key == self._ui_schema_cache_key
-            and self._ui_schema_cache is not None
-        ):
+        if cache_key == self._ui_schema_cache_key and self._ui_schema_cache is not None:
             return self._ui_schema_cache
 
         try:
@@ -141,7 +166,9 @@ class TerminalApplication:
     # Session lifecycle
     # ------------------------------------------------------------------
 
-    def start_new_session(self, agent_id: Optional[str] = None, *, persist: bool = True) -> Session:
+    def start_new_session(
+        self, agent_id: Optional[str] = None, *, persist: bool = True
+    ) -> Session:
         """Start a new active session, replacing any previous one.
 
         When ``persist`` is ``False``, the new session is created but not yet
@@ -192,63 +219,124 @@ class TerminalApplication:
         self._last_event_id = None
         return session
 
-    def list_sessions_metadata(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Return metadata for stored sessions ordered by modification time.
+    def list_sessions_metadata(
+        self,
+        limit: Optional[int] = None,
+        *,
+        filter_values: Optional[Dict[str, object]] = None,
+        apply_filter_defaults: bool = False,
+    ) -> List[Dict[str, Any]]:
+        """Return shared application-layer summaries for stored sessions."""
 
-        Each entry contains ``session_id``, ``modified`` (float timestamp),
-        and ``preview`` (first user message snippet).
-        """
+        return self._app.list_session_summaries(
+            filter_values=filter_values,
+            apply_filter_defaults=apply_filter_defaults,
+            limit=limit,
+        )
 
-        root = self._session_root
+    def session_filter_schema(self) -> Dict[str, Any]:
+        """Return the normalized filter schema used by terminal queries."""
+
+        return self._app.get_session_list_filter_schema()
+
+    def is_saved_session_id(self, session_id: str) -> bool:
+        """Return whether an exact stored session exists, ignoring filters."""
+
+        if not isinstance(session_id, str) or not session_id:
+            return False
         try:
-            exists = root.exists()
-        except Exception:
-            return []
-        if not exists:
-            return []
+            self._app.get_session_summary(session_id)
+        except KeyError:
+            return False
+        return True
 
-        items: List[Dict[str, Any]] = []
-        for path in root.glob("*.json"):
+    def query_sessions_metadata(
+        self,
+        *,
+        search_text: str = "",
+        filter_inputs: Optional[Dict[str, str]] = None,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Apply plugin defaults plus command-local terminal filter inputs."""
+
+        schema = self.session_filter_schema()
+        declarations = {
+            declaration["id"]: declaration
+            for declaration in schema.get("filters", [])
+            if isinstance(declaration, dict) and isinstance(declaration.get("id"), str)
+        }
+        main_search_id = schema.get("main_search_id")
+        if search_text:
+            if schema.get("main_search_conflict"):
+                raise TerminalUserError(
+                    "session main-search schema is ambiguous; "
+                    "disable one of the competing plugins"
+                )
+            if not isinstance(main_search_id, str) or not main_search_id:
+                raise TerminalUserError(
+                    "free-text session search requires a main-search plugin"
+                )
+
+        values: Dict[str, object] = {}
+        for filter_id, raw_value in (filter_inputs or {}).items():
+            declaration = declarations.get(filter_id)
+            if declaration is None:
+                raise TerminalUserError(f"unknown session filter: {filter_id!r}")
+            if declaration.get("main_search") is True:
+                raise TerminalUserError(
+                    f"main-search filter {filter_id!r} is set by trailing search text"
+                )
             try:
-                stat = path.stat()
-            except OSError:
-                continue
+                if (
+                    declaration.get("type") == "select"
+                    and declaration.get("multiple") is True
+                ):
+                    input_value: str | List[str] = parse_multi_select_csv(raw_value)
+                else:
+                    input_value = raw_value
+                values[filter_id] = self._app.coerce_session_list_filter_input(
+                    filter_id, input_value
+                )
+            except (KeyError, ValueError) as exc:
+                raise TerminalUserError(str(exc)) from exc
 
-            session_id = path.stem
-            preview = ""
+        if search_text and isinstance(main_search_id, str):
+            values[main_search_id] = search_text
 
-            try:
-                data = path.read_text(encoding="utf-8")
-                raw = json.loads(data)
-                messages = raw.get("messages") or []
-                for msg in messages:
-                    if not isinstance(msg, dict):
-                        continue
-                    if msg.get("role") != "user":
-                        continue
-                    content = msg.get("content")
-                    if isinstance(content, str) and content:
-                        single = " ".join(content.split())
-                        if len(single) > 80:
-                            preview = single[:77] + "..."
-                        else:
-                            preview = single
-                        break
-            except Exception:
-                preview = ""
+        return self.list_sessions_metadata(
+            limit=limit,
+            filter_values=values,
+            apply_filter_defaults=True,
+        )
 
-            items.append(
-                {
-                    "session_id": session_id,
-                    "modified": float(stat.st_mtime),
-                    "preview": preview,
-                }
-            )
+    def session_filter_completion_values(self, filter_id: str) -> List[str]:
+        """Return terminal spellings accepted for one non-text filter."""
 
-        items.sort(key=lambda entry: entry["modified"], reverse=True)
-        if limit is not None and limit >= 0:
-            items = items[:limit]
-        return items
+        schema = self.session_filter_schema()
+        declaration = next(
+            (
+                item
+                for item in schema.get("filters", [])
+                if isinstance(item, dict) and item.get("id") == filter_id
+            ),
+            None,
+        )
+        if not isinstance(declaration, dict):
+            return []
+        if declaration.get("type") == "boolean":
+            return ["any", "true", "false"]
+        if declaration.get("type") == "select":
+            values = ["any"]
+            for option in declaration.get("options", []):
+                if not isinstance(option, dict):
+                    continue
+                value = option.get("value")
+                if isinstance(value, bool):
+                    values.append("true" if value else "false")
+                elif isinstance(value, str):
+                    values.append(value)
+            return values
+        return []
 
     def switch_session(self, session_id: str) -> Session:
         """Load an existing session by id and make it active."""
@@ -258,7 +346,9 @@ class TerminalApplication:
         try:
             ctx = self._app.load_session(session_id)
         except KeyError as exc:
-            detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+            detail = (
+                exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+            )
             if not (isinstance(detail, str) and detail.startswith("Unknown agent_id")):
                 raise
             session = self._app.load_session_record(session_id)
@@ -278,7 +368,9 @@ class TerminalApplication:
         # Resume polling from the persisted cursor for this session so
         # that switching does not replay the entire event history.
         try:
-            self._last_event_id = self._app.get_session_cursor_event_id(session.session_id)
+            self._last_event_id = self._app.get_session_cursor_event_id(
+                session.session_id
+            )
         except Exception:  # pragma: no cover - defensive
             self._last_event_id = None
         return session
@@ -287,7 +379,9 @@ class TerminalApplication:
     # Messages
     # ------------------------------------------------------------------
 
-    def append_user_message(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> Session:
+    def append_user_message(
+        self, content: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> Session:
         """Append a user message to the active session."""
 
         core, _base_config, session = self.require_session()
@@ -692,73 +786,86 @@ class TerminalApplication:
     # Requests and events
     # ------------------------------------------------------------------
 
+    def start_request(self, *, stream: bool = True) -> SessionRequestStart:
+        """Start a request for the active session without appending a message."""
+
+        session = self.session
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        request_overrides = overrides if isinstance(overrides, dict) else {}
+        return self._app.start_session_request(
+            session.session_id,
+            request_overrides,
+            stream=stream,
+        )
+
+    def append_user_message_and_start_request(
+        self,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        *,
+        stream: bool = True,
+    ) -> SessionRequestStart:
+        """Atomically append a user message and start a request."""
+
+        session = self.session
+        if self._app.load_live_session_record(session.session_id) is None:
+            self._session = self._app.save_session(session)
+
+        current = self.session
+        current_metadata = (
+            current.metadata if isinstance(current.metadata, dict) else {}
+        )
+        overrides = current_metadata.get("overrides")
+        request_overrides = overrides if isinstance(overrides, dict) else {}
+        started = self._app.start_session_request_with_message(
+            current.session_id,
+            role="user",
+            content=content,
+            metadata=metadata,
+            overrides=request_overrides,
+            stream=stream,
+        )
+        loaded = self._app.load_session(current.session_id)
+        if loaded is not None:
+            self._core, self._base_config, self._session = loaded
+        return started
 
     def send_request(
         self,
         *,
         stream: bool = True,
     ) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], Optional[str]]:
-        """Run the core send_request loop for the active session.
+        """Run the coordinated request flow for the active session."""
 
-        Configuration overrides are loaded from the session's metadata
-        under ``overrides`` and passed to the core. Explicit overrides
-        are not supported at the terminal level.
-        """
+        session = self.session
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        request_overrides = overrides if isinstance(overrides, dict) else {}
 
-        core, base_config, session = self.require_session()
+        def _on_checkpoint(session_obj: Session) -> None:
+            self._session = session_obj
 
-        overrides = session.metadata.get("overrides")
-        with self._app.acquire_session_lock(session.session_id):
-            baseline_file_state = self._app.get_session_file_state(session.session_id)
-
-        final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
-        final_messages: List[Dict[str, Any]] = []
-        request_id: Optional[str] = None
-
-        store = self._app.get_event_store()
-
-        for ev in self._app.send_request(
-            core,
-            session,
-            base_config,
-            overrides,
+        result = self._app.run_session_request(
+            session.session_id,
+            request_overrides,
             stream=stream,
-            baseline_file_state=baseline_file_state,
-        ):
-            etype = ev.get("type")
+            on_checkpoint=_on_checkpoint,
+        )
 
-            # Internal checkpoint events carry the live Session object so the
-            # terminal can track progress incrementally. They are not
-            # published to the shared event store or exposed over the
-            # network.
-            if etype == "session_checkpoint":
-                session_obj = ev.get("session")
-                if isinstance(session_obj, Session):
-                    self._session = session_obj
-                    try:
-                        final_session_dict = session_obj.to_dict()
-                    except Exception:  # pragma: no cover - defensive
-                        pass
-                continue
-
-            stored = store.publish(ev)
-
-            if stored.get("type") == "final":
-                final_messages = stored.get("messages") or []
-                request_id = stored.get("request_id")
-            elif "session" in stored and isinstance(stored.get("session"), dict):
-                # Backwards compatibility for older event shapes that include
-                # a serialized session payload.
-                final_session_dict = stored["session"]
-
-        if final_session_dict is not None:
+        if result.final_session is not None:
             try:
-                final_session = Session.from_dict(final_session_dict)
+                final_session = Session.from_dict(result.final_session)
                 self._session = final_session
             except Exception:  # pragma: no cover - defensive
                 pass
 
-        return final_session_dict, final_messages, request_id
+        loaded = self._app.load_session(session.session_id)
+        if loaded is not None:
+            self._core, self._base_config, loaded_session = loaded
+            self._session = loaded_session
+
+        return result.final_session, result.final_messages, result.request_id
 
     def poll_new_events(self, limit: int = 50) -> List[Dict[str, Any]]:
         """Return events for the active session since the last poll."""
@@ -809,12 +916,15 @@ class TerminalApplication:
         """
         sid = session_id or self.session.session_id
         store = self._app.get_event_store()
-        return (store.list(
-            since_id=since_id,
-            request_id=request_id,
-            session_id=sid,
-            limit=limit,
-        ).get("events") or [])
+        return (
+            store.list(
+                since_id=since_id,
+                request_id=request_id,
+                session_id=sid,
+                limit=limit,
+            ).get("events")
+            or []
+        )
 
     def get_feature_completions(self, text: str) -> List[Dict[str, Any]]:
         """Return feature-driven completion suggestions for the active session.
@@ -854,7 +964,9 @@ class TerminalApplication:
 
         core, _base_config, session = self.require_session()
 
-        normalized_role = role if role in {"system", "user", "assistant", "tool"} else "user"
+        normalized_role = (
+            role if role in {"system", "user", "assistant", "tool"} else "user"
+        )
 
         new_session: Session = core.add_message(
             session,
@@ -868,7 +980,10 @@ class TerminalApplication:
         )
         self._app.save_session(new_session)
 
-        if self._session is not None and self._session.session_id == new_session.session_id:
+        if (
+            self._session is not None
+            and self._session.session_id == new_session.session_id
+        ):
             self._session = new_session
 
         last_message = new_session.messages[-1] if new_session.messages else None
@@ -931,16 +1046,19 @@ class TerminalApplication:
 
         # Rebuild core/base_config for the new agent and update
         # session metadata, but do not decide on persistence here.
-        core, base_config, new_session = self._app.update_agent(target_agent_id, session)
+        core, base_config, new_session = self._app.update_agent(
+            target_agent_id, session
+        )
 
         # Decide whether to persist:
         # - If the session has messages, always save.
         # - If it is empty but was previously saved, update the file.
         # - If it is empty and has never been saved (initial ephemeral
         #   session), keep it purely in memory.
-        session_path = self._session_root / f"{session.session_id}.json"
         is_empty = not session.messages
-        is_persisted = session_path.exists()
+        is_persisted = (
+            self._app.load_live_session_record(session.session_id) is not None
+        )
         should_save = (not is_empty) or is_persisted
 
         if should_save:
@@ -983,7 +1101,6 @@ class TerminalApplication:
                 result.append(el)
         return result
 
-
     def status_bar_elements(self) -> list[dict[str, object]]:
         """Return UI schema elements that describe status bar fields.
 
@@ -1025,7 +1142,7 @@ class TerminalApplication:
 
     def get_last_assistant_message(self) -> Optional[Dict[str, Any]]:
         """Get the last assistant message from the active session.
-        
+
         Returns:
             Dictionary representation of the last assistant message, or None
             if no assistant messages exist.
@@ -1034,13 +1151,13 @@ class TerminalApplication:
             session = self.session
         except RuntimeError:
             return None
-        
+
         # Iterate backwards to find the last assistant message
         for message in reversed(session.messages):
             msg_dict = message.to_dict()
             if msg_dict.get("role") == "assistant":
                 return msg_dict
-        
+
         return None
 
     def get_application_config_schema(self) -> Dict[str, Dict[str, Any]]:
@@ -1136,7 +1253,11 @@ class TerminalApplication:
             agents = self.available_agents()
             agent_id = agents[0] if agents else ""
 
-        all_plugins = self._app.list_plugins_for_agent(agent_id) if agent_id else self._app.list_plugins()
+        all_plugins = (
+            self._app.list_plugins_for_agent(agent_id)
+            if agent_id
+            else self._app.list_plugins()
+        )
 
         plugins_from_session = metadata.get("plugins")
         if isinstance(plugins_from_session, list):

@@ -13,6 +13,7 @@ def _format_token_count(value: int | None) -> str | None:
 
 def _current_turn_id(native_messages: list[dict[str, Any]]) -> int:
     last_assigned = 0
+    max_seen_turn_id = 0
     current_open: int | None = None
 
     for native_message in native_messages:
@@ -22,19 +23,46 @@ def _current_turn_id(native_messages: list[dict[str, Any]]) -> int:
         if role in ("user", "system"):
             current_open = None
             continue
+
+        # Track max existing turn ID from prior metadata so that truncated
+        # or rebuilt history cannot produce overlapping turn IDs.
+        turn_md = native_message.get("_metadata", {}).get("turn")
+        if isinstance(turn_md, dict):
+            tid = _as_int(turn_md.get("id"))
+            if tid is not None and tid > max_seen_turn_id:
+                max_seen_turn_id = tid
+
         usage = _message_usage(native_message)
         if not isinstance(usage, dict):
             continue
-        if current_open is None:
-            current_open = last_assigned + 1
-        last_assigned = max(last_assigned, current_open)
-        if not _message_has_tool_calls(native_message):
-            current_open = None
+
+        # If this message already has a turn ID, use it for state tracking
+        # instead of computing a new one. This preserves open/closed turn
+        # state from prior finalizations and prevents double-counting.
+        existing_turn_id = (
+            _as_int(turn_md.get("id")) if isinstance(turn_md, dict) else None
+        )
+        if existing_turn_id is not None:
+            if current_open is None:
+                current_open = existing_turn_id
+            last_assigned = max(last_assigned, existing_turn_id)
+            if not _message_has_tool_calls(native_message):
+                current_open = None
+        else:
+            if current_open is None:
+                current_open = max(last_assigned, max_seen_turn_id) + 1
+            last_assigned = max(last_assigned, current_open)
+            if not _message_has_tool_calls(native_message):
+                current_open = None
 
     return (
         current_open
         if current_open is not None
-        else (last_assigned + 1 if last_assigned > 0 else 1)
+        else (
+            max(last_assigned, max_seen_turn_id) + 1
+            if max(last_assigned, max_seen_turn_id) > 0
+            else 1
+        )
     )
 
 
@@ -72,9 +100,27 @@ def _usage_output_tokens(usage: dict[str, Any]) -> int | None:
     return _as_int(usage.get("completion_tokens"))
 
 
+def _provider_usage_cost(usage: dict[str, Any]) -> float | None:
+    for value in (
+        usage.get("cost"),
+        (usage.get("cost_details") or {}).get("upstream_inference_cost"),
+    ):
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)):
+            return float(value)
+    return None
+
+
+def _clamp_cached_tokens(cached_tokens: int, prompt_tokens: int) -> int:
+    return min(max(0, cached_tokens), max(0, prompt_tokens))
+
+
 def _usage_cost(
     usage: dict[str, Any],
     token_rates: dict[str, Any] | None = None,
+    *,
+    cached_tokens_override: int | None = None,
 ) -> float | None:
     """Extract cost from usage or calculate from token_rates.
 
@@ -89,15 +135,9 @@ def _usage_cost(
     Returns:
         Cost in USD, or None if not available.
     """
-    # Provider-returned cost takes precedence
-    for value in (
-        usage.get("cost"),
-        (usage.get("cost_details") or {}).get("upstream_inference_cost"),
-    ):
-        if isinstance(value, bool):
-            continue
-        if isinstance(value, (int, float)):
-            return float(value)
+    provider_cost = _provider_usage_cost(usage)
+    if provider_cost is not None:
+        return provider_cost
 
     # No provider cost - try to calculate from token_rates
     if not isinstance(token_rates, dict):
@@ -119,26 +159,37 @@ def _usage_cost(
     if prompt_tokens is None or completion_tokens is None:
         return None
 
-    # Rates are in USD per million tokens
-    input_cost = prompt_tokens * (float(input_rate) / 1_000_000)
-    completion_cost = completion_tokens * (float(completion_rate) / 1_000_000)
+    cached_tokens = (
+        cached_tokens_override
+        if cached_tokens_override is not None
+        else _usage_cached_tokens(usage)
+    )
+    effective_cached_tokens = (
+        _clamp_cached_tokens(cached_tokens, prompt_tokens)
+        if cached_tokens is not None
+        else 0
+    )
+    ordinary_input_tokens = max(0, prompt_tokens) - effective_cached_tokens
+    effective_cached_rate = (
+        float(cached_rate)
+        if isinstance(cached_rate, (int, float)) and not isinstance(cached_rate, bool)
+        else float(input_rate)
+    )
 
-    # Handle cached tokens discount if configured
-    cached_tokens = _usage_cached_tokens(usage)
-    if cached_tokens is not None and cached_tokens > 0:
-        if isinstance(cached_rate, (int, float)):
-            # Subtract the difference between input and cached rate
-            cached_discount = cached_tokens * (
-                (float(input_rate) - float(cached_rate)) / 1_000_000
-            )
-            input_cost -= cached_discount
-
-    return input_cost + completion_cost
+    # Rates are in USD per million tokens. Cached tokens fall back to the
+    # ordinary input rate when no distinct cached rate is configured.
+    return (
+        ordinary_input_tokens * float(input_rate)
+        + effective_cached_tokens * effective_cached_rate
+        + max(0, completion_tokens) * float(completion_rate)
+    ) / 1_000_000
 
 
 def _calculate_cost_from_rates(
     usage: dict[str, Any],
     token_rates: dict[str, Any] | None,
+    *,
+    cached_tokens_override: int | None = None,
 ) -> float | None:
     """Calculate cost from token counts and configured rates.
 
@@ -151,7 +202,11 @@ def _calculate_cost_from_rates(
     Returns:
         Cost in USD, or None if rates or token counts are incomplete.
     """
-    return _usage_cost(usage, token_rates=token_rates)
+    return _usage_cost(
+        usage,
+        token_rates=token_rates,
+        cached_tokens_override=cached_tokens_override,
+    )
 
 
 def _format_cost(value: float | None) -> str | None:
@@ -171,6 +226,104 @@ def _message_usage(native_message: dict[str, Any]) -> dict[str, Any] | None:
 def _message_has_tool_calls(native_message: dict[str, Any]) -> bool:
     tool_calls = native_message.get("tool_calls")
     return isinstance(tool_calls, list) and bool(tool_calls)
+
+
+def _reduced_history_markers(
+    native_messages: list[dict[str, Any]],
+) -> list[tuple[str, int]]:
+    """Reduce chat history to user boundaries and usage-bearing generations."""
+    markers: list[tuple[str, int]] = []
+    for native_message in native_messages:
+        if not isinstance(native_message, dict):
+            continue
+        role = native_message.get("role")
+        if role == "user":
+            markers.append(("user", 0))
+            continue
+        if role != "assistant":
+            continue
+        usage = _message_usage(native_message)
+        if not isinstance(usage, dict):
+            continue
+        prompt_tokens = _usage_input_tokens(usage)
+        if prompt_tokens is not None:
+            markers.append(("usage", max(0, prompt_tokens)))
+    return markers
+
+
+def _estimated_cached_tokens_from_markers(
+    markers: list[tuple[str, int]],
+) -> list[int]:
+    estimates: list[int] = []
+    previous_turn_first_usage_input: int | None = None
+    current_turn_first_usage_input: int | None = None
+    current_turn_last_usage_input: int | None = None
+
+    for kind, prompt_tokens in markers:
+        if kind == "user":
+            if current_turn_first_usage_input is not None:
+                previous_turn_first_usage_input = current_turn_first_usage_input
+            current_turn_first_usage_input = None
+            current_turn_last_usage_input = None
+            continue
+
+        if current_turn_last_usage_input is not None:
+            estimated = current_turn_last_usage_input
+        elif previous_turn_first_usage_input is not None:
+            estimated = previous_turn_first_usage_input
+        else:
+            estimated = 0
+
+        estimates.append(estimated)
+        if current_turn_first_usage_input is None:
+            current_turn_first_usage_input = prompt_tokens
+        current_turn_last_usage_input = prompt_tokens
+
+    return estimates
+
+
+def _estimated_cached_tokens_for_current(
+    base_native: list[dict[str, Any]],
+    usage: dict[str, Any],
+) -> int | None:
+    prompt_tokens = _usage_input_tokens(usage)
+    if prompt_tokens is None:
+        return None
+    markers = _reduced_history_markers(base_native)
+    markers.append(("usage", max(0, prompt_tokens)))
+    estimates = _estimated_cached_tokens_from_markers(markers)
+    if not estimates:
+        return None
+    return _clamp_cached_tokens(estimates[-1], prompt_tokens)
+
+
+def _estimated_cached_tokens_from_message(
+    native_message: dict[str, Any],
+) -> int | None:
+    internal_md = native_message.get("_metadata")
+    if not isinstance(internal_md, dict):
+        return None
+    return _as_int(internal_md.get("usage_estimated_cached_tokens"))
+
+
+def _effective_cached_tokens_from_message(
+    native_message: dict[str, Any],
+) -> int | None:
+    usage = _message_usage(native_message)
+    if not isinstance(usage, dict):
+        return None
+    prompt_tokens = _usage_input_tokens(usage)
+    if prompt_tokens is None:
+        return None
+
+    reported = _usage_cached_tokens(usage)
+    if reported is not None:
+        return _clamp_cached_tokens(reported, prompt_tokens)
+
+    estimated = _estimated_cached_tokens_from_message(native_message)
+    if estimated is not None:
+        return _clamp_cached_tokens(estimated, prompt_tokens)
+    return None
 
 
 def _last_turn_separator_index(
@@ -221,6 +374,61 @@ def _sum_assistant_metric(
         total += value
         found = True
     return total if found else None
+
+
+def _sum_assistant_effective_cached_tokens(
+    native_messages: list[dict[str, Any]],
+    end_index: int,
+    *,
+    start_index: int = 0,
+) -> int | None:
+    total = 0
+    found = False
+    for native_message in native_messages[start_index : end_index + 1]:
+        if (
+            not isinstance(native_message, dict)
+            or native_message.get("role") != "assistant"
+        ):
+            continue
+        value = _effective_cached_tokens_from_message(native_message)
+        if value is None:
+            continue
+        total += value
+        found = True
+    return total if found else None
+
+
+def _native_indices_for_final_messages(
+    native_messages: list[dict[str, Any]],
+    final_messages: list[dict[str, Any]],
+) -> list[int | None]:
+    """Locate final messages in native history without assuming they are contiguous."""
+    used: set[int] = set()
+    resolved: list[int | None] = []
+
+    for final_message in final_messages:
+        match = next(
+            (
+                index
+                for index, native_message in enumerate(native_messages)
+                if index not in used and native_message is final_message
+            ),
+            None,
+        )
+        if match is None:
+            match = next(
+                (
+                    index
+                    for index, native_message in enumerate(native_messages)
+                    if index not in used and native_message == final_message
+                ),
+                None,
+            )
+        if match is not None:
+            used.add(match)
+        resolved.append(match)
+
+    return resolved
 
 
 def _session_totals(native_messages: list[dict[str, Any]]) -> dict[str, Any]:
@@ -280,8 +488,8 @@ def _turn_totals(
     turn_input = _sum_assistant_metric(
         native_messages, end_index, _usage_input_tokens, start_index=turn_start
     )
-    turn_cached = _sum_assistant_metric(
-        native_messages, end_index, _usage_cached_tokens, start_index=turn_start
+    turn_cached = _sum_assistant_effective_cached_tokens(
+        native_messages, end_index, start_index=turn_start
     )
     turn_output = _sum_assistant_metric(
         native_messages, end_index, _usage_output_tokens, start_index=turn_start
@@ -368,6 +576,16 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
     def get_config_schema(self) -> dict[str, Any]:
         return {
             "show_usage": {"type": "boolean", "default": True},
+            "estimate_cached_tokens": {
+                "type": "boolean",
+                "default": False,
+                "description": "Estimate cached tokens from prior usage-bearing generations when the provider omits prompt_tokens_details.cached_tokens.",
+            },
+            "show_estimated_cached_tokens": {
+                "type": "boolean",
+                "default": False,
+                "description": "Show estimated cached tokens in message footers.",
+            },
             "token_rates": {
                 "type": "object",
                 "required": False,
@@ -408,6 +626,21 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                 "data": "metadata.usage_cached_tokens_formatted",
                 "template": "cached: {{data}}",
             },
+            *(
+                [
+                    {
+                        "ui_type": "message_footer",
+                        "data": "metadata.usage_estimated_cached_tokens_formatted",
+                        "template": "estimated cached: {{data}}",
+                        "condition": {
+                            "path": "metadata.usage_estimated_cached_tokens_formatted",
+                            "exists": True,
+                        },
+                    }
+                ]
+                if config.get("show_estimated_cached_tokens") is True
+                else []
+            ),
             {
                 "ui_type": "message_footer",
                 "data": "metadata.usage_completion_tokens_formatted",
@@ -505,79 +738,118 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
 
         config = state.get("config") or {}
         token_rates = config.get("token_rates")
+        estimate_cached_tokens = config.get("estimate_cached_tokens") is True
 
-        # Calculate session-level totals (cumulative across all history)
-        session_metadata = _session_totals(native_messages)
-
-        # Calculate turn-level totals
-        turn_metadata = _turn_totals(native_messages, final_messages)
-
-        # Process each final message
+        final_native_indices = _native_indices_for_final_messages(
+            native_messages, final_messages
+        )
+        matched_indices = [
+            index for index in final_native_indices if isinstance(index, int)
+        ]
         history_before_current = (
-            native_messages[: -len(final_messages)]
-            if len(native_messages) >= len(final_messages)
-            else []
+            native_messages[: min(matched_indices)]
+            if matched_indices
+            else (
+                native_messages[: -len(final_messages)]
+                if len(native_messages) >= len(final_messages)
+                else []
+            )
         )
         current_turn_id = _current_turn_id(history_before_current)
-        new_finals: list[dict[str, Any]] = []
-        for msg in final_messages:
+        provisional_native = list(native_messages)
+        provisional_finals: list[dict[str, Any]] = []
+
+        for final_position, msg in enumerate(final_messages):
+            native_index = final_native_indices[final_position]
+            estimation_history = (
+                provisional_native[:native_index]
+                if isinstance(native_index, int)
+                else list(provisional_native)
+            )
             if not isinstance(msg, dict):
-                new_finals.append(msg)
+                provisional_finals.append(msg)
                 continue
 
             internal_md = msg.get("_metadata")
             if not isinstance(internal_md, dict):
-                new_finals.append(msg)
+                provisional_finals.append(msg)
                 continue
 
             usage = internal_md.get("usage")
             if not isinstance(usage, dict):
-                new_finals.append(msg)
+                provisional_finals.append(msg)
                 continue
 
-            # Calculate cost from token_rates if provider didn't return it
-            existing_cost = usage.get("cost")
-            if existing_cost is None and isinstance(token_rates, dict):
-                calculated_cost = _calculate_cost_from_rates(usage, token_rates)
+            estimated_cached_tokens: int | None = None
+            if estimate_cached_tokens and _usage_cached_tokens(usage) is None:
+                estimated_cached_tokens = _estimated_cached_tokens_for_current(
+                    estimation_history, usage
+                )
+
+            provider_cost = _provider_usage_cost(usage)
+            if provider_cost is None and isinstance(token_rates, dict):
+                calculated_cost = _calculate_cost_from_rates(
+                    usage,
+                    token_rates,
+                    cached_tokens_override=estimated_cached_tokens,
+                )
                 if calculated_cost is not None:
                     usage = {**usage, "cost": calculated_cost}
 
-            # Build the full metadata for this message
             per_msg_metadata = _per_message_metadata(usage)
-
-            # Combine: per-message + session totals + turn totals
-            # Note: turn totals only make sense for the last message in a turn
-            # (non-tool-call assistant message), but we attach to all for simplicity
-            full_metadata = {
+            provisional_metadata = {
                 **per_msg_metadata,
-                **session_metadata,
-                **turn_metadata,
                 "turn": {
                     "id": current_turn_id,
                     "has_tool_calls": _message_has_tool_calls(msg),
                     "is_terminal": not _message_has_tool_calls(msg),
                 },
             }
+            if estimated_cached_tokens is not None:
+                provisional_metadata["usage_estimated_cached_tokens"] = (
+                    estimated_cached_tokens
+                )
+                provisional_metadata["usage_estimated_cached_tokens_formatted"] = (
+                    _format_token_count(estimated_cached_tokens)
+                )
 
-            # Update the message's _metadata
-            new_internal_md = {**internal_md, **full_metadata}
-            if usage is not internal_md.get("usage"):  # usage was modified
-                new_internal_md["usage"] = usage
-            new_finals.append({**msg, "_metadata": new_internal_md})
+            provisional_msg = {
+                **msg,
+                "_metadata": {**internal_md, **provisional_metadata},
+            }
+            provisional_finals.append(provisional_msg)
+            if isinstance(native_index, int):
+                provisional_native[native_index] = provisional_msg
+            else:
+                provisional_native.append(provisional_msg)
 
-        # Also update native_messages tail to match
-        new_native = list(native_messages)
-        if len(new_native) >= len(final_messages):
-            prefix = new_native[: -len(final_messages)]
-            tail = new_native[-len(final_messages) :]
-            new_tail: list[dict[str, Any]] = []
-            for old_msg, new_msg in zip(tail, new_finals):
-                if isinstance(new_msg, dict) and "_metadata" in new_msg:
-                    new_tail.append(new_msg)
-                else:
-                    new_tail.append(old_msg)
-            new_native = [*prefix, *new_tail]
+        session_metadata = _session_totals(provisional_native)
+        turn_metadata = _turn_totals(provisional_native, provisional_finals)
 
+        cumulative_metadata = {**session_metadata, **turn_metadata}
+        new_finals: list[dict[str, Any]] = []
+        for msg in provisional_finals:
+            if not isinstance(msg, dict):
+                new_finals.append(msg)
+                continue
+            internal_md = msg.get("_metadata")
+            if not isinstance(internal_md, dict):
+                new_finals.append(msg)
+                continue
+            new_finals.append(
+                {
+                    **msg,
+                    "_metadata": {**internal_md, **cumulative_metadata},
+                }
+            )
+
+        new_native = list(provisional_native)
+        for final_position, msg in enumerate(new_finals):
+            native_index = final_native_indices[final_position]
+            if isinstance(native_index, int):
+                new_native[native_index] = msg
+            elif msg not in new_native:
+                new_native.append(msg)
         return new_finals, new_native, state
 
     def from_native_messages(
@@ -734,10 +1006,9 @@ class OpenAICompatibleUsageExtension(ProviderExtensionPlugin):
                         _usage_input_tokens,
                         start_index=turn_start,
                     )
-                    turn_cached = _sum_assistant_metric(
+                    turn_cached = _sum_assistant_effective_cached_tokens(
                         native_messages,
                         index,
-                        _usage_cached_tokens,
                         start_index=turn_start,
                     )
                     turn_output = _sum_assistant_metric(

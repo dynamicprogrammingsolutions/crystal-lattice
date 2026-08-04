@@ -70,7 +70,7 @@ Provider docs should include:
 Reference existing app configs when possible (for patterns):
 
 - `application/python/agent_terminal_app/config_echo_app.json`
-- `application/python/agent_terminal_app/config_openrouter_app_layer.json`
+- `application/python/agent_terminal_app/default_config/config.json`
 
 ## 6) Be explicit about streaming patterns and when to deviate
 

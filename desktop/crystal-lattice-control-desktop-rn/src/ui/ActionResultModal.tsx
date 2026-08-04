@@ -9,7 +9,10 @@ import type {
   ActionDisplayFollowupAction,
   ActionDisplayPayload,
 } from '@crystal-lattice/frontend-sdk';
-import { useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  type ApplicationActionDialogFieldRenderers,
+  useTheme,
+} from '@crystal-lattice/frontend-rn-components';
 
 import { ActionDisplayCard } from './ActionDisplayCard';
 
@@ -17,8 +20,12 @@ export interface ActionResultModalProps {
   visible: boolean;
   display: ActionDisplayPayload | null;
   onRequestClose: () => void;
-  onFollowupAction?: (action: ActionDisplayFollowupAction) => void;
+  onFollowupAction?: (
+    action: ActionDisplayFollowupAction,
+    formValues?: Record<string, any>,
+  ) => void;
   activeActionId?: string | null;
+  fieldRenderers?: ApplicationActionDialogFieldRenderers;
 }
 
 const VARIANT_LABELS: Record<NonNullable<ActionDisplayPayload['variant']>, string> = {
@@ -34,6 +41,7 @@ export function ActionResultModal({
   onRequestClose,
   onFollowupAction,
   activeActionId,
+  fieldRenderers,
 }: ActionResultModalProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -58,6 +66,7 @@ export function ActionResultModal({
               activeActionId={activeActionId}
               variantLabel={VARIANT_LABELS[variant]}
               footerDismissLabel={null}
+              fieldRenderers={fieldRenderers}
             />
           ) : null}
         </Pressable>

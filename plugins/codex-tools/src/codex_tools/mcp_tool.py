@@ -16,10 +16,16 @@ from mcp_shared import (
     MCPRuntimeManager,
     MCPServerRuntimeSpec,
     MCPToolCallResult,
+    apply_oauth_tokens_to_runtime_config,
     fingerprint_runtime_config,
+    load_oauth_tokens_into_runtime_store,
 )
+from tool_compat_shared.shell_engine import truncate_output
 
 from .mcp_names import qualify_codex_mcp_names
+
+
+DEFAULT_MAX_OUTPUT_TOKENS = 10_000
 
 
 def _default_input_schema() -> Dict[str, Any]:
@@ -182,6 +188,24 @@ def _responses_output_from_result(result: MCPToolCallResult) -> List[Dict[str, A
     return output
 
 
+def _truncate_text_for_model(text: str) -> str:
+    truncated, meta = truncate_output(
+        text,
+        limit_type="tokens",
+        limit_value=DEFAULT_MAX_OUTPUT_TOKENS,
+        head_ratio=0.5,
+    )
+    if not meta.get("truncated"):
+        return text
+
+    head_kept = int(meta.get("head_kept", 0) or 0)
+    tail_kept = int(meta.get("tail_kept", 0) or 0)
+    head = truncated[:head_kept]
+    tail = truncated[-tail_kept:] if tail_kept > 0 else ""
+    marker = f"…{int(meta.get('omitted_tokens', 0) or 0)} tokens truncated…"
+    return f"Total output lines: {int(meta.get('total_lines', 0) or 0)}\n\n{head}{marker}{tail}"
+
+
 class CodexMCPTool(ToolPlugin):
     name = "codex_mcp_tool"
     version = "0.1.0"
@@ -261,8 +285,10 @@ class CodexMCPTool(ToolPlugin):
         if not runtime_config.servers:
             return {"runtime_key": None, "tools": []}
 
-        runtime_key = fingerprint_runtime_config(runtime_config)
         store = self._runtime_store(context)
+        self._load_persisted_oauth_tokens(store, context)
+        runtime_config = apply_oauth_tokens_to_runtime_config(runtime_config, store)
+        runtime_key = fingerprint_runtime_config(runtime_config)
         registry = self._registry_from_store(store, context=context)
         if registry is not None:
             discovered = await registry.list_tools(runtime_key, runtime_config)
@@ -377,7 +403,9 @@ class CodexMCPTool(ToolPlugin):
             return {"success": False, "error": "MCP runtime is not available."}
 
         try:
-            registry = self._registry_from_store(self._runtime_store(context), context=context)
+            registry = self._registry_from_store(
+                self._runtime_store(context), context=context
+            )
             if registry is not None:
                 result = await registry.call_tool(
                     runtime_key,
@@ -416,7 +444,8 @@ class CodexMCPTool(ToolPlugin):
     def format_tool_result(self, result: Dict[str, Any], state: Dict[str, Any]) -> Any:
         _ = state
         if not result.get("success"):
-            return f"Error: {result.get('error')}"
+            error_text = _truncate_text_for_model(str(result.get("error") or "MCP tool call failed."))
+            return f"Error: {error_text}"
 
         content = result.get("content")
         if not isinstance(content, list):
@@ -424,25 +453,37 @@ class CodexMCPTool(ToolPlugin):
         raw_result = MCPToolCallResult(
             is_error=False,
             content=[item for item in content if isinstance(item, dict)],
-            structured_content=result.get("structured_content")
-            if isinstance(result.get("structured_content"), dict)
-            else None,
+            structured_content=(
+                result.get("structured_content")
+                if isinstance(result.get("structured_content"), dict)
+                else None
+            ),
             meta=result.get("meta") if isinstance(result.get("meta"), dict) else None,
         )
-        output = _responses_output_from_result(raw_result)
         summary_text = str(result.get("summary_text") or "")
+        output = _responses_output_from_result(raw_result)
+        image_items: List[Dict[str, Any]] = []
+        text_segments: List[str] = []
+        for item in output:
+            if item.get("type") == "input_text" and isinstance(item.get("text"), str):
+                text_segments.append(item["text"])
+                continue
+            image_items.append(item)
         if raw_result.structured_content:
-            output.append(
-                {
-                    "type": "input_text",
-                    "text": "Structured content:\n"
-                    + json.dumps(raw_result.structured_content, indent=2, sort_keys=True),
-                }
+            structured_text = "Structured content:\n" + json.dumps(
+                raw_result.structured_content, indent=2, sort_keys=True
             )
+            text_segments.append(structured_text)
             if not summary_text:
                 summary_text = json.dumps(raw_result.structured_content, sort_keys=True)
-        if not output:
-            output = [{"type": "input_text", "text": summary_text or "MCP tool call completed."}]
+        if text_segments:
+            combined_text = "\n".join(segment for segment in text_segments if segment)
+            summary_text = _truncate_text_for_model(combined_text)
+            output = [{"type": "input_text", "text": summary_text}, *image_items]
+        elif not output:
+            summary_text = summary_text or "MCP tool call completed."
+            summary_text = _truncate_text_for_model(summary_text)
+            output = [{"type": "input_text", "text": summary_text}]
         return make_provider_native_tool_result(
             format=FORMAT_OPENAI_RESPONSES,
             output=output,
@@ -500,23 +541,37 @@ class CodexMCPTool(ToolPlugin):
         if isinstance(enabled_override, bool):
             enabled = enabled_override
         else:
-            enabled = bool(raw_spec.get("enabled", True))
+            enabled = bool(raw_spec.get("enabled", False))
         return MCPServerRuntimeSpec(
             name=server_name,
             enabled=enabled,
             transport=transport,
             command=command,
             args=[str(item) for item in args if isinstance(item, (str, int, float))],
-            env={str(key): str(value) for key, value in env.items() if isinstance(key, str)},
+            env={
+                str(key): str(value)
+                for key, value in env.items()
+                if isinstance(key, str)
+            },
             cwd=cwd,
             url=url,
-            headers={str(key): str(value) for key, value in headers.items() if isinstance(key, str)},
-            startup_timeout_seconds=_coerce_positive_int(raw_spec.get("startup_timeout_seconds")),
-            tool_timeout_seconds=_coerce_positive_int(raw_spec.get("tool_timeout_seconds")),
+            headers={
+                str(key): str(value)
+                for key, value in headers.items()
+                if isinstance(key, str)
+            },
+            startup_timeout_seconds=_coerce_positive_int(
+                raw_spec.get("startup_timeout_seconds")
+            ),
+            tool_timeout_seconds=_coerce_positive_int(
+                raw_spec.get("tool_timeout_seconds")
+            ),
             metadata={},
         )
 
-    def _prepare_tools(self, discovered: List[MCPDiscoveredTool]) -> List[Dict[str, Any]]:
+    def _prepare_tools(
+        self, discovered: List[MCPDiscoveredTool]
+    ) -> List[Dict[str, Any]]:
         by_server: Dict[str, List[MCPDiscoveredTool]] = {}
         for tool in discovered:
             by_server.setdefault(tool.server_name, []).append(tool)
@@ -524,7 +579,9 @@ class CodexMCPTool(ToolPlugin):
         prepared: List[Dict[str, Any]] = []
         for server_name in sorted(by_server.keys()):
             tools = by_server[server_name]
-            qualified = qualify_codex_mcp_names(server_name, [tool.raw_name for tool in tools])
+            qualified = qualify_codex_mcp_names(
+                server_name, [tool.raw_name for tool in tools]
+            )
             qualified_by_raw = {item.raw_tool_name: item for item in qualified}
             for tool in tools:
                 qualified_name = qualified_by_raw[tool.raw_name]
@@ -558,9 +615,20 @@ class CodexMCPTool(ToolPlugin):
         store = context.get("runtime_store")
         if store is None:
             store = context.get("tool_runtime")
-        if store is not None and all(hasattr(store, attr) for attr in ("get", "get_or_create")):
+        if store is not None and all(
+            hasattr(store, attr) for attr in ("get", "get_or_create")
+        ):
             return store
         return None
+
+    def _load_persisted_oauth_tokens(
+        self,
+        store: Any | None,
+        context: Optional[Dict[str, Any]],
+    ) -> None:
+        if store is None or not isinstance(context, dict):
+            return
+        load_oauth_tokens_into_runtime_store(store, context.get("runtime_state_root"))
 
     def _registry_from_store(
         self,
@@ -632,15 +700,35 @@ def _runtime_config_from_jsonish(raw: Any) -> MCPRuntimeConfig | None:
             name=name,
             enabled=bool(spec.get("enabled", True)),
             transport=transport,
-            command=spec.get("command") if isinstance(spec.get("command"), str) else None,
-            args=[str(item) for item in spec.get("args", []) if isinstance(item, (str, int, float))],
-            env={str(k): str(v) for k, v in spec.get("env", {}).items()} if isinstance(spec.get("env"), dict) else {},
+            command=(
+                spec.get("command") if isinstance(spec.get("command"), str) else None
+            ),
+            args=[
+                str(item)
+                for item in spec.get("args", [])
+                if isinstance(item, (str, int, float))
+            ],
+            env=(
+                {str(k): str(v) for k, v in spec.get("env", {}).items()}
+                if isinstance(spec.get("env"), dict)
+                else {}
+            ),
             cwd=spec.get("cwd") if isinstance(spec.get("cwd"), str) else None,
             url=spec.get("url") if isinstance(spec.get("url"), str) else None,
-            headers={str(k): str(v) for k, v in spec.get("headers", {}).items()} if isinstance(spec.get("headers"), dict) else {},
-            startup_timeout_seconds=_coerce_positive_int(spec.get("startup_timeout_seconds")),
+            headers=(
+                {str(k): str(v) for k, v in spec.get("headers", {}).items()}
+                if isinstance(spec.get("headers"), dict)
+                else {}
+            ),
+            startup_timeout_seconds=_coerce_positive_int(
+                spec.get("startup_timeout_seconds")
+            ),
             tool_timeout_seconds=_coerce_positive_int(spec.get("tool_timeout_seconds")),
-            metadata=dict(spec.get("metadata")) if isinstance(spec.get("metadata"), dict) else {},
+            metadata=(
+                dict(spec.get("metadata"))
+                if isinstance(spec.get("metadata"), dict)
+                else {}
+            ),
         )
     return MCPRuntimeConfig(
         servers=servers,

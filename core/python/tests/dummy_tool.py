@@ -161,3 +161,30 @@ class CancellableBlockingTool:
                 except Exception:
                     pass
 
+
+@dataclass
+class FailingPrepareTool:
+    """Tool whose prepare hook fails before provider execution starts."""
+
+    name: str = "failing_prepare_tool"
+    version: str = "1.0.0"
+
+    def prepare(
+        self,
+        config: Dict[str, Any],
+        state: Dict[str, Any],
+        *,
+        context: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any]:
+        _ = config, state, context
+        raise RuntimeError("prepare exploded")
+
+    def get_tool_schemas(self, state: Dict[str, Any]) -> List[Dict[str, Any]]:
+        _ = state
+        return []
+
+    def execute_tool(
+        self, tool_name: str, arguments: Dict[str, Any], state: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        _ = tool_name, arguments, state
+        return {"success": False, "error": "not implemented"}

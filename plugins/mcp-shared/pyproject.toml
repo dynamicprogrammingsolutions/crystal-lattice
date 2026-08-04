@@ -33,4 +33,5 @@ python_files = ["test_*.py"]
 asyncio_mode = "auto"
 markers = [
     "integration: integration tests that may hit local or real external services",
+    "manual_integration: semiautomated tests requiring a human or real OAuth provider",
 ]

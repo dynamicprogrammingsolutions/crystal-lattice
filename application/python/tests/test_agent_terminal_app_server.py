@@ -533,11 +533,11 @@ def test_send_request_single_flight_blocks_while_running(tmp_path: Path) -> None
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
 
 def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None:
@@ -628,11 +628,11 @@ def test_send_request_idempotency_key_replays_request_id(tmp_path: Path) -> None
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
     resp3 = server_mod.send_request(
         session_id,
@@ -728,11 +728,11 @@ def test_send_message_endpoint_appends_and_starts_request(tmp_path: Path) -> Non
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
 
 def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
@@ -827,11 +827,11 @@ def test_send_message_endpoint_rejects_when_active(tmp_path: Path) -> None:
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
 
 def test_send_message_endpoint_idempotency_replays_without_double_append(
@@ -927,11 +927,11 @@ def test_send_message_endpoint_idempotency_replays_without_double_append(
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
 
 def test_send_message_endpoint_idempotency_key_reused_with_different_payload_conflicts(
@@ -1002,11 +1002,11 @@ def test_send_message_endpoint_idempotency_key_reused_with_different_payload_con
 
     deadline = time.time() + 5.0
     while time.time() < deadline:
-        if server_mod._get_active_send_request_id(session_id) is None:
+        if app.get_active_session_request_id(session_id) is None:
             break
         time.sleep(0.05)
 
-    assert server_mod._get_active_send_request_id(session_id) is None
+    assert app.get_active_session_request_id(session_id) is None
 
     with pytest.raises(HTTPException) as excinfo:
         server_mod.send_message(
@@ -1162,20 +1162,22 @@ def test_get_session_ui_schema_respects_session_overrides(tmp_path: Path) -> Non
 def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
     """GET /sessions/{id}/config/schema returns flattened config entries.
 
-    Uses the OpenRouter application-layer config so that plugin config
-    schema entries are present and can be queried by key.
+    Uses the default config so that plugin config schema entries are
+    present and can be queried by key.
     """
 
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_config_schema(session_id, app_instance=app)
@@ -1192,20 +1194,22 @@ def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
 def test_get_session_config_schema_exposes_known_keys(tmp_path: Path) -> None:
     """GET /sessions/{id}/config/schema exposes plugin config entries.
 
-    Uses the OpenRouter application-layer config so that real plugin
-    config schema entries are present.
+    Uses the default config so that real plugin config schema entries
+    are present.
     """
 
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_config_schema(session_id, app_instance=app)
@@ -1224,13 +1228,15 @@ def test_get_session_base_config_returns_mapping(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_base_config(session_id, app_instance=app)
@@ -1296,12 +1302,8 @@ def test_session_plugins_endpoints_roundtrip(tmp_path: Path) -> None:
     )
 
 
-def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -> None:
-    """Internal helper _run_send_request_background mirrors /send behaviour.
-
-    This test calls the helper directly to ensure that it drives the
-    send_request flow to completion and persists the final session.
-    """
+def test_run_session_request_sends_and_persists(tmp_path: Path) -> None:
+    """The shared application runner drives and persists a request."""
 
     from agent_terminal_app import server as server_mod
 
@@ -1313,7 +1315,7 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
     system_message = "You are a helpful echo assistant."
-    user_message = "hello from the _run_send_request_background test"
+    user_message = "hello from the run_session_request test"
 
     create_resp = server_mod.create_session(
         {"agent_id": "default", "system_message": system_message},
@@ -1330,7 +1332,7 @@ def test_run_send_request_background_helper_sends_and_persists(tmp_path: Path) -
 
     # Run the helper synchronously; it should process the request to
     # completion and save the final session.
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     ctx = app.load_session(session_id)
     assert ctx is not None
@@ -1360,13 +1362,15 @@ def test_session_overrides_get_and_patch_round_trip(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # Initially there should be no overrides.
@@ -1404,13 +1408,15 @@ def test_session_overrides_patch_bulk_merges_with_existing(tmp_path: Path) -> No
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # Seed a single-key override.
@@ -1442,13 +1448,15 @@ def test_delete_session_override_removes_key_and_preserves_others(
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # Seed two overrides.
@@ -1474,13 +1482,15 @@ def test_delete_session_override_is_idempotent_for_missing_key(tmp_path: Path) -
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # No overrides set; deleting a key should be a no-op.
@@ -1497,13 +1507,15 @@ def test_get_session_base_config_returns_mapping(tmp_path: Path) -> None:
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     resp = server_mod.get_session_base_config(session_id, app_instance=app)
@@ -1520,13 +1532,15 @@ def test_delete_session_override_removes_key_and_preserves_others(
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     server_mod.patch_session_overrides(
@@ -1550,13 +1564,15 @@ def test_delete_session_override_is_idempotent_when_key_missing(tmp_path: Path) 
     from agent_terminal_app import server as server_mod
 
     base_dir = Path(server_mod.__file__).resolve().parent
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     events = InMemoryEventStore()
     app = AgentApplication(str(config_path), str(session_root), event_store=events)
 
-    create_resp = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    create_resp = server_mod.create_session(
+        {"agent_id": "codex-openrouter"}, app_instance=app
+    )
     session_id = create_resp["session"]["session_id"]
 
     # No overrides set; deleting a non-existent key should not fail.
@@ -1597,7 +1613,7 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
     )
 
     # Run the helper synchronously to drive the non-streaming request.
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     evs = _store_events(app.get_event_store(), session_id=session_id, limit=200)
     final_events = [ev for ev in evs if ev.get("type") == "final"]
@@ -1615,10 +1631,10 @@ def test_checkpoint_cursor_after_final_event(tmp_path: Path) -> None:
     assert resp["cursor_event_id"] == last_checkpoint.get("event_id")
 
 
-def test_run_send_request_background_merges_session_and_http_overrides(
+def test_run_session_request_merges_session_and_explicit_overrides(
     tmp_path: Path,
 ) -> None:
-    """Background send merges metadata overrides with HTTP overrides.
+    """Coordinated send merges metadata overrides with explicit overrides.
 
     The per-session overrides stored in session.metadata["overrides"]
     must be merged with any config_overrides passed via HTTP, with the
@@ -1675,16 +1691,16 @@ def test_run_send_request_background_merges_session_and_http_overrides(
 
     # HTTP-provided overrides should be merged on top.
     http_overrides = {"bar": "http", "both": "http"}
-    server_mod._run_send_request_background(app, session_id, http_overrides)
+    app.run_session_request(session_id, http_overrides)
 
     merged = captured.get("overrides") or {}
     assert merged == {"foo": "session", "both": "http", "bar": "http"}
 
 
-def test_run_send_request_background_uses_session_overrides_when_http_empty(
+def test_run_session_request_uses_session_overrides_when_explicit_empty(
     tmp_path: Path,
 ) -> None:
-    """Background send uses only session overrides when HTTP none provided."""
+    """Coordinated send uses session overrides when none are explicit."""
 
     from agent_terminal_app import server as server_mod
     from agent_core import Session
@@ -1732,7 +1748,7 @@ def test_run_send_request_background_uses_session_overrides_when_http_empty(
 
     app.send_request = _fake_send_request  # type: ignore[assignment]
 
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     merged = captured.get("overrides") or {}
     assert merged == {"alpha": 1, "beta": 2}
@@ -1767,7 +1783,7 @@ def test_list_session_messages_includes_cursor_event_id_after_request(
         app_instance=app,
     )
 
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     evs = _store_events(app.get_event_store(), session_id=session_id, limit=100)
     checkpoint_events = [ev for ev in evs if ev.get("type") == "checkpoint"]
@@ -1875,7 +1891,7 @@ def test_list_session_messages_exposes_active_request_id_during_and_after_reques
     # Drive the background helper once. The stubbed application layer
     # records an in-request checkpoint and then a post-completion
     # checkpoint with request_id None.
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     # Verify that at least one checkpoint exists with a non-null request_id
     # (during the request) and that the last checkpoint has request_id None
@@ -2245,7 +2261,7 @@ def test_events_endpoint_uses_session_cursor_as_default_since_id(
         {"role": "user", "content": "before", "metadata": None},
         app_instance=app,
     )
-    server_mod._run_send_request_background(app, session_id, {})
+    app.run_session_request(session_id, {})
 
     # Capture the cursor and then publish an additional synthetic event
     # for the same session after the checkpoint.
@@ -2853,6 +2869,86 @@ def test_get_session_summary_matches_list_sessions_entry(tmp_path: Path) -> None
     summary_resp = server_mod.get_session_summary(session_id, app_instance=app)
 
     assert summary_resp["session"] == list_entry
+    assert summary_resp["session"] == app.get_session_summary(session_id)
+
+
+def test_http_and_terminal_session_lists_delegate_to_shared_application_result(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app import server as server_mod
+    from agent_terminal_app.terminal_app import TerminalApplication
+
+    base_dir = Path(server_mod.__file__).resolve().parent
+    config_path = base_dir / "config_echo_app.json"
+    session_root = tmp_path / "sessions"
+    app = AgentApplication(str(config_path), str(session_root))
+
+    created = server_mod.create_session({"agent_id": "default"}, app_instance=app)
+    session_id = created["session"]["session_id"]
+    server_mod.add_message(
+        session_id,
+        {"role": "user", "content": "shared list pipeline", "metadata": None},
+        app_instance=app,
+    )
+
+    direct = app.list_session_summaries()
+    http = server_mod.list_sessions(app_instance=app)["sessions"]
+    terminal = TerminalApplication(
+        config_path=config_path,
+        session_root=session_root,
+        agent_app=app,
+    ).list_sessions_metadata()
+
+    assert http == direct
+    assert terminal == direct
+    assert direct[0]["presentation"]["title"] == "shared list pipeline"
+
+
+def test_terminal_session_list_adapter_forwards_query_without_scanning(
+    tmp_path: Path,
+) -> None:
+    from agent_terminal_app.terminal_app import TerminalApplication
+
+    calls: list[Dict[str, Any]] = []
+    expected = [
+        {
+            "session_id": "delegated",
+            "modified": 1.0,
+            "preview": "",
+            "metadata": {},
+            "presentation": {
+                "title": "Session delegate",
+                "subtitle": None,
+                "meta": None,
+            },
+        }
+    ]
+
+    class StubApplication:
+        def list_session_summaries(self, **kwargs: Any) -> list[Dict[str, Any]]:
+            calls.append(kwargs)
+            return expected
+
+    terminal = TerminalApplication(
+        config_path=tmp_path / "unused.json",
+        session_root=tmp_path / "must-not-be-scanned",
+        agent_app=StubApplication(),  # type: ignore[arg-type]
+    )
+
+    result = terminal.list_sessions_metadata(
+        limit=3,
+        filter_values={"status": "done"},
+        apply_filter_defaults=True,
+    )
+
+    assert result is expected
+    assert calls == [
+        {
+            "filter_values": {"status": "done"},
+            "apply_filter_defaults": True,
+            "limit": 3,
+        }
+    ]
 
 
 def test_get_session_summary_reflects_metadata_changes(tmp_path: Path) -> None:
@@ -3139,7 +3235,7 @@ def test_cancel_request_endpoint_cancels_active_provider_request(
         kinds = {ev.get("type") for ev in current_events}
         if "request_started" in kinds:
             saw_started = True
-        if server_mod._get_active_send_request_id(session_id) == request_id:
+        if app.get_active_session_request_id(session_id) == request_id:
             saw_active = True
         if saw_started and saw_active:
             break
@@ -3305,8 +3401,8 @@ def test_http_flow_with_tools_and_reasoning(
 ) -> None:
     """End-to-end HTTP flow exercising tools and reasoning.
 
-    The flow uses the real FastAPI app with config_openrouter_app_layer.json
-    via TestClient:
+    The flow uses the real FastAPI app with an Ollama tools config via
+    TestClient:
 
     1. Create a session with a system message.
     2. Add a user message.

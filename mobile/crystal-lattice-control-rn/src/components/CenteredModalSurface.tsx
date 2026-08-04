@@ -16,6 +16,7 @@ export interface CenteredModalSurfaceProps {
   visible: boolean;
   onRequestClose: () => void;
   children: React.ReactNode;
+  overlayChildren?: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
   keyboardAvoiding?: boolean;
 }
@@ -24,6 +25,7 @@ const CenteredModalSurface: React.FC<CenteredModalSurfaceProps> = ({
   visible,
   onRequestClose,
   children,
+  overlayChildren,
   contentStyle,
   keyboardAvoiding = false,
 }) => {
@@ -38,6 +40,7 @@ const CenteredModalSurface: React.FC<CenteredModalSurfaceProps> = ({
     <>
       <Pressable style={StyleSheet.absoluteFill} onPress={onRequestClose} />
       <View style={[styles.content, contentStyle]}>{children}</View>
+      {overlayChildren}
     </>
   );
 

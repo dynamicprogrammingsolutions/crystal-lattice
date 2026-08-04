@@ -8,6 +8,7 @@ provider configuration so they do not require network access.
 from __future__ import annotations
 
 import contextlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -86,6 +87,51 @@ def test_terminal_flow_with_echo_provider(tmp_path: Path) -> None:
     assert "request_started" in kinds or "final" in kinds
 
 
+def test_terminal_rebuilds_cached_runtime_after_application_replacement(
+    tmp_path: Path,
+) -> None:
+    from agent_app.application_future import AgentApplication
+    from agent_app.application_notifications import InMemoryApplicationNotificationStore
+    from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
+    from agent_app.events import InMemoryEventStore
+    from agent_terminal_app import terminal as term_mod
+
+    source_config = Path(term_mod.__file__).resolve().parent / "config_echo_app.json"
+    config_path = tmp_path / "config.json"
+    raw_config = json.loads(source_config.read_text(encoding="utf-8"))
+    config_path.write_text(json.dumps(raw_config), encoding="utf-8")
+    session_root = tmp_path / "sessions"
+    events = InMemoryEventStore()
+    notification_store = InMemoryApplicationNotificationStore()
+
+    def factory(control: ApplicationControl) -> AgentApplication:
+        return AgentApplication(
+            config_path,
+            session_root,
+            event_store=events,
+            application_notification_store=notification_store,
+            application_control=control,
+        )
+
+    owner = AgentApplicationOwner(factory, event_store=events)
+    term_app = term_mod.TerminalApplication(
+        config_path=str(config_path),
+        session_root=str(session_root),
+        application_owner=owner,
+    )
+    term_app.start_new_session(agent_id="default")
+    _core, first_base, _session = term_app.require_session()
+    assert first_base["model"] == "echo-test-1"
+
+    raw_config["providers"]["echo_openai_like_default"]["model"] = "echo-test-2"
+    config_path.write_text(json.dumps(raw_config), encoding="utf-8")
+    result = owner.request_reload(reason="terminal-test")
+
+    assert owner.wait_for_reload(result["reload_id"], timeout=5)
+    _core, next_base, _session = term_app.require_session()
+    assert next_base["model"] == "echo-test-2"
+
+
 @pytest.mark.asyncio
 async def test_run_terminal_uses_compact_erasing_prompt(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -126,7 +172,9 @@ async def test_run_terminal_uses_compact_erasing_prompt(
     monkeypatch.setattr(term_mod, "PromptSession", _FakePromptSession)
     monkeypatch.setattr(term_mod, "_poll_events", _fake_poll_events)
     monkeypatch.setattr(term_mod, "_set_terminal_title", lambda title: None)
-    monkeypatch.setattr(term_mod, "patch_stdout", lambda *_args, **_kwargs: contextlib.nullcontext())
+    monkeypatch.setattr(
+        term_mod, "patch_stdout", lambda *_args, **_kwargs: contextlib.nullcontext()
+    )
 
     await term_mod._run_terminal(term_app)
 
@@ -1210,8 +1258,8 @@ def test_at_file_completion_uses_core(tmp_path: Path) -> None:
     from agent_terminal_app import terminal as term_mod
 
     base_dir = Path(term_mod.__file__).resolve().parent
-    # Use the OpenRouter app-layer config which enables FileContextFeature.
-    config_path = base_dir / "config_openrouter_app_layer.json"
+    # Use the default config which enables FileContextFeature.
+    config_path = base_dir / "default_config" / "config.json"
     session_root = tmp_path / "sessions"
 
     # Create a small file tree for completions and expansion.
@@ -1232,7 +1280,7 @@ def test_at_file_completion_uses_core(tmp_path: Path) -> None:
     )
 
     # Override working_directory via overrides so the feature searches our temp tree.
-    session = term_app.start_new_session(agent_id="default")
+    session = term_app.start_new_session(agent_id="codex-openrouter")
     md = session.metadata or {}
     overrides = md.get("overrides") or {}
     overrides["working_directory"] = str(working_dir)

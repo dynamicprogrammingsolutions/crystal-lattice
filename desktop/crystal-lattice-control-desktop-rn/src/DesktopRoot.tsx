@@ -18,6 +18,7 @@ import { desktopWindowEvents, DesktopWindowManager } from './windows/desktopWind
 import { clearActiveSessionSettingsWindow } from './windows/sessionSettingsCoordinator';
 import { cancelAttachmentMetadataWindowFromSystem } from './windows/attachmentMetadataCoordinator';
 import { clearActiveSessionPluginsWindow } from './windows/sessionPluginsCoordinator';
+import { clearActiveSessionSnapshotsWindow } from './windows/sessionSnapshotsCoordinator';
 import { useMessagesCache } from './cache/useMessagesCache';
 import { useSessionsCache } from './cache/useSessionsCache';
 import { desktopEventBus } from './events/desktopEventBus';
@@ -31,6 +32,8 @@ import {
   serializePersistedOpenTabsState,
   STORAGE_KEY_OPEN_TABS,
 } from './tabs/openTabsStorage';
+import { DesktopGlobalDisplayLayer } from './ui/DesktopGlobalDisplayLayer';
+import { setActiveServerSettingsWindow } from './windows/serverSettingsCoordinator';
 
 const EMPTY_CACHED_SESSIONS: SessionSummary[] = [];
 
@@ -580,6 +583,16 @@ export function DesktopRoot({
       },
     );
 
+    const clearStoredSessionCachesSub = desktopWindowEvents.addListener(
+      'clearStoredSessionCachesRequested',
+      () => {
+        clearSessionsCache();
+        clearMessagesCache();
+        setTabs([]);
+        setActiveTabId(null);
+      },
+    );
+
     const agentPickerSub = desktopWindowEvents.addListener(
       'agentPickerSelected',
       (payload: any) => {
@@ -653,8 +666,14 @@ export function DesktopRoot({
         if (windowKey === 'sessionPlugins') {
           clearActiveSessionPluginsWindow();
         }
+        if (windowKey === 'sessionSnapshots') {
+          clearActiveSessionSnapshotsWindow();
+        }
         if (windowKey === 'attachmentMetadata') {
           cancelAttachmentMetadataWindowFromSystem();
+        }
+        if (windowKey === 'serverSettings') {
+          setActiveServerSettingsWindow(null);
         }
       },
     );
@@ -663,10 +682,19 @@ export function DesktopRoot({
       savedSub.remove();
       styleSub.remove();
       followSub.remove();
+      clearStoredSessionCachesSub.remove();
       agentPickerSub.remove();
       sessionSettingsCancelledSub.remove();
     };
-  }, [getBackend, openConnectionAndTouch, openTab, updateSessionsCache, upsertConnection]);
+  }, [
+    clearMessagesCache,
+    clearSessionsCache,
+    getBackend,
+    openConnectionAndTouch,
+    openTab,
+    updateSessionsCache,
+    upsertConnection,
+  ]);
 
   const connectionNameById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -727,6 +755,10 @@ export function DesktopRoot({
 
   return (
     <View style={styles.root}>
+      <DesktopGlobalDisplayLayer
+        openConnectionsById={openConnectionsById}
+        connectionNameById={connectionNameById}
+      >
       <DesktopShell
         left={(
           <View style={styles.leftColumn}>
@@ -751,6 +783,11 @@ export function DesktopRoot({
               focusedConnectionId={focusedConnectionId}
               focusedConnectionName={
                 focusedConnectionId ? connectionNameById[focusedConnectionId] : null
+              }
+              connectionBaseUrl={
+                focusedConnectionId
+                  ? openConnectionsById[focusedConnectionId]?.baseUrl ?? null
+                  : null
               }
               connectionId={focusedConnectionId}
               backend={focusedConnectionId ? getBackend(focusedConnectionId) : null}
@@ -812,6 +849,7 @@ export function DesktopRoot({
 	                  getBackend={getBackend}
 	                  sessionsCache={sessionsCache}
 	                  messagesCache={messagesCache}
+                    messagesCacheHydrated={messagesCacheHydrated}
 	                  onUpdateCache={updateMessagesCache}
 	                  onOpenSessionTab={openTab}
 	                />
@@ -820,6 +858,7 @@ export function DesktopRoot({
           </View>
         )}
       />
+      </DesktopGlobalDisplayLayer>
     </View>
   );
 }

@@ -6,6 +6,7 @@ import { DropdownMenuSurface, useTheme } from '@crystal-lattice/frontend-rn-comp
 export interface PanelHeaderProps {
   title: string;
   subtitle?: string;
+  right?: React.ReactNode;
   menuLabel?: string;
   onPressMenu?: () => void;
   menuItems?: Array<{ label: string; onPress?: () => void; variant?: 'default' | 'danger' }>;
@@ -14,6 +15,7 @@ export interface PanelHeaderProps {
 export function PanelHeader({
   title,
   subtitle,
+  right,
   menuLabel,
   onPressMenu,
   menuItems,
@@ -71,6 +73,7 @@ export function PanelHeader({
         ) : null}
       </View>
 
+      {right}
       {showMenu ? (
         <View ref={anchorRef} collapsable={false}>
           <Pressable

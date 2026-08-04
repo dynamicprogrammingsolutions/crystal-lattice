@@ -1,4 +1,9 @@
-export type { ActionKey, ActionDefinition, ActionsMenuModel } from './actions/types';
+export type {
+  ActionKey,
+  ActionDefinition,
+  ActionsMenuModel,
+  ActionsMenuPinnedRenderParams,
+} from './actions/types';
 
 export type { Theme } from './theme';
 export { ThemeProvider, useTheme } from './theme';
@@ -18,10 +23,24 @@ export type {
   ApplicationActionDialogFieldRenderParams,
   ApplicationActionDialogPrefillContext,
   ApplicationActionDialogProps,
+  ApplicationActionFormHandle,
+  ApplicationActionFormProps,
   DialogInputField,
 } from './ApplicationActionDialog';
 export { ApplicationActionDialog } from './ApplicationActionDialog';
 export { ApplicationActionDialogLayout } from './ApplicationActionDialog';
+export { ApplicationActionForm } from './ApplicationActionDialog';
+export type { ApplicationActionsMenuProps } from './actions/ApplicationActionsMenu';
+export { ApplicationActionsMenu } from './actions/ApplicationActionsMenu';
+export type { NotificationBannerProps } from './notifications/NotificationBanner';
+export { NotificationBanner } from './notifications/NotificationBanner';
+export type {
+  NotificationBannerHostItem,
+  NotificationBannerHostProps,
+} from './notifications/NotificationBannerHost';
+export { NotificationBannerHost } from './notifications/NotificationBannerHost';
+export type { SessionNotificationsHostProps } from './notifications/SessionNotificationsHost';
+export { SessionNotificationsHost } from './notifications/SessionNotificationsHost';
 
 export {
   buildActionsMenuModel,
@@ -68,5 +87,23 @@ export { ActionsMenuBar } from './actions/ActionsMenuBar';
 export type { SessionActionsBarProps } from './actions/SessionActionsBar';
 export { SessionActionsBar } from './actions/SessionActionsBar';
 
+export type {
+  SessionListActionsBarProps,
+  SessionListRichActionControlProps,
+  SessionListPluginActionDefinition,
+  SessionListRichActionListProps,
+} from './actions/SessionListActionsBar';
+export {
+  resolveSemanticToneColor,
+  SessionListActionsBar,
+  SessionListRichActionControl,
+  SessionListRichActionList,
+} from './actions/SessionListActionsBar';
+
 export { SessionPluginsList } from './SessionPluginsList';
+
+export type {
+  SessionListFiltersPanelProps,
+} from './SessionListFiltersPanel';
+export { SessionListFiltersPanel } from './SessionListFiltersPanel';
 

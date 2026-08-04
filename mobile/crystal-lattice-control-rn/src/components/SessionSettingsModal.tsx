@@ -576,46 +576,47 @@ const SessionSettingsModal: React.FC<SessionSettingsModalProps> = ({
   const hasLoaded = settingsState?.lastLoadedAt != null;
 
   return (
-    <>
-      <PanelModalFrame
-        visible={visible}
-        title="Session settings"
-        onRequestClose={onRequestClose}
-        statusText={statusText}
-        statusTone={statusTone}
-        showSpinner={showSpinner}
-        scroll={!error && items.length > 0}
-      >
-        {!error && hasLoaded && items.length === 0 && (
-          <Text style={styles.helperText}>
-            No configurable settings are available for this session.
-          </Text>
-        )}
-        {!error && items.length > 0 && (
-          <SessionSettingsHost
-            items={items}
-            actions={{
-              toggleCheckbox: handleToggleCheckbox,
-              selectOption: handleSelectOption,
-              saveText: handleSaveText,
-              revertToDefault: handleRevertToDefault,
-            }}
-            renderers={renderers}
-          />
-        )}
-      </PanelModalFrame>
-      <OptionsPickerModal
-        visible={!!dropdownState}
-        options={dropdownState?.options ?? []}
-        onSelect={(value) => {
-          if (dropdownState) {
-            handleSelectOption(dropdownState.key, value);
-            setDropdownState(null);
-          }
-        }}
-        onRequestClose={() => setDropdownState(null)}
-      />
-    </>
+    <PanelModalFrame
+      visible={visible}
+      title="Session settings"
+      onRequestClose={onRequestClose}
+      statusText={statusText}
+      statusTone={statusTone}
+      showSpinner={showSpinner}
+      scroll={!error && items.length > 0}
+      overlayChildren={
+        <OptionsPickerModal
+          visible={!!dropdownState}
+          options={dropdownState?.options ?? []}
+          useModal={false}
+          onSelect={(value) => {
+            if (dropdownState) {
+              handleSelectOption(dropdownState.key, value);
+              setDropdownState(null);
+            }
+          }}
+          onRequestClose={() => setDropdownState(null)}
+        />
+      }
+    >
+      {!error && hasLoaded && items.length === 0 && (
+        <Text style={styles.helperText}>
+          No configurable settings are available for this session.
+        </Text>
+      )}
+      {!error && items.length > 0 && (
+        <SessionSettingsHost
+          items={items}
+          actions={{
+            toggleCheckbox: handleToggleCheckbox,
+            selectOption: handleSelectOption,
+            saveText: handleSaveText,
+            revertToDefault: handleRevertToDefault,
+          }}
+          renderers={renderers}
+        />
+      )}
+    </PanelModalFrame>
   );
 };
 

@@ -5,7 +5,7 @@ import { DesktopWindowManager } from './desktopWindowManager';
 
 export interface DesktopPopoverState {
   id: string;
-  title: string;
+  title?: string;
   content: ReactNode;
   onRequestClose?: () => void;
 }
@@ -24,22 +24,44 @@ export function setActiveDesktopPopover(next: DesktopPopoverState) {
   emit();
 }
 
-export function clearActiveDesktopPopover(id?: string) {
+export function getActiveDesktopPopover(): DesktopPopoverState | null {
+  return active;
+}
+
+export function updateActiveDesktopPopover(
+  id: string,
+  next: Partial<Omit<DesktopPopoverState, 'id'>>,
+): boolean {
+  if (!active || active.id !== id) {
+    return false;
+  }
+  active = {
+    ...active,
+    ...next,
+    id,
+  };
+  emit();
+  return true;
+}
+
+export function clearActiveDesktopPopover(id?: string): boolean {
   if (!active) {
-    return;
+    return false;
   }
   if (id && active.id !== id) {
-    return;
+    return false;
   }
   active = null;
   emit();
+  return true;
 }
 
 export function openDesktopPopover(params: {
   id: string;
-  title: string;
+  title?: string;
   content: ReactNode;
   onRequestClose?: () => void;
+  accessibilityId?: string;
   anchorTag?: number;
   width?: number;
   height?: number;
@@ -52,6 +74,7 @@ export function openDesktopPopover(params: {
   });
 
   DesktopWindowManager?.openMessageLimitPopover?.({
+    popoverId: params.accessibilityId ?? params.id,
     anchorTag: params.anchorTag,
     width: params.width,
     height: params.height,
@@ -59,7 +82,12 @@ export function openDesktopPopover(params: {
 }
 
 export function closeDesktopPopover(id?: string) {
-  clearActiveDesktopPopover(id);
+  if (id && !clearActiveDesktopPopover(id)) {
+    return;
+  }
+  if (!id) {
+    clearActiveDesktopPopover();
+  }
   DesktopWindowManager?.closeMessageLimitPopover?.();
 }
 

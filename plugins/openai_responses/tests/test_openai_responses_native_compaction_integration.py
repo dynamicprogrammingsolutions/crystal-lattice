@@ -224,7 +224,7 @@ def test_openai_responses_compaction_shape_matrix_allows_followup_turn(
         session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={"end_index": 2},
     )
 
@@ -297,7 +297,7 @@ def test_openai_responses_compaction_model_allows_followup_about_compacted_assis
         session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={},
     )
 
@@ -355,7 +355,7 @@ def test_openai_responses_full_compaction_allows_followup_turn(
         session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={},
     )
 
@@ -413,7 +413,7 @@ def test_openai_responses_partial_compaction_allows_followup_turn(
         session,
         config,
         plugin_id="openai_responses_native_compaction",
-        action_id="compact_native_history",
+        action_id="compact_native_history_sync",
         params={"end_index": 2},
     )
 

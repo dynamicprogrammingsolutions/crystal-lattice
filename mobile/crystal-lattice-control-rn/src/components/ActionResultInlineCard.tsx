@@ -5,6 +5,7 @@ import type {
   ActionDisplayFollowupAction,
   ActionDisplayPayload,
 } from '@crystal-lattice/frontend-sdk';
+import type { ApplicationActionDialogFieldRenderers } from '@crystal-lattice/frontend-rn-components';
 
 import { useTheme, type Theme } from '../theme';
 import ActionDisplayCard from './ActionDisplayCard';
@@ -12,8 +13,12 @@ import ActionDisplayCard from './ActionDisplayCard';
 export interface ActionResultInlineCardProps {
   display: ActionDisplayPayload;
   onDismiss: () => void;
-  onFollowupAction?: (action: ActionDisplayFollowupAction) => void;
+  onFollowupAction?: (
+    action: ActionDisplayFollowupAction,
+    formValues?: Record<string, any>,
+  ) => void;
   activeActionId?: string | null;
+  fieldRenderers?: ApplicationActionDialogFieldRenderers;
 }
 
 const VARIANT_LABELS: Record<NonNullable<ActionDisplayPayload['variant']>, string> = {
@@ -28,6 +33,7 @@ const ActionResultInlineCard: React.FC<ActionResultInlineCardProps> = ({
   onDismiss,
   onFollowupAction,
   activeActionId,
+  fieldRenderers,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -42,6 +48,7 @@ const ActionResultInlineCard: React.FC<ActionResultInlineCardProps> = ({
         activeActionId={activeActionId}
         variantLabel={VARIANT_LABELS[variant]}
         compact
+        fieldRenderers={fieldRenderers}
       />
     </View>
   );

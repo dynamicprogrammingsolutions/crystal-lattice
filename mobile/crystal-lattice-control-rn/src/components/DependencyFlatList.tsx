@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import type {
   FlatList,
   LayoutChangeEvent,
@@ -6,8 +6,8 @@ import type {
   NativeSyntheticEvent,
   StyleProp,
   ViewStyle,
-} from 'react-native';
-import { FlatList as NativeFlatList } from 'react-native';
+} from "react-native";
+import { FlatList as NativeFlatList } from "react-native";
 
 export interface DependencyFlatListRenderItemInfo<TItem> {
   item: TItem;
@@ -16,13 +16,16 @@ export interface DependencyFlatListRenderItemInfo<TItem> {
 
 export interface DependencyFlatListProps<TItem> {
   data: ReadonlyArray<TItem>;
-  renderItem: (info: DependencyFlatListRenderItemInfo<TItem>) => React.ReactElement | null;
+  renderItem: (
+    info: DependencyFlatListRenderItemInfo<TItem>
+  ) => React.ReactElement | null;
   keyExtractor?: (item: TItem, index: number) => string;
 
   getItemDependencies?: (item: TItem, index: number) => ReadonlyArray<unknown>;
 
   style?: StyleProp<ViewStyle>;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  testID?: string;
 
   ListHeaderComponent?: React.ComponentType<any> | React.ReactElement | null;
   ListFooterComponent?: React.ComponentType<any> | React.ReactElement | null;
@@ -37,6 +40,16 @@ export interface DependencyFlatListProps<TItem> {
   onLayout?: (event: LayoutChangeEvent) => void;
   onContentSizeChange?: (width: number, height: number) => void;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScrollBeginDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onScrollEndDrag?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  onMomentumScrollEnd?: (
+    event: NativeSyntheticEvent<NativeScrollEvent>
+  ) => void;
+  onScrollToIndexFailed?: (info: {
+    index: number;
+    highestMeasuredFrameIndex: number;
+    averageItemLength: number;
+  }) => void;
 }
 
 type DependencyFlatListRow = {
@@ -52,7 +65,7 @@ type RowCacheEntry<TItem> = {
 
 function shallowArrayEqual(
   a: ReadonlyArray<unknown> | null,
-  b: ReadonlyArray<unknown> | null,
+  b: ReadonlyArray<unknown> | null
 ): boolean {
   if (a === b) return true;
   if (a == null || b == null) return false;
@@ -65,7 +78,7 @@ function shallowArrayEqual(
 
 function DependencyFlatListInner<TItem>(
   props: DependencyFlatListProps<TItem>,
-  ref: React.ForwardedRef<FlatList<any>>,
+  ref: React.ForwardedRef<FlatList<any>>
 ): React.JSX.Element {
   const cacheRef = React.useRef<Map<string, RowCacheEntry<TItem>>>(new Map());
   const lastExtraDataRef = React.useRef(props.extraData);
@@ -77,6 +90,7 @@ function DependencyFlatListInner<TItem>(
     getItemDependencies,
     style,
     contentContainerStyle,
+    testID,
     ListHeaderComponent,
     ListFooterComponent,
     ListEmptyComponent,
@@ -88,6 +102,10 @@ function DependencyFlatListInner<TItem>(
     onLayout,
     onContentSizeChange,
     onScroll,
+    onScrollBeginDrag,
+    onScrollEndDrag,
+    onMomentumScrollEnd,
+    onScrollToIndexFailed,
   } = props;
 
   const cache = cacheRef.current;
@@ -116,7 +134,11 @@ function DependencyFlatListInner<TItem>(
     const deps = getItemDependencies ? getItemDependencies(item, index) : null;
 
     const cached = cache.get(key);
-    if (cached && cached.item === item && shallowArrayEqual(cached.deps, deps)) {
+    if (
+      cached &&
+      cached.item === item &&
+      shallowArrayEqual(cached.deps, deps)
+    ) {
       return cached.row;
     }
 
@@ -132,14 +154,21 @@ function DependencyFlatListInner<TItem>(
     }
   }
 
-  const extractRowKey = React.useCallback((row: DependencyFlatListRow) => row.key, []);
-  const renderRow = React.useCallback(({ item }: { item: DependencyFlatListRow }) => item.value, []);
+  const extractRowKey = React.useCallback(
+    (row: DependencyFlatListRow) => row.key,
+    []
+  );
+  const renderRow = React.useCallback(
+    ({ item }: { item: DependencyFlatListRow }) => item.value,
+    []
+  );
 
   return (
     <NativeFlatList<DependencyFlatListRow>
       style={style}
       ref={ref as any}
       contentContainerStyle={contentContainerStyle}
+      testID={testID}
       data={rows}
       inverted={inverted}
       maintainVisibleContentPosition={maintainVisibleContentPosition}
@@ -147,6 +176,10 @@ function DependencyFlatListInner<TItem>(
       onLayout={onLayout}
       onContentSizeChange={onContentSizeChange}
       onScroll={onScroll}
+      onScrollBeginDrag={onScrollBeginDrag}
+      onScrollEndDrag={onScrollEndDrag}
+      onMomentumScrollEnd={onMomentumScrollEnd}
+      onScrollToIndexFailed={onScrollToIndexFailed}
       keyExtractor={extractRowKey}
       extraData={extraData}
       renderItem={renderRow}
@@ -158,6 +191,8 @@ function DependencyFlatListInner<TItem>(
   );
 }
 
-export const DependencyFlatList = React.forwardRef(DependencyFlatListInner) as <TItem>(
-  props: DependencyFlatListProps<TItem> & React.RefAttributes<FlatList<any>>,
+export const DependencyFlatList = React.forwardRef(DependencyFlatListInner) as <
+  TItem
+>(
+  props: DependencyFlatListProps<TItem> & React.RefAttributes<FlatList<any>>
 ) => React.JSX.Element;

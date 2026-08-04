@@ -155,3 +155,17 @@ test('session settings text controls save generic string values', async () => {
     expect(patchOverride).toHaveBeenCalledWith('generic_name', 'Beta');
   });
 });
+
+test('session settings dropdown opens and patches selected value', async () => {
+  renderSettingsModal();
+
+  fireEvent.press(screen.getByText('Generic provider:'));
+
+  expect(screen.getByPlaceholderText('Search...')).toBeTruthy();
+
+  fireEvent.press(screen.getByText('Remote'));
+
+  await waitFor(() => {
+    expect(patchOverride).toHaveBeenCalledWith('generic_provider', 'remote');
+  });
+});

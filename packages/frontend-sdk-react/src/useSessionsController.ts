@@ -24,7 +24,7 @@ export function useSessionsController(options: UseSessionsControllerOptions): Us
   }, [backend]);
 
   useEffect(() => {
-    // No long-lived resources today.
+    return () => controller?.close();
   }, [controller]);
 
   const state = useSyncExternalStore(

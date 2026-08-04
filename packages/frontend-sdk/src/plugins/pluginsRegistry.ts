@@ -2,18 +2,42 @@ import type { AgentBackend } from '../backend/backend';
 import type {
   ActionUiElement,
   ApplicationActionDefinition,
+  ApplicationActionUiElement,
   ApplicationUiElement,
   SessionListFieldElement,
 } from '../types/plugins';
+import type { ApplicationActionDiagnostic } from './applicationActions';
+import {
+  buildApplicationActionsByKey,
+  normalizeApplicationActionElements,
+} from './applicationActions';
+import { subscribeApplicationActionsInvalidated } from './applicationActionsInvalidation';
+import type {
+  SessionListActionElement,
+  SessionListContractDiagnostic,
+} from '../sessions/sessionListContracts';
+import type { SessionListFilterSchema } from '../sessions/sessionListFilters';
+import {
+  normalizeSessionListActionElement,
+  normalizeSessionListFieldElement,
+} from '../sessions/sessionListContracts';
+import {
+  normalizeSessionListFilterSchema,
+} from '../sessions/sessionListFilters';
+import { subscribeServerSettingsInvalidated } from '../serverSettings/serverSettingsInvalidation';
 import { SimpleSubscribable } from '../util/subscribable';
 
 export interface PluginsResult {
   actionsById: Record<string, ApplicationActionDefinition>;
+  actionsByKey?: Record<string, ApplicationActionDefinition>;
+  applicationActions?: ApplicationActionUiElement[];
+  applicationActionDiagnostics?: ApplicationActionDiagnostic[];
   sessionActions: ActionUiElement[];
   messageActions: ActionUiElement[];
-  sessionListActions: ActionUiElement[];
+  sessionListActions: SessionListActionElement[];
   sessionListFields: SessionListFieldElement[];
-  sessionListPinnedToggles: ActionUiElement[];
+  sessionListFilterSchema: SessionListFilterSchema;
+  sessionListDiagnostics: SessionListContractDiagnostic[];
 }
 
 export interface PluginsRegistryState extends PluginsResult {
@@ -26,13 +50,19 @@ interface CacheEntry {
   elements: ApplicationUiElement[];
 }
 
+const EMPTY_SESSION_LIST_FILTER_SCHEMA = normalizeSessionListFilterSchema([]);
+
 const EMPTY_RESULT: PluginsResult = {
   actionsById: {},
+  actionsByKey: {},
+  applicationActions: [],
+  applicationActionDiagnostics: [],
   sessionActions: [],
   messageActions: [],
   sessionListActions: [],
   sessionListFields: [],
-  sessionListPinnedToggles: [],
+  sessionListFilterSchema: EMPTY_SESSION_LIST_FILTER_SCHEMA,
+  sessionListDiagnostics: [],
 };
 
 const CACHE: Map<string, CacheEntry | undefined> = new Map();
@@ -48,44 +78,83 @@ function buildResultFromEntry(entry: CacheEntry | undefined): PluginsResult {
       actionsById[a.id] = a;
     }
   });
+  const actionsByKey = buildApplicationActionsByKey(entry.actions || []);
 
   const elements = Array.isArray(entry.elements) ? entry.elements : [];
+  const normalizedApplicationActions = normalizeApplicationActionElements({
+    elements,
+    actionsByKey,
+  });
   const sessionActions = elements.filter((el) => el && (el as any).ui_type === 'session_action') as ActionUiElement[];
   const messageActions = elements.filter((el) => el && (el as any).ui_type === 'message_action') as ActionUiElement[];
-  const sessionListActions = elements.filter(
-    (el) => el && (el as any).ui_type === 'session_list_action',
-  ) as ActionUiElement[];
-  const sessionListFields = elements.filter(
-    (el) => el && (el as any).ui_type === 'session_list_field',
-  ) as SessionListFieldElement[];
-  const sessionListPinnedToggles = elements.filter(
-    (el) => el && (el as any).ui_type === 'session_list_toggle_pinned',
-  ) as ActionUiElement[];
+  const sessionListActions: SessionListActionElement[] = [];
+  const sessionListFields: SessionListFieldElement[] = [];
+  const rawSessionListFilters: ApplicationUiElement[] = [];
+  const sessionListDiagnostics: SessionListContractDiagnostic[] = [];
+  elements.forEach((element) => {
+    if (element && (element as any).ui_type === 'session_list_action') {
+      const normalized = normalizeSessionListActionElement(element);
+      sessionListDiagnostics.push(...normalized.diagnostics);
+      if (normalized.value) {
+        sessionListActions.push(normalized.value);
+      }
+      return;
+    }
+    if (element && (element as any).ui_type === 'session_list_field') {
+      const normalized = normalizeSessionListFieldElement(element);
+      sessionListDiagnostics.push(...normalized.diagnostics);
+      if (normalized.value) {
+        sessionListFields.push(normalized.value);
+      }
+      return;
+    }
+    if (element && (element as any).ui_type === 'session_list_filter') {
+      rawSessionListFilters.push(element);
+    }
+  });
+  const sessionListFilterSchema = normalizeSessionListFilterSchema(
+    rawSessionListFilters,
+  );
+  sessionListDiagnostics.push(...sessionListFilterSchema.diagnostics);
+  sessionListActions.sort(
+    (left, right) => (left.order ?? 0) - (right.order ?? 0),
+  );
 
   return {
     actionsById,
+    actionsByKey,
+    applicationActions: normalizedApplicationActions.actions,
+    applicationActionDiagnostics: normalizedApplicationActions.diagnostics,
     sessionActions,
     messageActions,
     sessionListActions,
     sessionListFields,
-    sessionListPinnedToggles,
+    sessionListFilterSchema,
+    sessionListDiagnostics,
   };
 }
 
 function buildResultFromState(state: PluginsRegistryState): PluginsResult {
   return {
     actionsById: state.actionsById || {},
+    actionsByKey: state.actionsByKey || {},
+    applicationActions: state.applicationActions || [],
+    applicationActionDiagnostics: state.applicationActionDiagnostics || [],
     sessionActions: state.sessionActions || [],
     messageActions: state.messageActions || [],
     sessionListActions: state.sessionListActions || [],
     sessionListFields: state.sessionListFields || [],
-    sessionListPinnedToggles: state.sessionListPinnedToggles || [],
+    sessionListFilterSchema:
+      state.sessionListFilterSchema || EMPTY_SESSION_LIST_FILTER_SCHEMA,
+    sessionListDiagnostics: state.sessionListDiagnostics || [],
   };
 }
 
 export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
   private backend: AgentBackend | null;
   private cacheKey: string;
+  private unsubscribeServerSettings: (() => void) | null = null;
+  private unsubscribeApplicationActions: (() => void) | null = null;
 
   constructor(options: { backend: AgentBackend | null; cacheKey: string }) {
     super({ ...EMPTY_RESULT, loading: false, error: null });
@@ -96,6 +165,27 @@ export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
     if (cachedEntry !== undefined) {
       const next = buildResultFromEntry(cachedEntry);
       this.setSnapshot({ ...next, loading: false, error: null });
+    }
+
+    if (this.backend) {
+      this.unsubscribeServerSettings = subscribeServerSettingsInvalidated(
+        this.backend,
+        () => {
+          this.invalidate();
+          this.refresh().catch(() => {
+            // Errors are stored in registry state.
+          });
+        },
+      );
+      this.unsubscribeApplicationActions = subscribeApplicationActionsInvalidated(
+        this.backend,
+        () => {
+          this.invalidate();
+          this.refresh().catch(() => {
+            // Errors are stored in registry state.
+          });
+        },
+      );
     }
   }
 
@@ -126,6 +216,13 @@ export class PluginsRegistry extends SimpleSubscribable<PluginsRegistryState> {
 
   invalidate(): void {
     CACHE.delete(this.cacheKey);
+  }
+
+  close(): void {
+    this.unsubscribeServerSettings?.();
+    this.unsubscribeServerSettings = null;
+    this.unsubscribeApplicationActions?.();
+    this.unsubscribeApplicationActions = null;
   }
 
   private async fetch(options: { preserveExisting: boolean }): Promise<void> {

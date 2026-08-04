@@ -18,9 +18,7 @@ from agent_core import AgentCore
 
 def _make_config(tmp_path: Path) -> Path:
     cfg = {
-        "providers": {
-            "dummy": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"dummy": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": ["tests.dummy_provider.DummyProvider"],
         "agents": {
             "default": {"provider": "dummy"},
@@ -41,11 +39,137 @@ def test_send_request_streaming_emits_events(tmp_path: Path) -> None:
     session = core.add_message(session, "user", "Hello")
     app.save_session(session)
 
-    events = list(app.send_request(core, session, base_config, overrides=None, stream=True))
+    events = list(
+        app.send_request(core, session, base_config, overrides=None, stream=True)
+    )
 
     assert any(ev["type"] == "partial" for ev in events)
     assert any(ev["type"] == "final" for ev in events)
     assert any(ev["type"] == "request_completed" for ev in events)
+
+
+def test_send_request_completion_expires_request_scoped_notification(
+    tmp_path: Path,
+) -> None:
+    config_path = _make_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "Hello")
+    app.save_session(session)
+    request_id = "request-with-notification"
+    created = app.create_session_notification(
+        session.session_id,
+        {
+            "key": "request:notification",
+            "severity": "info",
+            "title": "Request notification",
+            "body": "Visible until request completion",
+            "source": {"plugin": "test"},
+            "display": {
+                "format": "text",
+                "body": "Visible until request completion",
+                "presentation": "inline",
+            },
+            "retention": {"policy": "until_request_complete"},
+        },
+        request_id=request_id,
+    )
+
+    events = list(
+        app.send_request(
+            core,
+            session,
+            base_config,
+            stream=True,
+            request_id=request_id,
+        )
+    )
+
+    assert events[-1]["type"] == "request_completed"
+    retained = app.list_session_notifications(
+        session.session_id,
+        include_terminal=True,
+    )
+    expired = next(item for item in retained if item["id"] == created["id"])
+    assert expired["status"] == "expired"
+    assert expired["expiration"]["reason"] == "request_completed"
+
+
+def test_send_request_completes_when_tool_preparation_fails(tmp_path: Path) -> None:
+    config_path = _make_failing_prepare_tool_config(tmp_path)
+    session_root = tmp_path / "sessions"
+
+    app = AgentApplication(str(config_path), str(session_root), core_factory=AgentCore)
+
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "Hello")
+    app.save_session(session)
+
+    events = list(
+        app.send_request(core, session, base_config, overrides=None, stream=True)
+    )
+
+    assert [event.get("type") for event in events] == [
+        "request_started",
+        "error",
+        "request_completed",
+    ]
+    assert "Tool preparation failed" in str(events[1].get("detail"))
+
+
+def test_prepare_failure_still_expires_request_scoped_notification(
+    tmp_path: Path,
+) -> None:
+    config_path = _make_failing_prepare_tool_config(tmp_path)
+    app = AgentApplication(
+        str(config_path),
+        str(tmp_path / "sessions"),
+        core_factory=AgentCore,
+    )
+    core, base_config, session = app.create_session("default")
+    session = core.add_message(session, "user", "Hello")
+    app.save_session(session)
+    request_id = "prepare-failure-request"
+    created = app.create_session_notification(
+        session.session_id,
+        {
+            "key": "prepare:notification",
+            "severity": "warning",
+            "title": "Preparation notification",
+            "body": "Expires even when preparation fails",
+            "source": {"plugin": "test"},
+            "display": {
+                "format": "text",
+                "body": "Expires even when preparation fails",
+                "presentation": "inline",
+            },
+            "retention": {"policy": "until_request_complete"},
+        },
+        request_id=request_id,
+    )
+
+    events = list(
+        app.send_request(
+            core,
+            session,
+            base_config,
+            stream=True,
+            request_id=request_id,
+        )
+    )
+
+    assert events[-1]["type"] == "request_completed"
+    retained = app.list_session_notifications(
+        session.session_id,
+        include_terminal=True,
+    )
+    expired = next(item for item in retained if item["id"] == created["id"])
+    assert expired["status"] == "expired"
+    assert expired["expiration"]["reason"] == "request_completed"
 
 
 def _make_slow_config(tmp_path: Path, *, sleep_per_char: float = 0.05) -> Path:
@@ -84,9 +208,7 @@ def _make_failing_config(tmp_path: Path) -> Path:
 
 def _make_blocking_tool_config(tmp_path: Path) -> Path:
     cfg = {
-        "providers": {
-            "dummy": {"provider": "dummy_provider", "model": "test-model"}
-        },
+        "providers": {"dummy": {"provider": "dummy_provider", "model": "test-model"}},
         "plugins": [
             "tests.dummy_provider.DummyProvider",
             "tests.dummy_tool.CancellableBlockingTool",
@@ -96,6 +218,22 @@ def _make_blocking_tool_config(tmp_path: Path) -> Path:
         },
     }
     path = tmp_path / "config_blocking_tool.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
+def _make_failing_prepare_tool_config(tmp_path: Path) -> Path:
+    cfg = {
+        "providers": {"dummy": {"provider": "dummy_provider", "model": "test-model"}},
+        "plugins": [
+            "tests.dummy_provider.DummyProvider",
+            "tests.dummy_tool.FailingPrepareTool",
+        ],
+        "agents": {
+            "default": {"provider": "dummy"},
+        },
+    }
+    path = tmp_path / "config_failing_prepare_tool.json"
     path.write_text(json.dumps(cfg), encoding="utf-8")
     return path
 
@@ -145,7 +283,9 @@ def test_cancel_request_and_resume(tmp_path: Path) -> None:
     events: list[dict] = []
 
     def _consume() -> None:
-        for ev in app.send_request(core, session, base_config, overrides=None, stream=True):
+        for ev in app.send_request(
+            core, session, base_config, overrides=None, stream=True
+        ):
             events.append(ev)
 
     t = threading.Thread(target=_consume)
@@ -172,7 +312,9 @@ def test_cancel_request_and_resume(tmp_path: Path) -> None:
     assert "request_completed" in kinds
 
     # A fresh request after cancellation should still complete normally.
-    events2 = list(app.send_request(core, session, base_config, overrides=None, stream=True))
+    events2 = list(
+        app.send_request(core, session, base_config, overrides=None, stream=True)
+    )
     kinds2 = {ev.get("type") for ev in events2}
     assert "final" in kinds2
     assert "request_completed" in kinds2
@@ -193,13 +335,17 @@ def test_failure_then_resume(tmp_path: Path) -> None:
     session = core.add_message(session, "user", "Hi failing provider")
     app.save_session(session)
 
-    events1 = list(app.send_request(core, session, base_config, overrides=None, stream=False))
+    events1 = list(
+        app.send_request(core, session, base_config, overrides=None, stream=False)
+    )
     kinds1 = {ev.get("type") for ev in events1}
     assert "error" in kinds1
     assert "request_completed" in kinds1
 
     # Second request should succeed now that the provider has failed once.
-    events2 = list(app.send_request(core, session, base_config, overrides=None, stream=False))
+    events2 = list(
+        app.send_request(core, session, base_config, overrides=None, stream=False)
+    )
     kinds2 = {ev.get("type") for ev in events2}
     assert "final" in kinds2
     assert "request_completed" in kinds2
@@ -252,7 +398,9 @@ def test_cancel_request_interrupts_silent_running_tool(tmp_path: Path) -> None:
     checkpoints = [ev for ev in events if ev.get("type") == "session_checkpoint"]
     assert checkpoints
     final_session = checkpoints[-1]["session"]
-    tool_messages = [m for m in final_session.messages if getattr(m, "role", None) == "tool"]
+    tool_messages = [
+        m for m in final_session.messages if getattr(m, "role", None) == "tool"
+    ]
     assert tool_messages
     assert "Cancelled" in str(tool_messages[-1].content)
 
@@ -386,7 +534,9 @@ def test_cancel_request_interrupts_silent_running_provider(tmp_path: Path) -> No
     assert request_id not in provider_state["active"]
 
 
-def test_cancel_request_interrupts_provider_after_partial_output(tmp_path: Path) -> None:
+def test_cancel_request_interrupts_provider_after_partial_output(
+    tmp_path: Path,
+) -> None:
     from tests.dummy_provider import (
         get_cancellable_blocking_provider_state,
         reset_cancellable_blocking_provider_state,
@@ -537,8 +687,12 @@ def test_provider_cancellation_is_request_scoped(tmp_path: Path) -> None:
         ):
             sink.append(ev)
 
-    worker1 = threading.Thread(target=_consume, args=(session1, "req_provider_one", events1))
-    worker2 = threading.Thread(target=_consume, args=(session2, "req_provider_two", events2))
+    worker1 = threading.Thread(
+        target=_consume, args=(session1, "req_provider_one", events1)
+    )
+    worker2 = threading.Thread(
+        target=_consume, args=(session2, "req_provider_two", events2)
+    )
     worker1.start()
     worker2.start()
 

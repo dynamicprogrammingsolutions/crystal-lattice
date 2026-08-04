@@ -1,0 +1,10 @@
+{
+  "module": "session_status_app",
+  "subdirectory": ".",
+  "entries": [
+    "session_status_app.SessionStatusAppPlugin"
+  ],
+  "kinds": {
+    "session_status_app.SessionStatusAppPlugin": "application"
+  }
+}

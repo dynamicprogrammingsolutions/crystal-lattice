@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .runtime_layout import RuntimeLayout, load_runtime_layout
+from .project_profile import ProjectProfile, ProjectProfileManager
+from .bonjour import get_local_ip
 
 
 def _configure_logging(
@@ -61,6 +63,11 @@ def _configure_logging(
 
     # Standard library logging: always keep stdout; optionally add file.
     if log_file:
+        # Ensure the parent directory exists (e.g. .crystal/ may not
+        # have been created yet when logging is configured).
+        parent = Path(log_file).parent
+        if str(parent) and not parent.exists():
+            parent.mkdir(parents=True, exist_ok=True)
         handler = logging.FileHandler(log_file)
         handler.setLevel(effective_level)
         formatter = logging.Formatter(
@@ -121,6 +128,142 @@ def _configure_fastapi_logging(fastapi_log_file: Optional[str]) -> None:
         logger.addHandler(handler)
         logger.setLevel(root_level)
         logger.propagate = False
+
+
+# ---------------------------------------------------------------------------
+# CLI resolution helpers
+# ---------------------------------------------------------------------------
+
+
+def _resolve_effective_host(args: argparse.Namespace) -> str:
+    """Resolve the effective bind host.
+
+    When ``--host`` is not explicitly passed (``None``), auto-select
+    ``0.0.0.0`` if Bonjour is enabled (so the server is reachable on the
+    LAN), otherwise default to ``127.0.0.1``.
+    """
+    if args.host is not None:
+        return args.host
+    return "0.0.0.0" if args.enable_bonjour else "127.0.0.1"
+
+
+def _resolve_log_file(args: argparse.Namespace) -> Optional[str]:
+    """Resolve the log file path.
+
+    Defaults to ``.crystal/crystal.log`` when no ``--log-file`` is given
+    and ``--no-log-file`` is not set.  An explicit ``--log-file`` always
+    wins, even when ``--no-log-file`` is also present.
+    """
+    if args.log_file is not None:
+        return args.log_file
+    if args.no_log_file:
+        return None
+    return str(Path(".crystal") / "crystal.log")
+
+
+def _resolve_fastapi_log_file(
+    args: argparse.Namespace, log_file: Optional[str]
+) -> Optional[str]:
+    """Resolve the FastAPI log file, defaulting to the main log file."""
+    if args.fastapi_log_file is not None:
+        return args.fastapi_log_file
+    return log_file
+
+
+def _read_bridge_url_from_config(config_path: Path) -> Optional[str]:
+    """Read ``application.bridge_url`` from the config JSON file.
+
+    This reads the raw config file directly (without creating a full
+    ``AgentApplication``) since ``bridge_url`` is a plain string that
+    does not require placeholder resolution.  If the user needs env-var
+    expansion, they should use ``--bridge-url`` or ``.crystal/profile.json``.
+    """
+    try:
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    app_cfg = raw.get("application")
+    if not isinstance(app_cfg, dict):
+        return None
+    bridge_url = app_cfg.get("bridge_url")
+    if isinstance(bridge_url, str) and bridge_url:
+        return bridge_url
+    return None
+
+
+def _format_startup_summary(
+    *,
+    project_name: str,
+    config_path: Path,
+    session_root: Path,
+    host: str,
+    port: int,
+    bonjour_service_name: Optional[str] = None,
+    bridge_url: Optional[str] = None,
+    lan_ip: Optional[str] = None,
+) -> str:
+    """Format a consolidated startup summary for server/console modes.
+
+    When *host* is ``0.0.0.0``, *lan_ip* is used for the displayed HTTP
+    URL (the caller resolves it via :func:`bonjour.get_local_ip`).
+    Otherwise *host* is shown directly.
+
+    Only lines for active features are included.  The returned string
+    does not have a trailing newline.
+    """
+    if host == "0.0.0.0" and lan_ip is not None:
+        http_host = lan_ip
+    elif host == "0.0.0.0":
+        http_host = "127.0.0.1"
+    else:
+        http_host = host
+
+    lines = [
+        f"[crystal-lattice] Starting {project_name}",
+        f"  Config:    {config_path}",
+        f"  Sessions:  {session_root}",
+        f"  HTTP:      http://{http_host}:{port}",
+    ]
+    if bonjour_service_name is not None:
+        lines.append(
+            f"  Bonjour:   {bonjour_service_name} (discoverable on local network)"
+        )
+    if bridge_url is not None:
+        lines.append(f"  Bridge:    {bridge_url}")
+    return "\n".join(lines)
+
+
+def _run_terminal_headless(
+    app: Any,
+    logger: Optional[logging.Logger] = None,
+) -> None:
+    """Run the terminal with pipe input and dummy output (no TTY required).
+
+    The full console code path runs (session creation, event polling,
+    completer setup, ``Session started`` message).  The prompt blocks on
+    a pipe; SIGTERM sends EOF to the pipe, causing ``prompt_async()`` to
+    raise ``EOFError`` and the loop to exit cleanly.
+
+    Uses ``prompt_toolkit``'s ``create_pipe_input()`` and ``DummyOutput()``
+    via ``create_app_session()`` so that the ``PromptSession`` created inside
+    ``_run_terminal()`` picks up the non-TTY input/output without any changes
+    to ``terminal.py``.
+    """
+    from prompt_toolkit.application import create_app_session
+    from prompt_toolkit.input import create_pipe_input
+    from prompt_toolkit.output import DummyOutput
+
+    # run_terminal is imported lazily (same as in main()) to avoid
+    # pulling in prompt_toolkit and the terminal module before logging
+    # is configured.
+    from .terminal import run_terminal
+
+    with create_pipe_input() as pipe_input:
+        import signal
+
+        signal.signal(signal.SIGTERM, lambda *_: pipe_input.send_text("\x04"))
+        with create_app_session(input=pipe_input, output=DummyOutput()):
+            run_terminal(logger=logger, app_instance=app)
 
 
 _DEFAULT_CONFIG_COPY_EXCLUDES = {"auth", ".plugin_cache", "__pycache__"}
@@ -295,13 +438,25 @@ def _build_server_integration_config(
     args: argparse.Namespace,
     *,
     server_mod: object,
+    profile: Optional[ProjectProfile] = None,
+    bridge_url_from_config: Optional[str] = None,
+    effective_host: str = "127.0.0.1",
+    effective_port: int = 8000,
 ):
-    """Build explicit server integration config from CLI args.
+    """Build explicit server integration config from CLI args and profile.
 
     CLI values override externally supplied environment variables for the same
     bridge/Bonjour settings, but the process environment itself is left
     untouched.
+
+    When *profile* is provided, its resolved values (port, bridge_server_id,
+    name, bridge_url) are used as defaults — the profile already incorporates
+    CLI overrides passed to ``ProjectProfileManager.resolve()``.
     """
+
+    profile_name = profile.name if profile is not None else None
+    profile_bridge_server_id = profile.bridge_server_id if profile is not None else None
+    profile_bridge_url = profile.bridge_url if profile is not None else None
 
     bonjour_config = None
     if args.enable_bonjour:
@@ -311,12 +466,13 @@ def _build_server_integration_config(
             else os.getenv("BONJOUR_PORT") or os.getenv("SERVER_PORT")
         )
         try:
-            advertised_port = int(port_str) if port_str else int(args.port)
+            advertised_port = int(port_str) if port_str else effective_port
         except ValueError:
-            advertised_port = int(args.port)
+            advertised_port = effective_port
         service_name = (
             args.bonjour_service_name
             or os.getenv("BONJOUR_SERVICE_NAME")
+            or profile_name
             or "Agent Terminal App"
         )
         bonjour_config = server_mod.BonjourRuntimeConfig(  # type: ignore[attr-defined]
@@ -324,59 +480,80 @@ def _build_server_integration_config(
             port=advertised_port,
         )
 
-    bridge_config = None
-    if args.bridge_url:
-        bridge_url = args.bridge_url
-        display_name = (
-            args.bridge_display_name
-            or os.getenv("BRIDGE_DISPLAY_NAME")
-            or "Agent Terminal App"
-        )
-        location = args.bridge_location or os.getenv("BRIDGE_LOCATION")
-        local_http_base = args.bridge_local_http_base or os.getenv(
-            "BRIDGE_LOCAL_HTTP_BASE"
-        )
-        if not local_http_base:
-            host = os.getenv("SERVER_HOST", args.host)
-            port = os.getenv("SERVER_PORT", str(args.port))
-            local_http_base = f"http://{host}:{port}"
+    # Bridge is enabled when --bridge-url is given OR --enable-bridge is set.
+    bridge_enabled = args.bridge_url is not None or args.enable_bridge
 
-        bridge_mod = server_mod.bridge_mod  # type: ignore[attr-defined]
-        bridge_config = bridge_mod.BridgeConfig(
-            bridge_url=bridge_url,
-            server_id=args.bridge_server_id
-            or os.getenv("BRIDGE_SERVER_ID")
-            or str(uuid.uuid4()),
-            display_name=display_name,
-            computer_name=socket.gethostname() or "localhost",
-            location=location,
-            local_http_base=local_http_base,
-            ws_max_size_bytes=_parse_optional_int_env(
-                os.getenv("BRIDGE_WS_MAX_SIZE_BYTES"), default=16 * 1024 * 1024
-            ),
-            http_timeout_seconds=_parse_float_env(
-                os.getenv("BRIDGE_HTTP_TIMEOUT_SECONDS"), default=120.0
-            ),
-            request_chunk_size_bytes=int(
-                os.getenv("BRIDGE_HTTP_CHUNK_SIZE_BYTES", str(900 * 1024))
-            ),
-            request_chunking_threshold_bytes=int(
-                os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
-            ),
-            response_chunking_threshold_bytes=int(
-                os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
-            ),
-            max_body_bytes=int(
-                os.getenv("BRIDGE_HTTP_MAX_BODY_BYTES", str(10 * 1024 * 1024))
-            ),
-            debug=_parse_bool_env(os.getenv("BRIDGE_DEBUG")),
-            exit_on_superseded=args.bridge_exit_on_superseded
-            or _parse_bool_env(os.getenv("BRIDGE_EXIT_ON_SUPERSEDED")),
-            local_guard=args.bridge_local_guard
-            or _parse_bool_env(os.getenv("BRIDGE_LOCAL_GUARD")),
-            takeover_local=args.bridge_takeover_local
-            or _parse_bool_env(os.getenv("BRIDGE_TAKEOVER_LOCAL")),
-        )
+    bridge_config = None
+    if bridge_enabled:
+        # Resolve bridge URL: CLI > profile > config.
+        # When profile is provided, it already incorporates the CLI --bridge-url
+        # override.  When profile is None, fall back to args.bridge_url directly.
+        if profile is not None:
+            bridge_url = profile_bridge_url or bridge_url_from_config
+        else:
+            bridge_url = args.bridge_url or bridge_url_from_config
+
+        if not bridge_url:
+            # Bridge was requested but no URL was found.
+            print(
+                "[agent_terminal_app] Bridge enabled but no bridge URL found "
+                "(set --bridge-url, add bridge_url to .crystal/profile.json, "
+                "or add application.bridge_url to config.json). "
+                "Skipping bridge registration."
+            )
+        else:
+            display_name = (
+                args.bridge_display_name
+                or os.getenv("BRIDGE_DISPLAY_NAME")
+                or profile_name
+                or "Agent Terminal App"
+            )
+            location = args.bridge_location or os.getenv("BRIDGE_LOCATION")
+            local_http_base = args.bridge_local_http_base or os.getenv(
+                "BRIDGE_LOCAL_HTTP_BASE"
+            )
+            if not local_http_base:
+                host = os.getenv("SERVER_HOST", effective_host)
+                port = os.getenv("SERVER_PORT", str(effective_port))
+                local_http_base = f"http://{host}:{port}"
+
+            bridge_mod = server_mod.bridge_mod  # type: ignore[attr-defined]
+            bridge_config = bridge_mod.BridgeConfig(
+                bridge_url=bridge_url,
+                server_id=profile_bridge_server_id
+                or args.bridge_server_id
+                or os.getenv("BRIDGE_SERVER_ID")
+                or str(uuid.uuid4()),
+                display_name=display_name,
+                computer_name=socket.gethostname() or "localhost",
+                location=location,
+                local_http_base=local_http_base,
+                ws_max_size_bytes=_parse_optional_int_env(
+                    os.getenv("BRIDGE_WS_MAX_SIZE_BYTES"), default=16 * 1024 * 1024
+                ),
+                http_timeout_seconds=_parse_float_env(
+                    os.getenv("BRIDGE_HTTP_TIMEOUT_SECONDS"), default=120.0
+                ),
+                request_chunk_size_bytes=int(
+                    os.getenv("BRIDGE_HTTP_CHUNK_SIZE_BYTES", str(900 * 1024))
+                ),
+                request_chunking_threshold_bytes=int(
+                    os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
+                ),
+                response_chunking_threshold_bytes=int(
+                    os.getenv("BRIDGE_HTTP_CHUNK_THRESHOLD_BYTES", str(256 * 1024))
+                ),
+                max_body_bytes=int(
+                    os.getenv("BRIDGE_HTTP_MAX_BODY_BYTES", str(10 * 1024 * 1024))
+                ),
+                debug=_parse_bool_env(os.getenv("BRIDGE_DEBUG")),
+                exit_on_superseded=args.bridge_exit_on_superseded
+                or _parse_bool_env(os.getenv("BRIDGE_EXIT_ON_SUPERSEDED")),
+                local_guard=args.bridge_local_guard
+                or _parse_bool_env(os.getenv("BRIDGE_LOCAL_GUARD")),
+                takeover_local=args.bridge_takeover_local
+                or _parse_bool_env(os.getenv("BRIDGE_TAKEOVER_LOCAL")),
+            )
 
     if bonjour_config is None and bridge_config is None:
         return None
@@ -395,7 +572,6 @@ def _set_terminal_title(title: str) -> None:
     Failures are silently ignored so that unsupported terminals
     are unaffected.
     """
-    print(f"Setting terminal title to: {title}")
     try:
         # Windows consoles (cmd/PowerShell) don't reliably support the
         # xterm title escape, but they do support the "title" command.
@@ -602,16 +778,39 @@ def main() -> None:  # pragma: no cover - manual execution only
         help="run the API server (default when no flags are given)",
     )
     parser.add_argument(
-        "--host", default="127.0.0.1", help="host to bind the API server to"
+        "--host",
+        default=None,
+        help="host to bind the API server to (default: 0.0.0.0 with --enable-bonjour, else 127.0.0.1)",
     )
     parser.add_argument(
-        "--port", type=int, default=8000, help="port to bind the API server to"
+        "--port",
+        type=int,
+        default=None,
+        help="port to bind the API server to (default: auto-selected and persisted)",
     )
     parser.add_argument(
         "--log-file",
         type=str,
         default=None,
-        help="optional path to a log file; output still goes to stdout",
+        help=(
+            "optional path to a log file; output still goes to stdout. "
+            "Defaults to .crystal/crystal.log when not specified."
+        ),
+    )
+    parser.add_argument(
+        "--no-log-file",
+        action="store_true",
+        help="disable default file logging (overrides the default .crystal/crystal.log)",
+    )
+    parser.add_argument(
+        "--no-tty",
+        action="store_true",
+        help=(
+            "run --console in non-interactive mode using pipe input and dummy "
+            "output (no TTY required). The full console code path runs (session "
+            "creation, event polling); SIGTERM exits cleanly. Useful for CI "
+            "and subprocess tests."
+        ),
     )
     parser.add_argument(
         "--fastapi-log-file",
@@ -691,6 +890,15 @@ def main() -> None:  # pragma: no cover - manual execution only
             "Bridge WebSocket URL (e.g. ws://localhost:4000/ws/websocket). "
             "When provided, the server registers itself with the bridge "
             "and accepts proxied HTTP requests from paired clients."
+        ),
+    )
+    parser.add_argument(
+        "--enable-bridge",
+        action="store_true",
+        help=(
+            "Enable bridge registration. The bridge URL is resolved from "
+            "--bridge-url, .crystal/profile.json, ~/.crystal/projects.json, "
+            "or application.bridge_url in config.json."
         ),
     )
     parser.add_argument(
@@ -790,28 +998,55 @@ def main() -> None:  # pragma: no cover - manual execution only
         print(json.dumps(runtime_layout.to_resolved_dict(), indent=2, sort_keys=True))
         return
 
-    # Configure logging before importing application modules so that
-    # any module-level loggers created during import respect the
-    # selected level (CLI or environment).
     run_server = args.server or not args.console
     run_console = args.console
 
-    _configure_logging(
-        args.log_file, log_level=args.log_level, disable_structlog_colors=False
+    # --- Resolve project profile (port, name, bridge-server-id, bridge-url) ---
+    user_projects_file = Path.home() / ".crystal" / "projects.json"
+    profile_manager = ProjectProfileManager(
+        user_file=user_projects_file,
+        project_dir=Path.cwd(),
     )
-    _configure_fastapi_logging(args.fastapi_log_file)
+    profile = profile_manager.resolve(
+        cli_name=args.bonjour_service_name or args.bridge_display_name,
+        cli_port=args.port,
+        cli_bridge_server_id=args.bridge_server_id,
+        cli_bridge_url=args.bridge_url,
+    )
+
+    # --- Resolve effective host and port ---
+    effective_host = _resolve_effective_host(args)
+    effective_port = profile.port
+
+    # --- Resolve log file ---
+    log_file = _resolve_log_file(args)
+    fastapi_log_file = _resolve_fastapi_log_file(args, log_file)
+
+    # Configure logging before importing application modules so that
+    # any module-level loggers created during import respect the
+    # selected level (CLI or environment).
+    _configure_logging(
+        log_file, log_level=args.log_level, disable_structlog_colors=False
+    )
+    _configure_fastapi_logging(fastapi_log_file)
 
     if args.app_name:
         _set_terminal_title(args.app_name)
 
     console_logger: Optional[logging.Logger] = None
-    if args.log_file:
+    if log_file:
         console_logger = logging.getLogger("agent_terminal_app.console")
 
     # Delay imports that pull in agent_app / FastAPI wiring until
     # after logging is configured so that their loggers see the
     # correct level.
     from agent_app.application_future import AgentApplication
+    from agent_app.application_notifications import (
+        SQLiteApplicationNotificationStore,
+        resolve_application_notification_store_path,
+    )
+    from agent_app.application_owner import AgentApplicationOwner, ApplicationControl
+    from agent_app.config import load_resolved_config
     from agent_app.events import InMemoryEventStore
     from agent_app.sessions import FilesystemSnapshotSelectionStore
     from .terminal import TerminalApplication, run_terminal
@@ -819,25 +1054,6 @@ def main() -> None:  # pragma: no cover - manual execution only
     import agent_terminal_app.server as server_mod  # type: ignore[import-not-found]
 
     run_api = server_mod.run_api
-
-    integration_config = _build_server_integration_config(
-        args,
-        server_mod=server_mod,
-    )
-    if integration_config is not None:
-        server_mod.configure_integrations(integration_config)
-    if integration_config is not None and integration_config.bonjour is not None:
-        print(
-            "[agent_terminal_app] Bonjour enabled: "
-            f"service={integration_config.bonjour.service_name!r} "
-            f"port={integration_config.bonjour.port}"
-        )
-    if integration_config is not None and integration_config.bridge is not None:
-        print(
-            "[agent_terminal_app] Bridge enabled: "
-            f"url={integration_config.bridge.bridge_url!r} "
-            f"display_name={integration_config.bridge.display_name!r}"
-        )
 
     env_overrides = runtime_layout.env_overrides()
     if args.cloud_orchestrator_url:
@@ -903,66 +1119,185 @@ def main() -> None:  # pragma: no cover - manual execution only
             _ensure_crystal_gitignore(crystal_dir)
 
     config_env = _collect_additional_dotenv_values(config_path)
+    resolved_runtime_config, _config_errors, _resolution_env = load_resolved_config(
+        config_path,
+        config_env=config_env,
+        env_overrides=env_overrides,
+    )
+    application_notification_store_path = resolve_application_notification_store_path(
+        config_path,
+        resolved_runtime_config,
+    )
 
-    print(f"[agent_terminal_app] Using config: {config_path}")
-    print(f"[agent_terminal_app] Using sessions dir: {session_root}")
+    def build_application_owner(
+        *,
+        event_store: InMemoryEventStore,
+        snapshot_selection_store: FilesystemSnapshotSelectionStore | None = None,
+    ) -> tuple[AgentApplicationOwner, SQLiteApplicationNotificationStore]:
+        first_application = True
+        owner_epoch = f"owner_{uuid.uuid4().hex}"
+        notification_store = SQLiteApplicationNotificationStore(
+            application_notification_store_path,
+            owner_epoch=owner_epoch,
+        )
+        application_config = resolved_runtime_config.get("application")
+        notification_config = (
+            application_config.get("notifications")
+            if isinstance(application_config, dict)
+            else None
+        )
+        raw_history_limit = (
+            notification_config.get(
+                "history_limit",
+                notification_config.get("max_items", 500),
+            )
+            if isinstance(notification_config, dict)
+            else 500
+        )
+        history_limit = (
+            raw_history_limit
+            if isinstance(raw_history_limit, int)
+            and not isinstance(raw_history_limit, bool)
+            and raw_history_limit > 0
+            else 500
+        )
+        notification_store.recover_owner_lifetime(
+            owner_epoch,
+            history_limit=history_limit,
+        )
+
+        def factory(control: ApplicationControl) -> AgentApplication:
+            nonlocal first_application
+            application = AgentApplication(
+                str(config_path),
+                str(session_root),
+                event_store=event_store,
+                application_notification_store=notification_store,
+                snapshot_selection_store=snapshot_selection_store,
+                config_env=_collect_additional_dotenv_values(config_path),
+                env_overrides=env_overrides,
+                replay_server_settings_on_startup=first_application,
+                application_control=control,
+                notification_owner_epoch=owner_epoch,
+            )
+            first_application = False
+            return application
+
+        try:
+            owner = AgentApplicationOwner(
+                factory,
+                event_store=event_store,
+                owner_epoch=owner_epoch,
+            )
+        except Exception:
+            notification_store.close()
+            raise
+        return owner, notification_store
+
+    # --- Build integration config (after config is resolved) ---
+    bridge_url_from_config = _read_bridge_url_from_config(config_path)
+    integration_config = _build_server_integration_config(
+        args,
+        server_mod=server_mod,
+        profile=profile,
+        bridge_url_from_config=bridge_url_from_config,
+        effective_host=effective_host,
+        effective_port=effective_port,
+    )
+    if integration_config is not None:
+        server_mod.configure_integrations(integration_config)
 
     contributed_command = (
         args.command if isinstance(args.command, str) and args.command else ""
     )
 
     if contributed_command:
+        print(f"[agent_terminal_app] Using config: {config_path}")
+        print(f"[agent_terminal_app] Using sessions dir: {session_root}")
+
         command_app = AgentApplication(
             str(config_path),
             str(session_root),
             config_env=config_env,
             env_overrides=env_overrides,
         )
-        commands = command_app.get_application_commands()
-        command_map = {
-            command["name"]: command
-            for command in commands
-            if isinstance(command, dict) and isinstance(command.get("name"), str)
-        }
-        command_def = command_map.get(contributed_command)
-        if command_def is None:
-            parser.error(f"unknown command: {contributed_command}")
-
-        if args.console or args.server:
-            parser.error(
-                f"{contributed_command} is a standalone command and cannot be combined "
-                "with --console or --server"
-            )
-
-        action_id = command_def.get("action_id")
-        plugin_id = command_def.get("plugin")
-        if not isinstance(action_id, str) or not action_id:
-            parser.error(f"command {contributed_command!r} is missing action_id")
-        if not isinstance(plugin_id, str) or not plugin_id:
-            parser.error(f"command {contributed_command!r} is missing plugin binding")
-
-        action_def = _application_action_map(command_app).get((plugin_id, action_id))
-        if action_def is None:
-            parser.error(
-                f"command {contributed_command!r} references unknown action {plugin_id}.{action_id}"
-            )
-
-        params = _parse_contributed_command(
-            command_def,
-            action_def,
-            list(args.command_args or []),
-        )
         try:
-            result = command_app.execute_application_action(
-                plugin_id=plugin_id,
-                action_id=action_id,
-                params=params,
+            commands = command_app.get_application_commands()
+            command_map = {
+                command["name"]: command
+                for command in commands
+                if isinstance(command, dict) and isinstance(command.get("name"), str)
+            }
+            command_def = command_map.get(contributed_command)
+            if command_def is None:
+                parser.error(f"unknown command: {contributed_command}")
+
+            if args.console or args.server:
+                parser.error(
+                    f"{contributed_command} is a standalone command and cannot be combined "
+                    "with --console or --server"
+                )
+
+            action_id = command_def.get("action_id")
+            plugin_id = command_def.get("plugin")
+            if not isinstance(action_id, str) or not action_id:
+                parser.error(f"command {contributed_command!r} is missing action_id")
+            if not isinstance(plugin_id, str) or not plugin_id:
+                parser.error(
+                    f"command {contributed_command!r} is missing plugin binding"
+                )
+
+            action_def = _application_action_map(command_app).get(
+                (plugin_id, action_id)
             )
-        except Exception as exc:
-            print(str(exc), file=sys.stderr)
-            raise SystemExit(1) from exc
-        _render_command_result(result)
-        return
+            if action_def is None:
+                parser.error(
+                    f"command {contributed_command!r} references unknown action {plugin_id}.{action_id}"
+                )
+
+            params = _parse_contributed_command(
+                command_def,
+                action_def,
+                list(args.command_args or []),
+            )
+            try:
+                result = command_app.execute_application_action(
+                    plugin_id=plugin_id,
+                    action_id=action_id,
+                    params=params,
+                )
+            except Exception as exc:
+                print(str(exc), file=sys.stderr)
+                raise SystemExit(1) from exc
+            _render_command_result(result)
+            return
+        finally:
+            command_app.close()
+
+    # --- Consolidated startup summary (server/console modes only) ---
+    lan_ip = get_local_ip() if effective_host == "0.0.0.0" else None
+    bonjour_name = (
+        integration_config.bonjour.service_name
+        if integration_config is not None and integration_config.bonjour is not None
+        else None
+    )
+    bridge_url_for_summary = (
+        integration_config.bridge.bridge_url
+        if integration_config is not None and integration_config.bridge is not None
+        else None
+    )
+    print(
+        _format_startup_summary(
+            project_name=profile.name,
+            config_path=config_path,
+            session_root=session_root,
+            host=effective_host,
+            port=effective_port,
+            bonjour_service_name=bonjour_name,
+            bridge_url=bridge_url_for_summary,
+            lan_ip=lan_ip,
+        )
+    )
 
     # Modes:
     # - default (no flags): server only
@@ -970,28 +1305,16 @@ def main() -> None:  # pragma: no cover - manual execution only
     # - --console --server: server in background + console in foreground
     if run_console and run_server:
         shared_events = InMemoryEventStore()
-
-        server_app = AgentApplication(
-            str(config_path),
-            str(session_root),
+        application_owner, application_notification_store = build_application_owner(
             event_store=shared_events,
             snapshot_selection_store=FilesystemSnapshotSelectionStore(
                 session_root / ".snapshots"
             ),
-            config_env=config_env,
-            env_overrides=env_overrides,
-        )
-        terminal_agent_app = AgentApplication(
-            str(config_path),
-            str(session_root),
-            event_store=shared_events,
-            config_env=config_env,
-            env_overrides=env_overrides,
         )
         terminal_app = TerminalApplication(
             config_path=str(config_path),
             session_root=str(session_root),
-            agent_app=terminal_agent_app,
+            application_owner=application_owner,
         )
 
         try:
@@ -1001,19 +1324,19 @@ def main() -> None:  # pragma: no cover - manual execution only
                 f"Uvicorn is required for --server mode but could not be imported: {exc}"
             )
 
-        server_mod._agent_app = server_app  # type: ignore[attr-defined]
+        server_mod.configure_application_owner(application_owner)
 
-        os.environ.setdefault("SERVER_HOST", args.host)
-        os.environ.setdefault("SERVER_PORT", str(args.port))
+        os.environ.setdefault("SERVER_HOST", effective_host)
+        os.environ.setdefault("SERVER_PORT", str(effective_port))
 
         from uvicorn.config import LOGGING_CONFIG  # type: ignore[import-not-found]
 
         config = uvicorn.Config(
             "agent_terminal_app.server:app",
-            host=args.host,
-            port=args.port,
+            host=effective_host,
+            port=effective_port,
             reload=False,
-            log_config=None if args.fastapi_log_file else LOGGING_CONFIG,
+            log_config=None if fastapi_log_file else LOGGING_CONFIG,
         )
         uvicorn_server = uvicorn.Server(config)
 
@@ -1028,39 +1351,50 @@ def main() -> None:  # pragma: no cover - manual execution only
         thread.start()
 
         try:
-            run_terminal(logger=console_logger, app_instance=terminal_app)
+            if args.no_tty:
+                _run_terminal_headless(terminal_app, console_logger)
+            else:
+                run_terminal(logger=console_logger, app_instance=terminal_app)
         finally:
             uvicorn_server.should_exit = True
             thread.join()
+            terminal_app.close()
+            application_owner.close()
+            application_notification_store.close()
     elif run_console:
-        agent_app = AgentApplication(
-            str(config_path),
-            str(session_root),
-            config_env=config_env,
-            env_overrides=env_overrides,
+        application_owner, application_notification_store = build_application_owner(
+            event_store=InMemoryEventStore(),
         )
         terminal_app = TerminalApplication(
             config_path=str(config_path),
             session_root=str(session_root),
-            agent_app=agent_app,
+            application_owner=application_owner,
         )
-        run_terminal(logger=console_logger, app_instance=terminal_app)
+        try:
+            if args.no_tty:
+                _run_terminal_headless(terminal_app, console_logger)
+            else:
+                run_terminal(logger=console_logger, app_instance=terminal_app)
+        finally:
+            terminal_app.close()
+            application_owner.close()
+            application_notification_store.close()
     else:
-        app_instance = AgentApplication(
-            str(config_path),
-            str(session_root),
+        application_owner, application_notification_store = build_application_owner(
+            event_store=InMemoryEventStore(),
             snapshot_selection_store=FilesystemSnapshotSelectionStore(
                 session_root / ".snapshots"
             ),
-            config_env=config_env,
-            env_overrides=env_overrides,
         )
-        run_api(
-            host=args.host,
-            port=args.port,
-            app_instance=app_instance,
-            log_config=None if args.fastapi_log_file else "default",
-        )
+        try:
+            run_api(
+                host=effective_host,
+                port=effective_port,
+                app_owner=application_owner,
+                log_config=None if fastapi_log_file else "default",
+            )
+        finally:
+            application_notification_store.close()
 
 
 if __name__ == "__main__":  # pragma: no cover - manual execution only

@@ -1,0 +1,155 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Server: Start",
+      "type": "npm",
+      "script": "server",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Mobile: Start Metro",
+      "type": "npm",
+      "script": "mobile:start",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Mobile: Run iOS",
+      "type": "npm",
+      "script": "mobile:ios",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Mobile: Run iOS Device",
+      "type": "npm",
+      "script": "mobile:ios-device",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Desktop: Start Metro",
+      "type": "npm",
+      "script": "desktop:start",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Desktop: Run macOS",
+      "type": "npm",
+      "script": "desktop:macos",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Test: Core (unit)",
+      "type": "npm",
+      "script": "test:core:unit",
+      "group": "test"
+    },
+    {
+      "label": "Test: Application (unit)",
+      "type": "npm",
+      "script": "test:application:unit",
+      "group": "test"
+    },
+    {
+      "label": "Lint",
+      "type": "npm",
+      "script": "lint",
+      "group": "build"
+    },
+    {
+      "label": "Typecheck",
+      "type": "npm",
+      "script": "typecheck",
+      "group": "build"
+    },
+    {
+      "label": "Deploy: Bridge",
+      "type": "npm",
+      "script": "deploy:bridge",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Deploy: Cloud",
+      "type": "npm",
+      "script": "deploy:cloud",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Install: Prod Local",
+      "type": "npm",
+      "script": "install:prod:local",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Install: Dev Local",
+      "type": "npm",
+      "script": "install:dev:local",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Run: Dev Local",
+      "type": "npm",
+      "script": "run:dev-local",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "group": "build"
+    },
+    {
+      "label": "Run: Dev Local",
+      "type": "npm",
+      "script": "run:dev-local",
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      },
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}

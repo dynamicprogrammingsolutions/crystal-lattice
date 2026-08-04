@@ -160,6 +160,8 @@ jest.mock('@likashefqet/react-native-image-zoom', () => {
 
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
+  const { Text, TextInput, View } = require('react-native');
+  const actual = jest.requireActual('@crystal-lattice/frontend-rn-components');
   const lightTheme = {
     typography: {
       fontSize: {
@@ -188,7 +190,14 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     textMuted: '#8E8E93',
     textOnPrimary: '#FFFFFF',
     danger: '#FF3B30',
+    dangerMuted: 'rgba(255, 59, 48, 0.12)',
     success: '#34C759',
+    successMuted: 'rgba(52, 199, 89, 0.12)',
+    warning: '#FF9500',
+    warningMuted: 'rgba(255, 149, 0, 0.12)',
+    notification: '#007AFF',
+    notificationMuted: 'rgba(0, 122, 255, 0.12)',
+    message: '#0A84FF',
     bubbleUserBg: 'rgba(0, 122, 255, 0.12)',
     bubbleSystemBorder: '#E5E5EA',
     bubbleToolBg: 'rgba(142, 142, 147, 0.08)',
@@ -201,13 +210,69 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     navIconInactive: '#8E8E93',
   };
 
+  const ApplicationActionForm = React.forwardRef(({ form }, ref) => {
+    const inputs = form && form.kind === 'form' && Array.isArray(form.inputs) ? form.inputs : [];
+    const initialValues = {};
+    inputs.forEach((field) => {
+      if (!field?.name) return;
+      initialValues[field.name] =
+        field.default === undefined || field.default === null ? '' : String(field.default);
+    });
+    const [values, setValues] = React.useState(initialValues);
+    const [error, setError] = React.useState(null);
+
+    React.useImperativeHandle(ref, () => ({
+      submit: () => {
+        const result = {};
+        for (const field of inputs) {
+          if (!field?.name) continue;
+          const raw = values[field.name] ?? '';
+          const trimmed = raw.trim();
+          if (!trimmed && field.required) {
+            setError(`Field "${field.label || field.name}" is required.`);
+            return null;
+          }
+          if (trimmed) {
+            result[field.name] = trimmed;
+          } else if (field.submit_empty === true) {
+            result[field.name] = '';
+          }
+        }
+        setError(null);
+        return result;
+      },
+    }));
+
+    return React.createElement(
+      View,
+      null,
+      inputs.map((field) => {
+        if (!field?.name) return null;
+        return React.createElement(
+          View,
+          { key: field.name },
+          React.createElement(Text, null, field.label || field.name),
+          React.createElement(TextInput, {
+            value: values[field.name] ?? '',
+            placeholder: field.placeholder || '',
+            onChangeText: (next) => setValues((prev) => ({ ...prev, [field.name]: next })),
+          }),
+        );
+      }),
+      error ? React.createElement(Text, null, error) : null,
+    );
+  });
+
   return {
     __esModule: true,
+    ...actual,
     SESSION_ACTIONS: {},
     ThemeProvider: ({ children }) => React.createElement(React.Fragment, null, children),
     useTheme: () => lightTheme,
     SessionActionsBar: () => React.createElement(React.Fragment, null),
     ApplicationActionDialog: () => React.createElement(React.Fragment, null),
+    ApplicationActionDialogLayout: () => React.createElement(React.Fragment, null),
+    ApplicationActionForm,
   };
 });
 
@@ -228,11 +293,11 @@ jest.mock('react-native-syntax-highlighter', () => 'SyntaxHighlighter');
 
 jest.mock('react-syntax-highlighter/styles/hljs', () => ({}));
 
-jest.mock('@rob117/react-native-selectable-text', () => {
+jest.mock('@ferenci84/react-native-selectable-code-block', () => {
   const React = require('react');
   return {
     __esModule: true,
-    SelectableTextView: (props) => React.createElement('SelectableTextView', props, props.children),
+    SelectableCodeBlockView: (props) => React.createElement('SelectableCodeBlockView', props),
   };
 });
 

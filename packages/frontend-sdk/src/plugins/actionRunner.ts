@@ -9,6 +9,8 @@ import type {
   ExecuteActionResponseOk,
 } from '../types/plugins';
 import type { SessionSummary } from '../types/sessions';
+import { resolveSessionListPath } from '../sessions/sessionListContracts';
+import { applicationActionKey } from './applicationActions';
 
 export type ActionEffect =
   | { type: 'navigateToSession'; sessionId: string }
@@ -21,6 +23,7 @@ export interface RunActionContext {
   sessionSummary?: SessionSummary;
   messageContext?: { index: number; message: ApiMessage };
   dialogValues?: Record<string, any>;
+  formValues?: Record<string, any>;
 }
 
 export interface RunActionEffectsOptions {
@@ -52,22 +55,10 @@ function shouldUseSessionScopedActionEndpoint(
   );
 }
 
-function getFromPath(root: any, path: string): any {
-  if (!root) return undefined;
-  const parts = path.split('.');
-  let current: any = root;
-  for (const part of parts) {
-    if (current == null) return undefined;
-    current = current[part];
-  }
-  return current;
-}
-
-function getDialogFieldSubmitEmpty(element: ActionUiElement, fieldName: string): boolean {
-  const dialog: any = (element as any).dialog || null;
-  if (!dialog || typeof dialog !== 'object') return false;
-  if (dialog.kind !== 'form') return false;
-  const inputs: any = dialog.inputs;
+function getFormFieldSubmitEmpty(form: any, fieldName: string): boolean {
+  if (!form || typeof form !== 'object') return false;
+  if (form.kind !== 'form') return false;
+  const inputs: any = form.inputs;
   if (!Array.isArray(inputs)) return false;
   const field = inputs.find((f: any) => f && typeof f === 'object' && f.name === fieldName);
   return field?.submit_empty === true;
@@ -76,10 +67,13 @@ function getDialogFieldSubmitEmpty(element: ActionUiElement, fieldName: string):
 function buildActionInputs(options: {
   element: ActionUiElement;
   actionDefsById: Record<string, ApplicationActionDefinition>;
+  actionDefsByKey?: Record<string, ApplicationActionDefinition>;
   context: RunActionContext;
 }): Record<string, any> {
-  const { element, actionDefsById, context } = options;
-  const def = actionDefsById[element.action_id];
+  const { element, actionDefsById, actionDefsByKey, context } = options;
+  const def =
+    actionDefsByKey?.[applicationActionKey(element.plugin, element.action_id)] ??
+    actionDefsById[element.action_id];
   const inputs: Record<string, any> = {};
 
   if (element.fixed_params && typeof element.fixed_params === 'object') {
@@ -97,22 +91,41 @@ function buildActionInputs(options: {
         const sessionRoot =
           (context.sessionSummary as any) ||
           (context.sessionId ? ({ session_id: context.sessionId } as any) : null);
-        value = getFromPath(sessionRoot, path);
+        const resolved = resolveSessionListPath(sessionRoot, path);
+        value = resolved.found ? resolved.value : undefined;
       } else if (source.startsWith('$message.')) {
         const path = source.slice('$message.'.length);
         const root = context.messageContext
           ? { index: context.messageContext.index, ...(context.messageContext.message as any) }
           : null;
-        value = getFromPath(root, path);
+        const resolved = resolveSessionListPath(root, path);
+        value = resolved.found ? resolved.value : undefined;
       } else if (source.startsWith('$dialog.')) {
         const path = source.slice('$dialog.'.length);
-        value = getFromPath(context.dialogValues || {}, path);
-        if (value === undefined && context.dialogValues && getDialogFieldSubmitEmpty(element, path)) {
+        const resolved = resolveSessionListPath(context.dialogValues || {}, path);
+        value = resolved.found ? resolved.value : undefined;
+        if (
+          value === undefined &&
+          context.dialogValues &&
+          getFormFieldSubmitEmpty((element as any).dialog, path)
+        ) {
+          value = '';
+        }
+      } else if (source.startsWith('$form.')) {
+        const path = source.slice('$form.'.length);
+        const resolved = resolveSessionListPath(context.formValues || {}, path);
+        value = resolved.found ? resolved.value : undefined;
+        if (
+          value === undefined &&
+          context.formValues &&
+          getFormFieldSubmitEmpty((element as any).form, path)
+        ) {
           value = '';
         }
       } else if (source.startsWith('$context.')) {
         const path = source.slice('$context.'.length);
-        value = getFromPath(context, path);
+        const resolved = resolveSessionListPath(context, path);
+        value = resolved.found ? resolved.value : undefined;
       }
 
       if (value !== undefined) {
@@ -232,14 +245,20 @@ export async function runApplicationAction(options: {
   backend: AgentBackend;
   element: ActionUiElement;
   actionsById: Record<string, ApplicationActionDefinition>;
+  actionsByKey?: Record<string, ApplicationActionDefinition>;
   context: RunActionContext;
   effects?: RunActionEffectsOptions;
 }): Promise<RunActionResult> {
-  const { backend, element, actionsById, context, effects } = options;
+  const { backend, element, actionsById, actionsByKey, context, effects } = options;
 
   const actionId = element.action_id;
   const pluginId = element.plugin;
-  const inputs = buildActionInputs({ element, actionDefsById: actionsById, context });
+  const inputs = buildActionInputs({
+    element,
+    actionDefsById: actionsById,
+    actionDefsByKey: actionsByKey,
+    context,
+  });
 
   try {
     const executeParams = {

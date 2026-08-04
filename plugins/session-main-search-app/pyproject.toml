@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "session-main-search-app"
+version = "0.1.0"
+description = "Declarative main search for session lists"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+
+[project.optional-dependencies]
+dev = [
+  "agent-core>=0.3.0",
+  "pytest>=7.0.0",
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["session_main_search_app*"]
+
+
+[tool.setuptools.data-files]
+"" = ["agent_plugin.json"]
+
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

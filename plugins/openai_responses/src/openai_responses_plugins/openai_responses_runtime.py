@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 
 DEFAULT_API_BASE_URL = "https://api.openai.com/v1"
@@ -117,6 +117,25 @@ def build_openai_sdk_client(
     if max_retries is not None:
         kwargs["max_retries"] = max_retries
     return OpenAI(**kwargs)
+
+
+def build_async_openai_sdk_client(
+    config: Dict[str, Any],
+    *,
+    timeout: float,
+    max_retries: Optional[int] = None,
+) -> AsyncOpenAI:
+    kwargs: Dict[str, Any] = {
+        "api_key": resolve_api_key(config),
+        "base_url": resolve_base_url(config),
+        "timeout": timeout,
+    }
+    default_headers = chatgpt_default_headers(config)
+    if default_headers:
+        kwargs["default_headers"] = default_headers
+    if max_retries is not None:
+        kwargs["max_retries"] = max_retries
+    return AsyncOpenAI(**kwargs)
 
 
 def should_strip_leading_system_or_developer_message(

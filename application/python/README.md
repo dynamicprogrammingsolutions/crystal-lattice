@@ -129,6 +129,45 @@ variables.
 
 ## Running Crystal Lattice
 
+### Quick Start
+
+For a typical local development session with mobile access:
+
+```bash
+crystal-lattice --console --server --enable-bonjour --enable-bridge
+```
+
+This automatically:
+
+- Selects a free port and persists it in `~/.crystal/projects.json` for reuse.
+- Binds to `0.0.0.0` (so the server is reachable on the LAN via Bonjour).
+- Generates a stable bridge-server-id and persists it.
+- Uses the project directory name as the Bonjour service name and bridge display name.
+- Resolves the bridge URL from `--bridge-url`, `.crystal/profile.json`, `~/.crystal/projects.json`, or `application.bridge_url` in config.json.
+- Logs to `.crystal/crystal.log` by default.
+
+All of these defaults can be overridden with explicit flags.
+
+### Project Profiles
+
+Per-project settings (name, port, bridge-server-id, bridge-url) are persisted
+in two files:
+
+- **`~/.crystal/projects.json`** — user-level registry keyed by absolute project path.
+  Auto-generated values (port, bridge-server-id, project name) are stored here.
+- **`.crystal/profile.json`** — project-local override file (same keys, higher priority).
+  Any subset of keys may be present; only the keys that exist override the user-level entry.
+
+Resolution order for each setting:
+
+```text
+CLI flag > .crystal/profile.json > ~/.crystal/projects.json > built-in default
+```
+
+`bridge_url` is never auto-generated — it must be provided by the user via CLI,
+profile, or config. When `--enable-bridge` is set but no URL is found, bridge
+registration is skipped with a warning.
+
 ### Server Only
 
 With no mode flags, `crystal-lattice` runs the HTTP API server:
@@ -315,21 +354,16 @@ Manual Address -> host: <computer LAN IP> -> port: 9000 -> Connect
 Advertise the HTTP API over Bonjour:
 
 ```bash
-crystal-lattice \
-  --server \
-  --console \
-  --config-local \
-  --host 0.0.0.0 \
-  --port 9000 \
-  --enable-bonjour
+crystal-lattice --server --console --enable-bonjour
 ```
 
-This advertises an `_http._tcp` service named `Agent Terminal App` by default.
-Common options:
+This automatically binds to `0.0.0.0` and uses the project directory name as the
+service name. Common options:
 
 - `--enable-bonjour` - turn Bonjour advertisement on.
-- `--bonjour-port` - override the advertised port; defaults to `--port`.
+- `--bonjour-port` - override the advertised port; defaults to the server port.
 - `--bonjour-service-name` - set the display name shown in discovery clients.
+- `--host` - override the bind address (default: `0.0.0.0` with `--enable-bonjour`).
 
 Verify on macOS:
 
@@ -356,13 +390,26 @@ curl http://localhost:4000/health
 Register Crystal Lattice with the bridge:
 
 ```bash
-crystal-lattice \
-  --server \
-  --console \
-  --config-local \
-  --host 0.0.0.0 \
-  --port 9000 \
+crystal-lattice --server --console --enable-bonjour --enable-bridge \
   --bridge-url ws://localhost:4000/ws/websocket
+```
+
+Or, to avoid passing `--bridge-url` every time, add it to `.crystal/profile.json`:
+
+```json
+{"bridge_url": "ws://localhost:4000/ws/websocket"}
+```
+
+or to `config.json` under the `application` section:
+
+```json
+{"application": {"bridge_url": "ws://localhost:4000/ws/websocket"}}
+```
+
+Then simply:
+
+```bash
+crystal-lattice --server --console --enable-bonjour --enable-bridge
 ```
 
 In the mobile app:
@@ -377,7 +424,8 @@ computer's LAN IP in the bridge URL, for example
 
 Common bridge options:
 
-- `--bridge-url` - required to enable bridge registration.
+- `--enable-bridge` - enable bridge registration (URL resolved from CLI, profile, or config).
+- `--bridge-url` - explicitly set the bridge URL (overrides profile/config).
 - `--bridge-display-name` - human-friendly server name shown to clients.
 - `--bridge-location` - optional display metadata.
 - `--bridge-local-http-base` - override the local server URL used by the bridge.
@@ -389,19 +437,10 @@ Common bridge options:
 
 ### Bonjour + Bridge Together
 
-You can enable both:
+The simplest full-setup command:
 
 ```bash
-crystal-lattice \
-  --server \
-  --console \
-  --config-local \
-  --host 0.0.0.0 \
-  --port 9000 \
-  --enable-bonjour \
-  --bridge-url ws://localhost:4000/ws/websocket \
-  --bridge-display-name "My Agent Server" \
-  --bridge-location "Office"
+crystal-lattice --console --server --enable-bonjour --enable-bridge
 ```
 
 LAN clients can use Bonjour/direct HTTP. Remote or cross-network clients can use
@@ -413,15 +452,71 @@ Common slash commands:
 
 - `/help` - list commands and shortcuts.
 - `/new` - start a new session.
-- `/session` - inspect or switch sessions.
+- `/session` - list sessions using plugin filter defaults.
+- `/session <exact-session-id>` - switch directly, even when filters hide it.
+- `/session <search text>` - search through the configured main-search filter
+  and display ordered numbered choices.
+- `/session --filter <filter-id>=<value> [search text]` - apply command-local
+  Boolean, text, or select overrides. Use `any` to deactivate Boolean/select
+  filters; multiple selects use comma-separated CSV values.
 - `/agent` - switch between configured agents.
 - `/send` - send a request with current history.
 - `/append` - add a message without sending.
 - `/delete`, `/modify`, `/list` - manage message history.
 - `/plugins` - list, enable, disable, or reset per-session plugins.
+
+### Full application reload
+
+The built-in `application-config-app` contributes screen-independent actions
+for requesting a full `AgentApplication` replacement and updating configured
+provider keys in a dotenv file. The CLI process, HTTP listener, bridge, and
+Bonjour integration remain alive while the owner:
+
+1. closes application-operation admission;
+2. lets admitted requests and started tools finish;
+3. constructs a candidate from the current config and freshly read dotenv;
+4. swaps the shared server/console application;
+5. closes the old runtime, including MCP servers;
+6. reopens admission.
+
+The action returns after reload is accepted. Application-global notification
+events report requested, completed, or failed state. New application requests
+receive HTTP 503 with `application_reload_pending` while the owner drains.
+
+Desktop dotenv editing is configured under `application.application_config`:
+
+```json
+{
+  "env_file": "${env:CONFIG_DIR}/.env",
+  "editable_env_keys": ["OPENROUTER_API_KEY"],
+  "provider_env_keys": {
+    "openrouter": "OPENROUTER_API_KEY"
+  }
+}
+```
+
+Only mapped keys in `editable_env_keys` can be changed. A value supplied by the
+process environment is externally managed and cannot be overwritten through
+the dotenv action. Stage 1 does not add protected secret storage or additional
+remote-transport restrictions; production credential hardening is tracked as a
+separate stage.
 - `/set` - update config overrides from plugin UI schema entries.
 - `/cancel` - cancel an active request.
 - `/exit` or `/quit` - exit the terminal.
+
+The maintained default configuration includes pin and status filters. Examples:
+
+```text
+/session --filter pinned_state=true
+/session --filter pinned_state=false
+/session --filter session_status=todo,blocked
+/session --filter pinned_state=any --filter session_status=any
+```
+
+Pin and status default to Any, so enabling their plugins does not hide
+sessions. Existing sessions without pin metadata are not pinned; sessions
+without status behave as `todo`. Mobile and desktop expose the same
+declarations through the filter control adjacent to search.
 
 Keyboard shortcuts:
 
@@ -452,12 +547,25 @@ reasoning/thinking metadata, tool calls, and tool call ids when present.
 
 ## Logging
 
-Mirror logs to a file:
+By default, logs are written to `.crystal/crystal.log`:
+
+```bash
+crystal-lattice --console --server
+# logs to .crystal/crystal.log automatically
+```
+
+Override the log file path:
 
 ```bash
 crystal-lattice --log-file app.log
 crystal-lattice --console --log-file console.log
 crystal-lattice --server --console --log-file combined.log
+```
+
+Disable default file logging:
+
+```bash
+crystal-lattice --no-log-file
 ```
 
 Set log level:
@@ -467,12 +575,33 @@ crystal-lattice --log-level DEBUG
 crystal-lattice --console --log-level INFO
 ```
 
-When running server and terminal together, `--fastapi-log-file` can route
-FastAPI/uvicorn logs away from terminal stdout:
+When running server and terminal together, FastAPI/uvicorn logs are routed to
+the same file as the main log file by default. Use `--fastapi-log-file` to
+route them separately:
 
 ```bash
 crystal-lattice --server --console --fastapi-log-file fastapi.log
 ```
+
+## Non-Interactive Mode (--no-tty)
+
+When running `--console` in CI, subprocess tests, or other non-interactive
+contexts where no TTY is available, use `--no-tty`:
+
+```bash
+crystal-lattice --console --server --no-tty
+```
+
+`--no-tty` runs the full console code path (session creation, event polling,
+completer setup) using `prompt_toolkit`'s pipe input and dummy output. The
+prompt blocks on a pipe instead of reading from stdin. SIGTERM causes a
+clean exit (EOF is sent to the pipe, the prompt loop breaks, and the server
+shuts down).
+
+This is useful for:
+- CI pipelines and automated testing
+- Running `--console --server` in Docker containers without a TTY
+- Integration tests that need to verify the console startup path
 
 ## HTTP API Overview
 
@@ -625,12 +754,73 @@ prefer `runtime_env.env_files`, for example `.env.cloud`.
 - `POST /sessions/{session_id}/send` - run the model/tool loop.
 - `POST /sessions/{session_id}/send_message` - append and send in one call.
 - `GET /events` - poll request/session events.
+- `GET /application/notifications` - load the active application-notification
+  snapshot; use `include_terminal=true` for terminal records.
+- `POST /application/notifications/{notification_id}/dismiss` - persist
+  application-notification dismissal with optional revision checking.
+- `GET /sessions/{session_id}/notifications` - list active session
+  notifications; use `include_terminal=true` for terminal records.
+- `POST /sessions/{session_id}/notifications/{notification_id}/dismiss` -
+  persist session-notification dismissal with optional revision checking.
+- Application notification events are polled without a session filter. Session
+  notifications use the same endpoint with `session_id` and persist in session
+  metadata. Both use standard `banner`, `inline`, and `modal` display
+  presentations.
 - `POST /requests/{request_id}/cancel` - cancel an active request.
 - `GET /agents` - list configured agents.
 - `PATCH /sessions/{session_id}/agent` - change a session's agent.
 - `GET /sessions/{session_id}/plugins` - list session plugins.
 - `PUT /sessions/{session_id}/plugins` - update enabled session plugins.
 - `GET /application/ui-schema`, `POST /actions`, and `POST /sessions/{session_id}/actions` - application UI/actions.
+
+Request admission and execution are application-layer behavior. FastAPI and
+the terminal delegate to the same `AgentApplication` session-request
+coordinator:
+
+- `start_session_request(...)` starts from existing history;
+- `start_session_request_with_message(...)` atomically appends and starts;
+- `run_session_request(...)` provides the synchronous equivalent;
+- `get_active_session_request_id(...)` exposes the shared single-flight state.
+
+The HTTP adapter retains payload validation, idempotency keys, status mapping,
+and serialization. It does not own request worker threads, active-request
+state, or event publication. Maintainers should start with
+[`docs/development/request-execution.md`](docs/development/request-execution.md)
+for the complete application request lifecycle.
+
+Requests and longer-lived plugin work also share minimal active operation
+registration and admission. See
+[`docs/development/operations.md`](docs/development/operations.md) for session
+exclusivity, lookup, managed-process ownership, plugin-owned status, and the
+future extensible operations-menu direction.
+
+Application notifications use a durable SQLite store by default. Configure its
+path under `application.notifications.store`:
+
+```json
+{
+  "application": {
+    "notifications": {
+      "store": {
+        "type": "sqlite",
+        "path": "${env:CONFIG_DIR}/application-notifications.sqlite3"
+      }
+    }
+  }
+}
+```
+
+Relative paths are resolved beside the active config file. The runtime opens
+the store once and shares it across replacement `AgentApplication`
+generations. Changing the path requires restarting the owning runtime; an
+inner application reload does not switch or migrate notification databases.
+
+The mobile and desktop Sessions headers use one pinnable action bar for Server
+settings, Refresh sessions, New session, and contributed
+`application_action` entries. Pin state is frontend-local and
+connection-scoped. On macOS the menu uses a native popover and Server settings
+opens a separate React window. Every desktop banner source uses one
+connection-aware top rail; modal displays use a separate React window.
 
 Run the command help for the complete CLI surface:
 

@@ -177,9 +177,8 @@ class AgentCore:
                 md.pop("native_indices", None)
             restored = {**msg}
             roundtrip_multipart = md.pop("_core_multipartContent", None)
-            if (
-                "multipartContent" not in restored
-                and isinstance(roundtrip_multipart, list)
+            if "multipartContent" not in restored and isinstance(
+                roundtrip_multipart, list
             ):
                 restored["multipartContent"] = roundtrip_multipart
             restored["metadata"] = md
@@ -1355,9 +1354,7 @@ class AgentCore:
     def _plugin_cache_signature(self, wrapper: Any) -> Tuple[str, str, str, str]:
         plugin_class = getattr(wrapper, "plugin_class", None)
         module = (
-            getattr(plugin_class, "__module__", "")
-            if plugin_class is not None
-            else ""
+            getattr(plugin_class, "__module__", "") if plugin_class is not None else ""
         )
         qualname = (
             getattr(plugin_class, "__qualname__", "")
@@ -1366,17 +1363,11 @@ class AgentCore:
         )
         name = getattr(wrapper, "name", None)
         if not isinstance(name, str) or not name:
-            name = (
-                getattr(plugin_class, "name", "")
-                if plugin_class is not None
-                else ""
-            )
+            name = getattr(plugin_class, "name", "") if plugin_class is not None else ""
         version = getattr(wrapper, "version", None)
         if not isinstance(version, str) or not version:
             version = (
-                getattr(plugin_class, "version", "")
-                if plugin_class is not None
-                else ""
+                getattr(plugin_class, "version", "") if plugin_class is not None else ""
             )
         return (
             module,
@@ -4680,6 +4671,18 @@ class AgentCore:
                 metadata["tool_plugin"] = plugin_name
             if display_payload is not None:
                 metadata["display"] = display_payload
+
+            # Merge tool-supplied metadata from the result dict. Tools may
+            # return a ``metadata`` mapping (e.g. ``{"bash": {"end_cwd": ...}}``)
+            # to attach immutable, session-persistent metadata to the tool
+            # result message. Core-managed keys above are not overwritten.
+            result_metadata = (
+                last_result.get("metadata") if isinstance(last_result, dict) else None
+            )
+            if isinstance(result_metadata, dict) and result_metadata:
+                for key, value in result_metadata.items():
+                    if key not in metadata:
+                        metadata[key] = value
 
             tool_message = {
                 "role": "tool",

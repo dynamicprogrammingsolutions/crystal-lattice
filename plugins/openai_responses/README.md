@@ -176,7 +176,6 @@ combination.
       "timeout": 120,
       "enable_flex_processing": false,
       "enable_fast_mode": false,
-      "enable_fast_mode_for_api_requests": false,
       "flex_timeout_seconds": 300,
       "enable_flex_retries": true,
       "flex_max_retries": 2,
@@ -204,7 +203,7 @@ What this enables:
 - usage and cost metadata
 - GPT-5 verbosity controls
 - flex processing controls for supported OpenAI accounts
-- Fast mode controls for ChatGPT-backed requests, with optional API opt-in
+- Fast mode controls for both API-key and ChatGPT-backed requests
 - prompt caching settings plus a regenerate-key session action
 - a native compaction session action for longer conversations
 
@@ -233,17 +232,37 @@ Relevant keys:
   - used only when a model is missing from upstream sources
 - `src/openai_responses_plugins/data/openai_codex_models.json`
   - checked-in offline snapshot of the public Codex model catalog
-  - refresh it with `python scripts/refresh_openai_responses_models.py`
+  - refresh it with `python plugins/openai_responses/benchmark/refresh_openai_responses_models.py`
   - used when live Codex fetching fails or when you want offline coverage from a recent repo update
+  - current snapshot source commit: `50b82133850d940627cf307d77e280619bfafe25` (2026-07-17); includes `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`
 - `chatgpt_account_id`
 - `chatgpt_client_version`
 - `strip_leading_system_or_developer_message`
 
-ChatGPT model-discovery precedence:
+ChatGPT model-discovery precedence (later sources override earlier per model id):
 
-- live Codex catalog overrides the checked-in Codex snapshot
-- checked-in Codex snapshot overrides manual fallback models
-- manual fallback models only fill gaps
+- checked-in manual fallback models (`openai_chatgpt_manual_models.json`)
+- checked-in Codex snapshot (`openai_codex_models.json`)
+- live Codex GitHub catalog (`openai/codex` `main` `codex-rs/models-manager/models.json`)
+
+The live Codex catalog is the authoritative source. The checked-in snapshot is a
+pinned fallback used when live GitHub access fails. Manual models only fill gaps
+that neither upstream source publishes.
+
+Last-resort fallback: the direct ChatGPT `/models` endpoint
+(`https://chatgpt.com/backend-api/codex/models?client_version=...`) is only
+contacted when both the live Codex fetch fails and the checked-in snapshot is
+empty. When the snapshot is available, the ChatGPT `/models` endpoint is not
+called. The endpoint has been observed to return an empty `models` list even
+when upstream catalogs already list GPT-5.6, so tests and callers must not rely
+on it as a primary discovery source.
+
+The bare `gpt-5.6` alias is intentionally not published in the model picker.
+OpenAI examples use `gpt-5.6` as a routing alias to `gpt-5.6-sol`, but the
+authoritative Codex catalog publishes only the three explicit family IDs
+(`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`). Users can still type `gpt-5.6`
+manually in the model field; the API will route it, but the UI will not suggest
+it as an option.
 
 Defaults:
 
@@ -439,25 +458,29 @@ selects the ChatGPT endpoint.
 
 ### Fast mode
 
-Fast mode controls are available through:
+Fast mode applies `service_tier: "priority"` to Responses calls for both
+API-key and ChatGPT auth modes. The control is:
 
-- `enable_fast_mode`: enable `service_tier: "priority"` for ChatGPT-backed
-  Responses calls
-- `enable_fast_mode_for_api_requests`: config-only opt-in that lets
-  `enable_fast_mode` also apply `service_tier: "priority"` to API-backed
-  Responses calls
+- `enable_fast_mode`: enable `service_tier: "priority"` for Responses calls
+  (applies to both API-key and ChatGPT auth modes)
 
-By default, Fast mode applies only to ChatGPT-backed requests. When
-`enable_fast_mode_for_api_requests: true` is set in config, the same Fast mode
-toggle also applies `service_tier: "priority"` to API-backed requests. The
-usage footer renders `tier: priority` when OpenAI reports that tier, and cost
-estimation uses priority-tier pricing when the checked-in or manual pricing
-data defines it.
+The usage footer renders `tier: priority` when OpenAI reports that tier, and
+cost estimation uses priority-tier pricing when the checked-in or manual
+pricing data defines it. The footer also renders `mode: pro` when the
+response reports `reasoning.mode: "pro"` (Pro reasoning mode, see below).
+
+Pro reasoning mode (`reasoning_mode: "pro"`) is a nested reasoning control and
+is independent of Fast mode's `service_tier: "priority"`. Both can be enabled
+at the same time on GPT-5.6 models with API auth; they touch different parts of
+the outbound payload and neither overwrites the other. Pro mode is API-only
+(see "Pro mode billing" below for the auth-mode gating).
 
 ## Benchmark script
 
 The repo includes a benchmark helper at
-`scripts/run_openai_responses_tier_matrix.py`.
+`plugins/openai_responses/benchmark/run_openai_responses_tier_matrix.py`.
+See `plugins/openai_responses/benchmark/README.md` for the full benchmark and
+snapshot-refresh tooling guide.
 
 Useful options:
 
@@ -481,16 +504,123 @@ These require `plugins.request_options_feature.RequestOptionsFeature` to be
 loaded.
 
 - `reasoning_effort`: model-specific effort value. Current UI options are:
-  - GPT-5 models: `minimal`, `low`, `medium`, `high`
-  - GPT-5.1 models: `none`, `low`, `medium`, `high`
+  - GPT-5.6 Sol and Terra: `low`, `medium`, `high`, `xhigh`, `max`, `ultra`
+  - GPT-5.6 Luna: `low`, `medium`, `high`, `xhigh`, `max` (no `ultra`)
   - GPT-5.2 and GPT-5.4 models: `none`, `low`, `medium`, `high`, `xhigh`
+  - GPT-5.1 models: `none`, `low`, `medium`, `high`
+  - GPT-5 models: `minimal`, `low`, `medium`, `high`
   - GPT-5 pro: `high`
-  - unknown models: fallback UI shows all documented values
+  - unknown models: fallback UI shows `none`, `minimal`, `low`, `medium`,
+    `high`, `xhigh` (no `max` or `ultra`)
 - `reasoning_summary`: one of `auto`, `concise`, `detailed`
+- `reasoning_mode`: optional string enum `["pro"]`, GPT-5.6 family only
+  (Sol, Terra, Luna, and the bare `gpt-5.6` alias). Absence means standard
+  mode. When set to `"pro"`, the extension injects `reasoning.mode: "pro"`
+  into the outbound request. The extension never sends `"mode": "standard"`
+  because omission is the standard-mode signal and `standard` is the API
+  default. **API-only**: the Pro mode UI control is shown only when
+  `auth_mode` is `api` or `auto` (or unset, which defaults to `api`); it is
+  hidden when `auth_mode` is `chatgpt`. The extension does not inject
+  `reasoning.mode` when the effective auth mode resolves to `chatgpt`,
+  matching the ChatGPT backend's actual behavior (it rejects
+  `reasoning.mode: "pro"`). `reasoning_effort` and `reasoning_summary` are
+  unaffected by auth mode and are still injected for ChatGPT auth.
+- `reasoning_context`: optional string enum `["auto", "current_turn",
+  "all_turns"]`, GPT-5.6 family only (Sol, Terra, Luna, and the bare
+  `gpt-5.6` alias). Controls which available reasoning items the model can
+  use on supported models:
+  - `auto`: uses the selected model's default. Omitting `reasoning_context`
+    has the same effect as `auto`. The extension normalizes `auto` to
+    omission (no `context` key is injected), matching the official
+    semantics and the existing `reasoning_mode` omission precedent.
+  - `current_turn`: makes reasoning from the active turn available without
+    rendering earlier-turn reasoning into the next sample.
+  - `all_turns`: renders available, compatible reasoning items from
+    earlier turns into the next sample. Only has an effect when earlier
+    response reasoning items are available (via retained native history).
+  On the first request, `current_turn` and `all_turns` behave the same
+  because no earlier reasoning exists. `all_turns` does not create missing
+  reasoning items; it only renders existing ones. The setting is silently
+  dropped for non-GPT-5.6 models, matching the existing silent-drop
+  behavior for unsupported `reasoning_effort` and `reasoning_mode`. Users
+  who need to force a context value on an older reasoning model can set
+  `request_options.reasoning.context` directly as an expert escape hatch;
+  the config-level `reasoning_context` takes precedence over the raw
+  `request_options.reasoning.context` when both are present. When
+  `reasoning_context` is `auto` or unset, the raw
+  `request_options.reasoning.context` is preserved.
+
+The bare `gpt-5.6` alias is not published in the model picker (per the model
+catalog decision), but if a user types it manually the reasoning extension
+treats it as the Sol alias and offers the Sol effort set including `ultra`,
+the Pro reasoning mode control, and the reasoning context control.
+
+`ultra` is a multi-agent coordination mode: by default it coordinates four
+agents and consumes substantially more tokens than `max` or lower effort
+levels. It is not an efficiency mode. Use it only when the workflow demands
+it, and prefer Sol (the cheapest `ultra`-capable model) for tests and
+experiments.
+
+`reasoning.mode` and `reasoning.effort` are independent: mode selects
+standard or pro execution, while `reasoning.effort` controls how much
+reasoning the model applies within that mode. If `reasoning_effort` is unset,
+GPT-5.6 defaults to `medium` in both modes (per the official reasoning
+guide).
+
+No default `reasoning_effort`, `reasoning_mode`, or `reasoning_context` is
+inferred. If the key is unset, no `effort`, `mode`, or `context` is injected
+and the OpenAI API applies its own built-in default for the selected model.
+Unsupported `reasoning_effort` values for the selected model are silently
+dropped (no error is raised; the value is simply not injected).
+`reasoning_mode: "pro"` is silently dropped for non-GPT-5.6 models, matching
+the same silent-drop behavior. `reasoning_context: "current_turn"` or
+`"all_turns"` is silently dropped for non-GPT-5.6 models. Users who need to
+force an unsupported effort, mode, or context for an unknown model can set
+`request_options.reasoning.effort`, `request_options.reasoning.mode`, or
+`request_options.reasoning.context` directly as an expert escape hatch; the
+config-level `reasoning_effort`, `reasoning_mode`, and `reasoning_context`
+take precedence over the raw `request_options` values when both are present.
 
 Assistant messages always expose the frontend-friendly field
 `metadata.reasoning`. OpenAI-specific raw reasoning data is preserved under
-`metadata.openai_responses_reasoning`.
+`metadata.openai_responses_reasoning`. The effective reasoning context
+reported by the response (if any) is preserved as
+`metadata.openai_responses_reasoning.context` (one of `current_turn` or
+`all_turns`). If the response does not report an effective context, the
+`context` sub-key is absent (not fabricated). The effective context is also
+surfaced as a `message_footer` UI element (`context: {{data}}`) that renders
+`metadata.openai_responses_reasoning.context` under each assistant message
+when present. The footer is conditionally rendered — it is hidden when the
+response does not report an effective context, so it does not fabricate a
+value.
+
+#### Pro mode billing
+
+Pro reasoning mode (`reasoning_mode: "pro"`) performs more model work than
+standard mode and increases token usage and cost. Pro mode bills the
+aggregated model-work tokens at the selected model's standard per-token
+rates. There is no separate Pro-mode pricing table and no new
+`service_tier` value for Pro mode.
+
+Pro mode is **API-only**: the UI control is hidden when `auth_mode` is
+`chatgpt`, and the extension does not inject `reasoning.mode` when the
+effective auth mode resolves to ChatGPT. The ChatGPT backend rejects
+`reasoning.mode: "pro"` with `reasoning.mode is not supported with this
+model`, so the gating matches the backend's actual behavior rather than
+sending a rejected field. Fast mode (`service_tier: "priority"`) applies
+to both API and ChatGPT auth modes and is independent of Pro mode.
+
+Cost estimation in this bundle continues to use the selected model's
+standard-tier pricing entry from `data/openai_model_pricing.json` (or the
+manual ChatGPT fallback). Pro mode does not introduce a priority-tier or
+flex-tier price lookup. Priority-tier pricing applies only when Fast mode
+reports `service_tier: "priority"`; Pro mode does not change the service
+tier and does not trigger priority-tier pricing.
+
+Existing Pro model IDs (e.g. `gpt-5.5-pro`, `gpt-5.4-pro`) keep their
+current behavior and pricing; they are distinct model SKUs, not a
+reasoning-mode billing category. "Pro mode" the reasoning setting is
+distinct from "-pro" the model SKU suffix.
 
 ### Verbosity keys
 
@@ -514,6 +644,97 @@ usage payload and is used for ChatGPT-mode pricing instead of any
 backend-reported cached-token field. By default it is not displayed; enable
 `show_estimated_cached_tokens` if you want the footer.
 
+The reasoning extension contributes its own `message_footer` element for the
+effective reasoning context (`context: all_turns` / `current_turn`),
+parallel to the usage footers above. It renders only when
+`metadata.openai_responses_reasoning.context` is present (see Reasoning keys).
+
+The usage extension also surfaces `usage_reasoning_mode` metadata and a
+`mode: pro` footer entry when the response reports `reasoning.mode: "pro"`.
+This is additive to the existing `usage_service_tier` / `tier: priority`
+footer for Fast mode. Standard mode is the default and is not shown.
+
+#### Pricing snapshot and cost estimation
+
+The checked-in pricing snapshot at
+`src/openai_responses_plugins/data/openai_model_pricing.json` is the
+runtime source of truth for estimated dollar cost. It is refreshed from
+the official OpenAI pricing page via
+`python plugins/openai_responses/benchmark/refresh_openai_responses_pricing.py`.
+
+Each model entry has a top-level `pricing` block (the standard-tier
+projection) and a `service_tiers` mapping with per-tier rates. The
+supported tiers are `standard`, `batch`, `flex`, and `priority`. Each
+tier pricing block has up to four token-price columns:
+
+- `input_per_1m`: ordinary input tokens (dollars per 1M tokens)
+- `cached_input_per_1m`: cached-read tokens (cache hits)
+- `cache_write_per_1m`: billable cache-write tokens (GPT-5.6+; omitted on
+  legacy models)
+- `output_per_1m`: output/completion tokens
+
+The cost estimator splits `usage.input_tokens` into three mutually
+exclusive input buckets so the same token is never charged twice:
+
+```text
+cached_read_tokens    = max(0, usage.input_tokens_details.cached_tokens)
+cache_write_tokens    = max(0, usage.input_tokens_details.cache_write_tokens)
+ordinary_input_tokens = max(0, input_tokens - cached_read_tokens - cache_write_tokens)
+```
+
+The estimated cost is:
+
+```text
+estimated = (
+    ordinary_input_tokens * input_per_1m
+  + cached_read_tokens   * cached_input_per_1m
+  + cache_write_tokens   * cache_write_per_1m
+  + output_tokens        * output_per_1m
+) / 1_000_000.0
+```
+
+When `cache_write_tokens > 0` but the resolved pricing block has no
+`cache_write_per_1m` (e.g., a legacy model with only three price columns),
+the estimator falls back to `input_per_1m` for the cache-write bucket so
+the model remains estimable.
+
+When the reported detail counters are inconsistent (their sum exceeds
+`input_tokens`), the estimator reduces the larger counter to fit and
+clamps `ordinary_input_tokens` to zero. This keeps cost estimation
+deterministic and non-negative without rejecting the whole payload.
+
+GPT-5.6 implicit caching can create a billable managed cache write even
+when the client does not add an explicit cache breakpoint. The estimator
+uses the reported `cache_write_tokens` counter; it does not infer write
+tokens from prompt shape, cache keys, or estimated cache hits.
+
+#### ChatGPT cost estimate caveat
+
+ChatGPT users are generally governed by subscription limits/rate limits
+rather than direct API per-token billing. The dollar value produced by
+this framework is an **API-equivalent estimate** useful for comparison,
+not an invoice amount.
+
+For ChatGPT-backed requests:
+
+- Cached-read tokens are estimated using the turn-aware heuristic
+  described above; the estimate replaces `cached_tokens` for pricing.
+- `cache_write_tokens` is **not** synthesized from the estimate. When the
+  ChatGPT backend reports `cache_write_tokens`, the estimator prices it at
+  the cache-write rate. When the backend omits `cache_write_tokens`, the
+  estimate cannot include cache-write cost and reports only ordinary +
+  cached-read + output. The usage footer explicitly reports when the
+  write counter is absent.
+- `service_tier: "default"` resolves to standard pricing;
+  `service_tier: "priority"` (Fast mode) resolves to priority pricing.
+
+#### Explicit cache boundaries
+
+Explicit cache-boundary support (`prompt_cache_options`,
+`prompt_cache_breakpoint`) is intentionally unsupported for the current
+use case. The framework relies on implicit caching and the
+session-owned `prompt_cache_key`.
+
 ### Prompt caching keys
 
 - `enable_prompt_cache_key`: defaults to `true`; set to `false` to disable automatic session-owned prompt cache keys
@@ -531,9 +752,28 @@ No extra config key is required beyond loading tools in the application.
 
 ### Native compaction
 
-It exposes a session action with id `compact_native_history` that uses the
-native compaction API, rewrites provider-native history, and then rebuilds the
-visible transcript directly from the compacted native output.
+The bundle exposes an application-owned session action with id
+`compact_native_history`. It starts native compaction in the background,
+returns a standard successful action result with
+`operation_status: "accepted"` promptly, rewrites provider-native history
+after the provider call completes, and rebuilds the visible transcript from
+the compacted native output.
+
+While compaction runs, a persistent nondismissible warning banner reports the
+current phase and elapsed time approximately every 15 seconds. Its
+`Cancel compaction` action cancels the async OpenAI HTTP task and revokes
+commit authority. The process still checks cancellation immediately before
+its reconciled session save so a late result cannot be applied.
+
+Ordinary requests and compaction use the same session operation admission.
+Starting either while the other is active is rejected before provider work.
+Successful completion leaves a dismissible success banner. Provider,
+output-validation, and concurrent-history failures leave a dismissible
+persistent error banner with a Retry action.
+
+The synchronous provider-extension compatibility action remains available as
+`compact_native_history_sync`, but it has no default UI element. Both paths
+share the same native compaction backend.
 
 If you prefer the older placeholder-style transcript behavior, enable:
 
@@ -609,8 +849,14 @@ transcript.
 - API-key mode supports both non-streaming and streaming Responses requests.
 - ChatGPT mode is streaming-only in the current implementation. Non-streaming
   requests fail with a clear error.
-- The provider retains Responses-native history so future turns can replay
-  native items rather than flattening everything to plain chat text.
+- The provider retains Responses-native history (including reasoning items
+  with `encrypted_content`) so future turns can replay native items rather
+  than flattening everything to plain chat text. This retained native history
+  is what makes `reasoning.context: "all_turns"` effective on follow-up turns:
+  the API renders the earlier reasoning items into the next sample. No second
+  conversation-state mechanism is needed — the existing native replay already
+  satisfies the API's "manually replaying the complete response history"
+  requirement.
 - Reasoning requests include `reasoning.encrypted_content` so raw reasoning can
   be preserved even when the model does not expose readable reasoning text.
 - Verbosity support is model-gated and currently follows the provider tag check
@@ -618,8 +864,10 @@ transcript.
 - ChatGPT-backed requests use top-level `instructions` and `store: false`.
 - Flex processing and prompt-cache retention are automatically disabled when
   the ChatGPT endpoint is selected.
-- ChatGPT `/models` discovery may still require `client_version`; if discovery
-  is unavailable, pin `model` explicitly in config.
+- ChatGPT `/models` discovery is a last-resort fallback, only contacted when
+  both the live Codex catalog fetch fails and the checked-in Codex snapshot is
+  empty. It may still require `client_version`; if discovery is unavailable,
+  pin `model` explicitly in config.
 - Native compaction is intentionally different from human-readable summary
   insertion. It preserves provider-native compacted artifacts for future
   Responses requests instead of replacing history with a plain assistant
@@ -657,7 +905,8 @@ like this:
 - prompt caching: `prompt_cache_key` / retention request shaping and session-key lifecycle
 - ChatGPT auth feature: saved-credential loading plus `api` / `chatgpt` /
   `auto` auth-mode selection
-- native compaction: session action for provider-native compaction
+- native compaction: shared backend, application-owned background action and
+  process, plus synchronous provider-extension compatibility adapter
 
 Implementation classes registered by the bundle:
 
@@ -666,6 +915,7 @@ Implementation classes registered by the bundle:
 - `openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature`
 - `openai_responses_plugins.openai_responses_flex_processing_extension.OpenAIResponsesFlexProcessingExtension`
 - `openai_responses_plugins.openai_responses_fast_mode_extension.OpenAIResponsesFastModeExtension`
+- `openai_responses_plugins.openai_responses_native_compaction_app.OpenAIResponsesNativeCompactionAppPlugin`
 - `openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension`
 - `openai_responses_plugins.openai_responses_prompt_caching_extension.OpenAIResponsesPromptCachingExtension`
 - `openai_responses_plugins.openai_responses_tools_extension.OpenAIResponsesToolsExtension`

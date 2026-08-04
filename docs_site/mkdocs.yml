@@ -68,6 +68,14 @@ plugins:
       sections:
         Overview:
           - index.md: Crystal Lattice documentation overview.
+        Development Specifications:
+          - development/index.md: Cross-package development specifications.
+          - development/specifications/notifications/index.md: Notification specification.
+          - development/specifications/notifications/technical-spec.md: Notification technical contract.
+          - development/specifications/notifications/frontend-behavior.md: Portable notification frontend behavior.
+          - development/specifications/action-display/index.md: Action-display specification.
+          - development/specifications/application-runtime-reload/index.md: Application runtime reload specification.
+          - development/specifications/sessions-actions/index.md: Sessions-action specification.
         Guides:
           - plugins/development.md: General plugin authoring and packaging guide.
           - plugins/application-config.md: Application plugin configuration and examples.
@@ -77,11 +85,13 @@ plugins:
           - plugin-development/provider-extensions.md: Provider extension guide.
           - plugin-development/feature-plugins.md: Feature plugin guide.
           - plugin-development/application-plugins.md: Application plugin guide.
+          - plugin-development/managed-background-processes.md: Managed background process guide.
           - plugin-development/tool-plugins.md: Tool plugin guide.
           - plugin-development/tool-interop.md: Tool interop flow.
           - plugin-development/node-tool-plugins.md: Node tool plugin guide.
           - plugin-development/bash-tool-plugins.md: Bash tool plugin guide.
           - plugin-development/actions.md: Plugin actions guide.
+          - plugin-development/notifications-and-action-displays.md: Notification and action-display authoring guide.
           - plugin-development/plugin-packaging-and-loading.md: Packaging and loading guide.
           - plugin-development/plugin-execution-order.md: Plugin execution order.
           - plugin-development/config-schema.md: Plugin configuration schema guide.
@@ -104,6 +114,27 @@ plugins:
 nav:
   - Website Home: !ENV [PUBLIC_CRYSTAL_LATTICE_SITE_URL, "https://crystallattice.dev"]
   - Overview: index.md
+  - Development Specifications:
+    - Start Here: development/index.md
+    - Notifications:
+      - Overview: development/specifications/notifications/index.md
+      - Product: development/specifications/notifications/product-spec.md
+      - Technical: development/specifications/notifications/technical-spec.md
+      - Frontend Behavior: development/specifications/notifications/frontend-behavior.md
+      - Requirements: development/specifications/notifications/requirements.md
+    - Action Displays:
+      - Overview: development/specifications/action-display/index.md
+      - Technical: development/specifications/action-display/technical-spec.md
+      - Requirements: development/specifications/action-display/requirements.md
+    - Runtime Reload:
+      - Overview: development/specifications/application-runtime-reload/index.md
+      - Product: development/specifications/application-runtime-reload/product-spec.md
+      - Technical: development/specifications/application-runtime-reload/technical-spec.md
+      - Requirements: development/specifications/application-runtime-reload/requirements.md
+    - Sessions Actions:
+      - Overview: development/specifications/sessions-actions/index.md
+      - Technical: development/specifications/sessions-actions/technical-spec.md
+      - Requirements: development/specifications/sessions-actions/requirements.md
   - Guides:
     - Plugin Development: plugins/development.md
     - Application Configuration: plugins/application-config.md
@@ -113,11 +144,13 @@ nav:
     - Provider Extensions: plugin-development/provider-extensions.md
     - Feature Plugins: plugin-development/feature-plugins.md
     - Application Plugins: plugin-development/application-plugins.md
+    - Managed Background Processes: plugin-development/managed-background-processes.md
     - Tool Plugins: plugin-development/tool-plugins.md
     - Tool Interop Flow: plugin-development/tool-interop.md
     - Node Tool Plugins: plugin-development/node-tool-plugins.md
     - Bash Tool Plugins: plugin-development/bash-tool-plugins.md
     - Plugin Actions: plugin-development/actions.md
+    - Notifications And Action Displays: plugin-development/notifications-and-action-displays.md
     - Packaging And Loading: plugin-development/plugin-packaging-and-loading.md
     - Execution Order: plugin-development/plugin-execution-order.md
     - Configuration Schema: plugin-development/config-schema.md
@@ -126,6 +159,7 @@ nav:
     - Specialized Task Agents: plugin-development/specialized-task-agents.md
   - Built-In Plugins:
     - Index: built-in-plugins/index.md
+    - application-config-app: built-in-plugins/application-config-app/index.md
     - bash-read-line-range: built-in-plugins/bash-read-line-range/index.md
     - bash-send-kindle-icloud: built-in-plugins/bash-send-kindle-icloud/index.md
     - chatgpt-auth-app: built-in-plugins/chatgpt-auth-app/index.md
@@ -158,9 +192,12 @@ nav:
     - reference-openai-compatible-provider: built-in-plugins/reference-openai-compatible-provider/index.md
     - session-actions-app: built-in-plugins/session-actions-app/index.md
     - session-asset-attachments: built-in-plugins/session-asset-attachments/index.md
+    - session-archive-app: built-in-plugins/session-archive-app/index.md
+    - session-main-search-app: built-in-plugins/session-main-search-app/index.md
     - session-message-count-meta-app: built-in-plugins/session-message-count-meta-app/index.md
     - session-ordering-buckets-app: built-in-plugins/session-ordering-buckets-app/index.md
     - session-pinned-app: built-in-plugins/session-pinned-app/index.md
+    - session-status-app: built-in-plugins/session-status-app/index.md
     - session-timestamp-meta-app: built-in-plugins/session-timestamp-meta-app/index.md
     - session-title-app: built-in-plugins/session-title-app/index.md
     - skill-shared: built-in-plugins/skill-shared/index.md

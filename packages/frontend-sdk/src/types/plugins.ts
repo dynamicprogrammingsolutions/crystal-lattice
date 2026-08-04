@@ -31,6 +31,14 @@ export interface ActionUiElement {
   [k: string]: any;
 }
 
+export interface ApplicationActionUiElement extends ActionUiElement {
+  ui_type: 'application_action';
+  plugin: string;
+  id: string;
+  label: string;
+  action_id: string;
+}
+
 export interface ActionMutations {
   created_session_ids?: string[];
   updated_session_ids?: string[];
@@ -41,6 +49,7 @@ export interface ActionUiEffects {
   navigate_to_session_id?: string | null;
   reload_session_ids?: string[];
   reload_sessions_list?: boolean;
+  reload_application_actions?: boolean;
 }
 
 export interface ActionDisplayOpenUrlAction {
@@ -66,7 +75,14 @@ export interface ActionDisplayRunActionAction {
   action_id: string;
   action_owner?: string;
   fixed_params?: Record<string, unknown>;
+  param_map?: Record<string, string>;
   preserve_display?: boolean;
+}
+
+export interface ActionDisplayDismissAction {
+  kind: 'dismiss';
+  id: string;
+  label: string;
 }
 
 export interface ActionDisplayDownloadAttachmentAssetAction {
@@ -86,7 +102,16 @@ export type ActionDisplayFollowupAction =
   | ActionDisplayOpenUrlAction
   | ActionDisplayCopyTextAction
   | ActionDisplayRunActionAction
+  | ActionDisplayDismissAction
   | ActionDisplayDownloadAttachmentAssetAction;
+
+export interface ActionDisplayFormPayload {
+  kind: 'form';
+  title?: string;
+  message?: string;
+  inputs?: any[];
+  [k: string]: any;
+}
 
 export interface ActionDisplayPayload {
   format: 'markdown' | 'text';
@@ -95,6 +120,7 @@ export interface ActionDisplayPayload {
   variant?: 'info' | 'success' | 'warning' | 'error';
   presentation?: 'modal' | 'inline' | 'banner';
   dismissible?: boolean;
+  form?: ActionDisplayFormPayload;
   actions?: ActionDisplayFollowupAction[];
   display_id?: string;
 }

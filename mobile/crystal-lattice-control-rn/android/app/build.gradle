@@ -84,6 +84,9 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
+        buildConfigField "boolean", "IS_DETOX_E2E", "false"
+        testBuildType System.getProperty("testBuildType", "debug")
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
         debug {
@@ -104,6 +107,24 @@ android {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
         }
+        e2e {
+            initWith release
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ["release"]
+            buildConfigField "boolean", "IS_DETOX_E2E", "true"
+            manifestPlaceholders = [usesCleartextTraffic: "true"]
+        }
+    }
+}
+
+configurations.configureEach {
+    if (name.toLowerCase().contains("androidtest")) {
+        resolutionStrategy.force(
+            "androidx.test:monitor:1.8.0",
+            "androidx.test:runner:1.7.0",
+            "androidx.test:rules:1.7.0",
+            "androidx.test.services:storage:1.6.0"
+        )
     }
 }
 
@@ -114,6 +135,7 @@ dependencies {
     // Required for the AndroidX Photo Picker backport when minSdkVersion < 30.
     // See: https://github.com/react-native-image-picker/react-native-image-picker
     implementation("androidx.activity:activity:1.9.+")
+    androidTestImplementation("com.wix:detox:20.51.4")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

@@ -17,9 +17,11 @@ FIXTURE_OPTIONAL_PLUGIN_DIR = FIXTURES_DIR / FIXTURE_OPTIONAL_PLUGIN_NAME
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from build_cloud_runtime_plugin_bundle import copytree_sanitized
-from build_cloud_runtime_plugin_bundle import stage_cloud_runtime_plugin_bundle
-import build_crystal_lattice_binary as binary_builder
+from build_cloud_runtime_plugin_bundle import copytree_sanitized  # noqa: E402
+from build_cloud_runtime_plugin_bundle import (  # noqa: E402
+    stage_cloud_runtime_plugin_bundle,
+)
+import build_crystal_lattice_binary as binary_builder  # noqa: E402
 
 
 def test_cloud_runtime_plugin_bundle_stages_preinstalled_metadata_and_sources(
@@ -51,6 +53,10 @@ def test_cloud_runtime_plugin_bundle_stages_preinstalled_metadata_and_sources(
     ).is_file()
     assert "cloud-agent-app" in manifest["preinstalled_plugins"]
     assert "codex-tools" in manifest["preinstalled_plugins"]
+    assert "session-main-search-app" in manifest["preinstalled_plugins"]
+    assert "session-archive-app" in manifest["preinstalled_plugins"]
+    assert "session-pinned-app" in manifest["preinstalled_plugins"]
+    assert "session-status-app" in manifest["preinstalled_plugins"]
     assert "tool-compat-shared" in manifest["local_projects"]
     assert "mcp-shared" in manifest["local_projects"]
     assert "skill-shared" in manifest["local_projects"]

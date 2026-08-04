@@ -40,6 +40,9 @@ def _prepare_workspace(tmp_path: Path) -> Path:
     (workspace / "claude.txt").write_text(
         "CLAUDE integration line\nsecond line\n", encoding="utf-8"
     )
+    (workspace / "glm.txt").write_text(
+        "GLM integration line\nsecond line\n", encoding="utf-8"
+    )
     (workspace / "AGENTS.md").write_text(
         "Repository policy from AGENTS.\n",
         encoding="utf-8",
@@ -87,6 +90,24 @@ def test_terminal_application_default_config_agents_make_real_tool_calls(
     workspace = _prepare_workspace(tmp_path)
     monkeypatch.chdir(workspace)
     monkeypatch.setenv("OPENROUTER_API_KEY", ensure_openrouter_api_key)
+    # Set dummy env vars for all providers referenced by the default config
+    # (only openrouter is used by the agents under test, but the config loader
+    # validates all provider keys and reports env_missing errors).
+    monkeypatch.setenv("GEMINI_API_KEY", os.getenv("GEMINI_API_KEY", "test-gemini-key"))
+    monkeypatch.setenv("TAVILY_API_KEY", os.getenv("TAVILY_API_KEY", "test-tavily-key"))
+    monkeypatch.setenv("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", "test-openai-key"))
+    monkeypatch.setenv(
+        "FIREWORKS_API_KEY", os.getenv("FIREWORKS_API_KEY", "test-fireworks-key")
+    )
+    monkeypatch.setenv("ZAI_API_KEY", os.getenv("ZAI_API_KEY", "test-zai-key"))
+    monkeypatch.setenv(
+        "CLOUD_ORCHESTRATOR_URL",
+        os.getenv("CLOUD_ORCHESTRATOR_URL", "http://cloud-orchestrator.test"),
+    )
+    monkeypatch.setenv(
+        "CLOUD_ORCHESTRATOR_TOKEN",
+        os.getenv("CLOUD_ORCHESTRATOR_TOKEN", "test-cloud-token"),
+    )
 
     config_path = (
         ROOT
@@ -143,6 +164,11 @@ def test_terminal_application_default_config_agents_make_real_tool_calls(
             "prompt": "Use the Read tool to read claude.txt and reply with exactly the first line.",
             "expected_tools": {"Read"},
             "expected_text": "CLAUDE integration line",
+        },
+        "glm": {
+            "prompt": "Use read_file on glm.txt and reply with exactly the first line.",
+            "expected_tools": {"read_file"},
+            "expected_text": "GLM integration line",
         },
     }
 

@@ -1,71 +1,52 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ActionDisplayPayload } from '../../types/plugins';
 import { normalizeActionDisplayForSurface } from '../actionDisplayPolicy';
 
-const DISPLAY: ActionDisplayPayload = {
-  format: 'markdown',
-  body: 'Hello',
-  presentation: 'modal',
-};
+const DISPLAY = { format: 'markdown' as const, body: 'Hello' };
 
 describe('normalizeActionDisplayForSurface', () => {
-  it('drops displays for session list actions on mobile', () => {
+  it.each([
+    ['application_action', 'mobile'],
+    ['session_action', 'desktop'],
+    ['session_list_action', 'mobile'],
+    ['message_action', 'desktop'],
+  ] as const)('preserves explicit presentation for %s on %s', (surface, host) => {
+    expect(
+      normalizeActionDisplayForSurface({
+        display: { ...DISPLAY, presentation: 'banner' },
+        surface,
+        host,
+      }),
+    ).toEqual({ ...DISPLAY, presentation: 'banner' });
+  });
+
+  it('defaults mobile direct action responses to modal', () => {
     expect(
       normalizeActionDisplayForSurface({
         display: DISPLAY,
         surface: 'session_list_action',
         host: 'mobile',
       }),
-    ).toBeNull();
+    ).toEqual({ ...DISPLAY, presentation: 'modal' });
   });
 
-  it('drops displays for session list actions on desktop', () => {
+  it('normalizes desktop modal action responses to inline', () => {
     expect(
       normalizeActionDisplayForSurface({
-        display: DISPLAY,
-        surface: 'session_list_action',
-        host: 'desktop',
-      }),
-    ).toBeNull();
-  });
-
-  it('forces desktop session action displays inline', () => {
-    expect(
-      normalizeActionDisplayForSurface({
-        display: DISPLAY,
+        display: { ...DISPLAY, presentation: 'modal' },
         surface: 'session_action',
         host: 'desktop',
       }),
-    ).toEqual({
-      ...DISPLAY,
-      presentation: 'inline',
-    });
+    ).toEqual({ ...DISPLAY, presentation: 'inline' });
   });
 
-  it('keeps mobile modal session action displays modal', () => {
+  it('returns null when no display exists', () => {
     expect(
       normalizeActionDisplayForSurface({
-        display: DISPLAY,
-        surface: 'session_action',
+        display: undefined,
+        surface: 'application_action',
         host: 'mobile',
       }),
-    ).toEqual(DISPLAY);
-  });
-
-  it('coerces mobile banner session action displays inline', () => {
-    expect(
-      normalizeActionDisplayForSurface({
-        display: {
-          ...DISPLAY,
-          presentation: 'banner',
-        },
-        surface: 'session_action',
-        host: 'mobile',
-      }),
-    ).toEqual({
-      ...DISPLAY,
-      presentation: 'inline',
-    });
+    ).toBeNull();
   });
 });

@@ -57,14 +57,7 @@ export function buildActionsMenuModel<TDef extends ActionDefinition>(options: {
   });
 
   const pinnedSet = new Set(options.pinned);
-  const visiblePinned: TDef[] = [];
-
-  options.pinned.forEach((key) => {
-    const def = actionsByKey[key];
-    if (def) {
-      visiblePinned.push(def);
-    }
-  });
+  const visiblePinned = orderedActions.filter((def) => pinnedSet.has(def.key));
 
   const visibleOverflow = orderedActions.filter((def) => !pinnedSet.has(def.key));
 

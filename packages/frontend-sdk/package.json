@@ -6,6 +6,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
+    "integration:action-display-forms": "vitest run --config vitest.integration.config.ts src/integration/__tests__/actionDisplayForms.integration.test.ts",
     "integration:backend": "vitest run --config vitest.integration.config.ts src/integration/__tests__/backend.integration.test.ts",
     "integration:backend:openai": "vitest run --config vitest.integration.config.ts src/integration/__tests__/backend.openai.integration.test.ts",
     "integration:backend:openrouter": "vitest run --config vitest.integration.config.ts src/integration/__tests__/backend.openrouter.integration.test.ts",
@@ -15,6 +16,7 @@
     "integration:bridge:aws:fargate-secure": "RUN_AWS_BRIDGE_TESTS=1 BRIDGE_E2E_MODE=aws-secure vitest run --config vitest.integration.config.ts src/integration/__tests__/bridge.e2e.integration.test.ts",
     "integration:bridge:aws:fargate-public": "RUN_AWS_BRIDGE_TESTS=1 BRIDGE_E2E_MODE=aws-public-task vitest run --config vitest.integration.config.ts src/integration/__tests__/bridge.e2e.integration.test.ts",
     "integration:bridge:aws:ec2": "RUN_AWS_BRIDGE_TESTS=1 BRIDGE_E2E_MODE=aws-ec2-secure vitest run --config vitest.integration.config.ts src/integration/__tests__/bridge.e2e.integration.test.ts",
+    "integration:bridge:cli": "vitest run --config vitest.integration.config.ts src/integration/__tests__/bridge.cli.e2e.integration.test.ts",
     "integration:cloud": "vitest run --config vitest.integration.config.ts src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts",
     "integration:cloud:profiles": "vitest run --config vitest.integration.config.ts src/integration/__tests__/cloud-orchestrator.profiles.e2e.integration.test.ts",
     "integration:cloud:openrouter": "RUN_CLOUD_ORCHESTRATOR_OPENROUTER_E2E=1 vitest run --config vitest.integration.config.ts src/integration/__tests__/cloud-orchestrator.e2e.integration.test.ts",

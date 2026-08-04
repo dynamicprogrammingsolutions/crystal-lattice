@@ -2,10 +2,21 @@
 
 Start here for the current shared plugin documentation set.
 
+Non-production notification/display demonstration packages are available for
+examples and integration tests:
+
+- `plugins/dummy-application-notification-app`
+- `plugins/dummy-session-notification-app`
+- `plugins/dummy-action-display-app`
+
+They are deliberately absent from production default configuration.
+
+- [Notifications and action displays](notifications-and-action-displays.md)
 - [Provider plugins](provider-plugins.md)
 - [Provider extensions (tools + reasoning)](provider-extensions.md)
 - [Feature plugins](feature-plugins.md)
 - [Application plugins](application-plugins.md)
+- [Managed background processes](managed-background-processes.md)
 - [Tool plugins](tool-plugins.md)
 - [Tool interop flow](tool-interop.md)
 - [Node tool plugins](node-tool-plugins.md)

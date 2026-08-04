@@ -164,8 +164,25 @@ class OpenAICompatibleToolsExtension(
             ):
                 nm["tool_calls"] = md["tool_calls"]
 
-            if msg.get("role") == "tool" and isinstance(md.get("tool_call_id"), str):
-                nm["tool_call_id"] = md["tool_call_id"]
+            if msg.get("role") == "tool" and isinstance(md, dict):
+                if isinstance(md.get("tool_call_id"), str):
+                    nm["tool_call_id"] = md["tool_call_id"]
+                # Re-add display/tool_plugin/tool_name into _metadata for tool
+                # messages. The provider pops display from the generic
+                # _metadata carry, so the extension must re-add it here to
+                # preserve it across native-history rebuilds (matching the
+                # OpenRouter tools extension pattern).
+                extra: dict[str, Any] = {}
+                for key in ("tool_plugin", "tool_name", "display"):
+                    value = md.get(key)
+                    if value is not None:
+                        extra[key] = value
+                if extra:
+                    base_meta = nm.get("_metadata")
+                    merged = (
+                        {**base_meta, **extra} if isinstance(base_meta, dict) else extra
+                    )
+                    nm["_metadata"] = merged
 
             out.append(nm)
         return out

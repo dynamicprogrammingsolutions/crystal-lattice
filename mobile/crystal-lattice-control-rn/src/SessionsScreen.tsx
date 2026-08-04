@@ -14,24 +14,36 @@ import {
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import Icon from 'react-native-vector-icons/Feather';
-import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
+  applicationActionKey,
   deriveSessionListPresentationFromGroups,
+  emitDisplayPresentation,
+  getDefaultPinnedSessionListActionKeys,
   groupSessionListFields,
+  normalizeDisplayEnvelope,
   normalizeActionDisplayForSurface,
   pickDefaultAgentId,
   runApplicationAction,
+  selectSessionListRichActionForPlacement,
+  type AgentBackend,
+  type ApplicationActionUiElement,
   type RunActionContext,
+  type SessionListActionElement,
 } from '@crystal-lattice/frontend-sdk';
 import {
+  ActionsMenuBar,
   ApplicationActionDialog,
-  SessionActionsBar,
-  type SessionActionDefinition,
+  SessionListActionsBar,
+  SessionListRichActionControl,
+  SessionListRichActionList,
+  SessionListFiltersPanel,
   type SessionActionKey,
+  type ActionDefinition,
 } from '@crystal-lattice/frontend-rn-components';
 import {
   useAgentsController,
   useHydrateControllerFromCache,
+  useSessionListFilters,
   useSessionsController,
 } from '@crystal-lattice/frontend-sdk-react';
 import { useTheme, type Theme } from './theme';
@@ -51,9 +63,8 @@ import { handleGeneratedFileFollowupAction } from './utils/generatedFileActions'
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
+import { MobileDisplayHost } from './components/GlobalDisplayLayer';
 import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
-
-const PIN_BUTTON_HIT_SLOP = { top: 4, bottom: 4, left: 4, right: 4 };
 
 interface SessionsScreenProps {
   backend: AgentBackend | null;
@@ -66,6 +77,7 @@ interface SessionsScreenProps {
 }
 
 const STORAGE_KEY_SESSION_LIST_ACTIONS = 'clc_pinned_session_list_actions_v1';
+const STORAGE_KEY_SESSIONS_HEADER_ACTIONS = 'clc_pinned_sessions_header_actions_v1';
 
 const DEFAULT_PINNED_SESSION_LIST_ACTIONS: SessionActionKey[] = ['agentSwitch', 'settings'];
 
@@ -76,6 +88,11 @@ type ActionDisplayEntry = {
   display: ActionDisplayPayload;
   context: RunActionContext;
 };
+
+interface SessionsHeaderActionDefinition extends ActionDefinition {
+  kind: 'builtin' | 'plugin';
+  element?: ApplicationActionUiElement;
+}
 
 function createDisplayEntry(display: ActionDisplayPayload, context: RunActionContext): ActionDisplayEntry {
   const key =
@@ -137,7 +154,6 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     hydrate: hydrateSessionsCache,
   });
 
-  const [filterText, setFilterText] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
   const loading = sessionsLoading || actionLoading;
   const error = sessionsState?.error ?? (!backend ? 'No active connection' : null);
@@ -154,11 +170,29 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const agentsLoading = agentsState?.loading ?? false;
   const [agentSwitchInProgress, setAgentSwitchInProgress] = useState(false);
   const {
+    applicationActions = [],
     sessionListActions,
     actionsById,
+    actionsByKey = {},
     sessionListFields,
-    sessionListPinnedToggles,
+    sessionListFilterSchema,
   } = useApplicationPlugins();
+  const {
+    schema: effectiveFilterSchema,
+    values: sessionFilterValues,
+    mainSearch,
+    searchText,
+    nonMainFilters,
+    activeNonMainFilterCount,
+    setFilterValue,
+    setSearchText,
+    reset: resetSessionFilters,
+    showAll: showAllSessions,
+    filterSessions,
+  } = useSessionListFilters({
+    connectionId,
+    schema: sessionListFilterSchema,
+  });
   const {
     error: applicationPluginsError,
     refresh: refreshApplicationPlugins,
@@ -174,10 +208,17 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     [connectionId],
   );
 
+  const defaultPinnedSessionActions = useMemo(
+    () => [
+      ...DEFAULT_PINNED_SESSION_LIST_ACTIONS,
+      ...getDefaultPinnedSessionListActionKeys(sessionListActions),
+    ],
+    [sessionListActions],
+  );
   const { pinned: pinnedSessionActions, setPinned: setPinnedSessionActions } =
-    usePersistentPinnedActions<SessionActionKey>(
+    usePersistentPinnedActions<string>(
       scopedSessionListActionsStorageKey,
-	      DEFAULT_PINNED_SESSION_LIST_ACTIONS,
+      defaultPinnedSessionActions,
       { migrateFromKeys: [STORAGE_KEY_SESSION_LIST_ACTIONS] },
     );
   const [agentSwitchVisible, setAgentSwitchVisible] = useState(false);
@@ -186,8 +227,25 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const [settingsVisible, setSettingsVisible] = useState(false);
   const [settingsSessionId, setSettingsSessionId] = useState<string | null>(null);
   const [serverSettingsVisible, setServerSettingsVisible] = useState(false);
+  const [activeApplicationAction, setActiveApplicationAction] =
+    useState<ApplicationActionUiElement | null>(null);
   const [pluginsVisible, setPluginsVisible] = useState(false);
   const [pluginsSessionId, setPluginsSessionId] = useState<string | null>(null);
+  const [filtersVisible, setFiltersVisible] = useState(false);
+  const [activeRichList, setActiveRichList] = useState<{
+    element: SessionListActionElement;
+    session: SessionSummary;
+  } | null>(null);
+  const presentRichList = useCallback(
+    (element: SessionListActionElement, session: SessionSummary) => {
+      // Let the action-menu modal dismiss before presenting the immediate list
+      // modal. iOS does not reliably transition directly between two roots.
+      setTimeout(() => {
+        setActiveRichList({ element, session });
+      }, 0);
+    },
+    [],
+  );
 
   const closeNonPluginOverlays = useCallback(() => {
     setAgentPickerVisible(false);
@@ -195,7 +253,51 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     setSettingsVisible(false);
     setServerSettingsVisible(false);
     setPluginsVisible(false);
+    setFiltersVisible(false);
+    setActiveRichList(null);
   }, []);
+
+  const sessionsHeaderActionDefinitions = useMemo<SessionsHeaderActionDefinition[]>(
+    () => [
+      {
+        key: 'serverSettings',
+        label: 'Server settings',
+        iconName: 'settings',
+        kind: 'builtin',
+      },
+      {
+        key: 'refreshSessions',
+        label: 'Refresh sessions',
+        iconName: 'refresh-cw',
+        kind: 'builtin',
+      },
+      {
+        key: 'newSession',
+        label: 'New session',
+        iconName: 'plus',
+        kind: 'builtin',
+      },
+      ...applicationActions.map((element) => ({
+        key: applicationActionKey(element.plugin, element.id),
+        label: element.label,
+        iconName: typeof element.icon === 'string' ? element.icon : 'zap',
+        kind: 'plugin' as const,
+        element,
+      })),
+    ],
+    [applicationActions],
+  );
+  const scopedHeaderActionsStorageKey = useMemo(
+    () => `${STORAGE_KEY_SESSIONS_HEADER_ACTIONS}:${connectionId ?? 'default'}`,
+    [connectionId],
+  );
+  const {
+    pinned: pinnedHeaderActions,
+    setPinned: setPinnedHeaderActions,
+  } = usePersistentPinnedActions<string>(
+    scopedHeaderActionsStorageKey,
+    ['serverSettings', 'refreshSessions', 'newSession'],
+  );
 
   const navigateToSession = useCallback(
     (sessionId: string) => {
@@ -226,13 +328,27 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
     const nextEntry = createDisplayEntry(display, context);
     const presentation = display.presentation ?? 'modal';
-    if (presentation === 'inline' || presentation === 'banner') {
+    if (presentation === 'banner' && backend) {
+      emitDisplayPresentation(
+        backend,
+        normalizeDisplayEnvelope({
+          id: nextEntry.key,
+          source: 'action_response',
+          ownershipScope: 'connection',
+          connectionId,
+          sessionId: context.sessionId,
+          display,
+        }),
+      );
+      return;
+    }
+    if (presentation === 'inline') {
       setActionResultDisplay(null);
       setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
       return;
     }
     setActionResultDisplay(nextEntry);
-  }, []);
+  }, [backend, connectionId]);
 
   const executePluginAction = useCallback(
     async (element: ActionUiElement, context: RunActionContext) => {
@@ -251,6 +367,7 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           backend,
           element,
           actionsById,
+          actionsByKey,
           context: actionContext,
           effects: { reloadSessionsListOnMutations: true },
         });
@@ -270,7 +387,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         }
         const normalizedDisplay = normalizeActionDisplayForSurface({
           display,
-          surface: 'session_list_action',
+          surface:
+            element.ui_type === 'application_action'
+              ? 'application_action'
+              : 'session_list_action',
           host: 'mobile',
         });
         if (normalizedDisplay) {
@@ -280,11 +400,23 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         setActionLoading(false);
       }
     },
-    [actionsById, backend, connectionId, loadSessions, navigateToSession, presentActionDisplay],
+    [
+      actionsById,
+      actionsByKey,
+      backend,
+      connectionId,
+      loadSessions,
+      navigateToSession,
+      presentActionDisplay,
+    ],
   );
 
   const handleDisplayFollowupAction = useCallback(
-    async (entry: ActionDisplayEntry, action: ActionDisplayFollowupAction) => {
+    async (
+      entry: ActionDisplayEntry,
+      action: ActionDisplayFollowupAction,
+      formValues?: Record<string, any>,
+    ) => {
       if (action.kind === 'open_url') {
         try {
           await Linking.openURL(action.url);
@@ -328,8 +460,13 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               action_id: action.action_id,
               action_owner: action.action_owner,
               fixed_params: action.fixed_params as Record<string, any> | undefined,
+              param_map: action.param_map,
+              form: entry.display.form,
             },
-            entry.context,
+            {
+              ...entry.context,
+              formValues,
+            },
           );
         } finally {
           setActiveDisplayActionId(null);
@@ -512,30 +649,17 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     }
   };
 
-  const pluginSessionActionDefs: SessionActionDefinition[] = useMemo(
-    () =>
-      (sessionListActions ?? []).map((el) => ({
-        key: el.id,
-        label: el.label,
-        iconName: (el as any).icon || 'zap',
-        defaultPinned: false,
-      })),
-    [sessionListActions],
-  );
-
   const sessionListFieldGroups = useMemo(
     () => groupSessionListFields(sessionListFields || []),
     [sessionListFields],
   );
 
-  const filteredSessions = sessions.filter((s) => {
-    if (!filterText.trim()) return true;
-    const q = filterText.toLowerCase();
-    return (
-      s.session_id.toLowerCase().includes(q) ||
-      (s.preview || '').toLowerCase().includes(q)
-    );
-  });
+  const filteredSessions = useMemo(
+    () => filterSessions(sessions),
+    [filterSessions, sessions],
+  );
+  const hasActiveFilters =
+    searchText !== '' || activeNonMainFilterCount > 0;
 
   const renderSessionItem = (s: SessionSummary) => {
     const modifiedDate = new Date(s.modified * 1000);
@@ -546,21 +670,15 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	    const subtitle = presentation.subtitle;
 	    const metaText = presentation.meta;
 
-    const isPinned = !!s.pinned;
-    const pinnedToggleElement = sessionListPinnedToggles[0];
-
     const actions = sessionListActions ?? [];
-
-    const handleRowAction = (key: SessionActionKey) => {
-      if (BUILTIN_SESSION_LIST_ACTIONS.includes(key)) {
-        handleBuiltinSessionAction(key, s);
-        return;
-      }
-      const element = actions.find((el) => el.id === key);
-      if (element) {
-        openPluginDialogForElement(element, s);
-      }
-    };
+    const headerLeadingAction = selectSessionListRichActionForPlacement(
+      actions,
+      'header_leading',
+    );
+    const headerTrailingAction = selectSessionListRichActionForPlacement(
+      actions,
+      'header_trailing',
+    );
 
     const hasAnyActions =
       BUILTIN_SESSION_LIST_ACTIONS.length > 0 || (actions && actions.length > 0);
@@ -569,42 +687,85 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       <TouchableOpacity
         key={s.session_id}
         style={styles.sessionItem}
+        testID={`session-row-${s.session_id}`}
 	      onPress={() => navigateToSession(s.session_id)}
       >
         <View style={styles.sessionHeaderRow}>
-          <View style={styles.sessionHeaderTextColumn}>
-            <Text style={styles.sessionTitle}>{title}</Text>
-          </View>
-          {pinnedToggleElement ? (
-            <TouchableOpacity
-              style={styles.pinIconButton}
-              hitSlop={PIN_BUTTON_HIT_SLOP}
-              onPress={() => {
-                if (!backend) {
-                  Alert.alert('Error', 'No active connection');
-                  return;
+          {headerLeadingAction ? (
+            <View style={styles.sessionHeaderLeadingAction}>
+              <SessionListRichActionControl
+                element={headerLeadingAction}
+                session={s}
+                placement="header_leading"
+                disabled={!backend || actionLoading}
+                onExecuteAction={(element, dialogValues) =>
+                  executePluginAction(element, {
+                    sessionId: s.session_id,
+                    sessionSummary: s,
+                    dialogValues,
+                  })
                 }
-                openPluginDialogForElement(pinnedToggleElement, s);
-              }}
-            >
-              <Icon
-                name="star"
-                size={18}
-                color={isPinned ? '#FFCC00' : theme.textSecondary}
+                onPresentRichList={(element) => presentRichList(element, s)}
+                renderIcon={({ name, size, color }) => (
+                  <Icon name={name} size={size} color={color} />
+                )}
+                testID={`session-rich-header-${s.session_id}-header_leading-${headerLeadingAction.id}`}
               />
-            </TouchableOpacity>
+            </View>
+          ) : null}
+          <View style={styles.sessionHeaderTextColumn}>
+            <Text
+              style={styles.sessionTitle}
+              testID={`session-title-${s.session_id}`}
+            >
+              {title}
+            </Text>
+          </View>
+          {headerTrailingAction ? (
+            <View style={styles.sessionHeaderTrailingAction}>
+              <SessionListRichActionControl
+                element={headerTrailingAction}
+                session={s}
+                placement="header_trailing"
+                disabled={!backend || actionLoading}
+                onExecuteAction={(element, dialogValues) =>
+                  executePluginAction(element, {
+                    sessionId: s.session_id,
+                    sessionSummary: s,
+                    dialogValues,
+                  })
+                }
+                onPresentRichList={(element) => presentRichList(element, s)}
+                renderIcon={({ name, size, color }) => (
+                  <Icon name={name} size={size} color={color} />
+                )}
+                testID={`session-rich-header-${s.session_id}-header_trailing-${headerTrailingAction.id}`}
+              />
+            </View>
           ) : null}
         </View>
         <Text style={styles.sessionId}>{s.session_id}</Text>
         {subtitle ? (
-          <Text style={styles.sessionSubtitle}>{subtitle}</Text>
+          <Text
+            style={styles.sessionSubtitle}
+            testID={`session-subtitle-${s.session_id}`}
+          >
+            {subtitle}
+          </Text>
         ) : s.preview ? (
           <Text style={styles.sessionPreview}>{s.preview}</Text>
         ) : null}
-        <Text style={styles.sessionMeta}>{metaText || `Updated: ${modifiedLabel}`}</Text>
+        <Text
+          style={styles.sessionMeta}
+          testID={`session-meta-${s.session_id}`}
+        >
+          {metaText || `Updated: ${modifiedLabel}`}
+        </Text>
         {hasAnyActions && (
           <View style={styles.sessionActionsRow}>
-            <SessionActionsBar
+            <SessionListActionsBar
+              session={s}
+              pluginActions={actions}
               renderIcon={({ name, size, color }) => (
                 <Icon name={name} size={size} color={color} />
               )}
@@ -616,11 +777,23 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
               }
               pinned={pinnedSessionActions}
               onChangePinned={setPinnedSessionActions}
-              onAction={handleRowAction}
-              extraActions={pluginSessionActionDefs}
               availableActions={BUILTIN_SESSION_LIST_ACTIONS}
               isActive={isActive}
+              menuButtonTestID={`session-actions-menu-${s.session_id}`}
               modalContentStyle={styles.sessionActionsModalContent}
+              isActionDisabled={() => !backend || actionLoading}
+              onBaseAction={(key) =>
+                handleBuiltinSessionAction(key as SessionActionKey, s)
+              }
+              onExecuteAction={(element, dialogValues) =>
+                executePluginAction(element, {
+                  sessionId: s.session_id,
+                  sessionSummary: s,
+                  dialogValues,
+                })
+              }
+              onFallbackAction={(element) => openPluginDialogForElement(element, s)}
+              onPresentRichList={(element) => presentRichList(element, s)}
             />
           </View>
         )}
@@ -632,32 +805,112 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <View style={styles.headerButtons}>
-          <TouchableOpacity
-            accessibilityLabel="Open server settings"
-            style={[styles.iconHeaderButton, styles.secondaryButton]}
-            onPress={() => setServerSettingsVisible(true)}
-            disabled={!backend}
-          >
-            <Icon name="settings" size={18} color={theme.text} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={loadSessions}>
-            <Text style={styles.buttonTextSecondary}>Reload</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.button, styles.primaryButton]} onPress={handleNewSession}>
-            <Text style={styles.buttonText}>New Session</Text>
-          </TouchableOpacity>
+          <ActionsMenuBar<SessionsHeaderActionDefinition>
+            title="Sessions actions"
+            baseActions={sessionsHeaderActionDefinitions}
+            pinned={pinnedHeaderActions}
+            onChangePinned={setPinnedHeaderActions}
+            isActive={isActive}
+            renderIcon={({ name, size, color }) => (
+              <Icon name={name} size={size} color={color} />
+            )}
+            renderPinIcon={({ size, color }) => (
+              <Icon name="star" size={size} color={color} />
+            )}
+            menuButtonTestID="sessions-actions-menu"
+            isActionDisabled={(key) =>
+              !backend ||
+              actionLoading ||
+              (key === 'refreshSessions' && loading) ||
+              (key === 'newSession' && agentsLoading)
+            }
+            onAction={(key) => {
+              if (key === 'serverSettings') {
+                setServerSettingsVisible(true);
+                return;
+              }
+              if (key === 'refreshSessions') {
+                void loadSessions();
+                return;
+              }
+              if (key === 'newSession') {
+                void handleNewSession();
+                return;
+              }
+              const element = sessionsHeaderActionDefinitions.find(
+                (item) => item.key === key,
+              )?.element;
+              if (!element) return;
+              if ((element.dialog?.kind ?? 'none') === 'none') {
+                void executePluginAction(element, {
+                  connectionId: connectionId ?? undefined,
+                });
+              } else {
+                setActiveApplicationAction(element);
+              }
+            }}
+          />
         </View>
       </View>
 
-      <TextInput
-        style={styles.input}
-        placeholder="Filter by id or preview"
-        placeholderTextColor={theme.textSecondary}
-        value={filterText}
-        onChangeText={setFilterText}
-        autoCapitalize="none"
-        autoCorrect={false}
+      <View style={styles.filterControlsRow} testID="sessions-search-filter-row">
+        <TextInput
+          testID="session-main-search"
+          accessibilityLabel={mainSearch.label}
+          style={styles.input}
+          placeholder={mainSearch.label}
+          placeholderTextColor={theme.textSecondary}
+          value={searchText}
+          onChangeText={setSearchText}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        {nonMainFilters.length > 0 ? (
+          <TouchableOpacity
+            testID="session-filters-open"
+            accessibilityLabel="Open session filters"
+            style={[
+              styles.filterButton,
+              activeNonMainFilterCount > 0
+                ? styles.filterButtonActive
+                : null,
+            ]}
+            onPress={() => setFiltersVisible(true)}
+          >
+            <Icon
+              name="filter"
+              size={18}
+              color={
+                activeNonMainFilterCount > 0
+                  ? theme.primary
+                  : theme.textSecondary
+              }
+            />
+            {activeNonMainFilterCount > 0 ? (
+              <Text
+                testID="session-filters-active-count"
+                style={styles.filterCount}
+              >
+                {activeNonMainFilterCount}
+              </Text>
+            ) : null}
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
+      <MobileDisplayHost
+        scope="connection"
+        testID="sessions-notification-banner-rail"
       />
+
+      {sessionListFilterSchema.mainSearchConflict ? (
+        <Text
+          testID="session-filter-schema-warning"
+          style={styles.filterWarning}
+        >
+          Multiple plugins declare the main session search. Using fallback search.
+        </Text>
+      ) : null}
 
       {loading && (
         <View style={styles.loadingContainer}>
@@ -671,7 +924,13 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
       )}
 
       {!loading && filteredSessions.length === 0 && !error && (
-        <Text style={styles.emptyText}>No sessions found. Create one to get started.</Text>
+        <Text style={styles.emptyText}>
+          {sessions.length === 0
+            ? 'No sessions found. Create one to get started.'
+            : hasActiveFilters
+              ? 'No sessions match the active search or filters.'
+              : 'No sessions match the current filter defaults.'}
+        </Text>
       )}
 
       <FlatList
@@ -680,6 +939,59 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         keyExtractor={(item) => item.session_id}
         renderItem={({ item }) => renderSessionItem(item)}
       />
+
+      <Modal
+        visible={filtersVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFiltersVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.filtersModalContent}>
+            <SessionListFiltersPanel
+              schema={effectiveFilterSchema}
+              values={sessionFilterValues}
+              onChange={setFilterValue}
+              onReset={resetSessionFilters}
+              onShowAll={showAllSessions}
+              onRequestClose={() => setFiltersVisible(false)}
+              renderIcon={({ name, size, color }) => (
+                <Icon name={name} size={size} color={color} />
+              )}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={activeRichList !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveRichList(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.richListModalContent}>
+            {activeRichList ? (
+              <SessionListRichActionList
+                element={activeRichList.element}
+                session={activeRichList.session}
+                testIDPrefix={`session-rich-list-${activeRichList.session.session_id}-${activeRichList.element.id}`}
+                onRequestClose={() => setActiveRichList(null)}
+                onExecuteAction={(dialogValues) =>
+                  executePluginAction(activeRichList.element, {
+                    sessionId: activeRichList.session.session_id,
+                    sessionSummary: activeRichList.session,
+                    dialogValues,
+                  })
+                }
+                renderIcon={({ name, size, color }) => (
+                  <Icon name={name} size={size} color={color} />
+                )}
+              />
+            ) : null}
+          </View>
+        </View>
+      </Modal>
 
 	  {agentPickerVisible && (
 	    <Modal
@@ -746,6 +1058,24 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
 	  )}
 
       <ApplicationActionDialog
+        visible={activeApplicationAction !== null}
+        dialog={activeApplicationAction?.dialog ?? null}
+        titleFallback={activeApplicationAction?.label}
+        fieldRenderers={actionDialogFieldRenderers}
+        onSubmit={(dialogValues) => {
+          const element = activeApplicationAction;
+          setActiveApplicationAction(null);
+          if (element) {
+            void executePluginAction(element, {
+              connectionId: connectionId ?? undefined,
+              dialogValues,
+            });
+          }
+        }}
+        onCancel={() => setActiveApplicationAction(null)}
+      />
+
+      <ApplicationActionDialog
         visible={!!activePluginDialogElement}
         dialog={(activePluginDialogElement as any)?.dialog || null}
         titleFallback={activePluginDialogElement?.label}
@@ -765,7 +1095,10 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
           onDismiss={() =>
             setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
           }
-          onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
+          onFollowupAction={(action, formValues) =>
+            handleDisplayFollowupAction(entry, action, formValues)
+          }
+          fieldRenderers={actionDialogFieldRenderers}
         />
       ))}
 
@@ -774,10 +1107,11 @@ const SessionsScreen: React.FC<SessionsScreenProps> = ({
         display={actionResultDisplay?.display ?? null}
         activeActionId={activeDisplayActionId}
         onRequestClose={() => setActionResultDisplay(null)}
-        onFollowupAction={(action) => {
+        onFollowupAction={(action, formValues) => {
           if (!actionResultDisplay) return;
-          handleDisplayFollowupAction(actionResultDisplay, action);
+          handleDisplayFollowupAction(actionResultDisplay, action, formValues);
         }}
+        fieldRenderers={actionDialogFieldRenderers}
       />
 
       {settingsSessionId && (
@@ -866,14 +1200,47 @@ const createStyles = (theme: Theme) =>
       fontWeight: '600',
     },
     input: {
+      flex: 1,
       backgroundColor: theme.surface,
       borderWidth: 1,
       borderColor: theme.border,
       borderRadius: 8,
       padding: 10,
-      marginBottom: 12,
       fontSize: 14,
       color: theme.text,
+    },
+    filterControlsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 12,
+    },
+    filterButton: {
+      width: 42,
+      height: 42,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      backgroundColor: theme.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterButtonActive: {
+      borderColor: theme.primary,
+      backgroundColor: theme.primaryMuted,
+    },
+    filterCount: {
+      position: 'absolute',
+      right: 3,
+      top: 1,
+      color: theme.primary,
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    filterWarning: {
+      color: theme.danger,
+      fontSize: 12,
+      marginBottom: 8,
     },
     loadingContainer: {
       flexDirection: 'row',
@@ -914,6 +1281,12 @@ const createStyles = (theme: Theme) =>
     sessionHeaderTextColumn: {
       flex: 1,
       paddingRight: 8,
+    },
+    sessionHeaderLeadingAction: {
+      marginRight: 4,
+    },
+    sessionHeaderTrailingAction: {
+      marginLeft: 4,
     },
     sessionTitle: {
       fontSize: 16,
@@ -970,6 +1343,20 @@ const createStyles = (theme: Theme) =>
       backgroundColor: theme.surface,
       borderRadius: 12,
       padding: 16,
+    },
+    filtersModalContent: {
+      width: '90%',
+      maxHeight: '80%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+    },
+    richListModalContent: {
+      width: '82%',
+      height: '55%',
+      maxHeight: '70%',
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      overflow: 'hidden',
     },
     modalTitle: {
       fontSize: 18,

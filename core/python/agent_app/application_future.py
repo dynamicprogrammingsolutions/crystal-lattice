@@ -32,6 +32,11 @@ from agent_core.plugin.loader import validate_plugin_for_kind
 from .app_context import ApplicationContext
 
 from .app_plugins import ApplicationPluginWrapper
+from .application_notifications import (
+    ApplicationNotificationMutation,
+    ApplicationNotificationStore,
+)
+from .application_owner import ApplicationControl
 from .config import (
     build_config_resolution_env,
     build_runtime_overlay_env,
@@ -43,6 +48,11 @@ from .config import (
 )
 from .events import EventStore, InMemoryEventStore
 from .session_assets import FilesystemSessionAssetStore
+from .session_listing import SessionListFilterEvaluator, SessionListService
+from .session_filters import (
+    SessionListFilterEngine,
+    coerce_session_list_filter_input,
+)
 from .sessions import (
     FilesystemSessionStore,
     NullSnapshotSelectionStore,
@@ -54,6 +64,13 @@ from .tool_loop import RequestCancellation, ToolLoopRunner, ToolLoopCheckpointEr
 from agent_core.utils import get_logger
 from .plugin_manager import PluginManager
 from .runtime_env import RuntimeEnvOverlay
+from .notifications import SessionNotifications
+from .operations import get_application_operation_service
+from .request_execution import (
+    SessionRequestCoordinator,
+    SessionRequestResult,
+    SessionRequestStart,
+)
 import weakref
 
 
@@ -323,12 +340,17 @@ class AgentApplication:
         session_root: str | Path,
         core_factory: Callable[[], AgentCore] = AgentCore,
         event_store: Optional[EventStore] = None,
+        application_notification_store: ApplicationNotificationStore | None = None,
         snapshot_selection_store: SnapshotSelectionStore | None = None,
         env_overrides: Mapping[str, str] | None = None,
         config_env: Mapping[str, str] | None = None,
+        replay_server_settings_on_startup: bool = True,
+        application_control: ApplicationControl | None = None,
+        notification_owner_epoch: str | None = None,
     ) -> None:
         logger = get_logger("AgentApplication")
         self._logger = logger
+        self._closed = False
         # Core factory is stored so that per-session cores can be created
         # without sharing wrapper/runtime state across requests. Model
         # discovery cache is intentionally shared at the application scope.
@@ -338,6 +360,22 @@ class AgentApplication:
             self._model_cache,
         )
         self._event_store: EventStore = event_store or InMemoryEventStore()
+        self._application_notification_store = application_notification_store
+        self._application_control = application_control
+        store_owner_epoch = getattr(
+            application_notification_store,
+            "owner_epoch",
+            None,
+        )
+        self._notification_owner_epoch = (
+            notification_owner_epoch
+            if isinstance(notification_owner_epoch, str) and notification_owner_epoch
+            else (
+                store_owner_epoch
+                if isinstance(store_owner_epoch, str) and store_owner_epoch
+                else f"owner_{uuid.uuid4().hex}"
+            )
+        )
         self._non_streaming_provider_classes: Set[type[Any]] = set()
         self._provider_capability_lock = threading.Lock()
 
@@ -528,6 +566,9 @@ class AgentApplication:
         self._server_settings_lock = threading.RLock()
         self._runtime_store = RuntimeStore()
         self._runtime_store.set("agent_core.model_discovery_cache", self._model_cache)
+        self._application_operations = get_application_operation_service(
+            self._runtime_store
+        )
         self._tool_runtime = self._runtime_store
         self._context = ApplicationContext(
             app=self,
@@ -537,10 +578,54 @@ class AgentApplication:
             runtime_store=self._runtime_store,
             tool_runtime=self._runtime_store,
         )
+        self._session_notifications = SessionNotifications(self)
+        application_ref = weakref.ref(self)
+
+        def _require_application() -> "AgentApplication":
+            application = application_ref()
+            if application is None:
+                raise RuntimeError("AgentApplication is no longer available")
+            return application
+
+        def _list_session_actions() -> List[Dict[str, Any]]:
+            return _require_application().get_application_actions()
+
+        def _list_session_ui_elements() -> List[Dict[str, Any]]:
+            return _require_application().get_application_ui_schema()
+
+        def _execute_session_list_action(
+            plugin_id: str,
+            action_id: str,
+            params: Dict[str, Any],
+            context: Optional[Dict[str, Any]],
+        ) -> Dict[str, Any]:
+            return _require_application().execute_application_action(
+                plugin_id,
+                action_id,
+                params,
+                context=context,
+            )
+
+        self._session_list_filter_engine = SessionListFilterEngine()
+        self._session_list_service = SessionListService(
+            store=self._session_store,
+            list_actions=_list_session_actions,
+            list_ui_elements=_list_session_ui_elements,
+            execute_action=_execute_session_list_action,
+            logger=self._logger,
+            filter_evaluator=self._session_list_filter_engine,
+        )
         self._async_runtime_host = AsyncRuntimeHost()
         self._tool_loop_cfg = _ToolLoopConfig()
         self._cancelled_requests: set[str] = set()
         self._request_cancellations: Dict[str, RequestCancellation] = {}
+        self._session_request_coordinator = SessionRequestCoordinator(
+            app=self,
+            application_control=self._application_control,
+            operations=self._application_operations,
+            new_request_id=self._new_request_id,
+            logger=self._logger,
+        )
 
         # Event compaction controls. These are primarily intended for
         # debugging and tests; in normal operation they remain enabled
@@ -641,7 +726,8 @@ class AgentApplication:
             self._agent_plugin_ids[agent_id] = runtime.default_enabled_ids
 
         self._raise_for_fatal_config_errors()
-        self._replay_server_settings_on_startup()
+        if replay_server_settings_on_startup:
+            self._replay_server_settings_on_startup()
 
     # ------------------------------------------------------------------
     # Helper methods (kept in the same order as application.AgentApplication)
@@ -1501,7 +1587,7 @@ class AgentApplication:
             current_session,
             effective_config,
             lifecycle,
-            context=self._context.build_core_handoff_context(
+            context=self.build_core_handoff_context(
                 base_config=self._config,
                 extra=context,
             ),
@@ -2158,6 +2244,11 @@ class AgentApplication:
     def close(self) -> None:
         """Release plugin and process-global runtime resources owned by this app."""
 
+        if self._closed:
+            return
+        self._closed = True
+        self._session_request_coordinator.close()
+
         for wrapper in list(self._app_plugins.values()):
             try:
                 wrapper.close()
@@ -2171,6 +2262,314 @@ class AgentApplication:
         self._async_runtime_host.close()
         if self._runtime_env_finalizer.alive:
             self._runtime_env_finalizer()
+
+    def request_application_reload(
+        self,
+        *,
+        reason: str = "application_action",
+        on_failure: Callable[[], None] | None = None,
+    ) -> Dict[str, Any]:
+        if self._application_control is None:
+            raise RuntimeError("Application reload is not managed by an owner")
+        return self._application_control.request_reload(
+            reason=reason,
+            on_failure=on_failure,
+        )
+
+    def create_session_notification(
+        self,
+        session_id: str,
+        notification: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.create(
+            session_id, notification, request_id=request_id
+        )
+
+    def update_session_notification(
+        self,
+        session_id: str,
+        notification_id: str,
+        patch: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.update(
+            session_id,
+            notification_id,
+            patch,
+            request_id=request_id,
+            expected_revision=expected_revision,
+        )
+
+    def update_session_notification_by_key(
+        self,
+        session_id: str,
+        key: str,
+        patch: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.update_by_key(
+            session_id,
+            key,
+            patch,
+            request_id=request_id,
+            expected_revision=expected_revision,
+        )
+
+    def resolve_session_notification(
+        self,
+        session_id: str,
+        notification_id: str,
+        resolution: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.resolve(
+            session_id,
+            notification_id,
+            resolution,
+            request_id=request_id,
+            expected_revision=expected_revision,
+        )
+
+    def dismiss_session_notification(
+        self,
+        session_id: str,
+        notification_id: str,
+        *,
+        reason: str | None = None,
+        request_id: str | None = None,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.dismiss(
+            session_id,
+            notification_id,
+            reason=reason,
+            request_id=request_id,
+            expected_revision=expected_revision,
+        )
+
+    def expire_session_notification(
+        self,
+        session_id: str,
+        notification_id: str,
+        *,
+        reason: str = "expired",
+        request_id: str | None = None,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        return self._session_notifications.expire(
+            session_id,
+            notification_id,
+            reason=reason,
+            request_id=request_id,
+            expected_revision=expected_revision,
+        )
+
+    def list_session_notifications(
+        self,
+        session_id: str,
+        *,
+        include_resolved: bool = False,
+        include_terminal: bool | None = None,
+    ) -> list[Dict[str, Any]]:
+        return self._session_notifications.list(
+            session_id,
+            include_resolved=include_resolved,
+            include_terminal=include_terminal,
+        )
+
+    def create_application_notification(
+        self,
+        notification: Dict[str, Any],
+        *,
+        request_id: str | None = None,
+    ) -> Dict[str, Any]:
+        store = self._require_application_notification_store()
+        prepared_notification = notification
+        retention = notification.get("retention")
+        if (
+            isinstance(retention, dict)
+            and retention.get("policy") == "until_server_restart"
+            and not retention.get("owner_epoch")
+        ):
+            prepared_notification = {
+                **notification,
+                "retention": {
+                    **retention,
+                    "owner_epoch": self._notification_owner_epoch,
+                },
+            }
+        return self._complete_application_notification_mutation(
+            store.create(
+                prepared_notification,
+                request_id=request_id,
+                history_limit=self._notification_history_limit(),
+            )
+        )
+
+    def update_application_notification(
+        self,
+        notification_id: str,
+        patch: Dict[str, Any],
+        *,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        store = self._require_application_notification_store()
+        return self._complete_application_notification_mutation(
+            store.update(
+                notification_id,
+                patch,
+                expected_revision=expected_revision,
+                history_limit=self._notification_history_limit(),
+            )
+        )
+
+    def resolve_application_notification(
+        self,
+        notification_id: str,
+        resolution: Dict[str, Any] | None = None,
+        *,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        store = self._require_application_notification_store()
+        return self._complete_application_notification_mutation(
+            store.resolve(
+                notification_id,
+                resolution or {},
+                expected_revision=expected_revision,
+                history_limit=self._notification_history_limit(),
+            )
+        )
+
+    def dismiss_application_notification(
+        self,
+        notification_id: str,
+        *,
+        reason: str | None = None,
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        store = self._require_application_notification_store()
+        return self._complete_application_notification_mutation(
+            store.dismiss(
+                notification_id,
+                reason=reason,
+                expected_revision=expected_revision,
+                history_limit=self._notification_history_limit(),
+            )
+        )
+
+    def expire_application_notification(
+        self,
+        notification_id: str,
+        *,
+        reason: str = "expired",
+        expected_revision: int | str | None = None,
+    ) -> Dict[str, Any]:
+        store = self._require_application_notification_store()
+        return self._complete_application_notification_mutation(
+            store.expire(
+                notification_id,
+                reason=reason,
+                expected_revision=expected_revision,
+                history_limit=self._notification_history_limit(),
+            )
+        )
+
+    def list_application_notifications(
+        self,
+        *,
+        include_terminal: bool = True,
+    ) -> list[Dict[str, Any]]:
+        return self._require_application_notification_store().list(
+            include_terminal=include_terminal
+        )
+
+    def recover_session_notification_owner_lifetime(
+        self,
+        session_id: str,
+    ) -> list[Dict[str, Any]]:
+        return self._session_notifications.recover_owner_lifetime(session_id)
+
+    def _notification_history_limit(self) -> int:
+        application = self.get_application_config()
+        notifications = (
+            application.get("notifications") if isinstance(application, dict) else None
+        )
+        if not isinstance(notifications, dict):
+            return 500
+        value = notifications.get(
+            "history_limit",
+            notifications.get("max_items", 500),
+        )
+        return (
+            value
+            if isinstance(value, int) and not isinstance(value, bool) and value > 0
+            else 500
+        )
+
+    def _expire_request_notifications(
+        self,
+        session_id: str,
+        request_id: str,
+    ) -> None:
+        try:
+            self._session_notifications.expire_request(session_id, request_id)
+        except Exception as exc:
+            self._logger.warning(
+                "session_request_notification_expiration_failed",
+                session_id=session_id,
+                request_id=request_id,
+                error=str(exc),
+            )
+        try:
+            mutations = self._require_application_notification_store().expire_request(
+                request_id,
+                history_limit=self._notification_history_limit(),
+            )
+        except Exception as exc:
+            self._logger.warning(
+                "application_request_notification_expiration_failed",
+                request_id=request_id,
+                error=str(exc),
+            )
+            return
+        for mutation in mutations:
+            self._complete_application_notification_mutation(mutation)
+
+    def _require_application_notification_store(
+        self,
+    ) -> ApplicationNotificationStore:
+        store = self._application_notification_store
+        if store is None:
+            raise RuntimeError(
+                "Application notifications require an injected notification store"
+            )
+        return store
+
+    def _complete_application_notification_mutation(
+        self,
+        mutation: ApplicationNotificationMutation,
+    ) -> Dict[str, Any]:
+        if mutation.event_type is not None:
+            try:
+                self._event_store.publish(
+                    {
+                        "type": mutation.event_type,
+                        "notification": mutation.notification,
+                    }
+                )
+            except Exception:
+                # Durable state remains authoritative when best-effort event
+                # publication is unavailable.
+                pass
+        return mutation.notification
 
     def cancel_request(self, request_id: str) -> None:
         """Request cooperative cancellation for an in-flight request.
@@ -2188,6 +2587,68 @@ class AgentApplication:
         cancellation = self._request_cancellations.get(request_id)
         if cancellation is not None:
             cancellation.cancel()
+
+    def start_session_request(
+        self,
+        session_id: str,
+        overrides: Optional[Dict[str, Any]] = None,
+        *,
+        stream: bool = True,
+    ) -> SessionRequestStart:
+        """Start a coordinated request without appending a message."""
+
+        return self._session_request_coordinator.start(
+            session_id,
+            overrides,
+            stream=stream,
+        )
+
+    def start_session_request_with_message(
+        self,
+        session_id: str,
+        *,
+        role: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        multipart_content: Optional[List[Dict[str, Any]]] = None,
+        overrides: Optional[Dict[str, Any]] = None,
+        stream: bool = True,
+    ) -> SessionRequestStart:
+        """Atomically append one message and start a coordinated request."""
+
+        return self._session_request_coordinator.start(
+            session_id,
+            overrides,
+            stream=stream,
+            message={
+                "role": role,
+                "content": content,
+                "metadata": metadata,
+                "multipart_content": multipart_content,
+            },
+        )
+
+    def run_session_request(
+        self,
+        session_id: str,
+        overrides: Optional[Dict[str, Any]] = None,
+        *,
+        stream: bool = True,
+        on_checkpoint: Callable[[Session], None] | None = None,
+    ) -> SessionRequestResult:
+        """Run a coordinated request synchronously."""
+
+        return self._session_request_coordinator.run(
+            session_id,
+            overrides,
+            stream=stream,
+            on_checkpoint=on_checkpoint,
+        )
+
+    def get_active_session_request_id(self, session_id: str) -> str | None:
+        """Return the active coordinated request id for one session."""
+
+        return self._session_request_coordinator.get_active_request_id(session_id)
 
     def list_agents(self) -> List[str]:
         """Return the configured agent identifiers.
@@ -2329,6 +2790,7 @@ class AgentApplication:
             config=safe_config,
             tags=safe_tags,
             models=safe_models,
+            server_settings=self.get_server_settings(),
             extra=context,
         )
 
@@ -2402,7 +2864,9 @@ class AgentApplication:
                 },
             )
         except Exception as exc:  # pragma: no cover - defensive
-            self._logger.exception("error getting application_ui_schema", error=str(exc))
+            self._logger.exception(
+                "error getting application_ui_schema", error=str(exc)
+            )
             elements = []
 
         if plugin:
@@ -2871,8 +3335,9 @@ class AgentApplication:
                 plugin_id,
                 action_id,
                 action_params,
-                context=self._context.build_core_handoff_context(
+                context=self.build_core_handoff_context(
                     base_config=base_config,
+                    config=effective_config,
                     extra=context,
                 ),
             )
@@ -2947,6 +3412,7 @@ class AgentApplication:
         )
 
         if candidate.action_owner == "application":
+            context = self._session_scoped_application_action_context(context)
             result = self.execute_application_action(
                 candidate.plugin_id,
                 candidate.action_id,
@@ -2987,6 +3453,41 @@ class AgentApplication:
             context=context,
         ).result
 
+    def _session_scoped_application_action_context(
+        self,
+        context: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        if not isinstance(context, dict):
+            return context
+        session_id = context.get("session_id")
+        if not isinstance(session_id, str) or not session_id:
+            if isinstance(context.get("config"), dict):
+                return context
+            if isinstance(context.get("base_config"), dict):
+                return {**context, "config": dict(context["base_config"])}
+            return context
+        loaded = self.load_session(session_id)
+        if loaded is None:
+            if isinstance(context.get("config"), dict):
+                return context
+            if isinstance(context.get("base_config"), dict):
+                return {**context, "config": dict(context["base_config"])}
+            return context
+        _core, base_config, session = loaded
+        metadata = session.metadata if isinstance(session.metadata, dict) else {}
+        overrides = metadata.get("overrides")
+        if not isinstance(overrides, dict):
+            overrides = {}
+        effective_config = self.resolve_effective_config(
+            base_config, session, overrides
+        )
+        return self._context.build_session_action_context(
+            session=session,
+            base_config=base_config,
+            config=effective_config,
+            extra=context,
+        )
+
     def load_session(
         self,
         session_id: str,
@@ -3010,6 +3511,65 @@ class AgentApplication:
             session, overrides
         )
         return core, base_cfg, session
+
+    def list_session_summaries(
+        self,
+        *,
+        filter_values: Optional[Dict[str, object]] = None,
+        apply_filter_defaults: bool = False,
+        limit: Optional[int] = None,
+    ) -> List[Dict[str, Any]]:
+        """Return shared ordered summaries for all live stored sessions."""
+
+        return self._session_list_service.list_session_summaries(
+            filter_values=filter_values,
+            apply_filter_defaults=apply_filter_defaults,
+            limit=limit,
+        )
+
+    def get_session_summary(self, session_id: str) -> Dict[str, Any]:
+        """Return the shared unfiltered summary for one exact session id."""
+
+        self.recover_session_notification_owner_lifetime(session_id)
+        return self._session_list_service.get_session_summary(session_id)
+
+    def get_session_list_diagnostics(self) -> List[Dict[str, Any]]:
+        """Return structured nonfatal diagnostics from the latest list query."""
+
+        return self._session_list_service.get_last_diagnostics()
+
+    def get_session_list_filter_schema(self) -> Dict[str, Any]:
+        """Return the normalized declarative session-list filter schema."""
+
+        return self._session_list_filter_engine.schema(
+            self.get_application_ui_schema()
+        ).to_dict()
+
+    def coerce_session_list_filter_input(
+        self,
+        filter_id: str,
+        raw_value: str | Sequence[str],
+    ) -> object:
+        """Coerce terminal-style input using the current filter declaration."""
+
+        schema = self._session_list_filter_engine.schema(
+            self.get_application_ui_schema()
+        )
+        declaration = next(
+            (item for item in schema.filters if item.element_id == filter_id),
+            None,
+        )
+        if declaration is None:
+            raise KeyError(f"Unknown session-list filter {filter_id!r}")
+        return coerce_session_list_filter_input(declaration, raw_value)
+
+    def set_session_list_filter_evaluator(
+        self,
+        evaluator: SessionListFilterEvaluator,
+    ) -> None:
+        """Install the in-process filter evaluator used by terminal queries."""
+
+        self._session_list_service.set_filter_evaluator(evaluator)
 
     def load_session_record(self, session_id: str) -> Optional[Session]:
         """Load a session from the underlying store.
@@ -3099,6 +3659,21 @@ class AgentApplication:
     def get_session_asset_store(self) -> FilesystemSessionAssetStore:
         return self._session_asset_store
 
+    def build_core_handoff_context(
+        self,
+        *,
+        base_config: Mapping[str, Any],
+        config: Optional[Mapping[str, Any]] = None,
+        extra: Optional[Mapping[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Build application-owned context for a direct AgentCore handoff."""
+
+        return self._context.build_core_handoff_context(
+            base_config=base_config,
+            config=config,
+            extra=extra,
+        )
+
     def get_runtime_state_root(self) -> Path:
         return self._runtime_state_root
 
@@ -3126,6 +3701,7 @@ class AgentApplication:
 
     def _save_session_low_level(self, session: Session) -> Session:
         self._session_store.save(session)
+        self._session_list_service.invalidate(session.session_id)
         return self.load_session_record(session.session_id) or session
 
     def save_session(
@@ -3181,6 +3757,7 @@ class AgentApplication:
                 context={"session_id": session_id},
             )
         self._session_store.delete(session_id)
+        self._session_list_service.invalidate(session_id)
 
     def create_session(
         self, agent_id: str
@@ -3401,6 +3978,7 @@ class AgentApplication:
                 session=session,
                 request_id=rid,
                 base_config=base_config,
+                config=config,
             ),
         )
         return core, base_config, session, config, rid
@@ -3437,6 +4015,7 @@ class AgentApplication:
                 session=session,
                 request_id=rid,
                 base_config=base_config,
+                config=config,
             ),
         )
         return core, base_config, session, config, rid
@@ -3500,6 +4079,7 @@ class AgentApplication:
                 "request_id": rid,
                 "detail": exc.detail,
             }
+            self._expire_request_notifications(session.session_id, rid)
             yield {
                 "type": "request_completed",
                 "session_id": session.session_id,
@@ -3539,8 +4119,30 @@ class AgentApplication:
             session=session,
             request_id=rid,
             base_config=base_config,
+            config=config,
         )
-        core.prepare_tools(config, context=tool_context)
+        try:
+            core.prepare_tools(config, context=tool_context)
+        except (
+            Exception,
+            asyncio.CancelledError,
+            concurrent.futures.CancelledError,
+        ) as exc:
+            detail = str(exc) or type(exc).__name__
+            yield {
+                "type": "error",
+                "session_id": session.session_id,
+                "request_id": rid,
+                "detail": f"Tool preparation failed: {detail}",
+            }
+            self._expire_request_notifications(session.session_id, rid)
+            yield {
+                "type": "request_completed",
+                "session_id": session.session_id,
+                "request_id": rid,
+            }
+            self.record_checkpoint(session.session_id, None)
+            return
 
         cancellation = RequestCancellation(cancelled=rid in self._cancelled_requests)
         self._request_cancellations[rid] = cancellation
@@ -3559,6 +4161,7 @@ class AgentApplication:
                         session=current_session,
                         request_id=rid,
                         base_config=base_config,
+                        config=refreshed,
                     ),
                     "cancellation": cancellation,
                 },
@@ -3740,6 +4343,10 @@ class AgentApplication:
                                             "request_id": rid,
                                             "session": latest_session,
                                         }
+                            self._expire_request_notifications(
+                                latest_session.session_id,
+                                rid,
+                            )
                             yield event
                             self.record_checkpoint(latest_session.session_id, None)
                             continue

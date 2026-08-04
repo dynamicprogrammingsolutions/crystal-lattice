@@ -11,9 +11,7 @@ import {
 } from 'react-native';
 import type { AgentBackend } from '@crystal-lattice/frontend-sdk';
 import {
-  buildConfigSchemaByKey,
-  buildSessionSettingItems,
-  useServerSettingsController,
+  useServerSettingsForm,
 } from '@crystal-lattice/frontend-sdk-react';
 import Icon from 'react-native-vector-icons/Feather';
 
@@ -54,24 +52,11 @@ const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
   const [pendingTextByKey, setPendingTextByKey] = useState<Record<string, string>>({});
 
-  const { controller, state } = useServerSettingsController({
+  const { controller, state, items, savingKeys: savingKeySet } = useServerSettingsForm({
     backend,
     cacheKey,
     enabled: visible,
   });
-
-  const schemaByKey = useMemo(() => buildConfigSchemaByKey([]), []);
-  const items = useMemo(
-    () =>
-      buildSessionSettingItems({
-        elements: state?.elements || [],
-        overrides: state?.settings || {},
-        baseConfig: state?.baseConfig || {},
-        schemaByKey,
-      }),
-    [schemaByKey, state?.baseConfig, state?.elements, state?.settings],
-  );
-  const savingKeySet = useMemo(() => new Set(state?.savingKeys || []), [state?.savingKeys]);
 
   useEffect(() => {
     if (!visible) {

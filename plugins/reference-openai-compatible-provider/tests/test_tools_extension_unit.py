@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from agent_core.tool_interop import ToolInteropRegistry, ToolInteropTarget
 
+from reference_openai_compatible_provider.provider import OpenAICompatibleProvider
 from reference_openai_compatible_provider.tools_extension import (
     OpenAICompatibleToolsExtension,
 )
@@ -135,3 +136,77 @@ def test_finalize_uses_tool_interop_context_for_sanitization() -> None:
     )
 
     assert new_state["accumulator"]["tool_calls"][0]["payload"] == "sanitized"
+
+
+def test_round_trip_preserves_display_and_namespaced_metadata_on_tool_messages() -> (
+    None
+):
+    """``display`` and namespaced tool metadata (e.g. ``bash.end_cwd``) must
+    survive a provider + tools-extension round-trip on tool-result messages.
+
+    The provider pops ``display`` from the generic ``_metadata`` carry, so the
+    tools extension must re-add it. Namespaced keys like ``bash.end_cwd`` are
+    not in the provider's pop-list and ride through automatically."""
+    provider = OpenAICompatibleProvider()
+    state = provider.init({"model": "test-model"})
+    ext = OpenAICompatibleToolsExtension()
+
+    display_payload = {"type": "text", "content": "Bash command", "single_line": True}
+    core_messages = [
+        {
+            "role": "assistant",
+            "content": "",
+            "metadata": {
+                "tool_calls": [
+                    {
+                        "id": "call_bash_1",
+                        "type": "function",
+                        "function": {
+                            "name": "Bash",
+                            "arguments": '{"command":"pwd"}',
+                        },
+                    }
+                ],
+            },
+        },
+        {
+            "role": "tool",
+            "content": "/workspace",
+            "metadata": {
+                "tool_call_id": "call_bash_1",
+                "tool_name": "Bash",
+                "tool_plugin": "claude_bash_tool",
+                "display": display_payload,
+                "bash": {"end_cwd": "."},
+            },
+        },
+    ]
+
+    native_from_provider = provider.to_native_messages(core_messages, state)
+    native_with_tools = ext.to_native_messages(core_messages, native_from_provider)
+
+    tool_native = next(
+        item
+        for item in native_with_tools
+        if isinstance(item, dict) and item.get("role") == "tool"
+    )
+    internal_md = tool_native.get("_metadata") or {}
+    assert internal_md.get("display") == display_payload
+    assert internal_md.get("tool_name") == "Bash"
+    assert internal_md.get("tool_plugin") == "claude_bash_tool"
+    assert internal_md.get("bash") == {"end_cwd": "."}
+
+    core_from_provider = provider.from_native_messages(native_with_tools, state)
+    rebuilt_core = ext.from_native_messages(native_with_tools, core_from_provider)
+
+    tool_message = next(
+        msg
+        for msg in rebuilt_core
+        if isinstance(msg, dict) and msg.get("role") == "tool"
+    )
+    metadata = tool_message.get("metadata") or {}
+    assert metadata.get("tool_call_id") == "call_bash_1"
+    assert metadata.get("display") == display_payload
+    assert metadata.get("tool_name") == "Bash"
+    assert metadata.get("tool_plugin") == "claude_bash_tool"
+    assert metadata.get("bash") == {"end_cwd": "."}

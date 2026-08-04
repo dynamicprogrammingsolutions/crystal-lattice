@@ -30,6 +30,12 @@ export type {
 export { useSessionsController } from './useSessionsController';
 
 export type {
+  UseSessionListFiltersOptions,
+  UseSessionListFiltersResult,
+} from './useSessionListFilters';
+export { useSessionListFilters } from './useSessionListFilters';
+
+export type {
   UseSessionContextControllerOptions,
   UseSessionContextControllerResult,
 } from './useSessionContextController';
@@ -81,6 +87,7 @@ export type {
   UseServerSettingsControllerResult,
 } from './useServerSettingsController';
 export { useServerSettingsController } from './useServerSettingsController';
+export { useServerSettingsForm } from './useServerSettingsForm';
 
 export type {
   SessionPluginsState,

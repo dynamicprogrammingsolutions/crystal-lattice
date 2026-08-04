@@ -172,7 +172,7 @@ def test_server_and_terminal_list_js_fs_tools_and_can_execute(
         "allowed_paths": [str(tmp_path)],
         "working_directory": str(tmp_path),
     }
-    server_mod._run_send_request_background(app, session_id, overrides)
+    app.run_session_request(session_id, overrides)
 
     stored_events = (
         app.get_event_store().list(session_id=session_id, limit=5000).get("events")

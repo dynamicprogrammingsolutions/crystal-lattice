@@ -10,6 +10,7 @@ import type {
   ActionDisplayFollowupAction,
   ActionDisplayPayload,
 } from '@crystal-lattice/frontend-sdk';
+import type { ApplicationActionDialogFieldRenderers } from '@crystal-lattice/frontend-rn-components';
 
 import { useTheme, type Theme } from '../theme';
 import ActionDisplayCard from './ActionDisplayCard';
@@ -18,8 +19,14 @@ export interface ActionResultModalProps {
   visible: boolean;
   display: ActionDisplayPayload | null;
   onRequestClose: () => void;
-  onFollowupAction?: (action: ActionDisplayFollowupAction) => void;
+  presentationMode?: 'native' | 'overlay';
+  testID?: string;
+  onFollowupAction?: (
+    action: ActionDisplayFollowupAction,
+    formValues?: Record<string, any>,
+  ) => void;
   activeActionId?: string | null;
+  fieldRenderers?: ApplicationActionDialogFieldRenderers;
 }
 
 const VARIANT_LABELS: Record<NonNullable<ActionDisplayPayload['variant']>, string> = {
@@ -33,40 +40,62 @@ const ActionResultModal: React.FC<ActionResultModalProps> = ({
   visible,
   display,
   onRequestClose,
+  presentationMode = 'native',
+  testID,
   onFollowupAction,
   activeActionId,
+  fieldRenderers,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   const variant = display?.variant ?? 'info';
   const dismissible = display?.dismissible !== false;
+  const content = (
+    <TouchableWithoutFeedback onPress={dismissible ? onRequestClose : undefined}>
+      <View
+        testID={testID}
+        accessibilityViewIsModal
+        style={[
+          styles.overlay,
+          presentationMode === 'overlay' && styles.absoluteOverlay,
+        ]}
+      >
+        <TouchableWithoutFeedback onPress={() => {}}>
+          <View style={styles.panel}>
+            {display ? (
+              <ActionDisplayCard
+                display={display}
+                onDismiss={onRequestClose}
+                onFollowupAction={onFollowupAction}
+                activeActionId={activeActionId}
+                variantLabel={VARIANT_LABELS[variant]}
+                footerDismissLabel={null}
+                fieldRenderers={fieldRenderers}
+              />
+            ) : null}
+          </View>
+        </TouchableWithoutFeedback>
+      </View>
+    </TouchableWithoutFeedback>
+  );
+
+  if (!visible || !display) {
+    return null;
+  }
+
+  if (presentationMode === 'overlay') {
+    return content;
+  }
 
   return (
     <Modal
-      visible={visible && !!display}
+      visible
       transparent
       animationType="fade"
       onRequestClose={dismissible ? onRequestClose : () => {}}
     >
-      <TouchableWithoutFeedback onPress={dismissible ? onRequestClose : undefined}>
-        <View style={styles.overlay}>
-          <TouchableWithoutFeedback onPress={() => {}}>
-            <View style={styles.panel}>
-              {display ? (
-                <ActionDisplayCard
-                  display={display}
-                  onDismiss={onRequestClose}
-                  onFollowupAction={onFollowupAction}
-                  activeActionId={activeActionId}
-                  variantLabel={VARIANT_LABELS[variant]}
-                  footerDismissLabel={null}
-                />
-              ) : null}
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
+      {content}
     </Modal>
   );
 };
@@ -79,6 +108,11 @@ const createStyles = (theme: Theme) =>
       justifyContent: 'center',
       alignItems: 'center',
       padding: 20,
+    },
+    absoluteOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      zIndex: 20000,
+      elevation: 20000,
     },
     panel: {
       width: '100%',

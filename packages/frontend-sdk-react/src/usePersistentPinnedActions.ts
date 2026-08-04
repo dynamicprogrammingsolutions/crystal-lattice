@@ -14,13 +14,14 @@ export interface UsePersistentPinnedActionsOptions<T extends string> {
 export interface UsePersistentPinnedActionsResult<T extends string> {
   loaded: boolean;
   pinned: T[];
+  hasStoredPreference: boolean;
   setPinned: Dispatch<SetStateAction<T[]>>;
 }
 
 export function usePersistentPinnedActions<T extends string>(
   options: UsePersistentPinnedActionsOptions<T>,
 ): UsePersistentPinnedActionsResult<T> {
-  const { loaded, value, setValue } = usePersistentStringArray({
+  const { loaded, value, hasStoredPreference, setValue } = usePersistentStringArray({
     store: options.store,
     key: options.key,
     initial: options.initialPinned as string[],
@@ -30,6 +31,7 @@ export function usePersistentPinnedActions<T extends string>(
   return {
     loaded,
     pinned: value as T[],
+    hasStoredPreference,
     setPinned: setValue as Dispatch<SetStateAction<T[]>>,
   };
 }

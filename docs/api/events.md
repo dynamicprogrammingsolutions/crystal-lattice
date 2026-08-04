@@ -14,6 +14,111 @@ increasing string `event_id` when published.
 
 ---
 
+## Application and session notifications
+
+Notification lifecycle events reuse `GET /events` and
+`ActionDisplayPayload`.
+
+Application notifications are stored durably by the runtime-injected
+`ApplicationNotificationStore`:
+
+- `application_notification_created`
+- `application_notification_updated`
+- `application_notification_dismissed`
+- `application_notification_expired`
+- omit `session_id` and are polled without a session filter
+- survive `AgentApplication` replacement and server-process restart
+- retain terminal history until retention removes it
+- apply TTL only when a frontend freshly presents a notification; TTL does
+  not emit an event or remove an already displayed notification
+- rehydrate through `GET /application/notifications`; event replay remains
+  best effort and is not the persistence authority
+
+Session notifications are persisted under
+`Session.metadata.notifications.items`:
+
+- `session_notification_created`
+- `session_notification_updated`
+- `session_notification_resolved`
+- `session_notification_dismissed`
+- `session_notification_expired`
+- include `session_id` and use ordinary session-filtered polling
+- reload from session metadata on reconnect
+- remain hidden from model/provider history in Stage 1
+
+Both records have stable `id` and `key`, an integer `revision`,
+pending/dismissed/resolved/expired status, info/success/warning/error severity,
+title/body, timestamps, source provenance, an action display, and
+`model_visibility: "hidden"`. Created/updated events upsert by `id`; creating
+with the key of an active notification updates it in place. Creating with the
+key of a terminal notification creates a new lifecycle occurrence.
+
+Server-side dismiss, resolve, and expire mutations retain terminal records for
+authoritative listing. Existing records without `revision` accept their
+`updated_at` as the compatibility expected-revision token and gain integer
+revision `1` on first mutation.
+
+Mobile Dismiss controls cache and hide the exact displayed revision before
+using the server mutation routes. A failed request is retried for that
+unchanged revision during reconnect/rehydration; a newer revision invalidates
+the cache and remains presentable. Desktop uses server-authoritative
+success-only dismissal: a failed mutation leaves the notification visible.
+
+Notification delivery is best effort. Event publication and the tool-facing
+`notification_sink` cannot fail the user request.
+
+### Notification state endpoints
+
+```text
+GET  /application/notifications
+POST /application/notifications/{notification_id}/dismiss
+GET  /sessions/{session_id}/notifications
+POST /sessions/{session_id}/notifications/{notification_id}/dismiss
+```
+
+List endpoints return active records by default. Set
+`include_terminal=true` to include dismissed, resolved, and expired records.
+Dismiss accepts optional `expected_revision` and `reason` fields. A stale
+revision or invalid lifecycle transition returns HTTP 409 with the current
+notification record.
+
+### Standard display presentations
+
+Presentation support depends on the producer and host:
+
+| Producer | `banner` | `inline` | `modal` |
+| --- | --- | --- | --- |
+| Application notification | Mobile Sessions rail; aggregated desktop message/detail rail | Rejected because no application-global inline owner exists | Mobile Sessions modal; desktop normalizes to inline in the aggregated message/detail rail |
+| Session notification | Matching mobile Chat rail; active desktop ChatPane rail | Persistent matching-Chat notification region | Matching mobile Chat modal; desktop normalizes to inline in the active ChatPane rail |
+| Direct action response | Owning mobile Sessions/Chat rail; connection-level or active-session desktop rail | Nearest owning Sessions or Chat region | Mobile modal on the owning screen; desktop normalizes to the corresponding rail |
+
+On mobile, application notifications render only on Sessions below the
+search/filter row. Session notifications render only on the exact matching Chat
+below its header. Both rails participate in normal layout and push
+session-list/transcript content down. Displays received while another surface
+is active remain pending until their owning surface opens. Connection and
+session labels are omitted because placement supplies that context.
+
+Desktop aggregates connection-level notifications from every open connection
+in one normal-flow rail in the message/detail area. Each connection-level card
+includes the friendly connection name, falling back to connection id. The
+active ChatPane contributes its own session notifications to the same visual
+location without a redundant session label. When no ChatPane is open, the
+connection-level rail remains above the detail placeholder.
+
+Direct action responses without a presentation default to `modal`; session
+notifications default to `inline`. Application notifications must use
+`banner` or `modal`; attempts to create an inline application notification are
+rejected by the application contract.
+
+Display ownership is independent from storage lifetime. Application
+notifications are connection-level. Session notifications are session-level
+and require `session_id`. Direct action responses default to session ownership
+when they carry `session_id`, while session-list/application surfaces may
+explicitly retain connection ownership.
+
+---
+
 ## Storage and Transport
 
 - **Event store protocol**: `core/python/agent_app/events.py`
@@ -23,6 +128,13 @@ increasing string `event_id` when published.
 - **Application event producer**: `core/python/agent_app/application_future.py`
   - `AgentApplication.send_request(...)` yields events from
     `ToolLoopRunner.run(...)` and prepends a `request_started` event.
+
+- **Application notification store**:
+  `core/python/agent_app/application_notifications.py`
+  - `ApplicationNotificationStore` defines lifecycle persistence.
+  - `SQLiteApplicationNotificationStore` is the terminal/server runtime
+    implementation.
+  - `InMemoryApplicationNotificationStore` supports tests and embedding.
   - Also handles cancellation and marks requests as completed.
 
 - **Tool loop and streaming**: `core/python/agent_app/tool_loop.py`
@@ -317,28 +429,33 @@ terminal app to persist `Session` objects incrementally.
 }
 ```
 
-The HTTP server’s background worker (`_run_send_request_background` in
-`application/python/agent_terminal_app/server.py`) consumes these
-events but does **not** forward them to `/events` or the bridge as
-public API.
+The application-layer session request coordinator
+(`core/python/agent_app/request_execution.py`) consumes these events but does
+**not** forward them to `/events` or the bridge as public API. An optional
+in-process checkpoint callback lets terminal-style consumers track the live
+`Session`. The package-local maintainer guide lives at
+`application/python/docs/development/request-execution.md`.
 
-Instead, whenever the server processes a `session_checkpoint` it
-emits a lightweight, serializable **checkpoint marker** event into the
-shared event store (described below).
+The low-level application request flow persists request checkpoints and emits
+lightweight, serializable **checkpoint marker** events into the shared event
+store (described below).
 
 ### `checkpoint` (marker event)
 
 Defined in:
 
+- `core/python/agent_app/application_future.py`
+  - request checkpoint persistence and `record_checkpoint`
+- `core/python/agent_app/request_execution.py`
+  - shared request execution and internal checkpoint filtering
 - `application/python/agent_terminal_app/server.py`
-  - `_run_send_request_background`
-  - Session/message lifecycle endpoints
+  - non-request session/message lifecycle endpoints
 
-Lightweight marker emitted whenever a session has just been persisted
-to disk, either:
+Lightweight marker emitted whenever a session has just been persisted to disk,
+either:
 
-- after processing an internal `session_checkpoint` from the tool
-  loop, or
+- by the low-level application request flow after processing a request
+  checkpoint, or
 - after a non-streaming HTTP operation that modifies a session and
   saves it (append/modify/delete messages, create/fork sessions,
   certain agent updates).

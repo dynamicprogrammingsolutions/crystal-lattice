@@ -27,6 +27,7 @@ export interface ToggleActionsPopoverParams {
 }
 
 export interface OpenMessageLimitPopoverParams {
+  popoverId?: string;
   anchorTag?: number;
   width?: number;
   height?: number;
@@ -92,6 +93,8 @@ export interface DesktopWindowManagerModule {
   closeReactWindow(params: CloseReactWindowParams): void;
 
   getSystemTheme?(): Promise<MacOSSystemThemePayload>;
+  recordProgressiveScrollHarnessState?(state: Record<string, unknown>): void;
+  readProgressiveScrollHarnessCommand?(): Promise<Record<string, unknown> | null>;
 }
 
 export const DesktopWindowManager: DesktopWindowManagerModule | null =

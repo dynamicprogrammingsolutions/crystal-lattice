@@ -20,24 +20,36 @@ import type { FlatList as FlatListType } from 'react-native';
 import Icon from 'react-native-vector-icons/Feather';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Clipboard from '@react-native-clipboard/clipboard';
-import type { AgentBackend, ChatController as FrontendChatController } from '@crystal-lattice/frontend-sdk';
+import type {
+  AgentBackend,
+  ChatController as FrontendChatController,
+  SessionNotification,
+} from '@crystal-lattice/frontend-sdk';
 import {
   attachmentDraftStatusLabel,
   deleteSessionAttachment,
   deriveChatStatusBarParts,
   deriveSessionListPresentationFromGroups,
+  emitDisplayPresentation,
   filterFooterElements,
   filterStatusBarElements,
   groupSessionListFields,
   isAttachmentDraftBlocking,
   mergeSessionScopedActionElements,
+  normalizeDisplayEnvelope,
+  notificationDismissalRevisionKey,
+  notificationExpectedRevision,
   runApplicationAction,
   resolveAttachmentActionPluginId,
   selectSessionAssetId,
   selectLastAssistantMessage,
+  selectSessionNotifications,
   storeSessionAttachment,
   generateIdempotencyKey,
+  getTranscriptRangeControlPresentation,
+  planTranscriptRangeControlAction,
   type ComposerAttachmentUiElement as SharedComposerAttachmentUiElement,
+  type TranscriptRangeControlAction,
   type RunActionContext,
   type AttachmentDraftStatus,
 } from '@crystal-lattice/frontend-sdk';
@@ -45,6 +57,7 @@ import {
   ApplicationActionDialog,
   ActionsMenuBar,
   SessionActionsBar,
+  SessionNotificationsHost,
   SESSION_ACTIONS,
   type ActionDefinition,
   type SessionActionKey,
@@ -67,7 +80,7 @@ import {
   type SessionSummary,
 } from './api';
 import MessageBubble from './components/MessageBubble';
-import { DependencyFlatList } from './components/DependencyFlatList';
+import { InvertedTranscriptViewport } from './components/InvertedTranscriptViewport';
 import DebugEventsView from './components/DebugEventsView';
 import {
   describePendingRequestRecovery,
@@ -81,6 +94,10 @@ import SessionSnapshotsModal from './components/SessionSnapshotsModal';
 import AgentSwitchModal from './components/AgentSwitchModal';
 import ActionResultModal from './components/ActionResultModal';
 import ActionResultInlineCard from './components/ActionResultInlineCard';
+import {
+  MobileDisplayHost,
+  useNotificationDismissalCache,
+} from './components/GlobalDisplayLayer';
 import AttachmentViewerHost from './components/AttachmentViewerHost';
 import type { DebugTimelineEntry } from './debugTimeline';
 import { ALL_MESSAGE_ACTIONS, type MessageActionKey } from './messageActions';
@@ -98,8 +115,6 @@ import {
 import { useMobileApplicationActionDialogFieldRenderers } from './components/applicationActionDialogRenderers';
 import {
   createChatScrollAnchor,
-  isChatScrollAnchor,
-  PINNED_TO_BOTTOM_THRESHOLD_PX,
   type ChatScrollAnchor,
 } from './chatScroll';
 import type { MessageAttachmentSnapshot } from './messageAttachments';
@@ -109,6 +124,15 @@ import { usePersistentPinnedActions } from './usePersistentPinnedActions';
 import { usePluginActionDialog } from './usePluginActionDialog';
 import { handleGeneratedFileFollowupAction } from './utils/generatedFileActions';
 import type { Event } from './eventsTypes';
+import { TranscriptRangeControls } from './components/TranscriptRangeControls';
+import {
+  scrollInvertedTranscriptToBottom,
+  type InvertedTranscriptScrollState,
+} from './invertedTranscriptScroll';
+import {
+  MOBILE_TRANSCRIPT_RANGE_MAX_SIZE,
+  MOBILE_TRANSCRIPT_RANGE_PAGE_SIZE,
+} from './transcriptRange';
 
 interface SessionChatScreenProps {
   backend: AgentBackend | null;
@@ -130,8 +154,11 @@ interface SessionChatScreenProps {
   onNavigateToSession?: (sessionId: string) => void;
   initialComposeText: string;
   initialScrollAnchor: ChatScrollAnchor | null;
+  initialRangeStartText: string;
+  initialRangeEndText: string;
   onSaveComposeText: (composeText: string) => void;
   onSaveScrollAnchor: (scrollAnchor: ChatScrollAnchor) => void;
+  onSaveHistoryRange: (rangeStartText: string, rangeEndText: string) => void;
   debugTimeline: DebugTimelineEntry[];
   onAppendDebugTimelineEntry: (
     entry: Omit<DebugTimelineEntry, 'id' | 'timestampMs'> & {
@@ -264,8 +291,10 @@ type ChatTranscriptProps = {
   onChangePinnedForRole: (role: string, pinned: MessageActionKey[]) => void;
   getPinnedActionsForRole: (role: string) => MessageActionKey[];
   onOpenAttachment: (attachment: MessageAttachmentSnapshot) => void;
-  onRestoreScroll: () => void;
-  onScroll: (event: any) => void;
+  rangeTopControlsContent: React.ReactElement | null;
+  rangeBottomControlsContent: React.ReactElement | null;
+  initialScrollAnchor: ChatScrollAnchor | null;
+  onScrollStateChange: (state: InvertedTranscriptScrollState) => void;
 };
 
 const ChatTranscript = React.memo(({
@@ -289,8 +318,10 @@ const ChatTranscript = React.memo(({
   onChangePinnedForRole,
   getPinnedActionsForRole,
   onOpenAttachment,
-  onRestoreScroll,
-  onScroll,
+  rangeTopControlsContent,
+  rangeBottomControlsContent,
+  initialScrollAnchor,
+  onScrollStateChange,
 }: ChatTranscriptProps) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -303,20 +334,23 @@ const ChatTranscript = React.memo(({
   }, [messages]);
 
   return (
-    <DependencyFlatList
-      style={styles.messagesContainer}
-      ref={listRef}
+    <InvertedTranscriptViewport
+      style={styles.transcriptFrame}
+      listStyle={styles.messagesContainer}
+      listRef={listRef}
       data={transcriptRows}
-      inverted
-      ListHeaderComponent={inlineActionDisplaysContent}
-      onLayout={onRestoreScroll}
-      onContentSizeChange={onRestoreScroll}
-      onScroll={onScroll}
-      scrollEventThrottle={16}
-      maintainVisibleContentPosition={{
-        minIndexForVisible: 0,
-        autoscrollToTopThreshold: PINNED_TO_BOTTOM_THRESHOLD_PX,
-      }}
+      testID="transcript-scroll-list"
+      initialScrollAnchor={initialScrollAnchor}
+      onScrollStateChange={onScrollStateChange}
+      ListHeaderComponent={
+        inlineActionDisplaysContent || rangeBottomControlsContent ? (
+          <View>
+            {inlineActionDisplaysContent}
+            {rangeBottomControlsContent}
+          </View>
+        ) : null
+      }
+      ListFooterComponent={rangeTopControlsContent}
       keyExtractor={(row) => {
         if ('kind' in row) {
           return row.kind === 'status' ? 'row-status' : 'row-stream';
@@ -411,24 +445,29 @@ const ChatTranscript = React.memo(({
           role === 'assistant' || role === 'user' ? 'markdown' : 'raw';
         const renderMode = messageViewModeByIndex[m.index] ?? defaultModeForRole;
         return (
-          <MessageBubble
-            index={m.index}
-            isActive={isActive}
-            onOpenAttachment={onOpenAttachment}
-            message={m.message}
-            pinnedActions={pinnedForRole}
-            allowedActions={allowedActions}
-            onAction={onMessageAction}
-            onChangePinnedForRole={onChangePinnedForRole}
-            isEditing={isEditing}
-            editingText={isEditing ? editingText : undefined}
-            onChangeEditingText={isEditing ? onChangeEditingText : undefined}
-            onSubmitEdit={onSubmitEdit}
-            onCancelEdit={onCancelEdit}
-            renderMode={renderMode}
-            footerElements={footerElements}
-            pluginActionDefs={pluginMessageActionDefs}
-          />
+          <View
+            collapsable={false}
+            testID={`transcript-message-${m.index}`}
+          >
+            <MessageBubble
+              index={m.index}
+              isActive={isActive}
+              onOpenAttachment={onOpenAttachment}
+              message={m.message}
+              pinnedActions={pinnedForRole}
+              allowedActions={allowedActions}
+              onAction={onMessageAction}
+              onChangePinnedForRole={onChangePinnedForRole}
+              isEditing={isEditing}
+              editingText={isEditing ? editingText : undefined}
+              onChangeEditingText={isEditing ? onChangeEditingText : undefined}
+              onSubmitEdit={onSubmitEdit}
+              onCancelEdit={onCancelEdit}
+              renderMode={renderMode}
+              footerElements={footerElements}
+              pluginActionDefs={pluginMessageActionDefs}
+            />
+          </View>
         );
       }}
     />
@@ -708,13 +747,21 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   onNavigateToSession,
   initialComposeText,
   initialScrollAnchor,
+  initialRangeStartText,
+  initialRangeEndText,
   onSaveComposeText,
   onSaveScrollAnchor,
+  onSaveHistoryRange,
   debugTimeline,
   onAppendDebugTimelineEntry,
 }) => {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
+  const {
+    cache: notificationDismissalCache,
+    state: notificationDismissalCacheState,
+  } = useNotificationDismissalCache();
+  const retryingNotificationDismissalsRef = useRef(new Set<string>());
   const actionDialogFieldRenderers = useMobileApplicationActionDialogFieldRenderers();
   const [isAppActive, setIsAppActive] = useState(() => AppState.currentState === 'active');
   const [sendInProgress, setSendInProgress] = useState(false);
@@ -756,8 +803,8 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     null,
   );
   const [imageUrlText, setImageUrlText] = useState('');
-  const [rangeStartText, setRangeStartText] = useState('');
-  const [rangeEndText, setRangeEndText] = useState('');
+  const [rangeStartText, setRangeStartText] = useState(initialRangeStartText);
+  const [rangeEndText, setRangeEndText] = useState(initialRangeEndText);
   const [lastReloadAt, setLastReloadAt] = useState<Date | null>(null);
   const [messageLimitVisible, setMessageLimitVisible] = useState(false);
   const [appendAsVisible, setAppendAsVisible] = useState(false);
@@ -845,12 +892,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   const composeTextRef = useRef<string>(initialComposeText ?? '');
   const onSaveComposeTextRef = useRef(onSaveComposeText);
   const onSaveScrollAnchorRef = useRef(onSaveScrollAnchor);
+  const onSaveHistoryRangeRef = useRef(onSaveHistoryRange);
   const bottomGapPxRef = useRef<number>(0);
   const pinnedToBottomRef = useRef<boolean>(true);
-  const initialScrollAnchorRef = useRef<ChatScrollAnchor | null>(
-    isChatScrollAnchor(initialScrollAnchor) ? initialScrollAnchor : null,
-  );
-  const hasRestoredScrollRef = useRef(false);
+  const lastInitialRangeRef = useRef({
+    startText: initialRangeStartText,
+    endText: initialRangeEndText,
+  });
   const lastEventsStatusRef = useRef<string | null>(null);
   const initialLoadControllerRef = useRef<FrontendChatController | null>(null);
   const initialLoadCompletedRef = useRef(false);
@@ -945,13 +993,32 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   }, [onSaveScrollAnchor]);
 
   useEffect(() => {
-    if (hasRestoredScrollRef.current) {
-      return;
+    onSaveHistoryRangeRef.current = onSaveHistoryRange;
+  }, [onSaveHistoryRange]);
+
+  useEffect(() => {
+    const previous = lastInitialRangeRef.current;
+    const stateStillMatchesPrevious =
+      rangeStartText === previous.startText &&
+      rangeEndText === previous.endText;
+    lastInitialRangeRef.current = {
+      startText: initialRangeStartText,
+      endText: initialRangeEndText,
+    };
+    if (
+      stateStillMatchesPrevious &&
+      (rangeStartText !== initialRangeStartText ||
+        rangeEndText !== initialRangeEndText)
+    ) {
+      setRangeStartText(initialRangeStartText);
+      setRangeEndText(initialRangeEndText);
     }
-    initialScrollAnchorRef.current = isChatScrollAnchor(initialScrollAnchor)
-      ? initialScrollAnchor
-      : null;
-  }, [initialScrollAnchor]);
+  }, [
+    initialRangeEndText,
+    initialRangeStartText,
+    rangeEndText,
+    rangeStartText,
+  ]);
 
   const appendDebugNote = useCallback(
     (
@@ -1136,6 +1203,109 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
   });
   const currentSessionSummary = sessionContextState?.summary ?? sessionSummary ?? null;
   const uiSchemaElements = sessionUiSchemaState?.elements ?? [];
+
+  const suppressedSessionNotificationRevisionKeys = useMemo(
+    () =>
+      notificationDismissalCacheState.entries
+        .filter(
+          (entry) =>
+            entry.connectionId === connectionId &&
+            entry.scope === 'session' &&
+            entry.sessionId === sessionId,
+        )
+        .map((entry) => `${entry.notificationId}:${String(entry.revision)}`),
+    [connectionId, notificationDismissalCacheState.entries, sessionId],
+  );
+
+  const retryCachedSessionNotificationDismissal = useCallback(
+    async (notification: SessionNotification) => {
+      if (
+        !backend?.dismissSessionNotification ||
+        !connectionId ||
+        !notificationDismissalCache
+      ) {
+        return;
+      }
+      const revision = notificationExpectedRevision(notification);
+      const retryKey = notificationDismissalRevisionKey({
+        connectionId,
+        scope: 'session',
+        sessionId,
+        notificationId: notification.id,
+        revision,
+      });
+      if (retryingNotificationDismissalsRef.current.has(retryKey)) return;
+      retryingNotificationDismissalsRef.current.add(retryKey);
+      try {
+        await backend.dismissSessionNotification(sessionId, notification.id, {
+          expectedRevision: revision,
+          reason: 'user',
+        });
+        sessionContextController?.invalidate();
+        await sessionContextController?.refresh();
+        const entry = notificationDismissalCache.find({
+          connectionId,
+          scope: 'session',
+          sessionId,
+          notificationId: notification.id,
+        });
+        if (entry) await notificationDismissalCache.remove(entry);
+      } catch {
+        // Keep the exact cached revision hidden until it can be retried.
+      } finally {
+        retryingNotificationDismissalsRef.current.delete(retryKey);
+      }
+    },
+    [
+      backend,
+      connectionId,
+      notificationDismissalCache,
+      sessionContextController,
+      sessionId,
+    ],
+  );
+
+  useEffect(() => {
+    if (
+      !notificationDismissalCacheState.loaded ||
+      !notificationDismissalCache ||
+      !connectionId ||
+      !currentSessionSummary
+    ) {
+      return;
+    }
+    const scope = {
+      connectionId,
+      scope: 'session' as const,
+      sessionId,
+    };
+    const notifications = selectSessionNotifications(currentSessionSummary);
+    const suppressed = notificationDismissalCache.reconcileSnapshot(
+      scope,
+      notifications,
+    );
+    for (const notification of notifications) {
+      const revision = notificationExpectedRevision(notification);
+      if (
+        suppressed.has(
+          notificationDismissalRevisionKey({
+            ...scope,
+            notificationId: notification.id,
+            revision,
+          }),
+        )
+      ) {
+        void retryCachedSessionNotificationDismissal(notification);
+      }
+    }
+  }, [
+    connectionId,
+    currentSessionSummary,
+    notificationDismissalCache,
+    notificationDismissalCacheState.loaded,
+    retryCachedSessionNotificationDismissal,
+    sessionId,
+  ]);
 
   useEffect(() => {
     const md = currentSessionSummary?.metadata;
@@ -1423,11 +1593,6 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     [visibleMessageActions],
   );
 
-  const applyMessageLimitAndReload = () => {
-    setMessageLimitVisible(false);
-    loadMessages({ reason: 'message_limit_reload', refreshUiSchema: true });
-  };
-
   const syncCacheFromController = useCallback(
     (controller: NonNullable<typeof chatController>) => {
       const snapshot = controller.getCacheSnapshot();
@@ -1539,16 +1704,100 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
     ],
   );
 
+  const reloadMessagesForRange = useCallback(
+    async ({
+      startText,
+      endText,
+      reason,
+      scrollToBottomAfterLoad = false,
+    }: {
+      startText: string;
+      endText: string;
+      reason: string;
+      scrollToBottomAfterLoad?: boolean;
+    }) => {
+      setRangeStartText(startText);
+      setRangeEndText(endText);
+      onSaveHistoryRangeRef.current(startText, endText);
+
+      if (!chatController) {
+        Alert.alert('Error', 'No active connection');
+        return null;
+      }
+
+      refreshSessionUiControllers();
+      appendDebugNote('Reload started', reason, {
+        rangeStartText: startText,
+        rangeEndText: endText,
+      });
+
+      try {
+        chatController.clearRequestState();
+        await chatController.loadMessagesFromRangeText({
+          startText,
+          endText,
+        });
+        const snapshot = syncCacheFromController(chatController);
+        await refreshSelectedSnapshot();
+        appendDebugNote('Reload succeeded', reason, {
+          activeRequestId: snapshot.activeRequestId,
+          eventsCursorId: snapshot.eventsCursorId,
+        });
+        if (scrollToBottomAfterLoad) {
+          requestAnimationFrame(() => {
+            scrollInvertedTranscriptToBottom(listRef.current);
+          });
+        }
+        return snapshot;
+      } catch (err: any) {
+        console.log('Failed to load messages', err);
+        const message = err?.message || 'Failed to load messages';
+        appendDebugNote('Reload failed', message, { reason });
+        Alert.alert('Error', message);
+        return null;
+      }
+    },
+    [
+      appendDebugNote,
+      chatController,
+      refreshSelectedSnapshot,
+      refreshSessionUiControllers,
+      syncCacheFromController,
+    ],
+  );
+
+  const applyMessageLimitAndReload = useCallback(() => {
+    setMessageLimitVisible(false);
+    reloadMessagesForRange({
+      startText: rangeStartText,
+      endText: rangeEndText,
+      reason: 'message_limit_reload',
+    }).catch(() => {});
+  }, [rangeEndText, rangeStartText, reloadMessagesForRange]);
+
   const presentActionDisplay = useCallback((display: ActionDisplayPayload, context: RunActionContext) => {
     const nextEntry = createDisplayEntry(display, context);
     const presentation = display.presentation ?? 'modal';
-    if (presentation === 'inline' || presentation === 'banner') {
+    if (presentation === 'banner' && backend) {
+      emitDisplayPresentation(
+        backend,
+        normalizeDisplayEnvelope({
+          id: nextEntry.key,
+          source: 'action_response',
+          connectionId,
+          sessionId,
+          display,
+        }),
+      );
+      return;
+    }
+    if (presentation === 'inline') {
       setActionResultDisplay(null);
       setInlineActionDisplays((current) => upsertInlineDisplay(current, nextEntry));
       return;
     }
     setActionResultDisplay(nextEntry);
-  }, []);
+  }, [backend, connectionId, sessionId]);
 
   const reloadSessionSummaries = useCallback(async () => {
     if (!backend || !onUpdateSessionSummaries) {
@@ -1626,8 +1875,14 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             return;
           }
         }
+        const refreshesCurrentSession = actionContext.sessionId === sessionId;
         if (effects.some((effect) => effect.type === 'reloadSessionsList')) {
-          await reloadSessionSummaries();
+          await Promise.all([
+            reloadSessionSummaries(),
+            sessionContextController?.refresh() ?? Promise.resolve(null),
+          ]);
+        } else if (refreshesCurrentSession) {
+          await sessionContextController?.refresh();
         }
         if (effects.some((effect) => effect.type === 'reloadSession')) {
           await loadMessages({ reason: 'action_reload', refreshUiSchema: true });
@@ -1647,12 +1902,17 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
       onNavigateToSession,
       presentActionDisplay,
       reloadSessionSummaries,
+      sessionContextController,
       sessionId,
     ],
   );
 
   const handleDisplayFollowupAction = useCallback(
-    async (entry: ActionDisplayEntry, action: ActionDisplayFollowupAction) => {
+    async (
+      entry: ActionDisplayEntry,
+      action: ActionDisplayFollowupAction,
+      formValues?: Record<string, any>,
+    ) => {
       if (action.kind === 'open_url') {
         try {
           await Linking.openURL(action.url);
@@ -1696,8 +1956,13 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
               action_id: action.action_id,
               action_owner: action.action_owner,
               fixed_params: action.fixed_params as Record<string, any> | undefined,
+              param_map: action.param_map,
+              form: entry.display.form,
             },
-            entry.context,
+            {
+              ...entry.context,
+              formValues,
+            },
           );
         } finally {
           setActiveDisplayActionId(null);
@@ -3272,12 +3537,128 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	    ],
 	  );
 
+  const dismissPersistentSessionNotification = useCallback(
+    async (notification: SessionNotification) => {
+      const revision = notificationExpectedRevision(notification);
+      const cache = notificationDismissalCache;
+      const cachedDismissal =
+        cache && connectionId
+          ? {
+              cache,
+              entry: {
+                connectionId,
+                scope: 'session' as const,
+                sessionId,
+                notificationId: notification.id,
+                revision,
+                dismissedAt: new Date().toISOString(),
+              },
+            }
+          : null;
+      const cacheWrite = cachedDismissal
+        ? cachedDismissal.cache.record(cachedDismissal.entry)
+        : null;
+      await cacheWrite;
+      if (!backend?.dismissSessionNotification) return;
+      try {
+        await backend.dismissSessionNotification(sessionId, notification.id, {
+          expectedRevision: revision,
+          reason: 'user',
+        });
+        sessionContextController?.invalidate();
+        await sessionContextController?.refresh();
+        if (cachedDismissal) {
+          void cachedDismissal.cache.remove(cachedDismissal.entry);
+        }
+      } catch (error) {
+        if (cachedDismissal) return;
+        Alert.alert(
+          'Dismiss failed',
+          error instanceof Error
+            ? error.message || 'Notification dismissal failed.'
+            : 'Notification dismissal failed.',
+        );
+        throw error;
+      }
+    },
+    [
+      backend,
+      connectionId,
+      notificationDismissalCache,
+      sessionContextController,
+      sessionId,
+    ],
+  );
+
   const inlineActionDisplaysContent = useMemo(() => {
-    if (inlineActionDisplays.length === 0) {
-      return null;
-    }
     return (
       <View>
+        <SessionNotificationsHost
+          sessionSummary={
+            notificationDismissalCacheState.loaded
+              ? currentSessionSummary
+              : null
+          }
+          events={debugEvents}
+          optimisticDismiss={!!(notificationDismissalCache && connectionId)}
+          suppressedRevisionKeys={suppressedSessionNotificationRevisionKeys}
+          onBanner={(notification) => {
+            if (!backend) return;
+            emitDisplayPresentation(
+              backend,
+              normalizeDisplayEnvelope({
+                id: notification.id,
+                source: 'session_notification',
+                connectionId,
+                sessionId,
+                sourceKey: notification.key,
+                display: notification.display,
+                createdAt: notification.created_at,
+                updatedAt: notification.updated_at,
+                notificationRevision:
+                  notification.revision ?? notification.updated_at,
+              }),
+            );
+          }}
+          onModal={(notification) => {
+            if (!backend) return;
+            emitDisplayPresentation(
+              backend,
+              normalizeDisplayEnvelope({
+                id: notification.id,
+                source: 'session_notification',
+                connectionId,
+                sessionId,
+                sourceKey: notification.key,
+                display: notification.display,
+                createdAt: notification.created_at,
+                updatedAt: notification.updated_at,
+                notificationRevision:
+                  notification.revision ?? notification.updated_at,
+              }),
+            );
+          }}
+          onDismissNotification={dismissPersistentSessionNotification}
+          onFollowupAction={(action, notification) =>
+            handleDisplayFollowupAction(
+              createDisplayEntry(notification.display, {
+                connectionId: connectionId ?? undefined,
+                sessionId,
+                sessionSummary: currentSessionSummary ?? undefined,
+              }),
+              action,
+            )
+          }
+          renderInline={({ notification, onDismiss, onFollowupAction }) => (
+            <ActionResultInlineCard
+              display={notification.display}
+              activeActionId={activeDisplayActionId}
+              onDismiss={onDismiss}
+              onFollowupAction={(action) => onFollowupAction(action)}
+              fieldRenderers={actionDialogFieldRenderers}
+            />
+          )}
+        />
         {inlineActionDisplays.map((entry) => (
           <ActionResultInlineCard
             key={entry.key}
@@ -3286,39 +3667,116 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
             onDismiss={() =>
               setInlineActionDisplays((current) => current.filter((item) => item.key !== entry.key))
             }
-            onFollowupAction={(action) => handleDisplayFollowupAction(entry, action)}
+            onFollowupAction={(action, formValues) =>
+              handleDisplayFollowupAction(entry, action, formValues)
+            }
+            fieldRenderers={actionDialogFieldRenderers}
           />
         ))}
       </View>
     );
-  }, [activeDisplayActionId, handleDisplayFollowupAction, inlineActionDisplays]);
+  }, [
+    actionDialogFieldRenderers,
+    activeDisplayActionId,
+    backend,
+    connectionId,
+    currentSessionSummary,
+    debugEvents,
+    dismissPersistentSessionNotification,
+    handleDisplayFollowupAction,
+    inlineActionDisplays,
+    notificationDismissalCache,
+    notificationDismissalCacheState.loaded,
+    presentActionDisplay,
+    suppressedSessionNotificationRevisionKeys,
+    sessionId,
+  ]);
 
-	  const handleListScroll = useCallback((event: any) => {
-	    const offset = event?.nativeEvent?.contentOffset?.y;
-	    if (typeof offset !== 'number' || !Number.isFinite(offset)) {
-	      return;
-	    }
-	    bottomGapPxRef.current = Math.max(0, offset);
-	    pinnedToBottomRef.current =
-	      bottomGapPxRef.current <= PINNED_TO_BOTTOM_THRESHOLD_PX;
-	  }, []);
+  const handleTranscriptScrollStateChange = useCallback(
+    (state: InvertedTranscriptScrollState) => {
+      bottomGapPxRef.current = state.bottomGapPx;
+      pinnedToBottomRef.current = state.pinnedToBottom;
+    },
+    [],
+  );
 
-	  const maybeRestoreScroll = useCallback(() => {
-	    if (hasRestoredScrollRef.current) {
-	      return;
-	    }
-	    const list = listRef.current;
-	    if (!list) {
-	      return;
-	    }
-	
-	    const anchor = initialScrollAnchorRef.current;
-	    const offset = anchor && !anchor.pinnedToBottom ? anchor.bottomGapPx : 0;
-	    list.scrollToOffset({ offset, animated: false });
-	    bottomGapPxRef.current = offset;
-	    pinnedToBottomRef.current = offset <= PINNED_TO_BOTTOM_THRESHOLD_PX;
-	    hasRestoredScrollRef.current = true;
-	  }, []);
+  const firstLoadedMessageIndex =
+    messages.length > 0 ? messages[0].index : null;
+  const lastLoadedMessageIndex =
+    messages.length > 0 ? messages[messages.length - 1].index : null;
+  const transcriptRangeControlPresentation = useMemo(
+    () =>
+      getTranscriptRangeControlPresentation({
+        startText: rangeStartText,
+        endText: rangeEndText,
+        firstLoadedIndex: firstLoadedMessageIndex,
+        lastLoadedIndex: lastLoadedMessageIndex,
+        loadedCount: messages.length,
+        pageSize: MOBILE_TRANSCRIPT_RANGE_PAGE_SIZE,
+        maxRangeSize: MOBILE_TRANSCRIPT_RANGE_MAX_SIZE,
+      }),
+    [
+      firstLoadedMessageIndex,
+      lastLoadedMessageIndex,
+      messages.length,
+      rangeEndText,
+      rangeStartText,
+    ],
+  );
+  const handleTranscriptRangeAction = useCallback(
+    (action: TranscriptRangeControlAction) => {
+      if (loadingMessages) {
+        return;
+      }
+      const plan = planTranscriptRangeControlAction(
+        {
+          startText: rangeStartText,
+          endText: rangeEndText,
+          firstLoadedIndex: firstLoadedMessageIndex,
+          lastLoadedIndex: lastLoadedMessageIndex,
+          loadedCount: messages.length,
+          pageSize: MOBILE_TRANSCRIPT_RANGE_PAGE_SIZE,
+          maxRangeSize: MOBILE_TRANSCRIPT_RANGE_MAX_SIZE,
+        },
+        action,
+      );
+      if (!plan) {
+        return;
+      }
+      reloadMessagesForRange({
+        ...plan,
+        reason: `transcript_range_${action}`,
+        scrollToBottomAfterLoad: action === 'showLast',
+      }).catch(() => {});
+    },
+    [
+      firstLoadedMessageIndex,
+      lastLoadedMessageIndex,
+      loadingMessages,
+      messages.length,
+      rangeEndText,
+      rangeStartText,
+      reloadMessagesForRange,
+    ],
+  );
+  const rangeTopControlsContent =
+    transcriptRangeControlPresentation.topButtons.length > 0 ? (
+      <TranscriptRangeControls
+        buttons={transcriptRangeControlPresentation.topButtons}
+        disabled={loadingMessages}
+        onAction={handleTranscriptRangeAction}
+        testID="transcript-range-top"
+      />
+    ) : null;
+  const rangeBottomControlsContent =
+    transcriptRangeControlPresentation.bottomButtons.length > 0 ? (
+      <TranscriptRangeControls
+        buttons={transcriptRangeControlPresentation.bottomButtons}
+        disabled={loadingMessages}
+        onAction={handleTranscriptRangeAction}
+        testID="transcript-range-bottom"
+      />
+    ) : null;
 
     const openAttachmentMetadataForEdit = useCallback(
       (side: AttachmentDraftSide, draftId: string) => {
@@ -3422,7 +3880,7 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            androidKeyboardHeight > 0 && { paddingBottom: androidKeyboardHeight },
 	        ]}
 	      >
-	        <View style={styles.headerContainer}>
+	        <View style={styles.headerContainer} testID="messages-screen-header">
 	          <View style={styles.headerRow}>
 	            <View style={styles.headerNavigation}>
 	              <TouchableOpacity
@@ -3495,6 +3953,12 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
 	            </View>
 	          )}
 	        </View>
+
+        <MobileDisplayHost
+          scope="session"
+          sessionId={sessionId}
+          testID="messages-notification-banner-rail"
+        />
 
 	      {sessionDirty && (
 	        <View style={styles.dirtyBanner}>
@@ -3599,8 +4063,10 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           onChangePinnedForRole={handleChangePinnedForRole}
           getPinnedActionsForRole={getPinnedActionsForRole}
           onOpenAttachment={setSelectedAttachment}
-          onRestoreScroll={maybeRestoreScroll}
-          onScroll={handleListScroll}
+          rangeTopControlsContent={rangeTopControlsContent}
+          rangeBottomControlsContent={rangeBottomControlsContent}
+          initialScrollAnchor={initialScrollAnchor}
+          onScrollStateChange={handleTranscriptScrollStateChange}
         />
 
       {activeError && (
@@ -4098,10 +4564,11 @@ const SessionChatScreen: React.FC<SessionChatScreenProps> = ({
           display={actionResultDisplay?.display ?? null}
           activeActionId={activeDisplayActionId}
           onRequestClose={() => setActionResultDisplay(null)}
-          onFollowupAction={(action) => {
+          onFollowupAction={(action, formValues) => {
             if (!actionResultDisplay) return;
-            handleDisplayFollowupAction(actionResultDisplay, action);
+            handleDisplayFollowupAction(actionResultDisplay, action, formValues);
           }}
+          fieldRenderers={actionDialogFieldRenderers}
         />
 	      {debugVisible && (
 	        <View style={styles.debugOverlay}>
@@ -4280,9 +4747,13 @@ const createStyles = (theme: Theme) =>
       fontSize: 14,
       color: theme.textSecondary,
     },
-    messagesContainer: {
+    transcriptFrame: {
       flex: 1,
       marginBottom: 8,
+      position: 'relative',
+    },
+    messagesContainer: {
+      flex: 1,
     },
     errorContainer: {
       marginHorizontal: 4,

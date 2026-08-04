@@ -3,26 +3,26 @@
   "case": "success-tool-history",
   "compact_boundary": {
     "compact_metadata": {
-      "duration_ms": 7789,
-      "post_tokens": 700,
-      "pre_tokens": 2127,
+      "duration_ms": 20775,
+      "post_tokens": 1351,
+      "pre_tokens": 2131,
       "preserved_messages": {
-        "anchor_uuid": "4a67f74b-0dec-49f5-923e-fc07a63ac05b",
+        "anchor_uuid": "<UUID_010>",
         "uuids": [
-          "a554cda7-03af-48c9-b58b-4d1c7afe4aa5"
+          "<UUID_008>"
         ]
       },
       "preserved_segment": {
-        "anchor_uuid": "4a67f74b-0dec-49f5-923e-fc07a63ac05b",
-        "head_uuid": "a554cda7-03af-48c9-b58b-4d1c7afe4aa5",
-        "tail_uuid": "a554cda7-03af-48c9-b58b-4d1c7afe4aa5"
+        "anchor_uuid": "<UUID_010>",
+        "head_uuid": "<UUID_008>",
+        "tail_uuid": "<UUID_008>"
       },
       "trigger": "manual"
     },
     "session_id": "<SESSION_ID>",
     "subtype": "compact_boundary",
     "type": "system",
-    "uuid": "ad0b712f-92f7-46b2-8c27-262009243de8"
+    "uuid": "<UUID_009>"
   },
   "compact_request": {
     "body": {
@@ -39,7 +39,7 @@
         {
           "content": [
             {
-              "text": "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is 2026-05-29.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>\n\n",
+              "text": "<system-reminder>\nAs you answer the user's questions, you can use the following context:\n# currentDate\nToday's date is 2026-06-29.\n\n      IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task.\n</system-reminder>\n\n",
               "type": "text"
             },
             {
@@ -121,7 +121,7 @@
       "stream": true,
       "system": [
         {
-          "text": "x-anthropic-billing-header: cc_version=2.1.154.cae; cc_entrypoint=sdk-cli; cch=d2c0f;",
+          "text": "x-anthropic-billing-header: cc_version=2.1.154.cae; cc_entrypoint=sdk-cli; cch=dab04;",
           "type": "text"
         },
         {
@@ -217,7 +217,7 @@
       "status": "compacting",
       "subtype": "status",
       "type": "system",
-      "uuid": "add62ca7-3e7a-439b-b257-c73644a25875"
+      "uuid": "d5ba7d46-051c-4b3d-acee-8076688d90b8"
     },
     {
       "compact_result": "success",
@@ -225,7 +225,7 @@
       "status": null,
       "subtype": "status",
       "type": "system",
-      "uuid": "fa9c45a3-da6f-4855-9c43-1da73be4d1c2"
+      "uuid": "d8fb75a1-0f36-458a-a0b4-3a63d819ab2b"
     }
   ],
   "compact_summary_count": 1,
@@ -240,9 +240,418 @@
     "8. Current Work:",
     "9. Optional Next Step:"
   ],
-  "compact_summary_text": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - First request: Read the README.md file using the Read tool, then output \"PROBE1\"\n   - Second request: Output \"PROBE2\" without any tool calls\n   - Third request: Provide a detailed summary of the conversation (including analysis and summary blocks) without calling any tools. The user emphasized TEXT ONLY response with specific structural requirements.\n\n2. Key Technical Concepts:\n   - File reading via Read tool\n   - Plain text responses\n   - Conversation summarization with specific formatting requirements\n\n3. Files and Code Sections:\n   - README.md\n     - This file was read to fulfill the first user request\n     - Content read:\n       ```\n       # Probe Heading\n\n       Body\n       ```\n\n4. Errors and fixes:\n   - No errors encountered\n\n5. Problem Solving:\n   - Successfully read README.md file contents\n   - Adhered to user's constraints on tool usage (no tools used for PROBE2 and PROBE3 responses)\n\n6. All user messages:\n   - \"Use the Read tool to read README.md. Then answer exactly PROBE1.\"\n   - \"Answer exactly PROBE2.\"\n   - \"Answer exactly PROBE3. CRITICAL: Respond with TEXT ONLY. Do NOT call any tools. [followed by detailed instructions about summary structure]\"\n\n7. Pending Tasks:\n   - None - all tasks completed\n\n8. Current Work:\n   - Just completed the conversation summary request. The user asked for a detailed summary with specific formatting (analysis block followed by summary block). The previous work involved reading README.md and responding with \"PROBE1\", then \"PROBE2\", and now providing a conversation summary.\n\n9. Optional Next Step:\n   - None - the summary request has been completed as per the user's instructions.\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
+  "compact_summary_text": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - Initial request: Read README.md file and answer \"PROBE1\"\n   - Follow-up request: Answer \"PROBE2\"\n   - Current request: Answer \"PROBE3\" while also providing a detailed summary of the conversation. The user explicitly requires TEXT ONLY response with no tool calls, structured as an `<analysis>` block followed by a `<summary>` block containing 9 specific sections.\n\n2. Key Technical Concepts:\n   - File reading using Read tool\n   - Conversation context management\n   -Plain text response formatting requirements\n\n3. Files and Code Sections:\n   - `README.md` (full path: `<WORKSPACE>/README.md`)\n     - Why: User requested to read this file as first step\n     - Content read: 4 lines total\n       - Line 1: `# Probe Heading`\n       - Line 2: (empty)\n       - Line 3: `Body`\n       - Line 4: (empty)\n\n4. Errors and fixes:\n   - No errors encountered\n\n5. Problem Solving:\n   - Successfully read README.md file\n   - Completed response to PROBE1 and PROBE2 as instructed\n\n6. All user messages:\n   - \"Use the Read tool to read README.md. Then answer exactly PROBE1.\"\n   - \"Answer exactly PROBE2.\"\n   - \"Answer exactly PROBE3.\\nCRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\\n\\n- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.\\n- You already have all the context you need in the conversation above.\\n- Tool calls will be REJECTED and will waste your only turn \u2014 you will fail the task.\\n- Your entire response must be plain text: an <analysis> block followed by a <summary> block.\\n\\nYour task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.\\nThis summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.\\n\\nBefore providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\\n\\n1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:\\n   - The user's explicit requests and intents\\n   - Your approach to addressing the user's requests\\n   - Key decisions, technical concepts and code patterns\\n   - Specific details like:\\n     - file names\\n     - full code snippets\\n     - function signatures\\n     - file edits\\n   - Errors that you ran into and how you fixed them\\n   - Pay special attention to specific user feedback that you received, especially if the user told you something differently.\\n   - Note any security-relevant instructions or constraints the user stated (e.g., sensitive files or data to avoid, operations that must not be performed, credential or secret handling rules). These MUST be preserved verbatim in the summary so they continue to apply after compaction.\\n2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\\n\\nYour summary should include the following sections:\\n\\n1. Primary Request and Intent: [details]\\n2. Key Technical Concepts: [list]\\n3. Files and Code Sections: [details]\\n4. Errors and fixes: [details]\\n5. Problem Solving: [description]\\n6. All user messages: [list]\\n7. Pending Tasks: [tasks]\\n8. Current Work: [description]\\n9. Optional Next Step: [optional]\\n\\nHere's an example of how your output should be structured:\\n[example format provided]\\n\\nPlease provide your summary based on the conversation so far, following this structure and ensuring precision and thoroughness in your response.\"\n\n7. Pending Tasks:\n   - Answer \"PROBE3\" as requested\n   - Provide detailed conversation summary in specified format\n\n8. Current Work:\n   The user has just requested that I answer \"PROBE3\" and simultaneously provide a detailed summary of the conversation. The summary must be structured with an `<analysis>` block followed by a `<summary>` block containing 9 specific sections. The response must be TEXT ONLY with no tool calls.\n\n9. Optional Next Step:\n   Respond with \"PROBE3\" as the final answer, preceded by the required summary in the specified format.\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
   "has_compact_command_message": true,
   "has_local_command_caveat": true,
+  "project_transcript_compact_boundary_event": {
+    "compactMetadata": {
+      "durationMs": 20775,
+      "postTokens": 1351,
+      "preTokens": 2131,
+      "preservedMessages": {
+        "allUuids": [
+          "<UUID_008>"
+        ],
+        "anchorUuid": "<UUID_010>",
+        "uuids": [
+          "<UUID_008>"
+        ]
+      },
+      "preservedSegment": {
+        "anchorUuid": "<UUID_010>",
+        "headUuid": "<UUID_008>",
+        "tailUuid": "<UUID_008>"
+      },
+      "trigger": "manual"
+    },
+    "content": "Conversation compacted",
+    "cwd": "<WORKSPACE>",
+    "entrypoint": "sdk-cli",
+    "gitBranch": "HEAD",
+    "isMeta": false,
+    "isSidechain": false,
+    "level": "info",
+    "logicalParentUuid": "<UUID_008>",
+    "parentUuid": null,
+    "sessionId": "<SESSION_ID>",
+    "slug": "zesty-foraging-sifakis",
+    "subtype": "compact_boundary",
+    "timestamp": "<TIMESTAMP_015>",
+    "type": "system",
+    "userType": "external",
+    "uuid": "<UUID_009>",
+    "version": "2.1.154"
+  },
+  "project_transcript_compact_summary_event": {
+    "cwd": "<WORKSPACE>",
+    "entrypoint": "sdk-cli",
+    "gitBranch": "HEAD",
+    "isCompactSummary": true,
+    "isSidechain": false,
+    "isVisibleInTranscriptOnly": true,
+    "message": {
+      "content": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - Initial request: Read README.md file and answer \"PROBE1\"\n   - Follow-up request: Answer \"PROBE2\"\n   - Current request: Answer \"PROBE3\" while also providing a detailed summary of the conversation. The user explicitly requires TEXT ONLY response with no tool calls, structured as an `<analysis>` block followed by a `<summary>` block containing 9 specific sections.\n\n2. Key Technical Concepts:\n   - File reading using Read tool\n   - Conversation context management\n   -Plain text response formatting requirements\n\n3. Files and Code Sections:\n   - `README.md` (full path: `<WORKSPACE>/README.md`)\n     - Why: User requested to read this file as first step\n     - Content read: 4 lines total\n       - Line 1: `# Probe Heading`\n       - Line 2: (empty)\n       - Line 3: `Body`\n       - Line 4: (empty)\n\n4. Errors and fixes:\n   - No errors encountered\n\n5. Problem Solving:\n   - Successfully read README.md file\n   - Completed response to PROBE1 and PROBE2 as instructed\n\n6. All user messages:\n   - \"Use the Read tool to read README.md. Then answer exactly PROBE1.\"\n   - \"Answer exactly PROBE2.\"\n   - \"Answer exactly PROBE3.\\nCRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\\n\\n- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.\\n- You already have all the context you need in the conversation above.\\n- Tool calls will be REJECTED and will waste your only turn \u2014 you will fail the task.\\n- Your entire response must be plain text: an <analysis> block followed by a <summary> block.\\n\\nYour task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.\\nThis summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.\\n\\nBefore providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\\n\\n1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:\\n   - The user's explicit requests and intents\\n   - Your approach to addressing the user's requests\\n   - Key decisions, technical concepts and code patterns\\n   - Specific details like:\\n     - file names\\n     - full code snippets\\n     - function signatures\\n     - file edits\\n   - Errors that you ran into and how you fixed them\\n   - Pay special attention to specific user feedback that you received, especially if the user told you something differently.\\n   - Note any security-relevant instructions or constraints the user stated (e.g., sensitive files or data to avoid, operations that must not be performed, credential or secret handling rules). These MUST be preserved verbatim in the summary so they continue to apply after compaction.\\n2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\\n\\nYour summary should include the following sections:\\n\\n1. Primary Request and Intent: [details]\\n2. Key Technical Concepts: [list]\\n3. Files and Code Sections: [details]\\n4. Errors and fixes: [details]\\n5. Problem Solving: [description]\\n6. All user messages: [list]\\n7. Pending Tasks: [tasks]\\n8. Current Work: [description]\\n9. Optional Next Step: [optional]\\n\\nHere's an example of how your output should be structured:\\n[example format provided]\\n\\nPlease provide your summary based on the conversation so far, following this structure and ensuring precision and thoroughness in your response.\"\n\n7. Pending Tasks:\n   - Answer \"PROBE3\" as requested\n   - Provide detailed conversation summary in specified format\n\n8. Current Work:\n   The user has just requested that I answer \"PROBE3\" and simultaneously provide a detailed summary of the conversation. The summary must be structured with an `<analysis>` block followed by a `<summary>` block containing 9 specific sections. The response must be TEXT ONLY with no tool calls.\n\n9. Optional Next Step:\n   Respond with \"PROBE3\" as the final answer, preceded by the required summary in the specified format.\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
+      "role": "user"
+    },
+    "parentUuid": "<UUID_009>",
+    "promptId": "<PROMPT_ID_004>",
+    "sessionId": "<SESSION_ID>",
+    "slug": "zesty-foraging-sifakis",
+    "timestamp": "<TIMESTAMP_016>",
+    "type": "user",
+    "userType": "external",
+    "uuid": "<UUID_010>",
+    "version": "2.1.154"
+  },
+  "project_transcript_local_command_events": [
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isMeta": true,
+      "isSidechain": false,
+      "message": {
+        "content": "<local-command-caveat>Caveat: The messages below were generated by the user while running local commands. DO NOT respond to these messages or otherwise consider them in your response unless the user explicitly asks you to.</local-command-caveat>",
+        "role": "user"
+      },
+      "parentUuid": "<UUID_010>",
+      "promptId": "<PROMPT_ID_004>",
+      "sessionId": "<SESSION_ID>",
+      "slug": "zesty-foraging-sifakis",
+      "timestamp": "<TIMESTAMP_017>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_011>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": "<command-name>/compact</command-name>\n            <command-message>compact</command-message>\n            <command-args></command-args>",
+        "role": "user"
+      },
+      "parentUuid": "<UUID_011>",
+      "promptId": "<PROMPT_ID_004>",
+      "sessionId": "<SESSION_ID>",
+      "slug": "zesty-foraging-sifakis",
+      "timestamp": "<TIMESTAMP_017>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_012>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": "<local-command-stdout>Compacted </local-command-stdout>",
+        "role": "user"
+      },
+      "parentUuid": "<UUID_012>",
+      "promptId": "<PROMPT_ID_004>",
+      "sessionId": "<SESSION_ID>",
+      "slug": "zesty-foraging-sifakis",
+      "timestamp": "<TIMESTAMP_018>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_013>",
+      "version": "2.1.154"
+    }
+  ],
+  "project_transcript_no_response_event": null,
+  "project_transcript_pre_compaction_message_events": [
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": "Use the Read tool to read README.md. Then answer exactly PROBE1.",
+        "role": "user"
+      },
+      "parentUuid": null,
+      "permissionMode": "default",
+      "promptId": "<PROMPT_ID_001>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_003>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_001>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": [
+          {
+            "id": "<TOOL_CALL_ID>",
+            "input": {
+              "file_path": "<WORKSPACE>/README.md"
+            },
+            "name": "Read",
+            "type": "tool_use"
+          }
+        ],
+        "id": "<MESSAGE_ID_001>",
+        "model": "qwen3-coder-next",
+        "role": "assistant",
+        "stop_details": null,
+        "stop_reason": "tool_use",
+        "type": "message",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "inference_geo": "",
+          "input_tokens": 1992,
+          "iterations": [],
+          "output_tokens": 70,
+          "server_tool_use": {
+            "web_fetch_requests": 0,
+            "web_search_requests": 0
+          },
+          "service_tier": "standard",
+          "speed": "standard"
+        }
+      },
+      "parentUuid": "<UUID_001>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_004>",
+      "type": "assistant",
+      "userType": "external",
+      "uuid": "<UUID_002>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": [
+          {
+            "content": "1\t# Probe Heading\n2\t\n3\tBody\n4\t",
+            "tool_use_id": "<TOOL_CALL_ID>",
+            "type": "tool_result"
+          }
+        ],
+        "role": "user"
+      },
+      "parentUuid": "<UUID_002>",
+      "promptId": "<PROMPT_ID_001>",
+      "sessionId": "<SESSION_ID>",
+      "sourceToolAssistantUUID": "<UUID_002>",
+      "timestamp": "<TIMESTAMP_005>",
+      "toolUseResult": {
+        "file": {
+          "content": "# Probe Heading\n\nBody\n",
+          "filePath": "<WORKSPACE>/README.md",
+          "numLines": 4,
+          "startLine": 1,
+          "totalLines": 4
+        },
+        "type": "text"
+      },
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_003>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": [
+          {
+            "text": "PROBE1",
+            "type": "text"
+          }
+        ],
+        "id": "<MESSAGE_ID_002>",
+        "model": "qwen3-coder-next",
+        "role": "assistant",
+        "stop_details": null,
+        "stop_reason": "end_turn",
+        "type": "message",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "inference_geo": "",
+          "input_tokens": 2088,
+          "iterations": [],
+          "output_tokens": 4,
+          "server_tool_use": {
+            "web_fetch_requests": 0,
+            "web_search_requests": 0
+          },
+          "service_tier": "standard",
+          "speed": "standard"
+        }
+      },
+      "parentUuid": "<UUID_003>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_006>",
+      "type": "assistant",
+      "userType": "external",
+      "uuid": "<UUID_004>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": "Answer exactly PROBE2.",
+        "role": "user"
+      },
+      "parentUuid": "<UUID_004>",
+      "permissionMode": "default",
+      "promptId": "<PROMPT_ID_002>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_008>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_005>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": [
+          {
+            "text": "PROBE2",
+            "type": "text"
+          }
+        ],
+        "id": "<MESSAGE_ID_003>",
+        "model": "qwen3-coder-next",
+        "role": "assistant",
+        "stop_details": null,
+        "stop_reason": "end_turn",
+        "type": "message",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "inference_geo": "",
+          "input_tokens": 2108,
+          "iterations": [],
+          "output_tokens": 4,
+          "server_tool_use": {
+            "web_fetch_requests": 0,
+            "web_search_requests": 0
+          },
+          "service_tier": "standard",
+          "speed": "standard"
+        }
+      },
+      "parentUuid": "<UUID_005>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_009>",
+      "type": "assistant",
+      "userType": "external",
+      "uuid": "<UUID_006>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": "Answer exactly PROBE3.",
+        "role": "user"
+      },
+      "parentUuid": "<UUID_006>",
+      "permissionMode": "default",
+      "promptId": "<PROMPT_ID_003>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_011>",
+      "type": "user",
+      "userType": "external",
+      "uuid": "<UUID_007>",
+      "version": "2.1.154"
+    },
+    {
+      "cwd": "<WORKSPACE>",
+      "entrypoint": "sdk-cli",
+      "gitBranch": "HEAD",
+      "isSidechain": false,
+      "message": {
+        "content": [
+          {
+            "text": "PROBE3",
+            "type": "text"
+          }
+        ],
+        "id": "<MESSAGE_ID_004>",
+        "model": "qwen3-coder-next",
+        "role": "assistant",
+        "stop_details": null,
+        "stop_reason": "end_turn",
+        "type": "message",
+        "usage": {
+          "cache_creation": {
+            "ephemeral_1h_input_tokens": 0,
+            "ephemeral_5m_input_tokens": 0
+          },
+          "cache_creation_input_tokens": 0,
+          "cache_read_input_tokens": 0,
+          "inference_geo": "",
+          "input_tokens": 2127,
+          "iterations": [],
+          "output_tokens": 4,
+          "server_tool_use": {
+            "web_fetch_requests": 0,
+            "web_search_requests": 0
+          },
+          "service_tier": "standard",
+          "speed": "standard"
+        }
+      },
+      "parentUuid": "<UUID_007>",
+      "sessionId": "<SESSION_ID>",
+      "timestamp": "<TIMESTAMP_012>",
+      "type": "assistant",
+      "userType": "external",
+      "uuid": "<UUID_008>",
+      "version": "2.1.154"
+    }
+  ],
+  "project_transcript_type_counts": {
+    "ai-title": 9,
+    "assistant": 4,
+    "attachment": 1,
+    "last-prompt": 4,
+    "mode": 6,
+    "queue-operation": 8,
+    "system": 1,
+    "user": 8
+  },
   "session_id": "<SESSION_ID>",
   "session_transcript_available": true,
   "step_count": 4,
@@ -322,13 +731,13 @@
             "Read"
           ],
           "type": "system",
-          "uuid": "be3b9f35-e0d9-4c51-a454-a3d0a3e71123"
+          "uuid": "03c622eb-da7f-4f34-bcc8-85919c3de641"
         },
         {
           "message": {
             "content": [
               {
-                "id": "call_oekt464c",
+                "id": "call_oluuiurc",
                 "input": {
                   "file_path": "<WORKSPACE>/README.md"
                 },
@@ -337,7 +746,7 @@
               }
             ],
             "context_management": null,
-            "id": "msg_35a771f10a8122a50626a0a7",
+            "id": "<MESSAGE_ID_001>",
             "model": "qwen3-coder-next",
             "role": "assistant",
             "type": "message",
@@ -349,14 +758,14 @@
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
           "type": "assistant",
-          "uuid": "2a68d291-10b4-4dad-a649-af6fa1d4c86f"
+          "uuid": "<UUID_002>"
         },
         {
           "message": {
             "content": [
               {
                 "content": "1\t# Probe Heading\n2\t\n3\tBody\n4\t",
-                "tool_use_id": "call_oekt464c",
+                "tool_use_id": "call_oluuiurc",
                 "type": "tool_result"
               }
             ],
@@ -364,7 +773,7 @@
           },
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
-          "timestamp": "2026-05-29T11:38:31.745Z",
+          "timestamp": "<TIMESTAMP_005>",
           "tool_use_result": {
             "file": {
               "content": "# Probe Heading\n\nBody\n",
@@ -376,7 +785,7 @@
             "type": "text"
           },
           "type": "user",
-          "uuid": "3d765681-853a-4cec-829b-620969b7818a"
+          "uuid": "<UUID_003>"
         },
         {
           "message": {
@@ -387,7 +796,7 @@
               }
             ],
             "context_management": null,
-            "id": "msg_5228fb9d7cdca9d46b877dd7",
+            "id": "<MESSAGE_ID_002>",
             "model": "qwen3-coder-next",
             "role": "assistant",
             "type": "message",
@@ -399,12 +808,12 @@
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
           "type": "assistant",
-          "uuid": "bb1c3af0-00f1-4cfb-816a-cee0ab7d5050"
+          "uuid": "<UUID_004>"
         },
         {
           "api_error_status": null,
-          "duration_api_ms": 3698,
-          "duration_ms": 2468,
+          "duration_api_ms": 15444,
+          "duration_ms": 9784,
           "fast_mode_state": "off",
           "is_error": false,
           "modelUsage": {
@@ -412,10 +821,10 @@
               "cacheCreationInputTokens": 0,
               "cacheReadInputTokens": 0,
               "contextWindow": 200000,
-              "costUSD": 0.024205,
-              "inputTokens": 4406,
+              "costUSD": 0.024245,
+              "inputTokens": 4409,
               "maxOutputTokens": 32000,
-              "outputTokens": 87,
+              "outputTokens": 88,
               "webSearchRequests": 0
             }
           },
@@ -426,8 +835,8 @@
           "stop_reason": "end_turn",
           "subtype": "success",
           "terminal_reason": "completed",
-          "total_cost_usd": 0.024205,
-          "ttft_ms": 1758,
+          "total_cost_usd": 0.024245,
+          "ttft_ms": 1400,
           "type": "result",
           "usage": {
             "cache_creation": {
@@ -437,9 +846,9 @@
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
             "inference_geo": "",
-            "input_tokens": 4077,
+            "input_tokens": 4080,
             "iterations": [],
-            "output_tokens": 73,
+            "output_tokens": 74,
             "server_tool_use": {
               "web_fetch_requests": 0,
               "web_search_requests": 0
@@ -447,7 +856,7 @@
             "service_tier": "standard",
             "speed": "standard"
           },
-          "uuid": "dca62819-4218-4c36-8868-30ffc6e66413"
+          "uuid": "226c5b56-4718-42e3-9e6b-194f37b82d10"
         }
       ]
     },
@@ -526,7 +935,7 @@
             "Read"
           ],
           "type": "system",
-          "uuid": "179fc379-3ef6-4df3-b786-8a38d0536f2a"
+          "uuid": "e49659bf-0bf1-4bf2-a450-cda517ae7121"
         },
         {
           "message": {
@@ -537,7 +946,7 @@
               }
             ],
             "context_management": null,
-            "id": "msg_470da96cb2c909dddc774950",
+            "id": "<MESSAGE_ID_003>",
             "model": "qwen3-coder-next",
             "role": "assistant",
             "type": "message",
@@ -549,12 +958,12 @@
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
           "type": "assistant",
-          "uuid": "e4c334b3-bd4d-48c1-a143-f44b233e49c8"
+          "uuid": "<UUID_006>"
         },
         {
           "api_error_status": null,
-          "duration_api_ms": 658,
-          "duration_ms": 687,
+          "duration_api_ms": 639,
+          "duration_ms": 670,
           "fast_mode_state": "off",
           "is_error": false,
           "modelUsage": {
@@ -562,8 +971,8 @@
               "cacheCreationInputTokens": 0,
               "cacheReadInputTokens": 0,
               "contextWindow": 200000,
-              "costUSD": 0.01062,
-              "inputTokens": 2104,
+              "costUSD": 0.01064,
+              "inputTokens": 2108,
               "maxOutputTokens": 32000,
               "outputTokens": 4,
               "webSearchRequests": 0
@@ -576,8 +985,8 @@
           "stop_reason": "end_turn",
           "subtype": "success",
           "terminal_reason": "completed",
-          "total_cost_usd": 0.01062,
-          "ttft_ms": 681,
+          "total_cost_usd": 0.01064,
+          "ttft_ms": 657,
           "type": "result",
           "usage": {
             "cache_creation": {
@@ -587,7 +996,7 @@
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
             "inference_geo": "",
-            "input_tokens": 2104,
+            "input_tokens": 2108,
             "iterations": [],
             "output_tokens": 4,
             "server_tool_use": {
@@ -597,7 +1006,7 @@
             "service_tier": "standard",
             "speed": "standard"
           },
-          "uuid": "b0585bdd-8e67-40b2-b643-8f37bc419ca7"
+          "uuid": "b684c1d3-2c8f-4382-890d-0a7a783155b8"
         }
       ]
     },
@@ -676,7 +1085,7 @@
             "Read"
           ],
           "type": "system",
-          "uuid": "49558321-8958-4c62-ab6a-774f365e8b4c"
+          "uuid": "299737d4-b587-46d3-a942-c575bee9500a"
         },
         {
           "message": {
@@ -687,7 +1096,7 @@
               }
             ],
             "context_management": null,
-            "id": "msg_ff6fac6d836eade5b7ca5634",
+            "id": "<MESSAGE_ID_004>",
             "model": "qwen3-coder-next",
             "role": "assistant",
             "type": "message",
@@ -699,12 +1108,12 @@
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
           "type": "assistant",
-          "uuid": "a554cda7-03af-48c9-b58b-4d1c7afe4aa5"
+          "uuid": "<UUID_008>"
         },
         {
           "api_error_status": null,
-          "duration_api_ms": 646,
-          "duration_ms": 668,
+          "duration_api_ms": 700,
+          "duration_ms": 729,
           "fast_mode_state": "off",
           "is_error": false,
           "modelUsage": {
@@ -712,8 +1121,8 @@
               "cacheCreationInputTokens": 0,
               "cacheReadInputTokens": 0,
               "contextWindow": 200000,
-              "costUSD": 0.010714999999999999,
-              "inputTokens": 2123,
+              "costUSD": 0.010735,
+              "inputTokens": 2127,
               "maxOutputTokens": 32000,
               "outputTokens": 4,
               "webSearchRequests": 0
@@ -726,8 +1135,8 @@
           "stop_reason": "end_turn",
           "subtype": "success",
           "terminal_reason": "completed",
-          "total_cost_usd": 0.010714999999999999,
-          "ttft_ms": 662,
+          "total_cost_usd": 0.010735,
+          "ttft_ms": 726,
           "type": "result",
           "usage": {
             "cache_creation": {
@@ -737,7 +1146,7 @@
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
             "inference_geo": "",
-            "input_tokens": 2123,
+            "input_tokens": 2127,
             "iterations": [],
             "output_tokens": 4,
             "server_tool_use": {
@@ -747,7 +1156,7 @@
             "service_tier": "standard",
             "speed": "standard"
           },
-          "uuid": "dbd4df21-497a-4737-aa1e-821d60b9b3d3"
+          "uuid": "aca2bd2b-466c-4b6c-92bc-29fbec21148b"
         }
       ]
     },
@@ -763,7 +1172,7 @@
           "status": "compacting",
           "subtype": "status",
           "type": "system",
-          "uuid": "add62ca7-3e7a-439b-b257-c73644a25875"
+          "uuid": "d5ba7d46-051c-4b3d-acee-8076688d90b8"
         },
         {
           "compact_result": "success",
@@ -771,7 +1180,7 @@
           "status": null,
           "subtype": "status",
           "type": "system",
-          "uuid": "fa9c45a3-da6f-4855-9c43-1da73be4d1c2"
+          "uuid": "d8fb75a1-0f36-458a-a0b4-3a63d819ab2b"
         },
         {
           "agents": [
@@ -841,43 +1250,43 @@
             "Read"
           ],
           "type": "system",
-          "uuid": "4e54d8d7-0ec1-4b08-836c-2c9e15a0486c"
+          "uuid": "6dd2ebfa-8ece-4901-992d-8e6f5a712ddf"
         },
         {
           "compact_metadata": {
-            "duration_ms": 7789,
-            "post_tokens": 700,
-            "pre_tokens": 2127,
+            "duration_ms": 20775,
+            "post_tokens": 1351,
+            "pre_tokens": 2131,
             "preserved_messages": {
-              "anchor_uuid": "4a67f74b-0dec-49f5-923e-fc07a63ac05b",
+              "anchor_uuid": "<UUID_010>",
               "uuids": [
-                "a554cda7-03af-48c9-b58b-4d1c7afe4aa5"
+                "<UUID_008>"
               ]
             },
             "preserved_segment": {
-              "anchor_uuid": "4a67f74b-0dec-49f5-923e-fc07a63ac05b",
-              "head_uuid": "a554cda7-03af-48c9-b58b-4d1c7afe4aa5",
-              "tail_uuid": "a554cda7-03af-48c9-b58b-4d1c7afe4aa5"
+              "anchor_uuid": "<UUID_010>",
+              "head_uuid": "<UUID_008>",
+              "tail_uuid": "<UUID_008>"
             },
             "trigger": "manual"
           },
           "session_id": "<SESSION_ID>",
           "subtype": "compact_boundary",
           "type": "system",
-          "uuid": "ad0b712f-92f7-46b2-8c27-262009243de8"
+          "uuid": "<UUID_009>"
         },
         {
           "isReplay": false,
           "isSynthetic": true,
           "message": {
-            "content": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - First request: Read the README.md file using the Read tool, then output \"PROBE1\"\n   - Second request: Output \"PROBE2\" without any tool calls\n   - Third request: Provide a detailed summary of the conversation (including analysis and summary blocks) without calling any tools. The user emphasized TEXT ONLY response with specific structural requirements.\n\n2. Key Technical Concepts:\n   - File reading via Read tool\n   - Plain text responses\n   - Conversation summarization with specific formatting requirements\n\n3. Files and Code Sections:\n   - README.md\n     - This file was read to fulfill the first user request\n     - Content read:\n       ```\n       # Probe Heading\n\n       Body\n       ```\n\n4. Errors and fixes:\n   - No errors encountered\n\n5. Problem Solving:\n   - Successfully read README.md file contents\n   - Adhered to user's constraints on tool usage (no tools used for PROBE2 and PROBE3 responses)\n\n6. All user messages:\n   - \"Use the Read tool to read README.md. Then answer exactly PROBE1.\"\n   - \"Answer exactly PROBE2.\"\n   - \"Answer exactly PROBE3. CRITICAL: Respond with TEXT ONLY. Do NOT call any tools. [followed by detailed instructions about summary structure]\"\n\n7. Pending Tasks:\n   - None - all tasks completed\n\n8. Current Work:\n   - Just completed the conversation summary request. The user asked for a detailed summary with specific formatting (analysis block followed by summary block). The previous work involved reading README.md and responding with \"PROBE1\", then \"PROBE2\", and now providing a conversation summary.\n\n9. Optional Next Step:\n   - None - the summary request has been completed as per the user's instructions.\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
+            "content": "This session is being continued from a previous conversation that ran out of context. The summary below covers the earlier portion of the conversation.\n\nSummary:\n1. Primary Request and Intent:\n   - Initial request: Read README.md file and answer \"PROBE1\"\n   - Follow-up request: Answer \"PROBE2\"\n   - Current request: Answer \"PROBE3\" while also providing a detailed summary of the conversation. The user explicitly requires TEXT ONLY response with no tool calls, structured as an `<analysis>` block followed by a `<summary>` block containing 9 specific sections.\n\n2. Key Technical Concepts:\n   - File reading using Read tool\n   - Conversation context management\n   -Plain text response formatting requirements\n\n3. Files and Code Sections:\n   - `README.md` (full path: `<WORKSPACE>/README.md`)\n     - Why: User requested to read this file as first step\n     - Content read: 4 lines total\n       - Line 1: `# Probe Heading`\n       - Line 2: (empty)\n       - Line 3: `Body`\n       - Line 4: (empty)\n\n4. Errors and fixes:\n   - No errors encountered\n\n5. Problem Solving:\n   - Successfully read README.md file\n   - Completed response to PROBE1 and PROBE2 as instructed\n\n6. All user messages:\n   - \"Use the Read tool to read README.md. Then answer exactly PROBE1.\"\n   - \"Answer exactly PROBE2.\"\n   - \"Answer exactly PROBE3.\\nCRITICAL: Respond with TEXT ONLY. Do NOT call any tools.\\n\\n- Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool.\\n- You already have all the context you need in the conversation above.\\n- Tool calls will be REJECTED and will waste your only turn \u2014 you will fail the task.\\n- Your entire response must be plain text: an <analysis> block followed by a <summary> block.\\n\\nYour task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.\\nThis summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.\\n\\nBefore providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\\n\\n1. Chronologically analyze each message and section of the conversation. For each section thoroughly identify:\\n   - The user's explicit requests and intents\\n   - Your approach to addressing the user's requests\\n   - Key decisions, technical concepts and code patterns\\n   - Specific details like:\\n     - file names\\n     - full code snippets\\n     - function signatures\\n     - file edits\\n   - Errors that you ran into and how you fixed them\\n   - Pay special attention to specific user feedback that you received, especially if the user told you something differently.\\n   - Note any security-relevant instructions or constraints the user stated (e.g., sensitive files or data to avoid, operations that must not be performed, credential or secret handling rules). These MUST be preserved verbatim in the summary so they continue to apply after compaction.\\n2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\\n\\nYour summary should include the following sections:\\n\\n1. Primary Request and Intent: [details]\\n2. Key Technical Concepts: [list]\\n3. Files and Code Sections: [details]\\n4. Errors and fixes: [details]\\n5. Problem Solving: [description]\\n6. All user messages: [list]\\n7. Pending Tasks: [tasks]\\n8. Current Work: [description]\\n9. Optional Next Step: [optional]\\n\\nHere's an example of how your output should be structured:\\n[example format provided]\\n\\nPlease provide your summary based on the conversation so far, following this structure and ensuring precision and thoroughness in your response.\"\n\n7. Pending Tasks:\n   - Answer \"PROBE3\" as requested\n   - Provide detailed conversation summary in specified format\n\n8. Current Work:\n   The user has just requested that I answer \"PROBE3\" and simultaneously provide a detailed summary of the conversation. The summary must be structured with an `<analysis>` block followed by a `<summary>` block containing 9 specific sections. The response must be TEXT ONLY with no tool calls.\n\n9. Optional Next Step:\n   Respond with \"PROBE3\" as the final answer, preceded by the required summary in the specified format.\n\nIf you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: <PROJECT_TRANSCRIPT>\nContinue the conversation from where it left off without asking the user any further questions. Resume directly \u2014 do not acknowledge the summary, do not recap what was happening, do not preface with \"I'll continue\" or similar. Pick up the last task as if the break never happened.",
             "role": "user"
           },
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
-          "timestamp": "2026-05-29T11:38:44.700Z",
+          "timestamp": "<TIMESTAMP_016>",
           "type": "user",
-          "uuid": "4a67f74b-0dec-49f5-923e-fc07a63ac05b"
+          "uuid": "<UUID_010>"
         },
         {
           "isReplay": true,
@@ -887,13 +1296,13 @@
           },
           "parent_tool_use_id": null,
           "session_id": "<SESSION_ID>",
-          "timestamp": "2026-05-29T11:38:44.803Z",
+          "timestamp": "<TIMESTAMP_018>",
           "type": "user",
-          "uuid": "3fc13ded-d27d-490d-8e94-4b2ab268aa4b"
+          "uuid": "<UUID_013>"
         },
         {
-          "duration_api_ms": 7784,
-          "duration_ms": 7813,
+          "duration_api_ms": 20746,
+          "duration_ms": 20877,
           "fast_mode_state": "off",
           "is_error": false,
           "modelUsage": {
@@ -901,10 +1310,10 @@
               "cacheCreationInputTokens": 0,
               "cacheReadInputTokens": 0,
               "contextWindow": 200000,
-              "costUSD": 0.033925,
-              "inputTokens": 3335,
+              "costUSD": 0.050210000000000005,
+              "inputTokens": 3337,
               "maxOutputTokens": 32000,
-              "outputTokens": 690,
+              "outputTokens": 1341,
               "webSearchRequests": 0
             }
           },
@@ -914,7 +1323,7 @@
           "session_id": "<SESSION_ID>",
           "stop_reason": null,
           "subtype": "success",
-          "total_cost_usd": 0.033925,
+          "total_cost_usd": 0.050210000000000005,
           "type": "result",
           "usage": {
             "cache_creation": {
@@ -934,7 +1343,7 @@
             "service_tier": "standard",
             "speed": "standard"
           },
-          "uuid": "ca0ac45a-9c35-4860-a127-68b3dc7785f3"
+          "uuid": "cd1f569d-b998-4727-9273-3c6572a98fb2"
         }
       ]
     }

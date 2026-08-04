@@ -5,15 +5,23 @@ import type {
   ActionDisplayFollowupAction,
   ActionDisplayPayload,
 } from '@crystal-lattice/frontend-sdk';
-import { useTheme } from '@crystal-lattice/frontend-rn-components';
+import {
+  type ApplicationActionDialogFieldRenderers,
+  useTheme,
+} from '@crystal-lattice/frontend-rn-components';
 
 import { ActionDisplayCard } from './ActionDisplayCard';
 
 export interface ActionResultInlineCardProps {
   display: ActionDisplayPayload;
   onDismiss: () => void;
-  onFollowupAction?: (action: ActionDisplayFollowupAction) => void;
+  onFollowupAction?: (
+    action: ActionDisplayFollowupAction,
+    formValues?: Record<string, any>,
+  ) => void;
   activeActionId?: string | null;
+  fieldRenderers?: ApplicationActionDialogFieldRenderers;
+  contextLabel?: string;
 }
 
 const VARIANT_LABELS: Record<NonNullable<ActionDisplayPayload['variant']>, string> = {
@@ -28,6 +36,8 @@ export function ActionResultInlineCard({
   onDismiss,
   onFollowupAction,
   activeActionId,
+  fieldRenderers,
+  contextLabel,
 }: ActionResultInlineCardProps): React.JSX.Element {
   const theme = useTheme();
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -42,6 +52,8 @@ export function ActionResultInlineCard({
         activeActionId={activeActionId}
         variantLabel={VARIANT_LABELS[variant]}
         compact
+        fieldRenderers={fieldRenderers}
+        contextLabel={contextLabel}
       />
     </View>
   );
@@ -51,6 +63,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     wrapper: {
       marginHorizontal: 12,
+      marginTop: 10,
       marginBottom: 10,
       shadowColor: theme.shadow,
       shadowOpacity: 0.1,

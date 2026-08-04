@@ -14,6 +14,8 @@ import SessionChatScreen from './SessionChatScreen';
 import type { ChatScrollAnchor } from './chatScroll';
 import { useTheme, type Theme } from './theme';
 import { ApplicationPluginsProvider } from './ApplicationPluginsContext';
+import { DEFAULT_MOBILE_TRANSCRIPT_RANGE } from './transcriptRange';
+import GlobalDisplayLayer from './components/GlobalDisplayLayer';
 
 interface ConnectedRootProps {
   backend: AgentBackend | null;
@@ -48,6 +50,12 @@ interface ConnectedRootProps {
     sessionId: string,
     scrollAnchor: ChatScrollAnchor,
   ) => void;
+  onSaveMessagesHistoryRange: (
+    connectionId: string,
+    sessionId: string,
+    rangeStartText: string,
+    rangeEndText: string,
+  ) => void;
   debugTimeline: DebugTimelineEntry[];
   onAppendDebugTimelineEntry: (
     entry: Omit<DebugTimelineEntry, 'id' | 'timestampMs'> & {
@@ -76,6 +84,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   onUpdateMessagesCache,
   onSaveMessagesComposeText,
   onSaveMessagesScrollAnchor,
+  onSaveMessagesHistoryRange,
   debugTimeline,
   onAppendDebugTimelineEntry,
 }) => {
@@ -126,7 +135,11 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
   return (
     <View style={styles.container}>
       <ApplicationPluginsProvider backend={backend} connectionId={activeConnectionId}>
-        <View style={styles.contentArea}>
+        <GlobalDisplayLayer
+          backend={backend}
+          connectionId={activeConnectionId}
+        >
+        <View style={styles.contentArea} testID="connected-root-content">
         {/* Connection tab content (kept mounted, visibility toggled) */}
         <View
           style={[
@@ -268,6 +281,14 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                   cachedActiveRequestId={cacheEntry?.activeRequestId ?? null}
                   initialComposeText={cacheEntry?.composeText ?? ''}
                   initialScrollAnchor={cacheEntry?.scrollAnchor ?? null}
+                  initialRangeStartText={
+                    cacheEntry?.rangeStartText ??
+                    DEFAULT_MOBILE_TRANSCRIPT_RANGE.startText
+                  }
+                  initialRangeEndText={
+                    cacheEntry?.rangeEndText ??
+                    DEFAULT_MOBILE_TRANSCRIPT_RANGE.endText
+                  }
                   onUpdateCache={(
                     list: IndexedMessage[],
                     eventsCursorId: string | null,
@@ -307,6 +328,17 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
                       onSaveMessagesScrollAnchor(connectionId, selectedSessionId, scrollAnchor);
                     }
                   }}
+                  onSaveHistoryRange={(rangeStartText, rangeEndText) => {
+                    const connectionId = activeConnectionId;
+                    if (connectionId) {
+                      onSaveMessagesHistoryRange(
+                        connectionId,
+                        selectedSessionId,
+                        rangeStartText,
+                        rangeEndText,
+                      );
+                    }
+                  }}
                   debugTimeline={debugTimeline}
                   onAppendDebugTimelineEntry={onAppendDebugTimelineEntry}
                 />
@@ -319,6 +351,7 @@ const ConnectedRoot: React.FC<ConnectedRootProps> = ({
           )}
         </View>
         </View>
+        </GlobalDisplayLayer>
       </ApplicationPluginsProvider>
 
       <View style={styles.navBar}>

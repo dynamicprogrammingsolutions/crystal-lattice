@@ -4,7 +4,7 @@ export type {
   IndexedMessage,
 } from './types/messages';
 
-export type { SessionSummary } from './types/sessions';
+export type { SessionSummary, SessionSummaryPresentation } from './types/sessions';
 
 export type { SessionPluginEntry } from './types/sessionPlugins';
 
@@ -26,6 +26,11 @@ export type {
 } from './types/events';
 
 export type {
+  ApplicationNotification,
+  ApplicationNotificationEvent,
+} from './types/applicationNotifications';
+
+export type {
   UiSchemaElement,
   ConfigSchemaEntry,
 } from './types/uiSchema';
@@ -33,14 +38,17 @@ export type {
 export type {
   ActionInputParam,
   ApplicationActionDefinition,
+  ApplicationActionUiElement,
   ActionUiElement,
   ActionMutations,
   ActionUiEffects,
   ActionDisplayOpenUrlAction,
   ActionDisplayCopyTextAction,
   ActionDisplayRunActionAction,
+  ActionDisplayDismissAction,
   ActionDisplayDownloadAttachmentAssetAction,
   ActionDisplayFollowupAction,
+  ActionDisplayFormPayload,
   ActionDisplayPayload,
   StandardActionResult,
   SessionListFieldElement,
@@ -105,6 +113,50 @@ export { AgentsController, pickDefaultAgentId } from './agents/agentsController'
 
 export type { PollingStatus, PollingEventSourceOptions } from './events/pollingEventSource';
 export { PollingEventSource } from './events/pollingEventSource';
+export {
+  isApplicationNotificationEvent,
+  mergeApplicationNotificationEvents,
+} from './notifications/applicationNotifications';
+export type { ApplicationNotificationsState } from './notifications/applicationNotificationsController';
+export { ApplicationNotificationsController } from './notifications/applicationNotificationsController';
+export type {
+  NotificationSeverity,
+  NotificationExpectedRevision,
+  NotificationOperation,
+  NotificationRetention,
+  NotificationStatus,
+  SessionNotification,
+  SessionNotificationEvent,
+  SessionNotificationStatus,
+} from './types/notifications';
+export {
+  dismissSessionNotificationLocally,
+  isSessionNotification,
+  isSessionNotificationEvent,
+  mergeSessionNotificationEvents,
+  selectPendingSessionNotifications,
+  selectSessionNotifications,
+} from './notifications/sessionNotifications';
+export {
+  isNotificationTtlElapsed,
+} from './notifications/notificationRetention';
+export {
+  isActiveNotification,
+  isNewerNotification,
+  notificationExpectedRevision,
+} from './notifications/notificationLifecycle';
+export type {
+  NotificationDismissalCacheEntry,
+  NotificationDismissalCacheState,
+  NotificationDismissalObservation,
+  NotificationDismissalObservationResult,
+  NotificationDismissalScope,
+  NotificationDismissalScopeKey,
+} from './notifications/notificationDismissalCache';
+export {
+  NotificationDismissalCache,
+  notificationDismissalRevisionKey,
+} from './notifications/notificationDismissalCache';
 
 export type { PluginsResult, PluginsRegistryState } from './plugins/pluginsRegistry';
 export { PluginsRegistry } from './plugins/pluginsRegistry';
@@ -116,10 +168,36 @@ export {
 
 export type { ActionEffect, RunActionResult, RunActionContext, RunActionEffectsOptions } from './plugins/actionRunner';
 export { runApplicationAction, getRunActionErrorMessage } from './plugins/actionRunner';
+export {
+  applicationActionKey,
+  buildApplicationActionsByKey,
+  normalizeApplicationActionElements,
+} from './plugins/applicationActions';
+export type { ApplicationActionDiagnostic } from './plugins/applicationActions';
+export {
+  emitApplicationActionsInvalidated,
+  subscribeApplicationActionsInvalidated,
+} from './plugins/applicationActionsInvalidation';
 export type { ParsedActionDeepLink } from './plugins/actionDeepLinks';
 export { parseActionDeepLink } from './plugins/actionDeepLinks';
 export type { ActionDisplayHost, ActionDisplaySurface } from './plugins/actionDisplayPolicy';
 export { normalizeActionDisplayForSurface } from './plugins/actionDisplayPolicy';
+export type {
+  DisplayEnvelope,
+  DisplayOwnership,
+  DisplayPresentation,
+  DisplayPresentationHost,
+  DisplaySourceKind,
+} from './plugins/displayPresentation';
+export {
+  classifyDisplayEnvelope,
+  displayEnvelopeLifecycleKey,
+  displayEnvelopeRevisionKey,
+  emitDisplayPresentation,
+  normalizeDisplayEnvelope,
+  normalizeDisplayEnvelopeForHost,
+  subscribeDisplayPresentation,
+} from './plugins/displayPresentation';
 export type {
   ComposerAttachmentUiElement,
   SessionAssetRef,
@@ -154,11 +232,94 @@ export {
   deriveSessionListPresentation,
   deriveSessionListPresentationFromGroups,
 } from './sessions/sessionListPresentation';
+export type {
+  ActionDialog,
+  ActionDialogInput,
+  ActionDialogKind,
+  ActionDialogPrefillContext,
+  NormalizationResult,
+  SessionListActionElement,
+  SessionListActionPresentation,
+  SessionListContractDiagnostic,
+  SessionListListRichUi,
+  SessionListOrderSpec,
+  SessionListPathResult,
+  SessionListRichAppearance,
+  SessionListRichUiBase,
+  SessionListRichUi,
+  SessionListRichActionPlacement,
+  SessionListToggleRichUi,
+  SemanticTone,
+  UnknownSessionListRichUi,
+} from './sessions/sessionListContracts';
+export {
+  SESSION_LIST_RICH_ACTION_PLACEMENTS,
+  buildActionDialogInitialValues,
+  formatSessionListFieldValue,
+  normalizeSessionListActionElement,
+  normalizeSessionListFieldElement,
+  normalizeSessionListOrderSpec,
+  resolveActionDialogInitialValue,
+  resolveSessionListActionPresentation,
+  resolveSessionListPath,
+} from './sessions/sessionListContracts';
+export type {
+  SessionListRichActionKind,
+  SessionListRichActionState,
+  SessionListRichListState,
+  SessionListRichToggleState,
+} from './sessions/sessionListRichActions';
+export {
+  DEFAULT_SESSION_LIST_RICH_ACTION_PLACEMENTS,
+  SESSION_LIST_RICH_ACTION_KINDS,
+  buildSessionListRichListDialogValues,
+  getDefaultPinnedSessionListActionKeys,
+  getSessionListRichActionPlacements,
+  isSessionListRichActionPlacedAt,
+  orderPinnedSessionListActionKeys,
+  resolveSessionListRichActionState,
+  resolveSessionListRichValue,
+  selectSessionListRichActionForPlacement,
+} from './sessions/sessionListRichActions';
+export type {
+  SessionListFilterElement,
+  SessionListFilterEvaluation,
+  SessionListFilterMatch,
+  SessionListFilterSchema,
+  SessionListFilterType,
+  SessionListFilterValues,
+  SessionListOption,
+  SessionListOptionTone,
+  SessionListOptionValue,
+} from './sessions/sessionListFilters';
+export {
+  FRONTEND_FALLBACK_SESSION_SEARCH_ID,
+  countActiveSessionListFilters,
+  createSessionListFilterValues,
+  evaluateSessionListFilters,
+  inactiveSessionListFilterValue,
+  isSessionListFilterActive,
+  normalizeSessionListFilterSchema,
+  reconcileSessionListFilterValues,
+  validateSessionListFilterValue,
+  withFrontendFallbackSessionSearch,
+} from './sessions/sessionListFilters';
 
 export type { ChatControllerState, StreamingRow, RequestErrorState } from './chat/chatController';
 export { ChatController } from './chat/chatController';
 
 export { selectLastAssistantMessage, deriveChatStatusBarParts } from './chat/presentation';
+export type {
+  TranscriptRangeControlAction,
+  TranscriptRangeControlInput,
+  TranscriptRangePlan,
+  TranscriptRangeControlButton,
+  TranscriptRangeControlPresentation,
+} from './chat/messageRangeControls';
+export {
+  getTranscriptRangeControlPresentation,
+  planTranscriptRangeControlAction,
+} from './chat/messageRangeControls';
 
 export type { SessionUiSchemaControllerState } from './uiSchema/sessionUiSchemaController';
 export { SessionUiSchemaController } from './uiSchema/sessionUiSchemaController';

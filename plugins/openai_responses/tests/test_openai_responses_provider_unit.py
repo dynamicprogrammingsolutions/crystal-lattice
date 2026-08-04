@@ -936,6 +936,311 @@ def test_get_models_applies_live_over_snapshot_over_manual_precedence(
     ]
 
 
+def test_get_models_live_codex_overrides_stale_snapshot_and_manual_for_gpt_5_6(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [
+            {
+                "id": "gpt-5.6-sol",
+                "name": "manual sol",
+                "description": "stale manual",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_snapshot_model_descriptors_shared",
+        lambda: [
+            {
+                "id": "gpt-5.6-sol",
+                "name": "snapshot sol",
+                "description": "stale snapshot",
+            },
+            {"id": "gpt-5.6-terra", "name": "snapshot terra"},
+        ],
+    )
+    monkeypatch.setattr(
+        provider,
+        "_fetch_codex_models",
+        lambda config: [
+            {
+                "id": "gpt-5.6-sol",
+                "name": "GPT-5.6-Sol",
+                "description": "Latest frontier agentic coding model.",
+            },
+            {
+                "id": "gpt-5.6-terra",
+                "name": "GPT-5.6-Terra",
+                "description": "Balanced agentic coding model for everyday work.",
+            },
+            {
+                "id": "gpt-5.6-luna",
+                "name": "GPT-5.6-Luna",
+                "description": "Fast and affordable agentic coding model.",
+            },
+        ],
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.6-luna", "name": "GPT-5.6-Luna"},
+        {"id": "gpt-5.6-sol", "name": "GPT-5.6-Sol"},
+        {"id": "gpt-5.6-terra", "name": "GPT-5.6-Terra"},
+    ]
+
+
+def test_get_models_snapshot_supplies_all_three_gpt_5_6_when_live_fetch_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def _raise_codex_error(config: Dict[str, Any]) -> list[Dict[str, Any]]:
+        raise RuntimeError("codex unavailable")
+
+    monkeypatch.setattr(provider, "_fetch_codex_models", _raise_codex_error)
+    monkeypatch.setattr(
+        provider_module,
+        "_load_snapshot_model_descriptors_shared",
+        lambda: [
+            {
+                "id": "gpt-5.6-luna",
+                "name": "GPT-5.6-Luna",
+                "description": "Fast and affordable agentic coding model.",
+            },
+            {
+                "id": "gpt-5.6-sol",
+                "name": "GPT-5.6-Sol",
+                "description": "Latest frontier agentic coding model.",
+            },
+            {
+                "id": "gpt-5.6-terra",
+                "name": "GPT-5.6-Terra",
+                "description": "Balanced agentic coding model for everyday work.",
+            },
+        ],
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [{"id": "gpt-5.5", "name": "gpt-5.5"}],
+    )
+
+    def _fail_if_chatgpt_models_called(config: Dict[str, Any]) -> Dict[str, Any]:
+        raise AssertionError(
+            "ChatGPT /models must not be called when snapshot is available"
+        )
+
+    monkeypatch.setattr(
+        provider, "_fetch_chatgpt_models", _fail_if_chatgpt_models_called
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.5", "name": "gpt-5.5"},
+        {"id": "gpt-5.6-luna", "name": "GPT-5.6-Luna"},
+        {"id": "gpt-5.6-sol", "name": "GPT-5.6-Sol"},
+        {"id": "gpt-5.6-terra", "name": "GPT-5.6-Terra"},
+    ]
+
+
+def test_get_models_does_not_call_chatgpt_models_endpoint_when_snapshot_available(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def _raise_codex_error(config: Dict[str, Any]) -> list[Dict[str, Any]]:
+        raise RuntimeError("codex unavailable")
+
+    monkeypatch.setattr(provider, "_fetch_codex_models", _raise_codex_error)
+    monkeypatch.setattr(
+        provider_module,
+        "_load_snapshot_model_descriptors_shared",
+        lambda: [{"id": "gpt-5.4", "name": "gpt-5.4 snapshot"}],
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [],
+    )
+
+    chatgpt_calls: list[Dict[str, Any]] = []
+
+    def _fail_if_chatgpt_models_called(config: Dict[str, Any]) -> Dict[str, Any]:
+        chatgpt_calls.append(config)
+        raise AssertionError(
+            "ChatGPT /models must not be called when snapshot is available"
+        )
+
+    monkeypatch.setattr(
+        provider, "_fetch_chatgpt_models", _fail_if_chatgpt_models_called
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert chatgpt_calls == []
+    assert models == [{"id": "gpt-5.4", "name": "gpt-5.4 snapshot"}]
+
+
+def test_get_models_handles_empty_chatgpt_models_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def _raise_codex_error(config: Dict[str, Any]) -> list[Dict[str, Any]]:
+        raise RuntimeError("codex unavailable")
+
+    monkeypatch.setattr(provider, "_fetch_codex_models", _raise_codex_error)
+    monkeypatch.setattr(
+        provider_module,
+        "_load_snapshot_model_descriptors_shared",
+        lambda: [],
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [{"id": "gpt-5.5", "name": "gpt-5.5"}],
+    )
+    monkeypatch.setattr(
+        provider,
+        "_fetch_chatgpt_models",
+        lambda config: {"models": []},
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert models == [{"id": "gpt-5.5", "name": "gpt-5.5"}]
+
+
+def test_get_models_manual_models_only_fill_gaps(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    provider = OpenAIResponsesProvider()
+    credentials_path = tmp_path / "auth" / "chatgpt-auth.json"
+    credentials_path.parent.mkdir(parents=True, exist_ok=True)
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "chatgpt-access-token",
+                "expires_at": "2999-01-01T00:00:00Z",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        provider_module,
+        "_load_manual_chatgpt_model_descriptors_shared",
+        lambda: [
+            {"id": "gpt-5.5", "name": "manual 5.5"},
+            {"id": "gpt-5.6-sol", "name": "manual sol"},
+        ],
+    )
+    monkeypatch.setattr(
+        provider_module,
+        "_load_snapshot_model_descriptors_shared",
+        lambda: [],
+    )
+    monkeypatch.setattr(
+        provider,
+        "_fetch_codex_models",
+        lambda config: [
+            {
+                "id": "gpt-5.6-sol",
+                "name": "GPT-5.6-Sol",
+                "description": "Latest frontier agentic coding model.",
+            },
+        ],
+    )
+
+    models = provider.get_models(
+        {
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+        }
+    )
+
+    assert models == [
+        {"id": "gpt-5.5", "name": "manual 5.5"},
+        {"id": "gpt-5.6-sol", "name": "GPT-5.6-Sol"},
+    ]
+
+
 def test_get_ui_elements_uses_dropdown_when_models_are_available() -> None:
     provider = OpenAIResponsesProvider()
 
@@ -1590,6 +1895,7 @@ def test_to_native_messages_converts_openai_chat_tool_result_envelope() -> None:
         {"type": "input_image", "image_url": "data:image/png;base64,AAA"},
         {"type": "input_text", "text": "</image>"},
     ]
+
 
 def test_to_native_messages_converts_image_data_base64_to_data_url() -> None:
     provider = OpenAIResponsesProvider()
@@ -3459,7 +3765,9 @@ def test_process_chunk_raises_on_completed_event_without_output() -> None:
         )
 
 
-def test_process_chunk_uses_accumulated_output_items_when_completed_event_omits_output() -> None:
+def test_process_chunk_uses_accumulated_output_items_when_completed_event_omits_output() -> (
+    None
+):
     provider = OpenAIResponsesProvider()
     state: Dict[str, Any] = {}
     native_messages: list[Dict[str, Any]] = []
@@ -3672,9 +3980,7 @@ def test_send_request_stream_chatgpt_raw_completed_without_output_uses_output_it
     }
     assert native_history[1]["type"] == "message"
     assert native_history[1]["role"] == "assistant"
-    assert native_history[1]["content"] == [
-        {"type": "output_text", "text": "RAW_OK"}
-    ]
+    assert native_history[1]["content"] == [{"type": "output_text", "text": "RAW_OK"}]
     assert native_history[1]["_metadata"]["response_id"] == "resp_chatgpt_raw_1"
     assert native_history[1]["_metadata"]["_openai_responses_usage_raw"] == {
         "input_tokens": 1,
@@ -3797,7 +4103,137 @@ def test_response_internal_metadata_preserves_service_tier() -> None:
     assert response_md["_openai_responses_service_tier"] == "flex"
 
 
-def test_cancel_request_returns_false_for_unknown_request() -> None:
+def test_response_internal_metadata_extracts_reasoning_context() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {
+            "id": "resp_ctx_1",
+            "reasoning": {"context": "all_turns"},
+        }
+    )
+
+    assert response_md["_openai_responses_reasoning_context"] == "all_turns"
+
+
+def test_response_internal_metadata_extracts_current_turn_context() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {
+            "id": "resp_ctx_2",
+            "reasoning": {"context": "current_turn"},
+        }
+    )
+
+    assert response_md["_openai_responses_reasoning_context"] == "current_turn"
+
+
+def test_response_internal_metadata_omits_reasoning_context_when_absent() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_no_ctx", "reasoning": {"effort": "medium"}}
+    )
+
+    assert "_openai_responses_reasoning_context" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_context_when_no_reasoning_obj() -> (
+    None
+):
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata({"id": "resp_no_reasoning"})
+
+    assert "_openai_responses_reasoning_context" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_context_when_not_string() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_bad_ctx", "reasoning": {"context": 123}}
+    )
+
+    assert "_openai_responses_reasoning_context" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_context_when_empty() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_empty_ctx", "reasoning": {"context": ""}}
+    )
+
+    assert "_openai_responses_reasoning_context" not in response_md
+
+
+def test_response_internal_metadata_extracts_reasoning_mode() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {
+            "id": "resp_mode_1",
+            "reasoning": {"mode": "pro"},
+        }
+    )
+
+    assert response_md["_openai_responses_reasoning_mode"] == "pro"
+
+
+def test_response_internal_metadata_extracts_reasoning_mode_and_context() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {
+            "id": "resp_mode_ctx",
+            "reasoning": {"mode": "pro", "context": "all_turns"},
+        }
+    )
+
+    assert response_md["_openai_responses_reasoning_mode"] == "pro"
+    assert response_md["_openai_responses_reasoning_context"] == "all_turns"
+
+
+def test_response_internal_metadata_omits_reasoning_mode_when_absent() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_no_mode", "reasoning": {"effort": "medium"}}
+    )
+
+    assert "_openai_responses_reasoning_mode" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_mode_when_no_reasoning_obj() -> (
+    None
+):
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata({"id": "resp_no_reasoning_obj"})
+
+    assert "_openai_responses_reasoning_mode" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_mode_when_not_string() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_bad_mode", "reasoning": {"mode": 123}}
+    )
+
+    assert "_openai_responses_reasoning_mode" not in response_md
+
+
+def test_response_internal_metadata_omits_reasoning_mode_when_empty() -> None:
+    provider = OpenAIResponsesProvider()
+
+    response_md = provider._response_internal_metadata(
+        {"id": "resp_empty_mode", "reasoning": {"mode": ""}}
+    )
+
+    assert "_openai_responses_reasoning_mode" not in response_md
     provider = OpenAIResponsesProvider()
     assert provider.cancel_request("missing-request") is False
 

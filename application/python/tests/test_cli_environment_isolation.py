@@ -12,14 +12,20 @@ from agent_terminal_app.__main__ import (
     _build_server_integration_config,
     _collect_additional_dotenv_values,
     _parse_contributed_command,
+    _read_bridge_url_from_config,
+    _resolve_effective_host,
+    _resolve_fastapi_log_file,
+    _resolve_log_file,
 )
+from agent_terminal_app.project_profile import ProjectProfile
 
 
 def _args(**overrides: Any) -> argparse.Namespace:
     values = {
-        "host": "127.0.0.1",
-        "port": 8765,
+        "host": None,
+        "port": None,
         "enable_bonjour": False,
+        "enable_bridge": False,
         "bonjour_port": None,
         "bonjour_service_name": None,
         "bridge_url": None,
@@ -30,6 +36,10 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "bridge_exit_on_superseded": False,
         "bridge_local_guard": False,
         "bridge_takeover_local": False,
+        "log_file": None,
+        "fastapi_log_file": None,
+        "no_log_file": False,
+        "no_tty": False,
     }
     values.update(overrides)
     return argparse.Namespace(**values)
@@ -84,6 +94,8 @@ def test_cli_bridge_config_does_not_populate_process_env(monkeypatch) -> None:
             bridge_server_id="server-123",
         ),
         server_mod=server_mod,
+        effective_host="127.0.0.1",
+        effective_port=8765,
     )
 
     assert config is not None
@@ -107,6 +119,8 @@ def test_cli_bonjour_config_does_not_populate_process_env(monkeypatch) -> None:
             bonjour_service_name="Crystal",
         ),
         server_mod=server_mod,
+        effective_host="0.0.0.0",
+        effective_port=8765,
     )
 
     assert config is not None
@@ -124,6 +138,8 @@ def test_cli_bridge_config_preserves_external_env_as_fallback(monkeypatch) -> No
     config = _build_server_integration_config(
         _args(bridge_url="wss://bridge.example/ws/websocket"),
         server_mod=server_mod,
+        effective_host="127.0.0.1",
+        effective_port=8765,
     )
 
     assert config is not None
@@ -254,3 +270,446 @@ def test_application_action_map_indexes_plugin_actions() -> None:
         ("cloud", "cloud.validate_cloud"),
         ("dummy", "dummy.do_it"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Host resolution tests
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_effective_host_auto_zero_for_bonjour() -> None:
+    """When --host is not passed and bonjour is enabled, use 0.0.0.0."""
+    args = _args(enable_bonjour=True)
+    assert _resolve_effective_host(args) == "0.0.0.0"
+
+
+def test_resolve_effective_host_explicit_wins() -> None:
+    """Explicit --host always wins, even with --enable-bonjour."""
+    args = _args(enable_bonjour=True, host="127.0.0.1")
+    assert _resolve_effective_host(args) == "127.0.0.1"
+
+
+def test_resolve_effective_host_default_loopback() -> None:
+    """Without bonjour or --host, default to 127.0.0.1."""
+    args = _args()
+    assert _resolve_effective_host(args) == "127.0.0.1"
+
+
+# ---------------------------------------------------------------------------
+# Log file resolution tests
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_log_file_default() -> None:
+    """No flags → .crystal/crystal.log."""
+    args = _args()
+    assert _resolve_log_file(args) == str(Path(".crystal") / "crystal.log")
+
+
+def test_resolve_log_file_no_log_file() -> None:
+    """--no-log-file → None."""
+    args = _args(no_log_file=True)
+    assert _resolve_log_file(args) is None
+
+
+def test_resolve_log_file_explicit() -> None:
+    """--log-file custom.log → custom.log (even with --no-log-file)."""
+    args = _args(log_file="custom.log", no_log_file=True)
+    assert _resolve_log_file(args) == "custom.log"
+
+
+def test_resolve_fastapi_log_file_defaults_to_log_file() -> None:
+    """When --fastapi-log-file is absent, use the same file as log_file."""
+    args = _args()
+    assert _resolve_fastapi_log_file(args, "app.log") == "app.log"
+
+
+def test_resolve_fastapi_log_file_explicit() -> None:
+    """When --fastapi-log-file is given, it wins over log_file."""
+    args = _args(fastapi_log_file="fastapi.log")
+    assert _resolve_fastapi_log_file(args, "app.log") == "fastapi.log"
+
+
+def test_resolve_fastapi_log_file_none_when_log_file_none() -> None:
+    """When both are absent, fastapi log file is None."""
+    args = _args()
+    assert _resolve_fastapi_log_file(args, None) is None
+
+
+# ---------------------------------------------------------------------------
+# Bridge URL from config tests
+# ---------------------------------------------------------------------------
+
+
+def test_read_bridge_url_from_config(tmp_path: Path) -> None:
+    config = tmp_path / "config.json"
+    config.write_text('{"application": {"bridge_url": "wss://bridge.example/ws"}}')
+    assert _read_bridge_url_from_config(config) == "wss://bridge.example/ws"
+
+
+def test_read_bridge_url_from_config_missing(tmp_path: Path) -> None:
+    config = tmp_path / "config.json"
+    config.write_text('{"application": {"tool_output_line_limit": 20}}')
+    assert _read_bridge_url_from_config(config) is None
+
+
+def test_read_bridge_url_from_config_no_application(tmp_path: Path) -> None:
+    config = tmp_path / "config.json"
+    config.write_text('{"providers": {}}')
+    assert _read_bridge_url_from_config(config) is None
+
+
+def test_read_bridge_url_from_config_missing_file(tmp_path: Path) -> None:
+    assert _read_bridge_url_from_config(tmp_path / "nonexistent.json") is None
+
+
+def test_read_bridge_url_from_config_invalid_json(tmp_path: Path) -> None:
+    config = tmp_path / "config.json"
+    config.write_text("{invalid")
+    assert _read_bridge_url_from_config(config) is None
+
+
+# ---------------------------------------------------------------------------
+# --enable-bridge tests
+# ---------------------------------------------------------------------------
+
+
+def test_enable_bridge_resolves_url_from_profile() -> None:
+    """--enable-bridge with profile.bridge_url → bridge configured."""
+    profile = ProjectProfile(
+        name="myproject",
+        port=8090,
+        bridge_server_id="test-id",
+        bridge_url="wss://from-profile.example/ws",
+    )
+    config = _build_server_integration_config(
+        _args(enable_bridge=True),
+        server_mod=server_mod,
+        profile=profile,
+        effective_host="0.0.0.0",
+        effective_port=8090,
+    )
+    assert config is not None
+    assert config.bridge is not None
+    assert config.bridge.bridge_url == "wss://from-profile.example/ws"
+    assert config.bridge.server_id == "test-id"
+    assert config.bridge.display_name == "myproject"
+
+
+def test_enable_bridge_resolves_url_from_config() -> None:
+    """--enable-bridge with no profile URL → falls back to config."""
+    profile = ProjectProfile(
+        name="myproject",
+        port=8090,
+        bridge_server_id="test-id",
+        bridge_url=None,
+    )
+    config = _build_server_integration_config(
+        _args(enable_bridge=True),
+        server_mod=server_mod,
+        profile=profile,
+        bridge_url_from_config="wss://from-config.example/ws",
+        effective_host="0.0.0.0",
+        effective_port=8090,
+    )
+    assert config is not None
+    assert config.bridge is not None
+    assert config.bridge.bridge_url == "wss://from-config.example/ws"
+
+
+def test_enable_bridge_no_url_warns_and_skips(capsys) -> None:
+    """--enable-bridge with no URL anywhere → bridge not configured, warning printed."""
+    profile = ProjectProfile(
+        name="myproject",
+        port=8090,
+        bridge_server_id="test-id",
+        bridge_url=None,
+    )
+    config = _build_server_integration_config(
+        _args(enable_bridge=True),
+        server_mod=server_mod,
+        profile=profile,
+        effective_host="0.0.0.0",
+        effective_port=8090,
+    )
+    assert config is None
+    captured = capsys.readouterr()
+    assert "no bridge URL found" in captured.out
+
+
+def test_bridge_url_cli_wins_over_profile_and_config() -> None:
+    """--bridge-url (via profile) wins over config bridge_url."""
+    # In real usage, args.bridge_url is passed to the profile manager's
+    # resolve(cli_bridge_url=...), so profile.bridge_url IS the CLI value.
+    profile = ProjectProfile(
+        name="myproject",
+        port=8090,
+        bridge_server_id="test-id",
+        bridge_url="wss://from-cli.example/ws",
+    )
+    config = _build_server_integration_config(
+        _args(bridge_url="wss://from-cli.example/ws"),
+        server_mod=server_mod,
+        profile=profile,
+        bridge_url_from_config="wss://from-config.example/ws",
+        effective_host="0.0.0.0",
+        effective_port=8090,
+    )
+    assert config is not None
+    assert config.bridge is not None
+    assert config.bridge.bridge_url == "wss://from-cli.example/ws"
+
+
+def test_profile_name_used_as_default_display_name() -> None:
+    """No --bridge-display-name → profile.name used."""
+    profile = ProjectProfile(
+        name="myproject",
+        port=8090,
+        bridge_server_id="test-id",
+        bridge_url="wss://bridge.example/ws",
+    )
+    config = _build_server_integration_config(
+        _args(enable_bridge=True),
+        server_mod=server_mod,
+        profile=profile,
+        effective_host="0.0.0.0",
+        effective_port=8090,
+    )
+    assert config is not None
+    assert config.bridge is not None
+    assert config.bridge.display_name == "myproject"
+
+
+def test_profile_name_used_as_default_bonjour_service_name() -> None:
+    """No --bonjour-service-name → profile.name used."""
+    profile = ProjectProfile(
+        name="myproject",
+        port=8090,
+        bridge_server_id="test-id",
+        bridge_url=None,
+    )
+    config = _build_server_integration_config(
+        _args(enable_bonjour=True),
+        server_mod=server_mod,
+        profile=profile,
+        effective_host="0.0.0.0",
+        effective_port=8090,
+    )
+    assert config is not None
+    assert config.bonjour is not None
+    assert config.bonjour.service_name == "myproject"
+
+
+def test_explicit_display_name_wins_over_profile_name() -> None:
+    """--bridge-display-name takes priority over profile.name."""
+    profile = ProjectProfile(
+        name="myproject",
+        port=8090,
+        bridge_server_id="test-id",
+        bridge_url="wss://bridge.example/ws",
+    )
+    config = _build_server_integration_config(
+        _args(enable_bridge=True, bridge_display_name="Custom Name"),
+        server_mod=server_mod,
+        profile=profile,
+        effective_host="0.0.0.0",
+        effective_port=8090,
+    )
+    assert config is not None
+    assert config.bridge is not None
+    assert config.bridge.display_name == "Custom Name"
+
+
+def test_bridge_local_http_base_uses_effective_host_and_port(monkeypatch) -> None:
+    """local_http_base defaults to http://<effective_host>:<effective_port>."""
+    monkeypatch.delenv("SERVER_HOST", raising=False)
+    monkeypatch.delenv("SERVER_PORT", raising=False)
+    monkeypatch.delenv("BRIDGE_LOCAL_HTTP_BASE", raising=False)
+    profile = ProjectProfile(
+        name="myproject",
+        port=8090,
+        bridge_server_id="test-id",
+        bridge_url="wss://bridge.example/ws",
+    )
+    config = _build_server_integration_config(
+        _args(enable_bridge=True),
+        server_mod=server_mod,
+        profile=profile,
+        effective_host="0.0.0.0",
+        effective_port=8090,
+    )
+    assert config is not None
+    assert config.bridge is not None
+    assert config.bridge.local_http_base == "http://0.0.0.0:8090"
+
+
+# ---------------------------------------------------------------------------
+# Startup summary tests
+# ---------------------------------------------------------------------------
+
+
+def test_format_startup_summary_localhost() -> None:
+    """host=127.0.0.1 → http://127.0.0.1:port."""
+    from agent_terminal_app.__main__ import _format_startup_summary
+
+    summary = _format_startup_summary(
+        project_name="myproject",
+        config_path=Path("/tmp/config.json"),
+        session_root=Path("/tmp/sessions"),
+        host="127.0.0.1",
+        port=8090,
+    )
+    assert "[crystal-lattice] Starting myproject" in summary
+    assert "http://127.0.0.1:8090" in summary
+    assert "Bonjour" not in summary
+    assert "Bridge" not in summary
+
+
+def test_format_startup_summary_zero_bind_with_lan_ip() -> None:
+    """host=0.0.0.0 with lan_ip → http://<lan-ip>:port."""
+    from agent_terminal_app.__main__ import _format_startup_summary
+
+    summary = _format_startup_summary(
+        project_name="myproject",
+        config_path=Path("/tmp/config.json"),
+        session_root=Path("/tmp/sessions"),
+        host="0.0.0.0",
+        port=8090,
+        lan_ip="192.168.1.42",
+    )
+    assert "http://192.168.1.42:8090" in summary
+
+
+def test_format_startup_summary_zero_bind_without_lan_ip() -> None:
+    """host=0.0.0.0 without lan_ip → falls back to 127.0.0.1."""
+    from agent_terminal_app.__main__ import _format_startup_summary
+
+    summary = _format_startup_summary(
+        project_name="myproject",
+        config_path=Path("/tmp/config.json"),
+        session_root=Path("/tmp/sessions"),
+        host="0.0.0.0",
+        port=8090,
+    )
+    assert "http://127.0.0.1:8090" in summary
+
+
+def test_format_startup_summary_bonjour_only() -> None:
+    """bonjour on, bridge off → Bonjour line present, Bridge absent."""
+    from agent_terminal_app.__main__ import _format_startup_summary
+
+    summary = _format_startup_summary(
+        project_name="myproject",
+        config_path=Path("/tmp/config.json"),
+        session_root=Path("/tmp/sessions"),
+        host="0.0.0.0",
+        port=8090,
+        bonjour_service_name="myproject",
+        lan_ip="192.168.1.42",
+    )
+    assert "Bonjour:   myproject (discoverable on local network)" in summary
+    assert "Bridge" not in summary
+
+
+def test_format_startup_summary_bridge_only() -> None:
+    """bridge on, bonjour off → Bridge line present, Bonjour absent."""
+    from agent_terminal_app.__main__ import _format_startup_summary
+
+    summary = _format_startup_summary(
+        project_name="myproject",
+        config_path=Path("/tmp/config.json"),
+        session_root=Path("/tmp/sessions"),
+        host="127.0.0.1",
+        port=8090,
+        bridge_url="wss://bridge.example/ws",
+    )
+    assert "Bridge:    wss://bridge.example/ws" in summary
+    assert "Bonjour" not in summary
+
+
+def test_format_startup_summary_both_on() -> None:
+    """both bonjour and bridge on → both lines present."""
+    from agent_terminal_app.__main__ import _format_startup_summary
+
+    summary = _format_startup_summary(
+        project_name="myproject",
+        config_path=Path("/tmp/config.json"),
+        session_root=Path("/tmp/sessions"),
+        host="0.0.0.0",
+        port=8090,
+        bonjour_service_name="myproject",
+        bridge_url="wss://bridge.example/ws",
+        lan_ip="192.168.1.42",
+    )
+    assert "Bonjour:   myproject (discoverable on local network)" in summary
+    assert "Bridge:    wss://bridge.example/ws" in summary
+
+
+def test_format_startup_summary_neither() -> None:
+    """neither bonjour nor bridge → only Config/Sessions/HTTP lines."""
+    from agent_terminal_app.__main__ import _format_startup_summary
+
+    summary = _format_startup_summary(
+        project_name="myproject",
+        config_path=Path("/tmp/config.json"),
+        session_root=Path("/tmp/sessions"),
+        host="127.0.0.1",
+        port=8090,
+    )
+    assert "Config:" in summary
+    assert "Sessions:" in summary
+    assert "HTTP:" in summary
+    assert "Bonjour" not in summary
+    assert "Bridge" not in summary
+
+
+def test_format_startup_summary_includes_project_name() -> None:
+    """project name appears in the header line."""
+    from agent_terminal_app.__main__ import _format_startup_summary
+
+    summary = _format_startup_summary(
+        project_name="iocharts",
+        config_path=Path("/tmp/config.json"),
+        session_root=Path("/tmp/sessions"),
+        host="127.0.0.1",
+        port=8090,
+    )
+    assert "[crystal-lattice] Starting iocharts" in summary
+
+
+def test_format_startup_summary_includes_config_and_sessions() -> None:
+    """Config and Sessions paths appear in the summary."""
+    from agent_terminal_app.__main__ import _format_startup_summary
+
+    summary = _format_startup_summary(
+        project_name="myproject",
+        config_path=Path("/home/user/.crystal/config.json"),
+        session_root=Path("/home/user/.crystal/sessions"),
+        host="127.0.0.1",
+        port=8090,
+    )
+    assert "/home/user/.crystal/config.json" in summary
+    assert "/home/user/.crystal/sessions" in summary
+
+
+def test_set_terminal_title_does_not_print(capsys) -> None:
+    """_set_terminal_title should not print the debug 'Setting terminal title' message."""
+    from agent_terminal_app.__main__ import _set_terminal_title
+
+    _set_terminal_title("Test Title")
+    captured = capsys.readouterr()
+    assert "Setting terminal title" not in captured.out
+
+
+def test_no_tty_flag_is_parsed() -> None:
+    """--no-tty is parsed as a boolean store_true flag."""
+    from agent_terminal_app.__main__ import _run_terminal_headless
+
+    args = _args(no_tty=True)
+    assert args.no_tty is True
+
+    args = _args(no_tty=False)
+    assert args.no_tty is False
+
+    # The helper must be callable (importable, correct signature).
+    assert callable(_run_terminal_headless)

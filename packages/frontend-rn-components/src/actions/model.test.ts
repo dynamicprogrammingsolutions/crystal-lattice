@@ -42,7 +42,7 @@ describe('buildActionsMenuModel', () => {
       pinned: ['c', 'missing', 'a'],
     });
 
-    expect(model.visiblePinned.map((def) => def.key)).toEqual(['c', 'a']);
+    expect(model.visiblePinned.map((def) => def.key)).toEqual(['a', 'c']);
     expect(model.visibleOverflow.map((def) => def.key)).toEqual(['b']);
   });
 });

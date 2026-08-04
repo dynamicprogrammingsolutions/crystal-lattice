@@ -1,12 +1,14 @@
 # Bash Tool Investigation Notes
 
-Status: initial foreground success/failure/timeout, cwd-reset, and background fixtures captured.
+Status: foreground success/failure/timeout (including no-output variants), cwd-reset, and background fixtures captured.
 
 ## Fixtures
 
 - `plugins/claude-tools/investigation/fixtures/bash/success-pwd.json`
 - `plugins/claude-tools/investigation/fixtures/bash/success-stderr-zero.json`
+- `plugins/claude-tools/investigation/fixtures/bash/success-no-output.json`
 - `plugins/claude-tools/investigation/fixtures/bash/error-nonzero.json`
+- `plugins/claude-tools/investigation/fixtures/bash/error-no-output.json`
 - `plugins/claude-tools/investigation/fixtures/bash/error-timeout.json`
 - `plugins/claude-tools/investigation/fixtures/bash/success-cwd-reset.json`
 - `plugins/claude-tools/investigation/fixtures/bash/success-background.json`
@@ -45,11 +47,23 @@ Successful command with stderr but exit code `0`:
 problem
 ```
 
+Successful command with no output (exit code `0`, empty stdout/stderr):
+
+```text
+(Bash completed with no output)
+```
+
 Non-zero exit:
 
 ```text
 Exit code 7
 problem
+```
+
+Non-zero exit with no output:
+
+```text
+Exit code 7
 ```
 
 Timeout result:
@@ -82,7 +96,17 @@ Full Claude harness follow-up behavior:
 - Reuse the shared shell engine for foreground execution.
 - Match the observed output policy:
   - success: raw output only
+  - success with no output: `(Bash completed with no output)` placeholder
   - non-zero exit: `Exit code N` prefix plus output
+  - non-zero exit with no output: `Exit code N` with no body
   - timeout: report `Exit code 143`
-- Use the configured working directory for each Bash execution; the current captured fixture for `cd ... && pwd` returns only the command output.
+- Persist the working directory between commands the way the upstream Claude
+  Code Bash tool description says it does ("The working directory persists
+  between commands"). The ending cwd of each foreground command is stored in
+  the tool-result message's `metadata.bash.end_cwd`, formatted as a path
+  relative to the configured `working_directory` when inside the tree
+  (portable across sandbox moves) and absolute when outside. The next Bash
+  command reads the most recent `end_cwd` from the session messages and
+  resolves it against the configured `working_directory`. Background commands
+  do not update the cwd chain.
 - Support `run_in_background` with the observed `background ID + output file path` success message.

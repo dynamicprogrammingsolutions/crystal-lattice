@@ -1,0 +1,8 @@
+{
+  "module": "dummy_session_notification_app",
+  "subdirectory": ".",
+  "entries": ["dummy_session_notification_app.DummySessionNotificationPlugin"],
+  "kinds": {
+    "dummy_session_notification_app.DummySessionNotificationPlugin": "application"
+  }
+}

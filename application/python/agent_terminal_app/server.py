@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import asyncio
 import hashlib
@@ -17,14 +15,34 @@ from datetime import datetime
 
 from agent_core.utils import get_logger
 
-from fastapi import Depends, FastAPI, Header, HTTPException  # type: ignore[reportMissingImports]
+from fastapi import (  # type: ignore[reportMissingImports]
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Request,
+)
+from fastapi.responses import JSONResponse  # type: ignore[reportMissingImports]
 
+from agent_app.application_owner import (
+    AgentApplicationOwner,
+    ApplicationReloadPendingError,
+)
 from agent_app.application_future import (
     AgentApplication,
     ReadonlySessionViewError,
     SessionConflictError,
 )
 from agent_app.config import resolve_request_config
+from agent_app.notifications import (
+    NotificationRevisionConflictError,
+    NotificationTransitionError,
+)
+from agent_app.request_execution import (
+    SessionOperationBusyError,
+    SessionRequestCoordinatorClosedError,
+    StaleApplicationGenerationError,
+)
 from agent_app.sessions import FilesystemSnapshotSelectionStore
 from agent_core import Message, Session
 from agent_terminal_app import bonjour as bonjour_mod
@@ -33,9 +51,7 @@ from agent_terminal_app.runtime_layout import load_runtime_layout
 
 
 _DEFAULT_RUNTIME_LAYOUT = load_runtime_layout()
-_DEFAULT_CONFIG_PATH = (
-    _DEFAULT_RUNTIME_LAYOUT.config_examples / "config_openrouter_app_layer.json"
-)
+_DEFAULT_CONFIG_PATH = _DEFAULT_RUNTIME_LAYOUT.config_examples / "config_fallback.json"
 _DEFAULT_SESSION_ROOT = _DEFAULT_RUNTIME_LAYOUT.user_path("default_sessions_dir")
 
 _log = get_logger(__name__)
@@ -47,6 +63,32 @@ _log = get_logger(__name__)
 
 
 app = FastAPI(title="Agent Terminal App - Echo provider (AgentApplication)")
+
+
+@app.middleware("http")
+async def application_operation_gate(
+    request: Request,
+    call_next: Any,
+) -> Any:
+    owner = _application_owner
+    if owner is None or request.url.path.startswith("/__test/"):
+        return await call_next(request)
+    try:
+        operation = owner.acquire_operation()
+    except ApplicationReloadPendingError as exc:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": {
+                    "error_type": exc.error_type,
+                    "message": str(exc),
+                }
+            },
+        )
+    try:
+        return await call_next(request)
+    finally:
+        operation.release()
 
 
 # ---------------------------------------------------------------------------
@@ -100,47 +142,6 @@ def clear_configured_integrations() -> None:
 
 
 _log = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Process-local concurrency guards
-# ---------------------------------------------------------------------------
-
-
-_send_single_flight_lock = threading.Lock()
-_active_send_request_by_session: Dict[str, str] = {}
-
-
-def _get_active_send_request_id(session_id: str) -> Optional[str]:
-    with _send_single_flight_lock:
-        return _active_send_request_by_session.get(session_id)
-
-
-def _set_active_send_request_id(session_id: str, request_id: str) -> None:
-    with _send_single_flight_lock:
-        _active_send_request_by_session[session_id] = request_id
-
-
-def _reserve_active_send_request_id(session_id: str, request_id: str) -> Optional[str]:
-    """Reserve ``request_id`` as the active send for ``session_id``.
-
-    Returns the existing active request id when the session already has
-    a send in flight; returns ``None`` when the reservation succeeds.
-    """
-
-    with _send_single_flight_lock:
-        existing = _active_send_request_by_session.get(session_id)
-        if existing is not None:
-            return existing
-        _active_send_request_by_session[session_id] = request_id
-        return None
-
-
-def _clear_active_send_request_id(session_id: str, request_id: str) -> None:
-    with _send_single_flight_lock:
-        current = _active_send_request_by_session.get(session_id)
-        if current == request_id:
-            _active_send_request_by_session.pop(session_id, None)
 
 
 _IDEMPOTENCY_TTL_SECONDS = 10 * 60.0
@@ -246,68 +247,6 @@ def _idempotency_store(
         _idempotency_cache[cache_key] = (now, fingerprint, response)
 
 
-def _generate_request_id(app_instance: AgentApplication) -> str:
-    """Generate a request id matching AgentApplication conventions."""
-
-    new_rid = getattr(app_instance, "_new_request_id", None)
-    if callable(new_rid):
-        try:
-            rid = new_rid()
-            if isinstance(rid, str) and rid:
-                return rid
-        except Exception:  # pragma: no cover - defensive
-            pass
-    return str(uuid.uuid4())
-
-
-def _load_session_ctx_for_send(
-    app_instance: AgentApplication,
-    session_id: str,
-    overrides: Optional[Dict[str, Any]] = None,
-    *,
-    acquire_lock: bool = True,
-) -> Tuple[Any, Any, Session, Any]:
-    try:
-
-        @contextmanager
-        def _maybe_lock() -> Iterator[None]:
-            if not acquire_lock:
-                yield
-                return
-            with app_instance.acquire_session_lock(session_id):
-                yield
-
-        with _maybe_lock():
-            selected_snapshot_id = app_instance.get_selected_session_snapshot(
-                session_id
-            )
-            if isinstance(selected_snapshot_id, str) and selected_snapshot_id:
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        f"Session {session_id!r} is viewing readonly snapshot "
-                        f"{selected_snapshot_id!r}; clear snapshot selection before sending"
-                    ),
-                )
-            session_record = app_instance.load_session_record(session_id)
-            if session_record is None:
-                raise KeyError(f"Session {session_id!r} not found")
-
-            ctx = app_instance.load_session(session_id, overrides=overrides)
-            if ctx is None:
-                raise KeyError(f"Session {session_id!r} not found")
-
-            file_state = app_instance.get_session_file_state(session_id)
-            return (*ctx, file_state)
-    except KeyError as exc:
-        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
-        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
-            raise HTTPException(status_code=400, detail=detail) from exc
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except RuntimeError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
 def _snapshot_response_fields(
     app_instance: AgentApplication,
     session_id: str,
@@ -317,19 +256,6 @@ def _snapshot_response_fields(
         "readonly": bool(snapshot_id),
         "snapshot_id": snapshot_id,
     }
-
-
-def _merged_session_overrides(
-    session: Session,
-    request_overrides: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
-    metadata = session.metadata if isinstance(session.metadata, dict) else {}
-    stored_val = metadata.get("overrides")
-    stored_overrides: Dict[str, Any] = (
-        stored_val if isinstance(stored_val, dict) else {}
-    )
-    http_overrides = request_overrides if isinstance(request_overrides, dict) else {}
-    return {**stored_overrides, **http_overrides}
 
 
 def _effective_session_config(
@@ -482,6 +408,7 @@ async def _on_startup() -> None:
 async def _on_shutdown() -> None:
     """FastAPI shutdown hook for cleaning up integrations."""
 
+    global _agent_app, _application_owner
     global _bonjour_handle, _bridge_client, _bridge_task
 
     # Stop bridge client first so that any in-flight requests are
@@ -510,7 +437,14 @@ async def _on_shutdown() -> None:
         _bonjour_handle = None
         _log.info("[bonjour] registration stopped")
 
-    if _agent_app is not None:
+    if _application_owner is not None:
+        try:
+            _application_owner.close()
+        except Exception:  # pragma: no cover - defensive
+            pass
+        _application_owner = None
+        _agent_app = None
+    elif _agent_app is not None:
         try:
             _agent_app.close()
         except Exception:  # pragma: no cover - defensive
@@ -559,287 +493,6 @@ class DataStore:
 _bonjour_data_store = DataStore()
 
 
-class SessionListCache:
-    """In-memory cache for ``/sessions`` summaries.
-
-    Entries are keyed by ``session_id`` and store the file modification
-    time along with the precomputed preview and metadata. The cache is
-    maintained per session-root directory so that tests and multiple
-    AgentApplication instances do not interfere with each other.
-    """
-
-    def __init__(self) -> None:
-        self.entries_by_id: Dict[str, Dict[str, Any]] = {}
-        # Per-session ordering specs returned by ``session_list`` actions.
-        # Each value is a list of raw spec descriptors as consumed by
-        # ``_apply_session_list_ordering``.
-        self.order_specs_by_id: Dict[str, List[Dict[str, Any]]] = {}
-        self.lock = threading.Lock()
-
-
-_session_list_caches_lock = threading.Lock()
-_session_list_caches: Dict[Path, SessionListCache] = {}
-
-
-_MISSING = object()
-
-
-def _get_session_list_cache(root: Path) -> SessionListCache:
-    """Return (or create) the :class:`SessionListCache` for ``root``."""
-
-    with _session_list_caches_lock:
-        cache = _session_list_caches.get(root)
-        if cache is None:
-            cache = SessionListCache()
-            _session_list_caches[root] = cache
-        return cache
-
-
-def _clear_session_list_cache(root: Path) -> None:
-    """Remove any cached summaries for ``root``.
-
-    Used when the session root directory no longer exists so that stale
-    entries do not accumulate across tests or configuration changes.
-    """
-
-    with _session_list_caches_lock:
-        _session_list_caches.pop(root, None)
-
-
-def _resolve_dotted_path(data: Dict[str, Any], path: str) -> Any:
-    """Resolve a dotted-path (e.g. ``"metadata.title"``) on ``data``.
-
-    Returns a sentinel object when the path cannot be resolved so callers
-    can distinguish between ``None`` values and missing paths.
-    """
-
-    if not isinstance(path, str) or not path:
-        return _MISSING
-
-    parts = path.split(".")
-    current: Any = data
-    for part in parts:
-        if not isinstance(current, dict):
-            return _MISSING
-        if part not in current:
-            return _MISSING
-        current = current[part]
-    return current
-
-
-def _get_session_list_trigger_actions(
-    app_instance: AgentApplication,
-) -> List[Tuple[str, int, Dict[str, Any]]]:
-    """Return application actions that should run when listing sessions.
-
-    Actions are identified by a ``trigger`` field containing the string
-    ``"session_list"``. The :class:`AgentApplication` treats the
-    ``trigger`` field as opaque; this helper interprets it for the HTTP
-    layer.
-    """
-
-    all_actions = app_instance.get_application_actions()
-    trigger_actions: List[Tuple[str, int, Dict[str, Any]]] = []
-
-    # Preserve configuration order when multiple plugins contribute actions.
-    plugin_index_map: Dict[str, int] = {}
-    for idx, meta in enumerate(app_instance.list_application_plugins()):
-        pid = meta.get("id")
-        if isinstance(pid, str) and pid not in plugin_index_map:
-            plugin_index_map[pid] = idx
-
-    for action in all_actions:
-        if not isinstance(action, Dict):
-            continue
-        plugin_id = action.get("plugin")
-        if not isinstance(plugin_id, str) or not plugin_id:
-            continue
-        plugin_index = plugin_index_map.get(plugin_id, 0)
-        trigger_val = action.get("trigger")
-        if isinstance(trigger_val, str):
-            if trigger_val == "session_list":
-                trigger_actions.append((plugin_id, plugin_index, action))
-        elif isinstance(trigger_val, list):
-            if any(isinstance(t, str) and t == "session_list" for t in trigger_val):
-                trigger_actions.append((plugin_id, plugin_index, action))
-
-    return trigger_actions
-
-
-def _session_pinned_metadata_key(app_instance: AgentApplication) -> str:
-    raw_cfg = getattr(app_instance, "_config", {})
-    app_cfg = raw_cfg.get("application") if isinstance(raw_cfg, dict) else {}
-    raw_pinned_key = (
-        app_cfg.get("session_pinned_metadata_key")
-        if isinstance(app_cfg, dict)
-        else None
-    )
-    if isinstance(raw_pinned_key, str) and raw_pinned_key.strip():
-        return raw_pinned_key.strip()
-    return "pinned"
-
-
-def _build_session_summary_entry(
-    *,
-    app_instance: AgentApplication,
-    path: Path,
-    session_id: str,
-    mtime: float,
-    pinned_metadata_key: str,
-    trigger_actions: List[Tuple[str, int, Dict[str, Any]]],
-) -> Tuple[Dict[str, Any], List[Dict[str, Any]], List[Dict[str, Any]]]:
-    preview = ""
-    metadata: Dict[str, Any] = {}
-
-    try:
-        data = path.read_text(encoding="utf-8")
-        raw = json.loads(data)
-        raw_metadata = raw.get("metadata")
-        if isinstance(raw_metadata, dict):
-            # ``native_messages`` can contain a full copy of the
-            # conversation in provider-native form and is significantly
-            # larger than the rest of the metadata. It is not needed for
-            # session summaries and would unnecessarily bloat responses.
-            metadata = {
-                key: value
-                for key, value in raw_metadata.items()
-                if key != "native_messages"
-            }
-        messages = raw.get("messages") or []
-        for msg in messages:
-            if not isinstance(msg, dict):
-                continue
-            if msg.get("role") != "user":
-                continue
-            content = msg.get("content")
-            if isinstance(content, str) and content:
-                single = " ".join(content.split())
-                if len(single) > 80:
-                    preview = single[:77] + "..."
-                else:
-                    preview = single
-                break
-    except Exception:  # pragma: no cover - defensive
-        preview = ""
-
-    pinned_val = metadata.get(pinned_metadata_key, False)
-
-    entry: Dict[str, Any] = {
-        "session_id": session_id,
-        "modified": mtime,
-        "preview": preview,
-        "metadata": metadata,
-        "pinned": bool(pinned_val),
-    }
-
-    order_specs_raw: List[Dict[str, Any]] = []
-    per_session_specs: List[Dict[str, Any]] = []
-
-    if trigger_actions:
-        session_obj: Optional[Session] = None
-        for plugin_id, plugin_index, action_def in trigger_actions:
-            inputs_schema = action_def.get("inputs") or {}
-            params: Dict[str, Any] = {}
-            needs_session = False
-
-            for name, spec in inputs_schema.items():
-                if name == "session_id":
-                    params[name] = session_id
-                elif name == "session_summary":
-                    params[name] = entry
-                elif name == "session":
-                    needs_session = True
-
-            if needs_session and session_obj is None:
-                try:
-                    ctx = app_instance.load_session(session_id)
-                except Exception:  # pragma: no cover - defensive
-                    ctx = None
-                if ctx is None:
-                    continue
-                _core, _base, session_obj = ctx
-
-            if needs_session and session_obj is not None:
-                params["session"] = session_obj
-
-            try:
-                result = app_instance.execute_application_action(
-                    plugin_id,
-                    action_def.get("id", ""),
-                    params,
-                )
-            except Exception:  # pragma: no cover - defensive
-                continue
-
-            fields = result.get("session_list_fields")
-            if isinstance(fields, dict):
-                for k, v in fields.items():
-                    entry[k] = v
-
-            raw_specs = result.get("session_list_order")
-            if raw_specs:
-                if isinstance(raw_specs, dict):
-                    specs_iter = [raw_specs]
-                elif isinstance(raw_specs, list):
-                    specs_iter = [s for s in raw_specs if isinstance(s, dict)]
-                else:
-                    specs_iter = []
-                for spec_index, spec in enumerate(specs_iter):
-                    record = {
-                        "spec": dict(spec),
-                        "plugin_id": plugin_id,
-                        "plugin_index": plugin_index,
-                        "spec_index": spec_index,
-                    }
-                    order_specs_raw.append(record)
-                    per_session_specs.append(record)
-
-    return entry, order_specs_raw, per_session_specs
-
-
-def _load_session_summary_entry_locked(
-    *,
-    app_instance: AgentApplication,
-    root: Path,
-    cache: SessionListCache,
-    session_id: str,
-    pinned_metadata_key: str,
-    trigger_actions: List[Tuple[str, int, Dict[str, Any]]],
-) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
-    path = root / f"{session_id}.json"
-    if not path.is_file():
-        cache.entries_by_id.pop(session_id, None)
-        cache.order_specs_by_id.pop(session_id, None)
-        raise KeyError(session_id)
-
-    stat = path.stat()
-    mtime = float(stat.st_mtime)
-
-    cached = cache.entries_by_id.get(session_id)
-    if cached is not None and isinstance(cached.get("modified"), (int, float)):
-        try:
-            cached_mtime = float(cached["modified"])
-        except Exception:  # pragma: no cover - defensive
-            cached_mtime = -1.0
-        if cached_mtime >= mtime:
-            return cached, cache.order_specs_by_id.get(session_id) or []
-
-    entry, order_specs_raw, per_session_specs = _build_session_summary_entry(
-        app_instance=app_instance,
-        path=path,
-        session_id=session_id,
-        mtime=mtime,
-        pinned_metadata_key=pinned_metadata_key,
-        trigger_actions=trigger_actions,
-    )
-    cache.entries_by_id[session_id] = entry
-    if trigger_actions:
-        cache.order_specs_by_id[session_id] = per_session_specs
-    else:
-        cache.order_specs_by_id.pop(session_id, None)
-    return entry, order_specs_raw
-
-
 def _build_default_agent_app() -> AgentApplication:
     """Build a process-wide AgentApplication with default config.
 
@@ -863,6 +516,17 @@ def _build_default_agent_app() -> AgentApplication:
 
 
 _agent_app: Optional[AgentApplication] = None
+_application_owner: Optional[AgentApplicationOwner] = None
+
+
+def configure_application_owner(
+    owner: Optional[AgentApplicationOwner],
+) -> None:
+    """Use ``owner`` for process-wide application lookup and reload gating."""
+
+    global _application_owner, _agent_app
+    _application_owner = owner
+    _agent_app = owner.current if owner is not None else None
 
 
 # ---------------------------------------------------------------------------
@@ -905,6 +569,9 @@ def get_agent_app() -> AgentApplication:
     """
 
     global _agent_app
+
+    if _application_owner is not None:
+        return _application_owner.current
 
     if _agent_app is None:
         _agent_app = _build_default_agent_app()
@@ -1127,24 +794,6 @@ def create_session(
     return response
 
 
-def _get_session_root(app_instance: AgentApplication) -> Path:
-    """Best-effort access to the filesystem session root for an application.
-
-    AgentApplication currently uses :class:`FilesystemSessionStore` internally,
-    but does not expose the root directory publicly. For the server's
-    purposes, it is sufficient to read the private ``_root_dir`` attribute
-    when present.
-    """
-
-    store = getattr(app_instance, "_session_store", None)
-    root = getattr(store, "_root_dir", None)
-    if not isinstance(root, Path):  # pragma: no cover - defensive guard
-        raise HTTPException(
-            status_code=500, detail="Session store does not expose a filesystem root"
-        )
-    return root
-
-
 def _normalize_slice_bounds(
     message_count: int,
     start: Optional[int],
@@ -1283,88 +932,6 @@ def _list_plugins_for_session(
         )
 
     return result
-
-
-def _run_send_request_background(
-    app_instance: AgentApplication,
-    session_id: str,
-    overrides: Dict[str, Any],
-    request_id: Optional[str] = None,
-) -> None:
-    """Run ``AgentApplication.send_request`` and publish all events.
-
-    This helper mirrors the previous behaviour of :func:`send_request`
-    but is designed to run in a background thread so that the HTTP
-    route can return immediately.
-    """
-
-    rid = request_id or _generate_request_id(app_instance)
-
-    try:
-        core, base_config, session, baseline_file_state = _load_session_ctx_for_send(
-            app_instance,
-            session_id,
-            overrides=overrides,
-        )
-
-        # Merge per-session configuration overrides stored on the
-        # session metadata with any overrides provided in the HTTP
-        # request. Request-level overrides take precedence. This
-        # mirrors the terminal application's behaviour where
-        # `session.metadata["overrides"]` is always applied and
-        # explicit overrides can further refine it.
-        merged_overrides = _merged_session_overrides(session, overrides)
-
-        final_session_dict: Optional[Dict[str, Any]] = session.to_dict()
-        final_messages: List[Dict[str, Any]] = []
-        final_request_id: Optional[str] = None
-
-        for ev in app_instance.send_request(
-            core,
-            session,
-            base_config,
-            merged_overrides,
-            stream=True,
-            request_id=rid,
-            baseline_file_state=baseline_file_state,
-        ):
-            etype = ev.get("type")
-
-            # Internal checkpoint events carry the live Session object so the
-            # server can track progress incrementally. They are not
-            # published to the shared event store or serialized in responses.
-            if etype == "session_checkpoint":
-                session_obj = ev.get("session")
-                if isinstance(session_obj, Session):
-                    try:
-                        final_session_dict = session_obj.to_dict()
-                    except Exception:  # pragma: no cover - defensive
-                        _log.exception(
-                            "failed to serialize session checkpoint for %r", session_id
-                        )
-                continue
-
-            stored = app_instance.publish_event(ev)
-
-            if stored.get("type") == "final":
-                final_messages = list(stored.get("messages") or [])
-                final_request_id = stored.get("request_id")
-            elif "session" in stored and isinstance(stored.get("session"), dict):
-                # Backwards compatibility for older event shapes that include
-                # a serialized session payload.
-                final_session_dict = stored["session"]
-
-        # ``final_messages`` and ``request_id`` are intentionally unused
-        # here; callers are expected to observe results via the event
-        # store and session history.
-
-    except Exception:  # pragma: no cover - defensive
-        _log.exception(
-            "unexpected error in send_request background worker for session %r",
-            session_id,
-        )
-    finally:
-        _clear_active_send_request_id(session_id, rid)
 
 
 @app.get("/sessions/{session_id}/ui-schema")
@@ -2088,22 +1655,37 @@ def send_request(
             detail="config_overrides must be a mapping if provided",
         )
 
-    _ = _load_session_ctx_for_send(app_instance, session_id, overrides=overrides)
+    try:
+        started = app_instance.start_session_request(
+            session_id,
+            overrides,
+            stream=True,
+        )
+    except KeyError as exc:
+        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
+            raise HTTPException(status_code=400, detail=detail) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ReadonlySessionViewError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except SessionOperationBusyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "session_busy", "operation": exc.operation},
+        ) from exc
+    except (
+        ApplicationReloadPendingError,
+        SessionRequestCoordinatorClosedError,
+        StaleApplicationGenerationError,
+    ) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    request_id = _generate_request_id(app_instance)
-    existing = _reserve_active_send_request_id(session_id, request_id)
-    if existing is not None:
-        return {"status": "already_running", "request_id": existing}
-
-    # Start the send_request flow in a background thread so that the
-    # HTTP response can return immediately.
-    threading.Thread(
-        target=_run_send_request_background,
-        args=(app_instance, session_id, overrides, request_id),
-        daemon=True,
-    ).start()
-
-    response = {"status": "started", "request_id": request_id}
+    response = {
+        "status": started.status,
+        "request_id": started.request_id,
+    }
     _idempotency_store(scope, idempotency_key, data, response)
     return response
 
@@ -2158,69 +1740,52 @@ def send_message(
         return cached
 
     try:
-        with app_instance.acquire_session_lock(session_id):
-            cached = _idempotency_maybe_replay(
-                scope, effective_idempotency_key, idempotency_payload
+        started = app_instance.start_session_request_with_message(
+            session_id,
+            role=normalized_role,
+            content=content,
+            metadata=metadata,
+            multipart_content=multipart_content,
+            overrides=overrides,
+            stream=True,
+        )
+        if started.status == "already_running":
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "status": "already_running",
+                    "request_id": started.request_id,
+                },
             )
-            if cached is not None:
-                return cached
 
-            core, base_config, session, _baseline_file_state = (
-                _load_session_ctx_for_send(
-                    app_instance,
-                    session_id,
-                    overrides=overrides,
-                    acquire_lock=False,
-                )
-            )
-
-            request_id = _generate_request_id(app_instance)
-            existing = _reserve_active_send_request_id(session_id, request_id)
-            if existing is not None:
-                raise HTTPException(
-                    status_code=409,
-                    detail={"status": "already_running", "request_id": existing},
-                )
-
-            try:
-                effective_config = _effective_session_config(
-                    app_instance,
-                    base_config,
-                    session,
-                    overrides,
-                )
-                _append_message_to_session_locked(
-                    app_instance,
-                    core,
-                    effective_config,
-                    session,
-                    role=normalized_role,
-                    content=content,
-                    metadata=metadata,
-                    multipart_content=multipart_content,
-                )
-            except Exception:
-                _clear_active_send_request_id(session_id, request_id)
-                raise
-
-            response = {
-                "status": "started",
-                "request_id": request_id,
-                "session_id": session_id,
-            }
-            _idempotency_store(
-                scope, effective_idempotency_key, idempotency_payload, response
-            )
+        response = {
+            "status": "started",
+            "request_id": started.request_id,
+            "session_id": session_id,
+        }
+        _idempotency_store(
+            scope, effective_idempotency_key, idempotency_payload, response
+        )
     except ReadonlySessionViewError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except KeyError as exc:
+        detail = exc.args[0] if exc.args and isinstance(exc.args[0], str) else str(exc)
+        if isinstance(detail, str) and detail.startswith("Unknown agent_id"):
+            raise HTTPException(status_code=400, detail=detail) from exc
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SessionOperationBusyError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"status": "session_busy", "operation": exc.operation},
+        ) from exc
+    except (
+        ApplicationReloadPendingError,
+        SessionRequestCoordinatorClosedError,
+        StaleApplicationGenerationError,
+    ) as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    threading.Thread(
-        target=_run_send_request_background,
-        args=(app_instance, session_id, overrides, request_id),
-        daemon=True,
-    ).start()
 
     return response
 
@@ -2393,85 +1958,9 @@ def list_sessions(
     limit: Optional[int] = None,
     app_instance: AgentApplication = Depends(get_agent_app),
 ) -> Dict[str, Any]:
-    """List stored sessions with basic metadata.
+    """List shared application-layer session summaries."""
 
-    Response shape mirrors :meth:`TerminalApplication.list_sessions_metadata`:
-    each entry contains ``session_id``, ``modified`` (float timestamp),
-    ``preview`` (first user message snippet), and ``metadata`` (session
-    metadata without messages).
-    """
-
-    root = _get_session_root(app_instance)
-
-    try:
-        exists = root.exists()
-    except Exception:  # pragma: no cover - defensive
-        exists = False
-
-    if not exists:
-        _clear_session_list_cache(root)
-        return {"sessions": []}
-
-    cache = _get_session_list_cache(root)
-
-    trigger_actions = _get_session_list_trigger_actions(app_instance)
-    pinned_metadata_key = _session_pinned_metadata_key(app_instance)
-
-    items: List[Dict[str, Any]] = []
-    paths = list(root.glob("*.json"))
-
-    # Global ordering specifications contributed by session_list actions
-    # across all sessions (combining cached and freshly computed entries).
-    order_specs_raw: List[Dict[str, Any]] = []
-
-    with cache.lock:
-        seen_ids: set[str] = set()
-
-        # When no trigger actions are configured, clear any previously
-        # cached ordering specs so legacy ordering is used.
-        if not trigger_actions:
-            cache.order_specs_by_id.clear()
-
-        for path in paths:
-            try:
-                path.stat()
-            except OSError:  # pragma: no cover - defensive
-                continue
-
-            session_id = path.stem
-            seen_ids.add(session_id)
-            try:
-                entry, specs = _load_session_summary_entry_locked(
-                    app_instance=app_instance,
-                    root=root,
-                    cache=cache,
-                    session_id=session_id,
-                    pinned_metadata_key=pinned_metadata_key,
-                    trigger_actions=trigger_actions,
-                )
-            except KeyError:  # pragma: no cover - file disappeared after glob
-                continue
-            order_specs_raw.extend(specs)
-            items.append(entry)
-
-        # Drop cache entries (and their ordering specs) whose files have
-        # been removed.
-        for session_id in list(cache.entries_by_id.keys()):
-            if session_id not in seen_ids:
-                cache.entries_by_id.pop(session_id, None)
-                cache.order_specs_by_id.pop(session_id, None)
-
-        # Apply plugin-driven ordering when available; otherwise fall back
-        # to legacy behaviour (modified desc + pinned-first grouping).
-        if order_specs_raw:
-            items = _apply_session_list_ordering(items, order_specs_raw)
-        else:
-            items = _legacy_sort_sessions(items)
-
-    if limit is not None and limit >= 0:
-        items = items[:limit]
-
-    return {"sessions": items}
+    return {"sessions": app_instance.list_session_summaries(limit=limit)}
 
 
 @app.get("/sessions/{session_id}/summary")
@@ -2486,33 +1975,13 @@ def get_session_summary(
     without reloading the entire sessions list.
     """
 
-    root = _get_session_root(app_instance)
     try:
-        exists = root.exists()
-    except Exception:  # pragma: no cover - defensive
-        exists = False
-    if not exists:
-        _clear_session_list_cache(root)
-        raise HTTPException(status_code=404, detail=f"Session {session_id!r} not found")
-
-    cache = _get_session_list_cache(root)
-    trigger_actions = _get_session_list_trigger_actions(app_instance)
-    pinned_metadata_key = _session_pinned_metadata_key(app_instance)
-    with cache.lock:
-        try:
-            entry, _specs = _load_session_summary_entry_locked(
-                app_instance=app_instance,
-                root=root,
-                cache=cache,
-                session_id=session_id,
-                pinned_metadata_key=pinned_metadata_key,
-                trigger_actions=trigger_actions,
-            )
-        except (KeyError, OSError) as exc:
-            raise HTTPException(
-                status_code=404, detail=f"Session {session_id!r} not found"
-            ) from exc
-    return {"session": entry}
+        summary = app_instance.get_session_summary(session_id)
+    except KeyError as exc:
+        raise HTTPException(
+            status_code=404, detail=f"Session {session_id!r} not found"
+        ) from exc
+    return {"session": summary}
 
 
 @app.get("/sessions/{session_id}/snapshots")
@@ -2603,7 +2072,7 @@ def select_session_snapshot(
     cached = _idempotency_maybe_replay(scope, idempotency_key, {})
     if cached is not None:
         return cached
-    if _get_active_send_request_id(session_id) is not None:
+    if app_instance.get_active_session_request_id(session_id) is not None:
         raise HTTPException(
             status_code=409, detail="Cannot select snapshot while a request is running"
         )
@@ -2666,7 +2135,7 @@ def restore_session_snapshot(
     cached = _idempotency_maybe_replay(scope, idempotency_key, {})
     if cached is not None:
         return cached
-    if _get_active_send_request_id(session_id) is not None:
+    if app_instance.get_active_session_request_id(session_id) is not None:
         raise HTTPException(
             status_code=409, detail="Cannot restore snapshot while a request is running"
         )
@@ -2710,146 +2179,6 @@ def delete_session_snapshot(
     response = {"status": "ok", "deleted": bool(deleted)}
     _idempotency_store(scope, idempotency_key, {}, response)
     return response
-
-
-def _legacy_sort_sessions(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Return sessions ordered by legacy semantics.
-
-    Legacy ordering sorts by ``modified`` (descending) and then surfaces
-    pinned sessions before unpinned ones while preserving per-group
-    ordering. This remains the fallback when no valid plugin ordering
-    specs are provided.
-    """
-
-    if not items:
-        return items
-
-    items.sort(key=lambda entry: entry.get("modified", 0.0), reverse=True)
-
-    pinned_items = [e for e in items if bool(e.get("pinned"))]
-    unpinned_items = [e for e in items if not bool(e.get("pinned"))]
-    return pinned_items + unpinned_items
-
-
-def _apply_session_list_ordering(
-    items: List[Dict[str, Any]],
-    order_specs_raw: List[Dict[str, Any]],
-) -> List[Dict[str, Any]]:
-    """Apply plugin-driven ordering to ``items`` when specs are valid.
-
-    When no valid specs remain after validation, this falls back to
-    :func:`_legacy_sort_sessions`.
-    """
-
-    if not items:
-        return items
-
-    if not order_specs_raw:
-        return _legacy_sort_sessions(items)
-
-    # Normalise and sort specs by (priority, plugin_index, spec_index).
-    normalised: List[Dict[str, Any]] = []
-    for raw in order_specs_raw:
-        spec = raw.get("spec")
-        if not isinstance(spec, dict):
-            continue
-        key = spec.get("key")
-        direction = spec.get("direction")
-        if not isinstance(key, str) or not key:
-            _log.warning("Ignoring session_list_order spec with invalid key: %r", spec)
-            continue
-        if direction not in ("asc", "desc"):
-            _log.warning(
-                "Normalising invalid session_list_order direction %r to 'asc' for key %r",
-                direction,
-                key,
-            )
-            direction = "asc"
-        has_fallback = "fallback" in spec
-        fallback_value = spec.get("fallback") if has_fallback else None
-        raw_priority = spec.get("priority")
-        if isinstance(raw_priority, int) and not isinstance(raw_priority, bool):
-            priority = raw_priority
-        else:
-            try:
-                priority = int(raw_priority)
-            except Exception:  # pragma: no cover - defensive
-                priority = 100
-        plugin_id = raw.get("plugin_id") or ""
-        plugin_index = raw.get("plugin_index") or 0
-        spec_index = raw.get("spec_index") or 0
-
-        normalised.append(
-            {
-                "key": key,
-                "direction": direction,
-                "has_fallback": has_fallback,
-                "fallback": fallback_value,
-                "priority": priority,
-                "plugin_id": plugin_id,
-                "plugin_index": int(plugin_index),
-                "spec_index": int(spec_index),
-            }
-        )
-
-    if not normalised:
-        return _legacy_sort_sessions(items)
-
-    normalised.sort(key=lambda s: (s["priority"], s["plugin_index"], s["spec_index"]))
-
-    # Global direction is taken from the highest-priority spec.
-    global_direction = normalised[0]["direction"]
-
-    # Filter out specs that violate the fallback contract.
-    valid_specs: List[Dict[str, Any]] = []
-    for spec in normalised:
-        key = spec["key"]
-        has_fallback = spec["has_fallback"]
-        any_missing_without_fallback = False
-
-        for entry in items:
-            value = _resolve_dotted_path(entry, key)
-            if value is _MISSING and not has_fallback:
-                any_missing_without_fallback = True
-                break
-
-        if any_missing_without_fallback:
-            _log.error(
-                "Ignoring session_list_order spec from plugin %r: key %r missing for some sessions and no fallback provided.",
-                spec.get("plugin_id"),
-                key,
-            )
-            continue
-
-        valid_specs.append(spec)
-
-    if not valid_specs:
-        # No usable specs; fall back to legacy ordering.
-        return _legacy_sort_sessions(items)
-
-    def _composite_key(entry: Dict[str, Any]) -> Tuple[Any, ...]:
-        values: List[Any] = []
-        for spec in valid_specs:
-            key = spec["key"]
-            has_fallback = spec["has_fallback"]
-            fallback_value = spec["fallback"]
-            value = _resolve_dotted_path(entry, key)
-            if value is _MISSING:
-                if has_fallback:
-                    value = fallback_value
-            values.append(value)
-
-        # Always include legacy fields as final tiebreakers.
-        values.append(entry.get("modified", 0.0))
-        values.append(entry.get("session_id", ""))
-        return tuple(values)
-
-    # Sort ascending by composite key, then reverse if direction is desc.
-    items.sort(key=_composite_key)
-    if global_direction == "desc":
-        items.reverse()
-
-    return items
 
 
 @app.post("/sessions/{session_id}/fork")
@@ -3209,10 +2538,10 @@ def update_session_agent(
             # - If the session has messages, always save.
             # - If it is empty but was previously saved, update the file.
             # - If it is empty and has never been saved, keep it in memory.
-            root = _get_session_root(app_instance)
-            session_path = root / f"{session.session_id}.json"
             is_empty = not session.messages
-            is_persisted = session_path.exists()
+            is_persisted = (
+                app_instance.load_live_session_record(session.session_id) is not None
+            )
             should_save = (not is_empty) or is_persisted
 
             if should_save:
@@ -3231,6 +2560,130 @@ def update_session_agent(
     response = {"session": new_session.to_dict(), "agent_id": target_agent_id}
     _idempotency_store(scope, idempotency_key, payload, response)
     return response
+
+
+def _notification_mutation_inputs(
+    payload: Optional[Dict[str, Any]],
+) -> tuple[int | str | None, str | None]:
+    body = payload or {}
+    expected_revision = body.get("expected_revision")
+    if isinstance(expected_revision, bool) or not (
+        expected_revision is None or isinstance(expected_revision, (int, str))
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="expected_revision must be an integer, string, or null",
+        )
+    if isinstance(expected_revision, int) and expected_revision <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="expected_revision integer must be greater than zero",
+        )
+    if isinstance(expected_revision, str) and not expected_revision:
+        raise HTTPException(
+            status_code=400,
+            detail="expected_revision string must be non-empty",
+        )
+    reason = body.get("reason")
+    if reason is not None and not isinstance(reason, str):
+        raise HTTPException(status_code=400, detail="reason must be a string or null")
+    return expected_revision, reason
+
+
+def _raise_notification_mutation_error(exc: Exception) -> None:
+    if isinstance(
+        exc,
+        (NotificationRevisionConflictError, NotificationTransitionError),
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error_type": exc.error_type,
+                "message": str(exc),
+                "notification": exc.current,
+            },
+        ) from exc
+    if isinstance(exc, KeyError):
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if isinstance(exc, ValueError):
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    raise exc
+
+
+@app.get("/application/notifications")
+def list_application_notifications(
+    include_terminal: bool = False,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return the current application-owner notification snapshot."""
+
+    return {
+        "notifications": app_instance.list_application_notifications(
+            include_terminal=include_terminal
+        )
+    }
+
+
+@app.post("/application/notifications/{notification_id}/dismiss")
+def dismiss_application_notification(
+    notification_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Persist dismissal in the application notification store."""
+
+    expected_revision, reason = _notification_mutation_inputs(payload)
+    try:
+        notification = app_instance.dismiss_application_notification(
+            notification_id,
+            reason=reason,
+            expected_revision=expected_revision,
+        )
+    except Exception as exc:
+        _raise_notification_mutation_error(exc)
+        raise AssertionError("unreachable") from exc
+    return {"notification": notification}
+
+
+@app.get("/sessions/{session_id}/notifications")
+def list_session_notifications(
+    session_id: str,
+    include_terminal: bool = False,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Return the authoritative notification collection for one session."""
+
+    try:
+        notifications = app_instance.list_session_notifications(
+            session_id,
+            include_terminal=include_terminal,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"notifications": notifications}
+
+
+@app.post("/sessions/{session_id}/notifications/{notification_id}/dismiss")
+def dismiss_session_notification(
+    session_id: str,
+    notification_id: str,
+    payload: Optional[Dict[str, Any]] = None,
+    app_instance: AgentApplication = Depends(get_agent_app),
+) -> Dict[str, Any]:
+    """Persist dismissal in the owning session notification record."""
+
+    expected_revision, reason = _notification_mutation_inputs(payload)
+    try:
+        notification = app_instance.dismiss_session_notification(
+            session_id,
+            notification_id,
+            reason=reason,
+            expected_revision=expected_revision,
+        )
+    except Exception as exc:
+        _raise_notification_mutation_error(exc)
+        raise AssertionError("unreachable") from exc
+    return {"notification": notification}
 
 
 @app.get("/application/actions")
@@ -3463,6 +2916,7 @@ def run_api(
     host: str = "127.0.0.1",
     port: int = 8000,
     app_instance: Optional[AgentApplication] = None,
+    app_owner: Optional[AgentApplicationOwner] = None,
     *,
     log_config: object = "default",
 ) -> None:  # pragma: no cover
@@ -3481,8 +2935,11 @@ def run_api(
         )
         return
 
-    global _agent_app
-    if app_instance is not None:
+    global _agent_app, _application_owner
+    if app_owner is not None:
+        configure_application_owner(app_owner)
+    elif app_instance is not None:
+        _application_owner = None
         _agent_app = app_instance
 
     # Expose host/port via environment variables so that optional

@@ -160,3 +160,105 @@ test('mobile hook persists one session entry after hydration and preserves compa
     activeRequestId: null,
   });
 });
+
+test('mobile hook persists history range and preserves it across message updates', async () => {
+  const store = createStore();
+  let latest: UseMessagesCacheResult | null = null;
+  const current = (): UseMessagesCacheResult => {
+    if (!latest) {
+      throw new Error('Missing hook snapshot');
+    }
+    return latest;
+  };
+
+  await ReactTestRenderer.act(async () => {
+    ReactTestRenderer.create(
+      <Harness
+        store={store}
+        onSnapshot={(value) => {
+          latest = value;
+        }}
+      />,
+    );
+    await flushAsyncWork();
+  });
+
+  await ReactTestRenderer.act(async () => {
+    current().saveMessagesHistoryRange('conn-1', 'sess-1', '-50', '');
+    await flushAsyncWork();
+  });
+
+  expect(current().messagesCache['conn-1']?.['sess-1']).toMatchObject({
+    rangeStartText: '-50',
+    rangeEndText: '',
+  });
+
+  await ReactTestRenderer.act(async () => {
+    current().updateMessagesCache(
+      'conn-1',
+      'sess-1',
+      [{ index: 9, message: { role: 'assistant', content: 'newest' } }],
+      'cursor:10',
+      null,
+    );
+    await flushAsyncWork();
+  });
+
+  expect(current().messagesCache['conn-1']?.['sess-1']).toMatchObject({
+    rangeStartText: '-50',
+    rangeEndText: '',
+    eventsCursorId: 'cursor:10',
+  });
+  expect(
+    JSON.parse(
+      store.data.get(getSessionScopedMessagesCacheEntryKey('conn-1', 'sess-1')) ?? 'null',
+    ),
+  ).toMatchObject({
+    rangeStartText: '-50',
+    rangeEndText: '',
+  });
+});
+
+test('mobile hook hydrates a persisted per-session history range', async () => {
+  const store = createStore();
+  const entryKey = getSessionScopedMessagesCacheEntryKey('conn-1', 'sess-1');
+  store.data.set(
+    SESSION_SCOPED_MESSAGES_CACHE_INDEX_KEY,
+    JSON.stringify([{ connectionId: 'conn-1', sessionId: 'sess-1' }]),
+  );
+  store.data.set(
+    entryKey,
+    JSON.stringify({
+      connectionId: 'conn-1',
+      sessionId: 'sess-1',
+      messages: [],
+      lastLoadedAt: 100,
+      rangeStartText: '100',
+      rangeEndText: '200',
+    }),
+  );
+  let latest: UseMessagesCacheResult | null = null;
+  const current = (): UseMessagesCacheResult => {
+    if (!latest) {
+      throw new Error('Missing hook snapshot');
+    }
+    return latest;
+  };
+
+  await ReactTestRenderer.act(async () => {
+    ReactTestRenderer.create(
+      <Harness
+        store={store}
+        onSnapshot={(value) => {
+          latest = value;
+        }}
+      />,
+    );
+    await flushAsyncWork();
+  });
+
+  expect(current().messagesCache['conn-1']?.['sess-1']).toMatchObject({
+    rangeStartText: '100',
+    rangeEndText: '200',
+  });
+});

@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import re
 import shutil
@@ -116,7 +117,9 @@ def _require_executable(name: str) -> None:
         raise SystemExit(f"required executable not found: {name}")
 
 
-def _run(command: list[str], *, cwd: Path, timeout: int = 30) -> subprocess.CompletedProcess[str]:
+def _run(
+    command: list[str], *, cwd: Path, timeout: int = 30
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command,
         cwd=str(cwd),
@@ -131,7 +134,9 @@ def _run(command: list[str], *, cwd: Path, timeout: int = 30) -> subprocess.Comp
 def _wait_for_proxy(port: int, timeout_seconds: float = 10.0) -> None:
     deadline = time.time() + timeout_seconds
     while time.time() < deadline:
-        proc = _run(["curl", "-sS", f"http://localhost:{port}/health"], cwd=REPO_ROOT, timeout=5)
+        proc = _run(
+            ["curl", "-sS", f"http://localhost:{port}/health"], cwd=REPO_ROOT, timeout=5
+        )
         if proc.returncode == 0:
             return
         time.sleep(0.2)
@@ -141,7 +146,9 @@ def _wait_for_proxy(port: int, timeout_seconds: float = 10.0) -> None:
 def _prepare_workspace(workspace: Path, mode: str | None) -> None:
     workspace.mkdir(parents=True, exist_ok=True)
     if mode == "tool_history":
-        (workspace / "README.md").write_text("# Probe Heading\n\nBody\n", encoding="utf-8")
+        (workspace / "README.md").write_text(
+            "# Probe Heading\n\nBody\n", encoding="utf-8"
+        )
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -189,7 +196,9 @@ def _replace_all(value: Any, replacements: dict[str, str]) -> Any:
     return value
 
 
-def _compact_summary_events(project_events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _compact_summary_events(
+    project_events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     found: list[dict[str, Any]] = []
     for event in project_events:
         if event.get("isCompactSummary") is True:
@@ -201,12 +210,232 @@ def _attachment_events(project_events: list[dict[str, Any]]) -> list[dict[str, A
     return [event for event in project_events if event.get("type") == "attachment"]
 
 
+def _project_transcript_type_counts(
+    project_events: list[dict[str, Any]],
+) -> dict[str, int]:
+    counts = Counter(str(event.get("type")) for event in project_events)
+    return dict(sorted(counts.items()))
+
+
+def _collect_uuid_placeholders(value: Any, *, excluded: set[str]) -> dict[str, str]:
+    replacements: dict[str, str] = {}
+
+    def visit(item: Any) -> None:
+        if isinstance(item, str):
+            for match in re.finditer(
+                r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+                item,
+                flags=re.IGNORECASE,
+            ):
+                uuid_text = match.group(0)
+                if uuid_text in excluded or uuid_text in replacements:
+                    continue
+                replacements[uuid_text] = f"<UUID_{len(replacements) + 1:03d}>"
+            return
+        if isinstance(item, list):
+            for child in item:
+                visit(child)
+            return
+        if isinstance(item, dict):
+            for child in item.values():
+                visit(child)
+
+    visit(value)
+    return replacements
+
+
+def _collect_prompt_id_placeholders(
+    project_events: list[dict[str, Any]],
+    *,
+    excluded: set[str],
+) -> dict[str, str]:
+    replacements: dict[str, str] = {}
+    for event in project_events:
+        prompt_id = event.get("promptId")
+        if not isinstance(prompt_id, str):
+            continue
+        if prompt_id in excluded or prompt_id in replacements:
+            continue
+        replacements[prompt_id] = f"<PROMPT_ID_{len(replacements) + 1:03d}>"
+    return replacements
+
+
+def _collect_regex_placeholders(
+    value: Any,
+    *,
+    pattern: str,
+    prefix: str,
+    excluded: set[str],
+) -> dict[str, str]:
+    replacements: dict[str, str] = {}
+    compiled = re.compile(pattern)
+
+    def visit(item: Any) -> None:
+        if isinstance(item, str):
+            for match in compiled.finditer(item):
+                text = match.group(0)
+                if text in excluded or text in replacements:
+                    continue
+                replacements[text] = f"<{prefix}_{len(replacements) + 1:03d}>"
+            return
+        if isinstance(item, list):
+            for child in item:
+                visit(child)
+            return
+        if isinstance(item, dict):
+            for child in item.values():
+                visit(child)
+
+    visit(value)
+    return replacements
+
+
+def _collect_transcript_string_placeholders(
+    project_events: list[dict[str, Any]],
+    *,
+    excluded: set[str],
+) -> dict[str, str]:
+    placeholders: dict[str, str] = {}
+    placeholders.update(
+        _collect_prompt_id_placeholders(project_events, excluded=excluded)
+    )
+    excluded_with_prompt_ids = excluded | set(placeholders)
+    placeholders.update(
+        _collect_uuid_placeholders(
+            project_events,
+            excluded=excluded_with_prompt_ids,
+        )
+    )
+    excluded_with_uuids = excluded_with_prompt_ids | set(placeholders)
+    placeholders.update(
+        _collect_regex_placeholders(
+            project_events,
+            pattern=r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z",
+            prefix="TIMESTAMP",
+            excluded=excluded_with_uuids,
+        )
+    )
+    excluded_with_timestamps = excluded_with_uuids | set(placeholders)
+    placeholders.update(
+        _collect_regex_placeholders(
+            project_events,
+            pattern=r"\bmsg_[A-Za-z0-9]+\b",
+            prefix="MESSAGE_ID",
+            excluded=excluded_with_timestamps,
+        )
+    )
+    return placeholders
+
+
+def _normalize_project_event(
+    event: dict[str, Any],
+    replacements: dict[str, str],
+) -> dict[str, Any]:
+    normalized = _replace_all(event, replacements)
+    return normalize_value(normalized, {})
+
+
+def _project_transcript_message_events_before_latest_compaction(
+    project_events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    compact_indexes = [
+        index
+        for index, event in enumerate(project_events)
+        if event.get("isCompactSummary") is True
+    ]
+    if not compact_indexes:
+        return []
+    latest_summary_index = compact_indexes[-1]
+    return [
+        event
+        for event in project_events[:latest_summary_index]
+        if event.get("type") in {"user", "assistant"}
+    ]
+
+
+def _latest_project_compact_boundary_event(
+    project_events: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    compact_indexes = [
+        index
+        for index, event in enumerate(project_events)
+        if event.get("isCompactSummary") is True
+    ]
+    if not compact_indexes:
+        return None
+    latest_summary_index = compact_indexes[-1]
+    for event in reversed(project_events[:latest_summary_index]):
+        if event.get("type") == "system" and event.get("subtype") == "compact_boundary":
+            return event
+    return None
+
+
+def _latest_project_local_command_events(
+    project_events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    compact_indexes = [
+        index
+        for index, event in enumerate(project_events)
+        if event.get("isCompactSummary") is True
+    ]
+    if not compact_indexes:
+        return []
+    latest_summary_index = compact_indexes[-1]
+    command_events: list[dict[str, Any]] = []
+    for event in project_events[latest_summary_index + 1 :]:
+        if event.get("type") != "user":
+            break
+        message = event.get("message")
+        if not isinstance(message, dict):
+            break
+        content = message.get("content")
+        if not isinstance(content, str):
+            break
+        if not (
+            "<local-command-" in content
+            or "<command-name>/compact</command-name>" in content
+        ):
+            break
+        command_events.append(event)
+    return command_events
+
+
+def _latest_project_no_response_event(
+    project_events: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    compact_indexes = [
+        index
+        for index, event in enumerate(project_events)
+        if event.get("isCompactSummary") is True
+    ]
+    if not compact_indexes:
+        return None
+    latest_summary_index = compact_indexes[-1]
+    for event in project_events[latest_summary_index + 1 :]:
+        if event.get("type") == "assistant" and "No response requested." in json.dumps(
+            event.get("message"),
+            ensure_ascii=False,
+        ):
+            return event
+        if event.get("type") == "user":
+            message = event.get("message")
+            content = message.get("content") if isinstance(message, dict) else None
+            if isinstance(content, str) and (
+                "<local-command-" in content
+                or "<command-name>/compact</command-name>" in content
+            ):
+                continue
+        if event.get("type") in {"last-prompt", "ai-title", "mode", "queue-operation"}:
+            continue
+        break
+    return None
+
+
 def _collect_memory_dirs(value: Any) -> set[str]:
     found: set[str] = set()
     if isinstance(value, str):
         found.update(
-            match.group(0)
-            for match in re.finditer(r"/[^`\n\"']+?/memory/", value)
+            match.group(0) for match in re.finditer(r"/[^`\n\"']+?/memory/", value)
         )
         return found
     if isinstance(value, list):
@@ -219,7 +448,9 @@ def _collect_memory_dirs(value: Any) -> set[str]:
     return found
 
 
-def _find_latest_compact_request(requests: list[dict[str, Any]]) -> dict[str, Any] | None:
+def _find_latest_compact_request(
+    requests: list[dict[str, Any]],
+) -> dict[str, Any] | None:
     if not requests:
         return None
     for request in reversed(requests):
@@ -291,14 +522,19 @@ def _build_fixture(
     proxy_requests: list[dict[str, Any]],
 ) -> dict[str, Any]:
     session_id = next(
-        (event.get("session_id") for event in compact_stdout_events if isinstance(event.get("session_id"), str)),
+        (
+            event.get("session_id")
+            for event in compact_stdout_events
+            if isinstance(event.get("session_id"), str)
+        ),
         None,
     )
     compact_boundary = next(
         (
             event
             for event in compact_stdout_events
-            if event.get("type") == "system" and event.get("subtype") == "compact_boundary"
+            if event.get("type") == "system"
+            and event.get("subtype") == "compact_boundary"
         ),
         None,
     )
@@ -326,11 +562,44 @@ def _build_fixture(
         | _collect_memory_dirs(proxy_requests)
     ):
         replacements[memory_dir] = "<MEMORY_DIR>"
+    replacements.update(
+        _collect_transcript_string_placeholders(
+            project_events,
+            excluded={session_id} if isinstance(session_id, str) else set(),
+        )
+    )
 
     normalized_steps = _replace_all(executed_steps, replacements)
     normalized_statuses = _replace_all(compact_statuses, replacements)
     normalized_boundary = _replace_all(compact_boundary, replacements)
     normalized_summary_text = _replace_all(latest_summary_text, replacements)
+    normalized_project_pre_compaction_message_events = [
+        _normalize_project_event(event, replacements)
+        for event in _project_transcript_message_events_before_latest_compaction(
+            project_events
+        )
+    ]
+    project_compact_boundary = _latest_project_compact_boundary_event(project_events)
+    normalized_project_compact_boundary = (
+        _normalize_project_event(project_compact_boundary, replacements)
+        if project_compact_boundary is not None
+        else None
+    )
+    normalized_project_compact_summary = (
+        _normalize_project_event(latest_summary, replacements)
+        if isinstance(latest_summary, dict)
+        else None
+    )
+    normalized_project_local_command_events = [
+        _normalize_project_event(event, replacements)
+        for event in _latest_project_local_command_events(project_events)
+    ]
+    latest_no_response_event = _latest_project_no_response_event(project_events)
+    normalized_project_no_response_event = (
+        _normalize_project_event(latest_no_response_event, replacements)
+        if latest_no_response_event is not None
+        else None
+    )
     compact_request = _find_latest_compact_request(proxy_requests)
     normalized_compact_request = normalize_value(compact_request, replacements)
     compact_prompt_text = _extract_compact_prompt_text(normalized_compact_request)
@@ -347,7 +616,9 @@ def _build_fixture(
             ):
                 compact_system_text = system[2]["text"]
 
-    summary_text = normalized_summary_text if isinstance(normalized_summary_text, str) else ""
+    summary_text = (
+        normalized_summary_text if isinstance(normalized_summary_text, str) else ""
+    )
     summary_sections: list[str] = []
     for line in summary_text.splitlines():
         stripped = line.strip()
@@ -371,18 +642,22 @@ def _build_fixture(
             else 0
         ),
         "compact_request_prompt_text": compact_prompt_text,
-        "compact_request_prompt_sections": _extract_compact_prompt_sections(compact_prompt_text),
+        "compact_request_prompt_sections": _extract_compact_prompt_sections(
+            compact_prompt_text
+        ),
         "compact_request_has_text_only_directive": (
             isinstance(compact_prompt_text, str)
             and "CRITICAL: Respond with TEXT ONLY." in compact_prompt_text
         ),
         "compact_request_has_no_tools_directive": (
             isinstance(compact_prompt_text, str)
-            and "Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool." in compact_prompt_text
+            and "Do NOT use Read, Bash, Grep, Glob, Edit, Write, or ANY other tool."
+            in compact_prompt_text
         ),
         "compact_request_has_resume_directive": (
             isinstance(compact_prompt_text, str)
-            and "There may be additional summarization instructions provided in the included context." in compact_prompt_text
+            and "There may be additional summarization instructions provided in the included context."
+            in compact_prompt_text
         ),
         "compact_request_system_prompt_text": compact_system_text,
         "compact_statuses": normalized_statuses,
@@ -392,8 +667,11 @@ def _build_fixture(
         "compact_summary_sections": summary_sections,
         "summary_mentions_transcript_path": "<PROJECT_TRANSCRIPT>" in summary_text,
         "summary_has_resume_directive": "Resume directly" in summary_text,
-        "summary_has_no_acknowledgement_directive": "do not acknowledge the summary" in summary_text,
-        "summary_is_user_message": bool(latest_summary and latest_summary.get("type") == "user"),
+        "summary_has_no_acknowledgement_directive": "do not acknowledge the summary"
+        in summary_text,
+        "summary_is_user_message": bool(
+            latest_summary and latest_summary.get("type") == "user"
+        ),
         "summary_is_visible_in_transcript_only": bool(
             latest_summary and latest_summary.get("isVisibleInTranscriptOnly") is True
         ),
@@ -406,9 +684,24 @@ def _build_fixture(
             for event in project_events
         ),
         "has_compact_command_message": any(
-            "<command-name>/compact</command-name>" in json.dumps(event, ensure_ascii=True)
+            "<command-name>/compact</command-name>"
+            in json.dumps(event, ensure_ascii=True)
             for event in project_events
         ),
+        "project_transcript_type_counts": _project_transcript_type_counts(
+            project_events
+        ),
+        "project_transcript_pre_compaction_message_events": (
+            normalized_project_pre_compaction_message_events
+        ),
+        "project_transcript_compact_boundary_event": (
+            normalized_project_compact_boundary
+        ),
+        "project_transcript_compact_summary_event": normalized_project_compact_summary,
+        "project_transcript_local_command_events": (
+            normalized_project_local_command_events
+        ),
+        "project_transcript_no_response_event": normalized_project_no_response_event,
         "session_transcript_available": session_file is not None,
     }
 
@@ -420,7 +713,9 @@ def _run_case(case: CaseSpec, *, model: str, keep_raw: bool) -> dict[str, object
         raw_dir.mkdir(parents=True, exist_ok=False)
         temp_context = None
     else:
-        temp_context = tempfile.TemporaryDirectory(prefix=f"claude-compaction-{case.name}-")
+        temp_context = tempfile.TemporaryDirectory(
+            prefix=f"claude-compaction-{case.name}-"
+        )
         raw_dir = Path(temp_context.name)
 
     try:
@@ -525,7 +820,9 @@ def _run_case(case: CaseSpec, *, model: str, keep_raw: bool) -> dict[str, object
                 )
             except FileNotFoundError:
                 session_path = None
-            project_events = _read_jsonl(session_path) if session_path is not None else []
+            project_events = (
+                _read_jsonl(session_path) if session_path is not None else []
+            )
             fixture = _build_fixture(
                 case_name=case.name,
                 workspace=workspace,

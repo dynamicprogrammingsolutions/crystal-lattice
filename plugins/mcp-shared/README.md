@@ -17,6 +17,7 @@ This package owns only:
 - raw tool execution
 - runtime reuse helpers
 - server status snapshots
+- shared OAuth login-start helpers and manual OAuth diagnostics
 
 It does not own:
 
@@ -32,6 +33,13 @@ runtime config types exported here.
 `MCPRegistry` is the MCP-specific object intended to be stored inside the
 application-owned generic `runtime_store`. The store itself remains generic and
 MCP-agnostic; only the registry knows how to cache and reuse live MCP runtimes.
+
+## Manual OAuth diagnostics
+
+The manual start-phase OAuth matrix lives in
+`tests/README-mcp-oauth-manual.md`. It can be used with any OAuth-protected MCP
+server by providing a JSON scenario that defines the server URL, client
+metadata, and redirect URI matrix.
 
 ## License
 

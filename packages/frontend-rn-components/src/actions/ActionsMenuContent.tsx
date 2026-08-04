@@ -90,12 +90,13 @@ export function ActionsMenuContent<TDef extends ActionDefinition>(
 
         const iconName = getIconName(action);
         const iconColor = disabled ? theme.textSecondary : theme.primary;
-        const pinColor = pinned ? '#FFCC00' : '#C7C7CC';
+        const pinColor = pinned ? theme.highlight : '#C7C7CC';
 
         return (
           <View key={action.key} style={styles.menuItem}>
             <TouchableOpacity
               style={styles.menuItemLeft}
+              testID={`actions-menu-action-${String(action.key)}`}
               onPress={onPressAction}
               disabled={disabled}
             >

@@ -1,4 +1,5 @@
 import type { AgentBackend } from '../backend/backend';
+import { subscribeServerSettingsInvalidated } from '../serverSettings/serverSettingsInvalidation';
 import type { SessionSummary } from '../types/sessions';
 import { SimpleSubscribable } from '../util/subscribable';
 
@@ -12,6 +13,7 @@ export interface SessionsControllerState {
 export class SessionsController extends SimpleSubscribable<SessionsControllerState> {
   private backend: AgentBackend;
   private limit?: number;
+  private unsubscribeServerSettings: (() => void) | null = null;
 
   constructor(options: { backend: AgentBackend; initialSessions?: SessionSummary[]; limit?: number }) {
     super({
@@ -22,6 +24,19 @@ export class SessionsController extends SimpleSubscribable<SessionsControllerSta
     });
     this.backend = options.backend;
     this.limit = options.limit;
+    this.unsubscribeServerSettings = subscribeServerSettingsInvalidated(
+      this.backend,
+      () => {
+        this.load({ force: true }).catch(() => {
+          // Errors are stored in controller state.
+        });
+      },
+    );
+  }
+
+  close(): void {
+    this.unsubscribeServerSettings?.();
+    this.unsubscribeServerSettings = null;
   }
 
   hydrateFromCache(options: { sessions: SessionSummary[]; lastLoadedAt?: number | null }): void {

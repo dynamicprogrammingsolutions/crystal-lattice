@@ -8,10 +8,16 @@ Runtime references (source of truth):
 
 - Protocol: `core/python/agent_app/app_plugins.py`
 - Application context: `core/python/agent_app/application_future.py`
+- Shared session listing: `core/python/agent_app/session_listing.py`
 
 Reference implementations:
 
 - `plugins/gemini-compaction-app/src/gemini_compaction_app/__init__.py`
+
+Related guides:
+
+- [Notifications and action displays](notifications-and-action-displays.md)
+- [Plugin actions](actions.md)
 
 ---
 
@@ -36,6 +42,9 @@ Application plugins are ideal for features that need:
 | Capability | Method/Access | Description |
 |------------|---------------|-------------|
 | Load sessions | `app.load_session(session_id)` | Load a session from the session store |
+| List session summaries | `app.list_session_summaries(...)` | Build shared fields, presentation, ordering, optional in-process filtering, and limits |
+| Load one session summary | `app.get_session_summary(session_id)` | Build the same summary contract for one exact ID without list filtering |
+| List diagnostics | `app.get_session_list_diagnostics()` | Inspect nonfatal field/action/order diagnostics from the latest list query |
 | Save sessions | `app.save_session(session)` | Persist a session to the session store |
 | Server settings | `app.get_server_settings()` | Read application-owned server-scoped settings |
 | Update server settings | `app.patch_server_settings(values, source=...)` | Persist server-scoped setting updates and run lifecycle triggers |
@@ -47,6 +56,10 @@ Application plugins are ideal for features that need:
 | Session locking | `app.acquire_session_lock(session_id)` | Context manager for safe concurrent access |
 | Event publishing | `app.publish_event(event)` | Publish events to subscribers |
 | Switch agents | `app.update_agent(agent_id, session)` | Switch a session to a different agent |
+| Request full reload | `app.request_application_reload(reason=..., on_failure=...)` | Ask the owner to drain admitted work and reconstruct `AgentApplication` |
+| Application notifications | `app.create_application_notification(...)`, `update_application_notification(...)`, `dismiss_application_notification(...)`, `resolve_application_notification(...)`, `expire_application_notification(...)`, `list_application_notifications()` | Create durable notifications global to one connected application runtime. |
+| Session notifications | `app.create_session_notification(...)`, `update_session_notification(...)`, `update_session_notification_by_key(...)`, `dismiss_session_notification(...)`, `resolve_session_notification(...)`, `expire_session_notification(...)`, `list_session_notifications(...)` | Create persistent session notifications stored in metadata and published through lifecycle events. |
+| Application operations | `get_application_operation_service(app.get_runtime_store())` | Reserve minimal active identity and cross-producer admission without storing plugin status, progress, presentation, or outcomes. |
 | Full config access | `self._config` (via `init`) | Access to the full application configuration |
 | Runtime env access | `os.environ[...]` | Real process environment installed from config resolution env |
 | Request config resolution | `resolve_request_config(base_config, overrides)` | Resolve effective config for a request |
@@ -56,6 +69,44 @@ those settings and react to `server_settings_changed`, but should not maintain a
 second authoritative copy in plugin-owned persistence. Plugin-owned sidecar
 files are still appropriate for private caches, credentials, or implementation
 state that is not user-editable server configuration.
+
+`request_application_reload` returns an accepted result immediately. Plugins
+must not close or replace their own application. The owner rejects new
+application operations, waits for admitted work, constructs and validates the
+replacement, and emits application-global requested/completed/failed
+notifications. `on_failure` is an optional in-process compensating callback for
+plugin-owned writes such as restoring a dotenv file.
+
+Application plugins can create owner-scoped application notifications and
+persistent session notifications through the methods listed above. The
+notification APIs validate records and report malformed input to the calling
+application plugin. Tools use a separate failure-contained
+`notification_sink`.
+
+Application notifications are stored in the runtime's injected durable store
+and survive application replacement and server-process restart until
+retention removes them. Session notifications are stored in
+`Session.metadata["notifications"]["items"]` and remain hidden from model
+history. Records have monotonic revisions and support pending, dismissed,
+resolved, and expired states. Creating with the key of an active notification
+updates that lifecycle item; a terminal record does not suppress a new
+occurrence.
+
+For complete record fields, examples, presentation behavior, stable-key
+updates, dismissal, resolution, expiration, tool-sink usage, current frontend
+integration limitations, event names, and focused test commands, see
+[Notifications and action displays](notifications-and-action-displays.md).
+
+For background work, keep active registration, runtime ownership, and
+presentation separate:
+
+- use `ApplicationOperationService` for active identity, lookup, and admission;
+- use `ManagedProcessRegistry` for the concrete process object;
+- let the plugin/process own status, progress, cancellation, and outcomes;
+- use notifications for visible progress and follow-up actions.
+
+The application operation contract and future operation-history direction are
+documented in `application/python/docs/development/operations.md`.
 
 ---
 
@@ -109,6 +160,12 @@ def close(self, state: Dict[str, Any]) -> None:
 idempotent and release resources owned by the plugin, such as background
 processes or OS handles.
 
+For background work that must be found by later actions and close with the
+application generation, prefer the shared
+[managed background process registry](managed-background-processes.md). It is
+stored in `RuntimeStore`, so plugins do not need to duplicate process maps or
+add another `AgentApplication` contract.
+
 ---
 
 ## UI context in `get_ui_elements`
@@ -146,12 +203,30 @@ Common UI context keys:
 | `models` | `list[dict]` | Model descriptors computed for this config, when available |
 | `session` | `dict` | Serialized session for session-contextual UI schema |
 | `session_id` | `str` | Session id for session-contextual UI schema |
-| `server_settings` | `dict` | Current application-owned server settings for server settings UI schema |
+| `server_settings` | `dict` | Current application-owned server settings for all application UI-schema surfaces |
 | `settings` | `dict` | Generic alias for the active settings scope |
 | `settings_scope` | `str` | Settings scope, such as `"server"` |
 
 Server settings are supplied through `context["server_settings"]`; they are not
 configuration and should not be read from `config`.
+
+Because the current values are available on ordinary application and session
+UI-schema surfaces too, a plugin can use a server setting to include or omit a
+declarative list field, filter, or action. Keep the application configuration
+as the startup default and treat a persisted server setting as the live
+override:
+
+```python
+settings = (context or {}).get("server_settings") or {}
+enabled = settings.get(
+    "session_status_show_in_session_list_footer",
+    state["configured_default"],
+)
+```
+
+The persisted settings mapping remains authoritative. Do not mirror
+user-editable settings into a second plugin-owned state store merely to
+generate UI schema.
 
 ---
 
@@ -237,6 +312,15 @@ Application-scoped lifecycles such as `server_settings_changed` do not include
 `session` or `session_id`. Plugins should check for those keys before using
 them.
 
+An application-owned background process that must call
+`AgentCore.execute_session_action(...)` directly should build its context
+through `app.build_core_handoff_context(...)`. Pass the captured base and
+effective configurations plus process-specific extra context. This preserves
+application dependencies such as `session_asset_store` and runtime stores
+without copying the application context schema into the plugin. Ordinary
+actions should continue to prefer `app.execute_session_action(...)`, which
+builds this handoff context automatically.
+
 ---
 
 ## Action definitions
@@ -268,6 +352,7 @@ Actions can include a `trigger` field to be automatically invoked during applica
 
 | Trigger | When it runs |
 |---------|--------------|
+| `session_list` | While the application builds each shared session summary |
 | `session_create` | After a new session is created |
 | `session_save_prepare` | Before a session is saved |
 | `request_prepare` | Before an LLM request |
@@ -327,8 +412,7 @@ def get_ui_elements(
     self,
     state: Dict[str, Any],
     config: Optional[Dict[str, Any]] = None,
-    tags: Optional[List[str]] = None,
-    models: Optional[List[Dict[str, Any]]] = None,
+    context: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     return [
         # Session action button
@@ -367,6 +451,135 @@ def get_ui_elements(
         },
     ]
 ```
+
+---
+
+### Session-list contributions
+
+Application plugins can contribute three independent parts of a session list:
+
+1. ordinary row actions via `ui_type: "session_list_action"`;
+2. presentation fields via `ui_type: "session_list_field"`;
+3. declarative filters via `ui_type: "session_list_filter"`.
+
+An ordinary `session_list_action` may additionally contain optional
+`rich_ui.kind: "toggle"` or `"list"` metadata. This is a frontend enhancement,
+not a new action type: retain `dialog`, `action_id`, and parameter mapping so
+unsupported/invalid rich presentation always falls back to the ordinary
+action. Pin/archive use immediate toggles; status uses an immediate list that
+passes the selected option through its existing `$dialog.status` map.
+
+They can also define an action with `trigger: "session_list"` to compute
+summary fields and ordering:
+
+```python
+def get_actions(self, state):
+    return [
+        {
+            "id": "compute_list_values",
+            "label": "Compute list values",
+            "trigger": "session_list",
+            "inputs": {
+                "session_id": {"type": "string", "required": True},
+                "session_summary": {"required": True},
+                "session": {"required": False},
+            },
+        }
+    ]
+
+
+def execute_action(self, app, action_id, params, context, state):
+    summary = params["session_summary"]
+    rank = 0 if summary.get("metadata", {}).get("important") else 1
+    return {
+        "session_list_fields": {
+            "importance_rank": rank,
+        },
+        "session_list_order": [
+            {
+                "key": "importance_rank",
+                "direction": "asc",
+                "fallback": 1,
+                "priority": 10,
+            }
+        ],
+    }
+```
+
+`AgentApplication` is the application-facing authority for enumeration,
+summary construction, trigger execution, presentation, and ordering. HTTP and
+terminal adapters call the application methods rather than inspect a
+filesystem session root.
+
+The returned summary shape is:
+
+```typescript
+interface SessionSummary {
+  session_id: string;
+  modified: number;
+  preview: string;
+  metadata: Record<string, unknown>;
+  presentation: {
+    title: string;
+    subtitle: string | null;
+    meta: string | null;
+  };
+  [contributedField: string]: unknown;
+}
+```
+
+`metadata.native_messages` is excluded because it may contain a heavyweight
+provider-native copy of the transcript. Feature values such as pin, archive,
+or status remain under their configured `metadata.*` paths rather than being
+projected into feature-specific top-level fields.
+
+The query API is:
+
+```python
+app.list_session_summaries(
+    filter_values=None,
+    apply_filter_defaults=False,
+    limit=None,
+)
+```
+
+Ordering happens first, optional in-process filtering second, and `limit`
+last. HTTP requests the unfiltered collection. Terminal integrations can
+supply filter state in-process. `app.get_session_summary(session_id)` is exact
+and independent of list filters.
+
+`session_list_filter` is metadata, not an action: it has no `action_id` and is
+never passed to `execute_action`. One valid text filter may set
+`main_search: true`. Terminal free-text search requires that declaration.
+Mobile and desktop use it when available and retain a shared local summary-text
+fallback search when it is absent or ambiguous; ambiguity is still exposed as
+a schema diagnostic. See [UI elements](ui-elements.md), under
+“Session-list filters,” for the full type, default, matching, Reset, and
+Show-all contract.
+
+The built-in `session-pinned-app` and `session-status-app` plugins are concrete
+examples of keeping actions and filters aligned around one configurable
+metadata key. Pinning declares one rich toggle at both the trailing title
+header and the user-configurable action bar, then contributes an
+inactive-by-default Boolean filter. Status contributes an ordinary select-form
+row action and an inactive-by-default multi-select filter. Missing status
+behaves as `todo`; selecting `todo` for an old session is therefore a no-op
+unless a different explicit value was stored. Both mutation actions save a new
+immutable `Session`, publish `session_metadata_updated`, record a checkpoint,
+and report updated-session mutations.
+
+Public HTTP adapters expose:
+
+```text
+GET /sessions
+GET /sessions/{session_id}/summary
+GET /application/ui-schema
+```
+
+The first two return application-derived summaries. The global UI-schema
+endpoint carries list action, field, and filter declarations. See
+[UI elements](ui-elements.md) and [Plugin actions](actions.md) for complete
+normalization, fallback, dialog, filter, and ordering rules.
 
 ---
 

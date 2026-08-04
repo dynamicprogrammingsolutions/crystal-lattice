@@ -22,6 +22,13 @@ from agent_app.events import InMemoryEventStore
 from agent_app.tool_loop import ToolLoopRunner
 
 
+class _FakeSession:
+    session_id = "session-123"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"session_id": self.session_id}
+
+
 def _base_config() -> Dict[str, Any]:
     return {
         "providers": {
@@ -77,7 +84,9 @@ class TestToolLoopRunnerContextEnrichment:
         # Verify the context structure that would be passed to ToolLoopRunner
         # by checking the application has the required attributes
         assert app._config is not None, "Application should have _config"
-        assert app._session_asset_store is not None, "Application should have session_asset_store"
+        assert (
+            app._session_asset_store is not None
+        ), "Application should have session_asset_store"
 
         # The ToolLoopRunner is created with context containing:
         # - app: self (AgentApplication instance)
@@ -129,6 +138,46 @@ class TestToolLoopRunnerContextEnrichment:
 
         assert runner._app_context is app_context
         assert runner._base_config == base_config
+
+    def test_application_context_builders_include_effective_config(
+        self, tmp_path: Path
+    ) -> None:
+        app = _make_app(tmp_path)
+        app_context = ApplicationContext(
+            app=app,
+            application=app,
+            session_asset_store=app._session_asset_store,
+            runtime_state_root=app.get_runtime_state_root(),
+            runtime_store=app.get_runtime_store(),
+            tool_runtime=app.get_tool_runtime(),
+        )
+        base_config = {"mcp_enabled": False, "provider": "echo"}
+        effective_config = {"mcp_enabled": True, "provider": "echo"}
+        session = _FakeSession()
+
+        core_context = app_context.build_core_handoff_context(
+            base_config=base_config,
+            config=effective_config,
+        )
+        assert core_context["base_config"]["mcp_enabled"] is False
+        assert core_context["config"]["mcp_enabled"] is True
+
+        session_action_context = app_context.build_session_action_context(
+            session=session,
+            base_config=base_config,
+            config=effective_config,
+        )
+        assert session_action_context["base_config"]["mcp_enabled"] is False
+        assert session_action_context["config"]["mcp_enabled"] is True
+
+        tool_context = app_context.build_tool_context(
+            session=session,
+            request_id="request-123",
+            base_config=base_config,
+            config=effective_config,
+        )
+        assert tool_context["base_config"]["mcp_enabled"] is False
+        assert tool_context["config"]["mcp_enabled"] is True
 
 
 class TestToolContextDocumentation:

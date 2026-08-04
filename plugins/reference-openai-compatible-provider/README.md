@@ -208,6 +208,69 @@ When the provider returns `usage`, the usage extension surfaces a minimal shared
 
 Provider-specific or extra usage fields stay inside raw `metadata.usage`.
 
+The usage extension also accepts these flat provider-config keys:
+
+- `show_usage` (boolean, default `true`): show usage footer and status UI
+- `token_rates` (object, optional): local rates in USD per million tokens
+  - `input`: ordinary prompt/input-token rate
+  - `cached`: cached prompt-token rate
+  - `completion`: completion/output-token rate
+- `estimate_cached_tokens` (boolean, default `false`): opt into the
+  turn-aware cached-token fallback described below
+- `show_estimated_cached_tokens` (boolean, default `false`): show an
+  `estimated cached` footer when an estimate is present
+
+When the provider supplies `usage.cost` or
+`usage.cost_details.upstream_inference_cost`, that provider-returned cost is
+authoritative. Otherwise, complete `token_rates` allow the extension to
+calculate:
+
+```text
+cost = (
+    ordinary_prompt_tokens * input_rate
+  + cached_prompt_tokens   * cached_rate
+  + completion_tokens      * completion_rate
+) / 1_000_000
+```
+
+Reported cached tokens come from
+`usage.prompt_tokens_details.cached_tokens`. Cached counts are clamped to the
+current prompt-token total before local cost calculation, preventing an
+inconsistent provider payload from producing a negative ordinary-input
+component. If no distinct cached rate is configured, cached tokens use the
+ordinary input rate.
+
+#### Estimated cached-token fallback
+
+Some OpenAI-compatible providers omit
+`usage.prompt_tokens_details.cached_tokens` even when repeated context may be
+served from a cache. Set `estimate_cached_tokens: true` to enable a conservative
+history-based fallback. It is disabled by default because cache semantics vary
+between providers.
+
+The estimator considers user messages and usage-bearing assistant generations;
+tool-result messages are ignored:
+
+- the first generation has an estimate of `0`
+- a later generation in the same user turn reuses the immediately preceding
+  generation's prompt-token count
+- the first generation of a new user turn reuses the first generation's
+  prompt-token count from the preceding populated turn
+
+The estimate is clamped to the current prompt-token total. A real
+provider-reported cached-token count always takes precedence, and a
+provider-returned cost always takes precedence over local estimation.
+
+Estimated data remains separate from provider usage:
+
+- `metadata.usage_estimated_cached_tokens`
+- `metadata.usage_estimated_cached_tokens_formatted`
+
+The extension does not synthesize
+`metadata.usage.prompt_tokens_details.cached_tokens`. The estimate contributes
+only to local configured-rate cost calculation and effective turn cached-token
+totals. It is a comparison/observability heuristic, not billing-grade usage.
+
 ### Image attachments
 
 When the package is loaded through its plugin path, it also exposes the

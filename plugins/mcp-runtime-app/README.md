@@ -7,9 +7,101 @@ This plugin exposes session actions for:
 - showing MCP runtime status
 - clearing stored MCP runtimes
 - forcing reconnect on the next request by clearing runtimes
+- starting and completing OAuth login for protected HTTP MCP servers
 
 It is intentionally application-scoped rather than tool-scoped so that the UI
 can inspect runtime state independent of any one wrapper plugin.
+
+## OAuth configuration
+
+OAuth settings are configured per MCP server under `oauth`. Client identity
+fields default to Crystal Lattice values and can be overridden by the user for
+providers that require specific registered metadata.
+
+```json
+{
+  "mcp_enabled": true,
+  "mcp_servers": {
+    "example": {
+      "enabled": true,
+      "transport": "http",
+      "url": "https://mcp.example.test/mcp",
+      "oauth": {
+        "client_name": "Crystal Lattice Control",
+        "client_uri": "https://crystallattice.dev",
+        "software_id": "crystal-lattice-control",
+        "software_version": "0.1.0",
+        "token_endpoint_auth_method": "none",
+        "scope": "mcp:connect",
+        "redirect_uri": "crystal-lattice://action/{connection_id}/{session_id}/{plugin_id}/{action_id}?server_name={server_name}",
+        "token_exchange": {
+          "include_client_secret": false,
+          "include_resource": true
+        }
+      }
+    }
+  }
+}
+```
+
+Supported redirect placeholders are `{connection_id}`, `{session_id}`,
+`{plugin_id}`, `{action_id}`, and `{server_name}`.
+
+`oauth.token_exchange.include_resource` controls whether the MCP resource is
+sent during the authorization-code token exchange. It defaults to true when a
+resource was discovered.
+
+`oauth.token_exchange.include_client_secret` supports providers that register a
+public client (`token_endpoint_auth_method: "none"`) but still require the
+returned dynamic-registration `client_secret` in the token form. Figma's remote
+MCP server currently needs this behavior when using the Gemini CLI compatible
+client metadata:
+
+```json
+{
+  "figma": {
+    "enabled": true,
+    "transport": "http",
+    "url": "https://mcp.figma.com/mcp",
+    "startup_timeout_seconds": 30,
+    "oauth": {
+      "client_name": "Gemini CLI MCP Client",
+      "client_uri": null,
+      "software_id": null,
+      "software_version": null,
+      "token_endpoint_auth_method": "none",
+      "scope": "mcp:connect",
+      "redirect_uri": "http://localhost:41793/oauth/callback",
+      "token_exchange": {
+        "include_client_secret": true,
+        "include_resource": true
+      }
+    }
+  }
+}
+```
+
+Legacy flat keys such as `oauth_authorization_url`, `oauth_token_endpoint`, and
+`oauth_client_id` are still accepted, but new configs should use the nested
+`oauth` object.
+
+## Manual callback login flow
+
+When a server requires OAuth login, use the MCP status/check action before or
+after a request:
+
+1. Run `Check MCP servers` or open `MCP status`.
+2. Press `Sign in to <server>`.
+3. Press `Open sign-in` or copy the sign-in link.
+4. Approve the login in the browser.
+5. If the redirect opens a localhost URL that does not load, copy the full URL
+   from the browser address bar.
+6. Return to Crystal Lattice, press `Finish login`, paste the callback URL, and
+   submit it.
+
+The callback URL must contain the OAuth `code` and `state` query parameters.
+The same completion action also supports app deep links that pass `code` and
+`state` directly.
 
 ## License
 

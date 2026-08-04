@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
-import { Text, TouchableOpacity } from 'react-native';
+import { Text, TextInput, TouchableOpacity } from 'react-native';
 
 const mockLightTheme = {
   typography: {
@@ -50,39 +50,11 @@ jest.mock('../src/theme', () => ({
   useTheme: () => mockLightTheme,
 }));
 
-jest.mock('@crystal-lattice/frontend-sdk', () => ({
-  __esModule: true,
-  extractByPath: (root: any, path: string) => {
-    return path.split('.').reduce((current, part) => {
-      if (!current || typeof current !== 'object') return undefined;
-      return current[part];
-    }, root);
-  },
-  normalizeSelectOptions: (raw: any) => {
-    if (!Array.isArray(raw)) return [];
-    return raw
-      .map((option) => {
-        if (typeof option === 'string') return { value: option, label: option };
-        if (option && typeof option === 'object') {
-          const value =
-            typeof option.value === 'string'
-              ? option.value
-              : option.value !== undefined && option.value !== null
-                ? String(option.value)
-                : '';
-          if (!value) return null;
-          return {
-            value,
-            label: typeof option.label === 'string' ? option.label : value,
-          };
-        }
-        return null;
-      })
-      .filter(Boolean);
-  },
-}));
-
-import { ApplicationActionDialog } from '../../../packages/frontend-rn-components/src/ApplicationActionDialog';
+import {
+  ApplicationActionDialog,
+  ApplicationActionForm,
+  type ApplicationActionFormHandle,
+} from '../../../packages/frontend-rn-components/src/ApplicationActionDialog';
 import { useMobileApplicationActionDialogFieldRenderers } from '../src/components/applicationActionDialogRenderers';
 
 function DialogHarness({
@@ -169,4 +141,90 @@ test('action dialog validates required select fields', () => {
       return text.props.children === 'Field "MCP server" is required.';
     }),
   ).toBe(true);
+});
+
+test('application action form submits embedded form values', () => {
+  const ref = React.createRef<ApplicationActionFormHandle>();
+  let renderer: ReactTestRenderer.ReactTestRenderer;
+
+  ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(
+      <ApplicationActionForm
+        ref={ref}
+        form={{
+          kind: 'form',
+          inputs: [
+            {
+              name: 'callback_url',
+              type: 'multiline',
+              label: 'Callback URL',
+              required: true,
+            },
+            {
+              name: 'note',
+              type: 'string',
+              label: 'Note',
+              submit_empty: true,
+            },
+          ],
+        }}
+      />,
+    );
+  });
+
+  const inputs = renderer!.root.findAllByType(TextInput);
+  ReactTestRenderer.act(() => {
+    inputs[0].props.onChangeText('http://127.0.0.1:41793/callback?code=abc&state=xyz');
+  });
+
+  let submitted: Record<string, any> | null = null;
+  ReactTestRenderer.act(() => {
+    submitted = ref.current!.submit();
+  });
+
+  expect(submitted).toEqual({
+    callback_url: 'http://127.0.0.1:41793/callback?code=abc&state=xyz',
+    note: '',
+  });
+});
+
+test('resolved prefill takes precedence over a nonempty default', () => {
+  const ref = React.createRef<ApplicationActionFormHandle>();
+
+  ReactTestRenderer.act(() => {
+    ReactTestRenderer.create(
+      <ApplicationActionForm
+        ref={ref}
+        form={{
+          kind: 'form',
+          inputs: [
+            {
+              name: 'status',
+              type: 'select',
+              prefill_from: '$session.metadata.status',
+              default: 'todo',
+              options: [
+                { value: 'todo', label: 'To do' },
+                { value: 'done', label: 'Done' },
+              ],
+            },
+          ],
+        }}
+        prefillContext={{
+          session: {
+            metadata: {
+              status: 'done',
+            },
+          },
+        }}
+      />,
+    );
+  });
+
+  let submitted: Record<string, any> | null = null;
+  ReactTestRenderer.act(() => {
+    submitted = ref.current!.submit();
+  });
+
+  expect(submitted).toEqual({ status: 'done' });
 });

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 
 import type { ActionDefinition, ActionKey } from './types';
+import type { ActionsMenuContentProps } from './ActionsMenuContent';
 
 export interface ActionsPopoverMenuData {
   id: string;
@@ -8,6 +9,7 @@ export interface ActionsPopoverMenuData {
   actions: readonly ActionDefinition[];
   pinnedKeys: readonly ActionKey[];
   disabledKeys: readonly ActionKey[];
+  renderItem?: ActionsMenuContentProps<ActionDefinition>['renderItem'];
 }
 
 export interface ActionsPopoverMenuHandlers {

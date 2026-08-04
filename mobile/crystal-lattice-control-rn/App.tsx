@@ -220,6 +220,7 @@ function App(): React.JSX.Element {
     updateMessagesCache,
     saveMessagesComposeText,
     saveMessagesScrollAnchor,
+    saveMessagesHistoryRange,
     deleteConnectionMessagesCache,
   } = useMessagesCache(connectionsStore);
   const activeConnection = useMemo(
@@ -1429,6 +1430,7 @@ function App(): React.JSX.Element {
                       onUpdateMessagesCache={updateMessagesCache}
                       onSaveMessagesComposeText={saveMessagesComposeText}
                       onSaveMessagesScrollAnchor={saveMessagesScrollAnchor}
+                      onSaveMessagesHistoryRange={saveMessagesHistoryRange}
                       debugTimeline={debugTimeline}
                       onAppendDebugTimelineEntry={appendDebugNote}
                     />

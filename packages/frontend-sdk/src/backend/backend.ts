@@ -8,6 +8,11 @@ import type {
   ExecuteActionResponse,
 } from '../types/plugins';
 import type { SessionPluginEntry } from '../types/sessionPlugins';
+import type { ApplicationNotification } from '../types/applicationNotifications';
+import type {
+  NotificationExpectedRevision,
+  SessionNotification,
+} from '../types/notifications';
 
 export interface ListMessagesResult {
   messages: IndexedMessage[];
@@ -45,6 +50,7 @@ export interface BackendCapabilities {
   sessionPlugins: boolean;
   applicationActions: boolean;
   applicationConfig: boolean;
+  notificationLifecycle?: boolean;
 }
 
 export interface AgentBackend {
@@ -162,12 +168,36 @@ export interface AgentBackend {
 
   // --- Events ---
   listEvents(params: {
-    sessionId: string;
+    sessionId?: string;
     sinceId?: string;
     requestId?: string;
     limit?: number;
   }): Promise<ListEventsResult>;
   getLatestEventId(): Promise<string | null>;
+
+  // --- Notifications ---
+  listApplicationNotifications?(params?: {
+    includeTerminal?: boolean;
+  }): Promise<ApplicationNotification[]>;
+  dismissApplicationNotification?(
+    notificationId: string,
+    params?: {
+      expectedRevision?: NotificationExpectedRevision;
+      reason?: string;
+    },
+  ): Promise<ApplicationNotification>;
+  listSessionNotifications?(
+    sessionId: string,
+    params?: { includeTerminal?: boolean },
+  ): Promise<SessionNotification[]>;
+  dismissSessionNotification?(
+    sessionId: string,
+    notificationId: string,
+    params?: {
+      expectedRevision?: NotificationExpectedRevision;
+      reason?: string;
+    },
+  ): Promise<SessionNotification>;
 
   // --- Feature completions (optional) ---
   getFeatureCompletions?(sessionId: string, text: string): Promise<FeatureCompletion[]>;

@@ -1,0 +1,153 @@
+# Portable Frontend Notification and Sessions-Action Specifications
+
+Specify frontend behavior independently of TypeScript, React, React Native,
+mobile, desktop, web, or any other implementation language.
+
+## Requirements checklist
+
+- [x] The root notification frontend-behavior specification is sufficient to
+  implement compliant notification and action-display behavior in a new
+  frontend.
+- [x] A root frontend Sessions-actions specification defines the reusable
+  action surface, built-ins, plugin actions, pinning, settings/new-session
+  behavior, result routing, and accessibility.
+- [x] Stable `FNT-*` and `FSA-*` requirements contain portable acceptance
+  examples and evidence links.
+- [x] The specifications distinguish normative frontend behavior from current
+  SDK, React Native component, mobile, and desktop implementation choices.
+- [x] Reusable frontend capabilities are specified conceptually without
+  requiring current component/class names.
+- [x] Cross-package notification and action-display shapes are referenced
+  rather than duplicated.
+
+Parent Task:
+`tasks/20260730-runtime-notification-specification-documentation/000-main.md`
+
+Depends On:
+`tasks/20260730-runtime-notification-specification-documentation/010-notification-and-action-display-contracts.md`
+
+## Approved artifacts
+
+```text
+docs/development/specifications/
+├── notifications/
+│   └── frontend-behavior.md
+└── sessions-actions/
+    ├── index.md
+    ├── technical-spec.md
+    └── requirements.md
+```
+
+## Notification frontend-behavior content
+
+Define:
+
+- frontend inputs: persisted session metadata, application snapshots,
+  lifecycle events, and direct action responses;
+- stable-ID upsert, monotonic revision ordering, and updated-display
+  replacement;
+- session metadata and application snapshot authority after reconnect;
+- server-side dismissal versus backend resolution/expiration;
+- immediate initiating-device update without mandatory live reconciliation on
+  other already-open devices;
+- backend/connection isolation;
+- route matrix:
+
+| Presentation | Portable placement |
+|---|---|
+| `banner` | Connection-aware global banner rail |
+| application `inline` | Application/global shell region |
+| session `inline` | Owning session/Messages region |
+| action-response `inline` | Initiating surface |
+| `modal` | Platform-appropriate modal result surface |
+
+- explicit presentation precedence and contract defaults;
+- persistence across navigation within a connection;
+- multi-connection labeling;
+- maximum visible banners per connection;
+- semantic info/success/warning/error treatments;
+- title/body/context/action hierarchy;
+- accessible alert and action semantics;
+- follow-up actions, including a modal result that returns a banner;
+- compact notification history and filters;
+- local historical Show again without lifecycle reactivation;
+- read-only/safe historical action behavior;
+- pending interaction nondismissibility and waiting-for-input navigation;
+- reconnect examples for persistent session and durable application state.
+
+Specify conceptual reusable capabilities:
+
+- notification state/controller;
+- event merger/selectors;
+- display router;
+- semantic banner;
+- connection-aware banner rail;
+- session notification host;
+- inline display renderer;
+- modal display host;
+- follow-up action runner.
+- notification history controller and compact history surface.
+
+Do not name `ApplicationNotificationsController`, `DisplayEnvelope`,
+`NotificationBannerHost`, React contexts, hooks, or platform window classes in
+normative requirements. Package documentation may map those names later.
+
+## Sessions-actions content
+
+Define:
+
+- one reusable Sessions action surface containing Server settings, Refresh
+  sessions, New session, Notifications, and plugin-contributed application
+  actions;
+- distinction between Refresh sessions and Reload application;
+- stable action identity;
+- complete-menu and pinned representations invoking the same action;
+- frontend-local, connection-scoped pin persistence;
+- plugin dialog and parameter handling;
+- result routing through the action-display contract;
+- agent selection for new sessions when needed;
+- platform-appropriate anchored menu behavior;
+- platform-standard Server settings surface;
+- action disabling/loading semantics;
+- accessible labels and stable test selectors.
+
+## Portable acceptance examples
+
+Include examples such as:
+
+- a reload banner remains visible after moving from Sessions to Messages;
+- application and session banners share visual semantics and one rail;
+- a session inline notification appears only in its owning session;
+- two server connections have independently dismissible labeled banners;
+- a notification update replaces the pending version;
+- dismissing a session notification persists `dismissed` in the session;
+- an already-open second device may continue showing the notification, while a
+  newly opened device hydrates server state and does not show it;
+- a historical rich notification can be shown again without changing its
+  terminal lifecycle state;
+- an active interaction cannot be dismissed;
+- an explicit banner response is not coerced because it originated from a
+  session-list or message action;
+- built-in and plugin actions can both be pinned and remain connection-scoped.
+
+## Current implementation references
+
+Use these for evidence, not as the specification source:
+
+- `packages/frontend-sdk/src/notifications/`
+- `packages/frontend-sdk/src/plugins/displayPresentation.ts`
+- `packages/frontend-rn-components/src/notifications/`
+- `packages/frontend-rn-components/src/actions/ActionsMenuBar.tsx`
+- mobile `ConnectedRoot.tsx`, `SessionsScreen.tsx`, and
+  `SessionChatScreen.tsx`
+- desktop `DesktopRoot.tsx`, `SessionsPanel.tsx`, `ChatPane.tsx`, and global
+  display/window coordinators.
+
+## Completion Notes
+
+Completed in the documentation baseline. Root portable frontend behavior and
+Sessions-action specifications exist with `FNT-*` and `FSA-*` requirement
+matrices, conceptual capabilities, acceptance examples, and links to the
+cross-package notification/action-display contracts. Later implementation
+stages may update evidence and implementation status without changing this
+subtask's authority boundary.

@@ -49,6 +49,7 @@ export interface ChatPaneTabStackProps {
   getBackend: (connectionId: string) => AgentBackend | null;
   sessionsCache: SessionsCache;
   messagesCache: MessagesCache;
+  messagesCacheHydrated?: boolean;
   onUpdateCache: ChatPaneProps['onUpdateCache'];
   onOpenSessionTab: (params: {
     connectionId: string;
@@ -71,6 +72,7 @@ type TabFrameProps = {
   backend: AgentBackend | null;
   sessionSummary: SessionSummary | null;
   cachedEntry: MessagesCacheEntry | null;
+  messagesCacheHydrated?: boolean;
   onUpdateCache: ChatPaneTabStackProps['onUpdateCache'];
   onOpenSessionTab: ChatPaneTabStackProps['onOpenSessionTab'];
 };
@@ -88,6 +90,7 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
     styleVariant,
     backend,
     cachedEntry,
+    messagesCacheHydrated,
     onUpdateCache,
     onOpenSessionTab,
   } = props;
@@ -99,6 +102,7 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
     >
       <ApplicationPluginsProvider backend={backend} connectionId={connectionId}>
         <ChatPane
+          isVisible={isVisible}
           isActive={isActive}
           connectionId={connectionId}
           connectionName={connectionName}
@@ -109,6 +113,7 @@ const TabFrame = React.memo(function TabFrame(props: TabFrameProps): React.JSX.E
           styleVariant={styleVariant}
           backend={backend}
           cachedEntry={cachedEntry}
+          messagesCacheHydrated={messagesCacheHydrated}
           onUpdateCache={onUpdateCache}
           onOpenSessionTab={onOpenSessionTab}
         />
@@ -131,6 +136,7 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
     getBackend,
     sessionsCache,
     messagesCache,
+    messagesCacheHydrated,
     onUpdateCache,
     onOpenSessionTab,
   } = props;
@@ -187,6 +193,7 @@ export function ChatPaneTabStack(props: ChatPaneTabStackProps): React.JSX.Elemen
             styleVariant={styleVariant}
             backend={backend}
             cachedEntry={cachedEntry}
+            messagesCacheHydrated={messagesCacheHydrated}
             onUpdateCache={onUpdateCache}
             onOpenSessionTab={onOpenSessionTab}
           />

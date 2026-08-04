@@ -9,4 +9,6 @@ export interface MacOSSystemThemePayload {
   textMuted: string;
   danger: string;
   success: string;
+  warning: string;
+  notification: string;
 }

@@ -37,9 +37,10 @@ def get_ui_elements(
 Application plugins receive `state` first (their internal state), followed by
 optional `config` and `context` parameters. When called via session-scoped
 endpoints, `config` contains the session's effective configuration, enabling
-config-aware UI filtering. When called for server settings, `config` remains
-configuration and current server settings are supplied in
-`context["server_settings"]`.
+config-aware UI filtering. Current application-owned server settings are
+supplied in `context["server_settings"]` on every application UI-schema
+surface. When called for server settings, `config` remains configuration rather
+than being replaced by those live values.
 
 For backward compatibility, plugin adapters also accept legacy application
 plugin signatures such as `get_ui_elements()`, `get_ui_elements(state)`,
@@ -184,6 +185,10 @@ Server-scoped settings are application-owned state. Plugins can react to
 `server_settings_changed`, but should not store a second authoritative copy of
 the same user-editable values.
 
+The same context mapping is available while generating ordinary application
+UI declarations. This allows a live server setting to include or omit a
+session-list field without copying that setting into plugin state.
+
 <!-- Keep a minimal static example for readers who do not need dynamic UI. -->
 
 ```python
@@ -320,7 +325,7 @@ with `name` replacing configuration `key`. Shared fields include `type`, `label`
 
 ```python
 "dialog": {
-    "kind": "form",  # Currently only "form" is supported
+    "kind": "form",
     "title": "Compact range",
     "message": "Optional description shown in dialog.",
     "inputs": [
@@ -334,6 +339,18 @@ with `name` replacing configuration `key`. Shared fields include `type`, `label`
     ],
 }
 ```
+
+Supported dialog kinds are:
+
+- `none`: execute immediately without opening a dialog;
+- `confirm`: show `title` / `message` and OK/Cancel controls, then submit no
+  dialog values;
+- `form`: show the declared named inputs and submit their values only after the
+  user chooses OK.
+
+Omitting `dialog` is equivalent to `{"kind": "none"}` for an ordinary
+`session_list_action`. Unknown dialog kinds are invalid; they are not treated as
+immediate actions.
 
 For `select` and `dropdown`, use the same option model as config UI:
 
@@ -354,6 +371,27 @@ For `select` and `dropdown`, use the same option model as config UI:
 options visible, such as chips on mobile. `dropdown` uses the same option model
 but allows frontends to render a collapsed menu. Submitted `select` and
 `dropdown` values are strings.
+
+An input may initialize itself from the current context:
+
+```python
+{
+    "name": "status",
+    "type": "select",
+    "prefill_from": "$session.metadata.status",
+    "default": "todo",
+    "options": [
+        {"value": "todo", "label": "To do"},
+        {"value": "done", "label": "Done"},
+    ],
+}
+```
+
+When `prefill_from` resolves to a usable value, that value wins even when
+`default` is non-empty. The default is used only when the path is missing or
+resolves to `null` or an empty string. False and zero are usable prefill values.
+Prefill initializes the control; the action still needs a corresponding
+`param_map` entry such as `"status": "$dialog.status"` to submit it.
 
 #### Action deep links
 
@@ -416,20 +454,468 @@ Message-scoped actions displayed on individual message bubbles. Similar to `sess
 }
 ```
 
+### Session-list actions (`ui_type == "session_list_action"`)
+
+Session-list actions are ordinary application actions attached to each session
+summary. They use the same routing, fixed parameters, parameter mapping, and
+dialog fields as other action UI elements:
+
+```python
+{
+    "ui_type": "session_list_action",
+    "id": "edit_status",
+    "label": "Edit status",
+    "icon": "circle",
+    "order": 20,
+    "action_id": "set_status",
+    "fixed_params": {
+        "source": "session_list",
+    },
+    "param_map": {
+        "session_id": "$session.session_id",
+        "status": "$dialog.status",
+    },
+    "dialog": {
+        "kind": "form",
+        "title": "Set status",
+        "inputs": [
+            {
+                "name": "status",
+                "type": "select",
+                "prefill_from": "$session.metadata.status",
+                "default": "todo",
+                "options": [
+                    {"value": "todo", "label": "To do"},
+                    {"value": "done", "label": "Done"},
+                ],
+            }
+        ],
+    },
+}
+```
+
+Parameter sources are evaluated against the selected shared session summary:
+
+| Source | Meaning |
+| --- | --- |
+| `$session.session_id` | Opaque session ID |
+| `$session.modified` | Store-supplied modification timestamp |
+| `$session.preview` | First-user-message preview |
+| `$session.metadata.*` | Projected session metadata |
+| `$session.presentation.*` | Application-derived title, subtitle, or meta text |
+| `$session.<contributed-field>` | A field produced by a `session_list` trigger |
+| `$dialog.<input-name>` | Submitted form value |
+
+`fixed_params` are applied first; a successfully resolved `param_map` value for
+the same parameter replaces the fixed value. Mappings whose source is missing
+do not submit that parameter. The backend action definition applies input
+defaults and validation after mapping.
+
+Action menus and pinned actions are presentation choices over the same element:
+
+- an unpinned action remains available in the ordinary action menu;
+- pinning is a frontend/user preference and does not change the action
+  definition or execution parameters;
+- selecting either representation invokes the same `action_id`;
+- `dialog.kind` remains the permanent ordinary behavior.
+
+#### Optional rich presentation and permanent fallback
+
+A session-list action may include one optional `rich_ui` object. All
+presentation-specific fields belong inside that object; rich behavior does not
+use another action `ui_type`.
+
+```python
+{
+    "ui_type": "session_list_action",
+    "id": "example",
+    "label": "Example",
+    "action_id": "example_action",
+    "param_map": {
+        "session_id": "$session.session_id",
+        "value": "$dialog.value",
+    },
+    "dialog": {
+        "kind": "form",
+        "inputs": [
+            {
+                "name": "value",
+                "type": "string",
+                "prefill_from": "$session.metadata.value",
+            }
+        ],
+    },
+    "rich_ui": {
+        "kind": "future_kind",
+    },
+}
+```
+
+Fallback is part of the permanent contract:
+
+1. A frontend that supports `rich_ui.kind` may use that presentation.
+2. A frontend that does not support the kind ignores `rich_ui` and uses the
+   ordinary `dialog`.
+3. An unknown future kind is valid for transport and follows the same fallback.
+4. Malformed `rich_ui` is reported and discarded without discarding the valid
+   ordinary action.
+
+The initial supported kinds are `toggle` and `list`. Both use:
+
+```typescript
+interface SessionListRichUiBase {
+  kind: 'toggle' | 'list';
+  value_path: string;
+  missing_value?: unknown;
+  default_pinned?: boolean;
+  placements?: string[];
+}
+```
+
+`value_path` resolves against the selected shared session summary. A missing
+path uses `missing_value`; explicit `null`, `false`, zero, and empty strings
+remain actual values. `default_pinned` is an initial frontend preference only:
+it applies when no preference is stored for that connection, never overrides a
+stored empty/custom choice, and does not change plugin action semantics.
+
+`placements` is an ordered, optional list of display locations. The supported
+locations are `actions_bar`, `header_leading`, and `header_trailing`.
+`actions_bar` is the default when `placements` is absent. A plugin can select
+only a header slot or list multiple locations without duplicating its ordinary
+action declaration; for example, `["header_trailing", "actions_bar"]` renders
+both where supported. Unknown future location strings are transportable and
+ignored by frontends that do not support them. Duplicate and malformed entries
+are discarded during normalization. A header slot displays at most one action:
+the first action in declaration order wins, while the ordinary action menu
+always retains every action and its fallback dialog.
+
+#### `rich_ui.kind: "toggle"`
+
+```python
+"rich_ui": {
+    "kind": "toggle",
+    "value_path": "metadata.pinned",
+    "missing_value": False,
+    "active_value": True,
+    "default_pinned": True,
+    "placements": ["header_trailing", "actions_bar"],
+    "appearance": {
+        "active": {"tone": "highlight"},
+        "inactive": {"tone": "muted"},
+    },
+}
+```
+
+`active_value` is a string, number, or Boolean and is compared with both type
+and value. Pinned toggle controls use the top-level action icon and the active
+or inactive semantic tone. Selecting a supported toggle immediately invokes
+its ordinary action; it does not introduce a second mutation route.
+
+#### `rich_ui.kind: "list"`
+
+```python
+"rich_ui": {
+    "kind": "list",
+    "value_path": "metadata.status",
+    "missing_value": "todo",
+    "input_name": "status",
+    "default_pinned": False,
+    "options": [
+        {"value": "todo", "label": "To do", "tone": "muted"},
+        {"value": "done", "label": "Done", "tone": "success"},
+    ],
+}
+```
+
+List option values are typed strings or Booleans, unique by type/value, and
+use the same optional icon/tone vocabulary as session-list filter options.
+Pinned lists show the current option compactly. Their selection view marks the
+current value and has no OK/Cancel confirmation. Selecting another option
+passes it as `$dialog.<input_name>` to the ordinary action; selecting the
+current value simply closes the list without a mutation. The top-level form
+dialog stays separate and is always the fallback.
+
+Semantic tones are frontend-owned and theme-aware: `primary`, `highlight`,
+`warning`, `success`, `danger`, and `muted`. `highlight` is the shared yellow
+saved/pinned emphasis, distinct from the orange warning signal. Plugins
+declare those names, not raw colors.
+Plugins must always provide a valid ordinary dialog even when they also
+provide rich configuration.
+
 ### Session list fields (`ui_type == "session_list_field"`)
 
-Fields displayed in session list views. Extracted from session metadata for summary display.
+Session-list fields derive the `presentation` included in every application
+session summary. They can read base summary data or fields contributed by
+`trigger: "session_list"` actions.
 
 ```python
 {
     "ui_type": "session_list_field",
-    "key": "message_count",
-    "label": "Messages",
-    "data": "metadata.message_count",
-    "template": "{{data}} messages",
-    "order": 10,
+    "id": "session_title",
+    "role": "title",
+    "label": "Title",
+    "data": "metadata.title",
+    "template": "{{data}}",
+    "order": 0,
 }
 ```
+
+Required interpreted fields:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Stable non-empty element ID |
+| `role` | `title`, `subtitle`, or `meta` |
+| `data` | Dotted path into the shared session summary |
+| `template` | Optional text template; defaults to `{{data}}` |
+| `order` | Optional finite number; defaults to `0` |
+
+Fields are evaluated in ascending `order`, preserving plugin/declaration order
+for ties.
+
+- `title`: the first field with a non-missing, non-null, non-empty value whose
+  template renders non-empty text wins.
+- `subtitle`: follows the same first-usable-candidate rule.
+- `meta`: every usable field is rendered and the results are joined with
+  ` · ` in order.
+- If no title field produces text, `preview` is used.
+- If preview is empty, the fallback title is `Session ` plus the first eight
+  characters of `session_id`.
+- Missing subtitle and meta values are returned as `null`.
+
+For example, a status plugin can place a human-readable value after earlier
+timestamp and message-count fields:
+
+```python
+{
+    "ui_type": "session_list_field",
+    "id": "session_status_meta",
+    "label": "Status",
+    "role": "meta",
+    "data": "session_status_label",
+    "template": "Status: {{data}}",
+    "order": 100,
+}
+```
+
+If earlier usable meta fields render Updated, Created, and message count, the
+result is joined as:
+
+```text
+Updated: … · Created: … · 12 messages · Status: In progress
+```
+
+`{{data}}` and `{{ data }}` are supported placeholders. A field may set
+`metadata.format: "datetime"` to format an epoch-second or ISO datetime value
+as a UTC ISO timestamp before templating. Invalid datetime values are rendered
+unchanged.
+
+Presentation is application-owned. `GET /sessions` and
+`GET /sessions/{session_id}/summary` already include:
+
+```typescript
+presentation: {
+  title: string;
+  subtitle: string | null;
+  meta: string | null;
+}
+```
+
+Frontends should consume this value rather than independently reinterpret field
+declarations. A local evaluator may be retained only for compatibility with an
+older server.
+
+### Session-list filters (`ui_type == "session_list_filter"`)
+
+Session-list filters are declarative, non-action elements. Filter-aware
+runtimes normalize the same contract; invalid declarations are reported and
+ignored without hiding valid filters.
+
+```python
+{
+    "ui_type": "session_list_filter",
+    "id": "session_search",
+    "label": "Search",
+    "icon": "search",
+    "order": 0,
+    "data": [
+        "session_id",
+        "preview",
+        "first_user_message",
+        "presentation.title",
+        "presentation.subtitle",
+        "presentation.meta",
+    ],
+    "type": "text",
+    "match": "contains",
+    "case_sensitive": False,
+    "default": "",
+    "main_search": True,
+}
+```
+
+The normalized declaration surface is:
+
+```typescript
+interface SessionListFilter {
+  ui_type: 'session_list_filter';
+  id: string;
+  label: string;
+  icon?: string;
+  order?: number;
+  data: string | string[];
+  type: 'text' | 'boolean' | 'select';
+  match: 'contains' | 'equals' | 'one_of';
+  multiple?: boolean;          // select only
+  case_sensitive?: boolean;    // text only
+  missing_value?: unknown;
+  default?: string | boolean | null | Array<string | boolean>;
+  options?: SessionListOption[];
+  main_search?: boolean;       // text only
+}
+```
+
+`data` is one dotted path or an ordered list of paths. A missing path resolves
+to `missing_value` when that field is declared. `missing_value` does not replace
+an explicit `null`, false, zero, or empty string.
+
+Supported combinations are:
+
+| Type | Runtime value | Match | Inactive value |
+| --- | --- | --- | --- |
+| `text` | string | `contains` or `equals` | `""` |
+| `boolean` | `null`, `true`, or `false` | `equals` | `null` |
+| single `select` | `null` or one declared option value | `equals` | `null` |
+| multiple `select` | list of declared option values | `one_of` | `[]` |
+
+Text matching is case-insensitive unless `case_sensitive` is true. Non-string
+summary values do not match text operators. For a multiple select, the
+resolved summary value is scalar and matches when it occurs among the selected
+values.
+
+Composition rules:
+
+- paths inside one filter combine with OR;
+- active filters combine with AND;
+- inactive filters do not affect the result;
+- filtering preserves the already plugin-ordered input;
+- ordering occurs before filtering, and a query limit is applied last.
+
+Options use:
+
+```typescript
+interface SessionListOption {
+  value: string | boolean;
+  label: string;
+  icon?: string;
+  tone?: 'primary' | 'highlight' | 'warning' | 'success' | 'danger' | 'muted';
+}
+```
+
+The string option value `any` is reserved for the inactive terminal spelling
+and is not a valid declared select option.
+
+`default` initializes state and is restored by Reset. Show all uses the inactive
+value from the table instead of restoring plugin defaults.
+
+`main_search: true` is valid only on a text filter. Zero or one effective main
+search is valid. Competing declarations are a schema error; a runtime must not
+silently choose one. Duplicate filter IDs are also rejected as ambiguous rather
+than resolved by plugin order. Invalid declarations and conflicts produce
+structured diagnostics while unrelated valid filters remain usable.
+
+Mobile and desktop always keep a search input. When exactly one valid main
+search exists, its label, paths, operator, and case-sensitivity control that
+input. When none can be selected—including a reported conflict—the clients use
+a shared case-insensitive fallback over available ordinary summary text:
+`session_id`, `preview`, and derived presentation title/subtitle/meta. The
+fallback does not make a conflicting plugin declaration valid and the UI still
+reports the schema warning.
+
+Terminal free-text search remains plugin-driven. `/session <text>` requires one
+valid main search, while an exact session ID remains directly accessible
+regardless of filters. `--filter <id>=<value>` applies command-local non-main
+overrides on top of defaults. Boolean and single-select filters use `any` for
+their inactive value. Multiple selects use comma-separated option values with
+CSV quoting inside the shell-quoted assignment when an option itself contains
+a comma.
+
+Plugins may pair a broad main search with focused non-main text filters. The
+built-in search plugin also declares `session_title_search` over displayed
+title/subtitle paths and `session_first_message_search` over a complete
+`first_user_message` field contributed by a `session_list` trigger.
+
+HTTP session listing remains unfiltered in this iteration. Mobile and desktop
+apply declarations to the complete ordered collection locally. Terminal
+filtering uses the in-process `AgentApplication` query service. Exact session
+loading by ID is independent of filter state. Frontend state is scoped by the
+active connection and normalized declaration identity; changing either restores
+the current declarations' defaults and removes stale values.
+
+Built-in pin, archive, and status plugins demonstrate metadata-backed filters
+and rich ordinary actions. Their `rich_ui.value_path` and filters use the same
+configured metadata key; mobile and desktop never depend on a feature-specific
+top-level summary field. Pin is Any by default, archive defaults to false
+(hiding archived sessions), and status defaults to Any.
+
+```python
+{
+    "ui_type": "session_list_filter",
+    "id": "pinned_state",
+    "label": "Pinned",
+    "icon": "star",
+    "type": "boolean",
+    "match": "equals",
+    "data": "metadata.pinned",
+    "missing_value": False,
+    "default": None,
+    "options": [
+        {
+            "value": False,
+            "label": "Not pinned",
+            "icon": "star",
+            "tone": "muted",
+        },
+        {
+            "value": True,
+            "label": "Pinned",
+            "icon": "star",
+            "tone": "highlight",
+        },
+    ],
+}
+```
+
+```python
+{
+    "ui_type": "session_list_filter",
+    "id": "session_status",
+    "label": "Status",
+    "icon": "circle",
+    "type": "select",
+    "match": "one_of",
+    "multiple": True,
+    "data": "metadata.status",
+    "missing_value": "todo",
+    "default": [],
+    "options": [
+        {"value": "todo", "label": "To do", "tone": "muted"},
+        {
+            "value": "in_progress",
+            "label": "In progress",
+            "tone": "primary",
+        },
+        {"value": "blocked", "label": "Blocked", "tone": "danger"},
+        {"value": "done", "label": "Done", "tone": "success"},
+    ],
+}
+```
+
+All three plugins derive `data` from their configured metadata key. Pin and
+status inactive defaults preserve the full list; archive intentionally hides
+archived sessions by default. Missing pin/archive state resolves to false and
+missing status resolves to `todo`, allowing old sessions to participate
+without a migration write.
 
 ### Composer attachments (`ui_type == "composer_attachment"`)
 
@@ -620,15 +1106,45 @@ interface ActionUiElement {
   action_owner?: string;  // "application" | "feature" | "provider_extension"
   fixed_params?: Record<string, any>;
   param_map?: Record<string, string>;
-  dialog?: any;
+  dialog?: {
+    kind: "none" | "confirm" | "form";
+    title?: string;
+    message?: string;
+    inputs?: ActionDialogInput[];
+  };
+  rich_ui?: {
+    kind: "toggle";
+    value_path: string;
+    missing_value?: unknown;
+    default_pinned?: boolean;
+    placements?: string[];
+    active_value: string | number | boolean;
+    appearance: {
+      active: { tone: "primary" | "highlight" | "warning" | "success" | "danger" | "muted" };
+      inactive: { tone: "primary" | "highlight" | "warning" | "success" | "danger" | "muted" };
+    };
+  } | {
+    kind: "list";
+    value_path: string;
+    missing_value?: unknown;
+    default_pinned?: boolean;
+    placements?: string[];
+    input_name: string;
+    options: SessionListOption[];
+  } | {
+    // Unknown future kinds remain transportable and fall back to dialog.
+    kind: string;
+    [key: string]: unknown;
+  };
   metadata?: Record<string, any>;
 }
 
 interface SessionListFieldElement {
   ui_type: string;
   plugin: string;
-  key?: string;
+  id: string;
   label?: string;
+  role: "title" | "subtitle" | "meta";
   data: string;
   template?: string;
   order?: number;
@@ -685,7 +1201,10 @@ GET /application/ui-schema
 
 Returns global UI elements from application plugins. Used for:
 - global application actions or display elements that do not require a current
-  session
+  session;
+- `session_list_action` definitions;
+- `session_list_field` presentation declarations;
+- `session_list_filter` declarations.
 
 ```
 GET /sessions/{session_id}/application/ui-schema
@@ -694,9 +1213,46 @@ GET /sessions/{session_id}/application/ui-schema
 Returns session-contextual UI elements from application plugins. Used for:
 - `ui_type == "session_action"`: Session-scoped actions
 - `ui_type == "message_action"`: Message-scoped actions
-- `ui_type == "session_list_field"`: Session list fields
 
 Optional query parameter `?plugin=name` filters elements by plugin.
+
+Session-list declarations come from the global application schema because they
+must be interpreted once for the complete list rather than rediscovered per
+session.
+
+### Application actions
+
+An element with `ui_type: "application_action"` is rendered once for the
+connected application and does not require a selected session:
+
+```json
+{
+  "ui_type": "application_action",
+  "plugin": "application_config",
+  "id": "reload_application",
+  "label": "Reload application",
+  "action_id": "reload_application",
+  "dialog": {
+    "kind": "confirm",
+    "title": "Reload application"
+  }
+}
+```
+
+Action identity is the pair `(plugin, action_id)`, so different application
+plugins may use the same local action id. `secret` and `password` dialog fields
+are masked and never prefilled.
+
+### Session summaries
+
+```text
+GET /sessions
+GET /sessions/{session_id}/summary
+```
+
+The first endpoint returns the complete application-ordered summary list
+(optionally truncated by its existing `limit` parameter). The second returns
+the same summary contract for one exact ID without applying list filters.
 
 ### Server settings values
 

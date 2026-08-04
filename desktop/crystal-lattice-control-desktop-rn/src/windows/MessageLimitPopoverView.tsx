@@ -30,23 +30,35 @@ function MessageLimitPopoverViewInner(): React.JSX.Element {
   };
 
   return (
-    <View style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {active.title}
-        </Text>
-        <Pressable
-          style={(pressState) => {
-            const hovered = (pressState as any).hovered as boolean | undefined;
-            return [styles.closeButton, (hovered || pressState.pressed) && styles.closeButtonHovered];
-          }}
-          onPress={() => {
-            close();
-          }}
-        >
-          <Text style={styles.closeButtonText}>×</Text>
-        </Pressable>
-      </View>
+    <View
+      style={styles.root}
+      testID="desktop-popover-root"
+      accessibilityLabel={active.title ? `${active.title} popover` : 'Desktop popover'}
+    >
+      {active.title ? (
+        <View style={styles.header}>
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {active.title}
+          </Text>
+          <Pressable
+            testID="desktop-popover-close"
+            accessibilityRole="button"
+            accessibilityLabel={`Close ${active.title}`}
+            style={(pressState) => {
+              const hovered = (pressState as any).hovered as boolean | undefined;
+              return [
+                styles.closeButton,
+                (hovered || pressState.pressed) && styles.closeButtonHovered,
+              ];
+            }}
+            onPress={() => {
+              close();
+            }}
+          >
+            <Text style={styles.closeButtonText}>×</Text>
+          </Pressable>
+        </View>
+      ) : null}
 
       <View style={styles.body}>{active.content}</View>
     </View>

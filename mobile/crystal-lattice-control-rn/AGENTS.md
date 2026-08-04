@@ -70,7 +70,9 @@ These guidelines apply to everything under `mobile/crystal-lattice-control-rn/`.
   - Use a fixed‑width font (e.g. `Courier`) for all message text and reasoning.
   - Let React Native wrap text naturally; avoid manual line splitting.
 - Scrolling behavior:
-  - `SessionChatScreen` owns the outer messages list `ScrollView` and should call `scrollToEnd` on `onContentSizeChange` so that loading or updating a session scrolls to the bottom.
+  - `SessionChatScreen` owns an inverted outer messages `FlatList`; offset zero is the visual bottom.
+  - Compact chevron controls navigate to the visual top and bottom when those edges are outside the pinned threshold.
+  - `maintainVisibleContentPosition` handles normal bottom following while the transcript is pinned.
   - Nested scroll areas inside tool/assistant collapsibles must use `nestedScrollEnabled` so they are scrollable inside the messages list.
 - When adding new roles or visual variants, prefer **new small renderer components** that plug into the dispatcher, rather than adding more conditionals into existing ones.
 
@@ -116,8 +118,9 @@ refer to `application/python/agent_terminal_app/event_rendering.py` and the core
 
 - Accepts `backend`, `sessionId`, `onBack`.
 - Message loading:
-  - Uses `apiListMessages` with a `start` parameter derived from the configurable "message limit".
-  - Default limit is 25 messages; limit can be set to "all".
+  - Uses the shared chat controller with a configurable Python-style history range.
+  - Defaults to `-50:` (the last 50 messages), matching desktop.
+  - Contextual transcript controls can show older/newer windows, all messages, or return to the last 50; the settings modal remains available for arbitrary ranges.
 - Message composer:
   - `Append` appends a user message only.
   - `Send` optionally appends a user message, then calls `/send`, then reloads messages.
@@ -126,7 +129,8 @@ refer to `application/python/agent_terminal_app/event_rendering.py` and the core
   - Gear icon opens a modal for the "show last N messages" limit.
   - Ensure UX remains simple and modal stays small and phone‑friendly.
 - Scrolling:
-  - Owns a `ScrollView` ref and scrolls to the bottom on `onContentSizeChange`.
+  - Owns an inverted `FlatList` ref and persists bottom-gap affinity.
+  - Visual-bottom navigation maps to offset zero; visual-top navigation maps to the inverted list end.
   - This must continue working when message rendering changes.
 
 When adding new screens, prefer placing them under `src/` and wiring them through
@@ -198,6 +202,15 @@ For bridge mode, ensure the Elixir bridge is up and reachable at the WebSocket U
 - Use the existing Jest setup (`npm test`).
 - Prefer **component‑level tests** for new screens/components using `react-test-renderer`.
 - Test UI states that involve network errors by mocking `AgentBackend` (and/or a `Transport` passed into `RestAgentBackend`).
+- For backend-facing behavior, add a real-backend component integration using
+  the shared backend harness, public HTTP routes, `RestAgentBackend`, and actual
+  plugins where plugin contributions are part of the behavior.
+- Detox harnesses must render production screens/components with deterministic
+  state rather than duplicate the tested interaction in test-only UI. Wire new
+  harnesses through each platform's launch path and run the scenario on both
+  iOS and Android when both are supported.
+- Use stable production test identifiers based on entity or action IDs; avoid
+  relying only on visible text, row position, or generated menu order.
 - Do not add new test frameworks; extend the current Jest configuration in `jest.config.js`.
 
 When you make a behavior change that affects message rendering, session loading, or

@@ -30,11 +30,16 @@ def _make_config(tmp_path: Path) -> Path:
     return path
 
 
-def _build_app(tmp_path: Path) -> AgentApplication:
+def _build_app(
+    tmp_path: Path,
+    *,
+    replay_server_settings_on_startup: bool = True,
+) -> AgentApplication:
     return AgentApplication(
         str(_make_config(tmp_path)),
         str(tmp_path / "sessions"),
         core_factory=AgentCore,
+        replay_server_settings_on_startup=replay_server_settings_on_startup,
     )
 
 
@@ -77,6 +82,28 @@ def test_server_settings_persist_and_fire_lifecycle(tmp_path: Path) -> None:
 
     reloaded = _build_app(tmp_path)
     assert reloaded.get_server_settings() == settings
+    reloaded_plugin = _settings_plugin(reloaded)
+    assert reloaded_plugin.executed
+    assert reloaded_plugin.executed[-1]["context"]["source"] == "startup"
+    assert reloaded_plugin.executed[-1]["context"]["new_settings"] == settings
+
+
+def test_server_settings_startup_replay_can_be_suppressed(tmp_path: Path) -> None:
+    app = _build_app(tmp_path)
+    app.patch_server_settings({"dummy_server_mode": "careful"}, source="test")
+
+    companion = _build_app(tmp_path, replay_server_settings_on_startup=False)
+    plugin = _settings_plugin(companion)
+
+    assert companion.get_server_settings() == {"dummy_server_mode": "careful"}
+    assert plugin.executed == []
+
+    companion.patch_server_settings({"dummy_server_mode": "fast"}, source="test")
+    assert len(plugin.executed) == 1
+    assert plugin.executed[0]["context"]["source"] == "test"
+    assert plugin.executed[0]["context"]["new_settings"] == {
+        "dummy_server_mode": "fast"
+    }
 
 
 def test_server_settings_delete_and_noop_do_not_fire_lifecycle(tmp_path: Path) -> None:

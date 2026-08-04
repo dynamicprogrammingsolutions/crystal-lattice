@@ -24,6 +24,7 @@ _next_fireworks_request_time = 0.0
 
 FIREWORKS_QWEN_MODEL = "fireworks/qwen3-8b"
 FIREWORKS_GLM_MODEL = "accounts/fireworks/models/glm-5p1"
+FIREWORKS_GLM_5_2_MODEL = "accounts/fireworks/models/glm-5p2"
 FIREWORKS_KIMI_MODEL = "fireworks/kimi-k2p5"
 
 

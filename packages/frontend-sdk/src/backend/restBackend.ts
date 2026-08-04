@@ -9,6 +9,11 @@ import type { IndexedMessage } from '../types/messages';
 import type { SessionSummary } from '../types/sessions';
 import type { ConfigSchemaEntry, UiSchemaElement } from '../types/uiSchema';
 import type { SessionPluginEntry } from '../types/sessionPlugins';
+import type { ApplicationNotification } from '../types/applicationNotifications';
+import type {
+  NotificationExpectedRevision,
+  SessionNotification,
+} from '../types/notifications';
 import type {
   AgentBackend,
   BackendCapabilities,
@@ -21,7 +26,9 @@ import { emitServerSettingsInvalidated } from '../serverSettings/serverSettingsI
 
 const HEAVY_REQUEST_TIMEOUT_MS = 120_000;
 
-function buildQuery(params: Record<string, string | number | undefined>): string {
+function buildQuery(
+  params: Record<string, string | number | boolean | undefined>,
+): string {
   const parts: string[] = [];
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined) continue;
@@ -52,6 +59,7 @@ export class RestAgentBackend implements AgentBackend {
       sessionPlugins: true,
       applicationActions: true,
       applicationConfig: false,
+      notificationLifecycle: true,
     };
   }
 
@@ -363,7 +371,7 @@ export class RestAgentBackend implements AgentBackend {
   }
 
   async listEvents(params: {
-    sessionId: string;
+    sessionId?: string;
     sinceId?: string;
     requestId?: string;
     limit?: number;
@@ -398,6 +406,78 @@ export class RestAgentBackend implements AgentBackend {
       path: '/events',
     });
     return resp.data?.latest_event_id ?? null;
+  }
+
+  async listApplicationNotifications(
+    params: { includeTerminal?: boolean } = {},
+  ): Promise<ApplicationNotification[]> {
+    const query = buildQuery({ include_terminal: params.includeTerminal });
+    const resp = await this.transport.request<{
+      notifications?: ApplicationNotification[];
+    }>({
+      method: 'GET',
+      path: `/application/notifications${query}`,
+    });
+    return Array.isArray(resp.data?.notifications)
+      ? resp.data.notifications
+      : [];
+  }
+
+  async dismissApplicationNotification(
+    notificationId: string,
+    params: {
+      expectedRevision?: NotificationExpectedRevision;
+      reason?: string;
+    } = {},
+  ): Promise<ApplicationNotification> {
+    const resp = await this.transport.request<{
+      notification: ApplicationNotification;
+    }>({
+      method: 'POST',
+      path: `/application/notifications/${encodeURIComponent(notificationId)}/dismiss`,
+      body: {
+        expected_revision: params.expectedRevision,
+        reason: params.reason,
+      },
+    });
+    return resp.data.notification;
+  }
+
+  async listSessionNotifications(
+    sessionId: string,
+    params: { includeTerminal?: boolean } = {},
+  ): Promise<SessionNotification[]> {
+    const query = buildQuery({ include_terminal: params.includeTerminal });
+    const resp = await this.transport.request<{
+      notifications?: SessionNotification[];
+    }>({
+      method: 'GET',
+      path: `/sessions/${encodeURIComponent(sessionId)}/notifications${query}`,
+    });
+    return Array.isArray(resp.data?.notifications)
+      ? resp.data.notifications
+      : [];
+  }
+
+  async dismissSessionNotification(
+    sessionId: string,
+    notificationId: string,
+    params: {
+      expectedRevision?: NotificationExpectedRevision;
+      reason?: string;
+    } = {},
+  ): Promise<SessionNotification> {
+    const resp = await this.transport.request<{
+      notification: SessionNotification;
+    }>({
+      method: 'POST',
+      path: `/sessions/${encodeURIComponent(sessionId)}/notifications/${encodeURIComponent(notificationId)}/dismiss`,
+      body: {
+        expected_revision: params.expectedRevision,
+        reason: params.reason,
+      },
+    });
+    return resp.data.notification;
   }
 
   async getSessionAgent(sessionId: string): Promise<string> {

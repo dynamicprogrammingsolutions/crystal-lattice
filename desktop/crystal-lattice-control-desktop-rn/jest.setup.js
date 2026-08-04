@@ -1,3 +1,27 @@
+global.__fbBatchedBridgeConfig = global.__fbBatchedBridgeConfig || {
+  remoteModuleConfig: [],
+};
+
+jest.mock('@crystal-lattice/react-native-mac-text-view', () => {
+  const React = require('react');
+  const { TextInput } = require('react-native');
+
+  const MacTextView = React.forwardRef((props, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      setText: () => {},
+      focus: () => {},
+    }));
+    return React.createElement(TextInput, {
+      ...props,
+      defaultValue: props.initialText,
+    });
+  });
+
+  return {
+    MacTextView,
+  };
+});
+
 jest.mock(
   '@react-native-async-storage/async-storage',
   () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
@@ -12,8 +36,27 @@ jest.mock('@crystal-lattice/frontend-sdk', () => ({
 
 jest.mock('@crystal-lattice/frontend-rn-components', () => {
   const React = require('react');
-  const { View } = require('react-native');
+  const { Pressable, Text, TextInput, View } = require('react-native');
+  const {
+    mergeSessionNotificationEvents,
+    notificationExpectedRevision,
+    selectSessionNotifications,
+  } = jest.requireActual('@crystal-lattice/frontend-sdk');
   const theme = {
+    typography: {
+      fontSize: {
+        tiny: 11,
+        small: 12,
+        secondary: 13,
+        normal: 14,
+        message: 15,
+        large: 16,
+        title: 18,
+        screenTitle: 24,
+        display: 28,
+        code: 14,
+      },
+    },
     background: '#fff',
     backgroundAlt: '#fff',
     surface: '#fff',
@@ -27,7 +70,15 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     textMuted: '#666',
     textOnPrimary: '#fff',
     danger: '#f00',
+    dangerMuted: 'rgba(255, 0, 0, 0.12)',
     success: '#0a0',
+    successMuted: 'rgba(0, 170, 0, 0.12)',
+    highlight: '#FFCC00',
+    warning: '#FF9500',
+    warningMuted: 'rgba(255, 149, 0, 0.12)',
+    notification: '#007AFF',
+    notificationMuted: 'rgba(0, 122, 255, 0.12)',
+    message: '#0A84FF',
     bubbleUserBg: '#fff',
     bubbleSystemBorder: '#ddd',
     bubbleToolBg: '#fff',
@@ -40,14 +91,336 @@ jest.mock('@crystal-lattice/frontend-rn-components', () => {
     navIconInactive: '#666',
   };
 
+  const ApplicationActionForm = React.forwardRef(({ form }, ref) => {
+    const inputs = form && form.kind === 'form' && Array.isArray(form.inputs) ? form.inputs : [];
+    const initialValues = {};
+    inputs.forEach((field) => {
+      if (!field?.name) return;
+      initialValues[field.name] =
+        field.default === undefined || field.default === null ? '' : String(field.default);
+    });
+    const [values, setValues] = React.useState(initialValues);
+    const [error, setError] = React.useState(null);
+
+    React.useImperativeHandle(ref, () => ({
+      submit: () => {
+        const result = {};
+        for (const field of inputs) {
+          if (!field?.name) continue;
+          const raw = values[field.name] ?? '';
+          const trimmed = raw.trim();
+          if (!trimmed && field.required) {
+            setError(`Field "${field.label || field.name}" is required.`);
+            return null;
+          }
+          if (trimmed) {
+            result[field.name] = trimmed;
+          } else if (field.submit_empty === true) {
+            result[field.name] = '';
+          }
+        }
+        setError(null);
+        return result;
+      },
+    }));
+
+    return React.createElement(
+      View,
+      null,
+      inputs.map((field) => {
+        if (!field?.name) return null;
+        return React.createElement(
+          View,
+          { key: field.name },
+          React.createElement(Text, null, field.label || field.name),
+          React.createElement(TextInput, {
+            value: values[field.name] ?? '',
+            placeholder: field.placeholder || '',
+            onChangeText: (next) => setValues((prev) => ({ ...prev, [field.name]: next })),
+          }),
+        );
+      }),
+      error ? React.createElement(Text, null, error) : null,
+    );
+  });
+
   return {
     ThemeProvider: ({ children }: { children: any }) => React.createElement(React.Fragment, null, children),
     useTheme: () => theme,
     DropdownMenuSurface: ({ visible, children }: { visible: boolean; children: any }) =>
       visible ? React.createElement(React.Fragment, null, children) : null,
+    SessionListFiltersPanel: ({
+      schema,
+      values,
+      onChange,
+      onReset,
+      onShowAll,
+      onRequestClose,
+    }) => {
+      const renderOption = (filter, key, label, nextValue, option) =>
+        React.createElement(
+          Pressable,
+          {
+            key,
+            testID: `session-filter-${filter.id}-option-${key}`,
+            onPress: () => onChange(filter.id, nextValue),
+          },
+          option?.icon
+            ? React.createElement(View, {
+                testID: `session-filter-${filter.id}-option-${key}-icon`,
+              })
+            : null,
+          React.createElement(Text, null, label),
+        );
+      const renderFilter = (filter) => {
+        const value = values[filter.id];
+        const controls = [];
+        if (filter.type === 'boolean') {
+          controls.push(renderOption(filter, 'any', 'Any', null));
+          for (const nextValue of [true, false]) {
+            const option = filter.options.find(
+              (candidate) => candidate.value === nextValue,
+            );
+            controls.push(
+              renderOption(
+                filter,
+                String(nextValue),
+                option?.label || String(nextValue),
+                nextValue,
+                option,
+              ),
+            );
+          }
+        } else if (filter.type === 'select' && filter.multiple) {
+          controls.push(renderOption(filter, 'any', 'Any', []));
+          filter.options.forEach((option, index) => {
+            const selected =
+              Array.isArray(value) &&
+              value.some((item) => item === option.value);
+            const nextValue = selected
+              ? value.filter((item) => item !== option.value)
+              : [...(Array.isArray(value) ? value : []), option.value];
+            controls.push(
+              renderOption(
+                filter,
+                String(index),
+                option.label,
+                nextValue,
+                option,
+              ),
+            );
+          });
+        }
+        return React.createElement(
+          View,
+          {
+            key: filter.id,
+            testID: `session-filter-${filter.id}`,
+          },
+          React.createElement(Text, null, filter.label),
+          ...controls,
+        );
+      };
+      return React.createElement(
+        View,
+        { testID: 'session-filters-panel' },
+        (schema?.filters || [])
+          .filter((filter) => filter.id !== schema?.mainSearch?.id)
+          .map(renderFilter),
+        React.createElement(Pressable, {
+          testID: 'session-filters-show-all',
+          onPress: onShowAll,
+        }),
+        React.createElement(Pressable, {
+          testID: 'session-filters-reset',
+          onPress: onReset,
+        }),
+        onRequestClose
+          ? React.createElement(Pressable, {
+              testID: 'session-filters-close',
+              onPress: onRequestClose,
+            })
+          : null,
+      );
+    },
 
-    ActionsMenuBar: () => null,
+    ActionsMenuBar: ({ baseActions = [], extraActions = [], menuButtonTestID }) =>
+      React.createElement(
+        View,
+        { testID: menuButtonTestID },
+        [...baseActions, ...extraActions].map((action) =>
+          React.createElement(
+            Text,
+            { key: action.key, testID: `action-menu-item-${String(action.key).replace(/\u0000/g, '-')}` },
+            action.label,
+          ),
+        ),
+      ),
+    NotificationBanner: ({ display, onDismiss, onFollowupAction, disabledActionIds = [] }) =>
+      React.createElement(
+        View,
+        { accessibilityRole: 'alert' },
+        display?.title ? React.createElement(Text, null, display.title) : null,
+        React.createElement(Text, null, display?.body || ''),
+        (display?.actions || []).map((action) =>
+          React.createElement(
+            Pressable,
+            {
+              key: action.id,
+              disabled: disabledActionIds.includes(action.id),
+              onPress: () =>
+                action.kind === 'dismiss'
+                  ? onDismiss?.()
+                  : onFollowupAction?.(action),
+            },
+            React.createElement(Text, null, action.label),
+          ),
+        ),
+        display?.dismissible !== false && onDismiss
+          ? React.createElement(
+              Pressable,
+              { onPress: onDismiss },
+              React.createElement(Text, null, 'Dismiss'),
+            )
+          : null,
+      ),
+    NotificationBannerHost: ({ items = [], onDismiss, onFollowupAction }) =>
+      React.createElement(
+        View,
+        { testID: 'notification-banner-host' },
+        items.map((item) =>
+          React.createElement(
+            View,
+            { key: item.envelope.id, accessibilityRole: 'alert' },
+            item.connectionLabel
+              ? React.createElement(Text, null, item.connectionLabel)
+              : null,
+            item.envelope.display.title
+              ? React.createElement(Text, null, item.envelope.display.title)
+              : null,
+            React.createElement(Text, null, item.envelope.display.body),
+            item.envelope.display.dismissible !== false && onDismiss
+              ? React.createElement(
+                  Pressable,
+                  {
+                    accessibilityLabel: 'Dismiss notification',
+                    onPress: () => onDismiss(item),
+                  },
+                  React.createElement(Text, null, 'Dismiss'),
+                )
+              : null,
+          ),
+        ),
+      ),
+    SessionNotificationsHost: ({
+      sessionSummary,
+      events = [],
+      onDismissNotification,
+      onFollowupAction,
+      renderInline,
+      inlinePresentations = ['inline'],
+    }) => {
+      const [dismissedRevisions, setDismissedRevisions] = React.useState([]);
+      const notifications = mergeSessionNotificationEvents(
+        selectSessionNotifications(sessionSummary),
+        events,
+      ).filter(
+        (notification) =>
+          notification.status === 'pending' &&
+          inlinePresentations.includes(
+            notification.display.presentation || 'inline',
+          ) &&
+          !dismissedRevisions.includes(
+            `${notification.id}:${notificationExpectedRevision(notification)}`,
+          ),
+      );
+      return notifications.length > 0
+        ? React.createElement(
+            View,
+            null,
+            notifications.map((notification) => {
+              const dismiss = async () => {
+                try {
+                  await onDismissNotification?.(notification);
+                  const revision =
+                    `${notification.id}:${notificationExpectedRevision(notification)}`;
+                  setDismissedRevisions((current) =>
+                    current.includes(revision)
+                      ? current
+                      : [...current, revision],
+                  );
+                } catch {
+                  // Keep the notification visible when its owner rejects dismissal.
+                }
+              };
+              if (renderInline) {
+                return React.createElement(
+                  React.Fragment,
+                  { key: notification.id },
+                  renderInline({
+                    notification,
+                    onDismiss: () => {
+                      void dismiss();
+                    },
+                    onFollowupAction: (action) =>
+                      onFollowupAction?.(action, notification),
+                  }),
+                );
+              }
+              return React.createElement(
+                View,
+                { key: notification.id },
+                React.createElement(Text, null, notification.display.body),
+                React.createElement(Pressable, {
+                  accessibilityLabel: 'Dismiss notification',
+                  onPress: () => {
+                    void dismiss();
+                  },
+                }),
+              );
+            }),
+          )
+        : null;
+    },
+    SessionListActionsBar: ({ session, pluginActions, pinned, onExecuteAction }) =>
+      React.createElement(
+        View,
+        null,
+        (pluginActions || [])
+          .filter(
+            (action) =>
+              (pinned || []).includes(action.id) &&
+              action.rich_ui?.placements?.includes('actions_bar'),
+          )
+          .map((action) =>
+            React.createElement(Pressable, {
+              key: action.id,
+              testID: `session-rich-action-${session.session_id}-${action.id}`,
+              onPress: () => onExecuteAction(action),
+            }),
+          ),
+      ),
+    SessionListRichActionControl: ({
+      element,
+      session,
+      testID,
+      onExecuteAction,
+    }) => {
+      const richUi = element.rich_ui || {};
+      const valuePath =
+        typeof richUi.value_path === 'string' ? richUi.value_path.split('.') : [];
+      const value = valuePath.reduce((current, key) => current?.[key], session);
+      return React.createElement(Pressable, {
+        testID,
+        accessibilityState: {
+          selected: value === richUi.active_value,
+        },
+        onPress: () => onExecuteAction(element),
+      });
+    },
     ApplicationActionDialog: ({ visible }: { visible: boolean }) => (visible ? React.createElement(View, null) : null),
+    ApplicationActionDialogLayout: () => React.createElement(React.Fragment, null),
+    ApplicationActionForm,
     getLastActionsPopoverAnchorTag: () => null,
   };
 });
