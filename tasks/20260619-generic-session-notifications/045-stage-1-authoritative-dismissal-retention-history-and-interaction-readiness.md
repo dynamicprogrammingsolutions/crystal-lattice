@@ -211,15 +211,15 @@ Package-local development pages document implementation mappings only.
 
 ## Planning status
 
-Stages A through C were approved and implemented on August 1, 2026. Stage C's
-manual and native checkpoints are postponed. Only one uncompleted stage is
-planned in implementation detail at a time. Backend-only stages may end at an
-automated gate; stages with user-visible behavior stop for the specified
-mobile or desktop manual checkpoint before the next stage is planned.
+Stages A through D and their automated/manual checkpoints are complete. Stage
+E is the only uncompleted stage currently planned in implementation detail.
+Production mobile and desktop history hosting remains in Stages F and G.
+Stages with user-visible behavior stop for the specified mobile or desktop
+manual checkpoint before the next stage is planned.
 
 ## Execution plan
 
-Status: Approved
+Status: Draft
 
 ### Stage A — Backend lifecycle, revision, and snapshot foundation
 
@@ -570,31 +570,246 @@ Stop after checkpoint D.
 
 ### Stage E — History query model and shared history components
 
-Stage E is paused until
-`tasks/20260802-openai-responses-background-compaction.md`
-defines whether durable compaction progress remains an ordinary notification
-record or introduces an operation specialization that history must represent.
+Stage E plan status: Draft.
 
-- add active/terminal history query and filtering contracts;
-- add SDK selectors/controllers for status, severity, time, connection, and
-  session filtering;
-- add shared compact history rows and rich historical replay primitives;
-- make historical replay local and non-reactivating;
-- default historical content to read-only and validate any explicitly allowed
-  mutating action against current lifecycle/revision;
-- add the stable Notifications action identity to the reusable pinnable action
-  model without hosting it in mobile/desktop yet.
+The background-compaction task has selected the boundary needed by history:
+application operations remain a distinct authority, while important operation
+attention/progress is projected through ordinary `kind: "notification"`
+records. Stage E therefore queries and displays the notification projection;
+it does not query operation records or add operation history.
+
+#### E1 — Backend history query contract
+
+Keep the current active notification list endpoints unchanged for reconnect
+hydration. Add dedicated read-only history endpoints:
+
+```text
+GET /application/notifications/history
+GET /sessions/{session_id}/notifications/history
+```
+
+Both endpoints use the same query contract:
+
+- `statuses`: repeated or comma-separated notification statuses;
+- `severities`: repeated or comma-separated semantic severities;
+- `updated_after`: inclusive RFC3339 lower bound;
+- `updated_before`: exclusive RFC3339 upper bound;
+- `limit`: default `50`, maximum `200`;
+- `cursor`: opaque continuation cursor.
+
+The session endpoint is always exact-session scope. The application endpoint
+is one connection/application scope; multi-connection aggregation remains a
+frontend responsibility in Stage G.
+
+Return:
+
+```json
+{
+  "notifications": [],
+  "next_cursor": null,
+  "total": 0
+}
+```
+
+Query behavior:
+
+- validate status, severity, timestamps, limit, and cursor before querying;
+- filter before pagination;
+- order by `updated_at` descending, then `id` descending as a deterministic
+  tie-break;
+- encode the last `(updated_at, id)` tuple in a versioned opaque cursor;
+- report invalid or query-incompatible cursors as a public validation error;
+- include active and terminal records unless statuses narrow the result;
+- return a snapshot total matching the filters before page slicing;
+- retain exact record revisions and display payloads;
+- do not mutate TTL state merely because a history query observes an elapsed
+  presentation deadline.
+
+History pagination is revision-aware but does not promise cross-page snapshot
+isolation while active records continue updating. An active record may move
+to a newer page position between requests. The SDK deduplicates by ID, retains
+the newest revision, and an explicit refresh rebuilds the authoritative first
+page. Terminal records are stable under normal lifecycle rules.
+
+Use one application-layer query service over the existing session metadata
+and application notification store list boundaries. Terminal history is
+already bounded to `500` by default, so Stage E does not require a new store
+query protocol or SQLite-specific pagination implementation. Active records
+remain unbounded by contract and are included in the in-memory filtering step.
+
+The service owns filtering, ordering, cursor encoding/decoding, and page
+construction. HTTP remains responsible only for query parsing and error
+translation.
+
+#### E2 — Portable SDK history model
+
+Add a shared notification-history record/view model spanning application and
+session records without removing the existing scope-specific public types.
+The history item records:
+
+- notification identity and revision;
+- application or exact-session scope;
+- optional connection/session labels supplied by the host;
+- active/terminal classification;
+- severity and lifecycle status;
+- created/updated/terminal time;
+- retention summary, including elapsed TTL presentation deadlines;
+- display availability and whether local Show again is supported;
+- optional projected operation information already present on the
+  notification.
+
+Add backend methods for application/session history pages and implement them
+in `RestAgentBackend`. Existing `listApplicationNotifications(...)` and
+`listSessionNotifications(...)` remain active-hydration APIs.
+
+Add a reusable history controller with:
+
+- exact application or session scope;
+- filter state;
+- initial load, refresh, and load-more operations;
+- revision-aware deduplication by notification ID;
+- cursor and total tracking;
+- stale-response protection when filters or scope change;
+- loading, refreshing, loading-more, and error state;
+- explicit invalidation/refresh entry points for future event subscriptions;
+- no periodic polling and no production host ownership in Stage E.
+
+Add pure selectors/helpers for:
+
+- active and terminal counts;
+- status/severity/time filtering;
+- compact status and terminal-time labels;
+- operation-progress summaries;
+- Show again eligibility;
+- historical display sanitization.
+
+#### E3 — Safe local Show again
+
+Historical replay is a frontend-local presentation only:
+
+- it does not call a notification mutation endpoint;
+- it does not change status or revision;
+- it does not publish an event;
+- it does not insert a new history record;
+- it does not place the content back into a live notification rail.
+
+Stage E supports Show again for stored displays whose original presentation is
+`inline` or `modal`. A historical `banner` remains readable in its compact
+history row and does not receive Show again.
+
+Build a sanitized replay display that preserves:
+
+- `format`, title, body, variant, and presentation;
+- safe `copy_text` and `open_url` actions.
+
+Remove from historical replay:
+
+- every `run_action`;
+- `dismiss`;
+- `download_attachment_asset`;
+- embedded forms and submitted-form behavior;
+- notification lifecycle controls.
+
+Set replay dismissal to local close semantics. The host receives the sanitized
+display plus the originating immutable history item and chooses its
+platform-appropriate inline/modal renderer. Stage E does not add a generic
+server endpoint for historical action validation. Supporting a future
+mutating historical action requires a separate explicit contract and a real
+consumer with server-side lifecycle/revision validation.
+
+#### E4 — Shared React Native history primitives
+
+Add shared components under the frontend React Native component package:
+
+- a compact notification-history row;
+- severity/status badges and accessible labels;
+- a filter panel for active/terminal status, severity, and time range;
+- a paged history list with loading, empty, error, retry, and load-more states;
+- Show again affordance emitted as a callback rather than a platform-owned
+  modal;
+- optional connection/session context labels supplied by the host;
+- optional projected-operation phase/elapsed text.
+
+The shared package remains presentation-only. It does not construct a backend,
+own a history controller, execute follow-up actions, select a connection, or
+open mobile/desktop windows.
+
+Use the existing shared theme and action/menu conventions. Add stable test IDs
+and accessibility labels to rows, filters, Show again, retry, and load-more
+controls so Stages F/G can reuse the same production components in native
+tests.
+
+#### E5 — Stable pinnable Notifications action identity
+
+Add one platform action definition with a stable key, recommended:
+
+```text
+platform.notifications
+```
+
+The definition includes:
+
+- Notifications label and bell/history icon metadata;
+- optional active-count badge supplied by the host;
+- default-pinned behavior set to `true`;
+- no plugin/action owner and no backend `action_id`;
+- an explicit platform callback handled by the owning frontend.
+
+Integrate the definition with the reusable action-menu model and verify
+pin/unpin ordering, persistence-key stability, badge updates, and coexistence
+with plugin actions. Stage E does not add it to production Sessions, Chat, or
+desktop panes; those integrations remain Stage F/G.
+
+#### E6 — Deterministic mobile visual harness
+
+Add a test-only mobile scenario that mounts the Stage E shared history
+components with deterministic application/session records covering:
+
+- active, dismissed, resolved, and expired rows;
+- all four severities;
+- operation progress text;
+- status/severity/time filters;
+- pagination/load more;
+- inline Show again;
+- modal Show again using the existing full-window mobile modal host;
+- a rich record containing stale `run_action`, form, dismiss, and download
+  entries, proving they are absent from replay.
+
+The harness is not production Stage F navigation. It exists so the Stage E
+manual checkpoint is testable from the mobile application and so Detox can
+capture stable screenshots and native geometry/accessibility behavior.
 
 Automated boundary:
 
-- backend/SDK query tests;
-- shared component tests;
-- replay lifecycle and historical-action safety tests.
+- backend query unit tests for validation, filtering, ordering, cursor
+  pagination, totals, scope isolation, TTL non-mutation, and revision
+  preservation;
+- public HTTP integration tests for application/session history and unchanged
+  active-list compatibility;
+- durable application-store restart and session-metadata history tests;
+- SDK transport, controller, selector, pagination, stale-response, and
+  revision-deduplication tests;
+- replay sanitizer tests proving lifecycle calls and mutating actions are
+  unavailable;
+- shared component tests for rows, filters, paging, accessibility, and replay
+  callbacks;
+- a real-backend SDK integration crossing HTTP and the production adapter;
+- focused mobile harness Jest and Detox tests with screenshots for history,
+  filtering, inline replay, and full-window modal replay;
+- `git diff --check`, TypeScript checks for affected packages, focused Python
+  lint/format, and the prepared documentation build.
 
 Manual checkpoint E:
 
-- use the deterministic component harness to inspect compact active and
-  terminal rows, filters, and read-only inline/modal replay.
+- use the deterministic mobile component harness;
+- inspect compact active/terminal rows, severity/status/time filters, operation
+  progress, empty/error/loading states, and pagination;
+- verify inline Show again stays inside the history content;
+- verify modal Show again darkens the full mobile application;
+- confirm replay does not expose stale form, dismiss, download, or
+  `run_action` controls;
+- confirm leaving/reopening the harness resets replay presentation without
+  changing the source history records.
 
 Stop after checkpoint E.
 
@@ -687,8 +902,7 @@ wait-only or real-suspend behavior.
 - Stages A/B/B-1/B-2/C and their requirements are approved and implemented.
 - The B-1/B-2/C requirements and revised sequence were approved on August 1,
   2026.
-- Stage C's manual desktop checkpoint was postponed on August 1, 2026 and
-  remains required before task completion. The approved native XCUITest was
+- Stage C's manual desktop checkpoint and approved native XCUITest were
   completed on August 2, 2026.
 - B-1 store ownership was clarified and approved on August 1, 2026: the store
   is a runtime-owned injected dependency, not an `ApplicationControl`
@@ -773,7 +987,35 @@ wait-only or real-suspend behavior.
   reliably.
 - A postponed manual checkpoint does not satisfy or cancel an automated native
   test. Stage C's native XCUITest is now complete while its manual desktop
-  verification remains separate incomplete evidence.
+  verification is separate confirmed evidence.
+- Stage E detailed planning recommends dedicated `/history` endpoints rather
+  than overloading active notification hydration. This keeps reconnect
+  snapshots unpaginated and source compatible.
+- Stage E recommends application-layer in-memory filtering/pagination over the
+  current bounded store/session lists. A new SQLite query protocol is deferred
+  until scale or another consumer requires it.
+- Stage E recommends an opaque `(updated_at, id)` cursor with no cross-page
+  snapshot-isolation promise for actively revised records. SDK
+  revision-deduplication and explicit refresh handle movement.
+- Stage E recommends read-only replay only: preserve content plus `copy_text`
+  and `open_url`; remove forms, lifecycle controls, downloads, and every
+  `run_action`. A generic mutating historical-action protocol is deferred
+  until a real producer can define explicit validity and server-side
+  lifecycle/revision validation.
+- Stage E recommends stable platform action key `platform.notifications`,
+  default-pinned. Production mobile/desktop hosting remains Stage F/G.
+- Stage E uses a deterministic mobile harness for visual/manual verification
+  without adding production history navigation before Stage F.
+
+Open Stage E approval questions:
+
+1. Approve dedicated history endpoints rather than extending the active list
+   endpoints with pagination/filter semantics.
+2. Approve the strict read-only replay policy and defer all historical
+   `run_action`, form submission, dismiss, and download behavior.
+3. Approve default-pinned `platform.notifications` action metadata.
+4. Approve bounded in-memory query/pagination over existing authorities rather
+   than extending `ApplicationNotificationStore` with query-specific methods.
 
 ### Documentation
 
@@ -781,6 +1023,22 @@ Each stage updates the root notification/action-display requirements and only
 the package implementation pages affected by that stage. User-facing plugin
 documentation must describe current runtime behavior and must not expose a
 planned API as available before its implementation stage completes.
+
+Stage E documentation updates:
+
+- root notification product, technical, frontend, requirements, and index
+  pages for history query, cursor, replay, and action identity;
+- public HTTP/API documentation for the two history endpoints and validation
+  errors;
+- frontend SDK development/type documentation for page/controller/filter and
+  replay sanitizer contracts;
+- shared React Native component documentation for host-owned history
+  presentation;
+- plugin authoring guidance explaining that stored display content may appear
+  in history, while forms and mutating actions are not historically replayed
+  in Stage E;
+- links to operation documentation clarifying that notification history shows
+  the notification projection, not authoritative operation history.
 
 ### Task checklist
 
@@ -800,6 +1058,7 @@ planned API as available before its implementation stage completes.
 - [x] Approve the Stage D execution plan.
 - [x] Plan and execute Stage D.
 - [x] Complete manual checkpoint D.
+- [ ] Approve the detailed Stage E plan.
 - [ ] Plan and execute Stage E.
 - [ ] Complete manual checkpoint E.
 - [ ] Plan and execute Stage F.
@@ -823,6 +1082,29 @@ Each stage maps its completed requirements to:
 
 No requirement is marked complete solely because a lower-level unit test
 passes.
+
+Stage E acceptance evidence:
+
+- **History query contract:** application/session unit tests plus real HTTP
+  integration prove scope, filters, pagination, totals, durable terminal
+  records, and active-list compatibility.
+- **Portable history behavior:** frontend SDK tests prove scope changes,
+  filter reset, stale-response rejection, load more, revision deduplication,
+  operation projection, and explicit refresh.
+- **Read-only Show again:** sanitizer/component/integration tests prove no
+  lifecycle endpoint or action runner is invoked, source status/revision stay
+  unchanged, and stale forms/mutating actions are unavailable.
+- **Shared visual primitives:** component tests and the production-component
+  mobile harness prove compact rows, filters, paging states, accessibility,
+  inline replay, and full-window modal replay.
+- **Pinnable action model:** shared action-model tests prove stable identity,
+  default pinning, badge updates, and coexistence with plugin actions.
+- **Human checkpoint:** mobile simulator/device inspection confirms visual
+  density, filtering usability, replay placement, and absence of stale action
+  controls. This does not substitute for the automated evidence above.
+
+Stage E does not complete production action-surface availability on mobile or
+desktop. That requirement remains open through Stages F and G.
 
 ### Additional implementation verification
 
