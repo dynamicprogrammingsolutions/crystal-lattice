@@ -312,6 +312,15 @@ Application-scoped lifecycles such as `server_settings_changed` do not include
 `session` or `session_id`. Plugins should check for those keys before using
 them.
 
+An application-owned background process that must call
+`AgentCore.execute_session_action(...)` directly should build its context
+through `app.build_core_handoff_context(...)`. Pass the captured base and
+effective configurations plus process-specific extra context. This preserves
+application dependencies such as `session_asset_store` and runtime stores
+without copying the application context schema into the plugin. Ordinary
+actions should continue to prefer `app.execute_session_action(...)`, which
+builds this handoff context automatically.
+
 ---
 
 ## Action definitions

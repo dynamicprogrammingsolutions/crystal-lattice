@@ -1366,6 +1366,72 @@ Approve or revise this boundary:
 - keep navigation and mutation-derived policies action-only;
 - preserve unknown notification fields without executing them.
 
+### Stage C follow-up — Asset-aware background compaction context
+
+Stage C asset-context follow-up plan status: Approved on August 4, 2026.
+
+Stage C asset-context follow-up implementation status: Implemented on August
+4, 2026.
+
+#### Problem and outcome
+
+The application-owned background compaction process calls
+`AgentCore.execute_session_action(...)` directly so it can defer persistence
+until after cancellation and late-result checks. Unlike the former
+provider-extension action path, that direct call currently supplies only the
+cancellable compaction transport and omits the application-owned core handoff
+context. Sessions containing asset-backed native history therefore fail during
+request initialization because the OpenAI Responses provider cannot resolve
+`session_asset_store`.
+
+Restore the same application context contract used by ordinary
+`AgentApplication.execute_session_action(...)` calls while retaining the
+background process's guarded commit and cancellation behavior.
+
+#### Context handoff
+
+- expose a narrow `AgentApplication` helper that delegates to the existing
+  centralized `ApplicationContext.build_core_handoff_context(...)` builder;
+- use that helper in existing application-to-core paths so the public helper
+  remains the single application-owned handoff boundary;
+- pass the initiating application-action context into the managed compaction
+  process rather than discarding it;
+- after the process captures the current base and effective configuration,
+  build a complete core handoff context and add the cancellable compaction
+  transport as caller-provided extra context;
+- preserve application-owned dependencies including `app`, `application`,
+  `session_asset_store`, runtime stores, and `base_config`;
+- do not place `_session_asset_store` into provider configuration as a
+  compaction-specific workaround.
+
+The core context builder continues to own reserved-key precedence, so stale or
+caller-provided session/config values cannot replace the process's captured
+effective configuration.
+
+#### Regression coverage
+
+- add a deterministic background-compaction test with a real filesystem
+  session asset referenced by a provider-native tool-result image;
+- start through the application-owned action and controlled compaction
+  transport;
+- assert that request initialization resolves the asset before the transport
+  starts, the transport receives the expanded data URL rather than
+  `asset_ref`, and the guarded background commit succeeds;
+- cover the low-level application-action entrypoint with only `session_id`
+  context, proving the process obtains required application dependencies from
+  the centralized handoff builder rather than relying on a fully enriched
+  caller context;
+- retain all existing background response, heartbeat, cancellation, conflict,
+  reload, and UI ownership tests.
+
+#### Verification
+
+- run the focused background compaction application tests;
+- run application context-enrichment tests;
+- run the full default OpenAI Responses plugin suite and distinguish any
+  independently reproducible pre-existing failures;
+- run focused Ruff/Black checks and `git diff --check`.
+
 ### Stage D — Selectable no-message continuation
 
 Add a compaction action option for:
@@ -1796,3 +1862,50 @@ Correction verification:
 - full OpenAI Responses package: 395 passed and 76 deselected, with the same 3
   independently reproducible attachment-history failures recorded before this
   correction.
+
+### Stage C follow-up — Asset-aware background compaction context
+
+Implemented on August 4, 2026.
+
+Outcome:
+
+- exposed `AgentApplication.build_core_handoff_context(...)` as the narrow
+  application-owned entrypoint to the existing centralized
+  `ApplicationContext` handoff builder;
+- changed existing application lifecycle and session-action handoffs to use
+  that entrypoint, keeping one authoritative context-construction path;
+- retained the initiating application-action context in
+  `OpenAIResponsesNativeCompactionProcess`;
+- built the detached compaction core context from the captured base and
+  effective configurations, application-owned dependencies, caller extras,
+  and cancellable transport before starting provider work;
+- preserved guarded commit, cancellation, conflict detection, notification,
+  and application-close behavior;
+- did not add `_session_asset_store` to provider configuration;
+- documented the direct-core background-process handoff pattern in the
+  application-plugin authoring guide;
+- added a deterministic regression using a real filesystem session asset in a
+  provider-native `function_call_output` image and the low-level application
+  action with only `session_id` context;
+- verified that provider initialization replaces `asset_ref` with the stored
+  image data URL before invoking the controlled compaction transport and that
+  the background result commits successfully.
+
+Automated evidence:
+
+- focused background compaction application tests: 8 passed;
+- application feature/context enrichment tests: 8 passed;
+- `pytest core/python/tests -q`: 447 passed, 26 deselected, 1 xfailed;
+- `pytest application/python/tests -q`: 319 passed, 90 deselected;
+- full default OpenAI Responses suite: 396 passed and 76 deselected, with the
+  same 3 independently reproducible attachment-history failures already
+  recorded before this follow-up;
+- focused Ruff checks passed;
+- focused Black checks passed;
+- `git diff --check` passed.
+
+Verification note:
+
+- the first full application-suite run reached 90 percent but exceeded its
+  180-second command limit and was not counted; the rerun completed
+  successfully with a 360-second allowance.

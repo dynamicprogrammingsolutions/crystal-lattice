@@ -39,6 +39,7 @@ class OpenAIResponsesNativeCompactionProcess:
         operation: ApplicationOperationLease,
         session_id: str,
         end_index: int | None,
+        action_context: Dict[str, Any] | None = None,
         heartbeat_interval: float = 15.0,
         monotonic: Any = time.monotonic,
     ) -> None:
@@ -49,6 +50,7 @@ class OpenAIResponsesNativeCompactionProcess:
         self.session_id = session_id
         self._operation = operation
         self._end_index = end_index
+        self._action_context = action_context
         self._heartbeat_interval = heartbeat_interval
         self._monotonic = monotonic
         self._started_monotonic = 0.0
@@ -79,12 +81,21 @@ class OpenAIResponsesNativeCompactionProcess:
     def start(self) -> None:
         self._started_monotonic = self._monotonic()
         self._create_notification()
-        core, _base_config, session, effective_config, baseline_file_state = (
+        core, base_config, session, effective_config, baseline_file_state = (
             self._capture_baseline()
         )
         transport = CancellableAsyncOpenAIResponsesCompactionTransport(
             config=effective_config,
             run_awaitable_blocking=self._app.run_awaitable_blocking,
+        )
+        handoff_extra = {
+            **(self._action_context or {}),
+            COMPACTION_TRANSPORT_CONTEXT_KEY: transport,
+        }
+        handoff_context = self._app.build_core_handoff_context(
+            base_config=base_config,
+            config=effective_config,
+            extra=handoff_extra,
         )
         with self._state_lock:
             self._transport = transport
@@ -96,6 +107,7 @@ class OpenAIResponsesNativeCompactionProcess:
                 effective_config,
                 baseline_file_state,
                 transport,
+                handoff_context,
             ),
             name=f"openai-native-compaction-{self.operation_id}",
             daemon=True,
@@ -168,6 +180,7 @@ class OpenAIResponsesNativeCompactionProcess:
         effective_config: Dict[str, Any],
         baseline_file_state: Any,
         transport: CancellableAsyncOpenAIResponsesCompactionTransport,
+        handoff_context: Dict[str, Any],
     ) -> None:
         results: queue.Queue[tuple[str, Any]] = queue.Queue()
 
@@ -184,7 +197,7 @@ class OpenAIResponsesNativeCompactionProcess:
                     EXTENSION_ID,
                     SYNC_ACTION_ID,
                     params,
-                    context={COMPACTION_TRANSPORT_CONTEXT_KEY: transport},
+                    context=handoff_context,
                 )
                 results.put(("result", (new_session, result)))
             except BaseException as exc:

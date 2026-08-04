@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import concurrent.futures
 import json
 from pathlib import Path
@@ -41,10 +42,11 @@ class _ControlledTransport:
         self.started = threading.Event()
         self.release = threading.Event()
         self.cancelled = threading.Event()
+        self.calls: list[Dict[str, Any]] = []
         type(self).instances.append(self)
 
     def compact(self, **kwargs: Any) -> Dict[str, Any]:
-        _ = kwargs
+        self.calls.append(kwargs)
         self.started.set()
         while not self.release.wait(0.01):
             if self.cancelled.is_set():
@@ -140,6 +142,63 @@ def _start(app: AgentApplication, session_id: str) -> Dict[str, Any]:
     )
 
 
+def _replace_history_with_asset_tool_result(
+    app: AgentApplication,
+    session_id: str,
+) -> str:
+    loaded = app.load_session(session_id)
+    assert loaded is not None
+    core, _base_config, session = loaded
+    image_bytes = b"asset-backed-tool-image"
+    record = app.get_session_asset_store().store_base64(
+        session_id=session_id,
+        attachment_type="image",
+        filename="tool-image.png",
+        mime_type="image/png",
+        data_base64=base64.b64encode(image_bytes).decode("ascii"),
+    )
+    messages = [
+        Message(
+            role="tool",
+            content="Loaded image file.",
+            metadata={
+                "native_indices": [0],
+                "tool_call_id": "call_asset",
+                "tool_name": "view_image",
+            },
+        )
+    ]
+    native_messages = [
+        {
+            "type": "function_call_output",
+            "call_id": "call_asset",
+            "output": [
+                {"type": "input_text", "text": "Loaded image file."},
+                {
+                    "type": "input_image",
+                    "image_url": {
+                        "asset_ref": record.asset_ref(),
+                        "filename": record.filename,
+                        "mime_type": record.mime_type,
+                    },
+                },
+            ],
+        }
+    ]
+    app.save_session(
+        Session(
+            session_id=session_id,
+            messages=messages,
+            metadata={
+                **session.metadata,
+                "native_messages": native_messages,
+                "native_messages_integrity": core._compute_native_integrity(messages),
+            },
+        )
+    )
+    return f"data:{record.mime_type};base64,{base64.b64encode(image_bytes).decode('ascii')}"
+
+
 def test_background_action_returns_promptly_and_publishes_heartbeats(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -197,6 +256,37 @@ def test_background_action_returns_promptly_and_publishes_heartbeats(
     assert completed_notification["display"]["presentation"] == "banner"
     assert completed_notification["display"]["dismissible"] is True
     assert completed_notification["title"] == "Native compaction complete"
+    app.close()
+
+
+def test_background_action_resolves_asset_backed_tool_result_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app, session_id = _build_app(tmp_path, monkeypatch)
+    expected_data_url = _replace_history_with_asset_tool_result(app, session_id)
+
+    result = _start(app, session_id)
+
+    assert result["status"] == "ok"
+    transport = _ControlledTransport.instances[0]
+    assert transport.started.wait(2)
+    assert len(transport.calls) == 1
+    input_items = transport.calls[0]["input_items"]
+    assert "asset_ref" not in repr(input_items)
+    assert input_items[0]["output"][1]["image_url"] == expected_data_url
+
+    transport.release.set()
+    _wait_until(
+        lambda: get_application_operation_service(app.get_runtime_store()).get(
+            result["operation_id"]
+        )
+        is None
+    )
+    saved = app.load_live_session_record(session_id)
+    assert saved is not None
+    assert saved.metadata["native_messages"][-1]["type"] == "compaction"
+    assert app.list_session_notifications(session_id)[0]["severity"] == "success"
     app.close()
 
 

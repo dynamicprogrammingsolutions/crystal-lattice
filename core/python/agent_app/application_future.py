@@ -1587,7 +1587,7 @@ class AgentApplication:
             current_session,
             effective_config,
             lifecycle,
-            context=self._context.build_core_handoff_context(
+            context=self.build_core_handoff_context(
                 base_config=self._config,
                 extra=context,
             ),
@@ -3335,7 +3335,7 @@ class AgentApplication:
                 plugin_id,
                 action_id,
                 action_params,
-                context=self._context.build_core_handoff_context(
+                context=self.build_core_handoff_context(
                     base_config=base_config,
                     config=effective_config,
                     extra=context,
@@ -3658,6 +3658,21 @@ class AgentApplication:
 
     def get_session_asset_store(self) -> FilesystemSessionAssetStore:
         return self._session_asset_store
+
+    def build_core_handoff_context(
+        self,
+        *,
+        base_config: Mapping[str, Any],
+        config: Optional[Mapping[str, Any]] = None,
+        extra: Optional[Mapping[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Build application-owned context for a direct AgentCore handoff."""
+
+        return self._context.build_core_handoff_context(
+            base_config=base_config,
+            config=config,
+            extra=extra,
+        )
 
     def get_runtime_state_root(self) -> Path:
         return self._runtime_state_root

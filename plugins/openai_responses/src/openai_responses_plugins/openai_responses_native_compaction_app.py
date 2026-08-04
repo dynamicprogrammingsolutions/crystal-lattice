@@ -111,14 +111,19 @@ class OpenAIResponsesNativeCompactionAppPlugin:
         context: Optional[Dict[str, Any]],
         state: Dict[str, Any],
     ) -> Dict[str, Any]:
-        _ = context, state
+        _ = state
         if action_id == "cancel_native_compaction":
             return self._cancel(app, params)
         if action_id != "compact_native_history":
             raise KeyError(action_id)
-        return self._start(app, params)
+        return self._start(app, params, context)
 
-    def _start(self, app: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _start(
+        self,
+        app: Any,
+        params: Dict[str, Any],
+        context: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
         session_id = params["session_id"]
         if app.get_selected_session_snapshot(session_id) is not None:
             raise RuntimeError(f"Session {session_id!r} is viewing a readonly snapshot")
@@ -182,6 +187,7 @@ class OpenAIResponsesNativeCompactionAppPlugin:
             operation=operation,
             session_id=session_id,
             end_index=end_index,
+            action_context=context,
         )
         try:
             registry.start(operation_id, process)
