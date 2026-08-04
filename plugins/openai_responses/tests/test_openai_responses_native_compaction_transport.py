@@ -72,12 +72,14 @@ def test_async_compact_transport_cancels_delayed_http_exchange(mode: str) -> Non
     threading.Thread(target=server.serve_forever, daemon=True).start()
     runtime = AsyncRuntimeHost()
     transport = CancellableAsyncOpenAIResponsesCompactionTransport(
-        config={
-            "api_key": "test",
-            "base_url": f"http://127.0.0.1:{server.server_port}/v1",
-        },
         run_awaitable_blocking=runtime.run_blocking,
         max_retries=0,
+    )
+    transport.configure(
+        {
+            "api_key": "test",
+            "base_url": f"http://127.0.0.1:{server.server_port}/v1",
+        }
     )
     outcome: dict[str, BaseException] = {}
 
@@ -114,3 +116,22 @@ def test_async_compact_transport_cancels_delayed_http_exchange(mode: str) -> Non
     assert not worker.is_alive()
     assert elapsed < 3
     assert isinstance(outcome.get("error"), BaseException)
+
+
+def test_async_compact_transport_requires_configuration() -> None:
+    runtime = AsyncRuntimeHost()
+    transport = CancellableAsyncOpenAIResponsesCompactionTransport(
+        run_awaitable_blocking=runtime.run_blocking,
+        max_retries=0,
+    )
+
+    try:
+        with pytest.raises(RuntimeError, match="must be configured before use"):
+            transport.compact(
+                model="gpt-5-mini",
+                input_items=[],
+                instructions=None,
+                timeout=1,
+            )
+    finally:
+        runtime.close()

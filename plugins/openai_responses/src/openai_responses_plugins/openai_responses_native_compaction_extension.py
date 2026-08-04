@@ -869,6 +869,9 @@ class OpenAIResponsesNativeCompactionExtension(ProviderExtensionPlugin):
         if raw_transport is not None and callable(
             getattr(raw_transport, "compact", None)
         ):
+            configure_transport = getattr(raw_transport, "configure", None)
+            if callable(configure_transport):
+                configure_transport(compaction_config)
             transport = raw_transport
         else:
             try:

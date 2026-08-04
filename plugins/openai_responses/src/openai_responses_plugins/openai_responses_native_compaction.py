@@ -50,7 +50,7 @@ class CancellableAsyncOpenAIResponsesCompactionTransport:
     def __init__(
         self,
         *,
-        config: Dict[str, Any],
+        config: Dict[str, Any] | None = None,
         run_awaitable_blocking: Callable[[Any], Any],
         max_retries: int | None = None,
     ) -> None:
@@ -61,6 +61,16 @@ class CancellableAsyncOpenAIResponsesCompactionTransport:
         self._loop: asyncio.AbstractEventLoop | None = None
         self._task: asyncio.Task[Any] | None = None
         self._cancel_requested = False
+
+    def configure(self, config: Dict[str, Any]) -> None:
+        if not isinstance(config, dict):
+            raise TypeError("config must be a dict")
+        with self._lock:
+            if self._task is not None:
+                raise RuntimeError(
+                    "OpenAI compaction transport cannot be reconfigured while running"
+                )
+            self._config = config
 
     def compact(
         self,
@@ -100,18 +110,24 @@ class CancellableAsyncOpenAIResponsesCompactionTransport:
         if task is None:
             raise RuntimeError("OpenAI compaction task is unavailable")
         with self._lock:
+            config = self._config
+            if config is None:
+                raise RuntimeError(
+                    "OpenAI compaction transport must be configured before use"
+                )
             self._loop = loop
             self._task = task
             cancel_requested = self._cancel_requested
         if cancel_requested:
             task.cancel()
 
-        client: AsyncOpenAI = build_async_openai_sdk_client(
-            self._config,
-            timeout=timeout,
-            max_retries=self._max_retries,
-        )
+        client: AsyncOpenAI | None = None
         try:
+            client = build_async_openai_sdk_client(
+                config,
+                timeout=timeout,
+                max_retries=self._max_retries,
+            )
             return await client.responses.compact(
                 model=model,
                 input=input_items,
@@ -120,7 +136,8 @@ class CancellableAsyncOpenAIResponsesCompactionTransport:
             )
         finally:
             try:
-                await client.close()
+                if client is not None:
+                    await client.close()
             finally:
                 with self._lock:
                     if self._task is task:

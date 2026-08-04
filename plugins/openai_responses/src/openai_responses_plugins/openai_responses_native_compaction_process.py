@@ -85,7 +85,6 @@ class OpenAIResponsesNativeCompactionProcess:
             self._capture_baseline()
         )
         transport = CancellableAsyncOpenAIResponsesCompactionTransport(
-            config=effective_config,
             run_awaitable_blocking=self._app.run_awaitable_blocking,
         )
         handoff_extra = {

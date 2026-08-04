@@ -1432,6 +1432,78 @@ effective configuration.
   independently reproducible pre-existing failures;
 - run focused Ruff/Black checks and `git diff --check`.
 
+### Stage C follow-up — Auth-resolved background compaction transport
+
+Stage C auth-transport follow-up plan status: Approved on August 4, 2026.
+
+#### Finding
+
+Manual compaction of session
+`d5bf38f9-68d1-46d1-8109-103cf583e4a4` repeatedly failed with:
+
+```text
+[openai_responses_provider] chatgpt auth_mode requires a valid saved ChatGPT login
+```
+
+The saved login was present and valid. The background process created its
+cancellable async transport from the raw effective session configuration
+before `OpenAIResponsesChatGPTAuthFeature.init(...)` loaded the credential
+file and injected `chatgpt_access_token`, effective auth mode, account ID, and
+ChatGPT base URL into provider state.
+
+The core session action subsequently initialized features correctly, but the
+native-compaction extension preferred the already-created context transport.
+That transport retained the raw configuration, so ChatGPT mode failed locally
+while constructing the SDK client and never sent `/responses/compact`.
+
+The same split could route raw `auth_mode: auto` through the normal API while
+the feature-initialized extension state identified the operation as ChatGPT.
+This explains an observed API-credit failure that was wrapped as a ChatGPT
+endpoint failure. It also meant background compaction did not reliably honor
+`use_chatgpt_auth_for_compaction: false`, because endpoint forcing happened
+after the transport captured its configuration.
+
+Existing tests missed the boundary:
+
+- background application tests replaced the real transport and configured
+  only API-key mode;
+- ChatGPT saved-login coverage called the synchronous core action directly,
+  bypassing the application-owned background transport.
+
+#### Correction
+
+- construct the cancellable transport as an unconfigured cancellation handle
+  before provider work starts;
+- after provider and feature initialization, have the native-compaction
+  extension bind the transport to its resolved `compaction_config`;
+- retain cancellation requested before configuration and apply it when the
+  async task starts;
+- keep constructor-supplied configuration supported for direct transport
+  consumers and compatibility tests;
+- use the same resolved configuration for ChatGPT saved-login credentials,
+  `auto` endpoint selection, explicit ChatGPT mode, and forced API compaction;
+- fail clearly if the real transport is invoked without either constructor or
+  late-bound configuration;
+- do not expose credentials in notifications, logs, tests, or task notes.
+
+#### Regression coverage and verification
+
+- add background application coverage that loads a saved ChatGPT credential
+  through `OpenAIResponsesChatGPTAuthFeature` and proves the controlled
+  transport receives the injected token, account, effective mode, and
+  ChatGPT endpoint;
+- add background coverage proving
+  `use_chatgpt_auth_for_compaction: false` binds the transport to API mode and
+  removes ChatGPT credential fields;
+- exercise late transport configuration through the real cancellable
+  transport against the local HTTP transport harness;
+- retain existing prompt initialization, asset-context, cancellation,
+  guarded-commit, notification, and UI-effect coverage;
+- run the focused background compaction, transport, and extension tests;
+- run the default OpenAI Responses package suite if focused verification is
+  green;
+- run focused Ruff/Black checks and `git diff --check`.
+
 ### Stage D — Selectable no-message continuation
 
 Add a compaction action option for:
@@ -1604,6 +1676,7 @@ second compaction backend or separate operation model.
 - [x] Complete checkpoint B.
 - [x] Approve the detailed Stage C plan and shared session-operation admission.
 - [x] Implement and verify Stage C.
+- [x] Correct and verify auth-resolved background compaction transport binding.
 - [ ] Complete mobile manual checkpoint C.
 - [ ] Implement and verify Stage D.
 - [ ] Complete mobile manual checkpoint D.
@@ -1909,3 +1982,86 @@ Verification note:
 - the first full application-suite run reached 90 percent but exceeded its
   180-second command limit and was not counted; the rerun completed
   successfully with a 360-second allowance.
+
+### Stage C follow-up — Auth-resolved background compaction transport
+
+Implemented on August 4, 2026.
+
+Outcome:
+
+- confirmed the saved ChatGPT login was valid and that the failure occurred
+  before any compact request reached the ChatGPT endpoint;
+- traced the failure to the background process constructing its cancellable
+  transport from raw effective session configuration before
+  `OpenAIResponsesChatGPTAuthFeature` initialized provider state;
+- changed the background process to create an unconfigured cancellable
+  transport so cancellation remains available before provider work starts;
+- added late transport configuration after provider and feature
+  initialization, using the extension's final `compaction_config`;
+- preserved direct constructor configuration for standalone transport callers;
+- made missing late configuration fail explicitly and ensured SDK
+  client-construction failures clear active transport task/loop state;
+- verified explicit ChatGPT mode and `auto` mode both bind saved credentials,
+  effective ChatGPT mode, account ID, and ChatGPT endpoint to the background
+  transport;
+- verified `use_chatgpt_auth_for_compaction: false` binds API mode and removes
+  ChatGPT credential/account fields before transport execution;
+- retained the existing notification-driven `ui_effects` edits already
+  present in the same process and test files without changing their behavior.
+
+Automated evidence:
+
+- focused background application, cancellable transport, and compaction
+  extension tests: 32 passed;
+- focused Ruff checks passed;
+- focused Black checks passed;
+- `git diff --check` passed;
+- full default OpenAI Responses suite: 402 passed and 76 deselected, with the
+  same 3 independently reproducible attachment-history failures already
+  recorded before this correction.
+
+Verification note:
+
+- no hosted compact request was required because deterministic application
+  coverage proves the saved-login feature output crosses the background
+  transport boundary, while the local HTTP transport harness exercises late
+  configuration through the real cancellable transport.
+
+## Completion Notes
+
+These completion notes close the Stage C auth-transport correction only. The
+overall background-compaction task remains open for the unchecked requirements
+and later stages above.
+
+### Auth-resolved background transport correction — August 4, 2026
+
+Finding:
+
+- the credential file was present, refreshed, and valid;
+- the background transport captured raw configuration before ChatGPT auth
+  initialization and therefore lacked `chatgpt_access_token`;
+- the initialized extension then used that pre-created transport, so explicit
+  ChatGPT mode failed locally without contacting OpenAI;
+- raw `auto` mode could instead select the API endpoint while the initialized
+  extension labeled the operation ChatGPT, producing misleading endpoint and
+  billing errors;
+- tests covered background execution and saved-login synchronous compaction
+  separately but did not cross both boundaries.
+
+Fix:
+
+- late-bind the cancellable transport to the feature-initialized,
+  compaction-specific configuration immediately before compact execution;
+- preserve pre-start cancellation and direct constructor configuration;
+- apply the same binding to ChatGPT, `auto`, and forced-API compaction;
+- add deterministic background regressions for saved ChatGPT login and forced
+  API mode, plus real cancellable-transport late-configuration coverage.
+
+Evidence and remaining scope:
+
+- all 32 focused tests and focused format/lint/diff checks passed;
+- the package-wide run reproduced only the three pre-existing
+  attachment-history failures documented above;
+- the user-provided session and saved credential files were not modified;
+- ordinary ChatGPT token refresh after a later provider 401 remains separate
+  from this configuration-handoff correction and was not expanded here.

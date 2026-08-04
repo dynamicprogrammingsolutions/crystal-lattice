@@ -38,12 +38,15 @@ class _ControlledTransport:
     error: BaseException | None = None
 
     def __init__(self, **kwargs: Any) -> None:
-        _ = kwargs
+        self.config = kwargs.get("config")
         self.started = threading.Event()
         self.release = threading.Event()
         self.cancelled = threading.Event()
         self.calls: list[Dict[str, Any]] = []
         type(self).instances.append(self)
+
+    def configure(self, config: Dict[str, Any]) -> None:
+        self.config = config
 
     def compact(self, **kwargs: Any) -> Dict[str, Any]:
         self.calls.append(kwargs)
@@ -92,6 +95,9 @@ def _controlled_transport(monkeypatch: pytest.MonkeyPatch):
 def _build_app(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    *,
+    provider_overrides: Dict[str, Any] | None = None,
+    extra_plugins: list[str] | None = None,
 ) -> tuple[AgentApplication, str]:
     monkeypatch.setattr(OpenAIResponsesProvider, "get_models", lambda self, config: [])
     config = {
@@ -100,12 +106,14 @@ def _build_app(
                 "provider": "openai_responses",
                 "model": "gpt-5-mini",
                 "api_key": "test-key",
+                **(provider_overrides or {}),
             }
         },
         "plugins": [
             "openai_responses_plugins.openai_responses_provider.OpenAIResponsesProvider",
             "openai_responses_plugins.openai_responses_native_compaction_extension.OpenAIResponsesNativeCompactionExtension",
             "openai_responses_plugins.openai_responses_native_compaction_app.OpenAIResponsesNativeCompactionAppPlugin",
+            *(extra_plugins or []),
         ],
         "agents": {"default": {"provider": "openai_responses"}},
     }
@@ -286,6 +294,110 @@ def test_background_action_resolves_asset_backed_tool_result_context(
     saved = app.load_live_session_record(session_id)
     assert saved is not None
     assert saved.metadata["native_messages"][-1]["type"] == "compaction"
+    assert app.list_session_notifications(session_id)[0]["severity"] == "success"
+    app.close()
+
+
+@pytest.mark.parametrize("auth_mode", ["chatgpt", "auto"])
+def test_background_action_binds_saved_chatgpt_login_to_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    auth_mode: str,
+) -> None:
+    credentials_path = tmp_path / "chatgpt-auth.json"
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "saved-chatgpt-token",
+                "account_id": "acct_saved",
+                "token_type": "Bearer",
+            }
+        ),
+        encoding="utf-8",
+    )
+    chatgpt_base_url = "https://chatgpt.example/backend-api/codex"
+    app, session_id = _build_app(
+        tmp_path,
+        monkeypatch,
+        provider_overrides={
+            "auth_mode": auth_mode,
+            "chatgpt_credentials_path": str(credentials_path),
+            "chatgpt_base_url": chatgpt_base_url,
+        },
+        extra_plugins=[
+            "openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature"
+        ],
+    )
+
+    result = _start(app, session_id)
+
+    transport = _ControlledTransport.instances[0]
+    assert transport.started.wait(2)
+    assert transport.config["auth_mode"] == auth_mode
+    assert transport.config["_openai_responses_effective_auth_mode"] == "chatgpt"
+    assert transport.config["base_url"] == chatgpt_base_url
+    assert transport.config["chatgpt_access_token"] == "saved-chatgpt-token"
+    assert transport.config["chatgpt_account_id"] == "acct_saved"
+
+    transport.release.set()
+    _wait_until(
+        lambda: get_application_operation_service(app.get_runtime_store()).get(
+            result["operation_id"]
+        )
+        is None
+    )
+    assert app.list_session_notifications(session_id)[0]["severity"] == "success"
+    app.close()
+
+
+def test_background_action_binds_forced_api_compaction_config_to_transport(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    credentials_path = tmp_path / "chatgpt-auth.json"
+    credentials_path.write_text(
+        json.dumps(
+            {
+                "access_token": "saved-chatgpt-token",
+                "account_id": "acct_saved",
+                "token_type": "Bearer",
+            }
+        ),
+        encoding="utf-8",
+    )
+    api_base_url = "https://api.example/v1"
+    app, session_id = _build_app(
+        tmp_path,
+        monkeypatch,
+        provider_overrides={
+            "auth_mode": "chatgpt",
+            "chatgpt_credentials_path": str(credentials_path),
+            "chatgpt_base_url": "https://chatgpt.example/backend-api/codex",
+            "api_base_url": api_base_url,
+            "use_chatgpt_auth_for_compaction": False,
+        },
+        extra_plugins=[
+            "openai_responses_plugins.openai_responses_chatgpt_auth_feature.OpenAIResponsesChatGPTAuthFeature"
+        ],
+    )
+
+    result = _start(app, session_id)
+
+    transport = _ControlledTransport.instances[0]
+    assert transport.started.wait(2)
+    assert transport.config["auth_mode"] == "api"
+    assert transport.config["_openai_responses_effective_auth_mode"] == "api"
+    assert transport.config["base_url"] == api_base_url
+    assert "chatgpt_access_token" not in transport.config
+    assert "chatgpt_account_id" not in transport.config
+
+    transport.release.set()
+    _wait_until(
+        lambda: get_application_operation_service(app.get_runtime_store()).get(
+            result["operation_id"]
+        )
+        is None
+    )
     assert app.list_session_notifications(session_id)[0]["severity"] == "success"
     app.close()
 
