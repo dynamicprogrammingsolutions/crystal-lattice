@@ -819,9 +819,6 @@ def test_chatgpt_estimated_cached_tokens_follow_turn_algorithm() -> None:
         _assistant_usage_item("a2", input_tokens=20, response_id="resp_2"),
         _assistant_usage_item("a3", input_tokens=30, response_id="resp_3"),
         _user_item("u4"),
-        _assistant_usage_item("a5", input_tokens=50, response_id="resp_5"),
-        _assistant_usage_item("a6", input_tokens=60, response_id="resp_6"),
-        _user_item("u7"),
     ]
 
     assert (
@@ -831,15 +828,31 @@ def test_chatgpt_estimated_cached_tokens_follow_turn_algorithm() -> None:
         ext._estimated_cached_tokens_for_current(history[:2], {"input_tokens": 30})
         == 20
     )
+    assert ext._estimated_cached_tokens_for_current(history, {"input_tokens": 40}) == 30
+    assert ext._estimated_cached_tokens_for_current(history, {"input_tokens": 30}) == 20
+    assert ext._estimated_cached_tokens_for_current(history, {"input_tokens": 25}) == 20
+    assert ext._estimated_cached_tokens_for_current(history, {"input_tokens": 19}) == 0
+
+
+def test_chatgpt_estimated_cached_tokens_detect_same_turn_prefix_invalidation() -> None:
+    ext = OpenAIResponsesUsageExtension()
+    history = [
+        _user_item("u1"),
+        _assistant_usage_item("a2", input_tokens=371_326, response_id="resp_previous"),
+    ]
+
     assert (
-        ext._estimated_cached_tokens_for_current(history[:4], {"input_tokens": 50})
-        == 20
+        ext._estimated_cached_tokens_for_current(history, {"input_tokens": 371_326})
+        == 371_326
     )
     assert (
-        ext._estimated_cached_tokens_for_current(history[:5], {"input_tokens": 60})
-        == 50
+        ext._estimated_cached_tokens_for_current(history, {"input_tokens": 400_000})
+        == 371_326
     )
-    assert ext._estimated_cached_tokens_for_current(history, {"input_tokens": 80}) == 50
+    assert (
+        ext._estimated_cached_tokens_for_current(history, {"input_tokens": 278_176})
+        == 0
+    )
 
 
 def test_chatgpt_estimated_cached_tokens_ignore_tool_results() -> None:
@@ -858,7 +871,55 @@ def test_chatgpt_estimated_cached_tokens_ignore_tool_results() -> None:
         ext._estimated_cached_tokens_for_current(history[:2], {"input_tokens": 30})
         == 20
     )
-    assert ext._estimated_cached_tokens_for_current(history, {"input_tokens": 50}) == 20
+    assert ext._estimated_cached_tokens_for_current(history, {"input_tokens": 50}) == 30
+
+    history.extend([_user_item("u5"), _user_item("u6")])
+    assert ext._estimated_cached_tokens_for_current(history, {"input_tokens": 50}) == 30
+
+
+def test_chatgpt_compaction_invalidation_flows_into_usage_cost_and_totals() -> None:
+    ext = OpenAIResponsesUsageExtension()
+    previous = {
+        "type": "function_call",
+        "call_id": "call_1",
+        "name": "lookup",
+        "arguments": "{}",
+        "_metadata": {
+            "usage": {"input_tokens": 371_326, "output_tokens": 10},
+            "usage_estimated_cached_tokens": 100,
+            "usage_total_cost": 0.1,
+            "turn": {"id": 1, "has_tool_calls": True, "is_terminal": False},
+        },
+    }
+    base_native = [_user_item("u1"), previous]
+    final_messages = [_assistant_output_item("done", response_id="resp_current")]
+    native_messages = [*base_native, *final_messages]
+    usage = {"input_tokens": 278_176, "output_tokens": 190}
+
+    _partials, finals, _new_native, _state = ext.process_chunk(
+        native_chunk={
+            "type": "response.completed",
+            "response": {"id": "resp_current", "usage": usage},
+        },
+        partial_messages=[],
+        final_messages=final_messages,
+        native_messages=native_messages,
+        state={
+            "config": {
+                "model": "gpt-5-mini",
+                "_openai_responses_effective_auth_mode": "chatgpt",
+            }
+        },
+    )
+
+    md = finals[0].get("_metadata") or {}
+    expected_current_cost = ((278_176 * 0.25) + (190 * 2.0)) / 1_000_000
+    assert md.get("usage") == usage
+    assert md.get("usage_estimated_cached_tokens") == 0
+    assert md.get("usage_estimated_cached_tokens_formatted") == "0"
+    assert md.get("usage_total_cost") == pytest.approx(expected_current_cost)
+    assert md.get("usage_turn_cached_tokens_cumulative") == 100
+    assert md.get("usage_turn_cached_tokens_cumulative_formatted") == "100"
 
 
 def test_chatgpt_streaming_usage_keeps_raw_usage_separate_and_estimates_cost() -> None:

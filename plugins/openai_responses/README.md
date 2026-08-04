@@ -644,6 +644,27 @@ usage payload and is used for ChatGPT-mode pricing instead of any
 backend-reported cached-token field. By default it is not displayed; enable
 `show_estimated_cached_tokens` if you want the footer.
 
+The estimator considers user boundaries and usage-bearing assistant or tool-call
+generations; tool results are ignored. Within one user turn, the immediately
+previous generation's input is the cached-prefix candidate. If that candidate
+is larger than the current input, the prefix is considered invalidated by
+compaction or another history change and the estimate is `0`.
+
+For the first generation after a user message, the estimator compares the
+current input with both the first and last inputs from the preceding populated
+turn:
+
+- if current input is strictly greater than the previous turn's last input,
+  reasoning is treated as preserved and that last input is the estimate
+- otherwise, the previous turn's first input is used as the conservative
+  interleaved-reasoning estimate when it does not exceed current input
+- if even that interleaved candidate exceeds current input, the prefix is
+  considered invalidated and the estimate is `0`
+
+The estimate is an observability and pricing heuristic, not a provider-reported
+or billing-grade cache measurement. It does not expose the inferred
+preserved/interleaved classification as metadata.
+
 The reasoning extension contributes its own `message_footer` element for the
 effective reasoning context (`context: all_turns` / `current_turn`),
 parallel to the usage footers above. It renders only when

@@ -510,32 +510,91 @@ def test_estimated_cached_tokens_follow_turn_aware_history():
         _assistant_usage_message(20, tool_call=True),
         _assistant_usage_message(30),
         {"role": "user", "content": "u2"},
-        _assistant_usage_message(50, tool_call=True),
-        _assistant_usage_message(60),
-        {"role": "user", "content": "u3"},
     ]
 
     assert _estimated_cached_tokens_for_current(history[:1], {"prompt_tokens": 20}) == 0
     assert (
         _estimated_cached_tokens_for_current(history[:2], {"prompt_tokens": 30}) == 20
     )
-    assert (
-        _estimated_cached_tokens_for_current(history[:4], {"prompt_tokens": 50}) == 20
-    )
-    assert (
-        _estimated_cached_tokens_for_current(history[:5], {"prompt_tokens": 60}) == 50
-    )
-    assert _estimated_cached_tokens_for_current(history, {"prompt_tokens": 80}) == 50
+    assert _estimated_cached_tokens_for_current(history, {"prompt_tokens": 40}) == 30
+    assert _estimated_cached_tokens_for_current(history, {"prompt_tokens": 30}) == 20
+    assert _estimated_cached_tokens_for_current(history, {"prompt_tokens": 25}) == 20
+    assert _estimated_cached_tokens_for_current(history, {"prompt_tokens": 19}) == 0
 
 
-def test_estimated_cached_tokens_ignore_tool_results_and_clamp_to_current_input():
+def test_estimated_cached_tokens_detect_same_turn_prefix_invalidation():
     history = [
         {"role": "user", "content": "u1"},
-        _assistant_usage_message(200, tool_call=True),
-        {"role": "tool", "content": "large result", "tool_call_id": "call_1"},
+        _assistant_usage_message(371_326, tool_call=True),
     ]
 
-    assert _estimated_cached_tokens_for_current(history, {"prompt_tokens": 50}) == 50
+    assert (
+        _estimated_cached_tokens_for_current(history, {"prompt_tokens": 371_326})
+        == 371_326
+    )
+    assert (
+        _estimated_cached_tokens_for_current(history, {"prompt_tokens": 400_000})
+        == 371_326
+    )
+    assert (
+        _estimated_cached_tokens_for_current(history, {"prompt_tokens": 278_176}) == 0
+    )
+
+
+def test_estimated_cached_tokens_ignore_tool_results_and_empty_user_turns():
+    history = [
+        {"role": "user", "content": "u1"},
+        _assistant_usage_message(20, tool_call=True),
+        {"role": "tool", "content": "large result", "tool_call_id": "call_1"},
+        _assistant_usage_message(30),
+        {"role": "user", "content": "u2"},
+        {"role": "tool", "content": "ignored", "tool_call_id": "call_2"},
+    ]
+
+    assert _estimated_cached_tokens_for_current(history, {"prompt_tokens": 50}) == 30
+
+    history.extend(
+        [
+            {"role": "user", "content": "u3"},
+            {"role": "user", "content": "u4"},
+        ]
+    )
+    assert _estimated_cached_tokens_for_current(history, {"prompt_tokens": 50}) == 30
+
+
+def test_usage_extension_prefix_invalidation_flows_into_cost_and_totals():
+    ext = OpenAICompatibleUsageExtension()
+    previous = _assistant_usage_message(371_326, tool_call=True)
+    previous["_metadata"].update(
+        {
+            "usage_estimated_cached_tokens": 100,
+            "turn": {"id": 1, "has_tool_calls": True, "is_terminal": False},
+        }
+    )
+    history = [{"role": "user", "content": "u1"}, previous]
+    current = _assistant_usage_message(278_176, completion_tokens=190)
+    state = {
+        "config": {
+            "estimate_cached_tokens": True,
+            "token_rates": {
+                "input": 0.25,
+                "cached": 0.025,
+                "completion": 2.0,
+            },
+        }
+    }
+
+    finals, _native, _state = ext.finalize([current], [*history, current], state)
+
+    metadata = finals[0]["_metadata"]
+    usage = metadata["usage"]
+    expected_current_cost = ((278_176 * 0.25) + (190 * 2.0)) / 1_000_000
+    assert metadata["usage_estimated_cached_tokens"] == 0
+    assert metadata["usage_estimated_cached_tokens_formatted"] == "0"
+    assert metadata["usage_turn_cached_tokens_cumulative"] == 100
+    assert metadata["usage_turn_cached_tokens_cumulative_formatted"] == "100"
+    assert usage["cost"] == pytest.approx(expected_current_cost)
+    assert "prompt_tokens_details" not in usage
 
 
 def test_usage_extension_estimation_is_opt_in():

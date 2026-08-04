@@ -253,12 +253,20 @@ tool-result messages are ignored:
 
 - the first generation has an estimate of `0`
 - a later generation in the same user turn reuses the immediately preceding
-  generation's prompt-token count
-- the first generation of a new user turn reuses the first generation's
-  prompt-token count from the preceding populated turn
+  generation's prompt-token count when it does not exceed current input
+- when that same-turn candidate exceeds current input, compaction or another
+  prefix change is inferred and the estimate is `0`
+- on the first generation after a user message, current input strictly greater
+  than the preceding populated turn's last input is treated as preserved
+  reasoning, and that last input is the estimate
+- otherwise, the preceding turn's first input is used as the conservative
+  interleaved-reasoning estimate when it does not exceed current input
+- if even the interleaved candidate exceeds current input, prefix invalidation
+  is inferred and the estimate is `0`
 
-The estimate is clamped to the current prompt-token total. A real
-provider-reported cached-token count always takes precedence, and a
+History-derived candidates are validated by these comparisons rather than
+clamped to the current prompt-token total. A real provider-reported cached-token
+count is still defensively clamped and always takes precedence, and a
 provider-returned cost always takes precedence over local estimation.
 
 Estimated data remains separate from provider usage:
@@ -270,6 +278,7 @@ The extension does not synthesize
 `metadata.usage.prompt_tokens_details.cached_tokens`. The estimate contributes
 only to local configured-rate cost calculation and effective turn cached-token
 totals. It is a comparison/observability heuristic, not billing-grade usage.
+The inferred preserved/interleaved classification is not exposed as metadata.
 
 ### Image attachments
 

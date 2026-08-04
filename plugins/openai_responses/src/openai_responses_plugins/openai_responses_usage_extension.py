@@ -485,6 +485,7 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
     ) -> List[int]:
         estimates: List[int] = []
         previous_turn_first_usage_input: Optional[int] = None
+        previous_turn_last_usage_input: Optional[int] = None
         current_turn_first_usage_input: Optional[int] = None
         current_turn_last_usage_input: Optional[int] = None
 
@@ -492,14 +493,27 @@ class OpenAIResponsesUsageExtension(ProviderExtensionPlugin):
             if kind == "user":
                 if current_turn_first_usage_input is not None:
                     previous_turn_first_usage_input = current_turn_first_usage_input
+                    previous_turn_last_usage_input = current_turn_last_usage_input
                 current_turn_first_usage_input = None
                 current_turn_last_usage_input = None
                 continue
 
             if current_turn_last_usage_input is not None:
-                estimated = current_turn_last_usage_input
+                estimated = (
+                    current_turn_last_usage_input
+                    if current_turn_last_usage_input <= input_tokens
+                    else 0
+                )
             elif previous_turn_first_usage_input is not None:
-                estimated = previous_turn_first_usage_input
+                if (
+                    previous_turn_last_usage_input is not None
+                    and input_tokens > previous_turn_last_usage_input
+                ):
+                    estimated = previous_turn_last_usage_input
+                elif previous_turn_first_usage_input <= input_tokens:
+                    estimated = previous_turn_first_usage_input
+                else:
+                    estimated = 0
             else:
                 estimated = 0
 

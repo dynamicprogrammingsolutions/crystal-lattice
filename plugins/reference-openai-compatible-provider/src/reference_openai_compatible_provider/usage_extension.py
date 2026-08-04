@@ -256,6 +256,7 @@ def _estimated_cached_tokens_from_markers(
 ) -> list[int]:
     estimates: list[int] = []
     previous_turn_first_usage_input: int | None = None
+    previous_turn_last_usage_input: int | None = None
     current_turn_first_usage_input: int | None = None
     current_turn_last_usage_input: int | None = None
 
@@ -263,14 +264,27 @@ def _estimated_cached_tokens_from_markers(
         if kind == "user":
             if current_turn_first_usage_input is not None:
                 previous_turn_first_usage_input = current_turn_first_usage_input
+                previous_turn_last_usage_input = current_turn_last_usage_input
             current_turn_first_usage_input = None
             current_turn_last_usage_input = None
             continue
 
         if current_turn_last_usage_input is not None:
-            estimated = current_turn_last_usage_input
+            estimated = (
+                current_turn_last_usage_input
+                if current_turn_last_usage_input <= prompt_tokens
+                else 0
+            )
         elif previous_turn_first_usage_input is not None:
-            estimated = previous_turn_first_usage_input
+            if (
+                previous_turn_last_usage_input is not None
+                and prompt_tokens > previous_turn_last_usage_input
+            ):
+                estimated = previous_turn_last_usage_input
+            elif previous_turn_first_usage_input <= prompt_tokens:
+                estimated = previous_turn_first_usage_input
+            else:
+                estimated = 0
         else:
             estimated = 0
 
@@ -294,7 +308,7 @@ def _estimated_cached_tokens_for_current(
     estimates = _estimated_cached_tokens_from_markers(markers)
     if not estimates:
         return None
-    return _clamp_cached_tokens(estimates[-1], prompt_tokens)
+    return estimates[-1]
 
 
 def _estimated_cached_tokens_from_message(
