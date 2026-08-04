@@ -1238,52 +1238,64 @@ Checkpoint C:
 
 ### Stage C follow-up — Notification-driven UI effects
 
-Stage C follow-up plan status: Draft; approval required before implementation.
+Stage C follow-up plan status: Approved on August 4, 2026.
 
 #### Outcome
 
-A session notification revision may request the same reload behavior already
-available to successful application-action responses. Native compaction will
-use this only on successful completion so the active chat reloads the compacted
-session without a manual refresh.
+A session or application notification revision may request the same
+connection-scoped refresh behavior as a successful application-action
+response. Native compaction will use a session reload only on successful
+completion so the active chat reloads the compacted session without a manual
+refresh.
 
 #### Proposed contract
 
-Add an optional `ui_effects` mapping to the session-notification contract:
+Add an optional `ui_effects` mapping to both session- and
+application-notification contracts:
 
 ```json
 {
   "ui_effects": {
     "reload_session_ids": ["session-1"],
-    "reload_sessions_list": false
+    "reload_sessions_list": true,
+    "reload_application_actions": true
   }
 }
 ```
 
-Reuse the action-response field names and shared frontend types. Preserve
-unknown `ui_effects` fields, but the first implementation should execute only:
+Define a shared refresh-effect type used by action responses and notifications:
 
 - `reload_session_ids`;
-- `reload_sessions_list`.
+- `reload_sessions_list`;
+- `reload_application_actions`.
 
-Do not automatically execute navigation from asynchronously arriving
-notifications in this stage. Unexpected navigation is materially more
-disruptive than refreshing current data and should require a separate product
-decision.
+All three are scoped to the connection that receives the result or
+notification. `reload_session_ids` invalidates listed session data and
+refreshes mounted/open consumers, but it never opens or navigates to a session.
+
+`navigate_to_session_id` remains action-only. Action execution has a direct
+user gesture and navigation context; an asynchronously arriving notification
+must not move focus. A notification follow-up may still invoke an action whose
+response navigates after the user explicitly selects it.
+
+Action `mutations` also remain action-only. Mutation-derived policies such as
+automatic navigation to a created session or automatic session-list reload are
+not inferred for notifications. Notification effects must be explicit.
 
 The notification store already preserves additional JSON-compatible fields.
-Add explicit validation and frontend typing for the supported reload fields
-without making the server interpret or execute them.
+Add explicit validation and frontend typing for the three shared refresh
+fields without making the server interpret or execute them. Preserve unknown
+fields so frontends can add optional capabilities later.
 
 #### Shared frontend behavior
 
-Extract action-response UI-effect parsing from the private action runner into a
-shared frontend SDK helper so action responses and notifications use the same
-reload semantics.
+Extract refresh-effect parsing and connection-scoped routing from the private
+action runner into shared frontend SDK infrastructure so action responses,
+session notifications, and application notifications use the same semantics.
 
-Extend the shared session-notification host with a callback that reports
-notification UI effects once for each newly observed notification revision.
-Deduplicate by connection, notification ID, and revision so:
+Extend session-notification and application-notification consumers to report
+effects once for each newly observed notification revision. Deduplicate by
+connection, notification scope, notification ID, and revision so:
 
 - heartbeat rerenders do not repeat an effect;
 - refreshing a summary containing the same revision does not loop;
@@ -1296,19 +1308,24 @@ status, retry the compaction, or affect operation correctness.
 
 #### Frontend integration
 
-Mobile Chat should translate a matching `reload_session_ids` entry into its
-existing message/session-context reload path.
+Mobile and desktop connection-level layers should route refresh effects through
+generic connection-scoped invalidation channels:
+
+- `reload_session_ids` invalidates listed session caches and refreshes matching
+  mounted Chat consumers;
+- `reload_sessions_list` refreshes the connection's session collection;
+- `reload_application_actions` invalidates application action definitions and
+  related application UI schema.
+
+Mobile Chat should translate a matching session invalidation into its existing
+message/session-context reload path.
 
 Desktop Chat should translate it into the existing `handleReload()` path and
-refresh session-list state when requested.
+the desktop connection layer should publish the existing sessions-list and
+application-action invalidations when requested.
 
 The implementation should remain generic: neither frontend should contain
 OpenAI-compaction-specific branching.
-
-Application-scoped notification UI effects are deferred. They require routing
-effects from the connection-level display layer into potentially multiple
-session and list owners. The shared field shape should remain reusable when
-that routing is added.
 
 #### Compaction producer behavior
 
@@ -1324,10 +1341,16 @@ The compaction process should:
 
 - frontend SDK unit tests cover parsing, ignored unknown fields, and
   revision-based deduplication;
-- shared React Native notification-host tests prove one callback per revision;
+- action-response tests prove the shared refresh parser preserves existing
+  behavior, including making the currently declared
+  `reload_application_actions` field operative;
+- session- and application-notification tests prove one effect delivery per
+  revision and strict connection scoping;
 - mobile component coverage proves a successful notification reloads the
   current transcript without OpenAI-specific logic;
-- desktop component coverage proves the same behavior through
+- connection-level mobile and desktop tests cover session-list and application
+  action invalidation from application notifications;
+- desktop component coverage proves session invalidation reaches
   `handleReload()`;
 - plugin tests prove only the success revision carries the reload request;
 - failure, cancellation, and heartbeat revisions never trigger a reload;
@@ -1336,9 +1359,12 @@ The compaction process should:
 
 #### Approval decision
 
-Approve or revise the recommendation that notification-driven automatic
-effects initially support reloads only, while navigation and other imperative
-effects remain deferred.
+Approve or revise this boundary:
+
+- share the three refresh/invalidation fields between actions and both
+  notification scopes;
+- keep navigation and mutation-derived policies action-only;
+- preserve unknown notification fields without executing them.
 
 ### Stage D — Selectable no-message continuation
 
