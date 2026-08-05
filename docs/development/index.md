@@ -1,13 +1,27 @@
-# Development specifications
+# Development documentation
 
-This section contains cross-package behavior that must remain consistent across
-the Python runtime, transports, SDKs, plugins, and frontends.
+This section contains reusable development standards, Crystal Lattice
+repository policy, and target specifications for behavior that spans multiple
+independently owned packages.
+
+## Standards
+
+- [Reusable standards](standards/index.md): package-neutral documentation and
+  specification rules.
+- [Crystal Lattice repository policy](repository/index.md): local paths,
+  package profiles, plugin documentation, task workflow, publication, and
+  validation.
+
+Package implementation and maintenance documentation belongs under the owning
+package's `docs/development/`.
+
+## Cross-package specifications
 
 - [Notifications](specifications/notifications/index.md)
 - [Action displays](specifications/action-display/index.md)
 - [Application runtime reload](specifications/application-runtime-reload/index.md)
 - [Sessions actions](specifications/sessions-actions/index.md)
 
-These specifications own portable behavior. Package development documentation
-describes how the current implementation satisfies them without redefining the
-contracts.
+These specifications define targets for portable behavior. Their requirements
+track implementation and verification, while package development pages
+describe current implementations without redefining the shared contracts.

@@ -106,10 +106,58 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 
 **Docs & scripts**
 - Root: `ARCHITECTURE.md`, `PROJECT_PLAN.md`, `TYPES_AND_PROTOCOLS.md`, `DEVELOPMENT.md`, `EXAMPLES.md`.
+- Development hub: `docs/development/index.md`.
+- Reusable standards: `docs/development/standards/index.md`.
+- Crystal Lattice repository policy: `docs/development/repository/index.md`.
+- Standards-maintenance specifications: `maintainer/specifications/`.
 - API docs: `docs/api/core-sdk.md`, `docs/reference/agent_core/*`.
 - Current plugin docs: `plugins/docs/*`; start with `plugins/docs/index.md`.
 - Older/general plugin overview: `docs/plugins/development.md`.
 - Examples generator: `scripts/generate_examples_md.py`.
+
+## Documentation ownership and workflow
+
+Documentation is authored next to the package or subsystem that owns it.
+
+- Start package work by reading its `README.md`, nearest `AGENTS.md`, and
+  `docs/index.md` when present.
+- Keep README files concise: purpose, installation, first use/build/test, and
+  pointers to detailed documentation.
+- Put package-user documentation under `<package>/docs/`.
+- Put current package internals, contributor guidance, architecture, testing,
+  and specifications under `<package>/docs/development/`.
+- Keep root `docs/` for reusable standards, Crystal Lattice repository policy,
+  genuinely cross-package contracts, architecture, and site entry points. Do
+  not use it as the default location for package documentation.
+- Treat authored package/root files as sources of truth.
+  `docs_site/prepared/` and `docs_site/dist/` are generated and must not be
+  edited directly.
+- Specifications describe intended targets and may temporarily differ from
+  implementation. Requirements track live implementation, verification,
+  documentation, and evidence. Task files track approval and execution.
+- Public user documentation and implementation/maintainer documentation
+  describe current committed behavior. Commit new claims with the code that
+  makes them true.
+- Create a substantial package specification only when its scope and value
+  justify it and the active approved task authorizes it, or after presenting
+  the owner/scope/overlap and obtaining user approval.
+- Use stable requirement IDs for important acceptance behavior and record
+  concrete implementation, verification, documentation, task, and delivery
+  evidence. Do not duplicate execution plans in specifications.
+- Do not invent a documentation baseline by reconstructing large unfamiliar
+  areas. Document facts verified during the current work and record larger
+  gaps for later migration.
+
+Apply the rules through:
+
+- `docs/development/repository/index.md`
+- `docs/development/standards/index.md`
+
+When changing the standards, task guidance, publication rules, or their
+validation—not merely applying them—also read:
+
+- `maintainer/specifications/documentation-and-specification-standard/index.md`
+- `maintainer/specifications/documentation-and-specification-standard/requirements.md`
 
 **Auxiliary directories**
 - `evaluations/`: shared evaluation framework and benchmark suites.
@@ -191,7 +239,11 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 - `pyright`
 
 **Docs**
-- `mkdocs serve` / `mkdocs build`
+- `python -m pip install -r docs_site/requirements.txt`
+- `python docs_site/scripts/prepare_mkdocs_site.py`
+- `(cd docs_site && mkdocs serve -a 127.0.0.1:8001)` / `(cd docs_site && mkdocs build)`
+- Use `python docs_site/scripts/build_mkdocs_site.py` only when the task also
+  intends to refresh committed generated reference snapshots.
 - After changing examples: run the relevant example tests selectively, then `python scripts/generate_examples_md.py`
 
 ---
@@ -307,8 +359,19 @@ See `cloud-orchestrator/AGENTS.md` for orchestrator-specific test realism rules 
 - Do not add new plugin projects under `core/python/plugins` without explicit user consent.
 
 **When to update docs**
-- Changing core APIs, plugin protocols, or application behavior:
-  - Update: `TYPES_AND_PROTOCOLS.md`, `docs/api/core-sdk.md`, relevant `docs/reference/agent_core/*`, `DEVELOPMENT.md`, `application/python/README.md` as appropriate.
+- Changing public behavior:
+  - Update the owning package's current user docs and any affected
+    cross-package user guidance.
+- Changing implementation, architecture, testing, or maintenance behavior:
+  - Update the owning package's `docs/development/` pages.
+- Changing an intended target:
+  - Update its specification first and update requirements as implementation,
+    verification, and documentation progress.
+- During the initial documentation migration, current legacy pages such as
+  `TYPES_AND_PROTOCOLS.md`, `docs/api/core-sdk.md`,
+  `docs/reference/agent_core/*`, `DEVELOPMENT.md`, and
+  `application/python/README.md` remain valid until their owning subtasks move
+  them.
 - Changing examples or adding new ones:
   - Update example code + tests, then regenerate `EXAMPLES.md`.
 

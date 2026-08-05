@@ -17,22 +17,22 @@ boilerplate or reconstructed documentation to every package.
 
 - [x] The unified maintainer meta-specification defines the target and its
   requirements track both reusable and repository-specific output artifacts.
-- [ ] `docs/development/index.md` provides a concise map to repository-wide
+- [x] `docs/development/index.md` provides a concise map to repository-wide
   development documentation.
 - [ ] `docs/development/standards/` contains reusable package-neutral
   documentation and specification standards.
 - [ ] `docs/development/repository/` maps the generic standards to Crystal
   Lattice paths, package profiles, plugin documentation, tasks, agent guidance,
   publication, and validation without duplicating the generic explanations.
-- [ ] Root `AGENTS.md` contains concise routing and update guidance and points to
+- [x] Root `AGENTS.md` contains concise routing and update guidance and points to
   the effective repository policy, generic standards, and maintainer
   specification only when an agent is changing the standards themselves.
-- [ ] The standard does not require placeholder pages, duplicated boilerplate,
+- [x] The standard does not require placeholder pages, duplicated boilerplate,
   or broad reverse engineering of undocumented packages.
-- [ ] Initial major package roots are classified under the approved profiles,
+- [x] Initial major package roots are classified under the approved profiles,
   and package entry-point creation is assigned to the owning migration
   subtasks.
-- [ ] The approved decision register in the parent task remains reflected in
+- [x] The approved decision register in the parent task remains reflected in
   the authored standard and remains reviewable.
 
 ## Supporting details
@@ -40,7 +40,8 @@ boilerplate or reconstructed documentation to every package.
 ### Approved model
 
 The full rationale, research references, package profiles, documentation roles,
-specification convention, lifecycle, and approved decision register are in:
+specification convention, target/current-state model, and approved decision
+register are in:
 
 - `tasks/20260728-package-local-documentation-standard/000-main.md`
 
@@ -114,9 +115,19 @@ long-form content merely to complete the shape.
 - The user approved execution of subtask 010 on August 5, 2026, including the
   package-entry-point ownership correction assigning Core/application entry
   points to subtasks 030/040.
-- No generic standards, repository-policy pages, AGENTS updates, docs-site
-  changes, migrations, or maintainer-tool relocations have been implemented.
-- The execution plan remains `Draft`.
+- Authored the reusable documentation/specification standards and the Crystal
+  Lattice repository policy under `docs/development/`.
+- Expanded the development hub and updated root `AGENTS.md`, README, and docs
+  index routing.
+- Static checks found no project-specific terms in the reusable standard pages
+  and no broken relative links introduced by 010.
+- `python docs_site/scripts/prepare_mkdocs_site.py` and normal `mkdocs build`
+  completed successfully. The build reported the six new standards/policy pages
+  as omitted from explicit nav; `DOCPUB-005` and subtask 060 own that planned
+  navigation update. Existing griffe/autoref warnings remain outside 010.
+- No docs-site navigation changes, content migrations, or maintainer-tool
+  relocations have been implemented by 010.
+- The execution plan is `Approved`.
 
 ## Execution plan
 
@@ -505,14 +516,14 @@ Documentation-only verification:
 - [x] Create the simplified maintainer boundary and unified meta-specification.
 - [x] Create live requirements for generic and repository-specific outputs.
 - [x] Map the parent task and subtasks to meta-specification requirement IDs.
-- [ ] Preserve existing cross-package specifications and package implementation docs.
-- [ ] Expand the root development index into a standards/specifications hub.
-- [ ] Write the documentation structure standard.
-- [ ] Write the specification-driven development standard.
-- [ ] Update root agent routing.
-- [ ] Classify initial package profiles.
-- [ ] Update root README and docs index links/build guidance.
-- [ ] Run documentation preparation/build and inspect warnings.
+- [x] Preserve existing cross-package specifications and package implementation docs.
+- [x] Expand the root development index into a standards/specifications hub.
+- [x] Write the documentation structure standard.
+- [x] Write the specification-driven development standard.
+- [x] Update root agent routing.
+- [x] Classify initial package profiles.
+- [x] Update root README and docs index links/build guidance.
+- [x] Run documentation preparation/build and inspect warnings.
 - [ ] Obtain human review of clarity and agent-context concision.
 
 ### Requirement verification

@@ -475,12 +475,16 @@ pytest core/python/examples/tests -qs
 Browse the MkDocs site locally:
 
 ```bash
-pip install -r docs/requirements.txt
-mkdocs serve
+python -m pip install -r docs_site/requirements.txt
+python docs_site/scripts/prepare_mkdocs_site.py
+(cd docs_site && mkdocs serve -a 127.0.0.1:8001)
 ```
 
 Key docs:
 
+- [Development documentation](docs/development/index.md)
+- [Reusable development standards](docs/development/standards/index.md)
+- [Crystal Lattice repository policy](docs/development/repository/index.md)
 - [docs/api/core-sdk.md](docs/api/core-sdk.md)
 - [plugins/docs/index.md](plugins/docs/index.md)
 - [docs/plugins/development.md](docs/plugins/development.md) - older/general plugin overview
@@ -488,6 +492,16 @@ Key docs:
 - [application/python/README.md](application/python/README.md)
 - [mobile/crystal-lattice-control-rn/README.md](mobile/crystal-lattice-control-rn/README.md)
 - [bridge-elixir/README.md](bridge-elixir/README.md)
+
+Build the prepared site without starting a server:
+
+```bash
+python docs_site/scripts/prepare_mkdocs_site.py
+(cd docs_site && mkdocs build)
+```
+
+See [docs_site/README.md](docs_site/README.md) for the full build, generated
+reference snapshot, and deployment workflow.
 
 When changing examples:
 
