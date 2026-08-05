@@ -1,2 +1,7 @@
 artifacts/detox/
 artifacts/notification-visual/
+fastlane/.env
+fastlane/Preview.html
+fastlane/report.xml
+fastlane/screenshots/
+fastlane/test_output/

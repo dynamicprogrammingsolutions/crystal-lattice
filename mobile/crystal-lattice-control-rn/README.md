@@ -137,6 +137,92 @@ npx react-native run-ios --device "Your iPhone Name"
 ```
 This requires code signing to be configured in Xcode first (steps 2-3 above).
 
+## TestFlight with fastlane
+
+The iOS release workflow uses Ruby 3.4.10, Bundler, App Store Connect API-key
+authentication, and a private git-backed `fastlane match` repository.
+
+Install the pinned Ruby version with your preferred version manager, then run:
+
+```bash
+bundle install
+bundle exec fastlane lanes
+```
+
+Available lanes:
+
+```bash
+bundle exec fastlane ios verify
+bundle exec fastlane ios setup_signing
+bundle exec fastlane ios build
+bundle exec fastlane ios beta
+```
+
+- `verify` runs the build-number tests, TypeScript validation, and Jest.
+- `setup_signing` is a one-time or intentional maintenance operation that can
+  create/update the App Store certificate and provisioning profile in the
+  private match repository.
+- `build` synchronizes signing assets read-only and creates
+  `build/ios/CrystalLattice.ipa`.
+- `beta` verifies, archives, and uploads an internal TestFlight build.
+
+Copy `fastlane/.env.example` to `fastlane/.env` for local use and replace the
+placeholders. The local `.env`, fastlane reports, build directory, API private
+key, certificates, and provisioning profiles must not be committed.
+
+Required release variables:
+
+- `MATCH_GIT_URL`
+- `MATCH_PASSWORD`
+- `APP_STORE_CONNECT_KEY_ID`
+- `APP_STORE_CONNECT_ISSUER_ID`
+- Either `APP_STORE_CONNECT_KEY_PATH` or `APP_STORE_CONNECT_KEY_CONTENT`
+
+Git authentication for the private signing repository is supplied through
+standard match variables such as `MATCH_GIT_BASIC_AUTHORIZATION` or
+`MATCH_GIT_PRIVATE_KEY`.
+
+One-time credential setup:
+
+1. Create an empty private GitHub repository for signing assets, for example
+   `dynamicprogrammingsolutions/crystal-lattice-ios-signing`.
+2. In App Store Connect, open **Users and Access → Integrations → Team Keys**,
+   generate a key named `Crystal Lattice fastlane` with the **App Manager** role,
+   and download its `.p8` file. Apple only offers the private key download once.
+3. Record the key ID and issuer ID in a password manager.
+4. Generate a strong match encryption password, for example:
+
+   ```bash
+   openssl rand -base64 32
+   ```
+
+5. Copy `fastlane/.env.example` to the ignored `fastlane/.env`, set the signing
+   repository URL, match password, API key ID, issuer ID, and absolute `.p8`
+   filepath.
+6. Confirm that the local SSH key or other configured match git authentication
+   can clone the private signing repository.
+
+The first signing bootstrap should be run locally with write access:
+
+```bash
+cp fastlane/.env.example fastlane/.env
+MATCH_READONLY=false bundle exec fastlane ios setup_signing
+```
+
+Normal build and CI execution must use `MATCH_READONLY=true`.
+
+Build numbers are selected in this order:
+
+1. `IOS_BUILD_NUMBER`, when explicitly set.
+2. The greater of `GITHUB_RUN_NUMBER` and the latest TestFlight build plus one.
+3. The latest TestFlight build plus one when outside GitHub Actions.
+
+The archive receives the build number as an Xcode build-setting override, so a
+local fastlane build does not modify the checked-in Xcode project version.
+
+The App Store listing is identified by numeric Apple ID `6798401926`; the bundle
+identifier remains `com.dynamicprogrammingsolutions.crystallatticecontrolrn`.
+
 ### Android
 
 **Option 1: Using CLI**
