@@ -185,7 +185,8 @@ standard match variables such as `MATCH_GIT_BASIC_AUTHORIZATION` or
 One-time credential setup:
 
 1. Create an empty private GitHub repository for signing assets, for example
-   `dynamicprogrammingsolutions/crystal-lattice-ios-signing`.
+   `dynamicprogrammingsolutions/crystal-lattice-ios-signing`, initialized with a
+   `main` branch.
 2. In App Store Connect, open **Users and Access → Integrations → Team Keys**,
    generate a key named `Crystal Lattice fastlane` with the **App Manager** role,
    and download its `.p8` file. Apple only offers the private key download once.

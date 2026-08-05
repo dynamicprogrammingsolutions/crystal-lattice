@@ -72,8 +72,7 @@ def sync_app_store_signing(api_key:, readonly:)
     shallow_clone: true,
   }
 
-  branch = ENV["MATCH_GIT_BRANCH"]
-  options[:git_branch] = branch if branch && !branch.strip.empty?
+  options[:git_branch] = ENV.fetch("MATCH_GIT_BRANCH", "main")
 
   match(**options)
 end
